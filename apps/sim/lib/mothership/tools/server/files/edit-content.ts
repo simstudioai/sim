@@ -12,6 +12,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { getE2BDocFormat } from '@/lib/uploads/documents/compile'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
   collectSimPageDiagnostics,
@@ -20,7 +21,6 @@ import {
   isSimPageSource,
   SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
-import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { waitForLatestFileIntent } from './file-intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'

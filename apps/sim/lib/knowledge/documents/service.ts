@@ -678,12 +678,14 @@ function durableSecretProvenanceFromWorkspaceFile(
   binding: FileMetadataRecord
 ): DurableSecretProvenance {
   if (provenance.status === 'unknown') return provenance
+  const sourceUserId = binding.userId
+  if (!sourceUserId || binding.entityType === 'project') return { status: 'unknown' }
   if (provenance.status === 'unrecorded') return EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
   return {
     status: 'exact',
     entries: provenance.entries.map((entry) => ({
       ...entry,
-      sourceUserId: binding.userId,
+      sourceUserId,
       ...(binding.workspaceId ? { sourceWorkspaceId: binding.workspaceId } : {}),
     })),
   }

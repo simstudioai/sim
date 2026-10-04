@@ -10,7 +10,7 @@ permissions:
 jobs:
   postgres-integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
-    # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
+    # apps/sim and apps/realtime, discovered by glob (`vitest run --mode integration`), against the database each
     # provisioning path produces. A new integration suite needs no workflow change.
     name: PostgreSQL integration (${{ matrix.provision }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -94,6 +94,10 @@ jobs:
           TZ: America/Los_Angeles
         run: bun run test --mode integration
 
+      - name: Run apps/realtime integration tests
+        working-directory: apps/realtime
+        run: bun run test --mode integration
+
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
         if: matrix.provision == 'push'
         working-directory: apps/sim
@@ -111,6 +115,7 @@ jobs:
           path: |
             packages/db/test-results/*.json
             apps/sim/test-results/*.json
+            apps/realtime/test-results/*.json
           if-no-files-found: warn
           retention-days: 14
 

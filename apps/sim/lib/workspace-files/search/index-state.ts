@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import {
+  fileSearchDependency,
   workspaceFileSearchBuild,
   workspaceFileSearchChunk,
   workspaceFileSearchRevision,
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BUILD_LEASE_MS,
@@ -17,47 +18,83 @@ import {
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
   FILE_SEARCH_CLEANUP_MIN_BATCH_MS,
   FILE_SEARCH_INDEX_TRANSACTION_LIMITS,
+  FILE_SEARCH_MAX_DEPENDENCIES,
 } from '@/lib/workspace-files/search/constants'
 import { exceedsFileSearchBatchBudget } from '@/lib/workspace-files/search/index-batches'
 import { estimateTrigramKeys, type FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
+import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
+import {
+  type FileSearchOwnerScope,
+  fileSearchOwnerCondition,
+  fileSearchOwnerFields,
+  resolveFileSearchOwner,
+  searchableFileCondition,
+} from '@/lib/workspace-files/search/scope'
+import type { FileSearchDependencyIdentity } from '@/lib/workspace-files/search/source'
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
-export interface FileSearchRevision {
-  workspaceId: string
+export type FileSearchRevision = FileSearchOwnerScope & {
   fileId: string
   sourceContentUpdatedAt: Date
 }
 
-export interface FileSearchBuild extends FileSearchRevision {
-  id: string
-}
+export type FileSearchBuild = FileSearchRevision & { id: string }
 
 function revisionFilter(revision: FileSearchRevision) {
   return and(
     eq(workspaceFileSearchRevision.fileId, revision.fileId),
-    eq(workspaceFileSearchRevision.workspaceId, revision.workspaceId),
+    fileSearchOwnerCondition(workspaceFileSearchRevision, resolveFileSearchOwner(revision)),
     eq(workspaceFileSearchRevision.sourceContentUpdatedAt, revision.sourceContentUpdatedAt)
   )
 }
 
-async function lockCurrentFile(tx: DbTransaction, revision: FileSearchRevision): Promise<boolean> {
-  const [file] = await tx
+export async function lockFileSearchInputs(
+  tx: DbTransaction,
+  revision: FileSearchRevision,
+  dependencies: readonly FileSearchDependencyIdentity[] = [],
+  sourceKey?: string
+): Promise<boolean> {
+  const owner = resolveFileSearchOwner(revision)
+  if (
+    dependencies.length > FILE_SEARCH_MAX_DEPENDENCIES ||
+    new Set(dependencies.map((entry) => entry.fileId)).size !== dependencies.length
+  )
+    throw new Error('Invalid file search dependency manifest')
+  await lockFileSearchOwners(tx, [owner])
+  const files = await tx
     .select({
-      workspaceId: workspaceFiles.workspaceId,
-      context: workspaceFiles.context,
+      id: workspaceFiles.id,
+      key: workspaceFiles.key,
       deletedAt: workspaceFiles.deletedAt,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
     .from(workspaceFiles)
-    .where(eq(workspaceFiles.id, revision.fileId))
+    .where(
+      and(
+        searchableFileCondition(owner),
+        inArray(workspaceFiles.id, [
+          ...new Set([revision.fileId, ...dependencies.map((entry) => entry.fileId)]),
+        ])
+      )
+    )
+    .orderBy(asc(workspaceFiles.id))
     .for('update')
-    .limit(1)
+  const byId = new Map(files.map((file) => [file.id, file]))
+  const file = byId.get(revision.fileId)
   return Boolean(
     file &&
-      file.workspaceId === revision.workspaceId &&
-      file.context === 'workspace' &&
       file.deletedAt === null &&
-      file.contentUpdatedAt.getTime() === revision.sourceContentUpdatedAt.getTime()
+      (sourceKey === undefined || file.key === sourceKey) &&
+      file.contentUpdatedAt.getTime() === revision.sourceContentUpdatedAt.getTime() &&
+      dependencies.every((entry) => {
+        const current = byId.get(entry.fileId)
+        return (
+          current &&
+          current.deletedAt === null &&
+          current.key === entry.key &&
+          current.contentUpdatedAt.getTime() === entry.sourceContentUpdatedAt.getTime()
+        )
+      })
   )
 }
 
@@ -96,7 +133,7 @@ export async function beginFileSearchBuild(
 ): Promise<FileSearchBuild | null> {
   return db.transaction(async (tx) => {
     await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
-    if (!(await lockCurrentFile(tx, revision))) return null
+    if (!(await lockFileSearchInputs(tx, revision))) return null
     const [observed] = await tx
       .select({
         buildId: workspaceFileSearchRevision.buildId,
@@ -124,7 +161,10 @@ export async function beginFileSearchBuild(
     const build = { ...revision, id: generateId() }
     const now = new Date()
     await tx.insert(workspaceFileSearchBuild).values({
-      ...build,
+      id: build.id,
+      fileId: build.fileId,
+      sourceContentUpdatedAt: build.sourceContentUpdatedAt,
+      ...fileSearchOwnerFields(resolveFileSearchOwner(build)),
       expiresAt: sql`clock_timestamp() + ${FILE_SEARCH_BUILD_LEASE_MS} * interval '1 millisecond'`,
     })
     await tx
@@ -166,17 +206,26 @@ export async function appendFileSearchChunks(
     await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     if (!(await lockBuild(tx, build))) return false
     signal.throwIfAborted()
-    await tx
-      .insert(workspaceFileSearchChunk)
-      .values(
-        chunks.map((chunk) => ({ ...chunk, buildId: build.id, workspaceId: build.workspaceId }))
-      )
+    await tx.insert(workspaceFileSearchChunk).values(
+      chunks.map((chunk) => ({
+        ...chunk,
+        buildId: build.id,
+        ...fileSearchOwnerFields(resolveFileSearchOwner(build)),
+      }))
+    )
     return true
   })
 }
 
 export type FileSearchPublication =
-  | { status: 'ready'; lineCount: number; indexedBytes: number; chunkCount: number }
+  | {
+      status: 'ready'
+      lineCount: number
+      indexedBytes: number
+      chunkCount: number
+      dependencies?: readonly FileSearchDependencyIdentity[]
+      artifactKey?: string
+    }
   | { status: 'skipped'; failureReason: string }
 
 /** Publication changes one pointer only after every chunk is durable and the file is still current. */
@@ -188,7 +237,15 @@ export async function publishFileSearchBuild(
   return db.transaction(async (tx) => {
     await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
     signal.throwIfAborted()
-    if (!(await lockCurrentFile(tx, build)) || !(await lockBuild(tx, build))) return false
+    if (
+      !(await lockFileSearchInputs(
+        tx,
+        build,
+        publication.status === 'ready' ? publication.dependencies : []
+      )) ||
+      !(await lockBuild(tx, build))
+    )
+      return false
     if (publication.status === 'ready') {
       const [stored] = await tx.execute<{ count: number; bytes: number }>(sql`
         SELECT count(*)::int AS count,
@@ -199,9 +256,19 @@ export async function publishFileSearchBuild(
         throw new Error('File search build is incomplete')
       }
     }
+    if (publication.status === 'ready' && publication.dependencies?.length) {
+      await tx
+        .insert(fileSearchDependency)
+        .values(
+          publication.dependencies.map((dependency) => ({ ...dependency, buildId: build.id }))
+        )
+    }
     await tx
       .update(workspaceFileSearchBuild)
-      .set({ expiresAt: publication.status === 'ready' ? null : sql`clock_timestamp()` })
+      .set({
+        expiresAt: publication.status === 'ready' ? null : sql`clock_timestamp()`,
+        artifactKey: publication.status === 'ready' ? (publication.artifactKey ?? null) : null,
+      })
       .where(eq(workspaceFileSearchBuild.id, build.id))
     await tx
       .update(workspaceFileSearchRevision)
@@ -226,7 +293,7 @@ export async function failFileSearchRevision(
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
-    if (!(await lockCurrentFile(tx, revision))) return
+    if (!(await lockFileSearchInputs(tx, revision))) return
     const [state] = await tx
       .select()
       .from(workspaceFileSearchRevision)

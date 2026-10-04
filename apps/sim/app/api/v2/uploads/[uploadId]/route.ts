@@ -3,6 +3,7 @@ import { localPutUploadContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { queueRetiredProjectUploadCleanup } from '@/lib/projects/files/prefix-cleanup'
 import { LocalUploadBodyError, writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
 import {
   getOwnedUploadSession,
@@ -78,11 +79,14 @@ export const PUT = withRouteHandler(
         metadata: uploadSessionObjectMetadata(session),
       })
     } catch (error) {
+      await queueRetiredProjectUploadCleanup(session)
       if (error instanceof LocalUploadBodyError) {
         return v2Error('BAD_REQUEST', error.message)
       }
       throw error
     }
+    if (await queueRetiredProjectUploadCleanup(session))
+      return v2Error('CONFLICT', 'The Project no longer exists')
     return new NextResponse(null, { status: 204 })
   },
   {

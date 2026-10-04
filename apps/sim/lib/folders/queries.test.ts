@@ -18,6 +18,8 @@ const ROW = {
   name: 'Reports',
   userId: 'u-1',
   workspaceId: 'ws-1',
+  entityType: null,
+  entityId: null,
   parentId: null,
   locked: false,
   sortOrder: 0,

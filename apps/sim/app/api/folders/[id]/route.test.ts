@@ -38,6 +38,8 @@ const mockFolder = {
   name: 'Test Folder',
   userId: TEST_USER.id,
   workspaceId: 'workspace-123',
+  entityType: null,
+  entityId: null,
   parentId: null,
   color: '#6B7280',
   sortOrder: 1,

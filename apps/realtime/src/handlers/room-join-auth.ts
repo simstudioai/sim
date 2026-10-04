@@ -1,12 +1,14 @@
 import type { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
-import type { RoomRef } from '@sim/realtime-protocol/rooms'
+import { projectFileDocTarget, ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
+import { fetchProjectFileDocAccess } from '@/handlers/file-doc-app'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
-type Authorized = Awaited<ReturnType<typeof authorizeRoom>>
+type Authorized = Awaited<ReturnType<typeof authorizeRoom>> & { docId?: string | null }
 
 interface ResolveRoomJoinAuthParams {
   userId: string
+  connectionId?: string
   room: RoomRef
   action: 'read' | 'write'
   logger: ReturnType<typeof createLogger>
@@ -40,7 +42,18 @@ export async function resolveRoomJoinAuth(
   // is never overwritten by this older result — see {@link commitRoomPermission}.
   const readSeq = beginRoomPermissionRead()
   try {
-    authorized = await authorizeRoom({ userId, room, action })
+    if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
+      const target = projectFileDocTarget(room)
+      if (!target || !params.connectionId)
+        throw new Error('Project document requires a socket identity')
+      authorized = await fetchProjectFileDocAccess({
+        ...target,
+        userId,
+        connectionId: params.connectionId,
+      })
+    } else {
+      authorized = await authorizeRoom({ userId, room, action })
+    }
   } catch (error) {
     logger.warn(`Error authorizing ${logLabel}:`, error)
     emitError({ error: messages.verifyFailed, code: 'VERIFY_ACCESS_FAILED', retryable: true })

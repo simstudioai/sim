@@ -63,7 +63,11 @@ const RELEASE_LOCK_SCRIPT =
  * Returns 1 if THIS call wrote the seed, 0 if the stream already had content.
  */
 const SEED_IF_EMPTY_SCRIPT =
-  "local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[6]) then return 0 end; if redis.call('xlen', KEYS[1]) == 0 then redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[4]); if ARGV[6] ~= '0' then redis.call('set', KEYS[3], ARGV[6], 'EX', ARGV[4]) end; redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[5], ARGV[3]); redis.call('expire', KEYS[1], ARGV[4]); redis.call('expire', KEYS[4], ARGV[4]); return 1 else return 0 end"
+  "local generation = redis.call('get', KEYS[2]); if ARGV[7] == '1' and generation and generation ~= ARGV[8] and generation ~= ARGV[3] then return 0 end; local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[6]) then return 0 end; if redis.call('xlen', KEYS[1]) == 0 then redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[4]); if ARGV[6] ~= '0' then redis.call('set', KEYS[3], ARGV[6], 'EX', ARGV[4]) end; redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[5], ARGV[3]); redis.call('expire', KEYS[1], ARGV[4]); redis.call('expire', KEYS[4], ARGV[4]); return 1 else return 0 end"
+
+/** Preserve a replacement identity even before its seed exists, fencing late seeds for the retired one. */
+const RETIRE_DOCUMENT_SCRIPT =
+  "local generation = redis.call('get', KEYS[2]); if generation ~= ARGV[1] then return false end; redis.call('set', KEYS[2], ARGV[2], 'EX', ARGV[3]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); redis.call('expire', KEYS[3], ARGV[3]); redis.call('expire', KEYS[6], ARGV[3]); return generation"
 
 /** Orders a durable replacement with seeds and merges, and fences publishers in the same transaction. */
 const INVALIDATE_DOCUMENT_SCRIPT =
@@ -87,14 +91,14 @@ const REFRESH_DOCUMENT_TTLS_SCRIPT =
  * Carry the seed's generation forward and keep every entry at or beyond the captured prefix barrier.
  */
 const APPEND_SNAPSHOT_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4], ARGV[7], '1'); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4], ARGV[7], '1', 'eu', ARGV[8], 'ec', ARGV[9], 'ei', ARGV[10]); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
 
 /**
  * Atomically deduplicate and append an acknowledged client update. Socket acknowledgements can be
  * lost, so a retry with the same id must not inflate the stream or its compaction counters.
  */
 const APPEND_CLIENT_UPDATE_SCRIPT =
-  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; redis.call('expire', KEYS[4], ARGV[5]); if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
+  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; redis.call('expire', KEYS[4], ARGV[5]); if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3], 'eu', ARGV[7], 'ec', ARGV[8]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
 
 /**
  * Monotonic set of the synced-version token: overwrite ONLY when the new value is greater than the
@@ -300,9 +304,42 @@ function isDocSeeded(doc: Y.Doc): boolean {
   return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
 }
 
+/** Authenticated author of a stream-accepted client edit, never a room subscriber. */
+export interface FileDocEditor {
+  userId: string
+  connectionId: string
+}
+
+interface EditCursor {
+  id: string
+  editor: FileDocEditor | null
+}
+
+function advanceEditor(
+  current: EditCursor | null,
+  id: string,
+  message: Record<string, string>
+): EditCursor | null {
+  if (!message[UPDATE_FIELD]) return current
+  const snapshot = message[COMPACTION_FIELD] !== undefined || message[SNAPSHOT_FIELD] !== undefined
+  if (!snapshot && (message[GENERATION_FIELD] || message[AGENT_FIELD])) return current
+  if (snapshot && !message[SNAPSHOT_FIELD]) return current
+  const sourceId =
+    snapshot && /^\d+-\d+$/.test(message.ei ?? '') && !isAfterStreamId(message.ei, id)
+      ? message.ei
+      : id
+  if (current && !isAfterStreamId(sourceId, current.id)) return current
+  const editor =
+    message.eu?.trim() && message.ec?.trim()
+      ? { userId: message.eu, connectionId: message.ec }
+      : null
+  return { id: sourceId, editor }
+}
+
 /** One locally-open room the store tracks: its doc and the last stream id applied to it. */
 interface StoreRoom {
   doc: Y.Doc
+  editCursor: EditCursor | null
   /** The id of the last stream entry applied to `doc`; the tailer resumes strictly after it. */
   lastId: string
   /** Local publish count, to pace compaction checks. */
@@ -338,7 +375,10 @@ export class FileDocStore {
   /** Dedicated connection for blocking XREAD (a blocking command monopolizes its connection). */
   private read: RedisClientType | null = null
   private readonly rooms = new Map<string, StoreRoom>()
-  private readonly localInvalidations = new Map<string, { version: number; expiresAt: number }>()
+  private readonly localInvalidations = new Map<
+    string,
+    { version: number; expiresAt: number; replacementDocId?: string }
+  >()
   private running = false
   private heartbeat: ReturnType<typeof setInterval> | null = null
 
@@ -403,6 +443,7 @@ export class FileDocStore {
     const room: StoreRoom = {
       doc,
       lastId: '0',
+      editCursor: null,
       publishes: 0,
       uncompactedDeltaBytes: 0,
       lastDeltaBytes: 0,
@@ -564,8 +605,15 @@ export class FileDocStore {
     name: string,
     updateId: string,
     update: Uint8Array,
-    expectedGeneration = this.rooms.get(name)?.generation ?? ''
+    expectedGeneration = this.rooms.get(name)?.generation ?? '',
+    editor?: FileDocEditor
   ): Promise<void> {
+    if (
+      name.startsWith('project-file-doc:') &&
+      (!editor?.userId.trim() || !editor.connectionId.trim())
+    ) {
+      throw new Error('Project document updates require an authenticated editor')
+    }
     if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')
     assertUpdateWithinLimit(update)
@@ -594,6 +642,8 @@ export class FileDocStore {
             String(CLIENT_UPDATE_DEDUPE_CAPACITY),
             String(STREAM_TTL_SEC),
             expectedGeneration,
+            editor?.userId ?? '',
+            editor?.connectionId ?? '',
           ],
         })
         if (appended === -1) throw new FileDocInvalidatedError()
@@ -632,12 +682,25 @@ export class FileDocStore {
    * Retries a transient Redis error like {@link appendUpdate}; throws if it ultimately fails. Disabled →
    * true (single-replica: seed locally, no stream).
    */
-  async seedIfEmpty(name: string, update: Uint8Array, version = 0): Promise<boolean> {
+  async seedIfEmpty(
+    name: string,
+    update: Uint8Array,
+    version = 0,
+    strictGeneration = false
+  ): Promise<boolean> {
     assertUpdateWithinLimit(update)
     const generation = generationOfSeed(update)
     if (!this.enabled) {
       const invalidation = this.localInvalidations.get(name)
       if (invalidation && invalidation.expiresAt > Date.now() && invalidation.version > version)
+        return false
+      if (
+        strictGeneration &&
+        invalidation &&
+        invalidation.expiresAt > Date.now() &&
+        invalidation.replacementDocId &&
+        invalidation.replacementDocId !== generation
+      )
         return false
       const room = this.rooms.get(name)
       if (room) room.generationInvalidated = false
@@ -656,6 +719,8 @@ export class FileDocStore {
             String(STREAM_TTL_SEC),
             GENERATION_FIELD,
             String(version),
+            strictGeneration ? '1' : '0',
+            INVALIDATED_GENERATION,
           ],
         })
         await this.refreshDocumentTtls(name).catch(() => {})
@@ -721,16 +786,69 @@ export class FileDocStore {
   }
 
   async getDocumentGeneration(name: string): Promise<string> {
-    if (!this.enabled) return ''
+    if (!this.enabled) {
+      const invalidation = this.localInvalidations.get(name)
+      if (invalidation && invalidation.expiresAt > Date.now())
+        return invalidation.replacementDocId ?? INVALIDATED_GENERATION
+      const generation = this.rooms
+        .get(name)
+        ?.doc.getMap(FILE_DOC_SEED.configMap)
+        .get(FILE_DOC_SEED.docIdKey)
+      return typeof generation === 'string' ? generation : ''
+    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     return (await this.write.get(generationKey(name))) ?? ''
   }
 
   async isDocumentGenerationCurrent(name: string, generation?: string): Promise<boolean> {
-    if (!this.enabled) return !this.rooms.get(name)?.generationInvalidated
+    if (!this.enabled) {
+      const invalidation = this.localInvalidations.get(name)
+      if (invalidation?.replacementDocId && invalidation.expiresAt > Date.now())
+        return generation === invalidation.replacementDocId
+      return !this.rooms.get(name)?.generationInvalidated
+    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const current = await this.write.get(generationKey(name))
     return current === null ? !generation : current === generation
+  }
+
+  /** Retire exactly one history; retries and delayed events never touch a later generation. */
+  async retireDocumentGeneration(
+    name: string,
+    retiredDocId: string,
+    replacementDocId: string
+  ): Promise<{ status: 'applied'; docId: string } | { status: 'stale' }> {
+    if (!retiredDocId || !replacementDocId || retiredDocId === replacementDocId)
+      throw new Error('Document retirement requires distinct identities')
+    if (!this.enabled) {
+      if ((await this.getDocumentGeneration(name)) !== retiredDocId) return { status: 'stale' }
+      const previous = this.localInvalidations.get(name)
+      this.localInvalidations.set(name, {
+        version: previous?.version ?? 0,
+        expiresAt: Date.now() + STREAM_TTL_SEC * 1_000,
+        replacementDocId,
+      })
+      const room = this.rooms.get(name)
+      if (room) room.generationInvalidated = true
+      if (!this.heartbeat) {
+        this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
+        this.heartbeat.unref()
+      }
+      return { status: 'applied', docId: retiredDocId }
+    }
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    const result = await this.write.eval(RETIRE_DOCUMENT_SCRIPT, {
+      keys: [
+        streamKey(name),
+        generationKey(name),
+        `${SYNC_VERSION_PREFIX}${name}`,
+        `${CLIENT_UPDATE_PREFIX}${name}`,
+        `${AGENT_STREAM_PREFIX}${name}`,
+        `${INVALIDATION_VERSION_PREFIX}${name}`,
+      ],
+      arguments: [retiredDocId, replacementDocId, String(STREAM_TTL_SEC)],
+    })
+    return typeof result === 'string' ? { status: 'applied', docId: result } : { status: 'stale' }
   }
 
   /**
@@ -807,6 +925,14 @@ export class FileDocStore {
    * merge into and the caller should fall back to a direct file write. Disabled → always null.
    */
   async getStreamState(name: string, expectedGeneration?: string): Promise<Uint8Array | null> {
+    return (await this.getStreamSnapshot(name, expectedGeneration))?.docState ?? null
+  }
+
+  /** Reconstruct state and editor from the same stream prefix, including compacted history. */
+  async getStreamSnapshot(
+    name: string,
+    expectedGeneration?: string
+  ): Promise<{ docState: Uint8Array; editor: FileDocEditor | null } | null> {
     if (!this.enabled) return null
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const doc = new Y.Doc()
@@ -815,18 +941,20 @@ export class FileDocStore {
       if (expectedGeneration !== undefined && generation !== expectedGeneration) {
         throw new FileDocInvalidatedError()
       }
+      const cursor: { value: EditCursor | null } = { value: null }
       const count = await this.replayEntries(name, '0', (entry) => {
         if (entry.message[GENERATION_FIELD] && entry.message[GENERATION_FIELD] !== generation) {
           throw new FileDocInvalidatedError()
         }
         applyEntryToDoc(doc, entry.id, entry.message)
+        cursor.value = advanceEditor(cursor.value, entry.id, entry.message)
         return true
       })
       if ((await this.getDocumentGeneration(name)) !== generation) {
         throw new FileDocInvalidatedError()
       }
       if (count === 0) return null
-      return Y.encodeStateAsUpdate(doc)
+      return { docState: Y.encodeStateAsUpdate(doc), editor: cursor.value?.editor ?? null }
     } finally {
       doc.destroy()
     }
@@ -1040,6 +1168,7 @@ export class FileDocStore {
         ? REDIS_AGENT_ORIGIN
         : REDIS_ORIGIN
     const seededBefore = room.seededObserved
+    room.editCursor = advanceEditor(room.editCursor, id, message)
     applyEntryToDoc(room.doc, id, message, origin)
     if (isDocSeeded(room.doc)) room.seededObserved = true
     // Track a real edit integrated from the stream so compaction knows whether its snapshot represents
@@ -1176,6 +1305,7 @@ export class FileDocStore {
         // them — only entries the snapshot provably subsumes (id <= lastId). Trimming to the freshly
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
+        const editCursor = room.editCursor
         /** Ordered, deduplicated replay lets two counters represent the prefix without a per-entry map. */
         const deltaBytesAtBarrier = room.uncompactedDeltaBytes - room.lastDeltaBytes
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
@@ -1194,6 +1324,9 @@ export class FileDocStore {
             GENERATION_FIELD,
             upTo,
             COMPACTION_FIELD,
+            editCursor?.editor?.userId ?? '',
+            editCursor?.editor?.connectionId ?? '',
+            editCursor?.id ?? '',
           ],
         })
         if (typeof snapshotId !== 'string') return

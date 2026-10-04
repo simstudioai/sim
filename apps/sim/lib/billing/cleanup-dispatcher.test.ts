@@ -91,6 +91,7 @@ describe('organization-owned Search retention dispatch', () => {
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockEnqueue.mockResolvedValue('cleanup-job')
     queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.project, [])
   })
 
   it('dispatches an organization with zero workspaces using its own configured window', async () => {

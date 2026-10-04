@@ -2766,6 +2766,48 @@
       "when": 1790986787652,
       "tag": "0395_project_membership_enforcement",
       "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1791062868437,
+      "tag": "0396_file_entity_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1791062887359,
+      "tag": "0397_file_folder_version_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1791068073868,
+      "tag": "0398_file_creator_lifetime",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1791071965882,
+      "tag": "0399_project_file_upload_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1791075071615,
+      "tag": "0400_public_share_entity_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1791091736313,
+      "tag": "0401_file_search_owner_scope",
+      "breakpoints": true
     }
   ]
 }

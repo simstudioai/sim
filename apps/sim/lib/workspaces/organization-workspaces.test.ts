@@ -1,6 +1,10 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
 import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import {
@@ -10,18 +14,14 @@ import {
 import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireInvitationMutationLocks, mockChangeWorkspaceStoragePayersInTx } = vi.hoisted(
-  () => ({
-    mockAcquireInvitationMutationLocks: vi.fn(),
-    mockChangeWorkspaceStoragePayersInTx: vi.fn(),
-  })
-)
+const { mockAcquireInvitationMutationLocks } = vi.hoisted(() => ({
+  mockAcquireInvitationMutationLocks: vi.fn(),
+}))
+const { mockChangeProjectAndWorkspaceStoragePayersInTx } = billingPayerTransferMockFns
 
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({
-  changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
-}))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
@@ -55,7 +55,7 @@ describe('organization workspace helpers', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockEnsureUserInOrganizationTx.mockReset()
-    mockChangeWorkspaceStoragePayersInTx.mockReset()
+    mockChangeProjectAndWorkspaceStoragePayersInTx.mockReset()
     mockSyncUsageLimitsFromSubscription.mockResolvedValue(undefined)
     mockReapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue({
       proUsageSnapshotted: false,
@@ -182,7 +182,7 @@ describe('organization workspace helpers', () => {
   })
 
   it.each(['standalone', 'enlisted'] as const)(
-    'detaches with invitation locks before the organization fence and workspace rows in a %s transaction',
+    'detaches with invitation locks before the organization fence and payer transfer in a %s transaction',
     async (mode) => {
       queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
       queueTableRows(schemaMock.invitation, [{ id: 'invite-pending' }, { id: 'invite-terminal' }])
@@ -220,24 +220,27 @@ describe('organization workspace helpers', () => {
       expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
         dbChainMockFns.select.mock.invocationCallOrder[2]
       )
+      expect(mockChangeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
       expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
-        dbChainMockFns.for.mock.invocationCallOrder[0]
+        mockChangeProjectAndWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
       )
-      expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
-        mockChangeWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
-      )
-      expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
+      expect(mockChangeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(
+        expect.anything(),
         {
-          workspaceId: 'ws-1',
-          organizationId: null,
-          billedAccountUserId: 'owner-1',
-          expectedCurrentPayer: {
-            organizationId: 'org-1',
-            billedAccountUserId: 'old-owner',
-          },
-        },
-      ])
+          projectChanges: [],
+          workspaceChanges: [
+            {
+              workspaceId: 'ws-1',
+              organizationId: null,
+              billedAccountUserId: 'owner-1',
+              expectedCurrentPayer: {
+                organizationId: 'org-1',
+                billedAccountUserId: 'old-owner',
+              },
+            },
+          ],
+        }
+      )
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceMode: 'grandfathered_shared',
@@ -280,7 +283,7 @@ describe('organization workspace helpers', () => {
         }
       )
       expect(dbChainMockFns.for).not.toHaveBeenCalled()
-      expect(mockChangeWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
+      expect(mockChangeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     }
@@ -314,7 +317,7 @@ describe('organization workspace helpers', () => {
         }
       )
       expect(dbChainMockFns.for).not.toHaveBeenCalled()
-      expect(mockChangeWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
+      expect(mockChangeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     }
@@ -337,8 +340,9 @@ describe('organization workspace helpers', () => {
       invitationIds: ['invite-1', 'invite-2'],
       workspaceIds: ['ws-1', 'ws-2'],
     })
-    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
-      expect.objectContaining({ workspaceId: 'ws-2' }),
-    ])
+    expect(mockChangeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), {
+      projectChanges: [],
+      workspaceChanges: [expect.objectContaining({ workspaceId: 'ws-2' })],
+    })
   })
 })

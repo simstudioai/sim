@@ -21,6 +21,8 @@ import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/docum
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
 import { inboxCleanupOutboxHandlers } from '@/lib/mothership/inbox/cleanup-outbox'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
+import { projectFileDocumentOutboxHandlers } from '@/lib/projects/files/application/document-lifecycle'
+import { projectFilePrefixCleanupOutboxHandlers } from '@/lib/projects/files/prefix-cleanup'
 import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
@@ -48,6 +50,8 @@ const handlers = {
   ...permissionAccessRequestOutboxHandlers,
   ...workspaceFileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,
+  ...projectFilePrefixCleanupOutboxHandlers,
+  ...projectFileDocumentOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
   ...workspaceOperationOutboxHandlers,
   ...forkContentOutboxHandlers,

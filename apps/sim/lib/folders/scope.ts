@@ -1,3 +1,6 @@
+import type { folder } from '@sim/db/schema'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+
 export interface FolderScopeOptions {
   /**
    * Whether the scope reaches nested folders. Absent means yes — a folder
@@ -51,4 +54,41 @@ export interface FolderIdScope {
   folderIds: Set<string>
   /** Items carrying no folder id are in scope. */
   includeRootItems: boolean
+}
+
+type FolderScope = Pick<typeof folder.$inferSelect, 'workspaceId' | 'entityType' | 'entityId'>
+
+/** Narrows legacy and entity-owned rows to one canonical workspace folder. */
+export function isWorkspaceFolder<T extends FolderScope>(
+  row: T,
+  workspaceId?: string
+): row is T & { workspaceId: string } {
+  return (
+    typeof row.workspaceId === 'string' &&
+    row.workspaceId.length > 0 &&
+    (workspaceId === undefined || row.workspaceId === workspaceId) &&
+    ((row.entityType === null && row.entityId === null) ||
+      (row.entityType === 'workspace' && row.entityId === row.workspaceId))
+  )
+}
+
+/** Rejects non-workspace ownership before projecting a workspace-only folder. */
+export function requireWorkspaceFolder<T extends FolderScope>(
+  row: T,
+  workspaceId?: string
+): T & { workspaceId: string } {
+  if (!isWorkspaceFolder(row, workspaceId)) {
+    throw new OrchestrationError('not_found', 'Folder not found')
+  }
+  return row
+}
+
+/** Workspace resources retain a live creator; detached Project attribution is not a workspace identity. */
+export function requireWorkspaceFolderCreator<T extends FolderScope & { userId: string | null }>(
+  row: T,
+  workspaceId?: string
+): T & { workspaceId: string; userId: string } {
+  const scoped = requireWorkspaceFolder(row, workspaceId)
+  if (!scoped.userId) throw new OrchestrationError('not_found', 'Folder not found')
+  return { ...scoped, userId: scoped.userId }
 }

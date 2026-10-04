@@ -1,0 +1,111 @@
+import { describe, expect, it } from 'vitest'
+import { resolveFileOwner } from '@/lib/workspace-files/ownership'
+
+const legacyWorkspaceFile = {
+  entityType: null,
+  entityId: null,
+  context: 'workspace',
+  workspaceId: 'workspace-a',
+  organizationId: null,
+  userId: 'uploader-a',
+  chatId: null,
+  folderId: null,
+}
+
+const projectFile = {
+  ...legacyWorkspaceFile,
+  entityType: 'project',
+  entityId: 'project-a',
+  context: 'project',
+  workspaceId: null,
+}
+
+describe('file ownership isolation', () => {
+  it('keeps audited legacy workspace ownership while its pair awaits backfill', () => {
+    expect(resolveFileOwner(legacyWorkspaceFile)).toEqual({
+      entityType: 'workspace',
+      entityId: 'workspace-a',
+    })
+  })
+
+  it.each([
+    { entityType: 'workspace', entityId: null },
+    { entityType: null, entityId: 'workspace-a' },
+    { entityType: 'workspace', entityId: '' },
+    { entityType: 'unrecognized', entityId: 'workspace-a' },
+    { entityType: 'workspace', entityId: 'workspace-b' },
+    { entityType: 'user', entityId: 'uploader-a' },
+  ])('rejects a conflicting or incomplete pair %j', (binding) => {
+    expect(resolveFileOwner({ ...legacyWorkspaceFile, ...binding })).toBeNull()
+  })
+
+  it('does not change shared ownership when the uploader changes', () => {
+    expect(
+      resolveFileOwner({
+        ...legacyWorkspaceFile,
+        entityType: 'workspace',
+        entityId: 'workspace-a',
+        userId: 'different-uploader',
+      })
+    ).toEqual({ entityType: 'workspace', entityId: 'workspace-a' })
+    expect(resolveFileOwner({ ...projectFile, userId: 'different-uploader' })).toEqual({
+      entityType: 'project',
+      entityId: 'project-a',
+    })
+  })
+
+  it('rejects ambiguous legacy ownership instead of picking the first scope', () => {
+    expect(
+      resolveFileOwner({ ...legacyWorkspaceFile, organizationId: 'organization-a' })
+    ).toBeNull()
+    expect(resolveFileOwner({ ...legacyWorkspaceFile, workspaceId: '' })).toBeNull()
+  })
+
+  it.each(['chat', 'general', 'logs', 'table-import', 'og-images', 'unrecognized'])(
+    'does not treat an uploader as the owner of an unclassified %s file',
+    (context) => {
+      const file = { ...legacyWorkspaceFile, context, workspaceId: null }
+      expect(resolveFileOwner(file)).toBeNull()
+      expect(resolveFileOwner({ ...file, entityType: 'user', entityId: file.userId })).toBeNull()
+    }
+  )
+
+  it.each([
+    { entityType: null, entityId: null },
+    { entityType: 'workspace', entityId: 'workspace-a' },
+    { entityType: 'project', entityId: '' },
+    { workspaceId: 'workspace-a' },
+    { organizationId: 'organization-a' },
+    { chatId: 'chat-a' },
+    { context: 'workspace' },
+  ])('rejects Project ownership mixed with legacy associations %j', (binding) => {
+    expect(resolveFileOwner({ ...projectFile, ...binding })).toBeNull()
+  })
+
+  it('preserves organization KB ownership independently of the uploader', () => {
+    const file = {
+      ...legacyWorkspaceFile,
+      context: 'knowledge-base',
+      workspaceId: null,
+      organizationId: 'organization-a',
+    }
+    expect(resolveFileOwner(file)).toEqual({
+      entityType: 'organization',
+      entityId: 'organization-a',
+    })
+    expect(
+      resolveFileOwner({ ...file, entityType: 'organization', entityId: 'organization-b' })
+    ).toBeNull()
+  })
+
+  it.each(['copilot', 'profile-pictures'])(
+    'binds audited personal %s files to their existing personal owner',
+    (context) => {
+      const file = { ...legacyWorkspaceFile, context, workspaceId: null }
+      expect(resolveFileOwner(file)).toEqual({ entityType: 'user', entityId: 'uploader-a' })
+      expect(
+        resolveFileOwner({ ...file, entityType: 'user', entityId: 'different-person' })
+      ).toBeNull()
+    }
+  )
+})

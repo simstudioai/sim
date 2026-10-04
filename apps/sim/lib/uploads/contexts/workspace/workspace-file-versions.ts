@@ -23,6 +23,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/works
 import type { WorkspaceFileSecretProvenanceSnapshot } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { resolveFileOwner } from '@/lib/workspace-files/ownership'
 
 /** A coalescing version stops absorbing writes this long after it was opened. */
 const FILE_VERSION_COALESCE_WINDOW_MS = 10 * 60 * 1000
@@ -164,7 +165,7 @@ async function supersedeVersionInTx(tx: DbTransaction, versionId: string, now: D
 
 interface RecordWorkspaceFileVersionParams {
   /** The workspace the write was scoped to; the file row's column is nullable for other contexts. */
-  workspaceId: string
+  workspaceId: string | null
   /** Head row loaded before the file row was updated. */
   head: WorkspaceFileVersionSummaryRow | undefined
   /** The file row as it was before this write (locked). */
@@ -226,7 +227,12 @@ export async function recordWorkspaceFileVersionInTx(
         ...contentColumns(previous, params.previousProvenance),
         contentHash: null,
         source: original ? 'upload' : 'unknown',
-        authorUserIds: original ? [previous.userId] : [],
+        authorUserIds:
+          original && (previous.originalCreatorUserId ?? previous.userId)
+            ? [previous.originalCreatorUserId ?? previous.userId].filter(
+                (id): id is string => id !== null
+              )
+            : [],
         createdAt: previous.contentUpdatedAt,
         updatedAt: previous.contentUpdatedAt,
       })
@@ -339,7 +345,7 @@ export async function releaseWorkspaceFileVersionsForPurgeInTx(
 ): Promise<void> {
   if (fileIds.length === 0) return
   const expired = await tx
-    .select({ id: workspaceFiles.id, key: workspaceFiles.key })
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -348,8 +354,16 @@ export async function releaseWorkspaceFileVersionsForPurgeInTx(
         lt(workspaceFiles.deletedAt, deletedBefore)
       )
     )
+    .orderBy(workspaceFiles.id)
     .for('update')
   if (expired.length === 0) return
+  const contexts = new Map<string, 'workspace' | 'project'>()
+  for (const file of expired) {
+    const owner = resolveFileOwner(file)
+    if (!owner || (owner.entityType !== 'workspace' && owner.entityType !== 'project'))
+      throw new Error('File version purge requires canonical editable ownership')
+    contexts.set(file.id, owner.entityType)
+  }
   const released = await tx
     .delete(workspaceFileVersion)
     .where(
@@ -364,11 +378,14 @@ export async function releaseWorkspaceFileVersionsForPurgeInTx(
         )
       )
     )
-    .returning({ key: workspaceFileVersion.key })
-  await enqueueWorkspaceFileStorageCleanups(
-    tx,
-    released.map((row) => row.key)
-  )
+    .returning({ fileId: workspaceFileVersion.fileId, key: workspaceFileVersion.key })
+  for (const context of ['workspace', 'project'] as const) {
+    await enqueueWorkspaceFileStorageCleanups(
+      tx,
+      released.filter((row) => contexts.get(row.fileId) === context).map((row) => row.key),
+      context
+    )
+  }
 }
 
 /** Deletes superseded versions beyond {@link MAX_SUPERSEDED_FILE_VERSIONS}, returning their keys. */
@@ -400,8 +417,8 @@ async function pruneExcessWorkspaceFileVersionsInTx(
 /** The file fields that identify its current bytes. */
 type WorkspaceFileVersionSubject = Pick<
   WorkspaceFileRecord,
-  'id' | 'key' | 'size' | 'type' | 'uploadedBy' | 'uploadedAt' | 'updatedAt' | 'contentUpdatedAt'
->
+  'id' | 'key' | 'size' | 'type' | 'uploadedAt' | 'updatedAt' | 'contentUpdatedAt'
+> & { uploadedBy: string | null; originalCreatorUserId?: string | null }
 
 /** One version of a workspace file as readers see it. */
 export interface WorkspaceFileVersionRecord {
@@ -472,6 +489,7 @@ function implicitCurrentVersion(
   const contentUpdatedAt = contentVersionTime(file)
   const original =
     !head && isOriginalUploadContent({ uploadedAt: file.uploadedAt, contentUpdatedAt })
+  const originalAuthor = file.originalCreatorUserId ?? file.uploadedBy
   return {
     fileId: file.id,
     version: (head?.version ?? 0) + 1,
@@ -479,7 +497,7 @@ function implicitCurrentVersion(
     size: file.size,
     contentType: file.type,
     source: original ? 'upload' : 'unknown',
-    authorUserIds: original ? [file.uploadedBy] : [],
+    authorUserIds: original && originalAuthor ? [originalAuthor] : [],
     restoredFromVersion: null,
     isCurrent: true,
     createdAt: contentUpdatedAt,
@@ -495,39 +513,42 @@ function implicitCurrentVersion(
  */
 function withVersionSnapshot<T>(
   file: WorkspaceFileVersionSubject,
-  read: (tx: DbTransaction, file: WorkspaceFileVersionSubject) => Promise<T>
+  read: (tx: DbTransaction, file: WorkspaceFileVersionSubject) => Promise<T>,
+  executor?: DbTransaction
 ): Promise<T> {
-  return db.transaction(
-    async (tx) => {
-      const [row] = await tx
-        .select({
-          key: workspaceFiles.key,
-          sizeBytes: workspaceFiles.sizeBytes,
-          contentType: workspaceFiles.contentType,
-          userId: workspaceFiles.userId,
-          uploadedAt: workspaceFiles.uploadedAt,
-          updatedAt: workspaceFiles.updatedAt,
-          contentUpdatedAt: workspaceFiles.contentUpdatedAt,
-        })
-        .from(workspaceFiles)
-        .where(eq(workspaceFiles.id, file.id))
-        .limit(1)
-      const snapshot: WorkspaceFileVersionSubject = row
-        ? {
-            id: file.id,
-            key: row.key,
-            size: getWorkspaceFileSize(row),
-            type: row.contentType,
-            uploadedBy: row.userId,
-            uploadedAt: row.uploadedAt,
-            updatedAt: row.updatedAt,
-            contentUpdatedAt: row.contentUpdatedAt,
-          }
-        : file
-      return read(tx, snapshot)
-    },
-    { isolationLevel: 'repeatable read', accessMode: 'read only' }
-  )
+  const readSnapshot = async (tx: DbTransaction) => {
+    const [row] = await tx
+      .select({
+        key: workspaceFiles.key,
+        sizeBytes: workspaceFiles.sizeBytes,
+        contentType: workspaceFiles.contentType,
+        userId: workspaceFiles.userId,
+        originalCreatorUserId: workspaceFiles.originalCreatorUserId,
+        uploadedAt: workspaceFiles.uploadedAt,
+        updatedAt: workspaceFiles.updatedAt,
+        contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      })
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.id, file.id))
+      .limit(1)
+    const snapshot: WorkspaceFileVersionSubject = row
+      ? {
+          id: file.id,
+          key: row.key,
+          size: getWorkspaceFileSize(row),
+          type: row.contentType,
+          uploadedBy: row.userId,
+          originalCreatorUserId: row.originalCreatorUserId,
+          uploadedAt: row.uploadedAt,
+          updatedAt: row.updatedAt,
+          contentUpdatedAt: row.contentUpdatedAt,
+        }
+      : file
+    return read(tx, snapshot)
+  }
+  return executor
+    ? readSnapshot(executor)
+    : db.transaction(readSnapshot, { isolationLevel: 'repeatable read', accessMode: 'read only' })
 }
 
 /** The version holding the file's current bytes, recorded or implicit, within a snapshot. */
@@ -548,40 +569,45 @@ const VERSION_KEYSET: readonly KeysetKey<{ version: number }>[] = [
 /** A page of a file's versions ordered by version number, resumable by keyset. */
 export async function queryWorkspaceFileVersions(
   file: WorkspaceFileVersionSubject,
-  options: { sortOrder: ListSortOrder; limit: number; after?: CursorKey[] }
+  options: { sortOrder: ListSortOrder; limit: number; after?: CursorKey[] },
+  executor?: DbTransaction
 ): Promise<{ versions: WorkspaceFileVersionRecord[]; nextKeys: CursorKey[] | null }> {
   const resume = resumeKeyset(VERSION_KEYSET, options.after, options.sortOrder)
-  return withVersionSnapshot(file, async (tx, current) => {
-    const rows = await tx
-      .select(versionSummaryColumns)
-      .from(workspaceFileVersion)
-      .where(and(eq(workspaceFileVersion.fileId, current.id), resume))
-      .orderBy(...listOrderBy(keysetColumns(VERSION_KEYSET), options.sortOrder))
-      .limit(options.limit + 1)
-    const head = await loadWorkspaceFileVersionHead(current.id, tx)
-    const records = rows.map((row) => toVersionRecord(row, current))
-    /**
-     * The implicit current version numbers above every row, so it leads a descending list and ends
-     * an ascending one; a cursor already past it leaves it out. Over-fetching by one row still
-     * decides whether another page follows, since the cut keeps the first `limit` records either way.
-     */
-    const implicit = isVersionHeadCurrent(head, current)
-      ? null
-      : implicitCurrentVersion(current, head)
-    const resumeAfter = options.after?.[0]
-    if (
-      implicit &&
-      (typeof resumeAfter !== 'number' ||
-        (options.sortOrder === 'desc'
-          ? implicit.version < resumeAfter
-          : implicit.version > resumeAfter))
-    ) {
-      if (options.sortOrder === 'desc') records.unshift(implicit)
-      else records.push(implicit)
-    }
-    const page = keysetPage(VERSION_KEYSET, records, options.limit)
-    return { versions: page.data, nextKeys: page.nextCursorKeys }
-  })
+  return withVersionSnapshot(
+    file,
+    async (tx, current) => {
+      const rows = await tx
+        .select(versionSummaryColumns)
+        .from(workspaceFileVersion)
+        .where(and(eq(workspaceFileVersion.fileId, current.id), resume))
+        .orderBy(...listOrderBy(keysetColumns(VERSION_KEYSET), options.sortOrder))
+        .limit(options.limit + 1)
+      const head = await loadWorkspaceFileVersionHead(current.id, tx)
+      const records = rows.map((row) => toVersionRecord(row, current))
+      /**
+       * The implicit current version numbers above every row, so it leads a descending list and ends
+       * an ascending one; a cursor already past it leaves it out. Over-fetching by one row still
+       * decides whether another page follows, since the cut keeps the first `limit` records either way.
+       */
+      const implicit = isVersionHeadCurrent(head, current)
+        ? null
+        : implicitCurrentVersion(current, head)
+      const resumeAfter = options.after?.[0]
+      if (
+        implicit &&
+        (typeof resumeAfter !== 'number' ||
+          (options.sortOrder === 'desc'
+            ? implicit.version < resumeAfter
+            : implicit.version > resumeAfter))
+      ) {
+        if (options.sortOrder === 'desc') records.unshift(implicit)
+        else records.push(implicit)
+      }
+      const page = keysetPage(VERSION_KEYSET, records, options.limit)
+      return { versions: page.data, nextKeys: page.nextCursorKeys }
+    },
+    executor
+  )
 }
 
 /**
@@ -601,9 +627,10 @@ export async function findWorkspaceFileVersionKeys(keys: readonly string[]): Pro
 
 /** The version holding the file's current bytes, recorded or implicit. */
 export function getCurrentWorkspaceFileVersion(
-  file: WorkspaceFileVersionSubject
+  file: WorkspaceFileVersionSubject,
+  executor?: DbTransaction
 ): Promise<WorkspaceFileVersionRecord> {
-  return withVersionSnapshot(file, currentVersionInSnapshot)
+  return withVersionSnapshot(file, currentVersionInSnapshot, executor)
 }
 
 /**
@@ -639,20 +666,28 @@ export function currentWorkspaceFileVersionNumberSql() {
 /** One version of a file, or null when it never existed or retention removed it. */
 export function getWorkspaceFileVersion(
   file: WorkspaceFileVersionSubject,
-  version: number
+  version: number,
+  executor?: DbTransaction
 ): Promise<WorkspaceFileVersionRecord | null> {
-  return withVersionSnapshot(file, async (tx, current) => {
-    const [row] = await tx
-      .select(versionSummaryColumns)
-      .from(workspaceFileVersion)
-      .where(
-        and(eq(workspaceFileVersion.fileId, current.id), eq(workspaceFileVersion.version, version))
-      )
-      .limit(1)
-    if (row) return toVersionRecord(row, current)
-    const latest = await currentVersionInSnapshot(tx, current)
-    return latest.version === version ? latest : null
-  })
+  return withVersionSnapshot(
+    file,
+    async (tx, current) => {
+      const [row] = await tx
+        .select(versionSummaryColumns)
+        .from(workspaceFileVersion)
+        .where(
+          and(
+            eq(workspaceFileVersion.fileId, current.id),
+            eq(workspaceFileVersion.version, version)
+          )
+        )
+        .limit(1)
+      if (row) return toVersionRecord(row, current)
+      const latest = await currentVersionInSnapshot(tx, current)
+      return latest.version === version ? latest : null
+    },
+    executor
+  )
 }
 
 /**
@@ -663,9 +698,10 @@ export function getWorkspaceFileVersion(
 export async function getWorkspaceFileVersionProvenance(
   fileId: string,
   version: number,
-  expectedKey?: string
+  expectedKey?: string,
+  executor: DbOrTx = db
 ): Promise<WorkspaceFileSecretProvenanceSnapshot | null> {
-  const [row] = await db
+  const [row] = await executor
     .select({
       status: workspaceFileVersion.secretProvenanceStatus,
       entries: workspaceFileVersion.secretProvenanceEntries,

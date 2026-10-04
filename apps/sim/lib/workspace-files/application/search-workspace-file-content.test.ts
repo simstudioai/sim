@@ -13,7 +13,8 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/search/repository', () => ({
-  searchWorkspaceFileIndex: hoisted.search,
+  searchFileIndex: hoisted.search,
+  toWorkspaceFileSearchResult: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
   resolveWorkspaceFolderScope: hoisted.folders,

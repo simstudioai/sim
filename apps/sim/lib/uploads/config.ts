@@ -220,6 +220,7 @@ function getS3Config(context: StorageContext): StorageConfig {
       }
     case 'mothership':
     case 'workspace':
+    case 'project':
     case 'table-import':
     case 'organization-logos':
       return {
@@ -284,6 +285,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
       }
     case 'mothership':
     case 'workspace':
+    case 'project':
     case 'table-import':
     case 'organization-logos':
       return {
@@ -345,6 +347,7 @@ function getGcsConfig(context: StorageContext): StorageConfig {
       return { bucket: GCS_EXECUTION_FILES_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'mothership':
     case 'workspace':
+    case 'project':
     case 'table-import':
     case 'organization-logos':
       return { bucket: GCS_CONFIG.bucket }

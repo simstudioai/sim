@@ -26,14 +26,14 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
 }))
-vi.mock('./doc-compiled-store', () => ({
+vi.mock('@/lib/uploads/documents/compiled-store', () => ({
   loadCompiledDoc: loadCompiledDocMock,
   loadPublishedCompiledDoc: vi.fn(),
   publishCompiledDocArtifact: publishCompiledDocArtifactMock,
   storeCompiledDoc: storeCompiledDocMock,
 }))
 
-import { collectReferencedFileIds, compileDoc } from './doc-compile'
+import { collectReferencedFileIds, compileDoc } from '@/lib/uploads/documents/compile'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
 

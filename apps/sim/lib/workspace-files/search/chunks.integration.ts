@@ -28,7 +28,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: vi.fn(),
   fetchWorkspaceFileBuffer: vi.fn(),
 }))
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({ resolveServableDoc: vi.fn() }))
+vi.mock('@/lib/uploads/documents/compile', () => ({ resolveServableDoc: vi.fn() }))
 vi.mock('@/lib/file-parsers', () => ({ parseBuffer: vi.fn(), isSupportedFileType: vi.fn() }))
 
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -126,7 +126,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
     await connection`INSERT INTO workspace (id) VALUES (${workspaceId}) ON CONFLICT DO NOTHING`
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at, original_name, folder_id)
       VALUES (${fileId}, ${workspaceId}, 'workspace', ${revision.sourceContentUpdatedAt.toISOString()}::timestamp, ${name}, ${folder})`
-    return { ...revision, fileId, workspaceId }
+    return { sourceContentUpdatedAt: revision.sourceContentUpdatedAt, fileId, workspaceId }
   }
   async function index(text: string, target = revision) {
     const build = await beginFileSearchBuild(target)
@@ -166,13 +166,14 @@ describe('chunked workspace file search on PostgreSQL', () => {
     await connection`CREATE TABLE workspace (id text PRIMARY KEY)`
     await connection`CREATE TABLE workspace_files (id text PRIMARY KEY, workspace_id text REFERENCES workspace(id) ON DELETE CASCADE,
       context text NOT NULL, content_updated_at timestamp NOT NULL, deleted_at timestamp,
-      original_name text NOT NULL, key text NOT NULL DEFAULT 'key', user_id text NOT NULL DEFAULT 'owner', folder_id text)`
+      original_name text NOT NULL, key text NOT NULL DEFAULT 'key', user_id text NOT NULL DEFAULT 'owner', folder_id text, entity_type text, entity_id text, organization_id text, chat_id text)`
     for (const migration of [
       '0313_puzzling_zodiak.sql',
       '0358_workspace_file_content_version_precision.sql',
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
       '0382_workspace_file_search_dispatch_handoff.sql',
+      '0401_file_search_owner_scope.sql',
     ]) {
       await applyMigration(migration)
     }
@@ -194,8 +195,8 @@ describe('chunked workspace file search on PostgreSQL', () => {
   })
   beforeEach(async () => {
     await connection`TRUNCATE workspace, workspace_files, workspace_file_search_revision, workspace_file_search_build,
-      workspace_file_search_chunk, workspace_file_search_index, workspace_file_search_segment, workspace_file_search_dispatch_queue, workspace_file_search_backfill`
-    await connection`INSERT INTO workspace_file_search_backfill (id, completed_at) VALUES ('workspace-file-search-chunks-v2', now())`
+      workspace_file_search_chunk, workspace_file_search_index, workspace_file_search_segment, workspace_file_search_dispatch_queue, workspace_file_search_backfill, file_search_dependency, file_search_dispatch_queue`
+    await connection`INSERT INTO workspace_file_search_backfill (id, completed_at) VALUES ('file-search-owners-v3', now())`
     await addFile('file-1')
   })
   afterAll(async () => {

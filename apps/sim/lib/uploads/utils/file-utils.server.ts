@@ -412,6 +412,7 @@ export async function downloadFileFromStorage(
  * actually attach/upload, plus the content type that matches those bytes.
  */
 export interface ServableFile {
+  artifactKey?: string
   buffer: Buffer
   contentType: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
@@ -491,9 +492,7 @@ export async function downloadServableFileFromStorage(
       undefined)
     : undefined
 
-  const { resolveServableDocBytes } = await import(
-    '@/lib/mothership/tools/server/files/doc-compile'
-  )
+  const { resolveServableDocBytes } = await import('@/lib/uploads/documents/compile')
   const resolved = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: userFile.name,

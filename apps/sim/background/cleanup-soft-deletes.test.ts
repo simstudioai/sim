@@ -491,7 +491,14 @@ describe('folder cleanup target', () => {
       queueTableRows(schemaMock.workflow, [])
       queueTableRows(schemaMock.workspaceFiles, [])
       queueTableRows(schemaMock.folder, [
-        { id: 'sub-1', name: 'Reports', workspaceId: 'ws-1', resourceType: 'knowledge_base' },
+        {
+          id: 'sub-1',
+          name: 'Reports',
+          workspaceId: 'ws-1',
+          resourceType: 'knowledge_base',
+          entityType: null,
+          entityId: null,
+        },
       ])
       mockDeduplicateFolderName.mockResolvedValueOnce('Reports (1)')
 

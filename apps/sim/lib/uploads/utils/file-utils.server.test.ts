@@ -20,7 +20,7 @@ vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/documents/compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 

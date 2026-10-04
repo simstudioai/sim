@@ -20,7 +20,6 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, gt, ilike, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
-import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
@@ -1359,17 +1358,23 @@ export async function moveWorkspaceToOrganization(params: {
             })
           : { detachedPermissionGroupIds: [] }
 
-        await transferWorkspaceProjects(tx, [params.workspaceId], params.destinationOrganizationId)
-
-        await changeWorkspaceStoragePayerInTx(tx, {
-          workspaceId: params.workspaceId,
-          organizationId: params.destinationOrganizationId,
-          billedAccountUserId: destination.ownerId,
-          expectedCurrentPayer: {
-            organizationId: workspaceRow.organizationId,
-            billedAccountUserId: workspaceRow.billedAccountUserId,
-          },
-        })
+        await transferWorkspaceProjects(
+          tx,
+          [params.workspaceId],
+          params.destinationOrganizationId,
+          undefined,
+          [
+            {
+              workspaceId: params.workspaceId,
+              organizationId: params.destinationOrganizationId,
+              billedAccountUserId: destination.ownerId,
+              expectedCurrentPayer: {
+                organizationId: workspaceRow.organizationId,
+                billedAccountUserId: workspaceRow.billedAccountUserId,
+              },
+            },
+          ]
+        )
 
         await tx
           .update(workspace)

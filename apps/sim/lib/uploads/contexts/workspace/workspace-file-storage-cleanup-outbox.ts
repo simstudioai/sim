@@ -18,6 +18,7 @@ export const WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT = 'workspace-file.stora
 
 interface WorkspaceFileStorageCleanupPayload {
   key: string
+  context?: 'workspace' | 'project'
 }
 
 function parsePayload(payload: unknown): WorkspaceFileStorageCleanupPayload {
@@ -28,14 +29,21 @@ function parsePayload(payload: unknown): WorkspaceFileStorageCleanupPayload {
   if (typeof key !== 'string' || key.trim().length === 0) {
     throw new Error('Workspace file storage cleanup outbox payload is missing key')
   }
-  return { key }
+  const context = payload.context
+  if (context !== undefined && context !== 'workspace' && context !== 'project') {
+    throw new Error('File storage cleanup has an invalid storage context')
+  }
+  if (key.startsWith('project/') && context !== 'project') {
+    throw new Error('Project object cleanup requires its explicit storage context')
+  }
+  return { key, context }
 }
 
 const cleanupWorkspaceFileStorage: OutboxHandler<unknown> = async (rawPayload, context) => {
   const payload = parsePayload(rawPayload)
   context.signal.throwIfAborted()
   try {
-    await deleteFile({ key: payload.key, context: 'workspace' })
+    await deleteFile({ key: payload.key, context: payload.context ?? 'workspace' })
   } catch (error) {
     if (describeError(error).code === 'ENOENT') return
     throw error
@@ -52,7 +60,9 @@ export const workspaceFileStorageCleanupOutboxHandlers = {
  */
 export async function enqueueWorkspaceFileStorageCleanups(
   executor: Pick<typeof db, 'insert'>,
-  keys: readonly string[]
+  keys: readonly string[],
+  context?: 'workspace' | 'project',
+  options: { availableAt?: Date } = {}
 ): Promise<string[]> {
   const eventIds: string[] = []
   for (const chunk of chunkArray([...keys], MAX_BULK_ENQUEUE_EVENTS)) {
@@ -60,7 +70,10 @@ export async function enqueueWorkspaceFileStorageCleanups(
       ...(await enqueueOutboxEvents(
         executor,
         WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
-        chunk.map((key): WorkspaceFileStorageCleanupPayload => ({ key }))
+        chunk.map(
+          (key): WorkspaceFileStorageCleanupPayload => ({ key, ...(context ? { context } : {}) })
+        ),
+        options
       ))
     )
   }

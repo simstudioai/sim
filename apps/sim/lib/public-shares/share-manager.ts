@@ -11,6 +11,9 @@ import type {
 } from '@/lib/api/contracts/public-shares'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { lockWorkspaceProject } from '@/lib/projects/membership'
+import { resolveFileOwner } from '@/lib/workspace-files/ownership'
+import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 const logger = createLogger('PublicShareManager')
 
@@ -174,80 +177,96 @@ export async function upsertFileShare({
   allowedEmails,
   token,
 }: UpsertFileShareInput): Promise<ShareRecord> {
-  const [existing] = await db
-    .select()
-    .from(publicShare)
-    .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
-    .limit(1)
-
-  const finalAuthType: ShareAuthType =
-    authType ?? (existing?.authType as ShareAuthType | undefined) ?? 'public'
-  const existingAllowedEmails = Array.isArray(existing?.allowedEmails)
-    ? (existing.allowedEmails as string[])
-    : []
-
-  // Disabling preserves the stored config (and skips validation) so turning
-  // sharing off always succeeds; only enabling validates the chosen auth mode.
-  let finalPassword: string | null = existing?.password ?? null
-  let finalAllowedEmails: string[] = existingAllowedEmails
-  if (isActive) {
-    if (finalAuthType === 'password') {
-      if (password) {
-        finalPassword = (await encryptSecret(password)).encrypted
-      } else if (existing?.password) {
-        finalPassword = existing.password
-      } else {
-        throw new ShareValidationError('Password is required for password-protected shares')
-      }
-      finalAllowedEmails = []
-    } else if (finalAuthType === 'email' || finalAuthType === 'sso') {
-      finalAllowedEmails = allowedEmails ?? existingAllowedEmails
-      if (finalAllowedEmails.length === 0) {
-        throw new ShareValidationError(
-          'At least one allowed email is required for email/SSO shares'
+  return db.transaction(async (tx) => {
+    await lockWorkspaceProject(tx, workspaceId)
+    const [file] = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          fileOwnerCondition({ entityType: 'workspace', entityId: workspaceId }),
+          isNull(workspaceFiles.deletedAt)
         )
-      }
-      finalPassword = null
-    } else {
-      finalPassword = null
-      finalAllowedEmails = []
-    }
-  }
+      )
+      .for('update')
+    if (!file) throw new ShareValidationError('File not found')
+    const [existing] = await tx
+      .select()
+      .from(publicShare)
+      .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
+      .limit(1)
 
-  const [row] = await db
-    .insert(publicShare)
-    .values({
-      id: generateId(),
-      resourceType: 'file',
-      resourceId: fileId,
-      workspaceId,
-      createdBy: userId,
-      token: token ?? generateShortId(),
-      isActive,
-      authType: finalAuthType,
-      password: finalPassword,
-      allowedEmails: finalAllowedEmails,
-    })
-    .onConflictDoUpdate({
-      target: [publicShare.resourceType, publicShare.resourceId],
-      set: {
+    const finalAuthType: ShareAuthType =
+      authType ?? (existing?.authType as ShareAuthType | undefined) ?? 'public'
+    const existingAllowedEmails = Array.isArray(existing?.allowedEmails)
+      ? (existing.allowedEmails as string[])
+      : []
+
+    // Disabling preserves the stored config (and skips validation) so turning
+    // sharing off always succeeds; only enabling validates the chosen auth mode.
+    let finalPassword: string | null = existing?.password ?? null
+    let finalAllowedEmails: string[] = existingAllowedEmails
+    if (isActive) {
+      if (finalAuthType === 'password') {
+        if (password) {
+          finalPassword = (await encryptSecret(password)).encrypted
+        } else if (existing?.password) {
+          finalPassword = existing.password
+        } else {
+          throw new ShareValidationError('Password is required for password-protected shares')
+        }
+        finalAllowedEmails = []
+      } else if (finalAuthType === 'email' || finalAuthType === 'sso') {
+        finalAllowedEmails = allowedEmails ?? existingAllowedEmails
+        if (finalAllowedEmails.length === 0) {
+          throw new ShareValidationError(
+            'At least one allowed email is required for email/SSO shares'
+          )
+        }
+        finalPassword = null
+      } else {
+        finalPassword = null
+        finalAllowedEmails = []
+      }
+    }
+
+    const [row] = await tx
+      .insert(publicShare)
+      .values({
+        id: generateId(),
+        resourceType: 'file',
+        resourceId: fileId,
+        workspaceId,
+        entityType: 'workspace',
+        entityId: workspaceId,
+        createdBy: userId,
+        token: token ?? generateShortId(),
         isActive,
         authType: finalAuthType,
         password: finalPassword,
         allowedEmails: finalAllowedEmails,
-        updatedAt: new Date(),
-      },
-    })
-    .returning()
+      })
+      .onConflictDoUpdate({
+        target: [publicShare.resourceType, publicShare.resourceId],
+        set: {
+          isActive,
+          authType: finalAuthType,
+          password: finalPassword,
+          allowedEmails: finalAllowedEmails,
+          updatedAt: new Date(),
+        },
+      })
+      .returning()
 
-  logger.info('Upserted file share', {
-    fileId,
-    workspaceId,
-    isActive,
-    authType: finalAuthType,
-    token: row.token,
+    logger.info('Upserted file share', {
+      fileId,
+      workspaceId,
+      isActive,
+      authType: finalAuthType,
+    })
+    return mapShareRecord(row)
   })
-  return mapShareRecord(row)
 }
 
 /**
@@ -257,8 +276,8 @@ export async function upsertFileShare({
  * leaked through this path.
  */
 export interface ResolvedShare {
-  share: PublicShareRow
-  file: WorkspaceFileRow
+  share: PublicShareRow & { workspaceId: string }
+  file: WorkspaceFileRow & { workspaceId: string; userId: string }
   /** Owning workspace name, for provenance on the public page. */
   workspaceName: string | null
   /** Display name of the file's uploader. */
@@ -287,11 +306,22 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
     )
     .limit(1)
 
-  if (!row) return null
+  if (!row || !row.file.workspaceId || !row.file.userId) return null
+  const owner = resolveFileOwner(row.file)
+  if (
+    owner?.entityType !== 'workspace' ||
+    owner.entityId !== row.file.workspaceId ||
+    row.share.workspaceId !== owner.entityId ||
+    !(
+      (row.share.entityType === null && row.share.entityId === null) ||
+      (row.share.entityType === 'workspace' && row.share.entityId === owner.entityId)
+    )
+  )
+    return null
 
   return {
-    share: row.share,
-    file: row.file,
+    share: { ...row.share, workspaceId: owner.entityId },
+    file: { ...row.file, workspaceId: owner.entityId, userId: row.file.userId },
     workspaceName: row.workspaceName,
     ownerName: row.ownerName,
   }

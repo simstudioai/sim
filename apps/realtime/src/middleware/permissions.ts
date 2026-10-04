@@ -13,8 +13,14 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import {
+  projectFileDocTarget,
+  ROOM_TYPES,
+  type RoomRef,
+  roomName,
+} from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
+import { fetchProjectFileDocAccess } from '@/handlers/file-doc-app'
 
 const logger = createLogger('SocketPermissions')
 
@@ -219,8 +225,15 @@ function commitRoleDecision(key: string, role: string | null, readSeq: number): 
  */
 async function readAuthoritativeRoomPermission(
   userId: string,
-  room: RoomRef
+  room: RoomRef,
+  connectionId?: string
 ): Promise<PermissionType | null> {
+  if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
+    const target = projectFileDocTarget(room)
+    if (!target || !connectionId) throw new Error('Project document requires a socket identity')
+    const authorization = await fetchProjectFileDocAccess({ ...target, userId, connectionId })
+    return authorization.allowed ? authorization.workspacePermission : null
+  }
   if (room.type === ROOM_TYPES.WORKFLOW) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: room.id,
@@ -241,11 +254,12 @@ async function resolveRoleUncached(
   key: string,
   userId: string,
   room: RoomRef,
-  fallbackRole: string
+  fallbackRole: string,
+  connectionId?: string
 ): Promise<string | null> {
   const readSeq = beginRoomPermissionRead()
   try {
-    const role = await readAuthoritativeRoomPermission(userId, room)
+    const role = await readAuthoritativeRoomPermission(userId, room, connectionId)
     // Yields only to a decision from a later-STARTED read (see commitRoleDecision).
     // Comparing write order instead would let a join whose authorize began before
     // this one — but returned after it — bury this result.
@@ -259,6 +273,7 @@ async function resolveRoleUncached(
     // already-revoked user — so a recorded revocation survives a transient DB failure
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
+    if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) return null
     const lastKnown = roleCache.get(key)
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
@@ -279,7 +294,8 @@ async function resolveRoleUncached(
 export async function resolveCurrentRoomPermission(
   userId: string,
   room: RoomRef,
-  fallbackRole: string
+  fallbackRole: string,
+  connectionId?: string
 ): Promise<string | null> {
   const key = roleCacheKey(userId, room)
   const cached = roleCache.get(key)
@@ -292,9 +308,11 @@ export async function resolveCurrentRoomPermission(
     return inFlight
   }
 
-  const resolution = resolveRoleUncached(key, userId, room, fallbackRole).finally(() => {
-    inFlightRoleResolutions.delete(key)
-  })
+  const resolution = resolveRoleUncached(key, userId, room, fallbackRole, connectionId).finally(
+    () => {
+      inFlightRoleResolutions.delete(key)
+    }
+  )
   inFlightRoleResolutions.set(key, resolution)
   return resolution
 }

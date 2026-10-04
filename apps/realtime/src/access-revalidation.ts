@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
+import { FILE_DOC_EVENTS, type FileDocPermission } from '@sim/realtime-protocol/file-doc'
 import {
   parseRoomName,
+  projectFileDocTarget,
   ROOM_TYPES,
   type RoomRef,
   type RoomType,
@@ -327,11 +329,21 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         // resolution keeps running in the background and is re-raced when the
         // rotation returns to this socket, so it is acted on once it settles.
         const role = await Promise.race([
-          resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type)),
+          room.type === ROOM_TYPES.PROJECT_FILE_DOC
+            ? resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type), socket.id)
+            : resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type)),
           sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),
         ])
         // {@link SCAN_TIMED_OUT} is the only symbol this race can yield; matching on
         // the type narrows it out of the permission comparison below.
+        if (typeof role !== 'symbol' && room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
+          const target = projectFileDocTarget(room)
+          if (target)
+            socket.emit(FILE_DOC_EVENTS.PERMISSION, {
+              ...target,
+              canWrite: role === 'write' || role === 'admin',
+            } satisfies FileDocPermission)
+        }
         if (typeof role === 'symbol') {
           logger.warn(
             `Authorization check timed out for user ${userId} on ${name}; skipping this pass`

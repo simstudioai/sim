@@ -12,6 +12,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import { toFolderApi } from '@/lib/folders/queries'
 import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
+import { isWorkspaceFolder } from '@/lib/folders/scope'
 import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -63,7 +64,7 @@ export const PUT = withRouteHandler(
         )
         .then((rows) => rows[0])
 
-      if (!existingFolder) {
+      if (!existingFolder || !isWorkspaceFolder(existingFolder)) {
         return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
       }
 
@@ -167,7 +168,7 @@ export const DELETE = withRouteHandler(
         .where(and(eq(folderTable.id, id), eq(folderTable.resourceType, resourceType)))
         .then((rows) => rows[0])
 
-      if (!existingFolder) {
+      if (!existingFolder || !isWorkspaceFolder(existingFolder)) {
         return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
       }
 

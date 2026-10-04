@@ -1,15 +1,29 @@
+import { db } from '@sim/db'
+import { workspace } from '@sim/db/schema'
+import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { lockWorkspaceProject } from '@/lib/projects/membership'
+import { listFileFolders, loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
+import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
+import {
+  loadFileSearchDelivery,
+  resolveFileSearchFolderScope,
+} from '@/lib/workspace-files/search/delivery'
 import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
   type FileSearchMode,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
+import {
+  searchFileIndex,
+  toWorkspaceFileSearchResult,
+} from '@/lib/workspace-files/search/repository'
 
 export interface SearchWorkspaceFileContentInput {
   workspaceId: string
@@ -61,13 +75,42 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
-      return await searchWorkspaceFileIndex({
-        workspaceId: context.workspaceId,
+      const owner = { entityType: 'workspace' as const, entityId: context.workspaceId }
+      const result = await searchFileIndex({
+        owner,
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
         folderScope,
         signal,
       })
+      const provenance = await db.transaction(async (tx) => {
+        await lockWorkspaceProject(tx, context.workspaceId)
+        const [current] = await tx
+          .select({
+            workspaceId: workspace.id,
+            workspaceOrganizationId: workspace.organizationId,
+            allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+          })
+          .from(workspace)
+          .where(and(eq(workspace.id, context.workspaceId), isNull(workspace.archivedAt)))
+          .for('share')
+        if (!current) throw new OrchestrationError('not_found', 'Workspace not found')
+        if (current.workspaceOrganizationId)
+          await acquirePermissionGroupOrgLock(tx, current.workspaceOrganizationId)
+        await authorizeWorkspaceFileAccess(principal, fileOperations.searchContent, current, {
+          executor: tx,
+          forUpdate: true,
+        })
+        const folders = input.folderPaths === undefined ? [] : await listFileFolders(owner, {}, tx)
+        return loadFileSearchDelivery(tx, {
+          owner,
+          prepared: result,
+          scope: resolveFileSearchFolderScope(folders, input),
+          signal,
+        })
+      })
+      await reportWorkspaceFileDelivery(provenance)
+      return toWorkspaceFileSearchResult(result)
     } catch (error) {
       /**
        * A rejected or too-expensive pattern is the caller's to fix, and the

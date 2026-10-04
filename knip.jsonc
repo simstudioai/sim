@@ -44,6 +44,7 @@
         "lib/mothership/generated/**": ["exports", "types", "duplicates"],
         // API conventions require exported named wire schemas and aliases, including before client adoption.
         "lib/api/contracts/projects.ts": ["exports", "types"],
+        "lib/api/contracts/v2/uploads.ts": ["types"],
         "sandbox-tasks/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
@@ -71,7 +72,14 @@
       // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
       "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
     },
-    "apps/realtime": { "entry": ["src/bootstrap.ts"] },
+    "apps/realtime": {
+      "entry": [
+        "src/bootstrap.ts",
+        // Integration mode discovers these suites and setup by filename.
+        "src/**/*.integration.ts",
+        "vitest.integration.setup.ts"
+      ]
+    },
     "apps/desktop": {
       // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path.
       "entry": [

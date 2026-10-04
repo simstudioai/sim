@@ -1,9 +1,16 @@
 import { db } from '@sim/db'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
+import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
+import {
+  type ChangeProjectStoragePayerParams,
+  changeProjectAndWorkspaceStoragePayersInTx,
+} from '@/lib/billing/storage/payer-transfer'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { purgeProjectFilesInTx } from '@/lib/projects/files/purge'
 import { lockProject, lockProjectBackfillWrites } from '@/lib/projects/membership'
+import { planBilledAccountReassignmentsForUser } from '@/lib/workspaces/utils'
 
 async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorkspaceIds: string[]) {
   return executor
@@ -115,18 +122,16 @@ export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
   doomedWorkspaceIds: string[]
-): Promise<void> {
+): Promise<{ storageCleanupEventIds: string[] }> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
     .from(workspace)
-    .where(eq(workspace.ownerId, userId))
-  await lockProjectBackfillWrites(tx, [
-    ...doomedWorkspaceIds,
-    ...ownedEnvironments.map((row) => row.id),
-  ])
+    .where(or(eq(workspace.ownerId, userId), eq(workspace.billedAccountUserId, userId)))
+  const affectedWorkspaceIds = [...doomedWorkspaceIds, ...ownedEnvironments.map((row) => row.id)]
+  await lockProjectBackfillWrites(tx, affectedWorkspaceIds)
   const locked = new Set<string>()
   for (;;) {
-    const records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
+    const records = await loadRelatedProjects(tx, userId, affectedWorkspaceIds)
     const pending = records.filter((row) => !locked.has(row.id))
     if (!pending.length) break
     for (const { id } of pending) {
@@ -134,22 +139,56 @@ export async function prepareProjectsForAccountDeletion(
       locked.add(id)
     }
   }
-  const records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
+  const records = await loadRelatedProjects(tx, userId, affectedWorkspaceIds)
   const doomed = new Set(doomedWorkspaceIds)
+  const projectChanges: ChangeProjectStoragePayerParams[] = []
+  const projectRemovals: ProjectStorageOwnerSnapshot[] = []
   for (const { id } of records) {
-    await lockProject(tx, id)
     const [record] = await tx.select().from(project).where(eq(project.id, id))
     if (!record) continue
     const decision = await planProjectDeletion(tx, record, userId, doomed)
     if (decision.blocker) throw new OrchestrationError('conflict', decision.blocker)
     if (decision.remove) {
-      await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, id))
-      await tx.delete(project).where(eq(project.id, id))
+      projectRemovals.push({
+        projectId: id,
+        ownerId: record.ownerId,
+        organizationId: record.organizationId,
+      })
+      continue
     }
     if (!decision.ownerId) continue
-    await tx
-      .update(project)
-      .set({ ownerId: decision.ownerId, updatedAt: new Date() })
-      .where(eq(project.id, id))
+    projectChanges.push({
+      projectId: id,
+      ownerId: decision.ownerId,
+      organizationId: record.organizationId,
+      expectedCurrentOwner: { ownerId: record.ownerId, organizationId: record.organizationId },
+    })
   }
+  const { changes: workspaceChanges } = await planBilledAccountReassignmentsForUser(userId, tx, {
+    excludeWorkspaceIds: doomedWorkspaceIds,
+    lockRows: true,
+  })
+  const { removedProjects } = await changeProjectAndWorkspaceStoragePayersInTx(tx, {
+    projectChanges,
+    workspaceChanges,
+    projectRemovals,
+  })
+  if (workspaceChanges.length) {
+    await tx
+      .update(workspace)
+      .set({ updatedAt: new Date() })
+      .where(
+        inArray(
+          workspace.id,
+          workspaceChanges.map((change) => change.workspaceId)
+        )
+      )
+  }
+  const storageCleanupEventIds: string[] = []
+  for (const { projectId: id, billableBytes } of removedProjects) {
+    storageCleanupEventIds.push(...(await purgeProjectFilesInTx(tx, id, billableBytes)))
+    await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, id))
+    await tx.delete(project).where(eq(project.id, id))
+  }
+  return { storageCleanupEventIds }
 }

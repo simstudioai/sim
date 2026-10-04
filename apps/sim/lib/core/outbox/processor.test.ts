@@ -46,6 +46,9 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () =>
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
   workspaceFileStorageCleanupOutboxHandlers: {},
 }))
+vi.mock('@/lib/projects/files/prefix-cleanup', () => ({
+  projectFilePrefixCleanupOutboxHandlers: {},
+}))
 vi.mock('@/lib/workflows/deployment-outbox', () => ({ workflowDeploymentOutboxHandlers: {} }))
 vi.mock('@/lib/workspaces/admin-move', () => ({ invitationMigrationOutboxHandlers: {} }))
 vi.mock('@/lib/workspaces/operations/outbox', () => ({ workspaceOperationOutboxHandlers: {} }))

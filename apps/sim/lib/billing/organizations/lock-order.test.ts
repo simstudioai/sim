@@ -17,20 +17,19 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockChangeOrganizationWorkspaceBilledAccountsInTx, mockChangeWorkspaceStoragePayersInTx } =
-  vi.hoisted(() => ({
-    mockChangeOrganizationWorkspaceBilledAccountsInTx: vi.fn(),
-    mockChangeWorkspaceStoragePayersInTx: vi.fn(),
-  }))
+const {
+  mockChangeOrganizationWorkspaceBilledAccountsInTx,
+  mockChangeProjectAndWorkspaceStoragePayersInTx,
+} = billingPayerTransferMockFns
 
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({
-  changeOrganizationWorkspaceBilledAccountsInTx: mockChangeOrganizationWorkspaceBilledAccountsInTx,
-  changeWorkspaceStoragePayerInTx: vi.fn(),
-  changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
-}))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 
 import {
   reapplyPaidOrgJoinBillingForExistingMemberTx,
@@ -102,7 +101,7 @@ describe('paid-org join billing lock ordering', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockChangeOrganizationWorkspaceBilledAccountsInTx.mockReset()
-    mockChangeWorkspaceStoragePayersInTx.mockReset()
+    mockChangeProjectAndWorkspaceStoragePayersInTx.mockReset()
   })
 
   it('locks the personal subscription before pausing it and never mutates userStats', async () => {
@@ -250,7 +249,7 @@ describe('workspace payer-change transaction lock ordering', () => {
         }),
       }),
     }
-    mockChangeWorkspaceStoragePayersInTx.mockImplementationOnce(async () => {
+    mockChangeProjectAndWorkspaceStoragePayersInTx.mockImplementationOnce(async () => {
       ops.push({ op: 'payer-transfer', table: workspace })
       return []
     })

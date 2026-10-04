@@ -1,4 +1,7 @@
-export { resolveStorageBillingContext, type StorageBillingContext } from './context'
+export {
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from './context'
 export {
   checkStorageQuota,
   checkStorageQuotaForBillingContext,

@@ -604,6 +604,8 @@ export function assertUploadSessionAuthBinding(
   session: UploadSessionRecord,
   principal: Principal
 ): void {
+  if (session.purpose === 'project_file')
+    throw new UploadSessionError('forbidden', 'Project upload control is unavailable')
   if (session.purpose === 'organization_logo') {
     assertOrganizationLogoControlBinding(session, principal)
     return
@@ -1225,6 +1227,7 @@ async function claimSession(
       and(
         eq(uploadSession.id, id),
         inArray(uploadSession.status, statuses),
+        ...(nextStatus === 'aborting' ? [isNull(uploadSession.completedFileId)] : []),
         or(
           isNull(uploadSession.processingLeaseId),
           isNull(uploadSession.processingLeaseExpiresAt),
@@ -1436,6 +1439,7 @@ function copilotUploadAudience(purpose: UploadSessionPurpose): string | undefine
 function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
   return (
     purpose === 'workspace_file' ||
+    purpose === 'project_file' ||
     purpose === 'knowledge_document' ||
     purpose === 'table_import' ||
     purpose === 'mothership_attachment' ||
@@ -1507,6 +1511,7 @@ function resolveUploadStorage(
 function isStorageContext(value: string): value is StorageContext {
   return [
     'workspace',
+    'project',
     'table-import',
     'knowledge-base',
     'profile-pictures',

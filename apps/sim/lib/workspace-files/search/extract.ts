@@ -1,19 +1,11 @@
 import { Buffer, isUtf8 } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'
 import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
-import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
-import {
-  fetchWorkspaceFileBuffer,
-  type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import {
-  FILE_SEARCH_MAX_EXTRACTED_BYTES,
-  FILE_SEARCH_MAX_SOURCE_BYTES,
-} from '@/lib/workspace-files/search/constants'
+import { FILE_SEARCH_MAX_EXTRACTED_BYTES } from '@/lib/workspace-files/search/constants'
 import { FileSearchExclusionError } from '@/lib/workspace-files/search/index-plan'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 
@@ -35,39 +27,6 @@ export interface IndexableBytes {
 export interface ExtractedIndexText {
   text: string
   partial: boolean
-}
-
-/**
- * Loads the bytes to index without executing anything.
- *
- * Generated documents store their generation source as the primary file and keep the rendered
- * binary in the compiled-artifact store. This reads the artifact when it exists and otherwise
- * settles for the source text, the same read-only resolution the public share route uses.
- * Compile-on-read belongs to download surfaces acting for a principal: an indexer running as
- * nobody inside a worker must not run a document's source, whatever compiler that worker has.
- */
-export async function loadIndexableBytes(
-  file: WorkspaceFileRecord,
-  signal: AbortSignal
-): Promise<IndexableBytes> {
-  const raw = await fetchWorkspaceFileBuffer(file, {
-    maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
-    signal,
-  })
-  signal.throwIfAborted()
-  const servable = await resolveServableDoc(file.workspaceId, raw, file.name, {
-    maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
-    signal,
-  })
-  if (servable.kind === 'artifact') {
-    assertKnownSizeWithinLimit(
-      servable.buffer.length,
-      FILE_SEARCH_MAX_SOURCE_BYTES,
-      'search index artifact'
-    )
-    return { buffer: servable.buffer, kind: 'artifact' }
-  }
-  return { buffer: raw, kind: servable.kind === 'unavailable' ? 'source' : 'stored' }
 }
 
 function isPlainText(buffer: Buffer): boolean {

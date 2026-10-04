@@ -33,23 +33,19 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
-vi.mock('./doc-compiled-store', () => ({
+vi.mock('@/lib/uploads/documents/compiled-store', () => ({
   loadCompiledDoc: mockLoadCompiledDoc,
   loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
   publishCompiledDocArtifact: mockPublishCompiledDocArtifact,
   storeCompiledDoc: mockStoreCompiledDoc,
 }))
-vi.mock('@/app/api/files/utils', () => ({
-  getContentType: (name: string) =>
-    name.endsWith('.pdf')
-      ? 'application/pdf'
-      : name.endsWith('.txt')
-        ? 'text/plain'
-        : 'application/octet-stream',
-}))
 
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
+import {
+  compileDoc,
+  resolveServableDoc,
+  resolveServableDocBytes,
+} from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const { mockExecuteInSandbox } = remoteSandboxMockFns
 

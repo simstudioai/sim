@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { compareStrings } from '@sim/utils/string'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -9,19 +10,21 @@ import {
   type SandboxFile,
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import {
   type CompiledDocReadOptions,
+  compiledArtifactKey,
   loadCompiledDoc,
   loadPublishedCompiledDoc,
   publishCompiledDocArtifact,
   storeCompiledDoc,
-} from '@/lib/mothership/tools/server/files/doc-compiled-store'
-import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/documents/compiled-store'
+import { PPTX_SHIM_JS } from '@/lib/uploads/documents/pptx-shim'
+import { iterateDocumentFileReferences } from '@/lib/uploads/documents/references'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
 const logger = createLogger('CopilotDocCompile')
@@ -37,12 +40,12 @@ const PDF_MIME = 'application/pdf'
 // JS path; the python engines have distinct markers.
 export const PPTXGENJS_SOURCE_MIME = 'text/x-pptxgenjs'
 export const DOCXJS_SOURCE_MIME = 'text/x-docxjs'
-export const PYTHON_PDF_SOURCE_MIME = 'text/x-python-pdf'
-export const PYTHON_XLSX_SOURCE_MIME = 'text/x-python-xlsx'
+const PYTHON_PDF_SOURCE_MIME = 'text/x-python-pdf'
+const PYTHON_XLSX_SOURCE_MIME = 'text/x-python-xlsx'
 
-export type DocEngine = 'node' | 'python'
+type DocEngine = 'node' | 'python'
 
-export interface E2BDocFormat {
+interface E2BDocFormat {
   ext: 'pptx' | 'docx' | 'pdf' | 'xlsx'
   engine: DocEngine
   formatName: 'PPTX' | 'DOCX' | 'PDF' | 'XLSX'
@@ -96,17 +99,6 @@ export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | 
   return null
 }
 
-// The skills reference workspace images by BARE file id through the injected
-// helpers — `getFileBase64(id)`, `addImage(slide, id, ...)` (pptx),
-// `addImage(id, ...)` (docx), `drawImage(page, id, ...)` (pdf) — never as a path.
-// Capture the id from those call sites (skipping a leading slide/page argument),
-// plus the legacy `/home/user/inputs/<id>` path, so referenced files are staged
-// before the script runs. Without this the sandbox `getFileBase64` throws
-// "file not staged" and every workspace-image embed silently fails.
-const INPUT_PATH_RE = /\/home\/user\/inputs\/([A-Za-z0-9_-]+)/g
-const FILE_HELPER_RE =
-  /\b(?:getFileBase64|addImage|drawImage|input_path)\(\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?['"]([A-Za-z0-9_-]+)['"]/g
-
 /**
  * A .pptx or .docx source whose first line is `#!simdoc` is a template-clone
  * script: Python against the simdoc Deck/Doc API (opening a retained reference
@@ -116,7 +108,7 @@ const FILE_HELPER_RE =
  */
 const SIMDOC_DECK_MARKER = '#!simdoc'
 
-export function isSimdocDeckSource(source: string): boolean {
+function isSimdocDeckSource(source: string): boolean {
   return source.trimStart().startsWith(SIMDOC_DECK_MARKER)
 }
 
@@ -143,7 +135,8 @@ interface ReferencedImageResolution {
   artifactIdentity?: string
 }
 
-export interface CompiledDocResult {
+interface CompiledDocResult {
+  artifactKey?: string
   buffer: Buffer
   contentType: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
@@ -193,13 +186,9 @@ function referencedImageIdentities(
  */
 export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
-  for (const re of [INPUT_PATH_RE, FILE_HELPER_RE]) {
-    for (const match of source.matchAll(re)) {
-      if (match[1]) {
-        ids.add(match[1])
-        if (ids.size > MAX_REFERENCED_INPUTS) return ids
-      }
-    }
+  for (const { fileId } of iterateDocumentFileReferences(source)) {
+    ids.add(fileId)
+    if (ids.size > MAX_REFERENCED_INPUTS) return ids
   }
   return ids
 }
@@ -223,7 +212,7 @@ async function resolveReferencedImages(
 
   const images: ResolvedReferencedImage[] = []
   const identity: Array<Record<string, unknown>> = []
-  for (const fileId of ids) {
+  for (const fileId of [...ids].sort(compareStrings)) {
     const { file: record } = await readWorkspaceFileMetadata.execute({
       principal,
       input: { fileId, assertedWorkspaceId: workspaceId },
@@ -357,11 +346,10 @@ interface CompileArgs extends LegacyCompileArgs {
  * Internal — callers use compileDoc (load-or-build + store).
  */
 async function compileDocViaE2BPython(
-  { source, workspaceId, filePrincipal }: CompileArgs,
+  source: string,
   fmt: E2BDocFormat,
-  referencedImages: ReferencedImageResolution
+  sandboxFiles: SandboxFile[]
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${fmt.ext}`
 
   // openpyxl writes formula strings but no cached values, so a web viewer (SheetJS)
@@ -392,7 +380,6 @@ async function compileDocViaE2BPython(
   return Buffer.from(result.exportedFileContent, 'base64')
 }
 
-// ── Node engine (pptxgenjs / docx) ──────────────────────────────────────────
 // Preambles replicate the isolated-vm bootstraps as node globals: the injected
 // `pptx`/`docx` instances, geometry constants, and fileId-based image helpers
 // (reading staged /home/user/inputs/<id> files). pptx also gets `iconImage`
@@ -440,11 +427,10 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  * engines. Throws DocCompileUserError on a script error.
  */
 async function compileDocViaE2BNode(
-  { source, workspaceId, filePrincipal }: CompileArgs,
+  source: string,
   ext: 'pptx' | 'docx',
-  referencedImages: ReferencedImageResolution
+  sandboxFiles: SandboxFile[]
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${ext}`
   const preamble = ext === 'pptx' ? PPTX_NODE_PREAMBLE : DOCX_NODE_PREAMBLE
   const finalize = ext === 'pptx' ? PPTX_NODE_FINALIZE : DOCX_NODE_FINALIZE
@@ -554,30 +540,9 @@ async function buildCompiledDoc(
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
 ): Promise<CompiledDocResult> {
-  const { source, fileName, workspaceId, filePrincipal } = args
-  const cloneDeck = (fmt.ext === 'pptx' || fmt.ext === 'docx') && isSimdocDeckSource(source)
-  const buffer = cloneDeck
-    ? await compileDocViaE2BPython(
-        {
-          source: wrapSimdocDeckSource(source, fmt.ext as 'pptx' | 'docx'),
-          fileName,
-          workspaceId,
-          filePrincipal,
-        },
-        fmt,
-        referencedImages
-      )
-    : fmt.engine === 'node'
-      ? await compileDocViaE2BNode(
-          { source, fileName, workspaceId, filePrincipal },
-          fmt.ext as 'pptx' | 'docx',
-          referencedImages
-        )
-      : await compileDocViaE2BPython(
-          { source, fileName, workspaceId, filePrincipal },
-          fmt,
-          referencedImages
-        )
+  const { source, workspaceId, filePrincipal } = args
+  const stagedInputs = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
+  const buffer = await renderPreparedDocument(source, fmt, stagedInputs)
   await storeCompiledDoc(
     workspaceId,
     source,
@@ -589,10 +554,30 @@ async function buildCompiledDoc(
   const contributingFiles = referencedImageIdentities(referencedImages)
   return {
     buffer,
+    artifactKey: compiledArtifactKey(
+      workspaceId,
+      source,
+      fmt.ext,
+      referencedImages.artifactIdentity
+    ),
     contentType: fmt.contentType,
     dependsOnReferencedFiles: touchesReferencedFiles(args.source, contributingFiles.length),
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
+}
+
+async function renderPreparedDocument(source: string, fmt: E2BDocFormat, inputs: SandboxFile[]) {
+  const cloneDeck = (fmt.ext === 'pptx' || fmt.ext === 'docx') && isSimdocDeckSource(source)
+  if (cloneDeck) {
+    return compileDocViaE2BPython(
+      wrapSimdocDeckSource(source, fmt.ext as 'pptx' | 'docx'),
+      fmt,
+      inputs
+    )
+  }
+  return fmt.engine === 'node'
+    ? compileDocViaE2BNode(source, fmt.ext as 'pptx' | 'docx', inputs)
+    : compileDocViaE2BPython(source, fmt, inputs)
 }
 
 // Template-clone scripts author against the simdoc Deck (pptx) / Doc (docx)
@@ -750,6 +735,12 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
     const contributingFiles = referencedImageIdentities(referencedImages)
     return {
       buffer: existing,
+      artifactKey: compiledArtifactKey(
+        workspaceId,
+        source,
+        fmt.ext,
+        referencedImages.artifactIdentity
+      ),
       contentType: fmt.contentType,
       dependsOnReferencedFiles: touchesReferencedFiles(source, contributingFiles.length),
       ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
@@ -763,7 +754,7 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
  * source-keyed artifact. That fallback preserves already-public documents even when their
  * original inputs no longer resolve; it only reads an existing binary and never executes source.
  */
-export async function loadCompiledDocByExt(
+async function loadCompiledDocByExt(
   workspaceId: string,
   source: string,
   ext: string,
@@ -772,7 +763,12 @@ export async function loadCompiledDocByExt(
     allowPublishedReferencedArtifact?: boolean
     filePrincipal?: Principal
   } = {}
-): Promise<{ buffer: Buffer; contentType: string } | null> {
+): Promise<{
+  buffer: Buffer
+  contentType: string
+  artifactKey?: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+} | null> {
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const readOptions: CompiledDocReadOptions = { maxBytes: options.maxBytes, signal: options.signal }
@@ -780,7 +776,13 @@ export async function loadCompiledDocByExt(
   if (!options.filePrincipal) {
     if (referencedFileIds.size === 0) {
       const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
-      return buffer ? { buffer, contentType: fmt.contentType } : null
+      return buffer
+        ? {
+            buffer,
+            contentType: fmt.contentType,
+            artifactKey: compiledArtifactKey(workspaceId, source, fmt.ext),
+          }
+        : null
     }
     if (options.allowPublishedReferencedArtifact) {
       const publishedBuffer = await loadPublishedCompiledDoc(
@@ -808,7 +810,18 @@ export async function loadCompiledDocByExt(
     referencedImages.artifactIdentity,
     readOptions
   )
-  if (buffer) return { buffer, contentType: fmt.contentType }
+  if (buffer)
+    return {
+      buffer,
+      contentType: fmt.contentType,
+      artifactKey: compiledArtifactKey(
+        workspaceId,
+        source,
+        fmt.ext,
+        referencedImages.artifactIdentity
+      ),
+      contributingFiles: referencedImageIdentities(referencedImages),
+    }
   if (referencedImages.artifactIdentity && options.allowLegacyReferencedArtifact) {
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
     if (legacyBuffer) return { buffer: legacyBuffer, contentType: fmt.contentType }
@@ -820,6 +833,13 @@ function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
   return buffer.length >= magic.length && buffer.subarray(0, magic.length).equals(magic)
 }
 
+/** Identifies uploaded document binaries so generated source alone enters the compiler. */
+export function isCompiledDocumentBuffer(fileName: string, buffer: Buffer): boolean {
+  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
+  const magic = COMPILABLE_FORMATS[ext]?.magic ?? (ext === '.xlsx' ? ZIP_MAGIC : undefined)
+  return magic !== undefined && bufferStartsWith(buffer, magic)
+}
+
 /**
  * How a read-only consumer (e.g. the public share route) should serve a stored doc:
  * - `passthrough` — serve the raw stored bytes as-is (a non-doc file, or an uploaded
@@ -829,7 +849,7 @@ function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
  *   not exist yet; the raw bytes are source, so serving them under the file's binary
  *   content type would be corrupt. The caller should signal "not ready" instead.
  */
-export type ServableDoc =
+type ServableDoc =
   | { kind: 'passthrough' }
   | { kind: 'artifact'; buffer: Buffer; contentType: string }
   | { kind: 'unavailable' }
@@ -919,11 +939,10 @@ export async function resolveServableDocBytes(args: {
 
   // xlsx isn't in COMPILABLE_FORMATS (no isolated-vm path), so match its ZIP magic
   // explicitly alongside the table-driven formats.
-  const magic = format?.magic ?? (extNoDot === 'xlsx' ? ZIP_MAGIC : undefined)
-  if (magic && bufferStartsWith(rawBuffer, magic)) {
+  if (isCompiledDocumentBuffer(fileName, rawBuffer)) {
     return {
       buffer: rawBuffer,
-      contentType: getContentType(fileName),
+      contentType: getMimeTypeFromExtension(getFileExtension(fileName)),
       dependsOnReferencedFiles: false,
     }
   }
@@ -931,7 +950,7 @@ export async function resolveServableDocBytes(args: {
   if (!format && extNoDot !== 'xlsx') {
     return {
       buffer: rawBuffer,
-      contentType: getContentType(fileName),
+      contentType: getMimeTypeFromExtension(getFileExtension(fileName)),
       dependsOnReferencedFiles: false,
     }
   }

@@ -1,4 +1,6 @@
 /** Real PostgreSQL cancellation must roll back preparation and release its advisory lock. */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -47,7 +49,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       max: 3,
       prepare: false,
       fetch_types: false,
-      connection: { search_path: schemaName },
+      connection: { search_path: `${schemaName},public` },
       onnotice: () => {},
       debug: (_connection: unknown, query: string, params: readonly unknown[]) => {
         statements.push({ query, params })
@@ -69,7 +71,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
      */
     await connection`CREATE TABLE workspace_files (
       id text PRIMARY KEY, workspace_id text, context text NOT NULL,
-      deleted_at timestamp, content_updated_at timestamp NOT NULL
+      deleted_at timestamp, content_updated_at timestamp NOT NULL,
+      entity_type text, entity_id text, key text NOT NULL DEFAULT 'key'
     )`
     await connection`CREATE TABLE workspace_file_search_revision (
       file_id text PRIMARY KEY, workspace_id text NOT NULL,
@@ -93,19 +96,34 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`CREATE INDEX ON workspace_file_search_revision (workspace_id, dispatched_at)
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     await connection`INSERT INTO workspace_file_search_backfill (id, updated_at)
-      VALUES ('workspace-file-search-chunks-v2', '2026-09-16 00:00:00')`
-    await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, expires_at timestamp)`
-    await connection`CREATE TABLE workspace_file_search_chunk (build_id text NOT NULL, ordinal integer NOT NULL, PRIMARY KEY(build_id, ordinal))`
+      VALUES ('file-search-owners-v3', '2026-09-16 00:00:00')`
+    await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, workspace_id text NOT NULL, file_id text NOT NULL, expires_at timestamp)`
+    await connection`CREATE TABLE workspace_file_search_chunk (build_id text NOT NULL, workspace_id text NOT NULL, content text NOT NULL, ordinal integer NOT NULL, PRIMARY KEY(build_id, ordinal))`
+    const migration = readFileSync(
+      resolve(process.cwd(), '../../packages/db/migrations/0401_file_search_owner_scope.sql'),
+      'utf8'
+    ).replaceAll('"public".', `"${schemaName}".`)
+    const session = await connection.reserve()
+    try {
+      await session`BEGIN`
+      for (const statement of migration.split('--> statement-breakpoint'))
+        if (statement.trim()) await session.unsafe(statement)
+      await session`COMMIT`
+    } finally {
+      await session`ROLLBACK`
+      await session`RESET lock_timeout`
+      session.release()
+    }
     database.current = drizzle(connection)
   })
 
   beforeEach(async () => {
     mocks.batchTrigger.mockReset()
     await connection`DROP TRIGGER IF EXISTS slow_backfill ON workspace_file_search_backfill`
-    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue`
+    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue, file_search_dispatch_queue`
     await connection`UPDATE workspace_file_search_backfill
       SET updated_at = '2026-09-16 00:00:00', completed_at = NULL,
-        after_workspace_id = NULL, after_file_id = NULL`
+        after_workspace_id = NULL, after_entity_type = NULL, after_entity_id = NULL, after_file_id = NULL`
   })
 
   afterAll(async () => {
@@ -126,19 +144,68 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     })
   }
 
-  async function seedQueue(workspaceId: string, queued: number, active = 0) {
+  async function seedQueue(
+    workspaceId: string,
+    queued: number,
+    active = 0,
+    entityType: 'workspace' | 'project' = 'workspace'
+  ) {
     await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
-    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
-      SELECT ${workspaceId} || '-' || lpad(n::text, 6, '0'), ${workspaceId}, 'workspace', '2026-09-16'
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, entity_type, entity_id, content_updated_at)
+      SELECT ${entityType === 'workspace' ? '' : 'project-'} || ${workspaceId} || '-' || lpad(n::text, 6, '0'),
+        ${entityType === 'workspace' ? workspaceId : null}, ${entityType}, ${entityType}, ${workspaceId}, '2026-09-16'
       FROM generate_series(1, ${queued + active}) n`
     await connection`INSERT INTO workspace_file_search_revision
-      (file_id, workspace_id, source_content_updated_at, status, updated_at, dispatched_at)
-      SELECT id, workspace_id, content_updated_at, 'pending', '2026-09-16',
+      (file_id, workspace_id, entity_type, entity_id, source_content_updated_at, status, updated_at, dispatched_at)
+      SELECT id, workspace_id, entity_type, entity_id, content_updated_at, 'pending', '2026-09-16',
         CASE WHEN row_number() OVER (ORDER BY id DESC) <= ${active} THEN now() ELSE NULL END
-      FROM workspace_files WHERE workspace_id = ${workspaceId}`
-    await connection`INSERT INTO workspace_file_search_dispatch_queue
-      (workspace_id, enqueued_at, updated_at) VALUES (${workspaceId}, now(), now())`
+      FROM workspace_files WHERE entity_type = ${entityType} AND entity_id = ${workspaceId}`
+    await connection`INSERT INTO file_search_dispatch_queue
+      (entity_type, entity_id, enqueued_at, updated_at) VALUES (${entityType}, ${workspaceId}, now(), now())`
   }
+
+  it('leaves a busy Project queued without blocking unrelated workspace dispatch', async () => {
+    await seedQueue('busy-project', 1, 0, 'project')
+    await seedQueue('free-workspace', 1)
+    const holder = await connection.reserve()
+    try {
+      await holder`BEGIN`
+      await holder`SELECT pg_advisory_xact_lock(hashtextextended('project:busy-project', 0))`
+      const result = await prepareWorkspaceFileSearchDispatch()
+      expect(result.payloads).toHaveLength(1)
+      expect(result.payloads[0].owner).toEqual({
+        entityType: 'workspace',
+        entityId: 'free-workspace',
+      })
+      const [waiting] = await connection`SELECT count(*)::int AS count
+        FROM file_search_dispatch_queue WHERE entity_type = 'project' AND entity_id = 'busy-project'`
+      expect(waiting.count).toBe(1)
+      await holder`COMMIT`
+      const resumed = await prepareWorkspaceFileSearchDispatch()
+      expect(resumed.payloads).toHaveLength(1)
+      expect(resumed.payloads[0].owner).toEqual({ entityType: 'project', entityId: 'busy-project' })
+    } finally {
+      await holder`ROLLBACK`
+      holder.release()
+    }
+  })
+
+  it('separates owner capacity when a workspace and Project use the same identifier', async () => {
+    await seedQueue('shared-id', 2, 1)
+    await seedQueue('shared-id', 2, 0, 'project')
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(
+      result.payloads.filter((payload) => payload.owner?.entityType === 'workspace')
+    ).toHaveLength(1)
+    expect(
+      result.payloads.filter((payload) => payload.owner?.entityType === 'project')
+    ).toHaveLength(2)
+    expect(result.payloads.every((payload) => payload.owner?.entityId === 'shared-id')).toBe(true)
+    const [invalid] =
+      await connection`SELECT count(*)::int AS count FROM workspace_file_search_revision
+      WHERE entity_type = 'project' AND workspace_id IS NOT NULL`
+    expect(invalid.count).toBe(0)
+  })
 
   it('skips a locked candidate without losing it or exceeding workspace capacity', async () => {
     await seedQueue('workspace-1', 3, 1)
@@ -242,7 +309,9 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       statement.query.includes('for share of "workspace_files"')
     )
     expect(walk).toBeDefined()
-    expect(walk?.query).toContain('"workspace_files"."workspace_id", "workspace_files"."id") >')
+    expect(walk?.query).toContain(
+      'coalesce("workspace_files"."entity_id", "workspace_files"."workspace_id"), "workspace_files"."id") >'
+    )
 
     const plan = await connection.begin(async (tx) => {
       /**
@@ -257,7 +326,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       return rows.map((row: Record<string, unknown>) => row['QUERY PLAN']).join('\n')
     })
 
-    expect(plan).toContain('workspace_files_workspace_active_keyset_idx')
+    expect(plan).toContain('workspace_files_search_owner_keyset_idx')
     expect(plan).toMatch(/Index Cond:.*ROW\(/)
   }, 30_000)
 
@@ -289,7 +358,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
 
     /** The locked candidate scan must be fed by the ordered index walk, not a sorted hash join. */
     expect(plan).toMatch(
-      /LockRows[^\n]*\n\s*-> {2}Nested Loop[^\n]*\n\s*-> {2}Index Scan using workspace_file_search_revision_pending_idx/
+      /LockRows[^\n]*\n\s*-> {2}Nested Loop[^\n]*\n\s*-> {2}Index Scan using file_search_revision_owner_pending_idx/
     )
     expect(plan).not.toMatch(/Sort Key: search_index(_\d+)?\.updated_at/)
   }, 30_000)
@@ -497,8 +566,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`INSERT INTO workspace_file_search_revision
       (file_id, workspace_id, source_content_updated_at, status, updated_at)
       VALUES (${fileId}, ${workspaceId}, '2026-09-16', 'pending', now())`
-    await connection`INSERT INTO workspace_file_search_dispatch_queue
-      (workspace_id, enqueued_at, updated_at) VALUES (${workspaceId}, now(), now())`
+    await connection`INSERT INTO file_search_dispatch_queue
+      (entity_type, entity_id, enqueued_at, updated_at) VALUES ('workspace', ${workspaceId}, now(), now())`
     await connection`CREATE TABLE cleanup_timeouts (
       lock_timeout text, statement_timeout text, transaction_timeout text
     )`
@@ -526,7 +595,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
         payload: {
           dispatchToken: expect.any(String),
           fileId,
-          workspaceId,
+          owner: { entityType: 'workspace', entityId: workspaceId },
           sourceContentUpdatedAt: '2026-09-16T00:00:00.000Z',
         },
       }),
@@ -536,9 +605,9 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       WHERE file_id = ${fileId}`
     expect(index.dispatched_at).toBeNull()
     expect(index.handoff_expires_at).toBeNull()
-    const [queued] = await connection`SELECT workspace_id FROM workspace_file_search_dispatch_queue
-      WHERE workspace_id = ${workspaceId}`
-    expect(queued.workspace_id).toBe(workspaceId)
+    const [queued] = await connection`SELECT entity_id FROM file_search_dispatch_queue
+      WHERE entity_type = 'workspace' AND entity_id = ${workspaceId}`
+    expect(queued.entity_id).toBe(workspaceId)
     const timeouts = await connection`SELECT * FROM cleanup_timeouts`
     expect([...timeouts]).toEqual([
       { lock_timeout: '0', statement_timeout: '0', transaction_timeout: '0' },

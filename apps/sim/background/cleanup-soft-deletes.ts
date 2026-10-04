@@ -40,8 +40,14 @@ import {
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
 import { deduplicateFolderName } from '@/lib/folders/naming'
+import { requireWorkspaceFolder } from '@/lib/folders/scope'
 import { settleDetachedConnectorReservations } from '@/lib/knowledge/connectors/detachment'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import {
+  cleanupArchivedProjectFileFolders,
+  cleanupArchivedProjectFiles,
+} from '@/lib/projects/files/retention'
+import { lockWorkspaceProject } from '@/lib/projects/membership'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -334,6 +340,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
     for (const batch of chunkArray(workspaceRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
         const deletedCount = await db.transaction(async (tx) => {
+          await lockWorkspaceProject(tx, workspaceId)
           await releaseWorkspaceFileVersionsForPurgeInTx(
             tx,
             batch.map(({ id }) => id),
@@ -653,11 +660,14 @@ async function reRootActiveFolderChildrenUnguarded(
       name: folderTable.name,
       workspaceId: folderTable.workspaceId,
       resourceType: folderTable.resourceType,
+      entityType: folderTable.entityType,
+      entityId: folderTable.entityId,
     })
     .from(folderTable)
     .where(and(inArray(folderTable.parentId, expiredIds), isNull(folderTable.deletedAt)))
 
-  for (const row of childFolders) {
+  for (const childFolder of childFolders) {
+    const row = requireWorkspaceFolder(childFolder)
     await reRootOne(
       async () => {
         const name = await deduplicateFolderName(
@@ -840,6 +850,10 @@ export async function runCleanupSoftDeletes(
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
   const scope = resolveCleanupOwnerScope(payload)
+  for (const projectId of [...new Set(payload.projectIds ?? [])].sort()) {
+    await cleanupArchivedProjectFiles(projectId, budgets?.files)
+    await cleanupArchivedProjectFileFolders(projectId, budgets?.folders)
+  }
 
   if (scope.ids.length === 0) {
     logger.info(`[${label}] No resource owners to process`)

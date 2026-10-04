@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
-import { organization, workspace } from '@sim/db/schema'
+import { organization, project, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { tasks } from '@trigger.dev/sdk'
@@ -10,6 +10,7 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
+import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
 import { type CleanupBudgets, type CleanupLimits, createCleanupBudgets } from '@/lib/cleanup/limits'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -43,6 +44,8 @@ export interface CleanupJobPayload {
   workspaceIds: string[]
   /** Organization-owned Search data is retained independently of workspace membership. */
   organizationIds?: string[]
+  /** Shared file retention follows the canonical Project payer. */
+  projectIds?: string[]
   retentionHours: number
   label: string
   /** Set on exactly one chunk per dispatch so plan-wide housekeeping runs once. */
@@ -320,6 +323,72 @@ async function forEachCleanupChunk(
         retentionHours: hours,
         label: `enterprise/${row.id}`,
       })
+    }
+  }
+
+  if (jobType === 'cleanup-soft-deletes' || jobType === 'cleanup-file-versions') {
+    let afterProjectId: string | null = null
+    while (!shouldStop()) {
+      const rows = await db
+        .select({
+          id: project.id,
+          ownerId: project.ownerId,
+          organizationId: project.organizationId,
+          settings: organization.dataRetentionSettings,
+        })
+        .from(project)
+        .leftJoin(organization, eq(organization.id, project.organizationId))
+        .where(
+          and(
+            isNull(project.archivedAt),
+            afterProjectId ? gt(project.id, afterProjectId) : undefined
+          )
+        )
+        .orderBy(asc(project.id))
+        .limit(pageSize)
+      if (!rows.length) break
+      afterProjectId = rows[rows.length - 1].id
+      const groups = new Map<
+        string,
+        { plan: PlanCategory; retentionHours: number; projectIds: string[] }
+      >()
+      for (const row of rows) {
+        if (shouldStop()) break
+        try {
+          let plan: PlanCategory = 'enterprise'
+          if (isBillingEnabled) {
+            const billing = await resolveProjectStorageBillingContext({
+              projectId: row.id,
+              ownerId: row.ownerId,
+              organizationId: row.organizationId,
+            })
+            if (row.organizationId && billing.plan === null) continue
+            plan = getPlanType(billing.plan)
+          }
+          const retentionHours =
+            plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
+          if (retentionHours === null) continue
+          if (!Number.isFinite(retentionHours) || retentionHours < 0)
+            throw new Error('Invalid Project retention policy')
+          const key = `${plan}:${retentionHours}`
+          const group = groups.get(key)
+          if (group) group.projectIds.push(row.id)
+          else groups.set(key, { plan, retentionHours, projectIds: [row.id] })
+        } catch (error) {
+          if (failOnLookupError) throw error
+          logger.error('Skipping Project cleanup after payer policy lookup failed', {
+            projectId: row.id,
+            error,
+          })
+        }
+      }
+      for (const group of groups.values()) {
+        await emitChunk({
+          ...group,
+          workspaceIds: [],
+          label: `${group.plan}/projects/${group.projectIds[0]}`,
+        })
+      }
     }
   }
 

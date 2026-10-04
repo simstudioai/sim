@@ -8,7 +8,7 @@ import {
   loadCompiledDoc,
   loadPublishedCompiledDoc,
   storeCompiledDoc,
-} from '@/lib/mothership/tools/server/files/doc-compiled-store'
+} from '@/lib/uploads/documents/compiled-store'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const { mockDownloadFile, mockUploadFile } = storageServiceMockFns

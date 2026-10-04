@@ -1,47 +1,16 @@
 import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
-import {
-  workspaceUploadsMock,
-  workspaceUploadsMockFns,
-} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveServableDoc } = vi.hoisted(() => ({
-  mockResolveServableDoc: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
-  resolveServableDoc: mockResolveServableDoc,
-}))
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
-import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { FileParserError } from '@/lib/file-parsers/errors'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import {
-  FILE_SEARCH_MAX_EXTRACTED_BYTES,
-  FILE_SEARCH_MAX_SOURCE_BYTES,
-} from '@/lib/workspace-files/search/constants'
-import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+import { FILE_SEARCH_MAX_EXTRACTED_BYTES } from '@/lib/workspace-files/search/constants'
+import { extractIndexText } from '@/lib/workspace-files/search/extract'
 
 const mockIsSupportedFileType = fileParsersMockFns.mockIsSupportedFileType
 mockIsSupportedFileType.mockReturnValue(false)
 const mockParseBuffer = fileParsersMockFns.mockParseBuffer
-
-const mockFetchWorkspaceFileBuffer = workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer
-
-const FILE: WorkspaceFileRecord = {
-  id: 'file-1',
-  workspaceId: 'workspace-1',
-  name: 'report.docx',
-  key: 'workspace/workspace-1/report.docx',
-  path: '/api/files/serve/workspace/workspace-1/report.docx',
-  size: 12,
-  type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  uploadedBy: 'user-1',
-  uploadedAt: new Date('2026-09-01T00:00:00.000Z'),
-  updatedAt: new Date('2026-09-01T00:00:00.000Z'),
-}
 
 const SOURCE = Buffer.from('const doc = new docx.Document({ sections: [] })', 'utf-8')
 const FENCED_JSON = Buffer.from('```json\n[\n  { "a": 1 }\n]\n```\n', 'utf-8')
@@ -55,66 +24,6 @@ function sizeLimitError(): unknown {
   }
   throw new Error('assertKnownSizeWithinLimit did not throw')
 }
-
-describe('loadIndexableBytes', () => {
-  beforeEach(() => {
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(SOURCE)
-  })
-
-  it('reads the compiled artifact of a generated document', async () => {
-    const artifact = Buffer.from('PKcompiled')
-    mockResolveServableDoc.mockResolvedValue({
-      kind: 'artifact',
-      buffer: artifact,
-      contentType: FILE.type,
-    })
-    const signal = new AbortController().signal
-
-    await expect(loadIndexableBytes(FILE, signal)).resolves.toEqual({
-      buffer: artifact,
-      kind: 'artifact',
-    })
-    expect(mockFetchWorkspaceFileBuffer).toHaveBeenCalledWith(FILE, {
-      maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
-      signal,
-    })
-    expect(mockResolveServableDoc).toHaveBeenCalledWith(FILE.workspaceId, SOURCE, FILE.name, {
-      maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
-      signal,
-    })
-  })
-
-  it('settles for the generation source when no artifact exists, without compiling', async () => {
-    mockResolveServableDoc.mockResolvedValue({ kind: 'unavailable' })
-
-    await expect(loadIndexableBytes(FILE, new AbortController().signal)).resolves.toEqual({
-      buffer: SOURCE,
-      kind: 'source',
-    })
-  })
-
-  it('refuses an artifact above the source ceiling as a size-limit breach', async () => {
-    mockResolveServableDoc.mockResolvedValue({
-      kind: 'artifact',
-      buffer: Buffer.alloc(FILE_SEARCH_MAX_SOURCE_BYTES + 1),
-      contentType: FILE.type,
-    })
-
-    await expect(loadIndexableBytes(FILE, new AbortController().signal)).rejects.toSatisfy(
-      isPayloadSizeLimitError
-    )
-  })
-
-  it('stops before resolving once the run is aborted', async () => {
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(loadIndexableBytes(FILE, controller.signal)).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(mockResolveServableDoc).not.toHaveBeenCalled()
-  })
-})
 
 describe('extractIndexText', () => {
   beforeEach(() => {
