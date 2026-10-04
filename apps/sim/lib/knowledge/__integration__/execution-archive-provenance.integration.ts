@@ -1,10 +1,12 @@
-/** Real execution-file storage, ZIP extraction, durable provenance, and KB indexing. */
+/** Real Function file exports, ZIP extraction, durable provenance, and KB indexing. */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import * as audit from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   document,
   documentSecretProvenance,
   knowledgeBase,
@@ -14,12 +16,26 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+const sandboxEnvironment = vi.hoisted(() => {
+  const fixture = {
+    SANDBOX_PROVIDER: 'e2b',
+    E2B_ENABLED: 'true',
+    E2B_API_KEY: 'integration-provider-fixture-not-a-real-key',
+    E2B_FUNCTION_TEMPLATE_ID: 'fixture:11111111-1111-4111-8111-111111111111',
+    E2B_FUNCTION_TEMPLATE_GENERATION: '1785792000000',
+  }
+  const previous = Object.entries(fixture).map(([key]) => [key, process.env[key]] as const)
+  Object.assign(process.env, fixture)
+  return previous
+})
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixtureStorage.root
@@ -38,10 +54,20 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
+import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import { fileManageDecompressBodySchema } from '@/lib/api/contracts/tools/file'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
-import { encryptSecret } from '@/lib/core/security/encryption'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { isUserFile } from '@/lib/core/utils/user-file'
+import {
+  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  PRIVATE_SECRET_PROVENANCE_HEADER,
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_NAMES_FIELD,
+  RESOLVED_SECRET_NAMES_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
+import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
 import {
   createKnowledgeAclFixtureIds,
@@ -66,6 +92,7 @@ import {
   isModelSafeWorkspaceFileKey,
   isOpaqueWorkspaceFileEgressSafe,
   type WorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
@@ -75,6 +102,8 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const trackedEventIds: string[] = []
+const fixtureAuditCounts = new Map<string, number>()
+let restoreAuditObservation: (() => void) | undefined
 const REPORT_TEXT =
   'Orion archive import retains verified source bytes through every durable surface.'
 const REPORT_CSV = `name,description\nOrion,${REPORT_TEXT}\n`
@@ -83,6 +112,7 @@ const FIXTURE_SECRET = 'fixture-resolved-secret-not-a-live-key'
 async function seed() {
   const ids = createKnowledgeAclFixtureIds()
   fixtures.push(ids)
+  fixtureAuditCounts.set(ids.workspaceId, 0)
   await seedKnowledgeAclFixture(ids)
   return { ...ids, workflowId: generateId(), executionId: generateId() }
 }
@@ -169,19 +199,448 @@ async function assertBlockedConsumers(ids: Fixture, source: Awaited<ReturnType<t
 
 beforeAll(() => {
   fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-execution-archive-provenance-'))
+  const observe = (entry: audit.AuditLogParams) => {
+    if (!entry.workspaceId) return
+    const count = fixtureAuditCounts.get(entry.workspaceId)
+    if (count !== undefined) fixtureAuditCounts.set(entry.workspaceId, count + 1)
+  }
+  const recordAudit = audit.recordAudit
+  const recordAuditBatch = audit.recordAuditBatch
+  const observation = vi.spyOn(audit, 'recordAudit').mockImplementation((entry) => {
+    observe(entry)
+    recordAudit(entry)
+  })
+  const batchObservation = vi.spyOn(audit, 'recordAuditBatch').mockImplementation((entries) => {
+    for (const entry of entries) observe(entry)
+    recordAuditBatch(entries)
+  })
+  restoreAuditObservation = () => {
+    observation.mockRestore()
+    batchObservation.mockRestore()
+  }
 })
 afterAll(async () => {
-  if (trackedEventIds.length) {
-    await db.delete(outboxEvent).where(inArray(outboxEvent.id, trackedEventIds))
+  try {
+    /** Drain actual asynchronous inserts before deleting fixture ownership rows. */
+    for (const [workspaceId, expected] of fixtureAuditCounts) {
+      await vi.waitFor(async () =>
+        expect(
+          await db.select().from(auditLog).where(eq(auditLog.workspaceId, workspaceId))
+        ).toHaveLength(expected)
+      )
+    }
+  } finally {
+    restoreAuditObservation?.()
+    try {
+      if (trackedEventIds.length) {
+        await db.delete(outboxEvent).where(inArray(outboxEvent.id, trackedEventIds))
+      }
+      for (const ids of fixtures) {
+        await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
+        await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+        await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+        await db.delete(organization).where(eq(organization.id, ids.organizationId))
+        await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+      }
+      await rm(fixtureStorage.root, { recursive: true, force: true })
+    } finally {
+      for (const [key, value] of sandboxEnvironment) {
+        if (value === undefined) Reflect.deleteProperty(process.env, key)
+        else process.env[key] = value
+      }
+      await db.$client.end()
+    }
   }
-  for (const ids of fixtures) {
-    await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
-    await db.delete(organization).where(eq(organization.id, ids.organizationId))
-    await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+})
+
+async function executeFunction(
+  ids: Fixture,
+  body: Record<string, unknown>,
+  headers = new Headers(),
+  registry = new ResolvedSecretTraceRegistry([], {
+    userId: ids.aliceId,
+    workspaceId: ids.workspaceId,
+  })
+) {
+  return executeFunctionRequest(
+    { headers, signal: AbortSignal.timeout(15_000) },
+    functionExecuteBodySchema.parse({
+      workspaceId: ids.workspaceId,
+      workflowId: ids.workflowId,
+      executionId: ids.executionId,
+      language: 'python',
+      ...body,
+    }),
+    {
+      attributedUserId: ids.aliceId,
+      fileAccessUserId: ids.aliceId,
+      principal: createWorkspaceFileDelegatedPrincipal({
+        serviceId: 'executor',
+        subjectUserId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+        delegationId: generateId(),
+        executionId: ids.executionId,
+      }),
+      resolvedSecretTraceRegistry: registry,
+    }
+  )
+}
+
+async function readFunctionFile(ids: Fixture, fileId: string) {
+  const [record] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+  if (!record || record.workspaceId !== ids.workspaceId) {
+    throw new Error('Function export has no canonical record in its workspace')
   }
-  await rm(fixtureStorage.root, { recursive: true, force: true })
-  await db.$client.end()
+  if (record.context !== 'workspace' && record.context !== 'execution') {
+    throw new Error('Function export has an unexpected storage context')
+  }
+  const identity: WorkspaceFileSecretProvenanceIdentity = {
+    fileId: record.id,
+    key: record.key,
+    context: record.context,
+    contentUpdatedAt: record.contentUpdatedAt,
+  }
+  const provenance = await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, identity)
+  const bytes = await downloadFile({ key: record.key, context: record.context, maxBytes: 8192 })
+  const registry = new ResolvedSecretTraceRegistry([], {
+    userId: ids.aliceId,
+    workspaceId: ids.workspaceId,
+  })
+  const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+    workspaceId: ids.workspaceId,
+    identity,
+    registry,
+  })
+  return { identity, provenance, bytes, registry, imported }
+}
+
+async function readArchiveReport(bytes: Buffer): Promise<string> {
+  const archive = await JSZip.loadAsync(bytes)
+  const report = archive.file('report.txt')
+  if (!report) throw new Error('Stored archive is missing report.txt')
+  return report.async('string')
+}
+
+/** The provider supplies bytes; Function classification, both writers and consumer admission stay real. */
+describe('Function export provenance in PostgreSQL', () => {
+  it.each([false, true])(
+    'persists compiled binary candidates without broadening short or exempt values (protected=%s)',
+    async (protectedValues) => {
+      const ids = await seed()
+      const boundary = 'eight888'
+      const short = 'short77'
+      const shortEscaped = '""""'
+      const shortJson = JSON.stringify({ value: shortEscaped })
+      const content = `${FIXTURE_SECRET}\n${boundary}\n${short}`
+      const zip = new JSZip()
+      zip.file('report.txt', content)
+      const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+      expect(bytes.includes(FIXTURE_SECRET)).toBe(false)
+      remoteSandboxMockFns.mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'fixture',
+        exportedFiles: {
+          '/home/user/report.zip': bytes.toString('base64'),
+          ...(protectedValues
+            ? { '/home/user/narrow.txt': boundary, '/home/user/short.json': shortJson }
+            : {}),
+        },
+      })
+      const response = await executeFunction(
+        ids,
+        {
+          code: `exempt = {{EXEMPT_KEY}}\nshort = {{SHORT}}\nshort_escaped = {{SHORT_ESCAPED}}${
+            protectedValues ? '\nprotected = {{PROTECTED_KEY}}\nboundary = {{BOUNDARY}}' : ''
+          }`,
+          envVars: {
+            EXEMPT_KEY: FIXTURE_SECRET,
+            SHORT: short,
+            SHORT_ESCAPED: shortEscaped,
+            ...(protectedValues ? { PROTECTED_KEY: FIXTURE_SECRET, BOUNDARY: boundary } : {}),
+          },
+          unredactedSecretNames: ['EXEMPT_KEY'],
+          outputs: {
+            files: [
+              {
+                path: 'files/report.zip',
+                sandboxPath: '/home/user/report.zip',
+                mimeType: 'application/zip',
+              },
+              ...(protectedValues
+                ? [
+                    { path: 'files/narrow.txt', sandboxPath: '/home/user/narrow.txt' },
+                    {
+                      path: 'files/short.json',
+                      sandboxPath: '/home/user/short.json',
+                      mimeType: 'application/json',
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+        new Headers({ [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_NAMES_METADATA_V1 })
+      )
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      expect(body[RESOLVED_SECRET_NAMES_FIELD].sort()).toEqual(
+        protectedValues
+          ? ['BOUNDARY', 'EXEMPT_KEY', 'PROTECTED_KEY', 'SHORT', 'SHORT_ESCAPED']
+          : ['EXEMPT_KEY', 'SHORT', 'SHORT_ESCAPED']
+      )
+      expect(JSON.stringify(body)).not.toContain('encryptedValue')
+      const exported = body.output.exported.files
+      expect(exported).toHaveLength(protectedValues ? 3 : 1)
+      const archive = await readFunctionFile(ids, exported[0].fileId)
+      expect(archive.bytes).toEqual(bytes)
+      expect(archive.provenance.status).toBe('exact')
+      if (archive.provenance.status !== 'exact')
+        throw new Error('Function export lost known lineage')
+      const decrypted = await Promise.all(
+        archive.provenance.entries.map(async (entry) => ({
+          name: entry.name,
+          value: (await decryptSecret(entry.encryptedValue)).decrypted,
+        }))
+      )
+      expect(decrypted).toEqual(
+        protectedValues
+          ? [
+              { name: 'BOUNDARY', value: boundary },
+              { name: 'PROTECTED_KEY', value: FIXTURE_SECRET },
+            ]
+          : []
+      )
+      expect(archive.imported).toBe(true)
+      const readback = await readArchiveReport(archive.bytes)
+      expect(readback).toBe(content)
+      expect(projectResolvedSecretModelContent(readback, archive.registry)).toMatchObject({
+        safe: true,
+        value: protectedValues ? `{{PROTECTED_KEY}}\n{{BOUNDARY}}\n${short}` : content,
+      })
+      expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, archive.identity)).toBe(
+        !protectedValues
+      )
+      if (protectedValues) {
+        const narrowed = await readFunctionFile(ids, exported[1].fileId)
+        expect(narrowed.bytes.toString()).toBe(boundary)
+        expect(narrowed.provenance).toMatchObject({
+          status: 'exact',
+          entries: [{ name: 'BOUNDARY' }],
+        })
+        expect(narrowed.imported).toBe(true)
+        expect(
+          projectResolvedSecretModelContent(narrowed.bytes.toString(), narrowed.registry)
+        ).toMatchObject({
+          safe: true,
+          value: '{{BOUNDARY}}',
+        })
+        const shortOutput = await readFunctionFile(ids, exported[2].fileId)
+        expect(shortOutput.bytes.toString()).toBe(shortJson)
+        expect(shortOutput.provenance).toEqual({ status: 'exact', entries: [] })
+        expect(shortOutput.imported).toBe(true)
+        expect(
+          projectResolvedSecretModelContent(shortOutput.bytes.toString(), shortOutput.registry)
+        ).toMatchObject({ safe: true, value: shortJson })
+      }
+    }
+  )
+
+  it.each([
+    { name: 'report.zip', compressed: true, known: true, absent: false },
+    { name: 'report.txt', compressed: true, known: true, absent: false },
+    { name: 'report.zip', compressed: false, known: true, absent: false },
+    { name: 'report.zip', compressed: true, known: true, absent: true },
+    { name: 'report.zip', compressed: true, known: false, absent: true },
+  ])(
+    'persists harvested $name lineage (compressed=$compressed, known=$known, absent=$absent)',
+    async ({ name, compressed, known, absent }) => {
+      const ids = await seed()
+      const provenance: WorkspaceFileSecretProvenance = {
+        status: 'exact',
+        entries: [
+          {
+            name: 'MOUNT_TOKEN',
+            encryptedValue: (await encryptSecret(FIXTURE_SECRET)).encrypted,
+            sourceUserId: ids.aliceId,
+            sourceWorkspaceId: ids.workspaceId,
+          },
+        ],
+      }
+      const input = await uploadExecutionFile(
+        ids,
+        Buffer.from(FIXTURE_SECRET),
+        'input.txt',
+        'text/plain',
+        ids.aliceId,
+        known ? provenance : undefined
+      )
+      const zip = new JSZip()
+      zip.file('report.txt', FIXTURE_SECRET)
+      const bytes = compressed
+        ? await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+        : Buffer.from('Ordinary UTF-8 bytes declared as an archive')
+      expect(bytes.includes(FIXTURE_SECRET)).toBe(false)
+      remoteSandboxMockFns.mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'fixture',
+        collectedFiles: [
+          {
+            relativePath: name,
+            path: `/tmp/sim/outputs/${name}`,
+            contentBase64: bytes.toString('base64'),
+            byteLength: bytes.length,
+          },
+        ],
+      })
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
+      if (absent) registry.markIncomplete('source-provenance-incomplete')
+      const finishActivation = registry.beginPendingActivation()
+      let response: Awaited<ReturnType<typeof executeFunction>>
+      try {
+        response = await executeFunction(
+          ids,
+          {
+            code: 'print("done")',
+            files: [input],
+            fileKeys: [input.key],
+          },
+          new Headers(),
+          registry
+        )
+      } finally {
+        finishActivation()
+      }
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      expect(body.output.files).toHaveLength(1)
+      expect(JSON.stringify(body)).not.toContain('encryptedValue')
+      const exported = await readFunctionFile(ids, body.output.files[0].id)
+      expect(exported.identity.context).toBe('execution')
+      expect(exported.bytes).toEqual(bytes)
+      expect(exported.provenance).toEqual(known ? provenance : { status: 'unrecorded' })
+      expect(exported.imported).toBe(true)
+      const value = compressed ? await readArchiveReport(exported.bytes) : exported.bytes.toString()
+      expect(projectResolvedSecretModelContent(value, exported.registry)).toMatchObject({
+        safe: true,
+        value: compressed ? (known ? '{{MOUNT_TOKEN}}' : FIXTURE_SECRET) : bytes.toString(),
+      })
+      expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, exported.identity)).toBe(!known)
+    }
+  )
+
+  it.each([
+    { input: 'params', unredacted: false },
+    { input: 'contextVariables', unredacted: false },
+    { input: 'contextVariables', unredacted: true },
+  ] as const)(
+    'persists runtime $input candidates with trusted exemption=$unredacted',
+    async ({ input, unredacted }) => {
+      const ids = await seed()
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'INPUT_TOKEN',
+            plaintext: FIXTURE_SECRET,
+            encryptedValue: (await encryptSecret(FIXTURE_SECRET)).encrypted,
+            ...(unredacted ? { unredacted: true as const } : {}),
+          },
+        ],
+        { userId: ids.aliceId, workspaceId: ids.workspaceId }
+      )
+      expect(
+        registry.recordResolvedAtInputPath('INPUT_TOKEN', FIXTURE_SECRET, [input, 'token'])
+      ).toBe(true)
+      const zip = new JSZip()
+      zip.file('report.txt', FIXTURE_SECRET)
+      const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+      remoteSandboxMockFns.mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'fixture',
+        collectedFiles: [
+          {
+            relativePath: 'report.zip',
+            path: '/tmp/sim/outputs/report.zip',
+            contentBase64: bytes.toString('base64'),
+            byteLength: bytes.length,
+          },
+        ],
+      })
+      const response = await executeFunction(
+        ids,
+        {
+          code: input === 'params' ? 'value = params["token"]' : 'value = token',
+          [input]: { token: FIXTURE_SECRET },
+        },
+        new Headers(),
+        registry
+      )
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      const exported = await readFunctionFile(ids, body.output.files[0].id)
+      expect(exported.bytes).toEqual(bytes)
+      expect(exported.provenance).toMatchObject({
+        status: 'exact',
+        entries: unredacted ? [] : [{ name: 'INPUT_TOKEN' }],
+      })
+      expect(exported.imported).toBe(true)
+      const readback = await readArchiveReport(exported.bytes)
+      expect(projectResolvedSecretModelContent(readback, exported.registry)).toMatchObject({
+        safe: true,
+        value: unredacted ? FIXTURE_SECRET : '{{INPUT_TOKEN}}',
+      })
+      expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, exported.identity)).toBe(
+        unredacted
+      )
+    }
+  )
+
+  it.each(['txt', 'zip'])(
+    'persists incomplete mounted evidence for a declared %s export',
+    async (extension) => {
+      const ids = await seed()
+      const bytes = Buffer.from('ordinary output')
+      remoteSandboxMockFns.mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'fixture',
+        exportedFiles: {
+          [`/home/user/output.${extension}`]: bytes.toString(
+            extension === 'zip' ? 'base64' : 'utf8'
+          ),
+        },
+      })
+      const response = await executeFunction(
+        ids,
+        {
+          code: 'print("done")',
+          outputs: {
+            files: [
+              { path: `files/output.${extension}`, sandboxPath: `/home/user/output.${extension}` },
+            ],
+          },
+          [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: false,
+            selections: [],
+          },
+        },
+        new Headers({ [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 })
+      )
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      const output = await readFunctionFile(ids, body.output.exported.files[0].fileId)
+      expect(output.bytes).toEqual(bytes)
+      expect(output.provenance).toEqual({ status: 'unknown' })
+      expect(output.imported).toBe(false)
+      expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, output.identity)).toBe(false)
+    }
+  )
 })
 
 describe('execution archive durable provenance', () => {
