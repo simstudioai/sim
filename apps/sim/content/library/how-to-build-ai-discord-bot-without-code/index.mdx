@@ -6,7 +6,7 @@ date: 2026-10-04
 updated: 2026-10-04
 authors:
   - andrew
-readingTime: 12
+readingTime: 13
 tags: [AI Agents, Discord, No-Code, Sim]
 ogImage: /library/how-to-build-ai-discord-bot-without-code/cover.jpg
 draft: false
@@ -124,6 +124,8 @@ For installation, select only the OAuth scopes needed by the chosen interaction 
 Sim should process Discord messages only through an input pattern that matches the bot's intended channel behavior.
 
 The current no-code pattern uses a schedule plus Get Channel Messages. It works best in a dedicated channel where a workflow can retrieve a bounded set of recent messages, compare their IDs with a persistent processed-message record, and handle only new user-authored requests.
+
+Get Channel Messages returns the 10 most recent messages by default, supports a maximum of 100, and does not expose pagination. If more messages arrive between scheduled runs than the configured limit, older unprocessed requests can fall outside the retrieved set and be missed despite the processed-message record. Choose a polling interval and channel traffic level that keep new arrivals below that limit. When every request must be handled, use a compatible real-time receiver instead of polling.
 
 Discord also supports slash commands, direct mentions, direct messages, interactions, Gateway events, and webhook events. However, Sim's built-in Discord integration currently exposes Discord actions rather than a native Discord trigger. Do not assume that adding a Discord block creates a real-time listener. A real-time design needs a compatible receiver for the selected [Discord event transport](https://docs.discord.com/developers/events/overview), plus its required verification and response behavior.
 
