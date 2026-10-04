@@ -205,10 +205,24 @@ every named check with a failure detail, the final content, the executed tool
 invocations, and metrics: iterations, tool call counts (success/error), latency,
 model/tool time, first-response time, and token usage.
 
+## Orchestration evals
+
+[`agent-orchestration/`](./agent-orchestration/) runs a parent workflow that
+invokes a child through the Workflow block, driven by the real `DAGExecutor`.
+The child definition loader and the child `Executor` are mocked, so spawn →
+wait → aggregate → recover runs without a database; the parent executor, the
+workflow handler, the serializer, and the output mapping are real. Two cases:
+the child's output reaches the parent, and a child failure fails the parent.
+
+```sh
+cd apps/sim
+bun run test:evals:orchestration   # writes test-results/evals/agent-orchestration.{json,md}
+```
+
 ## Scope and next steps
 
-Two harnesses share one result shape and report: the tool loop and the
-`DAGExecutor`. The executor suite covers both recovery paths — block retry
-(`executor-retries-failed-block`) and model fallback
-(`executor-falls-back-to-secondary-model`). Further expansion (context/memory,
-model routing, subagent orchestration) is tracked as follow-up work.
+Harnesses share one result shape and report: the tool loop, the `DAGExecutor`,
+and the orchestration parent/child path. The executor suite covers both recovery
+paths — block retry (`executor-retries-failed-block`) and model fallback
+(`executor-falls-back-to-secondary-model`). Further expansion (real child
+execution, model routing) is tracked as follow-up work.
