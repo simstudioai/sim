@@ -20,7 +20,7 @@ import {
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { sha256Hex } from '@sim/security/hash'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -28,7 +28,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
@@ -36,9 +36,9 @@ import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/conte
 import { prepareProjectStorageMutationInTx } from '@/lib/billing/storage/tracking'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
+import { createProjectFileUploadSession } from '@/lib/projects/files/application/uploads'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
-import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { PUT as putUploadBytes } from '@/app/api/v2/uploads/[uploadId]/route'
 
@@ -66,30 +66,10 @@ function check(name: string, run: () => Promise<void>) {
   })
 }
 
-async function seedUpload(f: { userId: string; projectId: string }, fileName: string) {
-  const id = generateId()
-  const uploadToken = generateId()
-  const finalKey = `project/${f.projectId}/${id}/${fileName}`
-  const contentType = 'application/octet-stream'
-  await db.insert(uploadSession).values({
-    id,
-    tokenHash: sha256Hex(uploadToken),
-    userId: f.userId,
-    purpose: 'project_file',
-    method: 'put',
-    storageContext: 'project',
-    finalKey,
-    storageProvider: 'local',
-    fileName,
-    contentType,
-    fileSize: 4,
-    metadata: {
-      [PROJECT_FILE_UPLOAD_BINDING_KEY]: { entityType: 'project', entityId: f.projectId },
-    },
-    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_MS),
-  })
-  return { id, uploadToken, finalKey, contentType }
-}
+beforeEach(() => {
+  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
+})
 
 async function fixture() {
   const userId = generateId()
@@ -394,7 +374,17 @@ describe('Private Project teardown and durable object cleanup', () => {
     async () => {
       const f = await fixture()
       const live = await fixture()
-      const upload = await seedUpload(f, 'pending.bin')
+      const principal = createSessionPrincipal({ userId: f.userId, sessionId: generateId() })
+      const upload = await createProjectFileUploadSession.execute({
+        principal,
+        input: {
+          projectId: f.projectId,
+          fileName: 'pending.bin',
+          contentType: 'application/octet-stream',
+          fileSize: 4,
+          localOrigin: 'http://localhost:3000',
+        },
+      })
       const derived = `project/${f.projectId}/compiled/derived.pdf`
       await mkdir(dirname(join(storageRoot, derived)), { recursive: true })
       await writeFile(join(storageRoot, derived), 'derived')
@@ -464,7 +454,16 @@ describe('Private Project teardown and durable object cleanup', () => {
     'a local stream finishing after retirement queues cleanup instead of leaving a late object',
     async () => {
       const f = await fixture()
-      const created = await seedUpload(f, 'stream.bin')
+      const created = await createProjectFileUploadSession.execute({
+        principal: createSessionPrincipal({ userId: f.userId, sessionId: generateId() }),
+        input: {
+          projectId: f.projectId,
+          fileName: 'stream.bin',
+          contentType: 'application/octet-stream',
+          fileSize: 4,
+          localOrigin: 'http://localhost:3000',
+        },
+      })
       const entered = createDeferred<void>()
       const release = createDeferred<void>()
       const body = new ReadableStream<Uint8Array>(

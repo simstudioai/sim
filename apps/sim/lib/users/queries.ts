@@ -3,6 +3,7 @@ import { settings, user } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
+import type { DbOrTx } from '@/lib/db/types'
 
 const MAX_USER_EMAIL_BATCH = 1000
 
@@ -116,14 +117,15 @@ export async function getUserEmailsByIds(userIds: readonly string[]): Promise<Ma
  * attribution that legitimately outlives an account, such as the authors of a file version.
  */
 export async function findUserEmailsByIds(
-  userIds: readonly string[]
+  userIds: readonly string[],
+  executor: DbOrTx = db
 ): Promise<Map<string, string>> {
   const uniqueIds = Array.from(new Set(userIds))
   if (uniqueIds.length === 0) return new Map()
   if (uniqueIds.length > MAX_USER_EMAIL_BATCH) {
     throw new Error(`Cannot resolve more than ${MAX_USER_EMAIL_BATCH} user emails at once`)
   }
-  const rows = await db
+  const rows = await executor
     .select({ id: user.id, email: user.email })
     .from(user)
     .where(inArray(user.id, uniqueIds))

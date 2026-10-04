@@ -245,9 +245,9 @@ export function attachTableImport(tables: Command): void {
         }
         job = await finishUploadSession<CompleteTableImportResponse['data']>(
           client,
-          workspaceId,
           {
             basePath: `/api/v2/tables/imports/${encodeURIComponent(job.id)}`,
+            query: { workspaceId },
             uploadToken: started.data.uploadToken,
             transfer: started.data.transfer,
             size: local.size,

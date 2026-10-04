@@ -22,8 +22,9 @@ export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
 }
 
 export interface SandboxBrokerContext {
-  workspaceId: string
+  workspaceId?: string
   requestId: string
+  resolvePreparedFile?: (fileId: string) => { content: Buffer; contentType: string }
   onWorkspaceFileAccess?: (identity: {
     fileId: string
     key: string
@@ -33,7 +34,7 @@ export interface SandboxBrokerContext {
 }
 
 export interface SandboxTaskInput {
-  workspaceId: string
+  workspaceId?: string
   code: string
 }
 

@@ -1,216 +1,76 @@
 import { createLogger } from '@sim/logger'
-import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { getOtpSubject, renderOTPEmail } from '@/components/emails'
 import {
   requestPublicFileOtpContract,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { isEmailAllowed, setDeploymentAuthCookie } from '@/lib/core/security/deployment'
-import {
-  decodeOTPValue,
-  deleteOTP,
-  generateOTP,
-  getOTP,
-  incrementOTPAttempts,
-  MAX_OTP_ATTEMPTS,
-  OTP_EMAIL_RATE_LIMIT,
-  OTP_IP_RATE_LIMIT,
-  OTP_RESOURCE_RATE_LIMIT,
-  storeOTP,
-} from '@/lib/core/security/otp'
+import { OTP_IP_RATE_LIMIT } from '@/lib/core/security/otp'
 import { afterResponse } from '@/lib/core/utils/after-response'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { sendEmail } from '@/lib/messaging/email/mailer'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { publicFileAuthDenied, publicFileErrorResponse } from '@/lib/public-shares/api'
+import {
+  requestPublicFileShareOtp,
+  verifyPublicFileShareOtp,
+} from '@/lib/public-shares/application'
 
 export const dynamic = 'force-dynamic'
-
 const logger = createLogger('PublicFileOtpAPI')
-
 const rateLimiter = new RateLimiter()
 
-const SHARE_EMAIL_LABEL = 'a shared file'
-
-function rateLimited(retryAfterMs: number | undefined, fallbackMs: number): NextResponse {
-  const response = NextResponse.json(
-    { error: 'Too many requests. Please try again later.' },
-    { status: 429 }
-  )
-  response.headers.set('Retry-After', String(Math.ceil((retryAfterMs ?? fallbackMs) / 1000)))
-  return response
-}
-
-function otpRequestAccepted(): NextResponse {
-  return NextResponse.json({ message: 'Verification code sent' })
-}
-
-async function deliverOtp(requestId: string, shareId: string, email: string): Promise<void> {
-  const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
-    `file-otp:resource:${shareId}`,
-    OTP_RESOURCE_RATE_LIMIT,
-    { failClosed: true }
-  )
-  if (!resourceRateLimit.allowed) {
-    logger.warn(`[${requestId}] OTP resource rate limit exceeded for share ${shareId}`)
-    return
-  }
-
-  const emailRateLimit = await rateLimiter.checkRateLimitDirect(
-    `file-otp:email:${shareId}:${email}`,
-    OTP_EMAIL_RATE_LIMIT,
-    { failClosed: true }
-  )
-  if (!emailRateLimit.allowed) {
-    logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email}`)
-    return
-  }
-
-  const otp = generateOTP()
-  await storeOTP('file', shareId, email, otp)
-
-  const emailHtml = await renderOTPEmail(otp, 'email-verification', SHARE_EMAIL_LABEL)
-  const emailResult = await sendEmail({
-    to: email,
-    subject: getOtpSubject(SHARE_EMAIL_LABEL),
-    html: emailHtml,
-  })
-  if (!emailResult.success) {
-    logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-    return
-  }
-
-  logger.info(`[${requestId}] OTP sent for share ${shareId}`)
-}
-
-/**
- * POST /api/files/public/[token]/otp
- * Sends a 6-digit verification code to an allow-listed email for an email-gated share.
- */
+/** Accepted email requests retain one response; the application delivers only to authorized recipients. */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
-    const requestId = generateRequestId()
-
     try {
       const ip = getClientIp(request)
       if (ip) {
-        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+        const limited = await rateLimiter.checkRateLimitDirect(
           `file-otp:ip:${ip}`,
           OTP_IP_RATE_LIMIT,
           { failClosed: true }
         )
-        if (!ipRateLimit.allowed) {
-          logger.warn(`[${requestId}] OTP IP rate limit exceeded from ${ip}`)
-          return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
-        }
+        if (!limited.allowed)
+          return publicFileAuthDenied({
+            error: 'Too many requests. Please try again later.',
+            status: 429,
+            retryAfterMs: limited.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs,
+          })
       }
-
       const parsed = await parseRequest(requestPublicFileOtpContract, request, context)
       if (!parsed.success) return parsed.response
-      const { token } = parsed.data.params
-      // Normalize once so allow-list matching, OTP storage, and the verify lookup
-      // all key off the same value (allow-list entries are stored lowercase).
-      const email = normalizeEmail(parsed.data.body.email)
-
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-      if (resolved.share.authType !== 'email') {
-        return NextResponse.json(
-          { error: 'This file does not use email authentication' },
-          { status: 400 }
-        )
-      }
-      const emailAllowed = isEmailAllowed(email, resolved.share.allowedEmails)
-
-      afterResponse(async () => {
-        if (!emailAllowed) return
-        await deliverOtp(requestId, resolved.share.id, email)
+      const accepted = await requestPublicFileShareOtp({
+        token: parsed.data.params.token,
+        email: parsed.data.body.email,
       })
-      return otpRequestAccepted()
+      afterResponse(accepted.deliver)
+      return NextResponse.json({ message: 'Verification code sent' })
     } catch (error) {
-      logger.error(`[${requestId}] Error processing OTP request:`, error)
-      return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
+      logger.error('Error processing OTP request:', error)
+      return publicFileErrorResponse(error, 'Failed to process request')
     }
   }
 )
 
-/**
- * PUT /api/files/public/[token]/otp
- * Verifies the code and, on success, sets the `file_auth_{shareId}` cookie.
- */
+/** The application consumes a correct OTP and returns the current resource-policy cookie. */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
-    const requestId = generateRequestId()
-
     try {
       const parsed = await parseRequest(verifyPublicFileOtpContract, request, context)
       if (!parsed.success) return parsed.response
-      const { token } = parsed.data.params
-      const { otp } = parsed.data.body
-      const email = normalizeEmail(parsed.data.body.email)
-
-      const resolved = await resolveActiveShareByToken(token)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-      if (resolved.share.authType !== 'email') {
-        return NextResponse.json(
-          { error: 'This file does not use email authentication' },
-          { status: 400 }
-        )
-      }
-      if (!isEmailAllowed(email, resolved.share.allowedEmails)) {
-        return NextResponse.json({ error: 'Email not authorized' }, { status: 403 })
-      }
-
-      const storedValue = await getOTP('file', resolved.share.id, email)
-      if (!storedValue) {
-        return NextResponse.json(
-          { error: 'No verification code found, request a new one' },
-          { status: 400 }
-        )
-      }
-
-      const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
-      if (attempts >= MAX_OTP_ATTEMPTS) {
-        await deleteOTP('file', resolved.share.id, email)
-        return NextResponse.json(
-          { error: 'Too many failed attempts. Please request a new code.' },
-          { status: 429 }
-        )
-      }
-
-      if (storedOTP !== otp) {
-        const result = await incrementOTPAttempts('file', resolved.share.id, email, storedValue)
-        if (result === 'locked') {
-          return NextResponse.json(
-            { error: 'Too many failed attempts. Please request a new code.' },
-            { status: 429 }
-          )
-        }
-        return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
-      }
-
-      await deleteOTP('file', resolved.share.id, email)
-
-      const response = NextResponse.json({ authType: resolved.share.authType })
-      await setDeploymentAuthCookie({
-        response,
-        cookiePrefix: 'file',
-        resource: resolved.share,
-        verifiedEmail: email,
+      const auth = await verifyPublicFileShareOtp({
+        token: parsed.data.params.token,
+        ...parsed.data.body,
       })
-      logger.info(`[${requestId}] OTP verified for share ${resolved.share.id}`)
+      if (!auth.authorized) return publicFileAuthDenied(auth)
+      const response = NextResponse.json({ authType: auth.authType })
+      response.cookies.set(auth.cookie)
       return response
     } catch (error) {
-      logger.error(`[${requestId}] Error verifying OTP:`, error)
-      return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
+      logger.error('Error verifying OTP:', error)
+      return publicFileErrorResponse(error, 'Failed to process request')
     }
   }
 )

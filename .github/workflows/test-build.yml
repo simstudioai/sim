@@ -128,8 +128,17 @@ jobs:
   http-e2e:
     name: End-to-end over real HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
       postgres:
         image: pgvector/pgvector:pg17
         env:
@@ -257,6 +266,22 @@ jobs:
           VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
+
+      - name: Prepare the pinned local document engine
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["./apps/sim"] }))')"
+          cd "$addon_dir"
+          bun run install
+
+      - name: Verify Project files, public delivery and list subscriptions over real HTTP
+        working-directory: apps/sim
+        env:
+          PROJECT_FILES_E2E_ADMIN_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          PROJECT_FILES_E2E_REDIS_URL: redis://127.0.0.1:6379
+          PROJECT_FILES_E2E_BASE_URL: http://127.0.0.1:3050
+          PROJECT_FILES_E2E_RELAY_URL: http://127.0.0.1:3052
+          PROJECT_FILES_E2E_REPORT_PATH: ${{ runner.temp }}/e2e/project-files/orchestration.json
+        run: bun --no-env-file scripts/test-project-files-e2e.ts
 
       - name: Upload end-to-end reports and server logs
         if: failure()

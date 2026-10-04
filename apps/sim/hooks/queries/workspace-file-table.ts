@@ -1,9 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  getWorkspaceCsvPreviewContract,
-  type WorkspaceCsvPreviewResponse,
-} from '@/lib/api/contracts/workspace-file-table'
+import { resolveFileQueryOwner } from '@/hooks/queries/utils/file-owner-query-adapters'
+import { workspaceFileTableKeys } from '@/hooks/queries/utils/file-table-keys'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 
 /**
  * Query keys for the streamed CSV file-viewer preview. `key` (storage object key) and
@@ -11,42 +9,28 @@ import {
  */
 export const WORKSPACE_CSV_PREVIEW_STALE_TIME = 30 * 1000
 
-export const workspaceFileTableKeys = {
-  all: ['workspaceFileTable'] as const,
-  previews: () => [...workspaceFileTableKeys.all, 'preview'] as const,
-  preview: (workspaceId: string, fileId: string, key: string, version?: number) =>
-    [...workspaceFileTableKeys.previews(), workspaceId, fileId, key, version ?? ''] as const,
-}
-
-async function fetchWorkspaceCsvPreview(
-  workspaceId: string,
-  fileId: string,
-  key: string,
-  version: number | undefined,
-  signal?: AbortSignal
-): Promise<WorkspaceCsvPreviewResponse> {
-  return requestJson(getWorkspaceCsvPreviewContract, {
-    params: { id: workspaceId, fileId },
-    query: version != null ? { key, v: version } : { key },
-    signal,
-  })
-}
-
 /**
  * Fetches the first {@link CSV_PREVIEW_MAX_ROWS} rows of a CSV via the streaming preview route.
  * The server reads only that prefix from storage, so this is safe for arbitrarily large files.
  */
 export function useWorkspaceCsvPreview(
-  workspaceId: string,
+  workspaceId: string | undefined,
   fileId: string,
   key: string,
   version?: number,
   options?: { enabled?: boolean }
 ) {
+  const source = useFileContentSource()
+  const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
   return useQuery({
-    queryKey: workspaceFileTableKeys.preview(workspaceId, fileId, key, version),
-    queryFn: ({ signal }) => fetchWorkspaceCsvPreview(workspaceId, fileId, key, version, signal),
-    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
+    queryKey:
+      ownerQuery?.adapter.csvKey(ownerQuery.id, fileId, key, version) ??
+      workspaceFileTableKeys.preview('', fileId, key, version),
+    queryFn: ({ signal }) => {
+      if (!ownerQuery) throw new Error('File owner is required')
+      return ownerQuery.adapter.readCsv(ownerQuery.id, fileId, key, version, signal)
+    },
+    enabled: Boolean(ownerQuery) && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: WORKSPACE_CSV_PREVIEW_STALE_TIME,
   })
 }

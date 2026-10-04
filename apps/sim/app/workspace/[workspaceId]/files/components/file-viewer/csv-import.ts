@@ -16,7 +16,7 @@ export type CsvImportFileDescriptor = Pick<WorkspaceFileRecord, 'id' | 'key' | '
  * existing workspace file — no re-upload, source preserved — and navigates to the new table.
  */
 export function useCsvTruncationImport(
-  workspaceId: string,
+  workspaceId: string | undefined,
   file: CsvImportFileDescriptor,
   truncated: boolean,
   readOnly = false
@@ -29,7 +29,7 @@ export function useCsvTruncationImport(
   const importingRef = useRef(false)
 
   const importAsTable = useCallback(() => {
-    if (importingRef.current) return
+    if (!workspaceId || importingRef.current) return
     importingRef.current = true
     let importId: string | null = null
     toast.success(`Importing "${file.name}" as a table`, {
@@ -67,11 +67,11 @@ export function useCsvTruncationImport(
   // Surface the cap as a warning toast with an import action, once per file.
   const notifiedKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (readOnly || !truncated || notifiedKeyRef.current === file.key) return
+    if (!workspaceId || readOnly || !truncated || notifiedKeyRef.current === file.key) return
     notifiedKeyRef.current = file.key
     toast.warning(`Showing the first ${CSV_PREVIEW_MAX_ROWS.toLocaleString()} rows`, {
       description: 'Import this file as a table to view all of its rows.',
       action: { label: 'Import as a table', onClick: importAsTable },
     })
-  }, [readOnly, truncated, file.key, importAsTable])
+  }, [workspaceId, readOnly, truncated, file.key, importAsTable])
 }

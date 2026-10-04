@@ -8,7 +8,7 @@ import {
   collectReferencedFileIds,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
-} from '@/lib/uploads/documents'
+} from '@/lib/uploads/documents/compile'
 import { compiledArtifactKey, loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import {

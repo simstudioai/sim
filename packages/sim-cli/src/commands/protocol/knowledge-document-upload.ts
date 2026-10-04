@@ -98,11 +98,11 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
           CompleteKnowledgeDocumentUploadResponse['data']
         >(
           client,
-          workspaceId,
           {
             basePath: `/api/v2/knowledge/${encodeURIComponent(
               knowledgeBaseId
             )}/documents/uploads/${encodeURIComponent(session.id)}`,
+            query: { workspaceId },
             uploadToken,
             transfer,
             size,

@@ -24,6 +24,7 @@ export type UploadTransfer =
 
 export interface UploadSession {
   basePath: string
+  query?: Record<string, string>
   uploadToken: string
   transfer: UploadTransfer
   size: number
@@ -62,7 +63,6 @@ async function uploadBytes(
 
 async function uploadParts(
   client: SimClient,
-  workspaceId: string,
   session: UploadSession,
   transfer: Extract<UploadTransfer, { method: 'multipart' }>,
   file: Blob | StreamingUpload
@@ -90,7 +90,7 @@ async function uploadParts(
       `${session.basePath}/parts`,
       {
         method: 'POST',
-        query: { workspaceId },
+        query: session.query,
         headers: { 'upload-token': session.uploadToken },
         body: { partNumbers },
       }
@@ -121,7 +121,6 @@ async function uploadParts(
 /** Uploads and completes a signed transfer, aborting its session if the transfer fails. */
 export async function finishUploadSession<T>(
   client: SimClient,
-  workspaceId: string,
   session: UploadSession,
   path: string
 ): Promise<T> {
@@ -158,7 +157,7 @@ export async function finishUploadSession<T>(
         'Upload'
       )
     } else {
-      await uploadParts(client, workspaceId, session, session.transfer, file)
+      await uploadParts(client, session, session.transfer, file)
     }
     await streamed?.verifyComplete()
     await streamed?.close()
@@ -166,7 +165,7 @@ export async function finishUploadSession<T>(
 
     const completed = await client.request<{ data: T }>(`${session.basePath}/complete`, {
       method: 'POST',
-      query: { workspaceId },
+      query: session.query,
       headers: { 'upload-token': session.uploadToken },
     })
     return completed.data
@@ -180,7 +179,7 @@ export async function finishUploadSession<T>(
     await cleanupClient
       .request(session.basePath, {
         method: 'DELETE',
-        query: { workspaceId },
+        query: session.query,
         headers: { 'upload-token': session.uploadToken },
       })
       .catch(() => undefined)

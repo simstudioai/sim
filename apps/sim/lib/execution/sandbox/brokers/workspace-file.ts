@@ -31,6 +31,17 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
     if (!args || typeof args.fileId !== 'string' || args.fileId.length === 0) {
       throw new Error('workspaceFile broker requires a non-empty fileId')
     }
+    if (ctx.resolvePreparedFile) {
+      const file = ctx.resolvePreparedFile(args.fileId)
+      const dataUri = `data:${file.contentType};base64,${file.content.toString('base64')}`
+      if (
+        dataUri.length > MAX_SANDBOX_IMAGE_DATA_URI_CHARS ||
+        JSON.stringify({ dataUri }).length > MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS
+      ) {
+        throw new Error('Prepared file exceeds the document broker byte limit')
+      }
+      return { dataUri }
+    }
     if (!ctx.workspaceId) {
       throw new Error('workspaceFile broker requires a workspaceId')
     }

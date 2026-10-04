@@ -126,7 +126,10 @@ export function stepDocPreviewBinary({
  * placeholder (which still holds the prior file's bytes) is ignored until a fresh
  * binary resolves for the new file, so one viewer never renders another file's content.
  */
-export function useDocPreviewBinary(workspaceId: string, file: DocPreviewFile): DocPreviewBinary {
+export function useDocPreviewBinary(
+  workspaceId: string | undefined,
+  file: DocPreviewFile
+): DocPreviewBinary {
   const query = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
     enabled: (file.size ?? 0) > 0,
     version: Number(new Date(file.updatedAt)) || file.size,

@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
@@ -6,6 +7,7 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/autho
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeProject, requireProjectPrincipal } from '@/lib/projects/application/authorization'
+import { resolveCopilotProjectScope } from '@/lib/projects/application/discovery'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
@@ -67,6 +69,11 @@ export const listProjects: OperationUseCase<
     requireProjectApiEnabled()
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
       throw new OrchestrationError('validation', 'Limit must be between 1 and 100')
+    const userId = requirePrincipalSubjectUserId(principal)
+    const scope =
+      principal.kind === 'resource_delegated'
+        ? await resolveCopilotProjectScope(principal, input.organizationId)
+        : { organizationId: input.organizationId, projectId: undefined }
     return db.transaction(async (tx) => {
       const candidates = await tx
         .select({ id: project.id })
@@ -74,12 +81,13 @@ export const listProjects: OperationUseCase<
         .where(
           and(
             isNull(project.archivedAt),
-            input.organizationId ? eq(project.organizationId, input.organizationId) : undefined,
+            scope.organizationId ? eq(project.organizationId, scope.organizationId) : undefined,
+            scope.projectId ? eq(project.id, scope.projectId) : undefined,
             input.cursor ? gt(project.id, input.cursor) : undefined,
             sql`exists (select 1 from ${projectWorkspace} pw join ${workspace} w on w.id = pw.workspace_id
           where pw.project_id = ${project.id} and w.archived_at is null and (
-            exists (select 1 from ${permissions} pe where pe.entity_type = 'workspace' and pe.entity_id = w.id and pe.user_id = ${principal.userId})
-            or exists (select 1 from ${member} m where m.organization_id = w.organization_id and m.user_id = ${principal.userId} and m.role in ('owner', 'admin'))
+            exists (select 1 from ${permissions} pe where pe.entity_type = 'workspace' and pe.entity_id = w.id and pe.user_id = ${userId})
+            or exists (select 1 from ${member} m where m.organization_id = w.organization_id and m.user_id = ${userId} and m.role in ('owner', 'admin'))
           ))`
           )
         )

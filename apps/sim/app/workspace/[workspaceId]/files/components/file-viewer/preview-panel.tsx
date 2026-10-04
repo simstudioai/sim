@@ -15,6 +15,7 @@ import {
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { ChartPreview } from './chart-preview'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -59,7 +60,7 @@ interface PreviewPanelProps {
   content: string
   mimeType: string | null
   filename: string
-  workspaceId: string
+  workspaceId: string | undefined
   fileId: string
   fileKey: string
   isStreaming?: boolean
@@ -343,9 +344,12 @@ const HtmlPreview = memo(function HtmlPreview({
   // runtime, and reopening/refocusing refetches, so the page recompiles on
   // reload. While it loads — and always while streaming/editing — the client
   // compile below stands in, with chart figures as placeholders.
+  const source = useFileContentSource()
   const isSavedPage =
-    Boolean(fileId && fileKey && workspaceId) && isStreaming !== true && isSimPageSource(content)
-  const served = useWorkspaceFileBinary(workspaceId ?? '', fileId ?? '', fileKey ?? '', {
+    Boolean(fileId && fileKey && (workspaceId || source.owner)) &&
+    isStreaming !== true &&
+    isSimPageSource(content)
+  const served = useWorkspaceFileBinary(workspaceId, fileId ?? '', fileKey ?? '', {
     enabled: isSavedPage,
   })
   const servedHtml = useMemo(
@@ -506,7 +510,7 @@ const CsvPreview = memo(function CsvPreview({
   readOnly,
 }: {
   content: string
-  workspaceId: string
+  workspaceId: string | undefined
   file: CsvImportFileDescriptor
   readOnly?: boolean
 }) {

@@ -138,7 +138,7 @@ export const getPublicFileContentContract = defineRouteContract({
 /**
  * Binary stream of an image embedded in a shared document. Authorized by the parent
  * document's active share — the route serves the bytes only when the reference is
- * actually embedded in the shared document AND the file lives in the same workspace,
+ * actually embedded in the shared document AND the file has the same canonical owner,
  * and only when the bytes are a renderable raster image.
  */
 export const getPublicInlineFileContract = defineRouteContract({

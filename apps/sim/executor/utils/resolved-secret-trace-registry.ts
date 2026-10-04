@@ -77,6 +77,7 @@ export type ResolvedSecretIncompletenessReason =
   | 'table-run-state-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
+  | 'project-file-provenance-unavailable'
   | 'file-source-unidentified'
   | 'table-snapshot-unsafe-for-mount'
   | 'restored-provenance-untrusted'

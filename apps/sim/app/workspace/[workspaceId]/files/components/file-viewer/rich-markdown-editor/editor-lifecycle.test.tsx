@@ -6,6 +6,7 @@ import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/fil
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type Editor, Extension } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -99,6 +100,7 @@ const FILE: WorkspaceFileRecord = {
   uploadedAt: new Date('2026-09-03T20:00:00Z'),
 }
 let root: Root
+let queryClient: QueryClient
 let container: HTMLDivElement
 const onChange = vi.fn()
 const onEditSource = vi.fn()
@@ -168,27 +170,29 @@ async function render(
   await act(async () => {
     const update = () =>
       root.render(
-        <Suspense fallback='Loading editor'>
-          <LoadedRichMarkdownEditor
-            file={FILE}
-            workspaceId={FILE.workspaceId}
-            content={content}
-            acceptedBaselineContent={acceptedBaselineContent}
-            isStreaming={options.isStreaming ?? false}
-            streamIsIncremental={options.streamIsIncremental}
-            canEdit={canEdit}
-            userId='user-1'
-            userName='User'
-            collaborative={options.collaborative}
-            enableFind={false}
-            onChange={options.onChange ?? onChange}
-            onEditSource={onEditSource}
-            onClientAutosaveChange={onClientAutosaveChange}
-            onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
-            downloadSourceRef={options.downloadSourceRef}
-          />
-          <SuspendAfterEditor active={options.suspend ?? false} />
-        </Suspense>
+        <QueryClientProvider client={queryClient}>
+          <Suspense fallback='Loading editor'>
+            <LoadedRichMarkdownEditor
+              file={FILE}
+              workspaceId={FILE.workspaceId}
+              content={content}
+              acceptedBaselineContent={acceptedBaselineContent}
+              isStreaming={options.isStreaming ?? false}
+              streamIsIncremental={options.streamIsIncremental}
+              canEdit={canEdit}
+              userId='user-1'
+              userName='User'
+              collaborative={options.collaborative}
+              enableFind={false}
+              onChange={options.onChange ?? onChange}
+              onEditSource={onEditSource}
+              onClientAutosaveChange={onClientAutosaveChange}
+              onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
+              downloadSourceRef={options.downloadSourceRef}
+            />
+            <SuspendAfterEditor active={options.suspend ?? false} />
+          </Suspense>
+        </QueryClientProvider>
       )
     if (options.suspend) startTransition(update)
     else update()
@@ -211,9 +215,13 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+  })
 })
 afterEach(async () => {
   await act(async () => root.unmount())
+  queryClient.clear()
   container.remove()
 })
 
@@ -226,6 +234,7 @@ describe('loaded rich editor lifecycle', () => {
     const frontmatter = '---\r\n# Metadata\r\ntitle: Updated\r\n---\r\n\r\n'
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -332,6 +341,7 @@ describe('loaded rich editor lifecycle', () => {
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -371,6 +381,7 @@ describe('loaded rich editor lifecycle', () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -411,6 +422,7 @@ describe('loaded rich editor lifecycle', () => {
       const doc = new Y.Doc()
       doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       collaborationRef.current = {
+        canWrite: true,
         doc,
         awareness: new Awareness(doc),
         provider,

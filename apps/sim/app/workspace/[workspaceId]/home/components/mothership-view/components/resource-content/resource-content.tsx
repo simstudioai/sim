@@ -42,6 +42,10 @@ import {
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import {
+  EmbeddedProjectFile,
+  ProjectFileActions,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/project-file'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -105,7 +109,7 @@ function useOpenInternalLink() {
 }
 
 interface ResourceContentProps {
-  workspaceId: string
+  workspaceId?: string
   desktopScopeId: string
   onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
   resource: MothershipResource
@@ -232,17 +236,17 @@ export const ResourceContent = memo(function ResourceContent({
     const type = SOURCE_MIME_MAP[ext] ?? getMimeTypeFromExtension(ext)
     return {
       id: 'streaming-file',
-      workspaceId,
       name: streamFileName,
       key: '',
       path: '',
       size: 0,
       type,
       uploadedBy: '',
+      folderId: null,
       uploadedAt: STREAMING_EPOCH,
       updatedAt: STREAMING_EPOCH,
     }
-  }, [workspaceId, streamFileName])
+  }, [streamFileName])
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   // `append`/`patch` stream complete full-file snapshots (built on the existing file), so the editor
@@ -269,10 +273,29 @@ export const ResourceContent = memo(function ResourceContent({
   )
 
   if (resource.id === 'streaming-file') {
+    if (resource.owner?.entityType === 'project') {
+      const owner = { entityType: 'project', entityId: resource.owner.entityId } as const
+      return (
+        <div className='flex h-full flex-col overflow-hidden'>
+          <FileViewer
+            file={{ ...syntheticFile, owner, uploadedBy: null, originalCreatorUserId: null }}
+            owner={owner}
+            canEdit={false}
+            previewMode={previewMode ?? 'preview'}
+            streamingContent={textStreamingContent}
+            isAgentEditing={isAgentEditing}
+            streamIsIncremental={streamIsIncremental}
+            disableStreamingAutoScroll={disableStreamingAutoScroll}
+            previewContextKey={previewContextKey}
+          />
+        </div>
+      )
+    }
+    if (!workspaceId) return null
     return (
       <div className='flex h-full flex-col overflow-hidden'>
         <FileViewer
-          file={syntheticFile}
+          file={{ ...syntheticFile, workspaceId }}
           workspaceId={workspaceId}
           canEdit={false}
           previewMode={previewMode ?? 'preview'}
@@ -285,6 +308,25 @@ export const ResourceContent = memo(function ResourceContent({
       </div>
     )
   }
+
+  if (resource.type === 'file' && resource.owner?.entityType === 'project') {
+    return (
+      <EmbeddedProjectFile
+        key={`${resource.owner.entityId}/${resource.id}`}
+        projectId={resource.owner.entityId}
+        fileId={resource.id}
+        downloadSourceRef={downloadSourceRef}
+        previewMode={previewMode}
+        streamingContent={previewSession?.fileId === resource.id ? textStreamingContent : undefined}
+        isAgentEditing={isAgentEditing}
+        streamIsIncremental={streamIsIncremental}
+        streamOperation={previewSession?.operation}
+        disableStreamingAutoScroll={disableStreamingAutoScroll}
+        previewContextKey={previewContextKey}
+      />
+    )
+  }
+  if (!workspaceId) return null
 
   switch (resource.type) {
     case 'table':
@@ -379,7 +421,7 @@ export const ResourceContent = memo(function ResourceContent({
 })
 
 interface ResourceActionsProps {
-  workspaceId: string
+  workspaceId?: string
   resource: MothershipResource
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
 }
@@ -389,6 +431,17 @@ export function ResourceActions({
   resource,
   downloadSourceRef,
 }: ResourceActionsProps) {
+  if (resource.type === 'file' && resource.owner?.entityType === 'project') {
+    return (
+      <ProjectFileActions
+        projectId={resource.owner.entityId}
+        fileId={resource.id}
+        downloadSourceRef={downloadSourceRef}
+      />
+    )
+  }
+  if (!workspaceId) return null
+
   switch (resource.type) {
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />

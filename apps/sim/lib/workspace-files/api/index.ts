@@ -6,3 +6,4 @@ export {
   internalWorkspaceFileServeAuth,
   v2FileErrorPolicies,
 } from '@/lib/workspace-files/api/route-policies'
+export { toFileVersion } from './version-presenters'

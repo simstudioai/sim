@@ -1,5 +1,6 @@
 export {
   collectReferencedFileIds,
+  compileFileDocument,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
 } from './compile'

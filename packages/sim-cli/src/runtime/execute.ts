@@ -131,6 +131,13 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
     if (requested === 0) return null
     return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'file was' : 'files were'} deleted.`
   },
+  archiveProjectFileItems: (payload, body) => {
+    const items = payload.deletedItems as { files?: unknown; folders?: unknown } | undefined
+    if (countOf(items?.files) + countOf(items?.folders) > 0) return null
+    const requested = lengthOf(body?.fileIds) + lengthOf(body?.folderIds)
+    if (requested === 0) return null
+    return `Archived nothing: none of the ${requested} requested ${requested === 1 ? 'item was' : 'items were'} archived.`
+  },
   /**
    * `added` empty with `failed` populated is a call that indexed nothing. An
    * empty request — no file resolved to a reference at all — is not a failure,

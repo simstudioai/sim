@@ -26,6 +26,25 @@ sim files batch-delete [options]
 
 </CommandTable>
 
+## Copy file items
+
+```bash
+sim files copy [options]
+```
+
+Copy File Items (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source <json\|@file>` | Yes | Source owner and selected fileIds or folderIds (JSON, or @path / @- to read a file or stdin). |
+| `--destination <json\|@file>` | Yes | Destination owner and optional folderId (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ## Create file
 
 ```bash

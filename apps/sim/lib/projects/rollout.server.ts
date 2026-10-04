@@ -11,3 +11,15 @@ class ProjectUnavailableError extends HttpError {
 export function requireProjectApiEnabled(): void {
   if (!(envBoolean(getEnv('PROJECT_API_ENABLED')) ?? false)) throw new ProjectUnavailableError()
 }
+
+/** Deployment-wide cutover follows ownership backfill and compatible storage/worker rollout. */
+export function isProjectFileApiEnabled(): boolean {
+  return (
+    (envBoolean(getEnv('PROJECT_API_ENABLED')) ?? false) &&
+    (envBoolean(getEnv('PROJECT_FILES_ENABLED')) ?? false)
+  )
+}
+
+export function requireProjectFileApiEnabled(): void {
+  if (!isProjectFileApiEnabled()) throw new ProjectUnavailableError()
+}

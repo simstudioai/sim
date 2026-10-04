@@ -38,7 +38,10 @@ import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
 } from '@/lib/workspace-files/application/file-delivery-observer'
-import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import {
+  parseWorkspaceFileRevision,
+  workspaceFileRevisionField,
+} from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
@@ -46,6 +49,10 @@ import {
   type ReadWorkspaceFileTextInput,
   type ReadWorkspaceFileTextResult,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
+import {
+  type AuthoredFileVersion,
+  projectFileVersionAuthors,
+} from '@/lib/workspace-files/application/version-authors'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('WorkspaceFileVersions')
@@ -66,7 +73,8 @@ export interface ListWorkspaceFileVersionsInput extends FileVersionTarget {
 }
 
 export interface ListWorkspaceFileVersionsResult {
-  versions: WorkspaceFileVersionRecord[]
+  revision?: string
+  versions: AuthoredFileVersion[]
   nextKeys: CursorKey[] | null
 }
 
@@ -181,7 +189,11 @@ export const listWorkspaceFileVersions = defineAuthorizedWorkspaceFileUseCase({
       limit: input.limit,
       after: input.after,
     })
-    return { versions, nextKeys }
+    return {
+      versions: await projectFileVersionAuthors(versions),
+      nextKeys,
+      ...workspaceFileRevisionField(file),
+    }
   },
 })
 

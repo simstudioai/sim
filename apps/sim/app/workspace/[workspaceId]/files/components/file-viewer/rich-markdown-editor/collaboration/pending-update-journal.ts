@@ -27,11 +27,10 @@ interface JournalDocument extends PendingDocumentRecovery {
   quarantined?: boolean
 }
 
-interface PendingUpdateJournalScope {
-  workspaceId: string
-  fileId: string
-  userId: string
-}
+type PendingUpdateJournalScope = { fileId: string; userId: string } & (
+  | { workspaceId: string; projectId?: never }
+  | { projectId: string; workspaceId?: never }
+)
 
 interface JournalSaveResult {
   pendingUpdate: Uint8Array
@@ -105,7 +104,7 @@ export class PendingFileDocUpdateJournal {
   private readonly key: string
   private mutationQueue = Promise.resolve()
 
-  constructor({ workspaceId, fileId, userId }: PendingUpdateJournalScope) {
+  constructor({ workspaceId, projectId, fileId, userId }: PendingUpdateJournalScope) {
     const origin = typeof location === 'undefined' ? 'server' : location.origin
     this.key = [
       'sim',
@@ -113,7 +112,7 @@ export class PendingFileDocUpdateJournal {
       JOURNAL_VERSION,
       origin,
       userId,
-      workspaceId,
+      ...(projectId ? ['project', projectId] : [workspaceId]),
       fileId,
     ].join(':')
   }
@@ -212,6 +211,17 @@ export class PendingFileDocUpdateJournal {
         return result
       },
       { pendingUpdate, status: 'unavailable' }
+    )
+  }
+
+  /** Drop only this document's unaccepted recovery after confirmed loss of write access. */
+  discard(docId: string): Promise<void> {
+    return this.enqueue(
+      () =>
+        updateValue<unknown>(this.key, (value) =>
+          record(liveDocuments(value, Date.now()).filter((document) => document.docId !== docId))
+        ),
+      undefined
     )
   }
 

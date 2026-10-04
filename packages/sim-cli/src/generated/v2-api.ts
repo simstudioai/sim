@@ -112,6 +112,60 @@ export type AbortKnowledgeDocumentUploadResponse = {
   data: AbortKnowledgeDocumentUploadResponseRef1
 }
 
+/** `DELETE /api/v2/projects/[projectId]/files/uploads/[uploadId]` */
+export type AbortProjectFileUploadParams = {
+  projectId: string
+  uploadId: string
+}
+
+export type AbortProjectFileUploadQuery = Record<string, unknown>
+
+export type AbortProjectFileUploadHeaders = {
+  'upload-token': string
+}
+
+type AbortProjectFileUploadResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+type AbortProjectFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: AbortProjectFileUploadResponseRef0 | null
+}
+
+export type AbortProjectFileUploadResponse = {
+  data: AbortProjectFileUploadResponseRef1
+}
+
 /** `POST /api/v2/workflows/[workflowId]/versions/[version]/activate` */
 export type ActivateWorkflowVersionParams = {
   version: number
@@ -645,6 +699,31 @@ type ApplyWorkflowVariablesResponseRef0 = {
 
 export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/archive` */
+export type ArchiveProjectFileItemsParams = {
+  projectId: string
+}
+
+export type ArchiveProjectFileItemsQuery = Record<string, unknown>
+
+export type ArchiveProjectFileItemsBody = {
+  fileIds?: Array<string>
+  folderIds?: Array<string>
+}
+
+export type ArchiveProjectFileItemsResponse = {
+  data: {
+    deletedItems: {
+      files: number
+      folders: number
+    }
+    affectedIds: {
+      fileIds: Array<string>
+      folderIds: Array<string>
+    }
+  }
 }
 
 /** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk` */
@@ -1603,6 +1682,60 @@ export type CompleteKnowledgeDocumentUploadResponse = {
   data: CompleteKnowledgeDocumentUploadResponseRef1
 }
 
+/** `POST /api/v2/projects/[projectId]/files/uploads/[uploadId]/complete` */
+export type CompleteProjectFileUploadParams = {
+  projectId: string
+  uploadId: string
+}
+
+export type CompleteProjectFileUploadQuery = Record<string, unknown>
+
+export type CompleteProjectFileUploadHeaders = {
+  'upload-token': string
+}
+
+type CompleteProjectFileUploadResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+type CompleteProjectFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: CompleteProjectFileUploadResponseRef0 | null
+}
+
+export type CompleteProjectFileUploadResponse = {
+  data: CompleteProjectFileUploadResponseRef1
+}
+
 /** `POST /api/v2/tables/imports/[importId]/complete` */
 export type CompleteTableImportParams = {
   importId: string
@@ -1665,6 +1798,69 @@ type CompleteTableImportResponseRef4 = {
 
 export type CompleteTableImportResponse = {
   data: CompleteTableImportResponseRef4
+}
+
+/** `POST /api/v2/files/copy` */
+export type CopyFileItemsQuery = Record<string, unknown>
+
+export type CopyFileItemsBody = {
+  source: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    fileIds?: Array<string>
+    folderIds?: Array<string>
+  }
+  destination: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    folderId?: string | null
+  }
+}
+
+export type CopyFileItemsResponse = {
+  data: {
+    files: Array<{
+      id: string
+      name: string
+      size: number
+      type: string
+      width?: number | null
+      height?: number | null
+      uploadedBy: string | null
+      folderId: string | null
+      folderPath?: string | null
+      deletedAt: string | null
+      uploadedAt: string
+      updatedAt: string
+      contentUpdatedAt: string | null
+      revision?: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+      originalCreatorUserId: string | null
+    }>
+    folders: Array<{
+      id: string
+      userId: string | null
+      name: string
+      parentId: string | null
+      path: string
+      sortOrder: number
+      deletedAt: string | null
+      createdAt: string
+      updatedAt: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+      originalCreatorUserId: string | null
+    }>
+  }
 }
 
 /** `POST /api/v2/credentials/connections` */
@@ -2656,6 +2852,155 @@ type CreatePermissionGroupResponseRef0 = {
 
 export type CreatePermissionGroupResponse = {
   data: CreatePermissionGroupResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files` */
+export type CreateProjectFileParams = {
+  projectId: string
+}
+
+export type CreateProjectFileQuery = Record<string, unknown>
+
+type CreateProjectFileBodyRef0 = string
+
+export type CreateProjectFileBody = {
+  name: string
+  contentType?: string
+  content?: string
+  encoding?: 'utf-8' | 'base64'
+  folderPath?: CreateProjectFileBodyRef0
+}
+
+type CreateProjectFileResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type CreateProjectFileResponse = {
+  data: CreateProjectFileResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/folders` */
+export type CreateProjectFileFolderParams = {
+  projectId: string
+}
+
+export type CreateProjectFileFolderQuery = Record<string, unknown>
+
+export type CreateProjectFileFolderBody = {
+  name: string
+  parentId?: string | null
+}
+
+export type CreateProjectFileFolderResponse = {
+  data: {
+    id: string
+    userId: string | null
+    name: string
+    parentId: string | null
+    path: string
+    sortOrder: number
+    deletedAt: string | null
+    createdAt: string
+    updatedAt: string
+    owner: {
+      entityType: 'project'
+      entityId: string
+    }
+    originalCreatorUserId: string | null
+  }
+}
+
+/** `POST /api/v2/projects/[projectId]/files/uploads` */
+export type CreateProjectFileUploadParams = {
+  projectId: string
+}
+
+export type CreateProjectFileUploadQuery = Record<string, unknown>
+
+type CreateProjectFileUploadBodyRef0 = string
+
+export type CreateProjectFileUploadBody = {
+  name: string
+  contentType: string
+  size: number
+  folderPath?: CreateProjectFileUploadBodyRef0
+  folderId?: string
+}
+
+type CreateProjectFileUploadResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+type CreateProjectFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: CreateProjectFileUploadResponseRef0 | null
+}
+
+type CreateProjectFileUploadResponseRef2 = {
+  method: 'put'
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}
+
+type CreateProjectFileUploadResponseRef3 = {
+  method: 'multipart'
+  partSize: number
+  partCount: number
+}
+
+type CreateProjectFileUploadResponseRef4 = {
+  session: CreateProjectFileUploadResponseRef1
+  uploadToken: string
+  transfer: CreateProjectFileUploadResponseRef2 | CreateProjectFileUploadResponseRef3
+}
+
+export type CreateProjectFileUploadResponse = {
+  data: CreateProjectFileUploadResponseRef4
 }
 
 /** `POST /api/v2/sandboxes` */
@@ -3994,6 +4339,23 @@ export type DeletePermissionGroupResponse = {
   data: DeletePermissionGroupResponseRef0
 }
 
+/** `DELETE /api/v2/projects/[projectId]/files/[fileId]/versions/[version]` */
+export type DeleteProjectFileVersionParams = {
+  projectId: string
+  fileId: string
+  version: number
+}
+
+export type DeleteProjectFileVersionQuery = Record<string, unknown>
+
+export type DeleteProjectFileVersionResponse = {
+  data: {
+    fileId: string
+    version: number
+    deleted: true
+  }
+}
+
 /** `DELETE /api/v2/sandboxes/[sandboxId]` */
 export type DeleteSandboxParams = {
   sandboxId: string
@@ -4735,6 +5097,19 @@ export type DownloadFileVersionQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
 
+/** `GET /api/v2/projects/[projectId]/files/bulk-download` */
+export type DownloadProjectFileItemsParams = {
+  projectId: string
+}
+
+export type DownloadProjectFileItemsQuery = {
+  fileIds?: string
+  folderIds?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadProjectFileItemsResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
 export type DownloadRunFileParams = {
   workflowId: string
@@ -4963,6 +5338,21 @@ export type ExportKnowledgeBaseQuery = {
 
 /** Non-JSON response (`binary`). */
 export type ExportKnowledgeBaseResponse = never
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/export` */
+export type ExportProjectFileSnapshotParams = {
+  projectId: string
+  fileId: string
+}
+
+export type ExportProjectFileSnapshotQuery = Record<string, unknown>
+
+export type ExportProjectFileSnapshotBody = {
+  content: string
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportProjectFileSnapshotResponse = never
 
 /** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
@@ -6142,6 +6532,178 @@ type GetPermissionGroupResponseRef0 = {
 
 export type GetPermissionGroupResponse = {
   data: GetPermissionGroupResponseRef0
+}
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/metadata` */
+export type GetProjectFileMetadataParams = {
+  projectId: string
+  fileId: string
+}
+
+export type GetProjectFileMetadataQuery = Record<string, unknown>
+
+type GetProjectFileMetadataResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type GetProjectFileMetadataResponse = {
+  data: GetProjectFileMetadataResponseRef0
+}
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type GetProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type GetProjectFileShareQuery = Record<string, unknown>
+
+type GetProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type GetProjectFileShareResponse = {
+  data: GetProjectFileShareResponseRef0 | null
+}
+
+/** `GET /api/v2/projects/[projectId]/files/uploads/[uploadId]` */
+export type GetProjectFileUploadParams = {
+  projectId: string
+  uploadId: string
+}
+
+export type GetProjectFileUploadQuery = Record<string, unknown>
+
+export type GetProjectFileUploadHeaders = {
+  'upload-token': string
+}
+
+type GetProjectFileUploadResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+type GetProjectFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: GetProjectFileUploadResponseRef0 | null
+}
+
+export type GetProjectFileUploadResponse = {
+  data: GetProjectFileUploadResponseRef1
+}
+
+/** `POST /api/v2/projects/[projectId]/files/uploads/[uploadId]/parts` */
+export type GetProjectFileUploadPartUrlsParams = {
+  projectId: string
+  uploadId: string
+}
+
+export type GetProjectFileUploadPartUrlsQuery = Record<string, unknown>
+
+export type GetProjectFileUploadPartUrlsBody = {
+  partNumbers: Array<number>
+}
+
+export type GetProjectFileUploadPartUrlsHeaders = {
+  'upload-token': string
+}
+
+type GetProjectFileUploadPartUrlsResponseRef0 = {
+  partNumber: number
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}
+
+type GetProjectFileUploadPartUrlsResponseRef1 = {
+  parts: Array<GetProjectFileUploadPartUrlsResponseRef0>
+}
+
+export type GetProjectFileUploadPartUrlsResponse = {
+  data: GetProjectFileUploadPartUrlsResponseRef1
+}
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/versions/[version]` */
+export type GetProjectFileVersionParams = {
+  projectId: string
+  fileId: string
+  version: number
+}
+
+export type GetProjectFileVersionQuery = Record<string, unknown>
+
+type GetProjectFileVersionResponseRef0 = GetProjectFileVersionResponseRef1
+
+type GetProjectFileVersionResponseRef1 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type GetProjectFileVersionResponse = {
+  data: GetProjectFileVersionResponseRef0
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
@@ -8974,6 +9536,126 @@ export type ListPermissionGroupsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/projects/[projectId]/files/folders` */
+export type ListProjectFileFoldersParams = {
+  projectId: string
+}
+
+export type ListProjectFileFoldersQuery = {
+  scope?: 'active' | 'archived' | 'all'
+}
+
+export type ListProjectFileFoldersResponse = {
+  data: Array<{
+    id: string
+    userId: string | null
+    name: string
+    parentId: string | null
+    path: string
+    sortOrder: number
+    deletedAt: string | null
+    createdAt: string
+    updatedAt: string
+    owner: {
+      entityType: 'project'
+      entityId: string
+    }
+    originalCreatorUserId: string | null
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/projects/[projectId]/files` */
+export type ListProjectFilesParams = {
+  projectId: string
+}
+
+type ListProjectFilesQueryRef0 = string
+
+export type ListProjectFilesQuery = {
+  folderPath?: ListProjectFilesQueryRef0
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+  scope?: 'active' | 'archived'
+  search?: string
+  sortBy?: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListProjectFilesResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type ListProjectFilesResponse = {
+  data: Array<ListProjectFilesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/versions` */
+export type ListProjectFileVersionsParams = {
+  projectId: string
+  fileId: string
+}
+
+export type ListProjectFileVersionsQuery = {
+  sortBy?: 'version'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListProjectFileVersionsResponseRef0 = ListProjectFileVersionsResponseRef1
+
+type ListProjectFileVersionsResponseRef1 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type ListProjectFileVersionsResponse = {
+  data: Array<ListProjectFileVersionsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/sandboxes` */
 export type ListSandboxesQuery = {
   workspaceId: string
@@ -9856,6 +10538,30 @@ type MoveFileItemsResponseRef0 = {
 
 export type MoveFileItemsResponse = {
   data: MoveFileItemsResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/move` */
+export type MoveProjectFileItemsParams = {
+  projectId: string
+}
+
+export type MoveProjectFileItemsQuery = Record<string, unknown>
+
+type MoveProjectFileItemsBodyRef0 = string
+
+export type MoveProjectFileItemsBody = {
+  fileIds?: Array<string>
+  folderIds?: Array<string>
+  targetFolderPath?: MoveProjectFileItemsBodyRef0
+}
+
+export type MoveProjectFileItemsResponse = {
+  data: {
+    movedFiles: number
+    movedFolders: number
+    movedFileIds: Array<string>
+    movedFolderIds: Array<string>
+  }
 }
 
 /** `POST /api/v2/tables/move` */
@@ -11256,6 +11962,29 @@ export type ReadFileVersionTextResponse = {
   data: ReadFileVersionTextResponseRef0
 }
 
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/content` */
+export type ReadProjectFileContentParams = {
+  projectId: string
+  fileId: string
+}
+
+export type ReadProjectFileContentQuery = Record<string, unknown>
+
+/** Non-JSON response (`binary`). */
+export type ReadProjectFileContentResponse = never
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/versions/[version]/content` */
+export type ReadProjectFileVersionContentParams = {
+  projectId: string
+  fileId: string
+  version: number
+}
+
+export type ReadProjectFileVersionContentQuery = Record<string, unknown>
+
+/** Non-JSON response (`binary`). */
+export type ReadProjectFileVersionContentResponse = never
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -11420,6 +12149,41 @@ type RenameFileResponseRef0 = {
 
 export type RenameFileResponse = {
   data: RenameFileResponseRef0
+}
+
+/** `PATCH /api/v2/projects/[projectId]/files/[fileId]` */
+export type RenameProjectFileParams = {
+  projectId: string
+  fileId: string
+}
+
+export type RenameProjectFileQuery = Record<string, unknown>
+
+export type RenameProjectFileBody = {
+  name: string
+}
+
+type RenameProjectFileResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type RenameProjectFileResponse = {
+  data: RenameProjectFileResponseRef0
 }
 
 /** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -11916,6 +12680,74 @@ export type RestoreKnowledgeBaseResponse = {
   data: RestoreKnowledgeBaseResponseRef1
 }
 
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/restore` */
+export type RestoreProjectFileParams = {
+  projectId: string
+  fileId: string
+}
+
+export type RestoreProjectFileQuery = Record<string, unknown>
+
+export type RestoreProjectFileBody = Record<string, unknown>
+
+type RestoreProjectFileResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type RestoreProjectFileResponse = {
+  data: RestoreProjectFileResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/folders/[folderId]/restore` */
+export type RestoreProjectFileFolderParams = {
+  projectId: string
+  folderId: string
+}
+
+export type RestoreProjectFileFolderQuery = Record<string, unknown>
+
+export type RestoreProjectFileFolderBody = Record<string, unknown>
+
+export type RestoreProjectFileFolderResponse = {
+  data: {
+    folder: {
+      id: string
+      userId: string | null
+      name: string
+      parentId: string | null
+      path: string
+      sortOrder: number
+      deletedAt: string | null
+      createdAt: string
+      updatedAt: string
+      owner: {
+        entityType: 'project'
+        entityId: string
+      }
+      originalCreatorUserId: string | null
+    }
+    restoredItems: {
+      files: number
+      folders: number
+    }
+  }
+}
+
 /** `POST /api/v2/tables/[tableId]/restore` */
 export type RestoreTableParams = {
   tableId: string
@@ -12139,6 +12971,67 @@ type RevertFileVersionResponseRef2 = {
 
 export type RevertFileVersionResponse = {
   data: RevertFileVersionResponseRef2
+}
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/versions/[version]/revert` */
+export type RevertProjectFileVersionParams = {
+  projectId: string
+  fileId: string
+  version: number
+}
+
+export type RevertProjectFileVersionQuery = Record<string, unknown>
+
+export type RevertProjectFileVersionBody = {
+  expectedCurrentVersion?: number
+  expectedRevision?: string
+}
+
+type RevertProjectFileVersionResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+type RevertProjectFileVersionResponseRef1 = RevertProjectFileVersionResponseRef2
+
+type RevertProjectFileVersionResponseRef2 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type RevertProjectFileVersionResponse = {
+  data: {
+    reverted: boolean
+    file: RevertProjectFileVersionResponseRef0
+    version: RevertProjectFileVersionResponseRef1
+    revision?: string
+  }
 }
 
 /** `POST /api/v2/workflows/[workflowId]/versions/[version]/revert` */
@@ -12400,6 +13293,53 @@ type SearchKnowledgeResponseRef1 = {
 
 export type SearchKnowledgeResponse = {
   data: SearchKnowledgeResponseRef1
+}
+
+/** `GET /api/v2/projects/[projectId]/files/search` */
+export type SearchProjectFileContentParams = {
+  projectId: string
+}
+
+export type SearchProjectFileContentQuery = {
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+}
+
+type SearchProjectFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
+export type SearchProjectFileContentResponse = {
+  data: SearchProjectFileContentResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/rows/search` */
@@ -12706,6 +13646,26 @@ type UnzipFileResponseRef0 = {
 
 export type UnzipFileResponse = {
   data: UnzipFileResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/unzip` */
+export type UnzipProjectFileParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UnzipProjectFileQuery = Record<string, unknown>
+
+type UnzipProjectFileResponseRef0 = UnzipProjectFileResponseRef1
+
+type UnzipProjectFileResponseRef1 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipProjectFileResponse = {
+  data: UnzipProjectFileResponseRef0
 }
 
 /** `PATCH /api/v2/credentials/[credentialId]` */
@@ -13315,6 +14275,107 @@ type UpdatePermissionGroupResponseRef0 = {
 
 export type UpdatePermissionGroupResponse = {
   data: UpdatePermissionGroupResponseRef0
+}
+
+/** `PUT /api/v2/projects/[projectId]/files/[fileId]/content` */
+export type UpdateProjectFileContentParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UpdateProjectFileContentQuery = Record<string, unknown>
+
+export type UpdateProjectFileContentBody = {
+  content: string
+  encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
+}
+
+type UpdateProjectFileContentResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+  owner: {
+    entityType: 'project'
+    entityId: string
+  }
+  uploadedBy: string | null
+  originalCreatorUserId: string | null
+  revision?: string
+}
+
+export type UpdateProjectFileContentResponse = {
+  data: UpdateProjectFileContentResponseRef0
+}
+
+/** `PATCH /api/v2/projects/[projectId]/files/folders/[folderId]` */
+export type UpdateProjectFileFolderParams = {
+  projectId: string
+  folderId: string
+}
+
+export type UpdateProjectFileFolderQuery = Record<string, unknown>
+
+export type UpdateProjectFileFolderBody = {
+  name?: string
+  parentId?: string | null
+  sortOrder?: number
+}
+
+export type UpdateProjectFileFolderResponse = {
+  data: {
+    id: string
+    userId: string | null
+    name: string
+    parentId: string | null
+    path: string
+    sortOrder: number
+    deletedAt: string | null
+    createdAt: string
+    updatedAt: string
+    owner: {
+      entityType: 'project'
+      entityId: string
+    }
+    originalCreatorUserId: string | null
+  }
+}
+
+/** `PATCH /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type UpdateProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UpdateProjectFileShareQuery = Record<string, unknown>
+
+export type UpdateProjectFileShareBody = {
+  isActive: boolean
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+}
+
+type UpdateProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type UpdateProjectFileShareResponse = {
+  data: UpdateProjectFileShareResponseRef0
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows` */
@@ -14263,6 +15324,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  abortProjectFileUpload: {
+    method: 'DELETE',
+    path: '/api/v2/projects/[projectId]/files/uploads/[uploadId]',
+    pathParams: ['projectId', 'uploadId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      uploadId: 'Upload session identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Abort Project File Upload',
+    workspaceKeyUnsupported: true,
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
   activateWorkflowVersion: {
     method: 'POST',
     path: '/api/v2/workflows/[workflowId]/versions/[version]/activate',
@@ -14400,6 +15480,24 @@ export const V2_OPERATIONS = {
         kind: 'array',
         required: true,
         describe: 'Variable changes to apply, in order.',
+      },
+    },
+  },
+  archiveProjectFileItems: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/archive',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Archive Project File Items',
+    workspaceKeyUnsupported: true,
+    body: {
+      fileIds: { kind: 'array', default: [], describe: 'Identifiers of the files to archive.' },
+      folderIds: {
+        kind: 'array',
+        default: [],
+        describe:
+          'Identifiers of folders to archive recursively, including their files and descendants.',
       },
     },
   },
@@ -14784,6 +15882,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  completeProjectFileUpload: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/uploads/[uploadId]/complete',
+    pathParams: ['projectId', 'uploadId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      uploadId: 'Upload session identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Complete Project File Upload',
+    workspaceKeyUnsupported: true,
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
   completeTableImport: {
     method: 'POST',
     path: '/api/v2/tables/imports/[importId]/complete',
@@ -14803,6 +15920,26 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  copyFileItems: {
+    method: 'POST',
+    path: '/api/v2/files/copy',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Copy File Items',
+    workspaceKeyUnsupported: true,
+    body: {
+      source: {
+        kind: 'object',
+        required: true,
+        describe: 'Selection to read under the source owner.',
+      },
+      destination: {
+        kind: 'object',
+        required: true,
+        describe: 'Destination requiring file write access.',
       },
     },
   },
@@ -15302,6 +16439,82 @@ export const V2_OPERATIONS = {
         kind: 'array',
         describe:
           'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.',
+      },
+    },
+  },
+  createProjectFile: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Create Project File',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: {
+        kind: 'string',
+        required: true,
+        describe:
+          'File name, including its extension. Path separators and dot segments are rejected.',
+      },
+      contentType: {
+        kind: 'string',
+        describe: 'MIME type. When omitted, it is inferred from the file extension.',
+      },
+      content: {
+        kind: 'string',
+        default: '',
+        describe:
+          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.',
+      },
+      encoding: {
+        kind: 'enum',
+        values: ['utf-8', 'base64'] as const,
+        default: 'utf-8',
+        describe: 'Encoding of the content field.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Canonical containing-folder path. Omit for the Project root.',
+      },
+    },
+  },
+  createProjectFileFolder: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/folders',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Create Project File Folder',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', required: true, describe: 'Name for the new folder.' },
+      parentId: {
+        kind: 'string',
+        describe: 'Parent folder identifier; omit or use null for the root.',
+      },
+    },
+  },
+  createProjectFileUpload: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/uploads',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Create Project File Upload',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
+      contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
+      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Canonical destination folder path. Specify either folderId or folderPath, not both.',
+      },
+      folderId: {
+        kind: 'string',
+        describe: 'Destination folder identifier; omit or use null for the Project root.',
       },
     },
   },
@@ -15943,6 +17156,19 @@ export const V2_OPERATIONS = {
     summary: 'Delete Permission Group',
     workspaceKeyUnsupported: true,
   },
+  deleteProjectFileVersion: {
+    method: 'DELETE',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/versions/[version]',
+    pathParams: ['projectId', 'fileId', 'version'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+      version: 'Version number.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Project File Version',
+    workspaceKeyUnsupported: true,
+  },
   deleteSandbox: {
     method: 'DELETE',
     path: '/api/v2/sandboxes/[sandboxId]',
@@ -16343,6 +17569,26 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadProjectFileItems: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/bulk-download',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'binary',
+    summary: 'Download Project File Items',
+    workspaceKeyUnsupported: true,
+    query: {
+      fileIds: {
+        kind: 'string',
+        describe: 'File identifiers to include, comma-separated. At most 100 entries.',
+      },
+      folderIds: {
+        kind: 'string',
+        describe:
+          'Folder identifiers to include recursively, comma-separated. The resolved selection allows at most 100 files.',
+      },
+    },
+  },
   downloadRunFile: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
@@ -16521,6 +17767,26 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
+      },
+    },
+  },
+  exportProjectFileSnapshot: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/export',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'binary',
+    summary: 'Export Project File Snapshot',
+    workspaceKeyUnsupported: true,
+    body: {
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Visible Markdown snapshot to export. This does not replace the stored file or create a version.',
       },
     },
   },
@@ -17039,6 +18305,88 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Permission Group',
+    workspaceKeyUnsupported: true,
+  },
+  getProjectFileMetadata: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/metadata',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Metadata',
+    workspaceKeyUnsupported: true,
+  },
+  getProjectFileShare: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Share',
+    workspaceKeyUnsupported: true,
+  },
+  getProjectFileUpload: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/uploads/[uploadId]',
+    pathParams: ['projectId', 'uploadId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      uploadId: 'Upload session identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Upload',
+    workspaceKeyUnsupported: true,
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  getProjectFileUploadPartUrls: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/uploads/[uploadId]/parts',
+    pathParams: ['projectId', 'uploadId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      uploadId: 'Upload session identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Upload Part URLs',
+    workspaceKeyUnsupported: true,
+    body: {
+      partNumbers: {
+        kind: 'array',
+        required: true,
+        describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  getProjectFileVersion: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/versions/[version]',
+    pathParams: ['projectId', 'fileId', 'version'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+      version: 'Version number.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Version',
     workspaceKeyUnsupported: true,
   },
   getRowEnrichment: {
@@ -19071,6 +20419,129 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listProjectFileFolders: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/folders',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'List Project File Folders',
+    workspaceKeyUnsupported: true,
+    query: {
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived', 'all'] as const,
+        default: 'active',
+        describe: 'Folder lifecycle scope.',
+      },
+    },
+  },
+  listProjectFiles: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'List Project Files',
+    workspaceKeyUnsupported: true,
+    query: {
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Restrict files to this folder, including subfolders when `recursive` is true. Unknown folder paths contribute no matches.',
+      },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the file name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'size', 'uploadedAt', 'updatedAt'] as const,
+        default: 'uploadedAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 100,
+        describe: 'Maximum files per page. Must be a whole number from 1 to 1000. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listProjectFileVersions: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/versions',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'List Project File Versions',
+    workspaceKeyUnsupported: true,
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['version'] as const,
+        default: 'version',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listSandboxes: {
     method: 'GET',
     path: '/api/v2/sandboxes',
@@ -19964,6 +21435,28 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  moveProjectFileItems: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/move',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Move Project File Items',
+    workspaceKeyUnsupported: true,
+    body: {
+      fileIds: { kind: 'array', default: [], describe: 'Identifiers of the files to move.' },
+      folderIds: {
+        kind: 'array',
+        default: [],
+        describe: 'Identifiers of folders to move with their contents.',
+      },
+      targetFolderPath: {
+        kind: 'string',
+        describe:
+          'Existing destination folder path within the Project. Omit to move items to the Project root.',
+      },
+    },
+  },
   moveTables: {
     method: 'POST',
     path: '/api/v2/tables/move',
@@ -20359,6 +21852,31 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  readProjectFileContent: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/content',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'binary',
+    summary: 'Read Project File Source',
+    workspaceKeyUnsupported: true,
+  },
+  readProjectFileVersionContent: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/content',
+    pathParams: ['projectId', 'fileId', 'version'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+      version: 'Version number.',
+    },
+    responseMode: 'binary',
+    summary: 'Read Project File Version Content',
+    workspaceKeyUnsupported: true,
+  },
   relocateFileFolder: {
     method: 'PATCH',
     path: '/api/v2/files/folders',
@@ -20461,6 +21979,21 @@ export const V2_OPERATIONS = {
     summary: 'Rename File',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  renameProjectFile: {
+    method: 'PATCH',
+    path: '/api/v2/projects/[projectId]/files/[fileId]',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Rename Project File',
+    workspaceKeyUnsupported: true,
+    body: {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
     },
   },
@@ -20685,6 +22218,32 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  restoreProjectFile: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/restore',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Restore Project File',
+    workspaceKeyUnsupported: true,
+    body: {},
+  },
+  restoreProjectFileFolder: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/folders/[folderId]/restore',
+    pathParams: ['projectId', 'folderId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      folderId: 'Folder identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Restore Project File Folder',
+    workspaceKeyUnsupported: true,
+    body: {},
+  },
   restoreTable: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/restore',
@@ -20751,6 +22310,31 @@ export const V2_OPERATIONS = {
     summary: 'Revert File Version',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      expectedCurrentVersion: {
+        kind: 'integer',
+        describe:
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+      },
+    },
+  },
+  revertProjectFileVersion: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/revert',
+    pathParams: ['projectId', 'fileId', 'version'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+      version: 'Version number.',
+    },
+    responseMode: 'json',
+    summary: 'Revert Project File Version',
+    workspaceKeyUnsupported: true,
+    body: {
       expectedCurrentVersion: {
         kind: 'integer',
         describe:
@@ -20956,6 +22540,53 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  searchProjectFileContent: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/search',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Search Project File Content',
+    workspaceKeyUnsupported: true,
+    query: {
+      query: {
+        kind: 'string',
+        required: true,
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
+      },
+      mode: {
+        kind: 'enum',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
+      },
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated folder paths within the Project. Omit to search the entire Project; index coverage applies to the selected folders.',
+      },
+      includeSubfolders: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+      },
+    },
+  },
   searchTableRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/search',
@@ -21102,6 +22733,18 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
     },
+  },
+  unzipProjectFile: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/unzip',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Unzip Project File',
+    workspaceKeyUnsupported: true,
   },
   updateCredential: {
     method: 'PATCH',
@@ -21531,6 +23174,94 @@ export const V2_OPERATIONS = {
         kind: 'array',
         describe:
           'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.',
+      },
+    },
+  },
+  updateProjectFileContent: {
+    method: 'PUT',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/content',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Replace Project File Content',
+    workspaceKeyUnsupported: true,
+    body: {
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.',
+      },
+      encoding: {
+        kind: 'enum',
+        values: ['utf-8', 'base64'] as const,
+        default: 'utf-8',
+        describe: 'Encoding of the content field.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
+    },
+  },
+  updateProjectFileFolder: {
+    method: 'PATCH',
+    path: '/api/v2/projects/[projectId]/files/folders/[folderId]',
+    pathParams: ['projectId', 'folderId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      folderId: 'Folder identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Update Project File Folder',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'New folder name; omit to leave unchanged.' },
+      parentId: {
+        kind: 'string',
+        describe:
+          'New parent folder identifier; null moves to the root, omission leaves the parent unchanged.',
+      },
+      sortOrder: { kind: 'integer', describe: 'New manual position; omit to leave unchanged.' },
+    },
+  },
+  updateProjectFileShare: {
+    method: 'PATCH',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Update Project File Share',
+    workspaceKeyUnsupported: true,
+    body: {
+      isActive: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        describe:
+          'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Literal password of 15 to 1024 characters. Kept when omitted; enabling password access without a supplied or stored password is rejected.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.',
       },
     },
   },

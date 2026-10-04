@@ -10,13 +10,14 @@ import {
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
   type FileDocInvalidated,
+  type FileDocPermission,
   type FileDocUpdateAck,
   type FileDocUpdatePayload,
   type JoinFileDocError,
   type JoinFileDocSuccess,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { projectFileDocRoom, ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import * as decoding from 'lib0/decoding'
@@ -36,6 +37,8 @@ import { PendingFileDocUpdateJournal } from '@/app/workspace/[workspaceId]/files
  */
 interface FileDocProviderEvents {
   synced: (synced: boolean) => void
+  permission: (canWrite: boolean) => void
+  'write-access-lost': () => void
   'join-error': (error: JoinFileDocError) => void
 }
 
@@ -59,10 +62,10 @@ function hasYjsUpdateContent(update: Uint8Array): boolean {
   return decoded.structs.length > 0 || decoded.ds.clients.size > 0
 }
 
-interface FileDocProviderScope {
-  workspaceId: string
-  userId: string
-}
+type FileDocProviderScope = { userId: string } & (
+  | { workspaceId: string; projectId?: never }
+  | { projectId: string; workspaceId?: never }
+)
 
 interface PendingClientUpdate {
   updateId: string
@@ -129,6 +132,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   >()
 
   synced = false
+  canWrite = true
+  private readonly projectId: string | undefined
+  private readonly membershipKey: string
   /**
    * The current readiness failure, or `null`. Retryable timeouts clear once authoritative sync
    * completes; terminal rejections remain latched. Consumers read it when subscribing so an earlier
@@ -181,6 +187,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   ) {
     super()
 
+    this.projectId = scope?.projectId
+    this.canWrite = !this.projectId
+    this.membershipKey = this.projectId ? `project:${this.projectId}/${fileId}` : fileId
     this.journal = scope ? new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId }) : null
     this.registerActiveProvider()
 
@@ -198,6 +207,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
+    socket.on(FILE_DOC_EVENTS.PERMISSION, this.handlePermission)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
     socket.on(FILE_DOC_EVENTS.INVALIDATED, this.handleInvalidated)
     socket.on(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
@@ -211,7 +221,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
     // Count this provider against the shared socket's membership of the file's room, so the room is
     // left only when the last provider for this file tears down (see {@link releaseRoomMembership}).
-    retainRoomMembership(socket, fileId)
+    retainRoomMembership(socket, this.membershipKey)
 
     if (socket.connected) this.join()
 
@@ -244,6 +254,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.disposed || this.fatal || (this.synced && this.isSeeded())) return
     this.joinError = {
       fileId: this.fileId,
+      ...(this.projectId ? { projectId: this.projectId } : {}),
       error: 'Realtime document was not ready in time',
       code: 'READINESS_TIMEOUT',
       retryable: true,
@@ -309,6 +320,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }, FILE_DOC_TIMEOUTS.joinAckMs)
     this.socket.emit(FILE_DOC_EVENTS.JOIN, {
       fileId: this.fileId,
+      ...(this.projectId ? { projectId: this.projectId } : {}),
       clientId: this.doc.clientID,
       schemaVersion: FILE_DOC_SCHEMA_VERSION,
     })
@@ -386,10 +398,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (
       data.fileId !== this.fileId ||
+      data.projectId !== this.projectId ||
       !this.joinPending ||
       (data.clientId !== undefined && data.clientId !== this.doc.clientID)
     )
       return
+    if (this.projectId) this.setCanWrite(data.canWrite === true)
     this.clearJoinAckTimer()
     this.joinPending = false
     this.joinRetryAttempt = 0
@@ -405,6 +419,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
     const recoveryDocId = data.docId
+    if (this.projectId && !this.canWrite) {
+      void this.journal.discard(recoveryDocId).then(() => {
+        this.finishAcceptJoin(data, generation, null)
+      })
+      return
+    }
     if (!this.recoveryLoad || this.recoveryLoad.docId !== recoveryDocId) {
       this.recoveryLoad = {
         docId: recoveryDocId,
@@ -412,7 +432,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       }
     }
     void this.recoveryLoad.promise.then((recovered) => {
-      this.finishAcceptJoin(data, generation, recovered)
+      this.finishAcceptJoin(data, generation, this.canWrite ? recovered : null)
     })
   }
 
@@ -516,6 +536,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.fatal || this.disposed) return
     const error: JoinFileDocError = {
       fileId: this.fileId,
+      ...(this.projectId ? { projectId: this.projectId } : {}),
       error: message,
       code,
       retryable: false,
@@ -538,7 +559,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private registerActiveProvider(): void {
     const active = FileDocProvider.activeProviders.get(this.socket)
-    if (active?.fileId === this.fileId) {
+    if (active?.fileId === this.membershipKey) {
       active.providers.add(this)
       return
     }
@@ -552,14 +573,14 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       }
     }
     FileDocProvider.activeProviders.set(this.socket, {
-      fileId: this.fileId,
+      fileId: this.membershipKey,
       providers: new Set([this]),
     })
   }
 
   private unregisterActiveProvider(): void {
     const active = FileDocProvider.activeProviders.get(this.socket)
-    if (active?.fileId !== this.fileId) return
+    if (active?.fileId !== this.membershipKey) return
     active.providers.delete(this)
     if (active.providers.size === 0) FileDocProvider.activeProviders.delete(this.socket)
   }
@@ -605,7 +626,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * instead of silently accepting keystrokes that go nowhere.
    */
   private handleAccessRevoked = (data: RoomAccessRevokedBroadcast) => {
-    if (data.room?.type !== ROOM_TYPES.WORKSPACE_FILE_DOC || data.room.id !== this.fileId) return
+    const room = this.projectId
+      ? projectFileDocRoom(this.projectId, this.fileId)
+      : { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: this.fileId }
+    if (data.room?.type !== room.type || data.room.id !== room.id) return
     this.failFatally(data.message, 'ACCESS_REVOKED')
   }
 
@@ -693,7 +717,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown) => {
     /** A terminal document cannot publish; inbound and recovery updates must not echo. */
-    if (this.fatal || origin === this || origin === RECOVERY_ORIGIN) return
+    if (
+      this.fatal ||
+      (this.projectId && !this.canWrite) ||
+      origin === this ||
+      origin === RECOVERY_ORIGIN
+    )
+      return
     // Agent-streamed frames must reach peers (so a collaborator sees the stream live) but must NOT be
     // treated by the server as a durable user edit — the copilot's final `edit_content` write is the
     // authoritative persist. Tag them so the relay applies + fans out but skips persist bookkeeping.
@@ -799,13 +829,15 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       this.disposed ||
       this.fatal ||
       !this.socket.connected ||
-      !this.joinAccepted
+      !this.joinAccepted ||
+      !this.canWrite
     )
       return
 
     const generation = this.connectionGeneration
     const payload: FileDocUpdatePayload = {
       fileId: this.fileId,
+      ...(this.projectId ? { projectId: this.projectId } : {}),
       docId,
       updateId: pending.updateId,
       update: pending.update,
@@ -836,6 +868,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
+    if (this.projectId && ack.code === 'ACCESS_REVOKED') {
+      this.setCanWrite(false)
+      return
+    }
     if (!ack.retryable) {
       const message =
         ack.code === 'ACCESS_REVOKED'
@@ -919,7 +955,14 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.clearUpdateTimers()
 
     if (this.updateMode === 'acknowledged' && docId) {
-      const payload: FileDocUpdatePayload = { fileId: this.fileId, docId, updateId, update }
+      if (!this.canWrite) return
+      const payload: FileDocUpdatePayload = {
+        fileId: this.fileId,
+        ...(this.projectId ? { projectId: this.projectId } : {}),
+        docId,
+        updateId,
+        update,
+      }
       this.socket
         .timeout(FILE_DOC_TIMEOUTS.updateAckMs)
         .emit(FILE_DOC_EVENTS.UPDATE, payload, (error: Error | null, ack?: FileDocUpdateAck) => {
@@ -1025,6 +1068,31 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
   }
 
+  private handlePermission = (data: FileDocPermission) => {
+    if (data.projectId !== this.projectId || data.fileId !== this.fileId || !this.projectId) return
+    this.setCanWrite(data.canWrite)
+    if (data.canWrite) this.sendInFlightUpdate()
+  }
+
+  private setCanWrite(canWrite: boolean) {
+    if (this.canWrite === canWrite) return
+    this.canWrite = canWrite
+    if (!canWrite) this.clearUpdateTimers()
+    if (this.projectId && !canWrite) {
+      this.pendingUpdatesDrained = true
+      this.pendingUpdateBatch = []
+      this.inFlightUpdate = null
+      this.flushingUpdate = null
+      this.updateBeforeUnloadProtection()
+      const docId = this.docId()
+      const discarded = docId ? this.journal?.discard(docId) : undefined
+      void Promise.resolve(discarded).then(() => {
+        if (!this.disposed) this.emit('write-access-lost', [])
+      })
+    }
+    this.emit('permission', [canWrite])
+  }
+
   private setSynced(synced: boolean) {
     if (this.synced === synced) return
     this.synced = synced
@@ -1071,11 +1139,15 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
     // Only actually leave the room when this was the last provider for the file on the shared socket —
     // otherwise a sibling surface (e.g. the Files editor vs. the embedded chat panel) would be stranded.
-    if (releaseRoomMembership(this.socket, this.fileId)) {
-      this.socket.emit(FILE_DOC_EVENTS.LEAVE, { fileId: this.fileId })
+    if (releaseRoomMembership(this.socket, this.membershipKey)) {
+      this.socket.emit(FILE_DOC_EVENTS.LEAVE, {
+        fileId: this.fileId,
+        ...(this.projectId ? { projectId: this.projectId } : {}),
+      })
     }
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
+    this.socket.off(FILE_DOC_EVENTS.PERMISSION, this.handlePermission)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
     this.socket.off(FILE_DOC_EVENTS.INVALIDATED, this.handleInvalidated)
     this.socket.off(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)

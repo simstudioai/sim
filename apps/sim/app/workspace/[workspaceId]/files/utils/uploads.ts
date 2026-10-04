@@ -1,0 +1,24 @@
+import {
+  SUPPORTED_ARCHIVE_EXTENSIONS,
+  SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_CODE_EXTENSIONS,
+  SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
+  SUPPORTED_VIDEO_EXTENSIONS,
+} from '@/lib/uploads/utils/validation'
+
+export const FILE_UPLOAD_EXTENSIONS = [
+  ...SUPPORTED_DOCUMENT_EXTENSIONS,
+  ...SUPPORTED_CODE_EXTENSIONS,
+  ...SUPPORTED_AUDIO_EXTENSIONS,
+  ...SUPPORTED_VIDEO_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
+  ...SUPPORTED_ARCHIVE_EXTENSIONS,
+] as const
+
+export const FILE_UPLOAD_ACCEPT = FILE_UPLOAD_EXTENSIONS.map((extension) => `.${extension}`).join(
+  ','
+)
+
+export const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
+  dataTransfer.types.includes('Files')

@@ -62,6 +62,47 @@ describe('compileSimPage', () => {
     expect(html).toContain('src="/api/files/view/img9"')
   })
 
+  it('resolves a qualified Project file without treating its owner query as part of the ID', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n![diagram](sim:file/img%2D9?project=project%2Done)\n[open](sim:file/img%2D9?project=project%2Done#details)',
+      { workspaceId: 'ambient-workspace', baseUrl: 'https://sim.example/' }
+    )
+    expect(html).toContain('src="https://sim.example/api/projects/project-one/files/img-9/content"')
+    expect(html).toContain(
+      'href="https://sim.example/api/projects/project-one/files/img-9/content#details" data-sim-link=""'
+    )
+  })
+
+  it('retains an explicit workspace owner when a Project page contains a workspace file link', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n![diagram](sim:file/img9?workspace=source-workspace)\n[open](sim:file/img9?workspace=source-workspace)',
+      { projectId: 'ambient-project' }
+    )
+    expect(html).toContain('src="/api/files/view/img9"')
+    expect(html).toContain('href="/workspace/source-workspace/files/img9" data-sim-link=""')
+    expect(html).not.toContain('/api/projects/ambient-project/files/img9')
+  })
+
+  it('leaves ambiguous and malformed file ownership inert instead of inventing a byte URL', () => {
+    const links = [
+      'sim:file/img9?project=one&workspace=two',
+      'sim:file/img9?project=one&project=two',
+      'sim:file/img9?organization=one',
+      'sim:file/img9?project=',
+      'sim:file/img9?project=one%2Ftwo',
+      'sim:file/img%252F9?project=one',
+      'sim:file/%E0%A4%A?project=one',
+    ]
+    const html = compileSimPage(
+      `---\ntitle: T\n---\n${links.map((link) => `[open](${link}) ![image](${link})`).join('\n')}`,
+      { projectId: 'ambient-project' }
+    )
+    expect(html).not.toContain('/api/projects/')
+    expect(html).not.toContain('/api/files/view/')
+    expect(html.match(/href="sim:file\//g)).toHaveLength(links.length)
+    expect(html.match(/src="sim:file\//g)).toHaveLength(links.length)
+  })
+
   it('escapes html in yaml-derived values', () => {
     const html = compileSimPage(
       '---\ntitle: T\n---\n```sim:kv\n- { key: "<script>", value: "<img src=x>" }\n```'

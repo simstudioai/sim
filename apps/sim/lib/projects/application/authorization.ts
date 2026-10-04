@@ -1,29 +1,49 @@
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  type Principal,
+  type ResourceDelegatedPrincipal,
+  requirePrincipalSubjectUserId,
+  type SessionPrincipal,
+} from '@sim/auth/principal'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray } from 'drizzle-orm'
+import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups/resolve.server'
-import type { ProjectOperation } from '@/lib/projects/application/operations'
+import {
+  PROJECT_DISCOVERY_DELEGATION_TTL_MS,
+  type ProjectOperation,
+} from '@/lib/projects/application/operations'
 import { lockProject } from '@/lib/projects/membership'
 
-export function requireProjectPrincipal(
+export function requireProjectPrincipal<
+  O extends Pick<ProjectOperation, 'id' | 'principalKinds' | 'delegationAudience'>,
+>(
   principal: Principal,
-  operation: Pick<ProjectOperation, 'id' | 'principalKinds'>
-): asserts principal is SessionPrincipal {
-  if (principal.kind !== 'session')
+  operation: O
+): asserts principal is Extract<Principal, { kind: O['principalKinds'][number] }> {
+  if (!operation.principalKinds.some((kind) => kind === principal.kind))
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  if (principal.kind === 'resource_delegated') {
+    if (operation.id !== 'projects.list' || !operation.delegationAudience)
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+    requireResourceDelegation(principal, {
+      audience: operation.delegationAudience,
+      services: ['copilot'],
+      scope: { kind: 'project_discovery' },
+      maxTtlMs: PROJECT_DISCOVERY_DELEGATION_TTL_MS,
+    })
+  }
 }
 
-/** The complete environment set is loaded server-side; hidden environments never enter the result. */
-export async function authorizeProject(
+/** Loads canonical membership for Project operations; callers enforce their own resource policy. */
+export async function loadProjectAccess(
   tx: DbTransaction,
-  principal: SessionPrincipal,
-  operation: ProjectOperation,
+  userId: string,
   input: { projectId: string; organizationId?: string; workspaceId?: string }
 ) {
   await lockProject(tx, input.projectId)
@@ -38,9 +58,7 @@ export async function authorizeProject(
     ? await tx
         .select({ role: member.role })
         .from(member)
-        .where(
-          and(eq(member.userId, principal.userId), eq(member.organizationId, record.organizationId))
-        )
+        .where(and(eq(member.userId, userId), eq(member.organizationId, record.organizationId)))
         .limit(1)
         .for('share')
     : []
@@ -52,11 +70,13 @@ export async function authorizeProject(
       organizationId: workspace.organizationId,
       archivedAt: workspace.archivedAt,
       parentId: workspace.forkedFromWorkspaceId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(projectWorkspace)
     .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
     .where(eq(projectWorkspace.projectId, record.id))
     .orderBy(asc(workspace.id))
+    .for('share', { of: workspace })
   if (environments.some((row) => row.organizationId !== record.organizationId))
     throw new OrchestrationError('conflict', 'Project ownership needs reconciliation')
   const grants = environments.length
@@ -66,7 +86,7 @@ export async function authorizeProject(
         .where(
           and(
             eq(permissions.entityType, 'workspace'),
-            eq(permissions.userId, principal.userId),
+            eq(permissions.userId, userId),
             inArray(
               permissions.entityId,
               environments.map((row) => row.id)
@@ -78,8 +98,6 @@ export async function authorizeProject(
     : []
   const grantsById = new Map(grants.map((row) => [row.id, row.permission]))
   const rows = environments.map((row) => ({ ...row, permission: grantsById.get(row.id) ?? null }))
-  if (operation.access === 'issues' && record.organizationId)
-    await acquirePermissionGroupOrgLock(tx, record.organizationId)
   const active = rows.filter((row) => !row.archivedAt)
   const visible = active.filter((row) => orgAdmin || row.permission !== null)
   const canAdminister =
@@ -88,6 +106,26 @@ export async function authorizeProject(
     throw new OrchestrationError('not_found', 'Project not found')
   if (input.workspaceId && !visible.some((row) => row.id === input.workspaceId))
     throw new OrchestrationError('not_found', 'Project not found')
+
+  return { record, rows, active, visible, orgAdmin, canAdminister }
+}
+
+/** The complete environment set is loaded server-side; hidden environments never enter the result. */
+export async function authorizeProject(
+  tx: DbTransaction,
+  principal: SessionPrincipal | ResourceDelegatedPrincipal,
+  operation: ProjectOperation,
+  input: { projectId: string; organizationId?: string; workspaceId?: string }
+) {
+  requireProjectPrincipal(principal, operation)
+  const userId = requirePrincipalSubjectUserId(principal)
+  const { record, rows, active, visible, canAdminister } = await loadProjectAccess(
+    tx,
+    userId,
+    input
+  )
+  if (operation.access === 'issues' && record.organizationId)
+    await acquirePermissionGroupOrgLock(tx, record.organizationId)
   if (operation.access === 'admin' && !canAdminister)
     throw new OrchestrationError(
       'forbidden',
@@ -97,7 +135,7 @@ export async function authorizeProject(
   if (canUseIssues && visible.length < active.length && record.organizationId) {
     for (const environment of visible) {
       const { config } = await resolveVerifiedUserAccessControlContext(
-        principal.userId,
+        userId,
         environment.id,
         record.organizationId,
         tx

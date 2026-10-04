@@ -19,6 +19,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
+import { presentChatResourceForBrowser } from '@/lib/mothership/resources/presentation'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -46,7 +47,11 @@ function transformChat(chat: {
     config: chat.config || null,
     ...('conversationId' in chat ? { activeStreamId: chat.conversationId || null } : {}),
     ...('resources' in chat
-      ? { resources: Array.isArray(chat.resources) ? chat.resources : [] }
+      ? {
+          resources: Array.isArray(chat.resources)
+            ? chat.resources.map(presentChatResourceForBrowser)
+            : [],
+        }
       : {}),
     createdAt: chat.createdAt,
     updatedAt: chat.updatedAt,

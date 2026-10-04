@@ -46,7 +46,7 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/utils/workspace-file-query'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'

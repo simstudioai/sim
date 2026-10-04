@@ -1,5 +1,6 @@
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { describe, expect, it, vi } from 'vitest'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 
 const { mockListWorkspaceFilesWithShares } = vi.hoisted(() => ({
   mockListWorkspaceFilesWithShares: vi.fn(),
@@ -13,7 +14,6 @@ vi.mock('@/lib/workspace-files/queries', () => ({
 vi.mock('@sim/emcn', () => emcnMock)
 
 import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 const WORKSPACE_ID = 'ws-123'
 

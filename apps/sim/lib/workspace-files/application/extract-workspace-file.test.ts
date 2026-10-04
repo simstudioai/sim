@@ -45,6 +45,7 @@ vi.mock('@/lib/core/idempotency/service', () => ({
 }))
 
 vi.mock('@/lib/uploads/archive', () => ({
+  archiveFolderName: vi.fn(() => 'bundle'),
   decompressArchiveBufferToWorkspaceFiles: hoisted.decompress,
   MAX_ARCHIVE_BYTES: 100 * 1024 * 1024,
 }))

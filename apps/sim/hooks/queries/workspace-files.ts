@@ -16,56 +16,30 @@ import {
   type CreateWorkspaceFileBody,
   createWorkspaceFileContract,
   deleteWorkspaceFileContract,
-  listWorkspaceFilesContract,
   readWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   type UpdateWorkspaceFileContentBody,
-  updateWorkspaceFileContentContract,
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import type { UserFile } from '@/executor/types'
+import { resolveFileQueryOwner } from '@/hooks/queries/utils/file-owner-query-adapters'
 import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import {
+  fetchWorkspaceFiles,
+  getWorkspaceFilesQueryOptions,
+  WORKSPACE_FILES_LIST_STALE_TIME,
+  type WorkspaceFileQueryScope,
+  workspaceFilesKeys,
+} from '@/hooks/queries/utils/workspace-file-query'
 import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
-type WorkspaceFileQueryScope = 'active' | 'archived'
-
-/**
- * Query key factories for workspace files
- */
-export const workspaceFilesKeys = {
-  all: ['workspaceFiles'] as const,
-  lists: () => [...workspaceFilesKeys.all, 'list'] as const,
-  workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
-  list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
-    [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
-  records: () => [...workspaceFilesKeys.all, 'record'] as const,
-  record: (workspaceId: string, fileId: string) =>
-    [...workspaceFilesKeys.records(), workspaceId, fileId] as const,
-  contents: () => [...workspaceFilesKeys.all, 'content'] as const,
-  contentFile: (workspaceId: string, fileId: string) =>
-    [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
-  content: (
-    workspaceId: string,
-    fileId: string,
-    mode: 'text' | 'raw' | 'binary' = 'text',
-    storageKey?: string
-  ) =>
-    [
-      ...workspaceFilesKeys.contentFile(workspaceId, fileId),
-      mode,
-      ...(storageKey ? [storageKey] : []),
-    ] as const,
-  storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
-  cloudConfigured: () => [...workspaceFilesKeys.all, 'cloudConfigured'] as const,
-}
-
-export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
@@ -107,39 +81,6 @@ export function useAddressedWorkspaceFileRecord(
     staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     retry: false,
   })
-}
-
-/**
- * Fetch workspace files from API
- */
-async function fetchWorkspaceFiles(
-  workspaceId: string,
-  scope: WorkspaceFileQueryScope = 'active',
-  signal?: AbortSignal
-): Promise<WorkspaceFileRecord[]> {
-  const data = await requestJson(listWorkspaceFilesContract, {
-    params: { id: workspaceId },
-    query: { scope },
-    signal,
-  })
-  return data.success ? data.files : []
-}
-
-/**
- * Shared options for the workspace-file list, so an imperative caller can
- * `fetchQuery` the same cache entry {@link useWorkspaceFiles} populates instead
- * of refetching by key and reading the result back out of the cache.
- */
-export function getWorkspaceFilesQueryOptions(
-  workspaceId: string,
-  scope: WorkspaceFileQueryScope = 'active'
-) {
-  return {
-    queryKey: workspaceFilesKeys.list(workspaceId, scope),
-    queryFn: ({ signal }: { signal?: AbortSignal }) =>
-      fetchWorkspaceFiles(workspaceId, scope, signal),
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
-  }
 }
 
 /**
@@ -257,25 +198,28 @@ class StaleStorageKeyError extends Error {
  * on the dead key showing a failure until something unrelated (a window focus, another consumer)
  * happens to re-resolve the record.
  */
-function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
+function useStaleKeyRecovery(
+  workspaceId: string | undefined,
+  fileId?: string
+): (error: unknown) => void {
   const queryClient = useQueryClient()
+  const source = useFileContentSource()
+  const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
+  const adapter = ownerQuery?.adapter
+  const ownerId = ownerQuery?.id
   return useCallback(
     (error: unknown) => {
-      if (!workspaceId || !(error instanceof StaleStorageKeyError)) return
-      // Off this fetch's own cycle (one microtask): a refetch asked for from inside a `queryFn` — where
-      // this catch sits — is dropped by react-query, silently. This is what turned "one extra request"
-      // into "no recovery at all".
-      //
-      // `cancelRefetch` because a re-resolution has to OBSERVE the rotation: a record read already in
-      // flight was started before it, so it can only hand back the key we already know is dead.
+      if (!adapter || !ownerId || !(error instanceof StaleStorageKeyError)) return
+      // A refetch inside its own query cycle is dropped; cancel any older record read before recovering.
       void Promise.resolve().then(() =>
-        queryClient.refetchQueries(
-          { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
-          { cancelRefetch: true }
+        Promise.all(
+          adapter
+            .recoveryFilters(ownerId, fileId ?? '')
+            .map((filter) => queryClient.refetchQueries(filter, { cancelRefetch: true }))
         )
       )
     },
-    [queryClient, workspaceId]
+    [queryClient, adapter, ownerId, fileId]
   )
 }
 
@@ -313,7 +257,7 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
  * and re-reading them only chases a storage key the relay's last save already replaced.
  */
 export function useWorkspaceFileContent(
-  workspaceId: string,
+  workspaceId: string | undefined,
   fileId: string,
   key: string,
   raw?: boolean,
@@ -323,9 +267,12 @@ export function useWorkspaceFileContent(
   }
 ): WorkspaceFileContentResult {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   const query = useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
+    queryKey:
+      ownerQuery?.adapter.contentKey(ownerQuery.id, fileId, raw ? 'raw' : 'text', key) ??
+      workspaceFilesKeys.content('', fileId, raw ? 'raw' : 'text', key),
     queryFn: async ({ signal }) => {
       try {
         return await fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal)
@@ -334,14 +281,14 @@ export function useWorkspaceFileContent(
         throw error
       }
     },
-    enabled: !!workspaceId && !!fileId && !!key,
+    enabled: Boolean(ownerQuery) && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })
   return {
     data: query.data,
-    ...useStaleKeyRecoveryState(workspaceId, query.isLoading, query.error),
+    ...useStaleKeyRecoveryState(workspaceId, fileId, query.isLoading, query.error),
   }
 }
 
@@ -367,12 +314,17 @@ export interface WorkspaceFileContentResult {
  * error surfaces, and the reader sees a real failure.
  */
 function useStaleKeyRecoveryState(
-  workspaceId: string,
+  workspaceId: string | undefined,
+  fileId: string,
   isLoading: boolean,
   error: unknown
 ): { isLoading: boolean; error: Error | null } {
+  const source = useFileContentSource()
+  const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
   const resolvingRecord = useIsFetching({
-    queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+    ...(ownerQuery?.adapter.recordFilter(ownerQuery.id, fileId) ?? {
+      queryKey: workspaceFilesKeys.workspaceLists(''),
+    }),
   })
   const recovering = error instanceof StaleStorageKeyError && resolvingRecord > 0
   return {
@@ -432,18 +384,18 @@ async function fetchWorkspaceFileBinary(
  * the current content rather than a stale cached entry.
  */
 export function useWorkspaceFileBinary(
-  workspaceId: string,
+  workspaceId: string | undefined,
   fileId: string,
   key: string,
   options?: { enabled?: boolean; version?: string | number }
 ) {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   return useQuery({
     queryKey:
-      options?.version != null
-        ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
-        : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
+      ownerQuery?.adapter.contentKey(ownerQuery.id, fileId, 'binary', key, options?.version) ??
+      workspaceFilesKeys.content('', fileId, 'binary', key),
     queryFn: async ({ signal }) => {
       try {
         return await fetchWorkspaceFileBinary(
@@ -460,7 +412,7 @@ export function useWorkspaceFileBinary(
     // content) so we don't 409-poll the serve route for a generated doc whose
     // compiled artifact hasn't been written yet — the doc is fetched once, when
     // it's actually ready, instead of hammering the serve URL through generation.
-    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
+    enabled: Boolean(ownerQuery) && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: WORKSPACE_FILE_BINARY_STALE_TIME,
     refetchOnWindowFocus: 'always',
     placeholderData: keepPreviousData,
@@ -611,7 +563,8 @@ export function useCreateWorkspaceFile() {
  * Update workspace file content mutation
  */
 interface UpdateFileContentParams extends UpdateWorkspaceFileContentBody {
-  workspaceId: string
+  owner?: EditableFileOwner
+  workspaceId: string | undefined
   fileId: string
 }
 
@@ -620,20 +573,17 @@ export function useUpdateWorkspaceFileContent() {
 
   return useMutation({
     retry: false,
-    mutationFn: async ({ workspaceId, fileId, ...body }: UpdateFileContentParams) => {
-      return requestJson(updateWorkspaceFileContentContract, {
-        params: { id: workspaceId, fileId },
-        body,
-      })
+    mutationFn: async ({ workspaceId, owner, fileId, ...body }: UpdateFileContentParams) => {
+      const queryOwner = resolveFileQueryOwner(owner, workspaceId)
+      if (!queryOwner) throw new Error('File owner is required')
+      return queryOwner.adapter.updateContent(queryOwner.id, fileId, body)
     },
     /** A lost response may follow a committed write; reconcile bytes and versions even after transport errors. */
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
-      })
+      const queryOwner = resolveFileQueryOwner(variables.owner, variables.workspaceId)
+      if (!queryOwner) return
+      for (const filter of queryOwner.adapter.invalidationFilters(queryOwner.id, variables.fileId))
+        queryClient.invalidateQueries(filter)
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -649,23 +599,25 @@ export function useReloadWorkspaceFileContent() {
   return useMutation({
     mutationFn: async ({
       workspaceId,
+      owner,
       fileId,
       raw,
     }: {
-      workspaceId: string
+      owner?: EditableFileOwner
+      workspaceId: string | undefined
       fileId: string
       raw: boolean
     }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
-      const files = await queryClient.fetchQuery({
-        ...getWorkspaceFilesQueryOptions(workspaceId),
-        staleTime: 0,
-      })
-      const file = files.find((record) => record.id === fileId)
-      if (!file) throw new Error('File no longer exists')
-      if (!file.contentUpdatedAt) throw new Error('The latest file version is unavailable')
+      const queryOwner = resolveFileQueryOwner(owner, workspaceId)
+      if (!queryOwner) throw new Error('File owner is required')
+      const file = await queryOwner.adapter.reloadRecord(queryClient, queryOwner.id, fileId)
       const content = await queryClient.fetchQuery({
-        queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', file.key),
+        queryKey: queryOwner.adapter.contentKey(
+          queryOwner.id,
+          fileId,
+          raw ? 'raw' : 'text',
+          file.key
+        ),
         queryFn: ({ signal }) =>
           fetchWorkspaceFileContent(source.buildUrl(file.key, { raw, bust: true }), signal),
         staleTime: 0,

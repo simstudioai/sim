@@ -286,7 +286,7 @@ describe('organization resource identity', () => {
     })
     expect(getChatResourceSelectionId(a)).toBe(a.id)
     expect(mergeChatResource(a, { ...a, path: 'files/new.png' })).toMatchObject({
-      workspaceId: 'a',
+      owner: { entityType: 'workspace', entityId: 'a' },
       workspaceName: 'Design',
     })
   })

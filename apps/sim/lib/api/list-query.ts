@@ -65,7 +65,7 @@ export interface KeysetKey<Row> {
 }
 
 /** A text key — names, titles, ids. */
-export function textKey<Row>(column: Column, read: (row: Row) => string): KeysetKey<Row> {
+export function textKey<Row>(column: SQLWrapper, read: (row: Row) => string): KeysetKey<Row> {
   return {
     expr: column,
     encode: read,
@@ -163,9 +163,15 @@ export function sortDirection(order: ListSortOrder): typeof asc {
  * On a paginated list these are the keyset's keys; on a single-page list they
  * are just the sort plus its tiebreaker.
  */
-export function listOrderBy(keys: readonly SQLWrapper[], order: ListSortOrder): SQL[] {
-  const direction = sortDirection(order)
-  return keys.map((key) => direction(key))
+export function listOrderBy(
+  keys: readonly SQLWrapper[],
+  order: ListSortOrder | readonly ListSortOrder[]
+): SQL[] {
+  if (typeof order !== 'string' && order.length !== keys.length)
+    throw new Error('Sort directions must match key columns')
+  return keys.map((key, index) =>
+    sortDirection(typeof order === 'string' ? order : order[index])(key)
+  )
 }
 
 /** The `expr` of each keyset key, for `ORDER BY`. */
@@ -240,9 +246,10 @@ export function keysetPage<Row>(
 export function keysetAfter<Row>(
   keys: readonly KeysetKey<Row>[],
   values: CursorKey[],
-  order: ListSortOrder
+  order: ListSortOrder | readonly ListSortOrder[]
 ): SQL | null {
-  if (values.length !== keys.length) return null
+  if (values.length !== keys.length || (typeof order !== 'string' && order.length !== keys.length))
+    return null
 
   const bound: SQL[] = []
   for (const [i, key] of keys.entries()) {
@@ -251,9 +258,13 @@ export function keysetAfter<Row>(
     bound.push(value)
   }
 
-  const beyond = order === 'asc' ? gt : lt
-  const clauses = keys.map((key, i) =>
-    and(...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])), beyond(key.expr, bound[i]))
-  )
+  const clauses = keys.map((key, i) => {
+    const direction = typeof order === 'string' ? order : order[i]
+    const beyond = direction === 'asc' ? gt : lt
+    return and(
+      ...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])),
+      beyond(key.expr, bound[i])
+    )
+  })
   return or(...clauses) ?? null
 }

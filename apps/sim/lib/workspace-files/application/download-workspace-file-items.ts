@@ -5,7 +5,6 @@ import {
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { parseFolderPath } from '@/lib/folders/paths'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   buildWorkspaceFileFolderPathMap,
@@ -23,12 +22,11 @@ import {
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
-
-export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
-const MAX_REQUESTED_FILE_IDS = 1_000
-const MAX_REQUESTED_FOLDER_IDS = 1_000
+import {
+  expandFileDownloadFolders,
+  normalizeFileDownloadSelection,
+} from '@/lib/workspace-files/download-selection'
+import { MAX_ZIP_DOWNLOAD_BYTES, MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
 export interface DownloadWorkspaceFileItemsInput {
   workspaceId: string
@@ -49,51 +47,6 @@ export interface DownloadWorkspaceFileItemsResult {
   declaredBytes: number
 }
 
-function collectDescendantFolderIds(
-  selectedFolderIds: string[],
-  folders: Array<{ id: string; parentId: string | null }>
-): Set<string> {
-  const folderIds = new Set(selectedFolderIds)
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const folder of folders) {
-      if (folder.parentId && folderIds.has(folder.parentId) && !folderIds.has(folder.id)) {
-        folderIds.add(folder.id)
-        changed = true
-      }
-    }
-  }
-  return folderIds
-}
-
-/**
- * Maps canonical folder paths onto the ids the selection walk uses.
- *
- * Resolved against the folder set the download already loads rather than by a
- * separate path query, and a path that matches nothing is rejected rather than
- * silently dropped — a caller that misspells a folder should not receive a zip
- * of whatever else it happened to select.
- */
-function resolveFolderIdsFromPaths(
-  paths: string[],
-  folders: Array<{ id: string }>,
-  displayPathById: Map<string, string>
-): string[] {
-  if (paths.length === 0) return []
-  const idByPath = new Map<string, string>()
-  for (const folder of folders) {
-    const displayPath = displayPathById.get(folder.id)
-    if (!displayPath) continue
-    idByPath.set(parseWorkspaceFileFolderDisplayPath(displayPath).join('\u0000'), folder.id)
-  }
-  return paths.map((path) => {
-    const id = idByPath.get(parseFolderPath(path).join('\u0000'))
-    if (!id) validationError(`Folder not found: ${path}`)
-    return id
-  })
-}
-
 function validationError(message: string): never {
   throw new OrchestrationError('validation', message)
 }
@@ -107,21 +60,7 @@ async function executeDownloadWorkspaceFileItems({
   DownloadWorkspaceFileItemsInput,
   Awaited<ReturnType<typeof resolveDownloadContext>>
 >): Promise<DownloadWorkspaceFileItemsResult> {
-  const fileIds = [...new Set(input.fileIds)]
-  const folderIds = [...new Set(input.folderIds)]
-  const requestedFolderPaths = [...new Set(input.folderPaths ?? [])]
-  if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
-    validationError(`Too many file IDs selected. Select ${MAX_REQUESTED_FILE_IDS} or fewer files.`)
-  }
-  if (folderIds.length + requestedFolderPaths.length > MAX_REQUESTED_FOLDER_IDS) {
-    validationError(
-      `Too many folders selected. Select ${MAX_REQUESTED_FOLDER_IDS} or fewer folders.`
-    )
-  }
-  if (fileIds.length === 0 && folderIds.length === 0 && requestedFolderPaths.length === 0) {
-    validationError('No files selected for download')
-  }
-
+  const selection = normalizeFileDownloadSelection(input)
   /**
    * permission-group-enforced: files.bulk_download — one operation serves both
    * a single file and a whole folder tree, and only the archive is what the key
@@ -152,11 +91,8 @@ async function executeDownloadWorkspaceFileItems({
     listWorkspaceFileFolders(context.workspaceId),
   ])
   const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  const selectedFolderIds = collectDescendantFolderIds(
-    [...folderIds, ...resolveFolderIdsFromPaths(requestedFolderPaths, folders, folderPaths)],
-    folders
-  )
-  const requestedFileIds = new Set(fileIds)
+  const selectedFolderIds = expandFileDownloadFolders(selection, folders, folderPaths)
+  const requestedFileIds = new Set(selection.fileIds)
   const filesToZip = files.filter(
     (file) =>
       requestedFileIds.has(file.id) ||

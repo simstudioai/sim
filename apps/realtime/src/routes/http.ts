@@ -1,10 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { FILE_DOC_EVENTS, type FileDocInvalidated } from '@sim/realtime-protocol/file-doc'
 import {
+  INVALIDATION_ROOM_TYPES,
+  invalidationRoomIdKey,
   projectFileDocRoom,
   ROOM_TYPES,
   roomName,
-  WORKSPACE_LIST_ROOM_TYPES,
 } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
@@ -180,16 +181,19 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
     // HTTP API (not the socket); this is the lossy liveness signal — a missed one only means
     // stale-until-refetch. Endpoint and event names derive from the room type, mirroring the socket
     // handler and the client hook.
-    const listRoomType = WORKSPACE_LIST_ROOM_TYPES.find(
-      (type) => req.url === `/api/${type}-changed`
-    )
+    const listRoomType = INVALIDATION_ROOM_TYPES.find((type) => req.url === `/api/${type}-changed`)
     if (req.method === 'POST' && listRoomType) {
       try {
         const body = await readRequestBody(req)
-        const { workspaceId } = JSON.parse(body)
-        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
-        roomManager.emitToRoom({ type: listRoomType, id: workspaceId }, `${listRoomType}-changed`, {
-          workspaceId,
+        const idKey = invalidationRoomIdKey(listRoomType)
+        const ownerId = JSON.parse(body)?.[idKey]
+        if (
+          !isNonEmptyString(ownerId) ||
+          (idKey === 'projectId' && (ownerId.length > 200 || /[/:\s]/.test(ownerId)))
+        )
+          return sendError(res, 'Invalid collection owner', 400)
+        roomManager.emitToRoom({ type: listRoomType, id: ownerId }, `${listRoomType}-changed`, {
+          [idKey]: ownerId,
           timestamp: Date.now(),
         })
         sendSuccess(res)

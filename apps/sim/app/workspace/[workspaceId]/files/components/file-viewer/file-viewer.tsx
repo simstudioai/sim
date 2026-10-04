@@ -1,18 +1,25 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
+import type { ProjectFileRecord } from '@/lib/api/contracts/project-files'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
+import {
+  type FileOwnerAdapters,
+  requireFileOwnerAdapter,
+} from '@/lib/workspace-files/owner-adapters'
+import type { FileOwner } from '@/lib/workspace-files/ownership'
+import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
   useWorkspaceImageDimensionsAdapter,
 } from '@/hooks/queries/workspace-files'
 import {
-  createWorkspaceFileContentSource,
+  createOwnedFileContentSource,
   type FileContentSource,
   FileContentSourceProvider,
 } from '@/hooks/use-file-content-source'
@@ -86,9 +93,7 @@ export function isCsvStreamOnly(file: {
 
 export type PreviewMode = 'editor' | 'split' | 'preview'
 
-interface FileViewerProps {
-  file: WorkspaceFileRecord
-  workspaceId: string
+interface FileViewerOptions {
   /**
    * Content source for this view. Defaults to a workspace-scoped source derived from `workspaceId`;
    * the public share page passes a token-scoped source. Provided to descendants (renderers, embedded
@@ -138,19 +143,65 @@ interface FileViewerProps {
   enableFind?: boolean
 }
 
+type FileViewerProps = FileViewerOptions &
+  (
+    | { file: WorkspaceFileRecord; workspaceId: string; owner?: never }
+    | {
+        file: ProjectFileRecord
+        owner: { entityType: 'project'; entityId: string }
+        workspaceId?: never
+      }
+  )
+
+interface FileViewerContentProps extends FileViewerOptions {
+  file: ViewerFileRecord
+  workspaceId?: string
+}
+
+interface OwnedFileViewerProps extends FileViewerContentProps {
+  owner: FileOwner
+}
+
+const FILE_VIEWER_ADAPTERS: FileOwnerAdapters<ComponentType<OwnedFileViewerProps>> = {
+  workspace: WorkspaceFileViewer,
+  project: OwnedFileViewer,
+}
+
 export function FileViewer(props: FileViewerProps) {
-  const { contentSource, workspaceId } = props
-  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
-  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
-    enabled: !contentSource,
-  })
+  const owner = props.owner ?? { entityType: 'workspace' as const, entityId: props.workspaceId }
+  const Viewer = requireFileOwnerAdapter(FILE_VIEWER_ADAPTERS, owner)
+  return <Viewer {...props} owner={owner} />
+}
+
+function OwnedFileViewer(props: OwnedFileViewerProps) {
+  const { contentSource, owner, file } = props
+  const { entityType, entityId } = owner
   const source = useMemo(
-    () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
-    [contentSource, workspaceId, imageDimensions]
+    () => contentSource ?? createOwnedFileContentSource({ entityType, entityId }, file.id),
+    [contentSource, entityType, entityId, file.id]
   )
   return (
     <FileContentSourceProvider value={source}>
       <FileViewerContent {...props} />
+    </FileContentSourceProvider>
+  )
+}
+
+function WorkspaceFileViewer(props: OwnedFileViewerProps) {
+  const { contentSource, owner, file } = props
+  const { entityType, entityId } = owner
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(entityId, {
+    enabled: !contentSource,
+  })
+  const source = useMemo(
+    () =>
+      contentSource ??
+      createOwnedFileContentSource({ entityType, entityId }, file.id, { imageDimensions }),
+    [contentSource, entityType, entityId, file.id, imageDimensions]
+  )
+  return (
+    <FileContentSourceProvider value={source}>
+      <FileViewerContent {...props} workspaceId={owner.entityId} />
     </FileContentSourceProvider>
   )
 }
@@ -176,7 +227,7 @@ function FileViewerContent({
   collaborative,
   onDeriveTitleFromHeading,
   enableFind = false,
-}: FileViewerProps) {
+}: FileViewerContentProps) {
   const category = resolveFileCategory(file.type, file.name)
 
   if (category === 'text-editable') {
@@ -295,8 +346,8 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   file,
   workspaceId,
 }: {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
 }) {
   const {
     data: content,
@@ -338,8 +389,8 @@ const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
 }: {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
 }) {
   const preview = useDocPreviewBinary(workspaceId, file)
 
@@ -362,7 +413,7 @@ const IframePreview = memo(function IframePreview({
   )
 })
 
-function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
+function useBlobUrl(workspaceId: string | undefined, fileId: string, fileKey: string) {
   const { data: fileData, isLoading, error } = useWorkspaceFileBinary(workspaceId, fileId, fileKey)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const blobUrlRef = useRef<string | null>(null)
@@ -396,8 +447,8 @@ const MediaPreview = memo(function MediaPreview({
   workspaceId,
   kind,
 }: {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
   kind: 'audio' | 'video'
 }) {
   const {

@@ -9,7 +9,15 @@ import { writeStdout } from '#sim-cli/output/io'
 import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
-import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
+import {
+  isRequestTimeout,
+  RAISE_TIMEOUT_HINT,
+  type RequestOptions,
+  resolvePath,
+  SimApiError,
+} from '../../http/client'
+import { describeOperation } from '../../runtime/build'
+import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { printProtocolResult } from './result'
 
 function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
@@ -282,7 +290,13 @@ interface DownloadOutputOptions {
   force?: boolean
 }
 
-type DownloadOperation = (typeof V2_OPERATIONS)['downloadFile' | 'downloadFileVersion']
+type DownloadOperation = (typeof V2_OPERATIONS)[
+  | 'downloadFile'
+  | 'downloadFileVersion'
+  | 'downloadProjectFileItems'
+  | 'exportProjectFileSnapshot'
+  | 'readProjectFileContent'
+  | 'readProjectFileVersionContent']
 
 /**
  * Streams a binary v2 download to stdout or atomically to `--output-file`. Shared by every
@@ -292,7 +306,9 @@ async function downloadToOutput(
   command: Command,
   operation: DownloadOperation,
   pathParams: Record<string, string>,
-  options: DownloadOutputOptions
+  options: DownloadOutputOptions,
+  scope: 'workspace' | 'owner',
+  requestInput: Pick<RequestOptions, 'query' | 'body'> = {}
 ): Promise<void> {
   const target = options.outputFile
   const writesToStdout = target === undefined || target === '-'
@@ -301,10 +317,10 @@ async function downloadToOutput(
   }
 
   const { client, profile } = clientFrom(command)
-  const workspaceId = client.requireWorkspace()
   const response = await client.requestRaw(resolvePath(operation.path, pathParams), {
     method: operation.method,
-    query: { workspaceId },
+    ...requestInput,
+    ...(scope === 'workspace' ? { query: { workspaceId: client.requireWorkspace() } } : {}),
   })
   if (!response.body) {
     throw new SimApiError('File content response was empty.', response.status)
@@ -329,10 +345,89 @@ async function downloadToOutput(
 
   const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
   printProtocolResult(profile.output, {
-    id: pathParams.fileId,
+    ...(pathParams.fileId ? { id: pathParams.fileId } : {}),
     path: savedTarget,
     status: 'saved',
   })
+}
+
+interface ProjectFileDownloadOptions extends DownloadOutputOptions {
+  fileIds?: string[]
+  folderIds?: string[]
+}
+
+/** Owner-specific selection uses the same bounded transfer and atomic output path as file reads. */
+export function attachProjectFileDownload(files: Command): void {
+  files
+    .command('bulk-download')
+    .argument('<projectId>', 'Project that owns the files')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.downloadProjectFileItems,
+        'Download Project files and recursive folder contents as a zip archive'
+      )
+    )
+    .option('--file-ids <id...>', 'File identifiers to include')
+    .option('--folder-ids <id...>', 'Folder identifiers to include recursively')
+    .option('-o, --output-file <path>', 'Write the archive to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(async (projectId: string, options: ProjectFileDownloadOptions, command: Command) => {
+      const input = await buildRequest(
+        'downloadProjectFileItems',
+        [projectId],
+        { ...options },
+        null
+      )
+      await downloadToOutput(
+        command,
+        V2_OPERATIONS.downloadProjectFileItems,
+        { projectId },
+        options,
+        'owner',
+        { query: input.query }
+      )
+    })
+}
+
+interface ProjectFileSnapshotOptions extends DownloadOutputOptions {
+  content: string
+}
+
+/** Snapshot text comes from the caller's file reader, including the embedded workbench boundary. */
+export function attachProjectFileSnapshotExport(files: Command): void {
+  files
+    .command('export')
+    .argument('<projectId>', 'Project that owns the file')
+    .argument('<fileId>', 'Markdown file whose visible snapshot to export')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.exportProjectFileSnapshot,
+        'Export a visible Project Markdown snapshot with its embedded assets'
+      )
+    )
+    .requiredOption('--content <text|@file|@->', 'Visible Markdown content or a file to read')
+    .option('-o, --output-file <path>', 'Write the export to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(
+      async (
+        projectId: string,
+        fileId: string,
+        options: ProjectFileSnapshotOptions,
+        command: Command
+      ) => {
+        const source = await readArgumentSource(options.content, 'content')
+        await downloadToOutput(
+          command,
+          V2_OPERATIONS.exportProjectFileSnapshot,
+          { projectId, fileId },
+          options,
+          'owner',
+          { body: { content: source.text } }
+        )
+      }
+    )
 }
 
 export function attachFileGet(files: Command): void {
@@ -344,7 +439,7 @@ export function attachFileGet(files: Command): void {
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
     .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
-      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
+      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options, 'workspace')
     )
 }
 
@@ -358,6 +453,71 @@ export function attachFileVersionDownload(versions: Command): void {
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
     .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
-      downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
+      downloadToOutput(
+        command,
+        V2_OPERATIONS.downloadFileVersion,
+        { fileId, version },
+        options,
+        'workspace'
+      )
+    )
+}
+
+/** Project source downloads share transfer protections without selecting a workspace. */
+export function attachProjectFileSource(files: Command): void {
+  files
+    .command('source')
+    .argument('<projectId>', 'Project that owns the file')
+    .argument('<fileId>', 'File whose stored source to read')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.readProjectFileContent,
+        'Download a Project file’s stored source to stdout or a local file'
+      )
+    )
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action((projectId: string, fileId: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(
+        command,
+        V2_OPERATIONS.readProjectFileContent,
+        { projectId, fileId },
+        options,
+        'owner'
+      )
+    )
+}
+
+export function attachProjectFileVersionSource(versions: Command): void {
+  versions
+    .command('source')
+    .argument('<projectId>', 'Project that owns the file')
+    .argument('<fileId>', 'File identifier.')
+    .argument('<version>', 'Version number.')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.readProjectFileVersionContent,
+        'Download a Project file version’s stored source to stdout or a local file'
+      )
+    )
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(
+      (
+        projectId: string,
+        fileId: string,
+        version: string,
+        options: DownloadOutputOptions,
+        command: Command
+      ) =>
+        downloadToOutput(
+          command,
+          V2_OPERATIONS.readProjectFileVersionContent,
+          { projectId, fileId, version },
+          options,
+          'owner'
+        )
     )
 }

@@ -39,7 +39,7 @@ interface CleanupPayload {
 }
 
 /** No transfer can be exposed after fresh admission fails, so retirement bounds its last signature. */
-function projectUploadCleanupAvailableAt(now = new Date()): Date {
+export function projectUploadCleanupAvailableAt(now = new Date()): Date {
   return new Date(now.getTime() + UPLOAD_URL_TTL_MS + CLOCK_SKEW_MS)
 }
 

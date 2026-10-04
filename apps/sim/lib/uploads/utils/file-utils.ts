@@ -288,7 +288,7 @@ export function buildArchiveExtractGuidance(name: string): string {
   return `"${name}" is a .zip archive — its contents can't be read directly. Mount it into the chat sandbox with run_code (inputs.files: [{"path": "uploads/${name}", "sandboxPath": "/tmp/${name}"}]) and unzip it there; persist anything worth keeping with \`files upload @<path>\`.`
 }
 
-const EXTENSION_TO_MIME: Record<string, string> = {
+export const EXTENSION_TO_MIME: Readonly<Record<string, string>> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',

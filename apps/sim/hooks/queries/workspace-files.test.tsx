@@ -22,6 +22,7 @@ import {
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 import {
   useAddressedWorkspaceFileRecord,
   useReloadWorkspaceFileContent,
@@ -29,7 +30,6 @@ import {
   useWorkspaceFileContent,
   useWorkspaceFiles,
   type WorkspaceFileContentResult,
-  workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson

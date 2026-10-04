@@ -4,19 +4,20 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState }
 import { toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { saveBlob } from '@/lib/uploads/client/download'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file-utils'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type SyncTextEditorContentStateOptions,
   textEditorContentReducer,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-state'
+import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import {
   useReloadWorkspaceFileContent,
   useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 
 /**
@@ -46,8 +47,8 @@ export const RECONCILING_REFETCH_WINDOW_MS = 45_000
 export const RECONCILING_REFETCH_SLOW_INTERVAL_MS = 15_000
 
 interface UseEditableFileContentOptions {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
   canEdit: boolean
   streamingContent?: string
   isAgentEditing?: boolean
@@ -169,6 +170,7 @@ export function useEditableFileContent({
   normalizeBaseline,
   canAutosave = true,
 }: UseEditableFileContentOptions): EditableFileContent {
+  const { owner } = useFileContentSource()
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
 
@@ -312,6 +314,7 @@ export function useEditableFileContent({
       try {
         const result = await updateContentRef.current.mutateAsync({
           workspaceId,
+          owner,
           fileId: file.id,
           content: next,
           expectedUpdatedAt,
@@ -342,7 +345,7 @@ export function useEditableFileContent({
         throw error
       }
     },
-    [workspaceId, file.id, markSavedContent, markConflict]
+    [workspaceId, owner, file.id, markSavedContent, markConflict]
   )
 
   const autosaveEnabled =
@@ -364,7 +367,9 @@ export function useEditableFileContent({
     onSave,
     enabled: autosaveEnabled,
     pauseSaving: hasConflict || isStreamInteractionLocked,
-    draftKey: autosaveEnabled ? `${workspaceId}:${file.id}` : undefined,
+    draftKey: autosaveEnabled
+      ? `${owner?.entityType === 'project' ? `project:${owner.entityId}` : workspaceId}:${file.id}`
+      : undefined,
     onRestoreDraft: setDraftContent,
     onRestoreConflictingDraft: restoreConflictingDraft,
     onDiscardCorrectionFailed: () =>
@@ -380,6 +385,7 @@ export function useEditableFileContent({
     const draftAtStart = contentRef.current
     const result = await reloadContent.mutateAsync({
       workspaceId,
+      owner,
       fileId: file.id,
       raw: GENERATED_SOURCE_FILE_TYPES.has(file.type),
     })
@@ -400,6 +406,7 @@ export function useEditableFileContent({
   }, [
     reloadContent.mutateAsync,
     workspaceId,
+    owner,
     file.id,
     file.type,
     normalizeBaseline,

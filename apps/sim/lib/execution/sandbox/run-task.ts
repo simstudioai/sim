@@ -11,6 +11,8 @@ import { getSandboxTask, type SandboxTaskId } from '@/sandbox-tasks/registry'
 const logger = createLogger('SandboxRunTask')
 
 export interface RunSandboxTaskOptions {
+  /** Private document compiles expose only their already-authorized, fixed input manifest. */
+  resolvePreparedFile?: SandboxBrokerContext['resolvePreparedFile']
   /**
    * Owner key used by the isolated-vm pool for fairness + distributed leases.
    * Typically `user:<userId>` or `workspace:<workspaceId>`.
@@ -56,6 +58,7 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   const brokerContext: SandboxBrokerContext = {
     workspaceId: input.workspaceId,
     requestId,
+    resolvePreparedFile: options.resolvePreparedFile,
     onWorkspaceFileAccess: options.onWorkspaceFileAccess,
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}

@@ -29,6 +29,7 @@ import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
+import { listProjectsServerTool } from '@/lib/mothership/tools/server/project-list'
 import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/server/search-sources'
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
@@ -65,6 +66,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,
+  [listProjectsServerTool.name]: listProjectsServerTool,
   [workspacesServerTool.name]: workspacesServerTool,
   [organizationSearchSourcesServerTool.name]: organizationSearchSourcesServerTool,
   [settingsServerTool.name]: settingsServerTool,

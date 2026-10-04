@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { resolveDocumentRender } from '@/lib/uploads/documents'
+import { resolveDocumentRender } from '@/lib/uploads/documents/render'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 
 /**

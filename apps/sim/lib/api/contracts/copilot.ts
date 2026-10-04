@@ -1,7 +1,10 @@
 import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
-import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
+import {
+  mothershipResourceRemovalSchema,
+  mothershipResourceSchema,
+} from '@/lib/api/contracts/mothership-resources'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { usageUpgradePayloadSchema } from '@/lib/api/contracts/subscription'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
@@ -120,11 +123,8 @@ export const addCopilotChatResourceBodySchema = z
   })
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
-export const removeCopilotChatResourceBodySchema = z.object({
-  workspaceId: workspaceIdSchema.optional(),
+export const removeCopilotChatResourceBodySchema = mothershipResourceRemovalSchema.safeExtend({
   chatId: z.string(),
-  resourceType: mothershipResourceSchema.shape.type,
-  resourceId: z.string(),
 })
 export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
 

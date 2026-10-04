@@ -5,6 +5,7 @@ import {
   v2DownloadFileContract,
   v2ListFileFoldersContract,
   v2ReadFileTextContract,
+  v2SearchFileContentContract,
 } from '@/lib/api/contracts/v2/files'
 import {
   authenticateV2ApiKey,
@@ -51,6 +52,7 @@ export function createFileReadTransport(context: {
   const collectionPaths = new Set([
     `${basePath}${v2ListFileFoldersContract.path}`,
     `${basePath}${v2BulkDownloadFilesContract.path}`,
+    `${basePath}${v2SearchFileContentContract.path}`,
   ])
   const observe = async (workspaceId: string, provenance?: WorkspaceFileSecretProvenance) => {
     const imported =

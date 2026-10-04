@@ -1,9 +1,14 @@
-import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
+import {
+  FILE_BROWSER_SIZES,
+  FILE_BROWSER_SORTS,
+  FILE_BROWSER_TYPES,
+} from '@/lib/workspace-files/browser'
 import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
 /** Sortable list columns, matching the `Resource.Options` sort menu. */
-export const FILE_SORT_COLUMNS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
+export const FILE_SORT_COLUMNS = FILE_BROWSER_SORTS
 
 /**
  * Parser for the `new` flag. Preserves the prior `?new=1` wire format on
@@ -39,6 +44,17 @@ export const filesParsers = {
   folderId: parseAsString,
   new: parseAsNewFlag.withDefault(false),
   shareFileId: parseAsString,
+  historyFileId: parseAsString,
+} as const
+
+/** Legacy file links open the environment; Project links assert their canonical owner. */
+export const fileOwnerParsers = {
+  owner: parseAsStringLiteral(['workspace', 'project'] as const).withDefault('workspace'),
+  projectId: parseAsString.withDefault(''),
+} as const
+
+export const projectFilesScopeParsers = {
+  scope: parseAsStringLiteral(['active', 'archived'] as const).withDefault('active'),
 } as const
 
 /**
@@ -102,4 +118,11 @@ export const filesFilterUrlKeys = {
   shallow: true,
   clearOnDefault: true,
   urlKeys: filesFilterUrlKeyMap,
+} as const
+
+/** Project filtering is applied to the complete server collection before its cursor. */
+export const projectFileFilterParsers = {
+  ...filesFilterParsers,
+  type: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_TYPES)).withDefault([]),
+  size: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_SIZES)).withDefault([]),
 } as const

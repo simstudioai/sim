@@ -9,8 +9,8 @@ import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workfl
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 function invalidate(client: QueryClient, key: QueryKey): void {
   void client.invalidateQueries({ queryKey: key })

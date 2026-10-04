@@ -7,10 +7,10 @@ const PROJECT_LIST_STALE_TIME = 30_000
 const projectKeys = {
   all: ['projects'] as const,
   lists: () => [...projectKeys.all, 'list'] as const,
-  list: (organizationId: string) => [...projectKeys.lists(), organizationId] as const,
+  list: (organizationId?: string) => [...projectKeys.lists(), organizationId ?? null] as const,
 }
 
-export function useProjects(organizationId: string) {
+export function useProjects(organizationId?: string, options?: { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: projectKeys.list(organizationId),
     initialPageParam: null as string | null,
@@ -23,6 +23,6 @@ export function useProjects(organizationId: string) {
     staleTime: PROJECT_LIST_STALE_TIME,
     retry: (failureCount, error) =>
       !(isApiClientError(error) && error.status === 503) && failureCount < 3,
-    enabled: Boolean(organizationId),
+    enabled: organizationId !== '' && (options?.enabled ?? true),
   })
 }

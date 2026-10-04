@@ -61,6 +61,8 @@ const PAGED_LISTS = [
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
+  'GET /api/v2/projects/[projectId]/files',
+  'GET /api/v2/projects/[projectId]/files/[fileId]/versions',
   'GET /api/v2/files/[fileId]/versions',
   'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors',
@@ -121,6 +123,7 @@ const PAGED_LISTS = [
 const FULL_SET_LISTS = [
   'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
+  'GET /api/v2/projects/[projectId]/files/folders',
   'GET /api/v2/knowledge/[knowledgeBaseId]/tags',
   'GET /api/v2/knowledge/[knowledgeBaseId]/tags/usage',
   'GET /api/v2/knowledge/folders',
@@ -247,6 +250,15 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'recursive',
   ],
   'GET /api/v2/files/[fileId]/versions': ['sortBy', 'sortOrder'],
+  'GET /api/v2/projects/[projectId]/files/[fileId]/versions': ['sortBy', 'sortOrder'],
+  'GET /api/v2/projects/[projectId]/files': [
+    'scope',
+    'folderPath',
+    'recursive',
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
   'GET /api/v2/knowledge': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
@@ -358,6 +370,8 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
  * resolves the path before fingerprinting it.
  */
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/projects/[projectId]/files': ['projectId'],
+  'GET /api/v2/projects/[projectId]/files/[fileId]/versions': ['projectId', 'fileId'],
   'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces': [
     'organizationId',
     'invitationId',

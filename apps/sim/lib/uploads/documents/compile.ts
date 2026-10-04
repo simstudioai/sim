@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { compareStrings } from '@sim/utils/string'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   executeInSandbox,
@@ -25,6 +26,7 @@ import { iterateDocumentFileReferences } from '@/lib/uploads/documents/reference
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
 const logger = createLogger('CopilotDocCompile')
@@ -45,7 +47,7 @@ const PYTHON_XLSX_SOURCE_MIME = 'text/x-python-xlsx'
 
 type DocEngine = 'node' | 'python'
 
-interface E2BDocFormat {
+export interface E2BDocFormat {
   ext: 'pptx' | 'docx' | 'pdf' | 'xlsx'
   engine: DocEngine
   formatName: 'PPTX' | 'DOCX' | 'PDF' | 'XLSX'
@@ -135,7 +137,7 @@ interface ReferencedImageResolution {
   artifactIdentity?: string
 }
 
-interface CompiledDocResult {
+export interface CompiledDocResult {
   artifactKey?: string
   buffer: Buffer
   contentType: string
@@ -580,6 +582,87 @@ async function renderPreparedDocument(source: string, fmt: E2BDocFormat, inputs:
     : compileDocViaE2BPython(source, fmt, inputs)
 }
 
+/** Compiles a document against a fixed, authorized input manifest and canonical owner cache. */
+export async function compileFileDocument(args: {
+  owner: EditableFileOwner
+  source: string
+  fileName: string
+  inputs: readonly { fileId: string; contentType: string; content: Buffer }[]
+  onArtifactWrite?: (key: string) => void
+  inputIdentity?: string
+  maxBytes: number
+  signal?: AbortSignal
+}): Promise<CompiledDocResult> {
+  const fmt = await getE2BDocFormat(args.fileName)
+  if (!fmt) throw new DocCompileUserError(`Unsupported document format: ${args.fileName}`)
+  if (
+    args.inputs.length > MAX_REFERENCED_INPUTS ||
+    args.inputs.some((input) => input.content.length > MAX_STAGED_FILE_BYTES) ||
+    args.inputs.reduce((sum, input) => sum + input.content.length, 0) > MAX_STAGED_TOTAL_BYTES
+  ) {
+    throw new DocCompileUserError('Document inputs exceed the rendering limit')
+  }
+  const cached = await loadCompiledDoc(args.owner, args.source, fmt.ext, args.inputIdentity, {
+    maxBytes: args.maxBytes,
+    signal: args.signal,
+  })
+  if (cached)
+    return {
+      buffer: cached,
+      artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, args.inputIdentity),
+      contentType: fmt.contentType,
+      dependsOnReferencedFiles: args.inputs.length > 0,
+    }
+  let buffer: Buffer
+  if (isDocSandboxEnabled) {
+    buffer = await renderPreparedDocument(
+      args.source,
+      fmt,
+      args.inputs.map((input) => ({
+        path: `/home/user/inputs/${input.fileId}`,
+        content: input.content.toString('base64'),
+        encoding: 'base64' as const,
+      }))
+    )
+  } else {
+    const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
+    if (!format || isSimdocDeckSource(args.source)) {
+      throw new DocCompileUserError('This document format requires the document sandbox')
+    }
+    const inputs = new Map(args.inputs.map((input) => [input.fileId, input]))
+    buffer = await runSandboxTask(
+      format.taskId,
+      { code: args.source },
+      {
+        ownerKey: `${args.owner.entityType}:${args.owner.entityId}`,
+        signal: args.signal,
+        resolvePreparedFile(fileId) {
+          const input = inputs.get(fileId)
+          if (!input)
+            throw new Error('Document requested a file outside its authorized input manifest')
+          return input
+        },
+      }
+    )
+  }
+  assertKnownSizeWithinLimit(buffer.length, args.maxBytes, 'compiled document')
+  await storeCompiledDoc(
+    args.owner,
+    args.source,
+    fmt.ext,
+    fmt.contentType,
+    buffer,
+    args.inputIdentity,
+    args.onArtifactWrite
+  )
+  return {
+    buffer,
+    artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, args.inputIdentity),
+    contentType: fmt.contentType,
+    dependsOnReferencedFiles: args.inputs.length > 0,
+  }
+}
+
 // Template-clone scripts author against the simdoc Deck (pptx) / Doc (docx)
 // API. The prelude supplies input_path (staged workspace files) and
 // OUTPUT_PATH; the finalizer saves the expected variable (scripts never save
@@ -849,7 +932,7 @@ export function isCompiledDocumentBuffer(fileName: string, buffer: Buffer): bool
  *   not exist yet; the raw bytes are source, so serving them under the file's binary
  *   content type would be corrupt. The caller should signal "not ready" instead.
  */
-type ServableDoc =
+export type ServableDoc =
   | { kind: 'passthrough' }
   | { kind: 'artifact'; buffer: Buffer; contentType: string }
   | { kind: 'unavailable' }

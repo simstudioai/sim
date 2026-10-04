@@ -20,7 +20,7 @@ const CHART_HEADER_HEIGHT = 24
 
 interface ChartPreviewProps {
   content: string
-  workspaceId: string
+  workspaceId: string | undefined
   isStreaming?: boolean
 }
 

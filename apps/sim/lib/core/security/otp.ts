@@ -152,7 +152,7 @@ export async function getOTP(
 const ATOMIC_INCREMENT_SCRIPT = `
 local val = redis.call('GET', KEYS[1])
 if not val then return nil end
-local colon = val:find(':([^:]*$)')
+local colon = val:find(':([^:]*)$')
 local otp, attempts
 if colon then
   otp = val:sub(1, colon - 1)

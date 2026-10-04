@@ -2,6 +2,7 @@
 
 import { type RefObject, useEffect } from 'react'
 import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -21,12 +22,12 @@ import type { ChatContext } from '@/stores/panel'
 export function useSelectionCopyBridge(
   containerRef: RefObject<HTMLElement | null>,
   buildContext: () => ChatContext | null,
-  workspaceId: string,
+  owner: string | FileOperationOwner | undefined,
   enabled = true
 ): void {
   useEffect(() => {
     const dom = containerRef.current
-    if (!dom || !enabled) return
+    if (!dom || !enabled || !owner) return
     const onCopy = (e: ClipboardEvent) => {
       // A copy from a field nested in the editor — Monaco's find box being the
       // common one — bubbles here while the document still holds a highlight,
@@ -38,9 +39,9 @@ export function useSelectionCopyBridge(
       // main copy path this hook exists for.
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
       const context = buildContext()
-      if (context) attachSelectionContextToClipboard(e.clipboardData, context, workspaceId)
+      if (context) attachSelectionContextToClipboard(e.clipboardData, context, owner)
     }
     dom.addEventListener('copy', onCopy)
     return () => dom.removeEventListener('copy', onCopy)
-  }, [containerRef, buildContext, workspaceId, enabled])
+  }, [containerRef, buildContext, owner, enabled])
 }

@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFileCollabState, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import type { DbTransaction } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 /** Matches the decoded size of the persist endpoint's 16 MiB base64 snapshot limit. */
 export const MAX_COLLAB_DOC_STATE_BYTES = 12 * 1024 * 1024
@@ -51,7 +51,8 @@ export class CollabDocStateConflictError extends Error {
  */
 export async function loadCollabDocState(
   fileId: string,
-  options?: { maxBytes: number }
+  options?: { maxBytes: number },
+  executor: DbOrTx = db
 ): Promise<CachedCollabDocState | null> {
   const maxBytes = Math.min(
     options?.maxBytes ?? MAX_COLLAB_DOC_STATE_BYTES,
@@ -61,7 +62,7 @@ export async function loadCollabDocState(
     throw new RangeError('Collaborative document state byte limit must be a non-negative integer')
   }
   const byteCount = sql<number>`octet_length(${workspaceFileCollabState.docState})`
-  const [row] = await db
+  const [row] = await executor
     .select({
       byteCount,
       docState: sql<Buffer | null>`CASE WHEN ${byteCount} <= ${maxBytes} THEN ${workspaceFileCollabState.docState} END`,

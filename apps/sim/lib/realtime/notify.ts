@@ -4,6 +4,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import {
+  type FileOwnerAdapters,
+  requireFileOwnerAdapter,
+} from '@/lib/workspace-files/owner-adapters'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 const logger = createLogger('RealtimeNotify')
 
@@ -18,31 +23,34 @@ const NOTIFY_TIMEOUT_MS = 2000
 const APPLY_EDIT_TIMEOUT_MS = FILE_DOC_TIMEOUTS.applyEditMs
 
 /**
- * POST one workspace list-changed signal (`/api/workspace-<x>-changed`) to the realtime server,
- * which fans it out to every socket in that workspace's live-list room so their browser refetches.
+ * POST one owner-scoped list-changed signal to the realtime server, which fans it out to
+ * every authorized socket in that owner's live-list room so its browser refetches.
  * Lossy — a dropped notification only degrades to stale-until-refetch. Never throws. Callers
  * `await` it (rather than fire-and-forget) so the fetch is guaranteed to dispatch before a Node
  * route handler returns — a floating promise can be dropped after the response is sent. It is a
  * normally-sub-millisecond local call, hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that
  * latency only when the socket pod is unreachable.
  */
-async function postWorkspaceListChanged(endpoint: string, workspaceId: string): Promise<void> {
+async function postListChanged(
+  endpoint: string,
+  target: { workspaceId: string } | { projectId: string }
+): Promise<void> {
   try {
     const response = await fetch(`${getSocketServerUrl()}/api/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-      body: JSON.stringify({ workspaceId }),
+      body: JSON.stringify(target),
       signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     })
     if (!response.ok) {
       logger.warn(`${endpoint} notify failed`, {
-        workspaceId,
+        ...target,
         status: response.status,
       })
     }
   } catch (error) {
     logger.warn(`${endpoint} notify error`, {
-      workspaceId,
+      ...target,
       error: getErrorMessage(error),
     })
   }
@@ -50,20 +58,34 @@ async function postWorkspaceListChanged(endpoint: string, workspaceId: string): 
 
 /**
  * Best-effort fan-out that a workspace's file tree changed, so every viewer of that workspace's
- * files refetches. See {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
+ * files refetches. See {@link postListChanged} for the shared lossy/never-throws contract.
  */
 export function notifyWorkspaceFilesChanged(workspaceId: string): Promise<void> {
-  return postWorkspaceListChanged('workspace-files-changed', workspaceId)
+  return postListChanged('workspace-files-changed', { workspaceId })
+}
+
+const FILE_LIST_NOTIFIERS: FileOwnerAdapters<(id: string) => Promise<void>> = {
+  workspace: notifyWorkspaceFilesChanged,
+  project: (projectId) => postListChanged('project-files-changed', { projectId }),
+}
+
+/** Lossy owner-scoped invalidation, called after the canonical file mutation commits. */
+export async function notifyFileListChanged(owner: EditableFileOwner): Promise<void> {
+  try {
+    await requireFileOwnerAdapter(FILE_LIST_NOTIFIERS, owner)(owner.entityId)
+  } catch (error) {
+    logger.warn('File collection notify failed', { owner, error: getErrorMessage(error) })
+  }
 }
 
 /**
  * Best-effort fan-out that a workspace's table list changed (a table was created, renamed, moved,
  * deleted, or restored), so every viewer of that workspace's tables refetches. Fires from the
  * shared table service, so it covers every surface (HTTP routes AND copilot). See
- * {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
+ * {@link postListChanged} for the shared lossy/never-throws contract.
  */
 export function notifyWorkspaceTablesChanged(workspaceId: string): Promise<void> {
-  return postWorkspaceListChanged('workspace-tables-changed', workspaceId)
+  return postListChanged('workspace-tables-changed', { workspaceId })
 }
 
 /**
@@ -73,10 +95,10 @@ export function notifyWorkspaceTablesChanged(workspaceId: string): Promise<void>
  * per-workflow editor notifications ({@link notifyWorkflowUpdated}): those only reach sockets with
  * that workflow's canvas open, while this reaches everyone in the workspace. Fires from the
  * workflow application use cases, so it covers every surface (UI, CLI, copilot, API). See
- * {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
+ * {@link postListChanged} for the shared lossy/never-throws contract.
  */
 export function notifyWorkspaceWorkflowsChanged(workspaceId: string): Promise<void> {
-  return postWorkspaceListChanged('workspace-workflows-changed', workspaceId)
+  return postListChanged('workspace-workflows-changed', { workspaceId })
 }
 
 /** Best-effort fan-out that invalidates open editors for one durably changed workflow. */

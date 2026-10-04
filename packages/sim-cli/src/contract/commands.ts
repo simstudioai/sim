@@ -20,6 +20,14 @@ const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
   { header: 'created', path: 'createdAt', format: 'timestamp' },
 ]
 
+const FILE_SHARE_FIELDS: ColumnSpec[] = [
+  { header: 'shared', path: 'isActive', format: 'bool' },
+  { header: 'URL', path: 'url' },
+  { header: 'auth', path: 'authType' },
+  { header: 'password set', path: 'hasPassword', format: 'bool' },
+  { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
+]
+
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
@@ -116,6 +124,39 @@ const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'name' },
   { header: 'parent', path: 'parentPath', format: 'folder-path' },
   { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+]
+const FILE_VERSION_COLUMNS: ColumnSpec[] = [
+  { header: 'version' },
+  { header: 'current', path: 'isCurrent', format: 'bool' },
+  { header: 'source' },
+  { header: 'size', format: 'bytes' },
+  { header: 'authors', format: 'people' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+]
+const FILE_VERSION_FIELDS: ColumnSpec[] = [
+  { header: 'file', path: 'fileId' },
+  { header: 'version' },
+  { header: 'current', path: 'isCurrent', format: 'bool' },
+  { header: 'source' },
+  { header: 'restored from', path: 'restoredFromVersion' },
+  { header: 'size', format: 'bytes' },
+  { header: 'type', path: 'contentType' },
+  { header: 'authors', format: 'people' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+  { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+]
+const FILE_REVERT_FIELDS: ColumnSpec[] = [
+  { header: 'reverted', format: 'bool' },
+  { header: 'file', path: 'file.id' },
+  { header: 'name', path: 'file.name' },
+  { header: 'version', path: 'version.version' },
+  { header: 'source', path: 'version.source' },
+  { header: 'restored from', path: 'version.restoredFromVersion' },
+  { header: 'size', path: 'version.size', format: 'bytes' },
+  { header: 'authors', path: 'version.authors', format: 'people' },
+  { header: 'created', path: 'version.createdAt', format: 'timestamp' },
 ]
 
 function moveResource(command: string, resource: string): CommandVariantSpec {
@@ -710,6 +751,61 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
   createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  copyFileItems: {
+    command: 'files copy',
+    flags: {
+      source: { json: true, describe: 'Source owner and selected fileIds or folderIds' },
+      destination: { json: true, describe: 'Destination owner and optional folderId' },
+    },
+  },
+  renameProjectFile: { command: 'projects files rename' },
+  listProjectFileFolders: {
+    command: 'projects files folders list',
+    columns: [{ header: 'id' }, { header: 'name' }, { header: 'parent', path: 'parentId' }],
+  },
+  createProjectFileFolder: { command: 'projects files folders create' },
+  updateProjectFileFolder: { command: 'projects files folders update' },
+  restoreProjectFileFolder: { command: 'projects files folders restore' },
+  searchProjectFileContent: {
+    command: 'projects files search',
+    flags: {
+      folderPaths: FOLDER_PATHS_FLAG,
+      includeSubfolders: { boolean: true, negatable: true },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
+  },
+  moveProjectFileItems: {
+    command: 'projects files move',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
+    },
+  },
+  archiveProjectFileItems: {
+    command: 'projects files archive',
+    confirm: 'This archives the selected Project files and folders, including folder contents.',
+    flags: { fileIds: { list: true }, folderIds: { list: true } },
+  },
+  restoreProjectFile: { command: 'projects files restore' },
+  createProjectFile: {
+    command: 'projects files create',
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  updateProjectFileContent: {
+    command: 'projects files set-content',
+    describe: 'Replace a shared Project file’s contents',
+    flags: { encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' } },
+  },
+  readProjectFileContent: {
+    command: 'projects files source',
+    describe: 'Download the stored source bytes of a Project file',
+  },
   createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
   updateKnowledgeBase: {
     variants: [moveResource('knowledge mv', 'knowledge base')],
@@ -852,6 +948,26 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
     ],
+  },
+  listProjectFiles: {
+    command: 'projects files list',
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      recursive: { boolean: true, negatable: true },
+    },
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      FOLDER_COLUMN,
+      { header: 'size', format: 'bytes' },
+      { header: 'type' },
+      { header: 'creator', path: 'uploadedBy' },
+      { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
+    ],
+  },
+  getProjectFileMetadata: {
+    command: 'projects files describe',
+    describe: 'Show Project file metadata and ownership',
   },
   listTableRows: { expand: 'data' },
   listKnowledgeBases: {
@@ -1393,32 +1509,12 @@ export const CLI_CONTRACT: CliContract = {
   listFileVersions: {
     command: 'files versions list',
     describe: 'List the recorded versions of a file',
-    columns: [
-      { header: 'version' },
-      { header: 'current', path: 'isCurrent', format: 'bool' },
-      { header: 'source' },
-      { header: 'size', format: 'bytes' },
-      { header: 'authors', format: 'people' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
-    ],
+    columns: FILE_VERSION_COLUMNS,
   },
   getFileVersion: {
     command: 'files versions describe',
     describe: 'Show the metadata of one version of a file',
-    fields: [
-      { header: 'file', path: 'fileId' },
-      { header: 'version' },
-      { header: 'current', path: 'isCurrent', format: 'bool' },
-      { header: 'source' },
-      { header: 'restored from', path: 'restoredFromVersion' },
-      { header: 'size', format: 'bytes' },
-      { header: 'type', path: 'contentType' },
-      { header: 'authors', format: 'people' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
-    ],
+    fields: FILE_VERSION_FIELDS,
   },
   readFileVersionText: {
     command: 'files versions read',
@@ -1429,21 +1525,35 @@ export const CLI_CONTRACT: CliContract = {
   revertFileVersion: {
     command: 'files versions revert',
     describe: 'Make a previous version of a file current again',
-    fields: [
-      { header: 'reverted', format: 'bool' },
-      { header: 'file', path: 'file.id' },
-      { header: 'name', path: 'file.name' },
-      { header: 'version', path: 'version.version' },
-      { header: 'source', path: 'version.source' },
-      { header: 'restored from', path: 'version.restoredFromVersion' },
-      { header: 'size', path: 'version.size', format: 'bytes' },
-      { header: 'authors', path: 'version.authors', format: 'people' },
-      { header: 'created', path: 'version.createdAt', format: 'timestamp' },
-    ],
+    fields: FILE_REVERT_FIELDS,
   },
   deleteFileVersion: {
     command: 'files versions delete',
     describe: 'Permanently delete a previous version of a file',
+    confirm: 'This permanently deletes the version and its stored content.',
+  },
+  listProjectFileVersions: {
+    command: 'projects files versions list',
+    describe: 'List the recorded versions of a shared Project file',
+    columns: FILE_VERSION_COLUMNS,
+  },
+  getProjectFileVersion: {
+    command: 'projects files versions describe',
+    describe: 'Show the metadata of one version of a shared Project file',
+    fields: FILE_VERSION_FIELDS,
+  },
+  readProjectFileVersionContent: {
+    command: 'projects files versions source',
+    describe: 'Download the stored source bytes of a Project file version',
+  },
+  revertProjectFileVersion: {
+    command: 'projects files versions revert',
+    describe: 'Make a previous version of a shared Project file current again',
+    fields: FILE_REVERT_FIELDS,
+  },
+  deleteProjectFileVersion: {
+    command: 'projects files versions delete',
+    describe: 'Permanently delete a previous version of a shared Project file',
     confirm: 'This permanently deletes the version and its stored content.',
   },
   // Left to derive, the folder restore lands under `files restore` and turns
@@ -1531,6 +1641,11 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Unzip an archive into a new folder beside it',
     confirm: 'This writes every file in the archive into the workspace.',
   },
+  unzipProjectFile: {
+    command: 'projects files unzip',
+    describe: 'Unzip an archive into a new folder beside it in the Project',
+    confirm: 'This writes every file in the archive into the Project.',
+  },
   /**
    * Configured even though `buildGeneratedCommands` skips it: it only builds
    * operations whose `responseMode` is `json` (runtime/build.ts), so this
@@ -1545,6 +1660,18 @@ export const CLI_CONTRACT: CliContract = {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
     },
+  },
+  downloadProjectFileItems: {
+    command: 'projects files bulk-download',
+    describe: 'Download Project files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+    },
+  },
+  exportProjectFileSnapshot: {
+    command: 'projects files export',
+    describe: 'Export a visible Project Markdown snapshot with its embedded assets',
   },
   editFileContent: {
     command: 'files edit',
@@ -1565,13 +1692,12 @@ export const CLI_CONTRACT: CliContract = {
   getFileShare: {
     command: 'files share get',
     describe: 'Show a file’s share settings',
-    fields: [
-      { header: 'shared', path: 'isActive', format: 'bool' },
-      { header: 'URL', path: 'url' },
-      { header: 'auth', path: 'authType' },
-      { header: 'password set', path: 'hasPassword', format: 'bool' },
-      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
-    ],
+    fields: FILE_SHARE_FIELDS,
+  },
+  getProjectFileShare: {
+    command: 'projects files share get',
+    describe: 'Show a Project file’s share settings',
+    fields: FILE_SHARE_FIELDS,
   },
   // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
   // so there is no separate unshare operation to expose.
@@ -1581,13 +1707,15 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       allowedEmails: { list: true },
     },
-    fields: [
-      { header: 'shared', path: 'isActive', format: 'bool' },
-      { header: 'URL', path: 'url' },
-      { header: 'auth', path: 'authType' },
-      { header: 'password set', path: 'hasPassword', format: 'bool' },
-      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
-    ],
+    fields: FILE_SHARE_FIELDS,
+  },
+  updateProjectFileShare: {
+    command: 'projects files share set',
+    describe: 'Enable or disable sharing for a Project file',
+    flags: {
+      allowedEmails: { list: true },
+    },
+    fields: FILE_SHARE_FIELDS,
   },
 
   /**
@@ -2049,6 +2177,11 @@ export const CLI_CONTRACT: CliContract = {
   // advertise a protocol whose halfway states leak storage, so `sim files
   // upload` drives the whole sequence and these stay out of the surface.
   createFileUpload: { hidden: true },
+  createProjectFileUpload: { hidden: true },
+  getProjectFileUpload: { hidden: true },
+  abortProjectFileUpload: { hidden: true },
+  completeProjectFileUpload: { hidden: true },
+  getProjectFileUploadPartUrls: { hidden: true },
   createFileUploadPartUrls: { hidden: true },
   completeFileUpload: { hidden: true },
   abortFileUpload: { hidden: true },
