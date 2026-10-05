@@ -907,6 +907,9 @@ async function executeWorkflowCoreImpl(
         resolvedStopAfterBlockId = buildLoopSentinelEndId(stopAfterBlockId)
       } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
+      } else if (!serializedWorkflow.blocks.some((block) => block.id === stopAfterBlockId)) {
+        // The engine stops on an exact node id, so an absent target would run everything.
+        throw new Error(`Stop block ${stopAfterBlockId} is not in the workflow being executed`)
       }
     }
 

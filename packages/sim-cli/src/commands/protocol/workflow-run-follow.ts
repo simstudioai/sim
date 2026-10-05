@@ -79,8 +79,11 @@ export function resolveWorkflowRunSelection(
   if (useMockPayload && flags.input !== undefined) {
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
   }
+  if (stopAfter !== undefined && stopAfter.trim() === '') {
+    throw new SimApiError('--stop-after requires a block ID', 0)
+  }
 
-  const stop = stopAfter ? { stopAfterBlockId: stopAfter } : {}
+  const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
   if (fromBlock && sourceRun) {
     return {
       source: 'manual',

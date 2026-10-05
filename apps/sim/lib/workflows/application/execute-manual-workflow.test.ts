@@ -306,7 +306,7 @@ describe('manual workflow execution application operations', () => {
         principal,
         input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'missing' },
       })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('not a block') })
     await expect(
       executeManualWorkflowFromBlockOperation.execute({
         principal,
@@ -317,7 +317,7 @@ describe('manual workflow execution application operations', () => {
           stopAfterBlockId: 'missing',
         },
       })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('not a block') })
     expect(mocks.loadSourceState).not.toHaveBeenCalled()
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
@@ -337,38 +337,54 @@ describe('manual workflow execution application operations', () => {
         principal,
         input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
       })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('inside loop') })
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
-  it('stops the trigger and block entries after the requested block', async () => {
-    mocks.loadSourceState.mockResolvedValueOnce({ blockStates: {}, executedBlocks: [] })
-
-    await executeManualWorkflowOperation.execute({
-      principal,
-      input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
-    })
-    await executeManualWorkflowFromBlockOperation.execute({
-      principal,
-      input: {
-        ...baseInput,
-        blockId: 'agent-1',
-        sourceRunId: 'source-run-1',
-        stopAfterBlockId: 'agent-1',
-      },
+  it('rejects a stop block the run cannot reach from its entry, which would run everything', async () => {
+    mockLoadManualState.mockResolvedValue({
+      blocks: { 'trigger-1': {}, 'agent-1': {}, 'agent-2': {}, unconnected: {} },
+      edges: [
+        { source: 'trigger-1', target: 'agent-1' },
+        { source: 'agent-1', target: 'agent-2' },
+      ],
     })
 
-    expect(mocks.executeService).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ triggerBlockId: 'trigger-1', stopAfterBlockId: 'agent-1' })
-    )
-    expect(mocks.executeService).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        runFromBlock: expect.objectContaining({ startBlockId: 'agent-1' }),
-        stopAfterBlockId: 'agent-1',
+    await expect(
+      executeManualWorkflowFromBlockOperation.execute({
+        principal,
+        input: {
+          ...baseInput,
+          blockId: 'agent-2',
+          sourceRunId: 'source-run-1',
+          stopAfterBlockId: 'agent-1',
+        },
       })
-    )
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('not reachable'),
+    })
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'unconnected' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('not reachable'),
+    })
+    expect(mocks.loadSourceState).not.toHaveBeenCalled()
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stop block named by an inherited object key', async () => {
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'toString' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('not a block') })
+    expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
   it('rejects a source run without persisted state for this workflow', async () => {

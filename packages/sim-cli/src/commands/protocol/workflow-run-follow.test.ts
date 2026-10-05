@@ -243,6 +243,13 @@ describe('sim workflows run --follow', () => {
     })
   })
 
+  it('refuses an empty --stop-after rather than running the whole draft', async () => {
+    await expect(run(WORKFLOW_ID, '--stop-after', '')).rejects.toThrow(
+      '--stop-after requires a block ID'
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
   it('refuses --stop-after with --async before sending anything', async () => {
     await expect(run(WORKFLOW_ID, '--stop-after', 'agent-1', '--async')).rejects.toThrow(
       'Manual execution does not support --async'

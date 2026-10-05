@@ -50,15 +50,40 @@ async function loadManualState(workflowId: string) {
 
 type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
 
+function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<string> {
+  const targetsBySource = new Map<string, string[]>()
+  for (const edge of state.edges) {
+    const targets = targetsBySource.get(edge.source) ?? []
+    targets.push(edge.target)
+    targetsBySource.set(edge.source, targets)
+  }
+  const reached = new Set([entryBlockId])
+  const queue = [entryBlockId]
+  for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+    for (const target of targetsBySource.get(next) ?? []) {
+      if (reached.has(target)) continue
+      reached.add(target)
+      queue.push(target)
+    }
+  }
+  return reached
+}
+
 /**
  * The engine stops only when it completes a node whose id equals the target, so
- * an unknown id would silently run the whole workflow, and a block inside a loop
- * or parallel would stop after its first iteration or never. Both are refused,
- * matching the editor, which offers "Run until block" only outside subflows.
+ * a target the run cannot reach would silently run everything after the entry:
+ * an unknown id, a block upstream of the entry, or a block inside a loop or
+ * parallel (which would stop after its first iteration or never). All are
+ * refused, matching the editor, which offers "Run until block" only outside
+ * subflows.
  */
-function assertStopAfterBlock(state: ManualWorkflowState, blockId: string | undefined): void {
+function assertStopAfterBlock(
+  state: ManualWorkflowState,
+  blockId: string | undefined,
+  entryBlockId: string
+): void {
   if (blockId === undefined) return
-  const block = state.blocks[blockId]
+  const block = Object.hasOwn(state.blocks, blockId) ? state.blocks[blockId] : undefined
   if (!block) {
     throw new OrchestrationError(
       'validation',
@@ -69,6 +94,12 @@ function assertStopAfterBlock(state: ManualWorkflowState, blockId: string | unde
     throw new OrchestrationError(
       'validation',
       `run.stopAfterBlockId "${blockId}" is inside loop or parallel "${block.data.parentId}"; stop after that container instead.`
+    )
+  }
+  if (!reachableFrom(state, entryBlockId).has(blockId)) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is not reachable from entry block "${entryBlockId}"; stop after the entry block or one downstream of it.`
     )
   }
 }
@@ -117,7 +148,6 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
     const state = await loadManualState(context.workflowId)
-    assertStopAfterBlock(state, input.stopAfterBlockId)
     const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
     if (options.length === 0) {
       throw new OrchestrationError(
@@ -143,6 +173,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
 
+    assertStopAfterBlock(state, input.stopAfterBlockId, selected.triggerBlockId)
     const executionInput = input.useMockPayload ? selected.mockPayload : input.input
     const validation = validateTriggerInput(selected, executionInput)
     if (!validation.ok) {
@@ -169,7 +200,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
         `run.entry.blockId "${input.blockId}" is not a block in the current saved workflow.`
       )
     }
-    assertStopAfterBlock(state, input.stopAfterBlockId)
+    assertStopAfterBlock(state, input.stopAfterBlockId, input.blockId)
 
     const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
     if (!sourceSnapshot) {

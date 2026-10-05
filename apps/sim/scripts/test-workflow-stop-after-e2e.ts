@@ -9,6 +9,7 @@ import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastruc
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
@@ -32,7 +33,8 @@ import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 const logger = createLogger('WorkflowStopAfterE2E')
 const execFileAsync = promisify(execFile)
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-const REQUEST_TIMEOUT_MS = 120_000
+/** The first execute request cold-compiles the route under `next dev`. */
+const REQUEST_TIMEOUT_MS = 300_000
 const SLOW_SECONDS = 4
 const SLOW_MS = SLOW_SECONDS * 1000
 const startedAt = new Date().toISOString()
@@ -321,6 +323,17 @@ try {
     )
     await expectBadRequest(
       pipeline.workflowId,
+      {
+        run: {
+          source: 'manual',
+          entry: { type: 'block', blockId: pipeline.check, sourceRunId },
+          stopAfterBlockId: pipeline.slow,
+        },
+      },
+      'BAD_REQUEST'
+    )
+    await expectBadRequest(
+      pipeline.workflowId,
       { run: { source: 'manual', stopAfterBlockId: pipeline.check }, async: true },
       'BAD_REQUEST'
     )
@@ -360,8 +373,28 @@ try {
 } finally {
   try {
     await check('remove disposable fixtures', async () => {
-      await sql`delete from workspace where id = ${workspaceId}`
-      await sql`delete from "user" where id = ${ownerId}`
+      // A response returns before its run finishes persisting logs and large-value
+      // references; a cascade delete racing those writes can be chosen as a deadlock victim.
+      const workflowIds = [pipeline.workflowId, otherPipeline.workflowId]
+      for (let attempt = 0; attempt < 120; attempt++) {
+        const [{ open }] =
+          await sql`select count(*)::int as open from workflow_execution_logs where workflow_id in ${sql(workflowIds)} and ended_at is null`
+        if (open === 0) break
+        await sleep(500)
+      }
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await sql.begin(async (tx) => {
+            await tx`delete from workspace where id = ${workspaceId}`
+            await tx`delete from "user" where id = ${ownerId}`
+          })
+          break
+        } catch (error) {
+          const deadlocked = isRecordLike(error) && error.code === '40P01'
+          if (!deadlocked || attempt === 5) throw error
+          await sleep(1000)
+        }
+      }
       if (directory) await rm(directory, { recursive: true, force: true })
     })
   } catch (error) {
