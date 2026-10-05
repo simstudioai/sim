@@ -29,6 +29,16 @@ describe('getJsonByteSize', () => {
     ['holes in a sparse array', { list: [1, undefined, 3, undefined, undefined] }],
     ['an omitted member before the first written one', { skipped: undefined, kept: 1 }],
     ['boxed primitives', { n: new Number(12345), s: new String('boxed'), b: new Boolean(false) }],
+    [
+      'a boxed boolean whose valueOf is overridden',
+      {
+        b: Object.assign(new Boolean(true), {
+          valueOf: () => {
+            throw new Error('JSON.stringify reads the internal value, not valueOf')
+          },
+        }),
+      },
+    ],
     ['a function with toJSON', { fn: Object.assign(() => 1, { toJSON: () => 'serialized' }) }],
     ['escapes, multi-byte text, and lone surrogates', { 'k"\\': 'a\n\u0001é漢😀\ud800' }],
   ])('matches JSON.stringify for %s', (_name, payload) => {

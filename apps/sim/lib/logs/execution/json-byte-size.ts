@@ -37,7 +37,8 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     const value = typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
     if (value instanceof Number) return Number(value)
     if (value instanceof String) return String(value)
-    if (value instanceof Boolean || value instanceof BigInt) return value.valueOf()
+    if (value instanceof Boolean) return Boolean.prototype.valueOf.call(value)
+    if (value instanceof BigInt) return BigInt.prototype.valueOf.call(value)
     return value
   }
 
