@@ -300,6 +300,77 @@ describe('manual workflow execution application operations', () => {
     expect(mocks.loadSourceState).not.toHaveBeenCalled()
   })
 
+  it('rejects a stop block missing from the saved workflow before anything runs', async () => {
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'missing' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      executeManualWorkflowFromBlockOperation.execute({
+        principal,
+        input: {
+          ...baseInput,
+          blockId: 'agent-1',
+          sourceRunId: 'source-run-1',
+          stopAfterBlockId: 'missing',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.loadSourceState).not.toHaveBeenCalled()
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stop block nested in a loop or parallel, which the engine cannot stop on', async () => {
+    mockLoadManualState.mockResolvedValue({
+      blocks: {
+        'trigger-1': {},
+        'loop-1': { type: 'loop' },
+        'agent-1': { data: { parentId: 'loop-1' } },
+      },
+      edges: [],
+    })
+
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
+  it('stops the trigger and block entries after the requested block', async () => {
+    mocks.loadSourceState.mockResolvedValueOnce({ blockStates: {}, executedBlocks: [] })
+
+    await executeManualWorkflowOperation.execute({
+      principal,
+      input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
+    })
+    await executeManualWorkflowFromBlockOperation.execute({
+      principal,
+      input: {
+        ...baseInput,
+        blockId: 'agent-1',
+        sourceRunId: 'source-run-1',
+        stopAfterBlockId: 'agent-1',
+      },
+    })
+
+    expect(mocks.executeService).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ triggerBlockId: 'trigger-1', stopAfterBlockId: 'agent-1' })
+    )
+    expect(mocks.executeService).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        runFromBlock: expect.objectContaining({ startBlockId: 'agent-1' }),
+        stopAfterBlockId: 'agent-1',
+      })
+    )
+  })
+
   it('rejects a source run without persisted state for this workflow', async () => {
     mocks.loadSourceState.mockResolvedValueOnce(null)
 

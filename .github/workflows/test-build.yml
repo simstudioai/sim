@@ -125,6 +125,16 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 20
     services:
+      # Hosted billing admits a workflow run only through a Redis usage reservation.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
       postgres:
         image: pgvector/pgvector:pg17
         env:
@@ -212,6 +222,7 @@ jobs:
           ORGANIZATIONS_ENABLED: 'true'
           NEXT_PUBLIC_ORGANIZATIONS_ENABLED: 'true'
           INTERNAL_API_SECRET: scim-http-ci-local-secret-at-least-32-characters
+          REDIS_URL: redis://127.0.0.1:6379
           DB_TX_TRIPWIRE: throw
           DISABLE_TELEMETRY: 'true'
           NEXT_TELEMETRY_DISABLED: '1'
@@ -252,6 +263,10 @@ jobs:
           VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
+          STOP_AFTER_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          STOP_AFTER_E2E_DATABASE_URL="$DATABASE_URL" \
+          STOP_AFTER_E2E_REPORT_PATH="$report_dir/stop-after-http-report.json" \
+            bun run test:workflow-stop-after:e2e
 
       - name: Upload end-to-end reports and server logs
         if: failure()

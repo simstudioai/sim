@@ -20,6 +20,7 @@ interface ManualExecutionInput
   extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
+  stopAfterBlockId?: string
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -47,6 +48,31 @@ async function loadManualState(workflowId: string) {
   return state
 }
 
+type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
+
+/**
+ * The engine stops only when it completes a node whose id equals the target, so
+ * an unknown id would silently run the whole workflow, and a block inside a loop
+ * or parallel would stop after its first iteration or never. Both are refused,
+ * matching the editor, which offers "Run until block" only outside subflows.
+ */
+function assertStopAfterBlock(state: ManualWorkflowState, blockId: string | undefined): void {
+  if (blockId === undefined) return
+  const block = state.blocks[blockId]
+  if (!block) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is not a block in the current saved workflow.`
+    )
+  }
+  if (block.data?.parentId) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is inside loop or parallel "${block.data.parentId}"; stop after that container instead.`
+    )
+  }
+}
+
 function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): string {
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
@@ -68,6 +94,7 @@ function executionServiceInput(params: {
     includeFileBase64: params.input.includeFileBase64,
     base64MaxBytes: params.input.base64MaxBytes,
     selectedOutputs: params.input.selectedOutputs,
+    stopAfterBlockId: params.input.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
     abortSignal: params.input.abortSignal,
     mode: params.input.mode,
@@ -90,6 +117,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
     const state = await loadManualState(context.workflowId)
+    assertStopAfterBlock(state, input.stopAfterBlockId)
     const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
     if (options.length === 0) {
       throw new OrchestrationError(
@@ -141,6 +169,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
         `run.entry.blockId "${input.blockId}" is not a block in the current saved workflow.`
       )
     }
+    assertStopAfterBlock(state, input.stopAfterBlockId)
 
     const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
     if (!sourceSnapshot) {

@@ -12615,6 +12615,11 @@
                         "additionalProperties": false
                       }
                     ]
+                  },
+                  "stopAfterBlockId": {
+                    "description": "Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. With a block entry naming the same block, re-runs only that block against the source run.",
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": ["source"],
@@ -12702,6 +12707,17 @@
                 "blockId": "block_123",
                 "sourceRunId": "run_123"
               }
+            }
+          },
+          {
+            "run": {
+              "source": "manual",
+              "entry": {
+                "type": "block",
+                "blockId": "block_123",
+                "sourceRunId": "run_123"
+              },
+              "stopAfterBlockId": "block_123"
             }
           }
         ]
