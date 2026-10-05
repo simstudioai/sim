@@ -2,6 +2,7 @@ import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/bro
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { isDesktopExecutorTool } from '@/lib/desktop/executor/tools'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionEnvelope,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/mothership/async-runs/repository'
 import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
 import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
   PERMISSION_WAIT_TIMEOUT_MS,
   TOOL_WATCHDOG_DEFAULT_MS,
   TOOL_WATCHDOG_LONG_RUNNING_MS,
@@ -256,15 +258,20 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 /**
  * How long the resume gate may wait on one pending tool call. Permission
  * prompts wait as long as the permission wait itself. Browser calls share the renderer's
- * budget so authorization and native queueing cannot outlive the resume gate.
+ * budget so authorization and native queueing cannot outlive the resume gate. A desktop call
+ * on a device-bound run is bounded by its supervisor instead: it fails fast when nobody picks
+ * it up, and otherwise lives as long as the device renews its lease.
  */
 export function pendingToolWaitBudgetMs(
   toolCall:
     | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
-    | undefined
+    | undefined,
+  desktopDeviceId?: string | null
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
+  if (desktopDeviceId && executableName && isDesktopExecutorTool(executableName, toolCall?.params))
+    return CLIENT_TOOL_RESULT_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
   }

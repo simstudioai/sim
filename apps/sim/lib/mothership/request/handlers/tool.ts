@@ -2,6 +2,10 @@ import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
+import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
+import { startDesktopCallSupervisor } from '@/lib/desktop/executor/supervisor'
+import { isDesktopExecutorTool } from '@/lib/desktop/executor/tools'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
@@ -204,6 +208,13 @@ function rebindResolvedIntegrationCall(
  * Also stamps `awaiting_approval` onto the outgoing frame so the browser and
  * the persisted content block both record that the call is gated.
  */
+/** Reads the run's device binding once per streaming context. */
+async function resolveRunDesktopDevice(context: StreamingContext): Promise<string | null> {
+  if (context.desktopDeviceId === undefined)
+    context.desktopDeviceId = context.runId ? await getRunDesktopDeviceId(context.runId) : null
+  return context.desktopDeviceId
+}
+
 export async function prePersistClientExecutableToolCall(
   event: StreamEvent,
   context: StreamingContext,
@@ -299,6 +310,10 @@ export async function prePersistClientExecutableToolCall(
     }
   }
 
+  const desktopDeviceId = isDesktopExecutorTool(data.toolName, data.arguments)
+    ? await resolveRunDesktopDevice(context)
+    : null
+
   await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: data.toolCallId,
@@ -311,8 +326,10 @@ export async function prePersistClientExecutableToolCall(
     // that arrives already running can never be executed natively. All other
     // client tools retain the established "already dispatched" running state.
     // A gated tool is likewise pending: nothing has been dispatched yet.
+    // A bound run's desktop calls all wait, unclaimed, for its device's executor to claim them.
     status:
       gated ||
+      desktopDeviceId ||
       isCurrentBrowserToolName(data.toolName) ||
       isTerminalToolName(data.toolName) ||
       data.toolName === 'import_local_files'
@@ -326,6 +343,7 @@ export async function prePersistClientExecutableToolCall(
       error: getErrorMessage(err),
     })
   })
+  if (gated && desktopDeviceId) ringDesktopInbox(desktopDeviceId, 'approval')
 }
 
 /**
@@ -939,6 +957,17 @@ async function dispatchToolExecution(
           }
           completion = race.completion ?? null
         } else {
+          const desktopDeviceId = isDesktopExecutorTool(toolName, args)
+            ? await resolveRunDesktopDevice(context)
+            : null
+          if (desktopDeviceId && context.runId)
+            startDesktopCallSupervisor({
+              toolCallId,
+              runId: context.runId,
+              userId: execContext.userId,
+              deviceId: desktopDeviceId,
+              signal: options.abortSignal,
+            })
           completion = await waitForClientToolCompletion({
             toolCallId,
             runId: context.runId,

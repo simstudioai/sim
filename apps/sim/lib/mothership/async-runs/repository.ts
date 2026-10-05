@@ -120,6 +120,8 @@ export interface CreateRunSegmentInput {
   provider?: string | null
   requestContext?: Record<string, unknown>
   status?: CopilotRunStatus
+  /** The desktop whose background executor runs this turn's desktop tools. */
+  desktopDeviceId?: string | null
 }
 
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -265,6 +267,7 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       model: input.model ?? null,
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
+      desktopDeviceId: input.desktopDeviceId ?? null,
       status: stop ? 'cancelled' : (input.status ?? 'active'),
       ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
     })
@@ -386,6 +389,8 @@ export async function getRunSegment(runId: string) {
           // Needed to resolve the deciding user's permission group.
           workspaceId: copilotRuns.workspaceId,
           organizationId: copilotRuns.organizationId,
+          // A bound run's desktop calls belong to its device's background executor alone.
+          desktopDeviceId: copilotRuns.desktopDeviceId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
@@ -671,6 +676,11 @@ async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) 
         isNull(copilotAsyncToolCalls.executionSettledAt),
         isNull(copilotAsyncToolCalls.executionRevokedAt),
         isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+        // A desktop executor's lapsed lease is settled by its supervisor with an outcome the model can read.
+        or(
+          isNull(copilotAsyncToolCalls.claimedBy),
+          notInArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER))
+        ),
         sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
       )
     )

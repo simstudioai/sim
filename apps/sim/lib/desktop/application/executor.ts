@@ -32,6 +32,7 @@ import {
 import {
   acknowledgeDesktopCallResult,
   claimOfferedDesktopCall,
+  getBindableDesktopDevice,
   getBoundDesktopCall,
   getBoundDesktopDevice,
   listDesktopInboxRows,
@@ -68,6 +69,31 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
 async function isDesktopBackgroundExecutorEnabled(userId: string): Promise<boolean> {
   if (!isDesktopPresenceAvailable()) return false
   return isFeatureEnabled('mothership-desktop-background-executor', { userId })
+}
+
+/**
+ * The device a new turn binds to: the composer's own, but only while the executor is on for this
+ * user and the device is registered to this very session as an executor. Anything else leaves
+ * the turn to the chat view, as before the executor existed.
+ */
+export async function resolveTurnDesktopDevice(
+  principal: SessionPrincipal,
+  deviceId: string
+): Promise<string | null> {
+  if (!(await isDesktopBackgroundExecutorEnabled(principal.userId))) return null
+  const device = await getBindableDesktopDevice({
+    deviceId,
+    userId: principal.userId,
+    sessionId: principal.sessionId,
+  })
+  if (!device) {
+    logger.warn('Turn not bound: its desktop is not registered to this session', {
+      userId: principal.userId,
+      deviceId,
+    })
+    return null
+  }
+  return device.id
 }
 
 export interface RegisterDesktopDeviceInput extends DeviceInput {

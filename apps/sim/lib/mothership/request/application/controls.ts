@@ -6,6 +6,7 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
@@ -152,6 +153,8 @@ export const abortRun = defineAuthorizedChatUseCase({
       ...(input.chatId ? { chatId: input.chatId } : {}),
     })
     if (!run) return { aborted: true, settled: true }
+    /** Admission is closed: the device re-reads its inbox and cancels what it is running. */
+    if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'cancel')
     /** Admission can win after context lookup; bind its canonical chat before signalling anything. */
     const { chatId } = await resolveAdmittedRunContext(
       principal,

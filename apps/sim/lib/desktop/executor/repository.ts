@@ -410,3 +410,147 @@ export async function acknowledgeDesktopCallResult(input: {
     return { outcome: 'superseded', status: row.status }
   })
 }
+
+/** A device the caller may bind a new turn to: theirs, on this session, and able to execute. */
+export async function getBindableDesktopDevice(identity: DesktopDeviceIdentity) {
+  const [row] = await db
+    .select({ id: desktopDevices.id })
+    .from(desktopDevices)
+    .where(
+      and(
+        eq(desktopDevices.id, identity.deviceId),
+        eq(desktopDevices.userId, identity.userId),
+        eq(desktopDevices.sessionId, identity.sessionId),
+        isNull(desktopDevices.revokedAt),
+        sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/** The device a run's desktop calls are bound to, or null for a run the chat view serves. */
+export async function getRunDesktopDeviceId(runId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ desktopDeviceId: copilotRuns.desktopDeviceId })
+    .from(copilotRuns)
+    .where(eq(copilotRuns.id, runId))
+    .limit(1)
+  return row?.desktopDeviceId ?? null
+}
+
+/**
+ * Offers a pending call to its device by opening its pickup window. Only an unowned pending call
+ * on a bound run can be offered, and only once.
+ */
+export async function offerDesktopCall(input: {
+  toolCallId: string
+  runId: string
+  pickupGraceMs: number
+}): Promise<boolean> {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      executionLeaseExpiresAt: sql`clock_timestamp() + ${input.pickupGraceMs} * interval '1 millisecond'`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.runId, input.runId),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+        isNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionLeaseExpiresAt),
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId}
+          AND r.desktop_device_id IS NOT NULL)`
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  return Boolean(row)
+}
+
+/** Where a supervised call stands, measured on the database clock every CAS uses. */
+export async function getDesktopCallState(toolCallId: string) {
+  const [row] = await db
+    .select({
+      status: copilotAsyncToolCalls.status,
+      ownerToken: copilotAsyncToolCalls.executionOwnerToken,
+      result: copilotAsyncToolCalls.result,
+      msUntilLeaseEnd: sql<
+        number | null
+      >`(extract(epoch from (${copilotAsyncToolCalls.executionLeaseExpiresAt} - clock_timestamp())) * 1000)::float8`,
+    })
+    .from(copilotAsyncToolCalls)
+    .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+    .limit(1)
+  return row ?? null
+}
+
+interface DesktopCallFailure {
+  toolCallId: string
+  runId: string
+  result: AsyncCompletionData
+  error: string
+}
+
+/**
+ * Fails a call nobody claimed: the inverse CAS of the claim, so exactly one of the two wins.
+ * `deadlinePassed` limits it to a call whose pickup window has closed.
+ */
+export async function failUnclaimedDesktopCall(
+  input: DesktopCallFailure & { deadlinePassed: boolean }
+): Promise<boolean> {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      status: ASYNC_TOOL_STATUS.failed,
+      result: sanitizeValueForJsonb(input.result),
+      error: input.error,
+      completedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.runId, input.runId),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+        isNull(copilotAsyncToolCalls.executionOwnerToken),
+        input.deadlinePassed
+          ? sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+          : undefined
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  return Boolean(row)
+}
+
+/**
+ * Fails a claimed call whose lease lapsed with this token still on it. The token stays on the row,
+ * so the device's late result is answered as superseded and acknowledges the cancellation.
+ */
+export async function failLapsedDesktopCall(
+  input: DesktopCallFailure & { ownerToken: string }
+): Promise<boolean> {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      status: ASYNC_TOOL_STATUS.failed,
+      result: sanitizeValueForJsonb(input.result),
+      error: input.error,
+      claimedBy: null,
+      claimedAt: null,
+      completedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.runId, input.runId),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+        eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  return Boolean(row)
+}

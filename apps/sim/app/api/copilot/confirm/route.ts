@@ -2,11 +2,12 @@ import { isBrowserToolName, isCurrentBrowserToolName } from '@sim/browser-protoc
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isDesktopExecutorTool } from '@/lib/desktop/executor/tools'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -226,6 +227,20 @@ export const POST = withRouteHandler((req: NextRequest) => {
         if (run.userId !== authenticatedUserId) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        if (
+          run.desktopDeviceId &&
+          isDesktopExecutorTool(existing.toolName, toRecord(existing.args))
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
+          return NextResponse.json(
+            {
+              error:
+                "This chat's desktop actions report through the desktop app's background executor",
+            },
+            { status: 409 }
+          )
         }
 
         const isWorkflowTool = isWorkflowToolName(existing.toolName || '')

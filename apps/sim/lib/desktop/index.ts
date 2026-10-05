@@ -160,6 +160,9 @@ export interface DesktopChatCapabilities {
     terminal?: true
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
+    /** The desktop's background executor, offered to run this turn's desktop tools. */
+    deviceId?: string
+    executor?: number
   }
 }
 
@@ -212,6 +215,9 @@ export async function getDesktopChatCapabilities(
           .then((state) => state.sessions)
           .catch(() => [])
       : []
+  const executorDevice = bridge?.desktopExecutor
+    ? await bridge.desktopExecutor.getDevice().catch(() => null)
+    : null
   return {
     ...(localFiles || localFilesystem || browser || terminal
       ? {
@@ -222,6 +228,9 @@ export async function getDesktopChatCapabilities(
             ...(terminal ? { terminal: true as const } : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
+            ...(executorDevice
+              ? { deviceId: executorDevice.deviceId, executor: executorDevice.protocolVersion }
+              : {}),
           },
         }
       : {}),

@@ -1072,6 +1072,20 @@ interface SimDesktopServerApi {
   setOrigin(origin: string): Promise<DesktopServerChangeResult>
 }
 
+/** The device the desktop app registered for its background executor. */
+interface DesktopExecutorDevice {
+  /** The install id Sim binds a turn to. */
+  deviceId: string
+  /** The executor protocol version Sim accepted at registration. */
+  protocolVersion: number
+}
+
+/** The background executor in the desktop main process. */
+interface SimDesktopExecutorApi {
+  /** Null until the device registers, and whenever Sim reports the executor off. */
+  getDevice(): Promise<DesktopExecutorDevice | null>
+}
+
 export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
@@ -1117,6 +1131,11 @@ export interface SimDesktopApi {
   /** Saved passwords and user-driven fill for the built-in browser. */
   browserCredentials: SimDesktopBrowserCredentialsApi
   terminal: SimDesktopTerminalApi
+  /**
+   * Runs desktop tools for chats the user is not viewing. Optional: shells without one leave
+   * desktop tools to the chat view.
+   */
+  desktopExecutor?: SimDesktopExecutorApi
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
