@@ -705,7 +705,18 @@ export class ExecutionLogger {
     // the log's large values must get the logs policy applied like inline content
     // does. Masking is idempotent, so already-masked spans are unaffected; a ref
     // that can't be materialized/re-stored falls back to a marker.
-    const working = await redactLargeValueRefs(payload, {
+    // Completed runs hand over live execution state rather than a JSON clone;
+    // normalize it (Dates to strings, undefined dropped) so masking sees the
+    // same shapes the persisted state will have.
+    const normalizedPayload =
+      payload.executionState === undefined
+        ? payload
+        : {
+            ...payload,
+            // utils-lint-allow: JSON normalization of the state, not a deep clone
+            executionState: JSON.parse(JSON.stringify(payload.executionState)),
+          }
+    const working = await redactLargeValueRefs(normalizedPayload, {
       entityTypes: config.entityTypes,
       language: config.language,
       customPatterns: config.customPatterns,

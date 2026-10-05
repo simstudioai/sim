@@ -183,12 +183,12 @@ function serializeParallelExecutions(
   return result
 }
 
-export function serializePauseSnapshot(
+function buildExecutionSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[],
   dag?: DAG,
   edgeManager?: EdgeManager
-): SerializedSnapshot {
+): { snapshot: ExecutionSnapshot; state: SerializableExecutionState } {
   const metadataFromContext = context.metadata as ExecutionMetadata | undefined
   let useDraftState: boolean
   if (metadataFromContext?.useDraftState !== undefined) {
@@ -316,9 +316,76 @@ export function serializePauseSnapshot(
     context.selectedOutputs,
     state
   )
+  return { snapshot, state }
+}
 
+export function serializePauseSnapshot(
+  context: ExecutionContext,
+  triggerBlockIds: string[],
+  dag?: DAG,
+  edgeManager?: EdgeManager
+): SerializedSnapshot {
   return {
-    snapshot: snapshot.toJSON(),
+    snapshot: buildExecutionSnapshot(context, triggerBlockIds, dag, edgeManager).snapshot.toJSON(),
     triggerIds: triggerBlockIds,
+  }
+}
+
+/**
+ * Throws exactly where `JSON.stringify(value)` would — a cycle or a BigInt,
+ * after applying `toJSON` — without building the string. Iterative, so nesting
+ * that native serialization handles cannot overflow the JS stack here.
+ */
+function assertJsonSerializable(value: unknown): void {
+  type Frame = { kind: 'visit'; value: unknown; key: string } | { kind: 'exit'; node: object }
+  const ancestors = new Set<object>()
+  const stack: Frame[] = [{ kind: 'visit', value, key: '' }]
+  for (let frame = stack.pop(); frame; frame = stack.pop()) {
+    if (frame.kind === 'exit') {
+      ancestors.delete(frame.node)
+      continue
+    }
+    let current = frame.value
+    if ((typeof current === 'object' && current !== null) || typeof current === 'bigint') {
+      const toJSON = (current as { toJSON?: unknown }).toJSON
+      if (typeof toJSON === 'function') current = toJSON.call(current, frame.key)
+    }
+    if (typeof current === 'bigint' || current instanceof BigInt) {
+      throw new TypeError('Do not know how to serialize a BigInt')
+    }
+    if (typeof current !== 'object' || current === null) continue
+    if (ancestors.has(current)) {
+      throw new TypeError('Converting circular structure to JSON')
+    }
+    ancestors.add(current)
+    stack.push({ kind: 'exit', node: current })
+    const keys = Array.isArray(current) ? Array.from(current.keys(), String) : Object.keys(current)
+    for (let index = keys.length - 1; index >= 0; index--) {
+      const key = keys[index]
+      stack.push({ kind: 'visit', value: (current as Record<string, unknown>)[key], key })
+    }
+  }
+}
+
+/**
+ * Execution state for a run whose blocks have all settled. Validates and fails
+ * exactly like `JSON.parse(serializePauseSnapshot(...).snapshot).state`, but
+ * skips that full JSON clone: block logs and block states are shallow copies
+ * sharing their inputs and outputs with the run, and JSON normalization is left
+ * to whoever serializes the state.
+ */
+export function buildCompletedExecutionState(
+  context: ExecutionContext,
+  dag?: DAG,
+  edgeManager?: EdgeManager
+): SerializableExecutionState {
+  const { snapshot, state } = buildExecutionSnapshot(context, [], dag, edgeManager)
+  assertJsonSerializable(snapshot.toSerializable())
+  return {
+    ...state,
+    blockLogs: state.blockLogs.map((log) => ({ ...log })),
+    blockStates: Object.fromEntries(
+      Object.entries(state.blockStates).map(([blockId, blockState]) => [blockId, { ...blockState }])
+    ),
   }
 }

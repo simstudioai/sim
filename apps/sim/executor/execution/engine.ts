@@ -5,7 +5,10 @@ import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import {
+  buildCompletedExecutionState,
+  serializePauseSnapshot,
+} from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type {
@@ -147,7 +150,7 @@ export class ExecutionEngine {
         success: true,
         output: this.finalOutput,
         logs: this.context.blockLogs,
-        executionState: this.getSerializableExecutionState(),
+        executionState: this.getCompletedExecutionState(),
         metadata: this.context.metadata,
       }
     } catch (error) {
@@ -583,6 +586,22 @@ export class ExecutionEngine {
         state?: SerializableExecutionState
       }
       return parsedSnapshot.state
+    } catch (error) {
+      this.execLogger.warn('Failed to serialize execution state', {
+        error: toError(error).message,
+      })
+      return undefined
+    }
+  }
+
+  /**
+   * State for a run whose blocks have all settled, without the JSON round-trip.
+   * Cancelled and failed runs keep {@link getSerializableExecutionState}: a block
+   * still running there could mutate the logs after the run returns.
+   */
+  private getCompletedExecutionState(): SerializableExecutionState | undefined {
+    try {
+      return buildCompletedExecutionState(this.context, this.dag, this.edgeManager)
     } catch (error) {
       this.execLogger.warn('Failed to serialize execution state', {
         error: toError(error).message,
