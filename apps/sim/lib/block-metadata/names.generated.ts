@@ -83,6 +83,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   exa: 'Exa',
   extend_v2: 'Extend',
   fathom: 'Fathom',
+  figma: 'Figma',
   file_v5: 'File',
   findymail: 'Findymail',
   firecrawl: 'Firecrawl',

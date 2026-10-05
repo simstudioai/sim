@@ -572,6 +572,8 @@ export const env = createEnv({
     SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
+    FIGMA_CLIENT_ID:                       z.string().optional(),
+    FIGMA_CLIENT_SECRET:                   z.string().optional(),
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
