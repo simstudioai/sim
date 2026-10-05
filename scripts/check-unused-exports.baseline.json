@@ -4823,7 +4823,6 @@
   "apps/sim/lib/managed-agents/session-client.ts#SessionStopReason",
   "apps/sim/lib/managed-agents/session-client.ts#SessionUsage",
   "apps/sim/lib/mcp/application/operations.ts#McpServerOperation",
-  "apps/sim/lib/mcp/application/use-cases.ts#reconfigureMcpServerUseCase",
   "apps/sim/lib/mcp/application/use-cases.ts#registerMcpServerUseCase",
   "apps/sim/lib/mcp/constants.ts#MAX_MCP_PARAMETER_SCHEMA_BYTES=MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES",
   "apps/sim/lib/mcp/constants.ts#MAX_MCP_SERVER_TOOLS_METADATA_BYTES=MAX_MCP_TOOLS_LIST_RESPONSE_BYTES",
