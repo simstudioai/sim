@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   isMemorySpacesEnabled,
   isMothershipModelSelectorEnabled,

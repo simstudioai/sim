@@ -20,7 +20,7 @@ vi.mock('@sim/db', () => ({
 
 import { claimComputerUseTool } from '@/lib/computer-use/repository'
 
-const databaseUrl = process.env.COMPUTER_USE_TEST_DATABASE_URL
+const databaseUrl = process.env.TEST_DATABASE_URL ?? process.env.COMPUTER_USE_TEST_DATABASE_URL
 if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname))
   throw new Error('Computer use tests require an isolated local PostgreSQL schema')
 const schema = `computer_use_${generateShortId()
@@ -29,6 +29,10 @@ const schema = `computer_use_${generateShortId()
 const connection = databaseUrl
   ? postgres(databaseUrl, { max: 6, connection: { search_path: schema } })
   : undefined
+function requireConnection() {
+  if (!connection) throw new Error('Computer use test database is not initialized')
+  return connection
+}
 const runId = '11111111-1111-4111-8111-111111111111'
 const chatId = '22222222-2222-4222-8222-222222222222'
 const input = { toolCallId: 'computer-1', runId, chatId, userId: 'user-1' }
@@ -65,41 +69,41 @@ describe.skipIf(!connection)('computer use one-shot admission in PostgreSQL', ()
     const results = await Promise.all(Array.from({ length: 12 }, () => claimComputerUseTool(input)))
     expect(results.filter(Boolean)).toEqual([{ args: { action: 'list_apps' } }])
     expect(await claimComputerUseTool(input)).toBeNull()
-    const [row] = await connection!`SELECT status, claimed_by FROM copilot_async_tool_calls`
+    const [row] = await requireConnection()`SELECT status, claimed_by FROM copilot_async_tool_calls`
     expect(row).toEqual({ status: 'running', claimed_by: 'desktop-computer' })
   })
   it.each(['complete', 'error', 'cancelled'])('refuses a %s run', async (status) => {
-    await connection!`UPDATE copilot_runs SET status = ${status}`
+    await requireConnection()`UPDATE copilot_runs SET status = ${status}`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
   it('refuses a closed admission even while the run is still active', async () => {
-    await connection!`UPDATE copilot_runs SET tool_admission_closed_at = now()`
+    await requireConnection()`UPDATE copilot_runs SET tool_admission_closed_at = now()`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
   it('refuses old calls and leaves them unclaimed', async () => {
-    await connection!`UPDATE copilot_async_tool_calls SET created_at = now() - interval '3 minutes'`
+    await requireConnection()`UPDATE copilot_async_tool_calls SET created_at = now() - interval '3 minutes'`
     expect(await claimComputerUseTool(input)).toBeNull()
-    const [row] = await connection!`SELECT status FROM copilot_async_tool_calls`
+    const [row] = await requireConnection()`SELECT status FROM copilot_async_tool_calls`
     expect(row.status).toBe('pending')
   })
   it('binds run, chat and human owner independently', async () => {
     expect(await claimComputerUseTool({ ...input, userId: 'user-2' })).toBeNull()
     expect(await claimComputerUseTool({ ...input, chatId: runId })).toBeNull()
     expect(await claimComputerUseTool({ ...input, runId: chatId })).toBeNull()
-    await connection!`UPDATE copilot_chats SET user_id = 'user-2'`
+    await requireConnection()`UPDATE copilot_chats SET user_id = 'user-2'`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
   it('rejects malformed canonical targets before consuming a claim', async () => {
-    await connection!`UPDATE copilot_async_tool_calls SET args = '{"action":"click","bundleId":"com.apple.Notes"}'`
+    await requireConnection()`UPDATE copilot_async_tool_calls SET args = '{"action":"click","bundleId":"com.apple.Notes"}'`
     expect(await claimComputerUseTool(input)).toBeNull()
-    const [row] = await connection!`SELECT status, claimed_by FROM copilot_async_tool_calls`
+    const [row] = await requireConnection()`SELECT status, claimed_by FROM copilot_async_tool_calls`
     expect(row).toEqual({ status: 'pending', claimed_by: null })
   })
   it('rejects archived chats and non-computer tool names', async () => {
-    await connection!`UPDATE copilot_chats SET deleted_at = now()`
+    await requireConnection()`UPDATE copilot_chats SET deleted_at = now()`
     expect(await claimComputerUseTool(input)).toBeNull()
-    await connection!`UPDATE copilot_chats SET deleted_at = NULL`
-    await connection!`UPDATE copilot_async_tool_calls SET tool_name = 'terminal'`
+    await requireConnection()`UPDATE copilot_chats SET deleted_at = NULL`
+    await requireConnection()`UPDATE copilot_async_tool_calls SET tool_name = 'terminal'`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
 })

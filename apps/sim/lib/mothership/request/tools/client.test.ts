@@ -6,11 +6,12 @@ import {
 } from '@sim/testing/mocks/mothership-async-runs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { waitForToolConfirmation, getTrustedWorkflowToolExecution, getToolConfirmation } = vi.hoisted(() => ({
-  waitForToolConfirmation: vi.fn(),
-  getToolConfirmation: vi.fn(),
-  getTrustedWorkflowToolExecution: vi.fn(),
-}))
+const { waitForToolConfirmation, getTrustedWorkflowToolExecution, getToolConfirmation } =
+  vi.hoisted(() => ({
+    waitForToolConfirmation: vi.fn(),
+    getToolConfirmation: vi.fn(),
+    getTrustedWorkflowToolExecution: vi.fn(),
+  }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 

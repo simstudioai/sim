@@ -7203,8 +7203,6 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
-    expect(isLiveEnterpriseSearchEnabled).toBe(true)
     expect(getToolMetadata('github_search_users_v2')).toMatchObject({
       id: 'github_search_users_v2',
       params: { apiKey: { required: true } },

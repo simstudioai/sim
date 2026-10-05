@@ -1,10 +1,11 @@
 /** @vitest-environment node */
 import { authMockFns } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn(), rate: vi.fn() }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('@/lib/computer-use/application/authorize', () => ({
   authorizeComputerUse: {
     operation: {
@@ -14,10 +15,6 @@ vi.mock('@/lib/computer-use/application/authorize', () => ({
     },
     execute: mocks.execute,
   },
-}))
-vi.mock('@/lib/core/rate-limiter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/rate-limiter')>()),
-  enforceUserRateLimit: mocks.rate,
 }))
 
 import { POST } from '@/app/api/desktop/computer/authorize/route'
@@ -30,12 +27,11 @@ const request = (body: unknown) =>
   })
 describe('computer authorization route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
-    mocks.rate.mockResolvedValue(null)
+    rateLimiterMockFns.mockEnforceUserRateLimit.mockResolvedValue(null)
     mocks.execute.mockResolvedValue({
       toolName: 'computer',
       chatId: 'chat-1',
@@ -68,7 +64,11 @@ describe('computer authorization route', () => {
         input: { toolCallId: 'call-1' },
       })
     )
-    expect(mocks.rate).toHaveBeenCalledWith('desktop-computer-use', 'user-1', undefined)
+    expect(rateLimiterMockFns.mockEnforceUserRateLimit).toHaveBeenCalledWith(
+      'desktop-computer-use',
+      'user-1',
+      undefined
+    )
   })
   it.each([
     ['not_found', 404],
@@ -78,3 +78,5 @@ describe('computer authorization route', () => {
     expect((await POST(request({ toolCallId: 'call-1' }))).status).toBe(status)
   })
 })
+
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)

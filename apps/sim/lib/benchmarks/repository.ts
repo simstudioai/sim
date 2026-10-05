@@ -463,6 +463,7 @@ export async function reviewBenchmarkRunRecord(
     if (input.correct !== null)
       reviews.push({ id: input.blankId, correct: input.correct, note: input.note })
     const overrides = new Map(reviews.map((review) => [review.id, review.correct]))
+    const reviewedAt = new Date()
     const next = benchmarkRunSchema.parse({
       ...current,
       reviews,
@@ -470,7 +471,7 @@ export async function reviewBenchmarkRunRecord(
       correct: current.artifacts.grade.filter((grade) => overrides.get(grade.id) ?? grade.correct)
         .length,
       version: current.version + 1,
-      reviewedAt: new Date().toISOString(),
+      reviewedAt: reviewedAt.toISOString(),
     })
     await tx
       .update(mothershipBenchmarkRuns)
@@ -478,7 +479,7 @@ export async function reviewBenchmarkRunRecord(
         reviews: next.reviews,
         correct: next.correct,
         version: next.version,
-        reviewedAt: new Date(next.reviewedAt!),
+        reviewedAt,
       })
       .where(eq(mothershipBenchmarkRuns.id, input.runId))
     return next

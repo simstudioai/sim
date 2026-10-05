@@ -22,7 +22,7 @@ import {
   updateBenchmarkContract,
 } from '@/lib/api/contracts/benchmarks'
 
-export const benchmarkKeys = {
+const benchmarkKeys = {
   all: ['benchmarks'] as const,
   lists: () => [...benchmarkKeys.all, 'list'] as const,
   list: (organizationId: string, runAsUserId?: string) =>
@@ -49,7 +49,7 @@ export const benchmarkKeys = {
     [...benchmarkKeys.runs(), organizationId, benchmarkId, runId] as const,
 }
 
-export const BENCHMARK_STALE_TIME = 10_000
+const BENCHMARK_STALE_TIME = 10_000
 const BENCHMARK_POLL_INTERVAL = 2_000
 const BENCHMARK_PAGE_SIZE = 20
 

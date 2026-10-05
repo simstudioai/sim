@@ -1,18 +1,19 @@
 /** @vitest-environment node */
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getTool: vi.fn(),
-  getRun: vi.fn(),
   ownedChat: vi.fn(),
-  permission: vi.fn(),
   available: vi.fn(),
   claim: vi.fn(),
-  organization: vi.fn(),
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall: mocks.getTool,
-  getRunSegment: mocks.getRun,
 }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mocks.ownedChat,
@@ -21,13 +22,6 @@ vi.mock('@/lib/computer-use/availability.server', () => ({
   isComputerUseAvailable: mocks.available,
 }))
 vi.mock('@/lib/computer-use/repository', () => ({ claimComputerUseTool: mocks.claim }))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.organization,
-}))
 
 import { authorizeComputerUse } from '@/lib/computer-use/application/authorize'
 
@@ -54,11 +48,14 @@ const context = {
 
 describe('native computer authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getTool.mockResolvedValue({ toolName: 'computer', status: 'pending', runId: 'run-1' })
-    mocks.getRun.mockResolvedValue(run)
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValue({
+      toolName: 'computer',
+      status: 'pending',
+      runId: 'run-1',
+    })
+    mothershipAsyncRunsMockFns.mockGetRunSegment.mockResolvedValue(run)
     mocks.ownedChat.mockResolvedValue(context)
-    mocks.permission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.available.mockResolvedValue(true)
     mocks.claim.mockResolvedValue({ args: { action: 'list_apps' } })
   })
@@ -82,7 +79,7 @@ describe('native computer authorization', () => {
         input,
       })
     ).rejects.toThrow()
-    expect(mocks.getTool).not.toHaveBeenCalled()
+    expect(mothershipAsyncRunsMockFns.mockGetAsyncToolCall).not.toHaveBeenCalled()
   })
   it('rejects disabled rollout without claiming an action', async () => {
     mocks.available.mockResolvedValue(false)
@@ -90,7 +87,7 @@ describe('native computer authorization', () => {
     expect(mocks.claim).not.toHaveBeenCalled()
   })
   it('rechecks current workspace membership', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow()
     expect(mocks.claim).not.toHaveBeenCalled()
   })
@@ -99,7 +96,7 @@ describe('native computer authorization', () => {
     { status: 'cancelled' },
     { toolAdmissionClosedAt: new Date() },
   ])('rejects a foreign or stopped run %j', async (change) => {
-    mocks.getRun.mockResolvedValue({ ...run, ...change })
+    mothershipAsyncRunsMockFns.mockGetRunSegment.mockResolvedValue({ ...run, ...change })
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow('not found')
     expect(mocks.claim).not.toHaveBeenCalled()
   })
@@ -117,7 +114,11 @@ describe('native computer authorization', () => {
     )
   })
   it('uses the organization policy for an organization-owned private chat', async () => {
-    mocks.getRun.mockResolvedValue({ ...run, workspaceId: null, organizationId: 'org-1' })
+    mothershipAsyncRunsMockFns.mockGetRunSegment.mockResolvedValue({
+      ...run,
+      workspaceId: null,
+      organizationId: 'org-1',
+    })
     mocks.ownedChat.mockResolvedValue({
       chatId: 'chat-1',
       userId: 'user-1',
@@ -125,7 +126,9 @@ describe('native computer authorization', () => {
       mode: 'agent',
     })
     await authorizeComputerUse.execute({ principal, input })
-    expect(mocks.organization).toHaveBeenCalledWith(
+    expect(
+      organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+    ).toHaveBeenCalledWith(
       principal,
       expect.objectContaining({
         id: 'desktop.computer.execute',
@@ -136,10 +139,18 @@ describe('native computer authorization', () => {
     )
   })
   it('propagates infrastructure failures without disguising them as access refusals', async () => {
-    mocks.getTool.mockRejectedValue(new Error('database unavailable'))
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockRejectedValue(
+      new Error('database unavailable')
+    )
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow(
       'database unavailable'
     )
     expect(mocks.claim).not.toHaveBeenCalled()
   })
 })
+
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)

@@ -1,19 +1,17 @@
 /** @vitest-environment node */
 import { ComputerUseError } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ status: vi.fn(), execute: vi.fn() }))
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => ({
-    computerUse: { getStatus: mocks.status, executeTool: mocks.execute },
-  }),
-}))
 
 import { executeComputerUseTool } from '@/lib/computer-use/transport'
 
 describe('computer transport', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({
+      computerUse: { getStatus: mocks.status, executeTool: mocks.execute },
+    })
     mocks.status.mockResolvedValue({ supported: true, enabled: true })
     mocks.execute.mockResolvedValue({ kind: 'apps', apps: [] })
   })
@@ -79,3 +77,5 @@ describe('computer transport', () => {
     await expect(executeComputerUseTool('call', { action: 'list_apps' })).rejects.toThrow()
   })
 })
+
+vi.mock('@/lib/desktop', () => libDesktopMock)

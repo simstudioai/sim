@@ -1,3 +1,5 @@
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -7,8 +9,6 @@ import {
   mothershipGoFetchMockFns,
 } from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
-import { setEnv } from '@sim/testing/mocks/env.mock'
-import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

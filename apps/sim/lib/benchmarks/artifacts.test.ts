@@ -55,13 +55,15 @@ describe('benchmark reference integrity', () => {
   })
 
   it('rejects unscored masks and duplicate answer identifiers', () => {
+    const firstBlank = artifacts.blanks[0]
+    if (!firstBlank) throw new Error('Missing blank fixture')
     expect(() =>
       validateBenchmarkRedaction({ ...artifacts, redactedSpec: '[[BLANK:unknown]]' })
     ).toThrow()
     expect(() =>
       validateBenchmarkRedaction({
         ...artifacts,
-        blanks: [...artifacts.blanks, artifacts.blanks[0]!],
+        blanks: [...artifacts.blanks, firstBlank],
       })
     ).toThrow()
   })

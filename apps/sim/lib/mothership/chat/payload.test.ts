@@ -28,7 +28,13 @@ import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames, mockComputerUseAvailable, mockSearchIntegrationToolsEnabled } = vi.hoisted(() => ({
+const {
+  mockCreateUserToolSchema,
+  mockDashboardAvailability,
+  mockSecretNames,
+  mockComputerUseAvailable,
+  mockSearchIntegrationToolsEnabled,
+} = vi.hoisted(() => ({
   mockDashboardAvailability: vi.fn(async () => false),
   mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
@@ -83,14 +89,14 @@ vi.mocked(getToolMetadata).mockImplementation((id) =>
   id === gmailListLabelsV2Tool.id
     ? gmailListLabelsV2Tool
     : id === 'github_search_users_v2'
-    ? searchUsersV2Tool
-    : id === 'gmail_send'
-      ? {
-          id,
-          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
-          oauth: { required: true, provider: 'google-email' },
-        }
-      : undefined
+      ? searchUsersV2Tool
+      : id === 'gmail_send'
+        ? {
+            id,
+            params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+            oauth: { required: true, provider: 'google-email' },
+          }
+        : undefined
 )
 permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockImplementation(
   (...args) => mockGetUserPermissionConfig(...args)

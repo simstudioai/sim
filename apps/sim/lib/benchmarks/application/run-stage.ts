@@ -147,25 +147,27 @@ async function performStage(
       }
     }
     case 'reconstruct': {
+      const generatedSpec = artifacts.generatedSpec
+      if (!generatedSpec)
+        throw new OrchestrationError('validation', 'Generate a specification before reconstruction')
       const { data: result, toolCalls } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
         schema: reconstructionSchema,
         messages: reconstructionMessages(artifacts.redactedSpec),
-        profile: { stage: 'resolve', spec: artifacts.generatedSpec! },
+        profile: { stage: 'resolve', spec: generatedSpec },
       })
       validateReconstruction(artifacts.blanks, result.answers)
-      const reconstruction = verifyRecoveryEvidence(
-        artifacts.generatedSpec!,
-        result.answers,
-        toolCalls
-      )
+      const reconstruction = verifyRecoveryEvidence(generatedSpec, result.answers, toolCalls)
       return {
         artifacts: { ...artifacts, recoveryMode: 'references', reconstruction, grade: null },
       }
     }
     case 'grade': {
+      const { reconstruction, generatedSpec } = artifacts
+      if (!reconstruction || !generatedSpec)
+        throw new OrchestrationError('validation', 'Reconstruct a specification before grading')
       const { data: result } = await executeBenchmarkJson({
         principal,
         benchmark,
@@ -175,8 +177,8 @@ async function performStage(
       })
       const grade = gradeReconstruction({
         blanks: artifacts.blanks,
-        reconstruction: artifacts.reconstruction!,
-        generatedSpec: artifacts.generatedSpec!,
+        reconstruction,
+        generatedSpec,
         judgments: result.judgments,
       })
       return { artifacts: { ...artifacts, grade } }

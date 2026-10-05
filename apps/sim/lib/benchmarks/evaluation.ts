@@ -37,8 +37,9 @@ export function gradeReconstruction(input: {
   const answers = new Map(input.reconstruction.map((answer) => [answer.id, answer]))
   const judgments = new Map(input.judgments.map((judgment) => [judgment.id, judgment]))
   return input.blanks.map(({ id }) => {
-    const answer = answers.get(id)!
-    const judgment = judgments.get(id)!
+    const answer = answers.get(id)
+    const judgment = judgments.get(id)
+    if (!answer || !judgment) throw new Error(`Missing reconstruction or judgment for ${id}`)
     if (answer.evidenceError) return { ...judgment, correct: false, reason: answer.evidenceError }
     if (
       !answer.answer.trim() ||

@@ -125,7 +125,6 @@ export type BenchmarkArtifacts = z.infer<typeof benchmarkArtifactsSchema>
 export type BenchmarkEditablePatch = z.infer<typeof benchmarkEditablePatchSchema>
 export type BenchmarkSummary = z.infer<typeof benchmarkSummarySchema>
 export type BenchmarkCase = z.infer<typeof benchmarkCaseSchema>
-export type BenchmarkRun = z.infer<typeof benchmarkRunSchema>
 
 export function emptyBenchmarkArtifacts(taskBrief = ''): BenchmarkArtifacts {
   return {

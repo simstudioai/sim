@@ -39,8 +39,9 @@ vi.mock('@/lib/mothership/feature-flags', () => ({
   isSearchIntegrationToolsEnabled: searchIntegrationToolsEnabled,
 }))
 beforeEach(() => searchIntegrationToolsEnabled.mockResolvedValue(true))
-vi.mocked(getToolMetadata).mockImplementation((id) => (id === slackGetUserTool.id ? slackGetUserTool : undefined))
-
+vi.mocked(getToolMetadata).mockImplementation((id) =>
+  id === slackGetUserTool.id ? slackGetUserTool : undefined
+)
 
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 

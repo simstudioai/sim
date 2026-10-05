@@ -82,7 +82,7 @@ export class ComputerUseError extends Error {
 }
 
 /** Optional so a new web deployment remains compatible with older desktop shells. */
-export interface SimDesktopComputerUseApi {
+interface SimDesktopComputerUseApi {
   getStatus(): Promise<ComputerUseStatus>
   setEnabled(enabled: boolean): Promise<ComputerUseStatus>
   requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>

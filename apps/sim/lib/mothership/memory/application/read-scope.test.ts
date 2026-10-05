@@ -1,6 +1,12 @@
 /** @vitest-environment node */
 import { copilotChats, member, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTrustedCopilotPrincipal,
@@ -9,18 +15,7 @@ import {
 import { MEMORY_SCOPE_AUDIENCE, readMemoryScope } from './read-scope'
 
 const mocks = vi.hoisted(() => ({
-  config: vi.fn(),
-  banned: vi.fn(),
-  permission: vi.fn(),
   capability: vi.fn(),
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.permission,
 }))
 vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
@@ -41,11 +36,12 @@ function queueChat(mode = 'plan', membership = true) {
 }
 describe('private memory scope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.banned.mockResolvedValue([])
-    mocks.config.mockResolvedValue(null)
-    mocks.permission.mockResolvedValue('read')
+    authBanMockFns.mockGetActivelyBannedUserIds.mockResolvedValue([])
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(
+      null
+    )
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.capability.mockResolvedValue(undefined)
   })
   it.each(['plan', 'agent'])('resolves the current %s chat owner', async (mode) => {
@@ -80,7 +76,7 @@ describe('private memory scope', () => {
     await expect(readMemoryScope.execute({ principal: principal(), input })).rejects.toThrow()
     resetDbChainMock()
     queueChat()
-    mocks.banned.mockResolvedValue(['actor'])
+    authBanMockFns.mockGetActivelyBannedUserIds.mockResolvedValue(['actor'])
     await expect(readMemoryScope.execute({ principal: principal(), input })).rejects.toThrow()
   })
   it('derives workspace organization from canonical state and rechecks access on every call', async () => {
@@ -122,11 +118,11 @@ describe('private memory scope', () => {
     )
     resetDbChainMock()
     queueWorkspace()
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(readMemoryScope.execute({ principal: caller, input })).rejects.toThrow()
     resetDbChainMock()
     queueWorkspace()
-    mocks.permission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     await expect(
       readMemoryScope.execute({
         principal: { ...caller, resourceScope: { chatId: 'other' } },
@@ -141,3 +137,9 @@ describe('private memory scope', () => {
     )
   })
 })
+
+vi.mock('@/lib/auth/ban', () => authBanMock)
+
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)

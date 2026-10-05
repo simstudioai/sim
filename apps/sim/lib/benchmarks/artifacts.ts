@@ -39,7 +39,7 @@ export function validateBenchmarkRedaction(
   const seen = new Set<string>()
   const restored = artifacts.redactedSpec.replace(
     /\[\[BLANK:([A-Za-z0-9_-]+)\]\]/g,
-    (marker, id: string) => {
+    (_marker, id: string) => {
       const answer = answers.get(id)
       if (answer === undefined)
         throw new OrchestrationError('validation', `Unknown blank marker: ${id}`)

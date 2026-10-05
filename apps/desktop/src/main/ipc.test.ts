@@ -656,7 +656,8 @@ describe('registerIpcHandlers', () => {
     })
     deps.computerUse = service
     const cancel = vi.spyOn(service, 'cancel')
-    const execute = collectHandlers().invoke.get('computer-use:execute-tool')!
+    const execute = collectHandlers().invoke.get('computer-use:execute-tool')
+    if (!execute) throw new Error('Computer use handler was not registered')
     return { native, approveApp, status, cancel, execute }
   }
 

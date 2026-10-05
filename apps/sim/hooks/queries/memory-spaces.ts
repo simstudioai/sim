@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/contracts/memory-spaces'
 
 const MEMORY_SPACES_STALE_TIME = 10_000
-export const memorySpacesKeys = {
+const memorySpacesKeys = {
   all: ['memory-spaces'] as const,
   list: (organizationId: string) => [...memorySpacesKeys.all, organizationId] as const,
 }

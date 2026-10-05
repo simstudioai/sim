@@ -82,7 +82,8 @@ describe('Independent Plan preferences', () => {
     })
     useMothershipPlanEffortStore.getState().setModel('gpt-6-astra')
     useMothershipPlanEffortStore.getState().setNewChatEffort('xhigh')
-    const saved = localStorage.getItem('mothership-plan-effort')!
+    const saved = localStorage.getItem('mothership-plan-effort')
+    if (!saved) throw new Error('Plan effort was not persisted')
     useMothershipPlanEffortStore.getState().reset()
     localStorage.setItem('mothership-plan-effort', saved)
     await useMothershipPlanEffortStore.persist.rehydrate()

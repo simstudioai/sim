@@ -74,11 +74,11 @@ import {
   measureWithheldContent,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import { toolStatusOutput } from '@/lib/mothership/request/tools/status-output'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
 } from '@/lib/mothership/request/tools/tables'
-import { toolStatusOutput } from '@/lib/mothership/request/tools/tool-status-output'
 import { applyCreateWorkflowOutputToContext } from '@/lib/mothership/request/tools/workflow-context'
 import {
   type ExecutionContext,

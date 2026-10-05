@@ -20,7 +20,7 @@ import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribut
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
-import { toolStatusOutput } from '@/lib/mothership/request/tools/tool-status-output'
+import { toolStatusOutput } from '@/lib/mothership/request/tools/status-output'
 import type {
   ContentBlock,
   ExecutionContext,

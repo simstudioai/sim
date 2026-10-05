@@ -2,18 +2,15 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 
-export const memorySpaceParamsSchema = z.object({ id: organizationIdSchema })
-export const createMemorySpaceBodySchema = z
-  .object({ name: z.string().trim().min(1).max(100) })
-  .strict()
-export const selectMemorySpaceBodySchema = z.object({ spaceId: z.uuid().nullable() }).strict()
-export const memorySpaceSelectionSchema = z.object({ activeSpaceId: z.uuid().nullable() })
-export const memorySpaceListSchema = memorySpaceSelectionSchema.extend({
+const memorySpaceParamsSchema = z.object({ id: organizationIdSchema })
+const createMemorySpaceBodySchema = z.object({ name: z.string().trim().min(1).max(100) }).strict()
+const selectMemorySpaceBodySchema = z.object({ spaceId: z.uuid().nullable() }).strict()
+const memorySpaceSelectionSchema = z.object({ activeSpaceId: z.uuid().nullable() })
+const memorySpaceListSchema = memorySpaceSelectionSchema.extend({
   spaces: z.array(z.object({ id: z.uuid().nullable(), name: z.string() })),
 })
 export type CreateMemorySpaceBody = z.input<typeof createMemorySpaceBodySchema>
 export type SelectMemorySpaceBody = z.input<typeof selectMemorySpaceBodySchema>
-export type MemorySpaceList = z.output<typeof memorySpaceListSchema>
 
 export const listMemorySpacesContract = defineRouteContract({
   method: 'GET',

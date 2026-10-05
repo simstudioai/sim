@@ -923,7 +923,7 @@ async function resolveBranch(params: {
         desktopLocalFiles: payloadParams.desktopLocalFiles,
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
-          computerUse: payloadParams.computerUse,
+        computerUse: payloadParams.computerUse,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),

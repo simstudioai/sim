@@ -105,7 +105,7 @@ async function executeBoundAgentCliRequest(
     ...(files ? { trackDownload: files.trackDownload } : {}),
   })
   const resources: ResourceChange[] = []
-  const identity: EmbeddedCliIdentity = {
+  const identity = {
     endpoint,
     apiKey,
     workspaceId: context.workspaceId,
@@ -127,8 +127,8 @@ async function executeBoundAgentCliRequest(
           AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true)
     ),
     ...(context.signal ? { signal: context.signal } : {}),
-  }
-  if (context.readOnly) identity.transport = readOnlyCliTransport(identity.transport!)
+  } satisfies EmbeddedCliIdentity
+  if (context.readOnly) identity.transport = readOnlyCliTransport(identity.transport)
 
   const { invocation, sink } = request
   let result: AgentCliRawResult

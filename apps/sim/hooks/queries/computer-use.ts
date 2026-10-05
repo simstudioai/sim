@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client'
 import { computerUseAvailabilityContract } from '@/lib/api/contracts/computer-use'
 
-export const computerUseKeys = {
+const computerUseKeys = {
   all: ['computer-use'] as const,
   availability: () => [...computerUseKeys.all, 'availability'] as const,
 }

@@ -1,6 +1,6 @@
 # Organization benchmarks
 
-Enable `MOTHERSHIP_BENCHMARK_ENABLED=true` on Sim and configure `MOTHERSHIP_BENCHMARK_URL` plus the normal Mothership service credentials. `COPILOT_DEV_URL` remains the fallback when the dedicated benchmark URL is unset. Apply the additive Sim and worker migrations before using the console, including Sim migration `0387_benchmark_run_as_user`. The flag alone does not grant access: the authenticated account must be a platform admin with Super User Mode enabled. The server checks this on every benchmark request. Ordinary users cannot open the page or call its APIs.
+Enable `MOTHERSHIP_BENCHMARK_ENABLED=true` on Sim and configure `MOTHERSHIP_BENCHMARK_URL` plus the normal Mothership service credentials. `COPILOT_DEV_URL` remains the fallback when the dedicated benchmark URL is unset. Apply the additive Sim and worker migrations before using the console, including Sim migration `0398_benchmark_run_as_user`. The flag alone does not grant access: the authenticated account must be a platform admin with Super User Mode enabled. The server checks this on every benchmark request. Ordinary users cannot open the page or call its APIs.
 
 Enable `COPILOT_PLAN_MODE=true` on the dev worker. To evaluate graph memory, configure its `MEMORY_URL` and `MEMORY_API_KEY` and use the hosted provider path: the existing BYOK path disables memory. Each benchmark Plan run receives a fresh memory scope, so previous runs cannot supply its answers.
 

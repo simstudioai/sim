@@ -39,7 +39,8 @@
         "app/(landing)/integrations/data/landing-content.ts",
         // Mirrored from the sibling worker's contracts:sync, not app-owned.
         "lib/mothership/generated/account.ts",
-        "lib/mothership/generated/local-files.ts"
+        "lib/mothership/generated/local-files.ts",
+        "lib/mothership/generated/computer-use.ts"
       ],
       // Required/discoverable barrels whose children have direct live imports.
       // Ignore only the barrel file finding, so it cannot keep dead children alive.
@@ -86,7 +87,9 @@
         "src/renderer/*/index.tsx",
         "scripts/*.ts",
         "e2e/fixtures/updater.ts",
-        "e2e/fixtures/worker-restart.ts"
+        "e2e/fixtures/worker-restart.ts",
+        // The native permission test launches this Electron fixture by filename.
+        "native/computer-use/tests/electron-fixture/*.cjs"
       ],
       // ensure-pty-prebuilds.ts assembles these package names for universal builds.
       "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
@@ -107,7 +110,11 @@
     // Generated, so its export surface is not ratcheted either.
     "packages/desktop-bridge": {
       "entry": ["contract-snapshot.ts"],
-      "ignoreIssues": { "contract-snapshot.ts": ["exports", "types", "duplicates"] }
+      "ignoreIssues": {
+        "contract-snapshot.ts": ["exports", "types", "duplicates"],
+        // Mirrored from Mothership; hand edits are overwritten by contracts:sync.
+        "src/computer-use.generated.ts": ["exports", "types", "duplicates"]
+      }
     },
     "packages/sim-cli": {
       "includeEntryExports": false,

@@ -21,7 +21,10 @@ import {
   unsealClientToolContext,
   unsealProjectedClientToolCompletion,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
-import { inspectToolResultForCopilot, TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/mothership/request/tools/resolved-secret-result'
+import {
+  inspectToolResultForCopilot,
+  TOOL_RESULT_UNAVAILABLE_ERROR,
+} from '@/lib/mothership/request/tools/resolved-secret-result'
 import {
   boundRunResultForModel,
   presentWorkflowLogsForModel,

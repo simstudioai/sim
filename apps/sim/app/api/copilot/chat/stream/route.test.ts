@@ -156,7 +156,7 @@ describe('copilot chat stream replay route', () => {
           executionId: 'exec-1',
           id: 'run-1',
         })
-        .mockResolvedValueOnce({
+        .mockResolvedValue({
           status: 'cancelled',
           executionId: 'exec-1',
           id: 'run-1',
@@ -167,6 +167,13 @@ describe('copilot chat stream replay route', () => {
       )
 
       const chunks = await readAllChunks(response)
+      if (elapsedMs >= 3_600_000) {
+        expect(chunks.join('')).not.toContain('"type":"complete"')
+        const reattached = await GET(
+          new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+        )
+        chunks.push(...(await readAllChunks(reattached)))
+      }
       expect(chunks[0]).toBe(': accepted\n\n')
       expect(chunks.join('')).toContain(
         JSON.stringify({
@@ -174,7 +181,7 @@ describe('copilot chat stream replay route', () => {
           reason: 'terminal_status',
         })
       )
-      expect(getLatestRunForStream).toHaveBeenCalledTimes(2)
+      expect(getLatestRunForStream).toHaveBeenCalledTimes(elapsedMs >= 3_600_000 ? 3 : 2)
       clock.mockRestore()
     }
   )

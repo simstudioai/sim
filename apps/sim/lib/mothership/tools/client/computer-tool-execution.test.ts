@@ -24,7 +24,6 @@ const nextId = () => `computer-test-${++sequence}`
 const now = () => new Date().toISOString()
 describe('computer action delivery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.execute.mockResolvedValue({ kind: 'apps', apps: [] })
     mocks.cancel.mockResolvedValue(undefined)
     mocks.complete.mockResolvedValue(undefined)
