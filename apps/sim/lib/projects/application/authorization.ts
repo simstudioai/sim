@@ -125,7 +125,11 @@ async function loadProjectAccess(
             await tx.execute<{ id: string }>(sql`
               SELECT DISTINCT denied.id FROM ${permissionGroup},
                 jsonb_array_elements_text(
-                  COALESCE(${permissionGroup.config}->'deniedPartialAccessProjectIssues', '[]'::jsonb)
+                  CASE
+                    WHEN jsonb_typeof(${permissionGroup.config}->'deniedPartialAccessProjectIssues') = 'array'
+                    THEN ${permissionGroup.config}->'deniedPartialAccessProjectIssues'
+                    ELSE '[]'::jsonb
+                  END
                 ) AS denied(id)
               WHERE ${inArray(permissionGroup.organizationId, organizationIds)}
                 AND denied.id = ANY(${textArrayLiteral(records.map((record) => record.id))})

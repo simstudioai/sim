@@ -134,18 +134,32 @@ export async function archiveEnvironmentInTransaction(
   return { workspaceId, workflows, serverIds }
 }
 
-/** Announces a committed environment archive; every step is best-effort. */
+/**
+ * Announces a committed environment archive. Every step is best-effort and isolated, so
+ * one failed notification never skips the rest.
+ */
 export async function finishEnvironmentArchive(
   effects: EnvironmentArchiveEffects,
   requestId: string
 ): Promise<void> {
+  const { workspaceId } = effects
   await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
-    finishWorkflowArchive(row.id, effects.workspaceId, row.serverIds, { requestId })
+    finishWorkflowArchive(row.id, workspaceId, row.serverIds, { requestId }).catch((error) =>
+      logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
+        error,
+      })
+    )
   )
-  await mcpService.clearCache(effects.workspaceId).catch(() => undefined)
-  if (mcpPubSub) {
-    for (const serverId of effects.serverIds)
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId: effects.workspaceId })
+  await mcpService.clearCache(workspaceId).catch(() => undefined)
+  if (!mcpPubSub) return
+  for (const serverId of effects.serverIds) {
+    try {
+      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+    } catch (error) {
+      logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
+        error,
+      })
+    }
   }
 }
 
@@ -234,15 +248,19 @@ async function archiveWorkspaceRecordsInTransaction(
     .delete(apiKey)
     .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
 
+  /** Every server is announced, so a retry still invalidates; only live ones are stamped. */
   const servers = await tx
+    .select({ id: workflowMcpServer.id })
+    .from(workflowMcpServer)
+    .where(eq(workflowMcpServer.workspaceId, workspaceId))
+  await tx
     .update(workflowMcpServer)
     .set({
       deletedAt: now,
       isPublic: false,
       updatedAt: now,
     })
-    .where(eq(workflowMcpServer.workspaceId, workspaceId))
-    .returning({ id: workflowMcpServer.id })
+    .where(and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt)))
 
   await tx
     .update(mcpServers)
