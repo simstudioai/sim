@@ -103,13 +103,28 @@ export async function requireForkProject(tx: DbTransaction, parentWorkspaceId: s
 
 /** Legacy fallback must not hide partially assigned descendants. Caller holds the lineage lock. */
 async function requireUnassignedForkSubtree(tx: DbTransaction, workspaceId: string): Promise<void> {
-  const rows = await tx.execute<{ id: string }>(sql`
+  const descendants = await tx.execute<{ id: string }>(sql`
     WITH RECURSIVE descendants AS (
       SELECT id FROM workspace WHERE id = ${workspaceId}
       UNION
       SELECT w.id FROM workspace w JOIN descendants d ON w.forked_from_workspace_id = d.id
-    ) SELECT d.id FROM descendants d JOIN project_workspace pw ON pw.workspace_id = d.id LIMIT 1
+    ) SELECT id FROM descendants
   `)
+  if (!descendants.length) return
+  await lockProjectBackfillWrites(
+    tx,
+    descendants.map((row) => row.id)
+  )
+  const rows = await tx
+    .select({ id: projectWorkspace.workspaceId })
+    .from(projectWorkspace)
+    .where(
+      inArray(
+        projectWorkspace.workspaceId,
+        descendants.map((row) => row.id)
+      )
+    )
+    .limit(1)
   if (rows.length)
     throw new OrchestrationError(
       'conflict',

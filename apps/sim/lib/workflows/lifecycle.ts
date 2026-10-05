@@ -304,7 +304,6 @@ export async function disableUserResources(userId: string): Promise<void> {
     '@/lib/projects/lifecycle'
   )
   const { lockWorkspaceProject } = await import('@/lib/projects/membership')
-  const owned = new Set(ownedWorkspaces.map((row) => row.id))
   const processed = new Set<string>()
   for (const row of ownedWorkspaces) {
     if (processed.has(row.id)) continue
@@ -312,18 +311,20 @@ export async function disableUserResources(userId: string): Promise<void> {
       const record = await lockWorkspaceProject(tx, row.id)
       if (!record) return null
       const active = await tx
-        .select({ id: workspace.id })
+        .select({ id: workspace.id, ownerId: workspace.ownerId })
         .from(projectWorkspace)
         .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
         .where(and(eq(projectWorkspace.projectId, record.id), isNull(workspace.archivedAt)))
-      if (!active.every((entry) => owned.has(entry.id))) return null
+        .orderBy(workspace.id)
+        .for('no key update', { of: workspace })
+      if (!active.length || !active.every((entry) => entry.ownerId === userId)) return null
       return archiveProjectInTransaction(tx, record.id)
     })
     if (archived) {
       for (const entry of archived.environments) processed.add(entry.id)
       await finishProjectArchive(archived, requestId)
     } else {
-      await archiveWorkspace(row.id, { requestId })
+      await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
       processed.add(row.id)
     }
   }

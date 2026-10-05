@@ -17,7 +17,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
-import { requireRemainingProjectEnvironment } from '@/lib/projects/membership'
+import { lockWorkspaceProject, requireRemainingProjectEnvironment } from '@/lib/projects/membership'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -25,6 +25,7 @@ const logger = createLogger('WorkspaceLifecycle')
 
 interface ArchiveWorkspaceOptions {
   requestId: string
+  expectedOwnerId?: string
 }
 
 export async function archiveWorkspace(
@@ -44,10 +45,21 @@ export async function archiveWorkspace(
     .from(workflowMcpServer)
     .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
-  await db.transaction(async (tx) => {
+  const archived = await db.transaction(async (tx) => {
+    if (options.expectedOwnerId) {
+      await lockWorkspaceProject(tx, workspaceId)
+      const [current] = await tx
+        .select({ ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .for('no key update')
+      if (!current || current.ownerId !== options.expectedOwnerId) return false
+    }
     await requireRemainingProjectEnvironment(tx, workspaceId)
     await archiveWorkspaceInTransaction(tx, workspaceId, now)
+    return true
   })
+  if (!archived) return { archived: false }
 
   await archiveWorkflowsForWorkspace(workspaceId, options)
 

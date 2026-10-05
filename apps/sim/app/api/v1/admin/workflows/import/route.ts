@@ -115,16 +115,18 @@ export const POST = withRouteHandler(
       const workflowId = generateId()
       const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
 
-      await db.insert(workflow).values(
-        await buildNewWorkflowRow(db, {
-          id: workflowId,
-          userId: workspaceData.ownerId,
-          workspaceId,
-          folderId: folderId || null,
-          name: dedupedName,
-          description: workflowDescription,
-        })
-      )
+      await db.transaction(async (tx) => {
+        await tx.insert(workflow).values(
+          await buildNewWorkflowRow(tx, {
+            id: workflowId,
+            userId: workspaceData.ownerId,
+            workspaceId,
+            folderId: folderId || null,
+            name: dedupedName,
+            description: workflowDescription,
+          })
+        )
+      })
 
       /**
        * Same normalization the editor and the v1 import API run, via the one

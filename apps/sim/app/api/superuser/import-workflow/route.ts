@@ -136,17 +136,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       null
     )
 
-    await db.insert(workflow).values(
-      await buildNewWorkflowRow(db, {
-        id: newWorkflowId,
-        userId: session.user.id,
-        workspaceId: targetWorkspaceId,
-        folderId: null,
-        name: dedupedName,
-        description: sourceWorkflow.description,
-        variables: sourceWorkflow.variables || {},
-      })
-    )
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values(
+        await buildNewWorkflowRow(tx, {
+          id: newWorkflowId,
+          userId: session.user.id,
+          workspaceId: targetWorkspaceId,
+          folderId: null,
+          name: dedupedName,
+          description: sourceWorkflow.description,
+          variables: sourceWorkflow.variables || {},
+        })
+      )
+    })
 
     // Save using existing persistence logic
     const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData, {

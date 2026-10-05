@@ -30,6 +30,7 @@ import {
   planHasFixedSeatCap,
   resolveSeatCapacity,
 } from '@/lib/billing/validation/seat-management'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   addOutboxEventSourceOperationId,
   enqueueOrReschedulePendingOutboxEvent,
@@ -117,6 +118,7 @@ export class WorkspaceMoveError extends Error {
       | 'destination-entitlement-downgrade'
       | 'fork-lineage-conflict'
       | 'pending-invitations-present'
+      | 'project-conflict'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -1499,6 +1501,9 @@ export async function moveWorkspaceToOrganization(params: {
       })
       break
     } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        throw new WorkspaceMoveError(error.message, 'project-conflict')
+      }
       if (error instanceof InvitationSetChangedError) {
         candidateInvitationIds = error.invitationIds
         continue

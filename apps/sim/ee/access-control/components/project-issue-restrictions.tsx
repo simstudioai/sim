@@ -1,6 +1,7 @@
 'use client'
 
 import { Checkbox, Chip } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { useProjects } from '@/hooks/queries/projects'
 
 interface ProjectIssueRestrictionsProps {
@@ -16,6 +17,9 @@ export function ProjectIssueRestrictions({
   onChange,
 }: ProjectIssueRestrictionsProps) {
   const projects = useProjects(organizationId)
+  if (projects.isPending || (isApiClientError(projects.error) && projects.error.status === 503)) {
+    return null
+  }
   const selected = new Set(value)
   return (
     <div className='flex flex-col gap-2'>
@@ -24,7 +28,6 @@ export function ProjectIssueRestrictions({
         For selected Projects, teammates governed by this group need access to every active
         environment to use Issues.
       </p>
-      {projects.isPending && <p className='text-small'>Loading Projects…</p>}
       {projects.error && (
         <p className='text-[var(--text-error)] text-small'>{projects.error.message}</p>
       )}
