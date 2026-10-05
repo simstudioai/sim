@@ -495,7 +495,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--stop-after <blockId>',
-      'Stop the run after this saved block; with --from-block on the same block, re-runs only that block (implies --manual)'
+      'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
     )
     .option(
       '--follow',

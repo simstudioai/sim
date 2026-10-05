@@ -1302,7 +1302,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .min(1, 'run.stopAfterBlockId cannot be empty')
         .optional()
         .describe(
-          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. With a block entry naming the same block, re-runs only that block against the source run.'
+          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided, without running the other branches. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
     })
     .strict(),
