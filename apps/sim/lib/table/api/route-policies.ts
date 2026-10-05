@@ -8,6 +8,11 @@ import {
   type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  isTableWriteContention,
+  TABLE_WRITE_CONTENTION_MESSAGE,
+  TABLE_WRITE_CONTENTION_RETRY_AFTER_SECONDS,
+} from '@/lib/table/api/write-contention'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
 import { TableRowTtlDisabledError } from '@/lib/table/errors'
@@ -27,6 +32,9 @@ export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecuto
 })
 
 function renderTableError(error: unknown) {
+  if (isTableWriteContention(error)) {
+    return v2Error('SERVICE_UNAVAILABLE', TABLE_WRITE_CONTENTION_MESSAGE)
+  }
   const classified = asOrchestrationError(error)
   if (classified instanceof TableRowTtlDisabledError) {
     return v2Error('BAD_REQUEST', classified.message, {
@@ -76,8 +84,24 @@ export const v2TableErrorPolicies = {
   } satisfies V2ErrorPolicy,
 } as const
 
-const internalTableGroupErrorPolicy = extendInternalErrorPolicy(
+/**
+ * The base of every internal table policy: a transaction that lost a lock race answers a
+ * retryable 503 rather than falling through to the route's generic 500.
+ */
+const internalTableBaseErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
+  (error) =>
+    isTableWriteContention(error)
+      ? internalErrorResponse(
+          503,
+          { error: TABLE_WRITE_CONTENTION_MESSAGE },
+          { 'Retry-After': String(TABLE_WRITE_CONTENTION_RETRY_AFTER_SECONDS) }
+        )
+      : null
+)
+
+const internalTableGroupErrorPolicy = extendInternalErrorPolicy(
+  internalTableBaseErrorPolicy,
   (error) =>
     error instanceof TableLockedError
       ? internalErrorResponse(423, { error: error.message, lock: error.lock })
@@ -99,7 +123,7 @@ export const internalTableErrorPolicies = {
    */
   bulk: internalTableGroupErrorPolicy,
   concealTableAuthorization: createInternalResourceConcealmentPolicy({
-    base: internalOrchestrationErrorPolicy,
+    base: internalTableBaseErrorPolicy,
     notFoundMessage: 'Table not found',
   }),
   concealTableGroupAuthorization: createInternalResourceConcealmentPolicy({
@@ -107,11 +131,11 @@ export const internalTableErrorPolicies = {
     notFoundMessage: 'Table not found',
   }),
   concealImportAuthorization: createInternalResourceConcealmentPolicy({
-    base: internalOrchestrationErrorPolicy,
+    base: internalTableBaseErrorPolicy,
     notFoundMessage: 'Table import not found',
   }),
   concealExportAuthorization: createInternalResourceConcealmentPolicy({
-    base: internalOrchestrationErrorPolicy,
+    base: internalTableBaseErrorPolicy,
     notFoundMessage: 'Table export not found',
   }),
 } as const
