@@ -771,6 +771,29 @@ describe('session sandbox lease', () => {
     expect(calls.extendLifetime.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('trusts a lease granted by a slow reconnect for the whole call, then refreshes nothing', async () => {
+    const { handle, calls } = fakeSandbox('sb-covered')
+    let grantedUntilMs = 0
+    handle.outlives = (lifetimeMs) => grantedUntilMs >= Date.now() + lifetimeMs
+    mockFindSessionSandbox.mockImplementation(
+      async (_key: string, options: { lifetimeMs?: number }) => {
+        grantedUntilMs = Date.now() + (options.lifetimeMs ?? 0)
+        await sleep(20)
+        return handle
+      }
+    )
+
+    const result = await executeInSandbox({
+      ...CODE_REQUEST,
+      sandboxKind: 'mothership',
+      session: { key: 'mothership-chat:c3' },
+    })
+
+    expect(result.sandboxSession).toBe('reused')
+    expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
+    expect(calls.extendLifetime).toHaveLength(0)
+  })
+
   it('does not rewrite an unchanged executable while earlier code can still use it', async () => {
     const { handle } = fakeSandbox('unchanged-tooling')
     mockFindSessionSandbox.mockResolvedValue(handle)
