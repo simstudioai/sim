@@ -50,6 +50,7 @@ async function loadManualState(workflowId: string) {
 
 type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
 
+/** Blocks a run entering at `entryBlockId` can reach; the executor skips disabled blocks. */
 function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<string> {
   const targetsBySource = new Map<string, string[]>()
   for (const edge of state.edges) {
@@ -61,7 +62,7 @@ function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<st
   const queue = [entryBlockId]
   for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
     for (const target of targetsBySource.get(next) ?? []) {
-      if (reached.has(target)) continue
+      if (reached.has(target) || state.blocks[target]?.enabled === false) continue
       reached.add(target)
       queue.push(target)
     }
@@ -72,10 +73,10 @@ function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<st
 /**
  * The engine stops only when it completes a node whose id equals the target, so
  * a target the run cannot reach would silently run everything after the entry:
- * an unknown id, a block upstream of the entry, or a block inside a loop or
- * parallel (which would stop after its first iteration or never). All are
- * refused, matching the editor, which offers "Run until block" only outside
- * subflows.
+ * an unknown or disabled block, a block upstream of the entry or only behind a
+ * disabled one, or a block inside a loop or parallel (which would stop after its
+ * first iteration or never). All are refused, matching the editor, which offers
+ * "Run until block" only outside subflows.
  */
 function assertStopAfterBlock(
   state: ManualWorkflowState,
@@ -88,6 +89,12 @@ function assertStopAfterBlock(
     throw new OrchestrationError(
       'validation',
       `run.stopAfterBlockId "${blockId}" is not a block in the current saved workflow.`
+    )
+  }
+  if (block.enabled === false) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is disabled, so the run never executes it.`
     )
   }
   if (block.data?.parentId) {

@@ -377,6 +377,37 @@ describe('manual workflow execution application operations', () => {
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
+  it('rejects a disabled stop block, or one reached only through a disabled block', async () => {
+    mockLoadManualState.mockResolvedValue({
+      blocks: {
+        'trigger-1': {},
+        'agent-1': { enabled: false },
+        'agent-2': {},
+      },
+      edges: [
+        { source: 'trigger-1', target: 'agent-1' },
+        { source: 'agent-1', target: 'agent-2' },
+      ],
+    })
+
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-1' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('is disabled') })
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'agent-2' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('not reachable'),
+    })
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
   it('rejects a stop block named by an inherited object key', async () => {
     await expect(
       executeManualWorkflowOperation.execute({
