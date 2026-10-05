@@ -45,7 +45,7 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -350,18 +350,16 @@ async function importSingleWorkflow(
     const workflowId = generateId()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
-    await db.transaction(async (tx) => {
-      await tx.insert(workflow).values(
-        await buildNewWorkflowRow(tx, {
-          id: workflowId,
-          userId: ownerId,
-          workspaceId,
-          folderId: targetFolderId,
-          name: dedupedName,
-          description: workflowData.metadata?.description || 'Imported via Admin API',
-        })
-      )
-    })
+    await db.transaction((tx) =>
+      insertNewWorkflowRow(tx, {
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        folderId: targetFolderId,
+        name: dedupedName,
+        description: workflowData.metadata?.description || 'Imported via Admin API',
+      })
+    )
 
     /**
      * Same normalization the editor, the v1 import API and the single-workflow

@@ -1,32 +1,82 @@
 import { db } from '@sim/db'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { lockProject, lockProjectBackfillWrites } from '@/lib/projects/membership'
+import {
+  lockProject,
+  lockProjectBackfillWrites,
+  ProjectConflictError,
+} from '@/lib/projects/membership'
 
+/** Two indexed lookups; an `OR` around a membership subquery would scan every Project. */
 async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorkspaceIds: string[]) {
+  const doomedMemberships = doomedWorkspaceIds.length
+    ? await executor
+        .select({ projectId: projectWorkspace.projectId })
+        .from(projectWorkspace)
+        .where(inArray(projectWorkspace.workspaceId, doomedWorkspaceIds))
+    : []
   return executor
-    .select({ id: project.id })
+    .select()
     .from(project)
     .where(
       or(
         eq(project.ownerId, userId),
-        doomedWorkspaceIds.length
-          ? sql`${project.id} in (
-      select ${projectWorkspace.projectId} from ${projectWorkspace}
-      where ${inArray(projectWorkspace.workspaceId, doomedWorkspaceIds)}
-    )`
+        doomedMemberships.length
+          ? inArray(
+              project.id,
+              doomedMemberships.map((row) => row.projectId)
+            )
           : undefined
       )
     )
     .orderBy(asc(project.id))
 }
 
-interface ProjectDeletionDecision {
-  blocker?: string
-  remove?: boolean
-  ownerId?: string
+type ProjectDeletionDecision =
+  | { blocker: string }
+  | { remove: true }
+  | { archive: boolean; ownerId?: string }
+
+/** An org admin, else a teammate who administers every surviving environment. */
+async function findProjectSuccessor(
+  executor: DbOrTx,
+  record: typeof project.$inferSelect,
+  userId: string,
+  survivorIds: string[]
+): Promise<string | null> {
+  if (record.organizationId) {
+    const [admin] = await executor
+      .select({ userId: member.userId })
+      .from(member)
+      .where(
+        and(
+          eq(member.organizationId, record.organizationId),
+          ne(member.userId, userId),
+          inArray(member.role, ORG_ADMIN_ROLES)
+        )
+      )
+      .orderBy(asc(member.userId))
+      .limit(1)
+    if (admin) return admin.userId
+  }
+  const [teammate] = await executor
+    .select({ userId: permissions.userId })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.permissionType, 'admin'),
+        ne(permissions.userId, userId),
+        inArray(permissions.entityId, survivorIds)
+      )
+    )
+    .groupBy(permissions.userId)
+    .having(sql`count(*) = ${survivorIds.length}`)
+    .orderBy(asc(permissions.userId))
+    .limit(1)
+  return teammate?.userId ?? null
 }
 
 async function planProjectDeletion(
@@ -46,47 +96,16 @@ async function planProjectDeletion(
       ? { blocker: 'Account deletion cannot remove another owner’s Project' }
       : { remove: true }
   }
-  if (!record.archivedAt && survivors.every((row) => row.archivedAt)) {
-    return {
-      blocker: 'Archive the Project before deleting its last active environment with your account',
-    }
-  }
-  if (record.ownerId !== userId) return {}
-  if (record.organizationId) {
-    const [successor] = await executor
-      .select({ userId: member.userId })
-      .from(member)
-      .where(
-        and(
-          eq(member.organizationId, record.organizationId),
-          ne(member.userId, userId),
-          inArray(member.role, ['owner', 'admin'])
-        )
-      )
-      .orderBy(asc(member.userId))
-      .limit(1)
-    if (successor) return { ownerId: successor.userId }
-  }
-  const [successor] = await executor
-    .select({ userId: permissions.userId })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.permissionType, 'admin'),
-        ne(permissions.userId, userId),
-        inArray(
-          permissions.entityId,
-          survivors.map((row) => row.id)
-        )
-      )
-    )
-    .groupBy(permissions.userId)
-    .having(sql`count(*) = ${survivors.length}`)
-    .orderBy(asc(permissions.userId))
-    .limit(1)
-  return successor
-    ? { ownerId: successor.userId }
+  const archive = !record.archivedAt && survivors.every((row) => row.archivedAt)
+  if (record.ownerId !== userId) return { archive }
+  const ownerId = await findProjectSuccessor(
+    executor,
+    record,
+    userId,
+    survivors.map((row) => row.id)
+  )
+  return ownerId
+    ? { archive, ownerId }
     : {
         blocker:
           'Give a teammate admin access to every environment before deleting the Project owner’s account',
@@ -101,11 +120,9 @@ export async function getProjectAccountDeletionBlockers(
   const records = await loadRelatedProjects(db, userId, doomedWorkspaceIds)
   const doomed = new Set(doomedWorkspaceIds)
   const blockers: string[] = []
-  for (const { id } of records) {
-    const [record] = await db.select().from(project).where(eq(project.id, id))
-    if (!record) continue
+  for (const record of records) {
     const decision = await planProjectDeletion(db, record, userId, doomed)
-    if (decision.blocker) blockers.push(decision.blocker)
+    if ('blocker' in decision) blockers.push(decision.blocker)
   }
   return blockers
 }
@@ -125,31 +142,34 @@ export async function prepareProjectsForAccountDeletion(
     ...ownedEnvironments.map((row) => row.id),
   ])
   const locked = new Set<string>()
+  let records: (typeof project.$inferSelect)[]
   for (;;) {
-    const records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
+    records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
     const pending = records.filter((row) => !locked.has(row.id))
     if (!pending.length) break
     for (const { id } of pending) {
-      await lockProject(tx, id)
+      await lockProject(tx, id, { lockTimeoutAlreadyBounded: locked.size > 0 })
       locked.add(id)
     }
   }
-  const records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
   const doomed = new Set(doomedWorkspaceIds)
-  for (const { id } of records) {
-    await lockProject(tx, id)
-    const [record] = await tx.select().from(project).where(eq(project.id, id))
-    if (!record) continue
+  const now = new Date()
+  for (const record of records) {
     const decision = await planProjectDeletion(tx, record, userId, doomed)
-    if (decision.blocker) throw new OrchestrationError('conflict', decision.blocker)
-    if (decision.remove) {
-      await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, id))
-      await tx.delete(project).where(eq(project.id, id))
+    if ('blocker' in decision) throw new ProjectConflictError(decision.blocker)
+    if ('remove' in decision) {
+      await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, record.id))
+      await tx.delete(project).where(eq(project.id, record.id))
+      continue
     }
-    if (!decision.ownerId) continue
+    if (!decision.archive && !decision.ownerId) continue
     await tx
       .update(project)
-      .set({ ownerId: decision.ownerId, updatedAt: new Date() })
-      .where(eq(project.id, id))
+      .set({
+        ...(decision.archive ? { archivedAt: now } : {}),
+        ...(decision.ownerId ? { ownerId: decision.ownerId } : {}),
+        updatedAt: now,
+      })
+      .where(eq(project.id, record.id))
   }
 }

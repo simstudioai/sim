@@ -2,7 +2,7 @@
 
 A Project groups environments. An environment is an existing `workspace` record; there is no separate environment table. Every newly created Project starts with an environment.
 
-Project APIs return HTTP 503 until the deployment enables `PROJECT_API_ENABLED`. Workspace creation always assigns a Project atomically. The API control defaults off and does not disable assignment. Existing assigned Projects always retain their lifecycle protections, including fork inheritance and disconnect behavior, even if activation is disabled.
+Project APIs return HTTP 503 until the `projects` feature flag is on (AppConfig on hosted deployments; the `PROJECT_API_ENABLED` secret elsewhere). Workspace creation always assigns a Project atomically. The API control defaults off and does not disable assignment. Existing assigned Projects always retain their lifecycle protections, including fork inheritance and disconnect behavior, even if activation is disabled.
 
 ## Choose the creation flow
 
@@ -70,6 +70,10 @@ Existing callers can continue to use `createWorkspaceContract` and `POST /api/wo
 `skipDefaultWorkflow` remains optional and defaults to `false`. The route uses the session's active organization and existing workspace creation policy to resolve ownership and billing. It does not take the explicit Project scope or independent Project name used by `POST /api/projects`.
 
 The workspace and its Project are created atomically. The generated Project name is `Support workspace - Project`; long names are bounded to 100 characters while retaining the suffix. The response remains `{ "workspace": ... }` with HTTP 200, without a new Project response wrapper. Call `GET /api/projects/by-workspace/[workspaceId]` when an existing workspace caller needs its authorized Project details.
+
+## Archiving
+
+Archiving a workspace through the existing workspace deletion flow never strands an active Project: when the workspace is its Project's last active environment, the Project is archived in the same transaction. Account deletion applies the same rule to a Project whose surviving environments are all archived. `DELETE /api/projects/[id]` archives a Project and every environment together.
 
 ## Server implementation
 

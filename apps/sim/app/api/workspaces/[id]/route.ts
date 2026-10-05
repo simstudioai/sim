@@ -307,6 +307,20 @@ export const DELETE = withRouteHandler(
         },
         request,
       })
+      if (archiveResult.archivedProject) {
+        recordAudit({
+          workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.PROJECT_ARCHIVED,
+          resourceType: AuditResourceType.PROJECT,
+          resourceId: archiveResult.archivedProject.id,
+          resourceName: archiveResult.archivedProject.name,
+          description: `Archived Project "${archiveResult.archivedProject.name}" with its last active environment`,
+          request,
+        })
+      }
 
       captureServerEvent(
         session.user.id,

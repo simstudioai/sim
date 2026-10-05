@@ -1,11 +1,17 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
+import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { authorizeProject, requireProjectPrincipal } from '@/lib/projects/application/authorization'
+import {
+  type AuthorizedProject,
+  authorizeProject,
+  authorizeProjectsForRead,
+  requireProjectPrincipal,
+} from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
@@ -15,8 +21,10 @@ interface ProjectInput {
   organizationId?: string
   workspaceId?: string
 }
-type ProjectContext = Awaited<ReturnType<typeof authorizeProject>>
-function presentProject(context: ProjectContext) {
+/** Reads see one consistent snapshot without locking the rows writers need. */
+const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
+
+function presentProject(context: AuthorizedProject) {
   return {
     ...context.record,
     environments: context.environments,
@@ -32,14 +40,22 @@ export const getProject: OperationUseCase<
   operation: projectOperations.get,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.get)
-    requireProjectApiEnabled()
-    return db.transaction(async (tx) => ({
-      project: presentProject(await authorizeProject(tx, principal, projectOperations.get, input)),
-    }))
+    await requireProjectApiEnabled()
+    return db.transaction(
+      async (tx) => ({
+        project: presentProject(
+          await authorizeProject(tx, principal, projectOperations.get, input, 'snapshot')
+        ),
+      }),
+      READ_SNAPSHOT
+    )
   },
 }
 
-/** Read-only capability probe. Issue mutations call authorizeProject inside their own transaction. */
+/**
+ * Read-only capability probe. Issue mutations call authorizeProject in `hold` mode
+ * inside their own transaction.
+ */
 export const getProjectIssueAccess: OperationUseCase<
   typeof projectOperations.issues,
   ProjectInput,
@@ -48,11 +64,17 @@ export const getProjectIssueAccess: OperationUseCase<
   operation: projectOperations.issues,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.issues)
-    requireProjectApiEnabled()
+    await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
-      const context = await authorizeProject(tx, principal, projectOperations.issues, input)
+      const context = await authorizeProject(
+        tx,
+        principal,
+        projectOperations.issues,
+        input,
+        'snapshot'
+      )
       return { projectId: context.record.id }
-    })
+    }, READ_SNAPSHOT)
   },
 }
 
@@ -64,43 +86,39 @@ export const listProjects: OperationUseCase<
   operation: projectOperations.list,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.list)
-    requireProjectApiEnabled()
-    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
-      throw new OrchestrationError('validation', 'Limit must be between 1 and 100')
+    await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
-      const candidates = await tx
-        .select({ id: project.id })
-        .from(project)
-        .where(
-          and(
-            isNull(project.archivedAt),
-            input.organizationId ? eq(project.organizationId, input.organizationId) : undefined,
-            input.cursor ? gt(project.id, input.cursor) : undefined,
-            sql`exists (select 1 from ${projectWorkspace} pw join ${workspace} w on w.id = pw.workspace_id
-          where pw.project_id = ${project.id} and w.archived_at is null and (
-            exists (select 1 from ${permissions} pe where pe.entity_type = 'workspace' and pe.entity_id = w.id and pe.user_id = ${principal.userId})
-            or exists (select 1 from ${member} m where m.organization_id = w.organization_id and m.user_id = ${principal.userId} and m.role in ('owner', 'admin'))
-          ))`
-          )
+      /** Driven from the caller's grants and admin organization, so cost tracks their reach. */
+      const candidates = await tx.execute<{ id: string }>(sql`
+        WITH accessible AS (
+          SELECT ${permissions.entityId} AS workspace_id FROM ${permissions}
+          WHERE ${permissions.userId} = ${principal.userId}
+            AND ${permissions.entityType} = 'workspace'
+          UNION
+          SELECT ${workspace.id} FROM ${member}
+          JOIN ${workspace} ON ${workspace.organizationId} = ${member.organizationId}
+          WHERE ${member.userId} = ${principal.userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
         )
-        .orderBy(asc(project.id))
-        .limit(input.limit + 1)
-      const page = candidates.slice(0, input.limit)
-      const projects = []
-      for (const row of page)
-        projects.push(
-          presentProject(
-            await authorizeProject(tx, principal, projectOperations.list, {
-              projectId: row.id,
-              organizationId: input.organizationId,
-            })
-          )
-        )
+        SELECT DISTINCT ${projectWorkspace.projectId} AS id
+        FROM accessible
+        JOIN ${projectWorkspace} ON ${projectWorkspace.workspaceId} = accessible.workspace_id
+        JOIN ${workspace}
+          ON ${workspace.id} = accessible.workspace_id AND ${workspace.archivedAt} IS NULL
+        JOIN ${project}
+          ON ${project.id} = ${projectWorkspace.projectId} AND ${project.archivedAt} IS NULL
+        WHERE TRUE
+          ${input.organizationId ? sql`AND ${project.organizationId} = ${input.organizationId}` : sql``}
+          ${input.cursor ? sql`AND ${projectWorkspace.projectId} > ${input.cursor}` : sql``}
+        ORDER BY 1
+        LIMIT ${input.limit + 1}
+      `)
+      const page = candidates.slice(0, input.limit).map((row) => row.id)
+      const projects = await authorizeProjectsForRead(tx, principal, page)
       return {
-        projects,
-        nextCursor: candidates.length > input.limit ? (page.at(-1)?.id ?? null) : null,
+        projects: projects.map(presentProject),
+        nextCursor: candidates.length > input.limit ? (page.at(-1) ?? null) : null,
       }
-    })
+    }, READ_SNAPSHOT)
   },
 }
 
@@ -112,12 +130,10 @@ export const renameProject: OperationUseCase<
   operation: projectOperations.rename,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.rename)
-    requireProjectApiEnabled()
-    const name = input.name.trim()
-    if (!name || name.length > 100)
-      throw new OrchestrationError('validation', 'Project name must contain 1–100 characters')
+    await requireProjectApiEnabled()
+    const { name } = input
     const result = await db.transaction(async (tx) => {
-      const context = await authorizeProject(tx, principal, projectOperations.rename, input)
+      const context = await authorizeProject(tx, principal, projectOperations.rename, input, 'hold')
       if (context.record.archivedAt) throw new OrchestrationError('conflict', 'Project is archived')
       if (context.record.name === name) return { context, changed: false }
       await tx
@@ -154,9 +170,15 @@ export const archiveProject: OperationUseCase<
   operation: projectOperations.archive,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.archive)
-    requireProjectApiEnabled()
+    await requireProjectApiEnabled()
     const result = await db.transaction(async (tx) => {
-      const context = await authorizeProject(tx, principal, projectOperations.archive, input)
+      const context = await authorizeProject(
+        tx,
+        principal,
+        projectOperations.archive,
+        input,
+        'hold'
+      )
       const effects = await archiveProjectInTransaction(tx, context.record.id)
       return { context, effects }
     })
@@ -190,7 +212,7 @@ export const getWorkspaceProject: OperationUseCase<
   operation: projectOperations.get,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.get)
-    requireProjectApiEnabled()
+    await requireProjectApiEnabled()
     return db.transaction(async (tx) => {
       const [membership] = await tx
         .select({ projectId: projectWorkspace.projectId })
@@ -200,12 +222,18 @@ export const getWorkspaceProject: OperationUseCase<
       if (!membership) throw new OrchestrationError('not_found', 'Project not found')
       return {
         project: presentProject(
-          await authorizeProject(tx, principal, projectOperations.get, {
-            projectId: membership.projectId,
-            workspaceId: input.workspaceId,
-          })
+          await authorizeProject(
+            tx,
+            principal,
+            projectOperations.get,
+            {
+              projectId: membership.projectId,
+              workspaceId: input.workspaceId,
+            },
+            'snapshot'
+          )
         ),
       }
-    })
+    }, READ_SNAPSHOT)
   },
 }

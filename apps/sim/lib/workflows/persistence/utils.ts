@@ -972,10 +972,10 @@ export async function undeployWorkflow(params: {
       .where(eq(workflowDeploymentVersion.workflowId, workflowId))
     const deploymentVersionIds = deploymentVersions.map((version) => version.id)
 
-    await supersedeInFlightDeploymentOperations(dbCtx, workflowId)
+    await supersedeInFlightDeploymentOperations(dbCtx, [workflowId])
     const { deleteSchedulesForWorkflow } = await import('@/lib/workflows/schedules/deploy')
     await deleteSchedulesForWorkflow(workflowId, dbCtx)
-    await releaseWebhookPathClaims(dbCtx, workflowId)
+    await releaseWebhookPathClaims(dbCtx, [workflowId])
 
     await dbCtx
       .update(workflowDeploymentVersion)

@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
 import { createProjectForWorkspace } from '@/lib/projects/membership'
-import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   getWorkspaceInvitePolicy,
@@ -88,9 +87,11 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * The caller supplies the creation-policy snapshot. This function revalidates
  * that snapshot — including the `workspace.create` capability under the
  * permission-group advisory lock — before inserting the workspace, owner
- * permission and optional starter workflow atomically.
+ * permission, its Project and optional starter workflow atomically. A caller
+ * creating an explicit Project names it; otherwise the name derives from the
+ * workspace.
  */
-async function createWorkspaceRecordsInTransaction(
+export async function createWorkspaceWithProjectInTransaction(
   tx: DbTransaction,
   {
     projectName,
@@ -165,17 +166,15 @@ async function createWorkspaceRecordsInTransaction(
   await tx.insert(permissions).values(permissionRows)
 
   if (defaultWorkflowArtifacts) {
-    await tx.insert(workflow).values(
-      await buildNewWorkflowRow(tx, {
-        id: workflowId,
-        userId,
-        workspaceId,
-        folderId: null,
-        name: 'default-agent',
-        description: 'Your first workflow - start building here!',
-        now,
-      })
-    )
+    await insertNewWorkflowRow(tx, {
+      id: workflowId,
+      userId,
+      workspaceId,
+      folderId: null,
+      name: 'default-agent',
+      description: 'Your first workflow - start building here!',
+      now,
+    })
     await saveWorkflowToNormalizedTables(
       workflowId,
       defaultWorkflowArtifacts.workflowState,
@@ -204,21 +203,11 @@ async function createWorkspaceRecordsInTransaction(
   }
 }
 
-/** Explicit Project creation always commits its first environment in the same transaction. */
-export async function createWorkspaceWithProjectInTransaction(
-  tx: DbTransaction,
-  params: TransactionalCreateWorkspaceParams & { projectName?: string }
-): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
-  requireProjectApiEnabled()
-  return createWorkspaceRecordsInTransaction(tx, params)
-}
-
-/** Preserves the workspace-only result for existing creation callers. */
 export async function createWorkspaceInTransaction(
   tx: DbTransaction,
   params: TransactionalCreateWorkspaceParams
 ): Promise<CreatedWorkspace> {
-  return (await createWorkspaceRecordsInTransaction(tx, params)).workspace
+  return (await createWorkspaceWithProjectInTransaction(tx, params)).workspace
 }
 
 /** Creates a workspace through the canonical lock-and-insert transaction. */

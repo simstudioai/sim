@@ -110,6 +110,13 @@ const FEATURE_FLAGS = {
       'requires knowledge-member-access. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
   },
+  projects: {
+    description:
+      'Expose the Project APIs once the membership backfill has validated. Global on/off only; ' +
+      'workspace creation assigns Projects and lifecycle protections apply either way. ' +
+      'Off-AppConfig falls back to PROJECT_API_ENABLED.',
+    fallback: 'PROJECT_API_ENABLED',
+  },
   'knowledge-member-access': {
     description:
       'Organization Search (live) and the permission-aware workspace connector modes: members ' +

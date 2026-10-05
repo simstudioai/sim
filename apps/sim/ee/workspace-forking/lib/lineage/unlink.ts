@@ -29,7 +29,8 @@ export interface UnlinkForkResult {
 /**
  * Permanently dissolve a fork edge: null the child's `forkedFromWorkspaceId` (the
  * edge's single source of truth) and purge the edge's fork state — resource map,
- * block map, dependent values, and promote-run undo points. Both workspaces remain; the detached subtree moves into its own Project.
+ * block map, dependent values, and promote-run undo points. Both workspaces remain;
+ * the detached subtree moves into its own Project.
  *
  * Runs in one transaction under the lineage and edge advisory locks. Every promote and
  * rollback on the edge holds the edge lock, so an in-flight sync either finishes before

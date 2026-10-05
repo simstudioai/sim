@@ -8,7 +8,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups/resolve.server'
-import type { ProjectOperation } from '@/lib/projects/application/operations'
+import { type ProjectOperation, projectOperations } from '@/lib/projects/application/operations'
 import { lockProject } from '@/lib/projects/membership'
 
 export function requireProjectPrincipal(
@@ -19,34 +19,52 @@ export function requireProjectPrincipal(
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
 }
 
-/** The complete environment set is loaded server-side; hidden environments never enter the result. */
-export async function authorizeProject(
+type ProjectRecord = typeof project.$inferSelect
+
+interface ProjectEnvironmentAccess {
+  id: string
+  name: string
+  organizationId: string | null
+  archivedAt: Date | null
+  parentId: string | null
+  permission: string | null
+}
+
+interface ProjectAuthorizationInput {
+  organizationId?: string
+  workspaceId?: string
+}
+
+/**
+ * `hold` locks the Project and the rows the decision reads until commit, for callers that
+ * act on it. `snapshot` takes no locks and relies on the caller's read-only snapshot.
+ */
+export type ProjectAccessMode = 'hold' | 'snapshot'
+
+type ProjectAccess = Awaited<ReturnType<typeof loadProjectAccess>>
+
+/**
+ * Loads the caller's org role and every environment with its grant for `records` in three
+ * queries, whatever their count.
+ */
+async function loadProjectAccess(
   tx: DbTransaction,
-  principal: SessionPrincipal,
-  operation: ProjectOperation,
-  input: { projectId: string; organizationId?: string; workspaceId?: string }
+  userId: string,
+  records: ProjectRecord[],
+  mode: ProjectAccessMode
 ) {
-  await lockProject(tx, input.projectId)
-  const [record] = await tx.select().from(project).where(eq(project.id, input.projectId)).limit(1)
-  if (
-    !record ||
-    (input.organizationId !== undefined && input.organizationId !== record.organizationId)
-  ) {
-    throw new OrchestrationError('not_found', 'Project not found')
-  }
-  const [orgMember] = record.organizationId
-    ? await tx
-        .select({ role: member.role })
-        .from(member)
-        .where(
-          and(eq(member.userId, principal.userId), eq(member.organizationId, record.organizationId))
-        )
-        .limit(1)
-        .for('share')
+  const lock = mode === 'hold'
+  const memberQuery = tx
+    .select({ organizationId: member.organizationId, role: member.role })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1)
+  const [membership] = records.some((record) => record.organizationId)
+    ? await (lock ? memberQuery.for('share') : memberQuery)
     : []
-  const orgAdmin = isOrgAdminRole(orgMember?.role)
   const environments = await tx
     .select({
+      projectId: projectWorkspace.projectId,
       id: workspace.id,
       name: workspace.name,
       organizationId: workspace.organizationId,
@@ -55,30 +73,60 @@ export async function authorizeProject(
     })
     .from(projectWorkspace)
     .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-    .where(eq(projectWorkspace.projectId, record.id))
+    .where(
+      inArray(
+        projectWorkspace.projectId,
+        records.map((record) => record.id)
+      )
+    )
     .orderBy(asc(workspace.id))
-  if (environments.some((row) => row.organizationId !== record.organizationId))
-    throw new OrchestrationError('conflict', 'Project ownership needs reconciliation')
-  const grants = environments.length
-    ? await tx
-        .select({ id: permissions.entityId, permission: permissions.permissionType })
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.userId, principal.userId),
-            inArray(
-              permissions.entityId,
-              environments.map((row) => row.id)
-            )
-          )
+  const grantQuery = tx
+    .select({ id: permissions.entityId, permission: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.userId, userId),
+        inArray(
+          permissions.entityId,
+          environments.map((row) => row.id)
         )
-        .orderBy(asc(permissions.entityId))
-        .for('share')
-    : []
+      )
+    )
+    .orderBy(asc(permissions.entityId))
+  const grants = environments.length ? await (lock ? grantQuery.for('share') : grantQuery) : []
   const grantsById = new Map(grants.map((row) => [row.id, row.permission]))
-  const rows = environments.map((row) => ({ ...row, permission: grantsById.get(row.id) ?? null }))
-  if (operation.access === 'issues' && record.organizationId)
+  const environmentsByProject = new Map<string, ProjectEnvironmentAccess[]>()
+  for (const { projectId, ...row } of environments) {
+    const access = { ...row, permission: grantsById.get(row.id) ?? null }
+    const rows = environmentsByProject.get(projectId)
+    if (rows) rows.push(access)
+    else environmentsByProject.set(projectId, [access])
+  }
+  return {
+    isOrgAdmin: (organizationId: string | null) =>
+      organizationId !== null &&
+      membership?.organizationId === organizationId &&
+      isOrgAdminRole(membership.role),
+    environmentsFor: (projectId: string) => environmentsByProject.get(projectId) ?? [],
+  }
+}
+
+/** Applies the access rules to one loaded Project; hidden environments never enter the result. */
+async function evaluateProjectAccess(
+  tx: DbTransaction,
+  principal: SessionPrincipal,
+  operation: ProjectOperation,
+  record: ProjectRecord,
+  access: ProjectAccess,
+  input: ProjectAuthorizationInput,
+  mode: ProjectAccessMode
+) {
+  const orgAdmin = access.isOrgAdmin(record.organizationId)
+  const rows = access.environmentsFor(record.id)
+  if (rows.some((row) => row.organizationId !== record.organizationId))
+    throw new OrchestrationError('conflict', 'Project ownership needs reconciliation')
+  if (mode === 'hold' && operation.access === 'issues' && record.organizationId)
     await acquirePermissionGroupOrgLock(tx, record.organizationId)
   const active = rows.filter((row) => !row.archivedAt)
   const visible = active.filter((row) => orgAdmin || row.permission !== null)
@@ -116,7 +164,6 @@ export async function authorizeProject(
   const visibleIds = new Set(visible.map((row) => row.id))
   return {
     record,
-    environmentIds: rows.map((row) => row.id),
     canAdminister,
     canUseIssues,
     environments: visible.map((row) => ({
@@ -125,4 +172,56 @@ export async function authorizeProject(
       forkedFromWorkspaceId: row.parentId && visibleIds.has(row.parentId) ? row.parentId : null,
     })),
   }
+}
+
+export type AuthorizedProject = Awaited<ReturnType<typeof evaluateProjectAccess>>
+
+/** Authorizes one Project for `operation`; see {@link ProjectAccessMode} for locking. */
+export async function authorizeProject(
+  tx: DbTransaction,
+  principal: SessionPrincipal,
+  operation: ProjectOperation,
+  input: ProjectAuthorizationInput & { projectId: string },
+  mode: ProjectAccessMode
+): Promise<AuthorizedProject> {
+  if (mode === 'hold') await lockProject(tx, input.projectId)
+  const [record] = await tx.select().from(project).where(eq(project.id, input.projectId)).limit(1)
+  if (
+    !record ||
+    (input.organizationId !== undefined && input.organizationId !== record.organizationId)
+  ) {
+    throw new OrchestrationError('not_found', 'Project not found')
+  }
+  const access = await loadProjectAccess(tx, principal.userId, [record], mode)
+  return evaluateProjectAccess(tx, principal, operation, record, access, input, mode)
+}
+
+/** Authorizes a listed page of Projects in id order inside the caller's read-only snapshot. */
+export async function authorizeProjectsForRead(
+  tx: DbTransaction,
+  principal: SessionPrincipal,
+  projectIds: string[]
+): Promise<AuthorizedProject[]> {
+  if (!projectIds.length) return []
+  const records = await tx
+    .select()
+    .from(project)
+    .where(inArray(project.id, projectIds))
+    .orderBy(asc(project.id))
+  const access = await loadProjectAccess(tx, principal.userId, records, 'snapshot')
+  const authorized: AuthorizedProject[] = []
+  for (const record of records) {
+    authorized.push(
+      await evaluateProjectAccess(
+        tx,
+        principal,
+        projectOperations.list,
+        record,
+        access,
+        {},
+        'snapshot'
+      )
+    )
+  }
+  return authorized
 }

@@ -1,4 +1,4 @@
-import { type workflow, workspace } from '@sim/db/schema'
+import { workflow, workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
@@ -59,4 +59,9 @@ export async function buildNewWorkflowRow(executor: DbTransaction, input: NewWor
     variables: input.variables ?? {},
     forkSyncExcluded: workspace.forkSyncNewWorkflowsExcluded,
   } satisfies typeof workflow.$inferInsert
+}
+
+/** Inserts the row {@link buildNewWorkflowRow} builds. */
+export async function insertNewWorkflowRow(tx: DbTransaction, input: NewWorkflowRowInput) {
+  await tx.insert(workflow).values(await buildNewWorkflowRow(tx, input))
 }

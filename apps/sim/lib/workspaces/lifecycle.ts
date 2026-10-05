@@ -17,7 +17,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
-import { lockWorkspaceProject, requireRemainingProjectEnvironment } from '@/lib/projects/membership'
+import { archiveProjectWithLastEnvironment, lockWorkspaceProject } from '@/lib/projects/membership'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -28,10 +28,17 @@ interface ArchiveWorkspaceOptions {
   expectedOwnerId?: string
 }
 
+interface ArchiveWorkspaceResult {
+  archived: boolean
+  workspaceName?: string
+  /** The Project archived with its last active environment, for the caller's audit. */
+  archivedProject?: { id: string; name: string }
+}
+
 export async function archiveWorkspace(
   workspaceId: string,
   options: ArchiveWorkspaceOptions
-): Promise<{ archived: boolean; workspaceName?: string }> {
+): Promise<ArchiveWorkspaceResult> {
   const workspaceRecord = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
 
   if (!workspaceRecord) {
@@ -45,21 +52,23 @@ export async function archiveWorkspace(
     .from(workflowMcpServer)
     .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
-  const archived = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    const owningProject = await lockWorkspaceProject(tx, workspaceId)
     if (options.expectedOwnerId) {
-      await lockWorkspaceProject(tx, workspaceId)
       const [current] = await tx
         .select({ ownerId: workspace.ownerId })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
         .for('no key update')
-      if (!current || current.ownerId !== options.expectedOwnerId) return false
+      if (!current || current.ownerId !== options.expectedOwnerId) return null
     }
-    await requireRemainingProjectEnvironment(tx, workspaceId)
+    const projectArchived =
+      owningProject !== null &&
+      (await archiveProjectWithLastEnvironment(tx, owningProject.id, workspaceId, now))
     await archiveWorkspaceInTransaction(tx, workspaceId, now)
-    return true
+    return { archivedProject: projectArchived ? owningProject : null }
   })
-  if (!archived) return { archived: false }
+  if (!outcome) return { archived: false }
 
   await archiveWorkflowsForWorkspace(workspaceId, options)
 
@@ -73,10 +82,15 @@ export async function archiveWorkspace(
   return {
     archived: !workspaceRecord.archivedAt,
     workspaceName: workspaceRecord.name,
+    ...(outcome.archivedProject
+      ? {
+          archivedProject: { id: outcome.archivedProject.id, name: outcome.archivedProject.name },
+        }
+      : {}),
   }
 }
 
-/** Durable environment archive changes; callers own Project minimum-environment checks. */
+/** Durable environment archive changes; callers own the Project lifecycle. */
 export async function archiveWorkspaceInTransaction(
   tx: DbTransaction,
   workspaceId: string,

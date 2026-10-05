@@ -722,8 +722,9 @@ export async function recordDeploymentOperationRetry(
  */
 export async function supersedeInFlightDeploymentOperations(
   executor: DbOrTx,
-  workflowId: string
+  workflowIds: readonly string[]
 ): Promise<void> {
+  if (workflowIds.length === 0) return
   const now = new Date()
   await executor
     .update(workflowDeploymentOperation)
@@ -734,7 +735,7 @@ export async function supersedeInFlightDeploymentOperations(
     })
     .where(
       and(
-        eq(workflowDeploymentOperation.workflowId, workflowId),
+        inArray(workflowDeploymentOperation.workflowId, workflowIds),
         inArray(workflowDeploymentOperation.status, IN_FLIGHT_STATUSES)
       )
     )

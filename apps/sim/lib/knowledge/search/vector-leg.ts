@@ -3,7 +3,7 @@ import { document, embedding, embeddingSearch } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
-import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import {
   runSearchQuery,
   type SearchBudget,

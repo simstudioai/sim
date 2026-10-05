@@ -7,7 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { requireProjectPrincipal } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
-import { type CreateProjectInput, createProjectInputSchema } from '@/lib/projects/create-input'
+import type { CreateProjectInput } from '@/lib/projects/create-input'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   createWorkspaceWithProjectInTransaction,
@@ -32,14 +32,8 @@ export const createProject: OperationUseCase<
   operation: projectOperations.create,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.create)
-    requireProjectApiEnabled()
-    const parsed = createProjectInputSchema.safeParse(input)
-    if (!parsed.success)
-      throw new OrchestrationError(
-        'validation',
-        'A scope, Project name and initial environment name are required'
-      )
-    const { organizationId, name, initialEnvironment } = parsed.data
+    await requireProjectApiEnabled()
+    const { organizationId, name, initialEnvironment } = input
     const policy = await getWorkspaceCreationPolicy({
       userId: principal.userId,
       activeOrganizationId: organizationId,
