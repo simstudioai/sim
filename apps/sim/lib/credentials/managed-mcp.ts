@@ -29,6 +29,7 @@ import {
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { loadPreregisteredClient } from '@/lib/mcp/oauth/provider'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const MANAGED_MCP_TOKEN_SET_TYPE = 'managed-mcp-oauth-token-set' as const
@@ -133,10 +134,6 @@ async function decryptManagedMcpEnvelope(encrypted: string): Promise<ManagedMcpT
       500
     )
   }
-}
-
-export async function decryptManagedMcpTokens(encrypted: string): Promise<OAuthTokens> {
-  return (await decryptManagedMcpEnvelope(encrypted)).tokens
 }
 
 export async function loadManagedMcpCredentialApplicationContext(
@@ -266,6 +263,8 @@ export async function loadScopedManagedMcpRuntimeCredential(
     throw new ManagedMcpCredentialError('Managed MCP connector metadata is missing', 500)
   }
   const connector = getManagedMcpConnector(row.managedConnectorId)
+  if (connector.id === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+    throw new ManagedMcpCredentialError('Zoom Search is not available for this organization', 403)
   if (!row.serverUrl) throw new ManagedMcpCredentialError('Managed MCP endpoint is missing', 500)
   requireManagedMcpConnectorUrl(connector.id, row.serverUrl)
   if (
@@ -287,7 +286,9 @@ export async function loadScopedManagedMcpRuntimeCredential(
     throw new ManagedMcpCredentialError('Managed MCP grant version is missing', 500)
   const envelope = await decryptManagedMcpEnvelope(row.encryptedTokens)
   const client =
-    connector.id === 'hubspot' ? await loadPreregisteredClient(row.mcpServerId) : undefined
+    connector.id === 'hubspot' || connector.id === 'zoom'
+      ? await loadPreregisteredClient(row.mcpServerId)
+      : undefined
   if (envelope.configurationFingerprint !== client?.configurationFingerprint)
     throw new ManagedMcpCredentialError(
       'Managed MCP credential needs authorization after app configuration changed',
@@ -383,6 +384,8 @@ export async function persistManagedMcpCredential(params: {
       throw new ManagedMcpCredentialError('Managed MCP connection is no longer available', 404)
     }
     getManagedMcpConnector(source.managedConnectorId)
+    if (source.managedConnectorId === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+      throw new ManagedMcpCredentialError('Zoom Search is not available for this organization', 403)
 
     const [existing] = await tx
       .select({ id: credential.id })

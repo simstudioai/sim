@@ -1,5 +1,10 @@
 ---
 description: Behavior-preserving React render-performance idioms
+paths:
+  - "apps/sim/**/*.ts"
+  - "apps/sim/**/*.tsx"
+  - "packages/emcn/**"
+  - "packages/workflow-renderer/**"
 ---
 
 # React & Render Performance
@@ -77,7 +82,7 @@ return items.sort(compare)
 return [...items].sort(compare)
 ```
 
-**Do NOT reach for `toSorted()` / `toReversed()` / `with()` / `toSpliced()` on client render paths.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is the correct default everywhere client code runs. Only consider the immutable methods in Node-only code (server routes, scripts) on Node ≥20, where the runtime is known.
+**Do NOT use `toSorted()` / `toReversed()` / `with()` / `toSpliced()`.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is used everywhere: whether a module reaches the browser is not visible from its path. Every tsconfig keeps `"lib"` at or below ES2022 so `tsc` rejects these at each call site on a typed receiver (and still accepts OpenTelemetry's `context.with`, which it tells apart by type); `check:utils` fails if a tsconfig raises `lib` past ES2022, which is how they shipped in #5340, and also matches `toSorted`/`toReversed`/`toSpliced` in source, since tsc accepts any method on an `any` receiver. `.with` on an `any` receiver is caught by neither, so type a parsed array before copying from it. Never raise it to make one type-check.
 
 ## Run independent awaits in parallel
 

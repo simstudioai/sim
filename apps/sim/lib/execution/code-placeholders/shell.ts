@@ -439,12 +439,21 @@ function getUnsupportedShellPosition(
   return undefined
 }
 
+function heredocBodyRanges(heredocs: HeredocDeclaration[]): Array<[number, number]> {
+  return heredocs.map((heredoc) => [heredoc.bodyStart, heredoc.removalEnd])
+}
+
+/**
+ * Jumps over `skippedRanges` (sorted heredoc bodies, which bash reads as data) so body prose
+ * cannot shift quote context; bodies that need contexts are scanned on their own with `literalRoot`.
+ */
 function collectShellOccurrenceContexts(
   code: string,
   occurrences: CodePlaceholderOccurrence[],
   start: number,
   end: number,
-  literalRoot: boolean
+  literalRoot: boolean,
+  skippedRanges: Array<[number, number]> = []
 ): Map<CodePlaceholderOccurrence, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
     occurrences
@@ -455,10 +464,23 @@ function collectShellOccurrenceContexts(
   const frames: ShellScanFrame[] = [
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
   ]
+  let skippedRangeIndex = 0
 
   for (let index = start; index < end; ) {
     const frame = frames.at(-1)
     if (!frame) break
+
+    while (
+      skippedRangeIndex < skippedRanges.length &&
+      skippedRanges[skippedRangeIndex][1] <= index
+    ) {
+      skippedRangeIndex += 1
+    }
+    const skippedRange = skippedRanges.at(skippedRangeIndex)
+    if (skippedRange && index >= skippedRange[0]) {
+      index = skippedRange[1]
+      continue
+    }
 
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
@@ -635,36 +657,46 @@ function recordShellDirectEnvironmentReads(
   }
   if (matches.length === 0) return
 
-  /**
-   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands.
-   * The frame scanner below models quoting within a line, not heredoc bodies, so those are
-   * excluded up front — otherwise a `$NAME` printed verbatim would be reported as a read that
-   * never happened, and a usage trail must not claim uses that did not occur.
-   */
-  const literalHeredocBodies = collectHeredocs(code)
-    .filter((heredoc) => heredoc.quoted)
-    .map((heredoc): [number, number] => [heredoc.bodyStart, heredoc.bodyEnd])
-
-  const candidates: CodePlaceholderOccurrence[] = []
-  for (const candidate of matches) {
-    if (isOffsetInRanges(candidate.index, literalHeredocBodies)) continue
-    candidates.push({
+  const candidates = matches.map(
+    (candidate): CodePlaceholderOccurrence => ({
       start: candidate.index,
       end: candidate.index + candidate[0].length,
       raw: candidate[0],
       name: (candidate[1] ?? candidate[2]) as string,
     })
-  }
-  if (candidates.length === 0) return
+  )
 
-  const contexts = collectShellOccurrenceContexts(code, candidates, 0, code.length, false)
+  const heredocs = collectHeredocs(code)
+  const contexts = collectShellOccurrenceContexts(
+    code,
+    candidates,
+    0,
+    code.length,
+    false,
+    heredocBodyRanges(heredocs)
+  )
+  /**
+   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands
+   * and its candidates stay contextless — a usage trail must not claim uses that did not occur.
+   */
+  for (const heredoc of heredocs) {
+    if (heredoc.quoted) continue
+    const bodyContexts = collectShellOccurrenceContexts(
+      code,
+      candidates,
+      heredoc.bodyStart,
+      heredoc.bodyEnd,
+      true
+    )
+    for (const [candidate, shellContext] of bodyContexts) contexts.set(candidate, shellContext)
+  }
   for (const candidate of candidates) {
     const shellContext = contexts.get(candidate)
     /**
      * No context means the scanner never reached this offset — it skipped the region as a
-     * comment. Absence is therefore evidence the expansion does not run, not permission to
-     * record it, so this reads as an allowlist rather than a denylist. Single quotes suppress
-     * expansion outright.
+     * comment or a quoted heredoc body. Absence is therefore evidence the expansion does not
+     * run, not permission to record it, so this reads as an allowlist rather than a denylist.
+     * Single quotes suppress expansion outright.
      */
     if (!shellContext || shellContext.quote === 'single') continue
     context.recordDirectEnvironmentRead(candidate.name, candidate.start)
@@ -828,7 +860,8 @@ export async function compileShellPlaceholders(
     rootOccurrences,
     0,
     input.code.length,
-    false
+    false,
+    heredocBodyRanges(heredocs)
   )
   for (const occurrence of rootOccurrences) {
     const occurrenceContext = rootContexts.get(occurrence)

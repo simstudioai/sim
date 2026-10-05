@@ -27,7 +27,8 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockSecretNames } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames } = vi.hoisted(() => ({
+  mockDashboardAvailability: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
 }))
@@ -49,6 +50,9 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     secrets: [],
     truncated: [],
   })),
+}))
+vi.mock('@/lib/dashboards/application/availability', () => ({
+  readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 const mockGetHighestPrioritySubscription =
@@ -347,6 +351,38 @@ describe('buildIntegrationToolSchemas', () => {
 })
 
 describe('buildCopilotRequestPayload', () => {
+  it.each([true, false])(
+    'grants the dashboards entitlement from server availability: %s',
+    async (enabled) => {
+      const principal = { kind: 'session' as const, userId: 'actor' }
+      mockDashboardAvailability.mockResolvedValueOnce(enabled)
+      const payload = await buildCopilotRequestPayload({
+        message: 'Show my dashboard',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        workspaceId: 'workspace-1',
+        principal,
+        mode: 'agent',
+        model: '',
+      })
+      expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
+    }
+  )
+
+  it('never grants the workspace-only dashboards entitlement to an organization chat', async () => {
+    mockDashboardAvailability.mockResolvedValue(true)
+    const payload = await buildCopilotRequestPayload({
+      message: 'Show my dashboard',
+      userId: 'actor',
+      userMessageId: 'message-1',
+      organizationId: 'org-1',
+      principal: { kind: 'session' as const, userId: 'actor' },
+      mode: 'agent',
+      model: '',
+    })
+    expect(payload.entitlements).toEqual([])
+  })
+
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })
@@ -355,28 +391,25 @@ describe('buildCopilotRequestPayload', () => {
   it.each(['workspace', 'organization'] as const)(
     'emits contract-valid %s Assistant context with no Build inventory or desktop declaration',
     async (owner) => {
-      const payload = await buildCopilotRequestPayload(
-        {
-          message: 'Find the document',
-          userId: 'actor',
-          userMessageId: '11111111-1111-4111-8111-111111111111',
-          chatId: '22222222-2222-4222-8222-222222222222',
-          mode: 'assistant',
-          model: 'legacy-ui-model',
-          ...(owner === 'organization'
-            ? { organizationId: 'org-1' }
-            : { workspaceId: '33333333-3333-4333-8333-333333333333' }),
-          workflowId: 'ignored-workflow',
-          workflowName: 'ignored-name',
-          provider: 'legacy-provider',
-          workspaceContext: '{"credentials":[]}',
-          contexts: [{ type: 'workflow', content: 'ignored-context' }],
-          browser: true,
-          terminalCapable: true,
-          mcpServerIds: ['mcp-1'],
-        },
-        { selectedModel: 'legacy-ui-model' }
-      )
+      const payload = await buildCopilotRequestPayload({
+        message: 'Find the document',
+        userId: 'actor',
+        userMessageId: '11111111-1111-4111-8111-111111111111',
+        chatId: '22222222-2222-4222-8222-222222222222',
+        mode: 'assistant',
+        model: 'legacy-ui-model',
+        ...(owner === 'organization'
+          ? { organizationId: 'org-1' }
+          : { workspaceId: '33333333-3333-4333-8333-333333333333' }),
+        workflowId: 'ignored-workflow',
+        workflowName: 'ignored-name',
+        provider: 'legacy-provider',
+        workspaceContext: '{"credentials":[]}',
+        contexts: [{ type: 'workflow', content: 'ignored-context' }],
+        browser: true,
+        terminalCapable: true,
+        mcpServerIds: ['mcp-1'],
+      })
       expect(ChatPayloadSchema.safeParse(payload).success).toBe(true)
       expect(payload.context).toEqual([
         {
@@ -403,18 +436,15 @@ describe('buildCopilotRequestPayload', () => {
     'discovers Generic Secrets only for Build and Plan: %s',
     async (mode) => {
       mockSecretNames.mockResolvedValueOnce({ names: ['SERVICE_TOKEN'] })
-      const payload = await buildCopilotRequestPayload(
-        {
-          message: 'Use the service',
-          userId: 'actor',
-          userMessageId: 'message',
-          chatId: 'chat',
-          organizationId: 'org',
-          mode,
-          model: '',
-        },
-        { selectedModel: '' }
-      )
+      const payload = await buildCopilotRequestPayload({
+        message: 'Use the service',
+        userId: 'actor',
+        userMessageId: 'message',
+        chatId: 'chat',
+        organizationId: 'org',
+        mode,
+        model: '',
+      })
       const context = payload.context?.find((entry) => entry.type === 'generic_secrets')
       if (mode !== 'assistant') {
         expect(mockSecretNames).toHaveBeenCalledOnce()
@@ -464,19 +494,13 @@ describe('buildCopilotRequestPayload', () => {
      * chat endpoint must not gain that write through an attachment.
      */
     it.each(['read', undefined])('does not track attachments for permission %s', async (perm) => {
-      await buildCopilotRequestPayload(
-        { ...attachmentParams, userPermission: perm },
-        { selectedModel: 'claude-opus-4-8' }
-      )
+      await buildCopilotRequestPayload({ ...attachmentParams, userPermission: perm })
 
       expect(mockTrackChatUpload).not.toHaveBeenCalled()
     })
 
     it.each(['write', 'admin'])('tracks attachments for permission %s', async (perm) => {
-      await buildCopilotRequestPayload(
-        { ...attachmentParams, userPermission: perm },
-        { selectedModel: 'claude-opus-4-8' }
-      )
+      await buildCopilotRequestPayload({ ...attachmentParams, userPermission: perm })
 
       expect(mockTrackChatUpload).toHaveBeenCalledWith(
         'ws-1',
@@ -491,10 +515,10 @@ describe('buildCopilotRequestPayload', () => {
     })
 
     it('includes successfully prepared attachments in the model context', async () => {
-      const payload = await buildCopilotRequestPayload(
-        { ...attachmentParams, userPermission: 'write' },
-        { selectedModel: 'claude-opus-4-8' }
-      )
+      const payload = await buildCopilotRequestPayload({
+        ...attachmentParams,
+        userPermission: 'write',
+      })
 
       expect(payload.context).toEqual([
         {
@@ -514,23 +538,20 @@ describe('buildCopilotRequestPayload', () => {
         .mockRejectedValueOnce(cause)
         .mockResolvedValueOnce({ displayName: 'photo.png' })
 
-      const payload = await buildCopilotRequestPayload(
-        {
-          ...attachmentParams,
-          userPermission: 'write',
-          fileAttachments: [
-            ...attachmentParams.fileAttachments,
-            {
-              id: 'a2',
-              key: 'workspace/ws-1/1731000000001-ab12cd35-photo.png',
-              filename: 'photo.png',
-              media_type: 'image/png',
-              size: 10,
-            },
-          ],
-        },
-        { selectedModel: 'claude-opus-4-8' }
-      )
+      const payload = await buildCopilotRequestPayload({
+        ...attachmentParams,
+        userPermission: 'write',
+        fileAttachments: [
+          ...attachmentParams.fileAttachments,
+          {
+            id: 'a2',
+            key: 'workspace/ws-1/1731000000001-ab12cd35-photo.png',
+            filename: 'photo.png',
+            media_type: 'image/png',
+            size: 10,
+          },
+        ],
+      })
 
       expect(mockTrackChatUpload).toHaveBeenCalledTimes(2)
       expect(payload.context).toEqual([
@@ -552,20 +573,17 @@ describe('buildCopilotRequestPayload', () => {
   })
 
   it('emits ONLY the shared ChatRequest contract fields — nothing legacy rides the wire', async () => {
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'debug workspace',
-        userId: 'user-1',
-        userMessageId: '00000000-0000-4000-8000-000000000001',
-        mode: 'agent',
-        model: 'claude-opus-4-8',
-        workspaceId: '00000000-0000-4000-8000-000000000002',
-        userTimezone: 'America/Los_Angeles',
-        effort: 'max',
-        modelSelection: { model: 'gpt-6-astra', fastMode: true },
-      },
-      { selectedModel: 'claude-opus-4-8' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'debug workspace',
+      userId: 'user-1',
+      userMessageId: '00000000-0000-4000-8000-000000000001',
+      mode: 'agent',
+      model: 'claude-opus-4-8',
+      workspaceId: '00000000-0000-4000-8000-000000000002',
+      userTimezone: 'America/Los_Angeles',
+      effort: 'max',
+      modelSelection: { model: 'gpt-6-astra', fastMode: true },
+    })
 
     expect(payload).toEqual(
       expect.objectContaining({
@@ -584,7 +602,6 @@ describe('buildCopilotRequestPayload', () => {
     for (const legacy of [
       'workspaceContext',
       'vfs',
-      'entitlements',
       'userMetadata',
       'userPermission',
       'model',
@@ -669,19 +686,16 @@ describe('Assistant payload', () => {
       filename: 'image.png',
       source: { type: 'base64' as const, media_type: 'image/png', data: 'aW1hZ2U=' },
     }
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: '',
-        userId: 'user-1',
-        userMessageId: 'message-1',
-        organizationId: 'org-1',
-        mode: 'assistant',
-        model: '',
-        assistantImages: [image],
-        fileAttachments: [{ id: 'image', key: 'private-upload', size: 5 }],
-      },
-      { selectedModel: '' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: '',
+      userId: 'user-1',
+      userMessageId: 'message-1',
+      organizationId: 'org-1',
+      mode: 'assistant',
+      model: '',
+      assistantImages: [image],
+      fileAttachments: [{ id: 'image', key: 'private-upload', size: 5 }],
+    })
     expect(payload.message).toBe('')
     expect(payload.assistantImages).toEqual([image])
     expect(payload).not.toHaveProperty('context')
@@ -690,21 +704,18 @@ describe('Assistant payload', () => {
   })
 
   it('forwards organization scope without workspace, integration, or desktop authority', async () => {
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Find the policy',
-        userId: 'user-1',
-        userMessageId: 'message-1',
-        organizationId: 'org-1',
-        mode: 'assistant',
-        model: '',
-        browser: true,
-        terminalCapable: true,
-        desktopLocalFilesystem: true,
-        desktopLocalFiles: true,
-      },
-      { selectedModel: '' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'Find the policy',
+      userId: 'user-1',
+      userMessageId: 'message-1',
+      organizationId: 'org-1',
+      mode: 'assistant',
+      model: '',
+      browser: true,
+      terminalCapable: true,
+      desktopLocalFilesystem: true,
+      desktopLocalFiles: true,
+    })
     expect(payload.organizationId).toBe('org-1')
     expect(payload).not.toHaveProperty('integrationCatalog')
     expect(payload).not.toHaveProperty('workspaceId')
@@ -714,26 +725,23 @@ describe('Assistant payload', () => {
 
   it('keeps the shared search scope without an integration gateway catalog', async () => {
     clearIntegrationToolSchemaCacheForTests()
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Find it and update it',
-        userId: 'user-1',
-        userMessageId: 'assistant-message',
-        mode: 'assistant',
-        model: '',
-        workspaceId: 'ws-1',
-        workflowId: 'forbidden-workflow',
-        assistantSearch: { source: 'slack', documentIds: ['document-1'] },
-        contexts: [{ type: 'skill', content: 'Build instructions' }],
-        commands: ['run_function'],
-        mcpServerIds: ['shared-server'],
-        desktopLocalFilesystem: true,
-        desktopLocalFiles: true,
-        browser: true,
-        terminalCapable: true,
-      },
-      { selectedModel: '' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'Find it and update it',
+      userId: 'user-1',
+      userMessageId: 'assistant-message',
+      mode: 'assistant',
+      model: '',
+      workspaceId: 'ws-1',
+      workflowId: 'forbidden-workflow',
+      assistantSearch: { source: 'slack', documentIds: ['document-1'] },
+      contexts: [{ type: 'skill', content: 'Build instructions' }],
+      commands: ['run_function'],
+      mcpServerIds: ['shared-server'],
+      desktopLocalFilesystem: true,
+      desktopLocalFiles: true,
+      browser: true,
+      terminalCapable: true,
+    })
     expect(payload).not.toHaveProperty('desktop')
     expect(payload.clientCapabilities).toEqual([])
     expect(payload.mode).toBe('assistant')
@@ -748,23 +756,20 @@ describe('Assistant payload', () => {
 
 describe('desktop request capabilities', () => {
   it('preserves desktop capabilities and current session hints on the worker wire', async () => {
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Inspect my local page',
-        workspaceId: 'workspace',
-        userId: 'user',
-        userMessageId: 'message',
-        mode: 'ask',
-        model: 'gpt-6-astra',
-        browser: true,
-        terminalCapable: true,
-        terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
-        browserSessions: [
-          { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
-        ],
-      },
-      { selectedModel: 'gpt-6-astra' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'Inspect my local page',
+      workspaceId: 'workspace',
+      userId: 'user',
+      userMessageId: 'message',
+      mode: 'ask',
+      model: 'gpt-6-astra',
+      browser: true,
+      terminalCapable: true,
+      terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
+      browserSessions: [
+        { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
+      ],
+    })
     expect(payload.desktop).toEqual({
       browser: true,
       terminal: true,
@@ -775,19 +780,16 @@ describe('desktop request capabilities', () => {
     })
   })
   it('advertises native files in org mode independently of browser and terminal', async () => {
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Read and import my report',
-        organizationId: 'org-files',
-        chatId: 'org-chat',
-        userId: 'user',
-        userMessageId: 'message',
-        mode: 'ask',
-        model: 'gpt-6-astra',
-        desktopLocalFiles: true,
-      },
-      { selectedModel: 'gpt-6-astra' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'Read and import my report',
+      organizationId: 'org-files',
+      chatId: 'org-chat',
+      userId: 'user',
+      userMessageId: 'message',
+      mode: 'ask',
+      model: 'gpt-6-astra',
+      desktopLocalFiles: true,
+    })
     expect(payload.desktop).toEqual({
       localFiles: true,
       browser: false,
@@ -798,18 +800,15 @@ describe('desktop request capabilities', () => {
     expect(payload.workspaceId).toBeUndefined()
   })
   it('does not advertise desktop tools for a web-only turn', async () => {
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Hello',
-        workspaceId: 'workspace',
-        userId: 'user',
-        userMessageId: 'message',
-        mode: 'ask',
-        model: 'gpt-6-astra',
-        terminals: [{ id: 'stale-terminal' }],
-      },
-      { selectedModel: 'gpt-6-astra' }
-    )
+    const payload = await buildCopilotRequestPayload({
+      message: 'Hello',
+      workspaceId: 'workspace',
+      userId: 'user',
+      userMessageId: 'message',
+      mode: 'ask',
+      model: 'gpt-6-astra',
+      terminals: [{ id: 'stale-terminal' }],
+    })
     expect(payload.desktop).toBeUndefined()
   })
 })
@@ -820,22 +819,19 @@ it('carries only enabled MCP IDs without eager catalog discovery while preservin
   vi.mocked(getBlockVisibilityForCopilot).mockClear()
   vi.mocked(buildOrganizationTaggedMcpToolSchemas).mockClear()
   const principal = createSessionPrincipal({ userId: 'user-org' })
-  const payload = await buildCopilotRequestPayload(
-    {
-      message: 'Use my tools',
-      userId: 'user-org',
-      userMessageId: 'message-org',
-      organizationId: 'org-catalog',
-      chatId: 'chat-org',
-      principal,
-      mode: 'agent',
-      model: '',
-      mcpServerIds: ['server-a', 'server-b'],
-      browser: true,
-      terminalCapable: true,
-    },
-    { selectedModel: '' }
-  )
+  const payload = await buildCopilotRequestPayload({
+    message: 'Use my tools',
+    userId: 'user-org',
+    userMessageId: 'message-org',
+    organizationId: 'org-catalog',
+    chatId: 'chat-org',
+    principal,
+    mode: 'agent',
+    model: '',
+    mcpServerIds: ['server-a', 'server-b'],
+    browser: true,
+    terminalCapable: true,
+  })
   expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
   expect(buildOrganizationTaggedMcpToolSchemas).not.toHaveBeenCalled()
   expect(payload.integrationCatalog).toEqual({ mcpServerIds: ['server-a', 'server-b'] })

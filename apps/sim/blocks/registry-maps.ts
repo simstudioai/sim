@@ -266,9 +266,11 @@ import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
+import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
+import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
@@ -373,6 +375,7 @@ import { WorkdayBlock, WorkdayBlockMeta } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
+import { YouComBlock, YouComBlockMeta } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
@@ -619,9 +622,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
+  planetscale: PlanetScaleBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
+  powerbi: PowerBIBlock,
   profound: ProfoundBlock,
   prospeo: ProspeoBlock,
   pulse: PulseBlock,
@@ -736,6 +741,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,
+  youcom: YouComBlock,
   youtube: YouTubeBlock,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
@@ -950,9 +956,11 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,
+  planetscale: PlanetScaleBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,
+  powerbi: PowerBIBlockMeta,
   profound: ProfoundBlockMeta,
   prospeo: ProspeoBlockMeta,
   pulse: PulseBlockMeta,
@@ -1036,6 +1044,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   wordpress: WordPressBlockMeta,
   workday: WorkdayBlockMeta,
   x: XBlockMeta,
+  youcom: YouComBlockMeta,
   youtube: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,

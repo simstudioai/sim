@@ -384,18 +384,11 @@ describe('search projection upgrade in PostgreSQL', () => {
     }
     await runScriptMigrations(sql)
     expect(
-      await sql`SELECT name FROM script_migrations WHERE name >= '0015' ORDER BY name`
+      await sql`SELECT name FROM script_migrations
+        WHERE name IN ('0015_backfill_embedding_search', '0016_backfill_search_vectors') ORDER BY name`
     ).toEqual([
       { name: '0015_backfill_embedding_search' },
       { name: '0016_backfill_search_vectors' },
-      { name: '0017_index_search_documents' },
-      { name: '0018_repair_workspace_file_content_revision' },
-      { name: '0019_tin_keyword_projection' },
-      { name: '0021_embedding_search_connector' },
-      { name: '0022_projection_source_acl_backfill' },
-      { name: '0023_projection_acl_skip_unfilled' },
-      { name: '0024_knowledge_projection_async' },
-      { name: '0025_scope_keyword_projections' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id
@@ -403,6 +396,13 @@ describe('search projection upgrade in PostgreSQL', () => {
         AND s.vector_512 = subvector(e.embedding, 1, 512)::halfvec(512)
         AND k.content_tsv = e.content_tsv`
     expect(complete).toBe(1001)
+    /** Search retirement is an operator command; a deploy's full registry run never starts it. */
+    expect(
+      (
+        await sql`SELECT to_regclass('search_embedding_cleanup_progress') AS progress,
+          to_regclass('search_embedding_cleanup_targets') AS targets`
+      )[0]
+    ).toEqual({ progress: null, targets: null })
     await runScriptMigrations(sql)
     await sql`DELETE FROM embedding WHERE id LIKE 'upgrade-%'`
   }, 60_000)

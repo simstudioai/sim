@@ -218,6 +218,8 @@ export interface StreamingContext {
    * main-lane / no-scope intent (file writes there are always sequential).
    */
   activeFileIntents: Map<string, ActiveFileIntent>
+  /** File preview content this turn has streamed; one object shared by every leg. */
+  filePreviewBudget: { contentBytes: number }
   trace: TraceCollector
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
   /**
@@ -236,30 +238,6 @@ export interface StreamingContext {
      */
     autoAllowPermitted: boolean
   }
-}
-
-interface FileAttachment {
-  id: string
-  key: string
-  name: string
-  mimeType: string
-  size: number
-}
-
-interface OrchestratorRequest {
-  message: string
-  workflowId: string
-  userId: string
-  chatId?: string
-  mode?: 'agent' | 'assistant' | 'plan'
-  model?: string
-  contexts?: Array<{ type: string; content: string }>
-  fileAttachments?: FileAttachment[]
-  commands?: string[]
-  provider?: string
-  version?: string
-  prefetch?: boolean
-  userName?: string
 }
 
 export interface OrchestratorOptions {
@@ -298,6 +276,8 @@ export interface OrchestratorResult {
   chatId?: string
   requestId?: string
   error?: string
+  /** Machine-readable cause of `error`, forwarded as the stream error event's `code`. */
+  errorCode?: string
   errors?: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }

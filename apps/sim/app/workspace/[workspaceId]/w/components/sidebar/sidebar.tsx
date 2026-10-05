@@ -25,6 +25,7 @@ import {
 } from '@sim/emcn'
 import {
   Building,
+  Dashboard,
   Database,
   Files,
   Integration,
@@ -53,6 +54,7 @@ import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -318,8 +320,6 @@ const SidebarNavItem = memo(function SidebarNavItem({
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
-const HIDDEN_STYLE = { display: 'none' } as const
-
 /**
  * Opts a control out of the desktop shell's window-drag region. The header row is
  * draggable chrome, so anything clickable inside it has to say so or the click is
@@ -399,7 +399,6 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   ])
 
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
-  const isOnWorkflowPage = !!workflowId
 
   const isMac = isMacPlatform()
   const showCollapsedTooltips = isCollapsed
@@ -705,6 +704,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     [workspaces, workspaceId]
   )
 
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const topNavItems = useMemo(
     () =>
       [
@@ -720,6 +720,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
             (!chatEnabled && !permissionsLoading && !canEdit) ||
             (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
           restricted: chatEnabled && permissionConfig.hideCopilot,
+        },
+        {
+          id: 'dashboards',
+          label: 'Dashboard',
+          icon: Dashboard,
+          href: `/workspace/${workspaceId}/dashboards`,
+          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'integrations',
@@ -738,8 +746,10 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
       permissionConfig.hideCopilot,
+      permissionConfig.hideFilesTab,
       accessRequestsEnabled,
       chatEnabled,
+      dashboardsEnabled,
     ]
   )
 
@@ -1614,7 +1624,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                       disabled={!permissionsLoading && !canEdit}
                                     >
                                       {isImporting || isCreatingFolder ? (
-                                        <Loader className='h-[16px] w-[16px]' animate />
+                                        <Loader className='size-[16px]' animate />
                                       ) : (
                                         <MoreHorizontal className='size-[14px]' />
                                       )}
@@ -1657,7 +1667,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                   onClick={handleCreateWorkflow}
                                   disabled={isCreatingWorkflow || (!permissionsLoading && !canEdit)}
                                 >
-                                  <Plus className='h-[16px] w-[16px]' />
+                                  <Plus className='size-[16px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content>

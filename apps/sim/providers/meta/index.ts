@@ -14,9 +14,10 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromMetaStream } from '@/providers/meta/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -105,14 +106,7 @@ export const metaProvider: ProviderConfig = {
       }
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -190,29 +184,32 @@ export const metaProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromMetaStream(
+            createOpenAICompatibleAgentEventStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage) => {
-                output.content = content
-                output.tokens = {
-                  input: usage.prompt_tokens,
-                  output: usage.completion_tokens,
-                  total: usage.total_tokens,
-                }
+              {
+                providerName: 'Meta',
+                request,
+                onComplete: ({ content, usage }) => {
+                  output.content = content
+                  output.tokens = {
+                    input: usage.prompt_tokens,
+                    output: usage.completion_tokens,
+                    total: usage.total_tokens,
+                  }
 
-                const costResult = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                output.cost = {
-                  input: costResult.input,
-                  output: costResult.output,
-                  total: costResult.total,
-                }
-              },
-              request
+                  const costResult = calculateCost(
+                    request.model,
+                    usage.prompt_tokens,
+                    usage.completion_tokens
+                  )
+                  output.cost = {
+                    input: costResult.input,
+                    output: costResult.output,
+                    total: costResult.total,
+                  }
+                },
+              }
             ),
         })
 

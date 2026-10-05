@@ -3,6 +3,7 @@
 import type { ComponentProps } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface SettingsGuardedLinkProps
@@ -23,7 +24,12 @@ export function SettingsGuardedLink({ href, onNavigate, ...props }: SettingsGuar
         const { isDirty, navigationBlocked, requestLeave } = useSettingsDirtyStore.getState()
         if (isDirty || navigationBlocked) {
           event.preventDefault()
-          requestLeave(() => router.push(href))
+          requestLeave(() => {
+            rememberSettingsReturnUrl(href)
+            router.push(href)
+          })
+        } else {
+          rememberSettingsReturnUrl(href)
         }
         onNavigate?.()
       }}

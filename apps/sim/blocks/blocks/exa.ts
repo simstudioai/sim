@@ -1,7 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ExaResponse } from '@/tools/exa/types'
 
 /** Categories Exa currently supports. Shared by Search and Find Similar Links. */
 const CATEGORY_OPTIONS = [
@@ -35,7 +34,7 @@ const RESEARCH_MODEL_TO_EFFORT: Record<string, string> = {
   'exa-research-pro': 'high',
 }
 
-export const ExaBlock: BlockConfig<ExaResponse> = {
+export const ExaBlock: BlockConfig = {
   type: 'exa',
   name: 'Exa',
   description: 'Search with Exa AI',

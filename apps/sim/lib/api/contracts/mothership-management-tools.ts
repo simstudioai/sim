@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
@@ -9,6 +10,14 @@ export const mothershipWorkspacesInputSchema = z.discriminatedUnion('action', [
 
 /** Shared input contracts and availability; permission decisions remain in the domain use cases. */
 export const managementToolContracts = [
+  {
+    id: 'dashboards',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.',
+    inputSchema: mothershipDashboardsInputSchema,
+  },
   {
     id: 'workspaces',
     route: 'sim',

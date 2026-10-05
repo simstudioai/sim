@@ -1,5 +1,6 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { dbChainMock } from '@sim/testing/mocks/database.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,7 +27,6 @@ const {
   mockDeleteInactiveDeploymentSchedules,
   mockGetProtectedDeploymentVersionId,
   mockIsDeploymentVersionActive,
-  mockTx,
 } = vi.hoisted(() => ({
   mockPrepareWebhooks: vi.fn(),
   mockGetDeploymentOperation: vi.fn(),
@@ -49,7 +49,6 @@ const {
   mockDeleteInactiveDeploymentSchedules: vi.fn(),
   mockGetProtectedDeploymentVersionId: vi.fn(),
   mockIsDeploymentVersionActive: vi.fn(),
-  mockTx: { select: vi.fn(), update: vi.fn(), execute: vi.fn() },
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -115,6 +114,8 @@ import {
   type PrepareDeploymentV2Payload,
   WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS,
 } from '@/lib/workflows/deployment-outbox'
+
+const mockTx = dbChainMock.db
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
 

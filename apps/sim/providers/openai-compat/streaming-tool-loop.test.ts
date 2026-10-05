@@ -20,7 +20,6 @@ import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
 
 providersMock.MAX_TOOL_ITERATIONS = 5
 const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
-const mockRecordError = providersConversationHistoryMockFns.mockRecordProviderConversationToolError
 
 const mockPrepareToolExecution = providersUtilsMockFns.mockPrepareToolExecution
 const mockExecuteTool = toolsMockFns.mockExecuteTool
@@ -53,7 +52,7 @@ vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/providers', () => providersMock)
 
-function toolThenAnswerChunks(toolName: string, args: string, answer: string) {
+function toolThenAnswerChunks(toolName: string, args: string) {
   return [
     {
       choices: [
@@ -133,7 +132,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -332,7 +331,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -379,7 +378,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -436,7 +435,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{"query": "unterminated', '')
+          yield* toolThenAnswerChunks('lookup', '{"query": "unterminated')
         })()
       }
       return (async function* () {
@@ -485,7 +484,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
         call += 1
         if (call === 1) {
           return (async function* () {
-            yield* toolThenAnswerChunks('lookup', argumentsJson, '')
+            yield* toolThenAnswerChunks('lookup', argumentsJson)
           })()
         }
         return (async function* () {
@@ -522,7 +521,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
   it('fails an unexpected tool AbortError and reports completed usage', async () => {
     const createStream = vi.fn(async () => {
       return (async function* () {
-        yield* toolThenAnswerChunks('lookup', '{}', '')
+        yield* toolThenAnswerChunks('lookup', '{}')
       })()
     })
     mockExecuteTool.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
@@ -562,7 +561,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {

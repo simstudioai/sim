@@ -1,14 +1,14 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export type LatexCompiler = 'pdflatex' | 'xelatex' | 'lualatex' | 'platex' | 'uplatex' | 'context'
+type LatexCompiler = 'pdflatex' | 'xelatex' | 'lualatex' | 'platex' | 'uplatex' | 'context'
 
 /**
  * Supporting file made available to the compiler alongside the main document.
  * Exactly one of `content` (plain text), `file` (base64), or `url` (remote
  * file) must be provided.
  */
-export interface LatexResource {
+interface LatexResource {
   path: string
   content?: string
   file?: string
@@ -26,7 +26,7 @@ export interface LatexCompileParams {
  * Reference to the compiled PDF when no execution-file context is available;
  * with execution context the output is a full {@link UserFile}.
  */
-export interface LatexPdfReference {
+interface LatexPdfReference {
   name: string
   url: string
   mimeType: string
@@ -98,9 +98,3 @@ export interface LatexListFontsResponse extends ToolResponse {
     totalMatches: number
   }
 }
-
-export type LatexResponse =
-  | LatexCompileResponse
-  | LatexSearchPackagesResponse
-  | LatexGetPackageResponse
-  | LatexListFontsResponse

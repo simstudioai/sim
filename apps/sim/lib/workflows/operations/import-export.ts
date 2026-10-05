@@ -63,15 +63,6 @@ export interface FolderExportData {
   sortOrder?: number
 }
 
-interface WorkspaceExportStructure {
-  workspace: {
-    name: string
-    exportedAt: string
-  }
-  workflows: WorkflowExportData[]
-  folders: FolderExportData[]
-}
-
 /**
  * Sanitizes a string for use as a path segment in a ZIP file.
  */

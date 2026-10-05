@@ -3,12 +3,16 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import * as audit from '@sim/audit'
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   document,
   knowledgeBase,
   organization,
   outboxEvent,
+  permissions,
   user,
   workspace,
   workspaceFiles,
@@ -46,13 +50,14 @@ import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
-import { createSingleDocument } from '@/lib/knowledge/documents/service'
+import { createDocumentRecords, createSingleDocument } from '@/lib/knowledge/documents/service'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup'
 import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
 import {
   deleteWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -65,7 +70,11 @@ async function seed() {
   return ids
 }
 
-async function sourceFile(ids: ReturnType<typeof createKnowledgeAclFixtureIds>, content: string) {
+async function sourceFile(
+  ids: ReturnType<typeof createKnowledgeAclFixtureIds>,
+  content: string,
+  secretProvenance: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
+) {
   return uploadWorkspaceFile(
     ids.workspaceId,
     ids.aliceId,
@@ -73,10 +82,42 @@ async function sourceFile(ids: ReturnType<typeof createKnowledgeAclFixtureIds>, 
     'import.txt',
     'text/plain',
     {
-      secretProvenance: { status: 'exact', entries: [] },
+      secretProvenance,
       notifyWorkspaceChange: false,
     }
   )
+}
+
+/** Drains real audit writes before asserting persisted rows, including duplicates from one operation. */
+function observeAbsenceAudits(workspaceId: string) {
+  let submitted = 0
+  const recordAudit = audit.recordAudit
+  const observation = vi.spyOn(audit, 'recordAudit').mockImplementation((entry) => {
+    if (
+      entry.workspaceId === workspaceId &&
+      entry.action === AuditAction.SECRET_PROVENANCE_UNRECORDED
+    ) {
+      submitted += 1
+    }
+    recordAudit(entry)
+  })
+  return {
+    restore: () => observation.mockRestore(),
+    async persisted() {
+      const read = () =>
+        db
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.workspaceId, workspaceId),
+              eq(auditLog.action, AuditAction.SECRET_PROVENANCE_UNRECORDED)
+            )
+          )
+      await vi.waitFor(async () => expect(await read()).toHaveLength(submitted))
+      return read()
+    },
+  }
 }
 
 beforeAll(() => {
@@ -87,6 +128,7 @@ afterAll(async () => {
   if (trackedEventIds.length)
     await db.delete(outboxEvent).where(inArray(outboxEvent.id, trackedEventIds))
   for (const ids of fixtures) {
+    await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
@@ -97,6 +139,96 @@ afterAll(async () => {
 })
 
 describe('durable workspace file import', () => {
+  it('audits one accepted unrecorded source under the importer instead of its uploader', async () => {
+    const ids = await seed()
+    const source = await sourceFile(ids, 'ordinary source bytes', { status: 'unrecorded' })
+    await db
+      .update(permissions)
+      .set({ permissionType: 'write' })
+      .where(and(eq(permissions.userId, ids.bobId), eq(permissions.entityId, ids.workspaceId)))
+    const observed = observeAbsenceAudits(ids.workspaceId)
+    try {
+      const result = await addWorkspaceFilesToKnowledgeBase.execute({
+        principal: { kind: 'session', userId: ids.bobId, sessionId: 'fixture-session' },
+        input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.id, source.id] },
+      })
+      expect(result.failed).toEqual([])
+      expect(result.added).toHaveLength(1)
+      const documentId = result.added[0].documentId
+      const events = await db
+        .select({ id: outboxEvent.id })
+        .from(outboxEvent)
+        .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`)
+      trackedEventIds.push(...events.map((event) => event.id))
+      const entries = await observed.persisted()
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        actorId: ids.bobId,
+        metadata: { surface: 'workspace-file', recordCount: 1 },
+      })
+      expect(await db.select().from(document).where(eq(document.id, documentId))).toHaveLength(1)
+    } finally {
+      observed.restore()
+    }
+  })
+
+  it.each([
+    ['single', 'commit'],
+    ['single', 'rollback'],
+    ['bulk', 'commit'],
+    ['bulk', 'rollback'],
+  ] as const)('audits unrecorded %s document admission only after %s', async (mode, outcome) => {
+    const ids = await seed()
+    const source = await sourceFile(ids, 'ordinary source bytes', { status: 'unrecorded' })
+    const observed = observeAbsenceAudits(ids.workspaceId)
+    const tripwire = process.env.DB_TX_TRIPWIRE
+    /** Match production's warning mode so a premature audit remains visible after rollback. */
+    vi.stubEnv('DB_TX_TRIPWIRE', 'warn')
+    const transaction = db.transaction.bind(db)
+    const failure =
+      outcome === 'rollback'
+        ? vi.spyOn(db, 'transaction').mockImplementationOnce((callback, config) =>
+            transaction(async (tx) => {
+              await callback(tx)
+              throw new Error('Document admission commit failed')
+            }, config)
+          )
+        : undefined
+    try {
+      const input = {
+        filename: source.name,
+        fileUrl: `/api/files/serve/${encodeURIComponent(source.key)}?context=workspace`,
+        fileSize: source.size,
+        mimeType: source.type,
+      }
+      const created =
+        mode === 'single'
+          ? createSingleDocument(input, ids.knowledgeBaseId, generateId(), ids.aliceId)
+          : createDocumentRecords([input], ids.knowledgeBaseId, generateId(), ids.aliceId)
+      if (outcome === 'rollback') {
+        await expect(created).rejects.toThrow('Document admission commit failed')
+      } else {
+        await created
+      }
+      const expectedCount = outcome === 'commit' ? 1 : 0
+      expect(
+        await db.select().from(document).where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
+      ).toHaveLength(expectedCount)
+      const entries = await observed.persisted()
+      expect(entries).toHaveLength(expectedCount)
+      if (outcome === 'commit') {
+        expect(entries[0]).toMatchObject({
+          actorId: null,
+          metadata: { surface: 'workspace-file', recordCount: 1 },
+        })
+      }
+    } finally {
+      failure?.mockRestore()
+      observed.restore()
+      vi.stubEnv('DB_TX_TRIPWIRE', tripwire)
+    }
+  })
+
   it('indexes the admitted snapshot after the source was deleted and temporary access would have expired', async () => {
     const ids = await seed()
     const content =

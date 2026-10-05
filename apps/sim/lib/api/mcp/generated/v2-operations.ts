@@ -275,6 +275,7 @@ import {
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -554,6 +555,16 @@ export const V2_MCP_OPERATIONS = {
   chat: {
     contract: v2ChatContract,
     handler: () => import('@/app/api/v2/chat/route').then((route) => route.POST),
+  },
+  compareWorkflowVersions: {
+    contract: v2CompareWorkflowVersionsContract,
+    summary: 'Compare Workflow Versions',
+    description:
+      'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/versions/compare/route').then(
+        (route) => route.GET
+      ),
   },
   completeFileUpload: {
     contract: v2CompleteFileUploadContract,
@@ -1151,7 +1162,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteToolContract,
     summary: 'Run Tool',
     description:
-      'Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: "failed"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: "failed"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace; a call that would use a hosted key from a workspace over its usage or billing limits returns `402`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/tools/[toolId]/execute/route').then((route) => route.POST),
   },

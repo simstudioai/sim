@@ -193,17 +193,6 @@ export interface GrafanaUpdateDashboardParams extends GrafanaBaseParams {
   message?: string
 }
 
-interface GrafanaUpdateDashboardResponse extends ToolResponse {
-  output: {
-    id: number
-    uid: string
-    url: string
-    status: string
-    version: number
-    slug: string
-  }
-}
-
 export interface GrafanaDeleteDashboardParams extends GrafanaBaseParams {
   dashboardUid: string
 }
@@ -297,10 +286,6 @@ export interface GrafanaUpdateAlertRuleParams extends GrafanaBaseParams {
   notificationSettings?: string
   record?: string
   disableProvenance?: boolean
-}
-
-interface GrafanaUpdateAlertRuleResponse extends ToolResponse {
-  output: GrafanaAlertRule
 }
 
 export interface GrafanaDeleteAlertRuleParams extends GrafanaBaseParams {
@@ -488,10 +473,6 @@ export interface GrafanaUpdateFolderParams extends GrafanaBaseParams {
   title?: string
 }
 
-export interface GrafanaUpdateFolderResponse extends ToolResponse {
-  output: GrafanaFolder
-}
-
 export interface GrafanaDeleteFolderParams extends GrafanaBaseParams {
   folderUid: string
   forceDeleteRules?: boolean
@@ -544,33 +525,6 @@ export interface GrafanaCreateContactPointResponse extends ToolResponse {
     provenance: string
   }
 }
-
-export type GrafanaResponse =
-  | GrafanaHealthCheckResponse
-  | GrafanaDataSourceHealthResponse
-  | GrafanaGetDashboardResponse
-  | GrafanaListDashboardsResponse
-  | GrafanaCreateDashboardResponse
-  | GrafanaUpdateDashboardResponse
-  | GrafanaDeleteDashboardResponse
-  | GrafanaListAlertRulesResponse
-  | GrafanaGetAlertRuleResponse
-  | GrafanaCreateAlertRuleResponse
-  | GrafanaUpdateAlertRuleResponse
-  | GrafanaDeleteAlertRuleResponse
-  | GrafanaCreateAnnotationResponse
-  | GrafanaListAnnotationsResponse
-  | GrafanaUpdateAnnotationResponse
-  | GrafanaDeleteAnnotationResponse
-  | GrafanaListDataSourcesResponse
-  | GrafanaGetDataSourceResponse
-  | GrafanaListFoldersResponse
-  | GrafanaCreateFolderResponse
-  | GrafanaGetFolderResponse
-  | GrafanaUpdateFolderResponse
-  | GrafanaDeleteFolderResponse
-  | GrafanaListContactPointsResponse
-  | GrafanaCreateContactPointResponse
 
 export interface GrafanaUpdateContactPointParams extends GrafanaBaseParams {
   contactPointUid: string

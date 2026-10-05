@@ -42,7 +42,3 @@ interface BrowserUseTaskOutput {
 export interface BrowserUseRunTaskResponse extends ToolResponse {
   output: BrowserUseTaskOutput
 }
-
-export interface BrowserUseResponse extends ToolResponse {
-  output: BrowserUseTaskOutput
-}

@@ -134,7 +134,6 @@ describe('twilioHandler', () => {
       })
 
     const inbound = { MessageSid: 'SM1', From: '+1', Body: 'hi', SmsStatus: 'received' }
-    const status = { MessageSid: 'SM1', MessageStatus: 'delivered', SmsStatus: 'delivered' }
 
     it('routes inbound messages only to the received trigger', () => {
       expect(match('twilio_sms_received', inbound)).toBe(true)

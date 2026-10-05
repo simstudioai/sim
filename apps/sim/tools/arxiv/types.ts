@@ -58,8 +58,3 @@ export interface ArxivGetAuthorPapersResponse extends ToolResponse {
     authorName: string
   }
 }
-
-export type ArxivResponse =
-  | ArxivSearchResponse
-  | ArxivGetPaperResponse
-  | ArxivGetAuthorPapersResponse

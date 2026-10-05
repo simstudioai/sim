@@ -158,7 +158,7 @@ describe('organization configuration authorization', () => {
     queueTableRows(organization, [{ settings: { brandName: 'Acme' } }])
     await expect(
       getOrganizationWhitelabel.execute({ principal, input: { organizationId: 'org' } })
-    ).resolves.toEqual({ brandName: 'Acme' })
+    ).resolves.toEqual({ isEnterprise: true, settings: { brandName: 'Acme' } })
     queueTableRows(member, [])
     await expect(
       getOrganizationWhitelabel.execute({ principal, input: { organizationId: 'org' } })

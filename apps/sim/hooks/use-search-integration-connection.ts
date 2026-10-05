@@ -9,6 +9,7 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   readSearchConnectionAttempt,
   SEARCH_CONNECTION_ATTEMPT_EVENT,
@@ -51,6 +52,8 @@ export function useSearchIntegrationConnection({
   const [localError, setLocalError] = useState<string | null>(null)
   const popup = useRef<Window | null>(null)
   const starting = useRef(false)
+  const nativeAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => nativeAbort.current?.abort(), [])
   const callback = useRef(onConnected)
   useEffect(() => {
     callback.current = onConnected
@@ -58,13 +61,10 @@ export function useSearchIntegrationConnection({
   const client = useQueryClient()
   const { mutateAsync, isPending } = useConnectPersonalSearchIntegration()
   const pending = attempt?.status === 'pending'
-  const connectorId = target.connectorId ?? attempt?.connectorId
-  const effectiveTarget = connectorId ? { ...target, connectorId } : target
   const query = usePersonalSearchIntegrations(
     {
       organizationId,
       connectorType: target.connectorType,
-      connectorId,
       completionId: attempt?.completionId,
     },
     { pending }
@@ -90,9 +90,7 @@ export function useSearchIntegrationConnection({
   ]
   const available =
     query.isSuccess &&
-    availableTargets.some(
-      (candidate) => JSON.stringify(candidate) === JSON.stringify(effectiveTarget)
-    )
+    availableTargets.some((candidate) => JSON.stringify(candidate) === JSON.stringify(target))
 
   useEffect(() => {
     const refresh = () => setAttempt(readSearchConnectionAttempt(key))
@@ -149,62 +147,68 @@ export function useSearchIntegrationConnection({
   }, [connected, attempt, key, query.data?.completedCredentialId])
 
   const { refetch } = query
-  const connect = useCallback(
-    async (sourceConfig?: Record<string, string>) => {
-      if (starting.current || isPending || connected) return
-      if (pending && popup.current && !popup.current.closed) {
-        popup.current.focus()
-        return
-      }
-      const tab = window.open('about:blank', '_blank', 'width=600,height=700')
-      if (!tab) {
-        setLocalError('Allow pop-ups for this site to connect your account.')
-        return
-      }
-      tab.opener = null
-      popup.current = tab
-      starting.current = true
-      setLocalError(null)
-      let next: SearchConnectionAttempt | undefined
-      try {
+  const connect = useCallback(async () => {
+    if (starting.current || isPending || connected) return
+    if (pending && popup.current && !popup.current.closed) {
+      popup.current.focus()
+      return
+    }
+    const desktop = isDesktopApp()
+    if (desktop && pending) return
+    const tab = desktop ? null : window.open('about:blank', '_blank', 'width=600,height=700')
+    if (!desktop && !tab) {
+      setLocalError('Allow pop-ups for this site to connect your account.')
+      return
+    }
+    if (tab) tab.opener = null
+    popup.current = tab
+    starting.current = true
+    const controller = new AbortController()
+    nativeAbort.current = controller
+    setLocalError(null)
+    let next: SearchConnectionAttempt | undefined
+    try {
+      if (!desktop) {
         const fresh = await refetch()
         if (!fresh.isSuccess) throw fresh.error
-        next = {
-          completionId: generateId(),
-          requestedAt: Date.now(),
-          connectorId,
-          status: 'pending',
-          error: null,
-        }
-        writeSearchConnectionAttempt(key, next)
-        const result = await mutateAsync({
-          organizationId,
-          target: connectorId ? { ...target, connectorId } : target,
-          sourceConfig,
-          oauthCompletionId: next.completionId,
-        })
-        const url = new URL(result.url)
-        if (
-          url.protocol !== 'https:' &&
-          !(url.protocol === 'http:' && url.origin === window.location.origin)
-        )
-          throw new Error('The provider authorization URL is invalid')
-        writeSearchConnectionAttempt(key, { ...next, connectorId: result.connectorId })
-        tab.location.href = url.href
-        return true
-      } catch (error) {
-        tab.close()
-        const message = getErrorMessage(error, 'Could not start the connection')
-        if (next) writeSearchConnectionAttempt(key, { ...next, status: 'failed', error: message })
-        setLocalError(message)
-        return false
-      } finally {
-        starting.current = false
       }
-    },
-    [isPending, connected, pending, refetch, mutateAsync, organizationId, target, connectorId, key]
-  )
+      controller.signal.throwIfAborted()
+      next = {
+        completionId: generateId(),
+        requestedAt: Date.now(),
+        status: 'pending',
+        error: null,
+      }
+      writeSearchConnectionAttempt(key, next)
+      const result = await mutateAsync({
+        organizationId,
+        target,
+        oauthCompletionId: next.completionId,
+        signal: controller.signal,
+      })
+      if (!result || !tab) return true
+      const url = new URL(result.url)
+      if (
+        url.protocol !== 'https:' &&
+        !(url.protocol === 'http:' && url.origin === window.location.origin)
+      )
+        throw new Error('The provider authorization URL is invalid')
+      tab.location.href = url.href
+      return true
+    } catch (error) {
+      tab?.close()
+      const message = getErrorMessage(error, 'Could not start the connection')
+      const current = readSearchConnectionAttempt(key)
+      if (next && current?.completionId === next.completionId && current.status === 'pending')
+        writeSearchConnectionAttempt(key, { ...current, status: 'failed', error: message })
+      if (!controller.signal.aborted) setLocalError(message)
+      return false
+    } finally {
+      starting.current = false
+    }
+  }, [isPending, connected, pending, refetch, mutateAsync, organizationId, target, key])
   const cancel = useCallback(() => {
+    nativeAbort.current?.abort()
     popup.current?.close()
     if (attempt?.status === 'pending')
       writeSearchConnectionAttempt(key, {
@@ -213,26 +217,11 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
-  const completeSetup = useCallback(
-    (result: { connectorId: string; credentialId: string }) => {
-      writeSearchConnectionAttempt(key, {
-        completionId: generateId(),
-        requestedAt: Date.now(),
-        connectorId: result.connectorId,
-        credentialId: result.credentialId,
-        status: 'connected',
-        error: null,
-      })
-    },
-    [key]
-  )
   return {
-    completeSetup,
     connect,
     cancel,
     inventoryError: query.error?.message,
     connected,
-    connectorId,
     pending,
     available,
     isStarting: isPending,

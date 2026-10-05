@@ -12,11 +12,14 @@
     "gmail",
     "google-calendar",
     "google-drive",
+    "google-meet",
     "granola",
     "hubspot",
     "jira",
     "linear",
+    "lucid",
     "notion",
-    "slack"
+    "slack",
+    "zoom"
   ]
 }

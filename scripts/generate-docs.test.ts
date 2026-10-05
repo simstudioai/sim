@@ -64,7 +64,7 @@ describe('documentation tool metadata', () => {
         ],
         tools: { access: ['download_file', 'download_list'] },
         outputs: { file: { type: 'file' }, content: { type: 'string' } },
-      } as const) satisfies BlockConfig<Response>
+      } as const) satisfies BlockConfig
       export const DownloadV2Block: BlockConfig = {
         ...DownloadBlock,
         type: 'download_v2', name: 'Download', hideFromToolbar: false,
@@ -238,6 +238,32 @@ describe('documentation output property parsing', () => {
       type: 'number',
       description: 'Number of items in the vault',
     })
+  })
+
+  it('inlines a shared output group spread into the outputs object', () => {
+    const source = `
+      const SHARED_OUTPUTS = {
+        sources: { type: 'array', description: 'Cited sources' },
+        warnings: { type: 'array', description: 'Research warnings' },
+      }
+
+      export const exampleResearchTool = {
+        id: 'example_research',
+        name: 'Example Research',
+        description: 'Research a question',
+        params: {},
+        outputs: {
+          taskId: { type: 'string', description: 'Background task ID' },
+          ...SHARED_OUTPUTS,
+        },
+      }
+    `
+
+    expect(Object.keys(extractToolInfo('example_research', source)?.outputs ?? {})).toEqual([
+      'taskId',
+      'sources',
+      'warnings',
+    ])
   })
 })
 

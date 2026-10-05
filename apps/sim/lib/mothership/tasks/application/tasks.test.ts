@@ -47,6 +47,7 @@ vi.mock('@/lib/workflows/executor/execution-status', () => ({
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: hoisted.acquire,
+  getLocalChatStreamLease: vi.fn(),
 }))
 
 import type { NextRequest } from 'next/server'

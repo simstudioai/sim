@@ -3,13 +3,13 @@ import type { ToolResponse } from '@/tools/types'
 
 export type VantaRegion = 'us' | 'gov'
 
-export interface VantaBaseParams {
+interface VantaBaseParams {
   clientId: string
   clientSecret: string
   region?: VantaRegion
 }
 
-export interface VantaPaginationParams {
+interface VantaPaginationParams {
   pageSize?: number
   pageCursor?: string
 }
@@ -256,18 +256,18 @@ export interface VantaControlDetail extends VantaControl {
   numTestsTotal: number | null
 }
 
-export interface VantaTestVersion {
+interface VantaTestVersion {
   major: number | null
   minor: number | null
 }
 
-export interface VantaTestDeactivatedStatusInfo {
+interface VantaTestDeactivatedStatusInfo {
   isDeactivated: boolean | null
   deactivatedReason: string | null
   lastUpdatedDate: string | null
 }
 
-export interface VantaTestRemediationStatusInfo {
+interface VantaTestRemediationStatusInfo {
   status: string | null
   soonestRemediateByDate: string | null
   itemCount: number | null
@@ -312,7 +312,7 @@ export interface VantaDocument {
   url: string | null
 }
 
-export interface VantaDocumentDeactivatedStatus {
+interface VantaDocumentDeactivatedStatus {
   isDeactivated: boolean | null
   reason: string | null
   creationDate: string | null
@@ -328,7 +328,7 @@ export interface VantaDocumentDetail extends VantaDocument {
   deactivatedStatus: VantaDocumentDeactivatedStatus | null
 }
 
-export interface VantaUploadedByActor {
+interface VantaUploadedByActor {
   id: string | null
   type: string | null
 }
@@ -347,26 +347,26 @@ export interface VantaUploadedFile {
   url: string | null
 }
 
-export interface VantaPersonName {
+interface VantaPersonName {
   first: string | null
   last: string | null
   display: string | null
 }
 
-export interface VantaPersonEmployment {
+interface VantaPersonEmployment {
   status: string | null
   startDate: string | null
   endDate: string | null
   jobTitle: string | null
 }
 
-export interface VantaPersonLeaveInfo {
+interface VantaPersonLeaveInfo {
   status: string | null
   startDate: string | null
   endDate: string | null
 }
 
-export interface VantaPersonTasksSummary {
+interface VantaPersonTasksSummary {
   status: string | null
   dueDate: string | null
   completionDate: string | null
@@ -389,7 +389,7 @@ export interface VantaPolicyDocument {
   url: string | null
 }
 
-export interface VantaPolicyLatestApprovedVersion {
+interface VantaPolicyLatestApprovedVersion {
   versionId: string | null
   documents: VantaPolicyDocument[]
 }
@@ -404,7 +404,7 @@ export interface VantaPolicy {
   latestApprovedVersion: VantaPolicyLatestApprovedVersion | null
 }
 
-export interface VantaVendorAuthDetails {
+interface VantaVendorAuthDetails {
   method: string | null
   passwordMFA: boolean | null
   passwordMinimumLength: number | null
@@ -412,17 +412,17 @@ export interface VantaVendorAuthDetails {
   passwordRequiresSymbol: boolean | null
 }
 
-export interface VantaVendorContractAmount {
+interface VantaVendorContractAmount {
   amount: number | null
   currency: string | null
 }
 
-export interface VantaVendorDecision {
+interface VantaVendorDecision {
   status: string | null
   lastUpdatedAt: string | null
 }
 
-export interface VantaVendorProcurementRequest {
+interface VantaVendorProcurementRequest {
   url: string | null
   service: string | null
 }
@@ -457,7 +457,7 @@ export interface VantaVendor {
   linkedTaskTrackerTaskProcurementRequest: VantaVendorProcurementRequest | null
 }
 
-export interface VantaVulnerabilityDeactivateMetadata {
+interface VantaVulnerabilityDeactivateMetadata {
   isVulnDeactivatedIndefinitely: boolean | null
   deactivatedUntilDate: string | null
   deactivationReason: string | null
@@ -489,7 +489,7 @@ export interface VantaVulnerability {
   deactivateMetadata: VantaVulnerabilityDeactivateMetadata | null
 }
 
-export interface VantaOperatingSystem {
+interface VantaOperatingSystem {
   type: string | null
   version: string | null
 }
@@ -539,7 +539,7 @@ export interface VantaVulnerabilityRemediation {
   remediationDate: string | null
 }
 
-export interface VantaAssetTag {
+interface VantaAssetTag {
   key: string | null
   value: string | null
 }
@@ -744,31 +744,3 @@ export interface VantaListVulnerabilitiesResponse extends ToolResponse {
     pageInfo: VantaPageInfo | null
   }
 }
-
-export type VantaResponse =
-  | VantaListFrameworksResponse
-  | VantaGetFrameworkResponse
-  | VantaListControlsResponse
-  | VantaGetControlResponse
-  | VantaListTestsResponse
-  | VantaGetTestResponse
-  | VantaListTestEntitiesResponse
-  | VantaListDocumentsResponse
-  | VantaGetDocumentResponse
-  | VantaListDocumentUploadsResponse
-  | VantaUploadDocumentFileResponse
-  | VantaDownloadDocumentFileResponse
-  | VantaSubmitDocumentResponse
-  | VantaListPeopleResponse
-  | VantaGetPersonResponse
-  | VantaListPoliciesResponse
-  | VantaGetPolicyResponse
-  | VantaListVendorsResponse
-  | VantaGetVendorResponse
-  | VantaListMonitoredComputersResponse
-  | VantaListVulnerabilitiesResponse
-  | VantaListVulnerabilityRemediationsResponse
-  | VantaListVulnerableAssetsResponse
-  | VantaGetVulnerableAssetResponse
-  | VantaListRiskScenariosResponse
-  | VantaGetRiskScenarioResponse

@@ -13,7 +13,7 @@ import type {
   BlockStartedData,
 } from '@/lib/workflows/executor/execution-events'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import {
   ExecutionStreamHttpError,
   processSSEStream,

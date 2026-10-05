@@ -3,6 +3,7 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -956,7 +957,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
 
       // Check if config changed or if we're forcing recreation (e.g., activating old version)
-      const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
+      const existingConfig = toRecord(existingWh.providerConfig)
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== provider ||

@@ -249,7 +249,7 @@ export const GRAIN_HOOK_TYPES = [
   'upload_status',
 ] as const
 
-export type GrainHookType = (typeof GRAIN_HOOK_TYPES)[number]
+type GrainHookType = (typeof GRAIN_HOOK_TYPES)[number]
 
 /** Hook object returned by the Grain v2 hooks endpoints. */
 interface GrainHookV2 {

@@ -495,8 +495,15 @@ export class TerminalService {
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
     confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
   ): boolean {
-    // Hard reload has no terminal meaning — leave it to the Browser or shell.
-    if (shortcut === 'focus-omnibox' || shortcut === 'hard-reload') return false
+    // Hard reload and history have no terminal meaning — leave them to the Browser or shell.
+    if (
+      shortcut === 'focus-omnibox' ||
+      shortcut === 'hard-reload' ||
+      shortcut === 'back' ||
+      shortcut === 'forward'
+    ) {
+      return false
+    }
     const visibleTabShortcut =
       shortcut === 'new-tab' || shortcut === 'reopen-closed-tab' || shortcut === 'close-tab'
     const ownsVisibleTabs =

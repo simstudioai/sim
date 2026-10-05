@@ -7,7 +7,7 @@ interface UseCopyToClipboardOptions {
   resetMs?: number
 }
 
-export interface DeferredClipboardContent {
+interface DeferredClipboardContent {
   /** Safe text that can be written immediately when promise-backed writes are unavailable. */
   fallback: string
   /** Produces the preferred text when the browser supports promise-backed clipboard items. */

@@ -373,7 +373,7 @@ const NOTE_COMPONENTS = {
  * move the read view out from under the editor, which is what made every block
  * after the first jump the moment editing opened.
  */
-export const NOTE_MARKDOWN_FLOW = 'space-y-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
+const NOTE_MARKDOWN_FLOW = 'space-y-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
 
 interface NoteMarkdownProps {
   content: string

@@ -58,7 +58,7 @@ export const ROOM_TYPES = {
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]
 
 /** Every known room type, for exhaustive iteration/validation. */
-export const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
+const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
 
 /**
  * The presence-free, workspace-scoped live-list rooms. They share one contract derived entirely
@@ -79,7 +79,7 @@ export interface RoomRef {
 }
 
 /** Type guard: whether an arbitrary string is a known {@link RoomType}. */
-export function isRoomType(value: string): value is RoomType {
+function isRoomType(value: string): value is RoomType {
   return (ALL_ROOM_TYPES as readonly string[]).includes(value)
 }
 

@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * iMessage expressive styles supported by Sendblue.
  */
-export type SendblueSendStyle =
+type SendblueSendStyle =
   | 'celebration'
   | 'shooting_star'
   | 'fireworks'
@@ -62,7 +62,7 @@ export interface SendblueGetMessageParams extends SendblueBaseParams {
 /**
  * Shared shape of a Sendblue message resource returned by the send endpoints.
  */
-export interface SendblueMessageOutput {
+interface SendblueMessageOutput {
   status: string | null
   message_handle: string | null
   account_email: string | null

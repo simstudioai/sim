@@ -46,15 +46,3 @@ export interface VideoResponse extends ToolResponse {
     }
   }
 }
-
-export interface VideoBlockResponse extends ToolResponse {
-  output: {
-    videoUrl: string
-    videoFile?: UserFile
-    duration?: number
-    width?: number
-    height?: number
-    provider?: string
-    model?: string
-  }
-}

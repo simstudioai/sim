@@ -2,7 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { WizaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { WizaResponse } from '@/tools/wiza/types'
 
 const PROSPECT_FILTER_FIELD = ['job_title', 'job_role', 'filters'] as const
 const PROSPECT_EMPLOYER_FIELD = ['job_company', 'company_industry'] as const
@@ -15,7 +14,7 @@ const COMPANY_FIELD = [
 const CONTACT_FIELD = ['profile_url', 'full_name', 'email'] as const
 const EMPLOYER_FIELD = ['company', 'domain'] as const
 
-export const WizaBlock: BlockConfig<WizaResponse> = {
+export const WizaBlock: BlockConfig = {
   type: 'wiza',
   name: 'Wiza',
   description: 'Find, enrich, and verify B2B contact data with Wiza',

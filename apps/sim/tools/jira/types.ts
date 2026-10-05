@@ -946,30 +946,6 @@ export interface JiraWriteResponse extends ToolResponse {
   }
 }
 
-interface JiraIssue {
-  key: string
-  summary: string
-  status: string
-  priority?: string
-  assignee?: string
-  updated: string
-}
-
-interface JiraProject {
-  id: string
-  key: string
-  name: string
-  url: string
-}
-
-interface JiraCloudResource {
-  id: string
-  url: string
-  name: string
-  scopes: string[]
-  avatarUrl: string
-}
-
 export interface JiraDeleteIssueParams {
   accessToken: string
   domain: string
@@ -1638,35 +1614,3 @@ export interface JiraGetFieldsResponse extends ToolResponse {
     total: number
   }
 }
-
-export type JiraResponse =
-  | JiraRetrieveResponse
-  | JiraUpdateResponse
-  | JiraWriteResponse
-  | JiraRetrieveResponseBulk
-  | JiraDeleteIssueResponse
-  | JiraAssignIssueResponse
-  | JiraTransitionIssueResponse
-  | JiraSearchIssuesResponse
-  | JiraAddCommentResponse
-  | JiraGetCommentsResponse
-  | JiraUpdateCommentResponse
-  | JiraDeleteCommentResponse
-  | JiraGetAttachmentsResponse
-  | JiraAddAttachmentResponse
-  | JiraDeleteAttachmentResponse
-  | JiraAddWorklogResponse
-  | JiraGetWorklogsResponse
-  | JiraUpdateWorklogResponse
-  | JiraDeleteWorklogResponse
-  | JiraCreateIssueLinkResponse
-  | JiraDeleteIssueLinkResponse
-  | JiraAddWatcherResponse
-  | JiraRemoveWatcherResponse
-  | JiraGetUsersResponse
-  | JiraSearchUsersResponse
-  | JiraListProjectsResponse
-  | JiraGetProjectResponse
-  | JiraGetTransitionsResponse
-  | JiraListIssueTypesResponse
-  | JiraGetFieldsResponse

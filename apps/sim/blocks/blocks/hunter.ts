@@ -1,6 +1,5 @@
 import { HunterIOIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { HunterResponse } from '@/tools/hunter/types'
 
 /**
  * The company a lookup targets, for the two operations that accept either a
@@ -9,7 +8,7 @@ import type { HunterResponse } from '@/tools/hunter/types'
  */
 const DOMAIN_OR_COMPANY_FIELD = ['domain', 'company'] as const
 
-export const HunterBlock: BlockConfig<HunterResponse> = {
+export const HunterBlock: BlockConfig = {
   type: 'hunter',
   name: 'Hunter.io',
   description: 'Find and verify professional email addresses',

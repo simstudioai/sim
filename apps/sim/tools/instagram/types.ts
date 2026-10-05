@@ -9,7 +9,7 @@ export const PUBLISH_OUTPUTS = {
   statusCode: { type: 'string', description: 'Final container status', optional: true },
 } satisfies Record<string, OutputProperty>
 
-export interface InstagramAccessParams {
+interface InstagramAccessParams {
   accessToken: string
   igUserId?: string
 }
@@ -108,7 +108,7 @@ export interface InstagramListStoriesResponse extends ToolResponse {
 }
 
 /** Canonical Sim file uploaded in basic mode or referenced from a prior block. */
-export type InstagramMediaInput = RawFileInput
+type InstagramMediaInput = RawFileInput
 
 export interface InstagramPublishImageParams extends InstagramAccessParams {
   image: InstagramMediaInput
@@ -315,9 +315,9 @@ export interface InstagramSendTextMessageResponse extends ToolResponse {
   }
 }
 
-export type InstagramAccountInsightsPeriod = 'day' | 'lifetime'
-export type InstagramAccountInsightsMetricType = 'time_series' | 'total_value'
-export type InstagramAccountInsightsTimeframe = 'this_week' | 'this_month'
+type InstagramAccountInsightsPeriod = 'day' | 'lifetime'
+type InstagramAccountInsightsMetricType = 'time_series' | 'total_value'
+type InstagramAccountInsightsTimeframe = 'this_week' | 'this_month'
 
 export interface InstagramGetAccountInsightsParams extends InstagramAccessParams {
   metrics: string
@@ -360,25 +360,3 @@ export interface InstagramGetMediaInsightsResponse extends ToolResponse {
     }>
   }
 }
-
-export type InstagramResponse =
-  | InstagramGetProfileResponse
-  | InstagramListMediaResponse
-  | InstagramGetMediaResponse
-  | InstagramDownloadMediaResponse
-  | InstagramListStoriesResponse
-  | InstagramPublishResponse
-  | InstagramGetContainerStatusResponse
-  | InstagramGetPublishingLimitResponse
-  | InstagramListCommentsResponse
-  | InstagramReplyToCommentResponse
-  | InstagramHideCommentResponse
-  | InstagramDeleteCommentResponse
-  | InstagramSetCommentsEnabledResponse
-  | InstagramPrivateReplyResponse
-  | InstagramListConversationsResponse
-  | InstagramGetConversationMessagesResponse
-  | InstagramGetMessageResponse
-  | InstagramSendTextMessageResponse
-  | InstagramGetAccountInsightsResponse
-  | InstagramGetMediaInsightsResponse

@@ -5,9 +5,6 @@ import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
-const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
-const RUN_SUBAGENT_ID = 'run'
-
 export type {
   MothershipResource,
   MothershipResourceType,
@@ -56,20 +53,6 @@ interface ToolCallResult {
   success: boolean
   output?: unknown
   error?: string
-}
-
-interface GenericResourceEntry {
-  toolCallId: string
-  toolName: string
-  displayTitle: string
-  status: ToolCallStatus
-  params?: Record<string, unknown>
-  streamingArgs?: string
-  result?: ToolCallResult
-}
-
-export interface GenericResourceData {
-  entries: GenericResourceEntry[]
 }
 
 export interface ToolCallData {
@@ -166,6 +149,7 @@ export interface ChatMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string

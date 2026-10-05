@@ -18,7 +18,7 @@ export interface DaytonaSandboxSummary {
   updatedAt: string | null
 }
 
-export interface DaytonaFileInfo {
+interface DaytonaFileInfo {
   name: string
   isDir: boolean
   size: number

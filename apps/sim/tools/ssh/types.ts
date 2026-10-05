@@ -48,23 +48,9 @@ export interface SSHUploadFileParams extends SSHConnectionConfig {
   overwrite?: boolean
 }
 
-// Upload Directory parameters
-interface SSHUploadDirectoryParams extends SSHConnectionConfig {
-  localDirectory: string
-  remoteDirectory: string
-  recursive?: boolean
-  concurrency?: number
-}
-
 // Download File parameters
 export interface SSHDownloadFileParams extends SSHConnectionConfig {
   remotePath: string
-}
-
-// Download Directory parameters
-interface SSHDownloadDirectoryParams extends SSHConnectionConfig {
-  remotePath: string
-  recursive?: boolean
 }
 
 // List Directory parameters
@@ -131,22 +117,6 @@ interface SSHFileInfo {
 }
 
 // System info interface
-interface SSHSystemInfo {
-  hostname: string
-  os: string
-  architecture: string
-  uptime: number
-  memory: {
-    total: number
-    free: number
-    used: number
-  }
-  diskSpace: {
-    total: number
-    free: number
-    used: number
-  }
-}
 
 export interface SSHResponse extends ToolResponse {
   output: {
@@ -207,21 +177,3 @@ export interface SSHResponse extends ToolResponse {
     metadata?: Record<string, unknown>
   }
 }
-
-// Union type for all SSH parameters
-export type SSHParams =
-  | SSHExecuteCommandParams
-  | SSHExecuteScriptParams
-  | SSHCheckCommandExistsParams
-  | SSHUploadFileParams
-  | SSHUploadDirectoryParams
-  | SSHDownloadFileParams
-  | SSHDownloadDirectoryParams
-  | SSHListDirectoryParams
-  | SSHCheckFileExistsParams
-  | SSHCreateDirectoryParams
-  | SSHDeleteFileParams
-  | SSHMoveRenameParams
-  | SSHGetSystemInfoParams
-  | SSHReadFileContentParams
-  | SSHWriteFileContentParams

@@ -63,7 +63,7 @@ describe('Slack OAuth callback', () => {
     const response = await GET(request('state=state&code=code'))
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe(
-      'https://www.sim.ai/o/org1/settings/search-slack?slackSetup=complete'
+      'https://www.sim.ai/credential-groups/slack-complete?state=state&ok=true&organizationId=org1'
     )
     expect(m.complete).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -75,12 +75,20 @@ describe('Slack OAuth callback', () => {
   })
   it('never falls back to public install on an invalid nonempty state', async () => {
     m.complete.mockRejectedValueOnce(new OrchestrationError('validation', 'Expired state'))
-    expect((await GET(request('state=expired&code=code'))).status).toBe(400)
+    const response = await GET(request('state=expired&code=code'))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe(
+      'https://www.sim.ai/credential-groups/slack-complete?state=expired&ok=false'
+    )
     expect(m.authenticate).not.toHaveBeenCalled()
   })
   it('still requires a Sim session for an org-bound state', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
-    expect((await GET(request('state=state&code=code'))).status).toBe(401)
+    const response = await GET(request('state=state&code=code'))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe(
+      'https://www.sim.ai/credential-groups/slack-complete?state=state&ok=false&reason=signin_required'
+    )
     expect(m.authenticate).not.toHaveBeenCalled()
     expect(m.complete).not.toHaveBeenCalled()
   })

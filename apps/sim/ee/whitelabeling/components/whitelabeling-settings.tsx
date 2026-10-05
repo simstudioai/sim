@@ -7,10 +7,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -23,7 +21,6 @@ import {
   useWhitelabelSettings,
   type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WhitelabelingSettings')
@@ -407,18 +404,13 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
   )
 }
 
+/** Gates on the entitlement returned by the whitelabel read — the same check saving enforces. */
 export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
-  const { billingEnabled } = useDeploymentShape()
-  const {
-    data: organizationBillingData,
-    isPending: organizationBillingLoading,
-    error: organizationBillingError,
-  } = useOrganizationBilling(orgId, { enabled: billingEnabled })
   const { data: workspaces } = useWorkspacesQuery(true)
   const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
-  const { data: savedSettings, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
+  const { data: whitelabel, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
 
-  if (isLoading || (billingEnabled && organizationBillingLoading)) {
+  if (isLoading) {
     return (
       <SettingsPanel
         actions={saveDiscardActions({
@@ -432,7 +424,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (!savedSettings) {
+  if (!whitelabel) {
     return (
       <SettingsEmptyState tone='error'>
         {getErrorMessage(settingsError, 'Failed to load whitelabeling settings')}
@@ -440,24 +432,16 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (billingEnabled && organizationBillingData === undefined && organizationBillingError) {
+  if (!whitelabel.isEnterprise) {
     return (
-      <SettingsEmptyState tone='error'>
-        {getErrorMessage(organizationBillingError, 'Failed to load organization billing')}
-      </SettingsEmptyState>
-    )
-  }
-
-  if (billingEnabled && !isEnterprise(organizationBillingData?.data?.subscriptionPlan)) {
-    return (
-      <SettingsEmptyState>Whitelabeling is available on Enterprise plans only.</SettingsEmptyState>
+      <SettingsEmptyState>Whitelabeling requires an active Enterprise plan.</SettingsEmptyState>
     )
   }
 
   return (
     <WhitelabelingForm
       key={orgId}
-      initialSettings={savedSettings}
+      initialSettings={whitelabel.settings}
       orgId={orgId}
       uploadWorkspaceId={uploadWorkspaceId}
     />

@@ -5762,7 +5762,15 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
     )
 }
 
-/** Resolves catalog entries and provider patterns without guessing a fallback provider. */
+/**
+ * The provider that declares `model`, or `null` when none does. Resolves catalog entries and
+ * provider patterns without guessing a fallback provider.
+ *
+ * The non-guessing half of `getProviderFromModel` in `@/providers/utils`. A caller that *gates*
+ * on the answer needs "unknown" to stay distinct from "ollama": this registry holds chat models
+ * only, so every embedding, speech, image and video model id would otherwise read as an Ollama
+ * model and be judged against an allowlist that was never about it.
+ */
 export function findProviderFromModel(model: string): ProviderId | null {
   const normalizedModel = model.toLowerCase()
 

@@ -297,14 +297,6 @@ describe('extractWorkspaceFile', () => {
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
   })
 
-  /** Fires the deadline the way `AbortSignal.timeout` does: `reason` is what gets thrown. */
-  function expireDeadline(signal: AbortSignal): unknown {
-    const reason = new DOMException('The operation was aborted due to timeout', 'TimeoutError')
-    Object.defineProperty(signal, 'aborted', { value: true })
-    Object.defineProperty(signal, 'reason', { value: reason })
-    return reason
-  }
-
   it('leaves a destination folder that gained collaborators content during rollback', async () => {
     mocks.decompress.mockImplementationOnce(async (_content, options) => {
       await options.prepareRootFolder()

@@ -1,4 +1,5 @@
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders/types'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
@@ -91,6 +92,20 @@ export interface SandboxSessionRequest {
   cli?: { path: string; content: string; runtime?: { path: string; content: string } }
   /** Extra environment variables present on every execution in the session. */
   envs?: Record<string, string>
+  /**
+   * Selects ephemeral callback credentials present in the returned JSON for model redaction.
+   * They expire with the tool lease and do not contribute to machine or exported-file provenance.
+   */
+  outputProvenance?: (value: unknown) => DurableSecretProvenance
+  /**
+   * This execution mounts bytes whose secret provenance is unknown, so the machine's input
+   * history must not stay certified clean even when the caller's own inputs are.
+   */
+  unprovenancedInputs?: boolean
+  /** Host-only evidence; never populated from the Function wire contract. */
+  inputProvenance?(): DurableSecretProvenance
+  /** Imports the full post-execution machine history before any result or export leaves the host. */
+  acceptOutputProvenance?(provenance: DurableSecretProvenance): Promise<void>
 }
 
 export interface SandboxShellExecutionRequest {

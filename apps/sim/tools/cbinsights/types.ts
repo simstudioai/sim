@@ -19,12 +19,6 @@ export interface CbInsightsOrgListParams extends CbInsightsAuthParams {
   orgIds: number[] | string
 }
 
-/** Every paged list endpoint carries the same opaque continuation token. */
-export interface CbInsightsPagedParams {
-  limit?: number | string
-  nextPageToken?: string
-}
-
 /** A response page shared by the endpoints that report a total. */
 export interface CbInsightsPageInfo {
   nextPageToken: string | null
@@ -58,24 +52,6 @@ export interface CbInsightsPagedOrgListResponse extends ToolResponse {
   }
 }
 
-export interface CbInsightsPagedItemsResponse extends ToolResponse {
-  output: CbInsightsPageInfo & {
-    items: CbInsightsRecord[]
-  }
-}
-
-export interface CbInsightsItemsResponse extends ToolResponse {
-  output: {
-    items: CbInsightsRecord[]
-  }
-}
-
-export interface CbInsightsObjectResponse extends ToolResponse {
-  output: {
-    data: CbInsightsRecord
-  }
-}
-
 export interface CbInsightsChatResponse extends ToolResponse {
   output: {
     chatId: string | null
@@ -93,80 +69,3 @@ export interface CbInsightsRagResponse extends ToolResponse {
     guidance: string[]
   }
 }
-
-export interface CbInsightsScoutingReportResponse extends ToolResponse {
-  output: {
-    orgInfo: CbInsightsRecord | null
-    reportMarkdown: string | null
-    reportJson: string | null
-  }
-}
-
-export interface CbInsightsStrategyMapResponse extends ToolResponse {
-  output: {
-    orgName: string | null
-    logoUrl: string | null
-    categories: CbInsightsRecord[]
-  }
-}
-
-export interface CbInsightsMosaicHistoryResponse extends ToolResponse {
-  output: {
-    overall: CbInsightsRecord[]
-    management: CbInsightsRecord[]
-    market: CbInsightsRecord[]
-    momentum: CbInsightsRecord[]
-    money: CbInsightsRecord[]
-  }
-}
-
-export interface CbInsightsExitProbabilityHistoryResponse extends ToolResponse {
-  output: {
-    ipo: CbInsightsRecord[]
-    mna: CbInsightsRecord[]
-    incompleteRoundType: string | null
-  }
-}
-
-export interface CbInsightsFundingWindowResponse extends ToolResponse {
-  output: {
-    windowStart: string | null
-    windowEnd: string | null
-    cohortNextRoundRate: number | null
-    cohortCriteria: CbInsightsRecord | null
-    latestFunding: CbInsightsRecord | null
-  }
-}
-
-export interface CbInsightsRevenueResponse extends ToolResponse {
-  output: {
-    orgId: number | null
-    orgName: string | null
-    orgUrl: string | null
-    revenue: CbInsightsRecord[]
-  }
-}
-
-export interface CbInsightsFundingsResponse extends ToolResponse {
-  output: CbInsightsPageInfo & {
-    fundings: CbInsightsRecord[]
-    capTableHistory: CbInsightsRecord[]
-  }
-}
-
-export type CbInsightsResponse =
-  | CbInsightsListResponse
-  | CbInsightsOrgListResponse
-  | CbInsightsPagedOrgListResponse
-  | CbInsightsPagedItemsResponse
-  | CbInsightsItemsResponse
-  | CbInsightsObjectResponse
-  | CbInsightsChatResponse
-  | CbInsightsRagResponse
-  | CbInsightsScoutingReportResponse
-  | CbInsightsStrategyMapResponse
-  | CbInsightsMosaicHistoryResponse
-  | CbInsightsExitProbabilityHistoryResponse
-  | CbInsightsFundingWindowResponse
-  | CbInsightsRevenueResponse
-  | CbInsightsFundingsResponse

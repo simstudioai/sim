@@ -2,11 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import {
-  createMockDeploymentShape,
-  deploymentShapeMock,
-  deploymentShapeMockFns,
-} from '@sim/testing/mocks/deployment-shape.mock'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -16,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   update: vi.fn(),
   applyAccess: vi.fn(),
   settingsPending: false,
@@ -54,9 +49,6 @@ vi.mock('@/hooks/use-permission-config', () => ({
 
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 
-deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(() =>
-  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
-)
 kbConnectorsQueriesMockFns.mockUseUpdateConnector.mockImplementation(() => ({
   mutate: mocks.update,
   isPending: mocks.settingsPending,
@@ -120,7 +112,6 @@ describe('shared connector settings form', () => {
   }
 
   beforeEach(() => {
-    mocks.live = false
     mocks.settingsPending = false
     mocks.accessPending = false
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -209,7 +200,7 @@ describe('shared connector settings form', () => {
   })
 
   it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
-    const sourceConfig = { repository: 'acme/platform', branch: 'main' }
+    const sourceConfig = { repository: 'acme/platform' }
     render(
       connector({
         connectorType: 'github',

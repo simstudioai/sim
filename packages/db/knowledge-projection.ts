@@ -14,9 +14,8 @@ const logger = createLogger('KnowledgeProjection')
 const KNOWLEDGE_PROJECTION_MODE_SETTING = 'sim.projection_mode'
 
 /**
- * Selected by every projector transaction. The projector writes each projection row's source and
- * ACL itself, so the projection tables' own source and ACL triggers, which would re-read the
- * document for every row, are skipped.
+ * Selected by every repair transaction so still-installed legacy source/ACL triggers do not copy
+ * permissions onto repaired vectors. Ordinary KB reads authorize against the parent document.
  */
 const SKIP_SYNCHRONOUS_PROJECTION = `set_config('${KNOWLEDGE_PROJECTION_MODE_SETTING}', 'async', true)`
 
@@ -52,6 +51,9 @@ const SETTLE_LOCK_TIMEOUT_MS = 2_000
 
 /** Marks claimed per round; each is then projected under its own advisory lock. */
 const CLAIM_BATCH_SIZE = 50
+
+/** Caps the IDs retained and resent to each claim query when documents cannot be repaired. */
+const MAX_DEFERRED_DOCUMENTS = 1_000
 
 /** The embedding models trained for prefix retrieval, whose 512 projection is a prefix. */
 const SHORTENED_EMBEDDING_MODELS = `('text-embedding-3-small', 'text-embedding-3-large')`
@@ -92,23 +94,10 @@ function searchVectorShortened(model: string, prefix: string): string {
   return `${model} IN ${SHORTENED_EMBEDDING_MODELS} AND ${prefix}.embedding_384 IS NULL`
 }
 
-/** The projections the projector keeps; the Tin projection exists only where `tin` is installed. */
-const KNOWLEDGE_PROJECTIONS = [
-  'embedding_search',
-  'embedding_keyword_search',
-  'embedding_keyword_tin',
-] as const
-export type KnowledgeProjection = (typeof KNOWLEDGE_PROJECTIONS)[number]
+export type KnowledgeProjection = 'embedding_search'
 
-/** The projections that mirror their document's source and ACL, and so can be unfilled. */
+/** Historical trigger installers retain these immutable names until their contract migration. */
 export const SOURCE_ACL_PROJECTIONS = ['embedding_search', 'embedding_keyword_tin'] as const
-export type SourceAclProjection = (typeof SOURCE_ACL_PROJECTIONS)[number]
-const mirrorsSourceAcl = (projection: KnowledgeProjection): projection is SourceAclProjection =>
-  (SOURCE_ACL_PROJECTIONS as readonly string[]).includes(projection)
-
-/** The keyword projections, which hold only the rows of search-index knowledge bases. */
-const holdsSearchIndexesOnly = (projection: KnowledgeProjection) =>
-  projection === 'embedding_keyword_search' || projection === 'embedding_keyword_tin'
 
 /**
  * The chunks one page covers: the next {@link PROJECTION_ROW_BATCH_SIZE} of the document in
@@ -127,96 +116,31 @@ const PAGE_RESULT = `SELECT (SELECT count(*)::int FROM page) AS scanned,
     (SELECT max(chunk_index) FROM page) AS last_chunk`
 
 /**
- * Rewrites a page's projection rows from their chunks and the document, for a mark whose chunk
- * write skipped the synchronous triggers (only releases that deferred projection wrote those),
- * writing only the rows that differ, so a document whose rows are already current costs reads and no index writes. The
- * source and ACL are the document's as this statement reads it; a change that commits after it
- * marks the document again, so the projector's settle leaves the mark for the next pass.
+ * Repairs only ordinary-KB vectors left by older deferred writers. The parent KB is checked and
+ * share-locked on every page so a concurrent Search-marker change cannot admit retired content.
+ * Binary columns remain compatibility writes until their database width constraint is replaced.
  */
-function contentPageStatement(projection: KnowledgeProjection): string {
-  if (projection === 'embedding_search') {
-    const vectors = SEARCH_VECTOR_COLUMNS.join(', ')
-    const compared = [
-      'knowledge_base_id',
-      'document_id',
-      'enabled',
-      'connector_id',
-      'acl',
-      ...SEARCH_VECTOR_COLUMNS,
-    ]
-    return `WITH ${PAGE}, source AS MATERIALIZED (
-        SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.embedding, e.embedding_384,
-          e.embedding_768, e.embedding_1024, e.embedding_3072,
-          ${searchVectorShortened('k.embedding_model', 'e')} AS shortened, d.connector_id, d.acl
-        FROM page p JOIN embedding e ON e.id = p.id
-        JOIN knowledge_base k ON k.id = e.knowledge_base_id
-        JOIN document d ON d.id = e.document_id
-      ), written AS (
-        INSERT INTO embedding_search AS s
-          (id, knowledge_base_id, document_id, enabled, ${SEARCH_BINARY_COLUMNS.join(', ')}, ${vectors},
-            connector_id, acl)
-        SELECT id, knowledge_base_id, document_id, enabled, ${searchBinaryProjections('source')},
-          ${searchVectorProjections('source', 'shortened')}, connector_id, acl
-        FROM source
-        ON CONFLICT (id) DO UPDATE SET
-          ${[...compared, ...SEARCH_BINARY_COLUMNS].map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
-        WHERE (${compared.map((column) => `s.${column}`).join(', ')})
-          IS DISTINCT FROM (${compared.map((column) => `EXCLUDED.${column}`).join(', ')})
-        RETURNING s.id
-      ) ${PAGE_RESULT}`
-  }
-  if (projection === 'embedding_keyword_search') {
-    const compared = ['knowledge_base_id', 'document_id', 'enabled', 'content_tsv']
-    return `WITH ${PAGE}, source AS MATERIALIZED (
-        SELECT e.id, ${compared.map((column) => `e.${column}`).join(', ')}, k.is_search_index
-        FROM page p JOIN embedding e ON e.id = p.id
-        JOIN knowledge_base k ON k.id = e.knowledge_base_id
-      ), removed AS (
-        DELETE FROM embedding_keyword_search s USING source
-        WHERE s.id = source.id AND NOT source.is_search_index
-      ), written AS (
-        INSERT INTO embedding_keyword_search AS s (${['id', ...compared].join(', ')})
-        SELECT id, ${compared.join(', ')} FROM source WHERE is_search_index
-        ON CONFLICT (id) DO UPDATE SET
-          ${compared.map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
-        WHERE (${compared.map((column) => `s.${column}`).join(', ')})
-          IS DISTINCT FROM (${compared.map((column) => `EXCLUDED.${column}`).join(', ')})
-        RETURNING s.id
-      ) ${PAGE_RESULT}`
-  }
-  const compared = ['knowledge_base_id', 'document_id', 'enabled', 'content', 'connector_id', 'acl']
+function contentPageStatement(): string {
+  const vectors = SEARCH_VECTOR_COLUMNS.join(', ')
+  const compared = ['knowledge_base_id', 'document_id', 'enabled', ...SEARCH_VECTOR_COLUMNS]
   return `WITH ${PAGE}, source AS MATERIALIZED (
-      SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled,
-        knowledge_tin_base_token(e.knowledge_base_id) || ' ' || knowledge_tin_stream(e.content_tsv) AS content,
-        d.connector_id, d.acl, k.is_search_index
+      SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.embedding, e.embedding_384,
+        e.embedding_768, e.embedding_1024, e.embedding_3072,
+        ${searchVectorShortened('k.embedding_model', 'e')} AS shortened
       FROM page p JOIN embedding e ON e.id = p.id
       JOIN knowledge_base k ON k.id = e.knowledge_base_id
-      JOIN document d ON d.id = e.document_id
-    ), removed AS (
-      DELETE FROM embedding_keyword_tin t USING source
-      WHERE t.id = source.id AND NOT source.is_search_index
+      WHERE NOT k.is_search_index
+      FOR SHARE OF k
     ), written AS (
-      INSERT INTO embedding_keyword_tin AS t (${['id', ...compared].join(', ')})
-      SELECT id, ${compared.join(', ')} FROM source WHERE is_search_index
+      INSERT INTO embedding_search AS s
+        (id, knowledge_base_id, document_id, enabled, ${SEARCH_BINARY_COLUMNS.join(', ')}, ${vectors})
+      SELECT id, knowledge_base_id, document_id, enabled, ${searchBinaryProjections('source')},
+        ${searchVectorProjections('source', 'shortened')}
+      FROM source
       ON CONFLICT (id) DO UPDATE SET
-        ${compared.map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
-      WHERE (${compared.map((column) => `t.${column}`).join(', ')})
+        ${[...compared, ...SEARCH_BINARY_COLUMNS].map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
+      WHERE (${compared.map((column) => `s.${column}`).join(', ')})
         IS DISTINCT FROM (${compared.map((column) => `EXCLUDED.${column}`).join(', ')})
-      RETURNING t.id
-    ) ${PAGE_RESULT}`
-}
-
-/**
- * Copies the document's source and ACL onto a page's existing projection rows that differ,
- * including rows written before projections carried a source and ACL. Chunks are untouched, so their vectors
- * are never read; a row a chunk change has not projected yet is left to that change's own mark.
- */
-function sourceAclPageStatement(projection: KnowledgeProjection): string {
-  return `WITH ${PAGE}, written AS (
-      UPDATE ${projection} s SET connector_id = d.connector_id, acl = d.acl
-      FROM page p, document d
-      WHERE s.id = p.id AND d.id = $1
-        AND (s.connector_id IS DISTINCT FROM d.connector_id OR s.acl IS DISTINCT FROM d.acl)
       RETURNING s.id
     ) ${PAGE_RESULT}`
 }
@@ -245,7 +169,7 @@ async function enterProjectorTransaction(tx: TransactionSql, lockTimeoutMs: numb
 interface ProjectionMark {
   generation: number
   content: boolean
-  knowledgeBaseId: string
+  isSearchIndex: boolean
 }
 
 export interface KnowledgeProjectionOptions {
@@ -256,14 +180,6 @@ export interface KnowledgeProjectionOptions {
    */
   budgetMs?: number
   pageSize?: number
-  /**
-   * Whether search-index rows are read, that is whether indexed organization search is on (see
-   * {@link MarkScope}). Only then is the Tin keyword projection written, since it holds only
-   * search-index rows; the other projections are written either way, the GIN keyword projection
-   * for search-index bases alone whatever this says, and Tin is still skipped where it is not
-   * installed.
-   */
-  searchIndexes: boolean
   /** Called after each page commits, for tests that interleave writes with a run. */
   onPage?: (page: {
     documentId: string
@@ -281,13 +197,6 @@ export interface KnowledgeProjectionProgress {
   written: number
   /** Whether marks may remain that this run did not reach. */
   remaining: boolean
-}
-
-/** Whether the Tin keyword projection is maintained here: its functions exist only where installed. */
-async function tinInstalled(sql: Sql): Promise<boolean> {
-  const [row] = await sql<Array<{ installed: boolean }>>`
-    SELECT to_regprocedure('knowledge_tin_stream(tsvector)') IS NOT NULL AS installed`
-  return Boolean(row?.installed)
 }
 
 /**
@@ -311,16 +220,17 @@ async function claimMarks(sql: Sql, skipped: readonly string[]): Promise<string[
  */
 async function readMark(sql: Sql, documentId: string): Promise<ProjectionMark | null> {
   const [row] = await sql<
-    Array<{ generation: string; content: boolean; knowledge_base_id: string }>
+    Array<{ generation: string; content: boolean; is_search_index: boolean }>
   >`
-    SELECT m.generation, m.content, d.knowledge_base_id
+    SELECT m.generation, m.content, k.is_search_index
     FROM knowledge_projection_dirty m JOIN document d ON d.id = m.document_id
+    JOIN knowledge_base k ON k.id = d.knowledge_base_id
     WHERE m.document_id = ${documentId}`
   return row
     ? {
         generation: Number(row.generation),
         content: row.content,
-        knowledgeBaseId: row.knowledge_base_id,
+        isSearchIndex: row.is_search_index,
       }
     : null
 }
@@ -370,15 +280,11 @@ async function stillMarked(sql: Sql, documentId: string): Promise<boolean> {
 async function projectDocumentRows(
   sql: Sql,
   documentId: string,
-  projection: KnowledgeProjection,
-  mark: ProjectionMark,
   options: KnowledgeProjectionOptions,
   deadline: number
 ): Promise<{ pages: number; written: number; finished: boolean }> {
   const pageSize = options.pageSize ?? PROJECTION_ROW_BATCH_SIZE
-  const statement = mark.content
-    ? contentPageStatement(projection)
-    : sourceAclPageStatement(projection)
+  const statement = contentPageStatement()
   let after = -1
   let pages = 0
   let written = 0
@@ -386,9 +292,6 @@ async function projectDocumentRows(
     if (Date.now() >= deadline) return { pages, written, finished: false }
     const page = await sql.begin(async (tx) => {
       await enterProjectorTransaction(tx, PROJECTION_PAGE_LOCK_TIMEOUT_MS)
-      /** Shares the base's membership lock, as the embedding triggers do, so a flip of its marker waits. */
-      if (holdsSearchIndexesOnly(projection))
-        await tx`SELECT pg_advisory_xact_lock_shared(knowledge_tin_membership_key(${mark.knowledgeBaseId}))`
       const [row] = await tx.unsafe<
         Array<{ scanned: number; written: number; last_chunk: number | null }>
       >(statement, [documentId, after, pageSize])
@@ -396,7 +299,7 @@ async function projectDocumentRows(
     })
     pages += 1
     written += page.written
-    await options.onPage?.({ documentId, projection, written: page.written })
+    await options.onPage?.({ documentId, projection: 'embedding_search', written: page.written })
     if (page.last_chunk === null || page.scanned < pageSize) break
     after = page.last_chunk
   }
@@ -412,7 +315,6 @@ type DocumentOutcome = 'settled' | 'deferred' | 'gone'
 async function projectMarkedDocument(
   sql: Sql,
   documentId: string,
-  projections: readonly KnowledgeProjection[],
   options: KnowledgeProjectionOptions,
   totals: { pages: number; written: number },
   deadline: number
@@ -423,9 +325,8 @@ async function projectMarkedDocument(
   try {
     const mark = await readMark(sql, documentId)
     if (!mark) return 'gone'
-    for (const projection of projections) {
-      if (!mark.content && !mirrorsSourceAcl(projection)) continue
-      const done = await projectDocumentRows(sql, documentId, projection, mark, options, deadline)
+    if (mark.content && !mark.isSearchIndex) {
+      const done = await projectDocumentRows(sql, documentId, options, deadline)
       totals.pages += done.pages
       totals.written += done.written
       if (!done.finished) return 'deferred'
@@ -445,7 +346,7 @@ async function projectMarkedDocument(
 }
 
 /**
- * Converges the search projections of every marked document, oldest mark first, until none is
+ * Repairs ordinary-KB vectors and releases obsolete marks, oldest mark first, until none is
  * left or the budget runs out. Runs on a connection of its own: each document is projected under
  * a session advisory lock, so concurrent runs never project the same document at once and a run
  * that dies releases its locks with its connection. A document keeps its mark, left to a later
@@ -459,10 +360,6 @@ export async function runKnowledgeProjection(
 ): Promise<KnowledgeProjectionProgress> {
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + options.budgetMs
-  const projections =
-    options.searchIndexes && (await tinInstalled(sql))
-      ? KNOWLEDGE_PROJECTIONS
-      : KNOWLEDGE_PROJECTIONS.filter((projection) => projection !== 'embedding_keyword_tin')
   const totals = { pages: 0, written: 0 }
   const skipped: string[] = []
   let settled = 0
@@ -473,16 +370,12 @@ export async function runKnowledgeProjection(
     }
     for (const documentId of claimed) {
       if (Date.now() >= deadline) break
-      const outcome = await projectMarkedDocument(
-        sql,
-        documentId,
-        projections,
-        options,
-        totals,
-        deadline
-      )
+      const outcome = await projectMarkedDocument(sql, documentId, options, totals, deadline)
       if (outcome === 'settled') settled += 1
       else if (outcome === 'deferred') skipped.push(documentId)
+      if (skipped.length >= MAX_DEFERRED_DOCUMENTS) {
+        return { settled, deferred: skipped.length, ...totals, remaining: true }
+      }
     }
   }
   return { settled, deferred: skipped.length, ...totals, remaining: true }
@@ -498,42 +391,15 @@ export const MARK_RELEASE_BUDGET_MS = 10_000
 /** Marks one release statement removes; a release repeats it while statements come back full. */
 const RELEASE_BATCH_SIZE = 1_000
 
-/**
- * Which marks a pass is owed besides content: search-index documents, whose rows mirror their
- * source and ACL, while indexed organization search reads them. With it off, a mark with no content
- * to project is owed nothing, whatever its knowledge base.
- */
-export interface MarkScope {
-  searchIndexes: boolean
-}
-
-/**
- * Whether any mark needs a projector pass: one carrying content to project, or, when `scope` owes
- * search-index documents a pass, one on a search-index document. Every other mark is released by
- * {@link releaseSettledMarks} without a pass.
- *
- * Asked right after a release. One that drained its marks left only the marks a pass is owed
- * (and the few a writer held), so the join that tells a search-index mark apart walks a handful of
- * rows. One cut short left a backlog the join would walk in full, so only the content marks are
- * asked about: a search-index mark behind that backlog waits for the sweep whose release drains it.
- */
-export async function hasKnowledgeProjectionWork(
-  sql: Sql | TransactionSql,
-  release: { drained: boolean },
-  scope: MarkScope
-): Promise<boolean> {
-  const [row] =
-    release.drained && scope.searchIndexes
-      ? await sql<Array<{ pending: boolean }>>`
-          SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty WHERE content)
-            OR EXISTS (
-              SELECT 1 FROM knowledge_projection_dirty d
-              JOIN document doc ON doc.id = d.document_id
-              JOIN knowledge_base k ON k.id = doc.knowledge_base_id
-              WHERE k.is_search_index
-            ) AS pending`
-      : await sql<Array<{ pending: boolean }>>`
-          SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty WHERE content) AS pending`
+/** Only deferred ordinary-KB content requires projection work after indexed Search retirement. */
+export async function hasKnowledgeProjectionWork(sql: Sql | TransactionSql): Promise<boolean> {
+  const [row] = await sql<Array<{ pending: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1 FROM knowledge_projection_dirty m
+      JOIN document d ON d.id = m.document_id
+      JOIN knowledge_base k ON k.id = d.knowledge_base_id
+      WHERE m.content AND NOT k.is_search_index
+    ) AS pending`
   return Boolean(row?.pending)
 }
 
@@ -547,22 +413,11 @@ export interface SettledMarkRelease {
 }
 
 /**
- * Transitional: removes the marks that carry no content to project and that `scope` owes no pass,
- * until a follow-up migration scopes the mark triggers to search-index knowledge bases. Their
- * synchronous writers already wrote every projection row a workspace search reads, and those
- * searches decide nothing on a projection row's source, ACL, or mark, so a pass over them would
- * only re-read rows it then leaves as they are. While indexed organization search is on, the marks
- * of search-index documents, whose rows it reads by source and ACL, stay for a pass.
- *
- * An empty mark table costs one probe, and reports `empty` so its caller asks nothing further. Marks a writer holds are skipped rather than waited on,
- * and a mark whose writer skipped the synchronous triggers carries content and stays for a pass.
- * Stops once a statement comes back short or `deadline` passes.
+ * Releases obsolete ACL-only and Search marks in bounded transactions. Ordinary-KB content marks
+ * survive for vector repair. Locked marks and bases are skipped; locks prevent a content upgrade
+ * or a Search-marker change from making the deleted mark necessary before this commit.
  */
-export async function releaseSettledMarks(
-  sql: Sql,
-  deadline: number,
-  scope: MarkScope
-): Promise<SettledMarkRelease> {
+export async function releaseSettledMarks(sql: Sql, deadline: number): Promise<SettledMarkRelease> {
   const [marked] = await sql<Array<{ any: boolean }>>`
     SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty) AS any`
   if (!marked?.any) return { released: 0, drained: true, empty: true }
@@ -570,23 +425,18 @@ export async function releaseSettledMarks(
   while (Date.now() < deadline) {
     const count = await sql.begin(async (tx) => {
       await enterProjectorTransaction(tx, SETTLE_LOCK_TIMEOUT_MS)
-      const settled = scope.searchIndexes
-        ? tx`
-            SELECT d.document_id FROM knowledge_projection_dirty d
-            JOIN document doc ON doc.id = d.document_id
-            JOIN knowledge_base k ON k.id = doc.knowledge_base_id
-            WHERE NOT d.content AND NOT k.is_search_index
-            LIMIT ${RELEASE_BATCH_SIZE}
-            FOR UPDATE OF d SKIP LOCKED`
-        : tx`
-            SELECT d.document_id FROM knowledge_projection_dirty d
-            WHERE NOT d.content
-            LIMIT ${RELEASE_BATCH_SIZE}
-            FOR UPDATE SKIP LOCKED`
+      const settled = tx`
+        SELECT m.document_id FROM knowledge_projection_dirty m
+        JOIN document d ON d.id = m.document_id
+        JOIN knowledge_base k ON k.id = d.knowledge_base_id
+        WHERE NOT m.content OR k.is_search_index
+        LIMIT ${RELEASE_BATCH_SIZE}
+        FOR UPDATE OF m SKIP LOCKED
+        FOR SHARE OF k SKIP LOCKED`
       const [row] = await tx<Array<{ released: number }>>`
         WITH released AS (
           DELETE FROM knowledge_projection_dirty m
-          WHERE m.document_id IN (${settled}) AND NOT m.content
+          WHERE m.document_id IN (${settled})
           RETURNING 1
         )
         SELECT count(*)::int AS released FROM released`

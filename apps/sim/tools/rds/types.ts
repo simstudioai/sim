@@ -52,8 +52,6 @@ export interface RdsInsertResponse extends RdsBaseResponse {}
 export interface RdsUpdateResponse extends RdsBaseResponse {}
 export interface RdsDeleteResponse extends RdsBaseResponse {}
 export interface RdsExecuteResponse extends RdsBaseResponse {}
-export interface RdsResponse extends RdsBaseResponse {}
-
 interface RdsTableColumn {
   name: string
   type: string

@@ -6,7 +6,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 export const ROCKETLANE_API_BASE = 'https://api.rocketlane.com/api/1.0'
 
 /** Every Rocketlane tool authenticates with the account API key via the `api-key` header. */
-export interface RocketlaneBaseParams {
+interface RocketlaneBaseParams {
   apiKey: string
 }
 
@@ -45,12 +45,10 @@ export async function rocketlaneError(response: Response): Promise<string> {
   return text || `Rocketlane API error (HTTP ${response.status})`
 }
 
-type Raw = Record<string, unknown>
-
 // region Shared object shapes
 
 /** Compact user reference returned inside most Rocketlane resources. */
-export interface RocketlaneUserSummary {
+interface RocketlaneUserSummary {
   userId: number | null
   firstName: string | null
   lastName: string | null
@@ -117,55 +115,55 @@ export const PAGINATION_OUTPUT_PROPERTIES = {
 // region Tasks
 
 /** Compact project reference returned inside a Rocketlane task. */
-export interface RocketlaneTaskProjectRef {
+interface RocketlaneTaskProjectRef {
   projectId: number | null
   projectName: string | null
 }
 
 /** Compact phase reference returned inside a Rocketlane task. */
-export interface RocketlaneTaskPhaseRef {
+interface RocketlaneTaskPhaseRef {
   phaseId: number | null
   phaseName: string | null
 }
 
 /** Value/label pair used for task status and priority fields. */
-export interface RocketlaneTaskChoice {
+interface RocketlaneTaskChoice {
   value: number | null
   label: string | null
 }
 
 /** Role associated with a placeholder assignee. */
-export interface RocketlaneTaskRole {
+interface RocketlaneTaskRole {
   roleId: number | null
   roleName: string | null
 }
 
 /** Placeholder assignee on a task, associated with a role. */
-export interface RocketlaneTaskPlaceholder {
+interface RocketlaneTaskPlaceholder {
   placeholderId: number | null
   placeholderName: string | null
   role: RocketlaneTaskRole | null
 }
 
 /** Assignees of a task: members (team members or customers) and placeholders. */
-export interface RocketlaneTaskAssignees {
+interface RocketlaneTaskAssignees {
   members: RocketlaneUserSummary[]
   placeholders: RocketlaneTaskPlaceholder[]
 }
 
 /** Followers of a task (members only). */
-export interface RocketlaneTaskFollowers {
+interface RocketlaneTaskFollowers {
   members: RocketlaneUserSummary[]
 }
 
 /** Lite task reference used for dependencies and the parent task. */
-export interface RocketlaneTaskLite {
+interface RocketlaneTaskLite {
   taskId: number | null
   taskName: string | null
 }
 
 /** Custom field value attached to a task. */
-export interface RocketlaneTaskField {
+interface RocketlaneTaskField {
   fieldId: number | null
   fieldLabel: string | null
   fieldValue: unknown
@@ -173,13 +171,13 @@ export interface RocketlaneTaskField {
 }
 
 /** Time entry category associated with a task. */
-export interface RocketlaneTaskTimeEntryCategory {
+interface RocketlaneTaskTimeEntryCategory {
   categoryId: number | null
   categoryName: string | null
 }
 
 /** Financials budget in which the task's time entry is added. */
-export interface RocketlaneTaskBudget {
+interface RocketlaneTaskBudget {
   budgetId: number | null
   budgetName: string | null
 }
@@ -740,7 +738,7 @@ export interface RocketlaneTaskDeleteResponse extends ToolResponse {
 // region Projects
 
 /** Company reference (customer or partner) returned on Rocketlane projects. */
-export interface RocketlaneProjectCompany {
+interface RocketlaneProjectCompany {
   companyId: number | null
   companyName: string | null
   companyUrl: string | null
@@ -763,7 +761,7 @@ export const PROJECT_COMPANY_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Project status value/label pair. */
-export interface RocketlaneProjectStatus {
+interface RocketlaneProjectStatus {
   value: number | null
   label: string | null
 }
@@ -783,7 +781,7 @@ export const PROJECT_STATUS_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Custom project field value returned on Rocketlane projects. */
-export interface RocketlaneProjectField {
+interface RocketlaneProjectField {
   fieldId: number | null
   fieldLabel: string | null
   fieldValue: string | null
@@ -812,7 +810,7 @@ export const PROJECT_FIELD_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** In-progress phase reference returned on Rocketlane projects. */
-export interface RocketlaneProjectPhase {
+interface RocketlaneProjectPhase {
   phaseId: number | null
   phaseName: string | null
 }
@@ -831,7 +829,7 @@ export const PROJECT_PHASE_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Template source imported into a Rocketlane project. */
-export interface RocketlaneProjectSource {
+interface RocketlaneProjectSource {
   prefix: string | null
   startDate: string | null
   templateId: number | null
@@ -864,7 +862,7 @@ export const PROJECT_SOURCE_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Project members, customers, and customer champion. */
-export interface RocketlaneProjectTeamMembers {
+interface RocketlaneProjectTeamMembers {
   members: RocketlaneUserSummary[]
   customers: RocketlaneUserSummary[]
   customerChampion: RocketlaneUserSummary | null
@@ -906,7 +904,7 @@ export const PROJECT_TEAM_MEMBERS_OUTPUT_PROPERTIES = {
  * Flattened project financials (contract type plus the per-contract-type fields
  * from fixedFeeContract, timeAndMaterialContract, and subscriptionContract).
  */
-export interface RocketlaneProjectFinancials {
+interface RocketlaneProjectFinancials {
   contractType: string | null
   revenueRecognitionType: string | null
   fixedFee: number | null
@@ -1330,13 +1328,13 @@ export interface RocketlanePlaceholder {
 }
 
 /** Project reference attached to a placeholder. */
-export interface RocketlanePlaceholderProjectRef {
+interface RocketlanePlaceholderProjectRef {
   projectId: number | null
   projectName: string | null
 }
 
 /** Role reference attached to a placeholder. */
-export interface RocketlanePlaceholderRole {
+interface RocketlanePlaceholderRole {
   roleId: number | null
   roleName: string | null
 }
@@ -1410,7 +1408,7 @@ export const PLACEHOLDER_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** User assigned to a placeholder mapping (user summary plus role name). */
-export interface RocketlanePlaceholderMappingUser {
+interface RocketlanePlaceholderMappingUser {
   userId: number | null
   firstName: string | null
   lastName: string | null
@@ -1430,7 +1428,7 @@ export interface RocketlanePlaceholderMapping {
 }
 
 /** Compact placeholder reference inside a placeholder mapping. */
-export interface RocketlanePlaceholderRef {
+interface RocketlanePlaceholderRef {
   placeholderId: number | null
   placeholderName: string | null
 }
@@ -1517,20 +1515,20 @@ export const PLACEHOLDER_MAPPING_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Custom field assignment sent when creating or updating a project. */
-export interface RocketlaneProjectFieldInput {
+interface RocketlaneProjectFieldInput {
   fieldId: number
   fieldValue: string | number | number[]
 }
 
 /** Template source sent when creating a project. */
-export interface RocketlaneProjectSourceInput {
+interface RocketlaneProjectSourceInput {
   templateId: number
   startDate: string
   prefix?: string
 }
 
 /** Placeholder-to-user mapping sent when creating a project or assigning placeholders. */
-export interface RocketlaneProjectPlaceholderInput {
+interface RocketlaneProjectPlaceholderInput {
   placeholderId: number
   user: {
     userId?: number
@@ -1832,7 +1830,7 @@ export const FIELD_OUTPUT_PROPERTIES = {
 } satisfies Record<string, OutputProperty>
 
 /** Option payload accepted when creating a field. */
-export interface RocketlaneFieldOptionInput {
+interface RocketlaneFieldOptionInput {
   optionLabel: string
   optionColor: string
 }
@@ -1928,13 +1926,13 @@ export interface RocketlaneFieldOptionResponse extends ToolResponse {
 // region Phases
 
 /** Compact project reference returned inside a phase. */
-export interface RocketlanePhaseProject {
+interface RocketlanePhaseProject {
   projectId: number | null
   projectName: string | null
 }
 
 /** Status of a phase, as a numeric value with a display label. */
-export interface RocketlanePhaseStatus {
+interface RocketlanePhaseStatus {
   value: number | null
   label: string | null
 }
@@ -2123,19 +2121,19 @@ export interface RocketlanePhaseDeleteResponse extends ToolResponse {
 // region Time Entries
 
 /** Project reference embedded in a time entry. */
-export interface RocketlaneTimeEntryProject {
+interface RocketlaneTimeEntryProject {
   projectId: number | null
   projectName: string | null
 }
 
 /** Task reference embedded in a time entry. */
-export interface RocketlaneTimeEntryTask {
+interface RocketlaneTimeEntryTask {
   taskId: number | null
   taskName: string | null
 }
 
 /** Project phase reference embedded in a time entry. */
-export interface RocketlaneTimeEntryPhase {
+interface RocketlaneTimeEntryPhase {
   phaseId: number | null
   phaseName: string | null
 }
@@ -2147,13 +2145,13 @@ export interface RocketlaneTimeEntryCategory {
 }
 
 /** Hourly cost/bill rate attached to a time entry. */
-export interface RocketlaneTimeEntryRate {
+interface RocketlaneTimeEntryRate {
   rate: number | null
   currency: string | null
 }
 
 /** Custom field value attached to a time entry. */
-export interface RocketlaneTimeEntryField {
+interface RocketlaneTimeEntryField {
   fieldId: number | null
   fieldLabel: string | null
   fieldValue: unknown
@@ -2509,7 +2507,7 @@ export interface RocketlaneDeleteTimeEntryParams extends RocketlaneBaseParams {
 }
 
 /** Filter/sort/pagination params shared by the list and search time entry tools. */
-export interface RocketlaneTimeEntryFilterParams extends RocketlaneBaseParams {
+interface RocketlaneTimeEntryFilterParams extends RocketlaneBaseParams {
   sortBy?: string
   sortOrder?: string
   match?: string
@@ -2597,7 +2595,7 @@ export interface RocketlaneTimeEntryCategoryListResponse extends ToolResponse {
 // region Spaces
 
 /** The project a space belongs to. */
-export interface RocketlaneSpaceProject {
+interface RocketlaneSpaceProject {
   projectId: number | null
   projectName: string | null
 }
@@ -2745,13 +2743,13 @@ export interface RocketlaneListSpacesResponse extends ToolResponse {
 // region Space Documents
 
 /** The space a space document belongs to. */
-export interface RocketlaneSpaceDocumentSpaceRef {
+interface RocketlaneSpaceDocumentSpaceRef {
   spaceId: number | null
   spaceName: string | null
 }
 
 /** The document template a space document was created from. */
-export interface RocketlaneSpaceDocumentSource {
+interface RocketlaneSpaceDocumentSource {
   templateId: number | null
   templateName: string | null
 }
@@ -2942,31 +2940,31 @@ export interface RocketlaneListSpaceDocumentsResponse extends ToolResponse {
 // region Users
 
 /** The role assigned to a user. */
-export interface RocketlaneUserRole {
+interface RocketlaneUserRole {
   roleId: number | null
   roleName: string | null
 }
 
 /** The company a user belongs to. */
-export interface RocketlaneUserCompany {
+interface RocketlaneUserCompany {
   companyId: number | null
   companyName: string | null
 }
 
 /** The permission level of a user. */
-export interface RocketlaneUserPermission {
+interface RocketlaneUserPermission {
   permissionId: number | null
   permissionName: string | null
 }
 
 /** The holiday calendar assigned to a user. Field names use the API's `calender` spelling. */
-export interface RocketlaneUserHolidayCalendar {
+interface RocketlaneUserHolidayCalendar {
   calenderId: number | null
   calenderName: string | null
 }
 
 /** A custom user field value. */
-export interface RocketlaneUserField {
+interface RocketlaneUserField {
   fieldId: number | null
   fieldLabel: string | null
   fieldValue: string | null
@@ -3302,7 +3300,7 @@ export interface RocketlaneTimeOffListParams extends RocketlaneBaseParams {
 }
 
 /** The notify-users preferences attached to a time-off. */
-export interface RocketlaneTimeOffNotifyUsers {
+interface RocketlaneTimeOffNotifyUsers {
   projectOwners: boolean | null
   others: RocketlaneUserSummary[]
 }
@@ -3456,37 +3454,37 @@ export interface RocketlaneResourceAllocationListParams extends RocketlaneBasePa
 }
 
 /** A role attached to an allocation member or placeholder. */
-export interface RocketlaneResourceAllocationRole {
+interface RocketlaneResourceAllocationRole {
   roleId: number | null
   roleName: string | null
 }
 
 /** The team member an allocation is made for, including their role. */
-export interface RocketlaneResourceAllocationMember extends RocketlaneUserSummary {
+interface RocketlaneResourceAllocationMember extends RocketlaneUserSummary {
   role: RocketlaneResourceAllocationRole | null
 }
 
 /** The placeholder an allocation is made for. */
-export interface RocketlaneResourceAllocationPlaceholder {
+interface RocketlaneResourceAllocationPlaceholder {
   placeholderId: number | null
   placeholderName: string | null
   role: RocketlaneResourceAllocationRole | null
 }
 
 /** The project associated with an allocation. */
-export interface RocketlaneResourceAllocationProject {
+interface RocketlaneResourceAllocationProject {
   projectId: number | null
   projectName: string | null
 }
 
 /** A task associated with an allocation. */
-export interface RocketlaneResourceAllocationTask {
+interface RocketlaneResourceAllocationTask {
   taskId: number | null
   taskName: string | null
 }
 
 /** Total duration figures for an allocation between its start and end dates. */
-export interface RocketlaneResourceAllocationDuration {
+interface RocketlaneResourceAllocationDuration {
   daysConsider: number | null
   seconds: number | null
   minutes: number | null
@@ -3815,20 +3813,20 @@ export interface RocketlaneInvoiceLineItemsParams extends RocketlaneBaseParams {
 }
 
 /** Customer company details on an invoice. */
-export interface RocketlaneInvoiceCompany {
+interface RocketlaneInvoiceCompany {
   companyId: number | null
   companyName: string | null
   companyUrl: string | null
 }
 
 /** A project mapped to an invoice. */
-export interface RocketlaneInvoiceProject {
+interface RocketlaneInvoiceProject {
   projectId: number | null
   projectName: string | null
 }
 
 /** A custom field value attached to an invoice. */
-export interface RocketlaneInvoiceField {
+interface RocketlaneInvoiceField {
   fieldId: number | null
   fieldLabel: string | null
   fieldValue: unknown
@@ -3836,7 +3834,7 @@ export interface RocketlaneInvoiceField {
 }
 
 /** An attachment associated with an invoice. */
-export interface RocketlaneInvoiceAttachment {
+interface RocketlaneInvoiceAttachment {
   attachmentId: number | null
   attachmentName: string | null
   createdAt: number | null
@@ -3881,7 +3879,7 @@ export interface RocketlaneInvoicePayment {
 }
 
 /** Tax code information for an invoice line item. */
-export interface RocketlaneInvoiceLineItemTaxCode {
+interface RocketlaneInvoiceLineItemTaxCode {
   taxCodeId: number | null
   taxCodeName: string | null
   taxCodeRate: number | null
@@ -3889,7 +3887,7 @@ export interface RocketlaneInvoiceLineItemTaxCode {
 }
 
 /** A tax component that makes up a line item's tax code. */
-export interface RocketlaneInvoiceLineItemTaxComponent {
+interface RocketlaneInvoiceLineItemTaxComponent {
   taxComponentId: number | null
   taxComponentName: string | null
   taxComponentRate: number | null

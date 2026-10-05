@@ -80,27 +80,7 @@ export interface ElasticsearchGetIndexParams extends ElasticsearchBaseParams {
   index: string
 }
 
-interface ElasticsearchIndexExistsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchRefreshIndexParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchIndexStatsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
 // Mapping Operations
-interface ElasticsearchPutMappingParams extends ElasticsearchBaseParams {
-  index: string
-  mappings: string // JSON string
-}
-
-interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
-  index: string
-}
 
 // Cluster Operations
 export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParams {
@@ -212,16 +192,6 @@ export interface ElasticsearchIndexInfoResponse extends ToolResponse {
   }
 }
 
-interface ElasticsearchIndexExistsResponse extends ToolResponse {
-  output: {
-    exists: boolean
-  }
-}
-
-interface ElasticsearchMappingResponse extends ToolResponse {
-  output: Record<string, { mappings: Record<string, unknown> }>
-}
-
 export interface ElasticsearchClusterHealthResponse extends ToolResponse {
   output: {
     cluster_name: string
@@ -260,36 +230,6 @@ export interface ElasticsearchClusterStatsResponse extends ToolResponse {
   }
 }
 
-interface ElasticsearchRefreshResponse extends ToolResponse {
-  output: {
-    _shards: {
-      total: number
-      successful: number
-      failed: number
-    }
-  }
-}
-
-interface ElasticsearchIndexStatsResponse extends ToolResponse {
-  output: {
-    _all: {
-      primaries: {
-        docs: { count: number; deleted: number }
-        store: { size_in_bytes: number }
-        indexing: { index_total: number }
-        search: { query_total: number }
-      }
-      total: {
-        docs: { count: number; deleted: number }
-        store: { size_in_bytes: number }
-        indexing: { index_total: number }
-        search: { query_total: number }
-      }
-    }
-    indices: Record<string, unknown>
-  }
-}
-
 export interface ElasticsearchListIndicesResponse extends ToolResponse {
   output: {
     message: string
@@ -297,19 +237,3 @@ export interface ElasticsearchListIndicesResponse extends ToolResponse {
   }
   error?: string
 }
-
-// Union type for all Elasticsearch responses
-export type ElasticsearchResponse =
-  | ElasticsearchDocumentResponse
-  | ElasticsearchSearchResponse
-  | ElasticsearchCountResponse
-  | ElasticsearchBulkResponse
-  | ElasticsearchIndexResponse
-  | ElasticsearchIndexInfoResponse
-  | ElasticsearchIndexExistsResponse
-  | ElasticsearchMappingResponse
-  | ElasticsearchClusterHealthResponse
-  | ElasticsearchClusterStatsResponse
-  | ElasticsearchRefreshResponse
-  | ElasticsearchIndexStatsResponse
-  | ElasticsearchListIndicesResponse

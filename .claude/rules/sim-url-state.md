@@ -2,10 +2,14 @@
 description: Shareable client view-state lives in the URL via nuqs
 paths:
   - "apps/sim/app/**/*.tsx"
-  - "apps/sim/app/**/*.ts"
-  - "apps/sim/app/**/search-params.ts"
-  - "apps/sim/ee/**/*.tsx"
-  - "apps/sim/ee/**/*.ts"
+  - "apps/sim/app/workspace/**/*.ts"
+  - "apps/sim/app/o/**/*.ts"
+  - "apps/sim/ee/**"
+  - "apps/sim/hooks/**"
+  - "apps/sim/stores/**"
+  - "apps/sim/lib/url-state/**"
+  - "apps/sim/**/search-params.ts"
+  - "apps/sim/**/*navigation.ts"
 ---
 
 # URL / Query-Param State (nuqs)
@@ -14,21 +18,12 @@ URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is
 
 ## Decision framework — where does this state live?
 
-Pick exactly one home for each piece of state:
-
-- **React Query** → server/remote data. Unchanged; see `.claude/rules/sim-queries.md`.
-- **URL params (nuqs)** → client view-state worth putting in a link: active tab/panel, selected entity id, filters, search query, pagination, view mode (list/grid), an open "view" drawer/modal that represents a destination.
-- **Zustand** → cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, or socket-synced (canvas pan/zoom, cursor, drag state, resize widths, unsaved buffers, live collaborative selection).
-- **`useState`** → purely local, single-component UI.
-
-Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
-
-### When to use what (decision table)
+Pick exactly one home for each piece of state (table below). Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
 
 | Home | Trigger | Example |
 | --- | --- | --- |
 | **URL (nuqs)** | Client view-state worth a link: tab, filter, search, sort, pagination, selected-entity id, an open "view" modal/drawer that is a destination | `?tab=licenses`, `?category=Communication`, `?page=3`, `?skillId=abc` |
-| **React Query** | Server/remote data fetched from an endpoint | `useMcpServers(workspaceId)`, `useSkills(workspaceId)` |
+| **React Query** | Server/remote data fetched from an endpoint (hook rules: `.claude/rules/sim-queries.md`) | `useMcpServers(workspaceId)`, `useSkills(workspaceId)` |
 | **Zustand** | Cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, socket-synced | canvas pan/zoom, live cursor, drag state, resize widths, unsaved buffers |
 | **`useState`** | Purely local single-component UI; also the snappy mirror of a debounced URL search | a hover flag, a transient dialog target, the live text of a debounced search box |
 
@@ -80,7 +75,7 @@ Conventions:
 ### Example — grouped filters (single source of truth)
 
 ```typescript
-// apps/sim/app/workspace/[workspaceId]/things/search-params.ts
+// apps/sim/app/workspace/[workspaceId]/<feature>/search-params.ts
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const VIEW_MODES = ['list', 'grid'] as const
@@ -106,7 +101,7 @@ export const thingsUrlKeys = {
 'use client'
 
 import { useQueryStates } from 'nuqs'
-import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 export function useThingFilters() {
   const [filters, setFilters] = useQueryStates(thingsParsers, thingsUrlKeys)
@@ -129,7 +124,7 @@ When a Server Component or loader must read a param, build a cache from the **sa
 ```typescript
 // in a server component / page.tsx
 import { createSearchParamsCache } from 'nuqs/server'
-import { thingsParsers } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 const thingsCache = createSearchParamsCache(thingsParsers)
 

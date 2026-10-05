@@ -20,7 +20,6 @@ const logger = createLogger('ConnectionBlocks')
 
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
-  currentBlockId: string
 }
 
 interface FieldTreeNodesProps {
@@ -160,11 +159,12 @@ function ConnectionItem({
 /**
  * Connection blocks component that displays incoming connections with their schemas
  */
-export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const connectionElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const connectionRefs = (connectionElementsRef.current ??= new Map())
 
   const { blocks } = useWorkflowStore(
     useShallow((state) => ({
@@ -203,7 +203,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
 
       if (isExpanding) {
         setTimeout(() => {
-          const connectionElement = connectionRefs.current.get(connectionId)
+          const connectionElement = connectionRefs.get(connectionId)
           const scrollContainer = scrollContainerRef.current
 
           if (connectionElement && scrollContainer) {
@@ -290,9 +290,9 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
             onConnectionDragStart={handleConnectionDragStart}
             connectionRef={(el) => {
               if (el) {
-                connectionRefs.current.set(connection.id, el)
+                connectionRefs.set(connection.id, el)
               } else {
-                connectionRefs.current.delete(connection.id)
+                connectionRefs.delete(connection.id)
               }
             }}
             mergedSubBlocks={mergedSubBlocks}

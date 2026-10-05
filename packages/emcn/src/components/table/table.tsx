@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 
-export const tableVariants = cva('w-full caption-bottom text-small', {
+const tableVariants = cva('w-full caption-bottom text-small', {
   variants: {
     variant: {
       default: '',

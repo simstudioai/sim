@@ -116,6 +116,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   if (!page) notFound()
 
   const data = page.data as unknown as PageData & {
+    lastModified?: Date
     _openapi?: { method?: string }
     getAPIPageProps?: () => ApiPageProps
   }
@@ -246,6 +247,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         title={data.title}
         description={data.description || ''}
         url={`${BASE_URL}${page.url}`}
+        dateModified={data.lastModified?.toISOString()}
         breadcrumb={breadcrumbs}
       />
       <DocsPage
@@ -373,7 +375,6 @@ export async function generateMetadata(props: { params: Promise<{ slug?: string[
       creator: '@simdotai',
       site: '@simdotai',
     },
-    canonical: fullUrl,
     alternates: {
       canonical: fullUrl,
     },

@@ -1,10 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-interface PerplexityMessage {
-  role: string
-  content: string
-}
-
 export interface PerplexityChatParams {
   systemPrompt?: string
   content: string

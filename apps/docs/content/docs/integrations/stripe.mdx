@@ -45,7 +45,7 @@ Create a new Payment Intent to process a payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The created Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -113,7 +113,7 @@ Retrieve an existing Payment Intent by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The retrieved Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -186,7 +186,7 @@ Update an existing Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The updated Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -255,7 +255,7 @@ Confirm a Payment Intent to complete the payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The confirmed Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -324,7 +324,7 @@ Capture an authorized Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The captured Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -393,7 +393,7 @@ Cancel a Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The canceled Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -602,7 +602,7 @@ Create a new customer object
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The created customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -660,7 +660,7 @@ Retrieve an existing customer by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The retrieved customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -724,7 +724,7 @@ Update an existing customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The updated customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -922,7 +922,7 @@ Create a new subscription for a customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The created subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -999,7 +999,7 @@ Retrieve an existing subscription by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The retrieved subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1079,7 +1079,7 @@ Update an existing subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The updated subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1158,7 +1158,7 @@ Cancel a subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The canceled subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1222,7 +1222,7 @@ Cancel a subscription
 
 ### Stripe Resume Subscription
 
-Resume a subscription that was scheduled for cancellation
+Resume a paused subscription
 
 #### Input
 
@@ -1235,7 +1235,7 @@ Resume a subscription that was scheduled for cancellation
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The resumed subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1299,7 +1299,7 @@ Resume a subscription that was scheduled for cancellation
 
 ### Stripe List Subscriptions
 
-List all subscriptions
+List one page of subscriptions. Follow starting_after while metadata.has_more is true.
 
 #### Input
 
@@ -1309,6 +1309,8 @@ List all subscriptions
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by status \(active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all\) |
+| `starting_after` | string | No | Next-page cursor: last subscription ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first subscription ID from the current page. Do not combine with starting_after. |
 | `price` | string | No | Filter by price ID |
 
 #### Output
@@ -1378,14 +1380,15 @@ List all subscriptions
 
 ### Stripe Search Subscriptions
 
-Search for subscriptions using query syntax
+Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `query` | string | Yes | Search query \(e.g., "status:'active' AND customer:'cus_xxx'"\) |
+| `query` | string | Yes | Search query \(e.g., "status:'active' AND metadata\['order_id'\]:'6735'"\) |
+| `page` | string | No | Pagination token from metadata.next_page. Omit for the first page and keep the same query. |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
 #### Output
@@ -1452,6 +1455,7 @@ Search for subscriptions using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 ### Stripe Create Invoice
 
@@ -1472,7 +1476,7 @@ Create a new invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The created invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1624,7 +1628,7 @@ Retrieve an existing invoice by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The retrieved invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1779,7 +1783,7 @@ Update an existing invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The updated invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1950,7 +1954,7 @@ Finalize a draft invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The finalized invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -2103,7 +2107,7 @@ Pay an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The paid invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -2255,7 +2259,7 @@ Void an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The voided invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |

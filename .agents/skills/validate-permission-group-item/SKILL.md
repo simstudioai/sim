@@ -10,7 +10,7 @@ The question is not "does this key exist in the right places" — the registry m
 
 > **If an organization admin sets this, what refuses, and can I make that refusal happen?**
 
-Twelve keys once shipped with a checkbox, a hint, and no server check. Every one would have passed a structural audit. Assume nothing enforces until you have found the throw.
+A key with an admin checkbox but no server gate passes every structural audit. Assume nothing enforces until you have found the throw.
 
 **`add-permission-group-item` owns the procedure and the rationale for every invariant named below.** Read it for *why*; this skill is the checklist. Its "Read the system first" list is the same one — start there.
 
@@ -19,7 +19,7 @@ Twelve keys once shipped with a checkbox, a hint, and no server check. Every one
 Record the builder, the `enforcement`, and the position.
 
 - **Default permissive?** The builders hardcode `false` / `null` / `[]`, so the risk is a *name* that inverts the meaning — an `allowX` boolean. The checkbox renders `checked={!editingConfig[feature.configKey]}` (ticked = allowed), so a positively-named boolean renders backwards.
-- **Position stable?** Declaration order is the wire order and `fields.test.ts` pins it with a key-order contract test. If `git log -p` shows the key was ever *moved* rather than appended, that shipped as an editor dirty-check regression.
+- **Position stable?** Declaration order is the wire order, and no test catches a reorder. If `git log -p` shows the key was ever *moved* rather than appended, every open editor reads as unsaved (`group-detail.tsx` dirty-checks stringified configs).
 - **Phrasing accurate?** An allowlist's `{ limited, empty }` and a denylist's string are read by `getActivePermissionGroupRestrictions` in `features.ts` and surface to users through the Copilot workspace VFS and the enterprise platform context. Confirm `empty` says "none allowed", not "unrestricted".
 - **Does the `hint` tell the truth?** Highest-value read in this step. A `'capability'` key refuses at the API, so a hint saying it hides a tab, module, or nav item "from the sidebar" is a **lie an admin acts on** — they believe they are tidying chrome while withholding a module. The same string is reused as the prose for an *active* restriction, where "hide" is simply false. Any surviving "Hide the …" hint on a `'capability'` key is a finding, not a nit; check `label` and `category` the same way (a "Sidebar" or "Settings Tabs" section makes the claim structurally).
 
@@ -60,7 +60,7 @@ A `'capability'` key must appear in some rule's `configKeys` — the audit asser
 - **`configKeys` lists every key `deniedBy` reads.** The audit parses it textually and never reads the closure; a key read but unlisted is invisible to D and E.
 - **`kind` is right.** A rule needing a request value must be `'parameterized'` — and a parameterized rule named on an operation cannot have run in production (`defineWorkspaceOperation` throws at definition time), so something else is wrong.
 - **A narrower capability subsumes the broader one it replaced.** An operation carries exactly one capability. Precedent: `knowledge.create` / `knowledge.upload` both read `hideKnowledgeBaseTab`, without which a group withholding the whole module could still create a KB through the API. Check `git log` for a re-pointed `capability:` and verify the narrower rule grew the broader key in the same commit.
-- **`detailCode` matches the remedy** — `FORBIDDEN_DETAIL_CODES` is closed over remedies, not causes; otherwise `PERMISSION_GROUP_CAPABILITY_BLOCKED`. Any code in use needs an entry in `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS`, a compile-time gate that also publishes the OpenAPI 403 text.
+- **`detailCode` matches the remedy** — `FORBIDDEN_DETAIL_CODES` is closed over remedies, not causes; otherwise `PERMISSION_GROUP_CAPABILITY_BLOCKED`. Any code in use needs a TSDoc-documented entry in `FORBIDDEN_DETAIL_CODES`, published to OpenAPI as the `V2ForbiddenDetailCode` enum.
 - **`describe` reads correctly** as the subject of `"<describe> is not available under your organization's permission group"` — a singular noun or gerund agreeing with "is". Exactly two functions build that sentence, both defined in `capabilities.ts` (`refuseCapability` throws it, `capabilityRefusal` returns it); any call site writing it out is a drift finding.
 
 ## Step 5: Prove the enforcement — do not assume it
@@ -82,9 +82,9 @@ Classify into exactly one of:
 4. **A field projection, not a gate.** `logs.trace_spans` and `logs.cost` withhold fields, so the logs routes correctly declare `capability: 'none'`. Single owner: `lib/logs/log-projection.ts` (`resolveLogFieldProjection`, `projectExecutionData`, `projectCostTotal`), which carries both annotations. A **second** implementation of the same redaction is the finding — as is a query that lets a caller filter or sort on a withheld field, which turns the projection into an oracle.
 5. **Nothing.** Report as a defect: "an organization that sets this believes it applied a restriction that does not exist".
 
-Ahead of all five: `personal_api_key.use` fits none of them. It withholds a *principal kind* across every operation — the funnel's `personal_api_key` branch (`lib/core/application/workspace-authorization.ts`) and `app/api/v1/middleware.ts` — so no operation declares it and `disablePersonalApiKeys` being absent from every `capability:` field is correct, not a hole.
+Ahead of all five: the principal-wide capabilities (`personal_api_key.use`, `oauth_apps.use`; `PRINCIPAL_WIDE_CAPABILITIES` in `lib/core/application/operation.ts`) fit none of them. They withhold a *principal kind* across every operation — the funnel's `personal_api_key` / `oauth_access_token` branches (`lib/core/application/workspace-authorization.ts`) and `app/api/v1/middleware.ts` — and declaring one on an operation throws, so their absence from every `capability:` field is correct, not a hole.
 
-Then **make the refusal happen**: write a failing case, or remove the gate (the `capability:` field, the `deniedBy` body, the assertion call) and confirm an existing test goes red. A test that still passes with the gate removed proves nothing. Restore afterward. **Check the fixture's `workspaceOrganizationId` first**: `requireCapability` short-circuits when it is `null` (`lib/core/application/workspace-authorization.ts:204`), so a context that leaves it unset passes either way and the existing test proves nothing even before you touch it.
+Then **make the refusal happen**: write a failing case, or remove the gate (the `capability:` field, the `deniedBy` body, the assertion call) and confirm an existing test goes red. A test that still passes with the gate removed proves nothing. Restore afterward. **Check the fixture's `workspaceOrganizationId` first**: `requireCapability` short-circuits when it is `null` (`requireCapability` in `lib/core/application/workspace-authorization.ts`), so a context that leaves it unset passes either way and the existing test proves nothing even before you touch it.
 
 For an allowlist the three states must be tested separately — `null` permits every member, a populated list only the named ones, `[]` permits **none**. `capabilities.test.ts` pins all three for `knowledge.connectors`; less than that elsewhere is a gap.
 
@@ -124,7 +124,7 @@ check:capability-subject — <N> v1 files, <M> capability subjects resolved thro
 | Audit | What it catches |
 |---|---|
 | `check:permission-group-enforcement` | Every operation declares a capability and every capability is enforced. All-or-nothing — no migration mode exits 0 with work outstanding, so do not go looking for a `pending enforcement:` list |
-| `check:application-graph` | The funnel roots (`lib/core/application/index.ts`, `capabilities.ts`, `capability-assertions.ts`, `config-scope.server.ts`) and `with-route-handler.ts` reach no heavy module tree at *runtime* (`import type` is erased and allowed). A gate that imports a resolver into a guarded root is a finding even if the gate is correct; past regressions surfaced only as unrelated tests failing on partial mocks |
+| `check:application-graph` | The funnel roots (`lib/core/application/index.ts`, `capabilities.ts`, `capability-assertions.ts`, `config-scope.server.ts`) and `with-route-handler.ts` reach no heavy module tree at *runtime* (`import type` is erased and allowed). A gate that imports a resolver into a guarded root is a finding even if the gate is correct; such an edge can also make unrelated tests fail on partial mocks |
 | `check:capability-subject` | Every v1 capability sink takes its subject from `capabilityGovernedUserId`, no v1 file outside the middleware imports the permission-group modules, and at least one governed sink was found at all |
 
 Two ways the enforcement audit passes without proving what you want:

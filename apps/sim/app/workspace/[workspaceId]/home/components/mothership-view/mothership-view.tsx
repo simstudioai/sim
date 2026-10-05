@@ -13,6 +13,7 @@ import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components
 import {
   isCsvStreamOnly,
   isMarkdownFile,
+  isPreviewable,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
@@ -26,7 +27,6 @@ import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/m
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
-  GenericResourceData,
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
@@ -104,7 +104,6 @@ interface MothershipViewProps {
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
-  genericResourceData?: GenericResourceData
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
 }
@@ -125,7 +124,6 @@ export const MothershipView = memo(
       className,
       previewSession,
       isAgentResponding,
-      genericResourceData,
       onSummarize,
       onUserInteraction,
     }: MothershipViewProps,
@@ -208,10 +206,13 @@ export const MothershipView = memo(
     const isActivePreviewable =
       canEdit &&
       active?.type === 'file' &&
-      RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
+      // Dashboards store extensionless names, so the record's type decides once it loads.
+      (activeFile
+        ? isPreviewable(activeFile)
+        : RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))) &&
       // Markdown renders in the single-surface inline editor (streamed preview → editable in place),
       // so it has no raw/split/preview toggle to offer.
-      !isMarkdownFile({ type: '', name: active.title }) &&
+      !isMarkdownFile(activeFile ?? { type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
@@ -312,7 +313,6 @@ export const MothershipView = memo(
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
-                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
                 onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
               />
@@ -344,8 +344,7 @@ function ScopedResourceContent({
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
   if (!workspaceId) {
-    if (props.resource.type === 'generic')
-      return <GenericResourceContent data={props.genericResourceData ?? { entries: [] }} />
+    if (props.resource.type === 'generic') return <GenericResourceContent />
     if (props.resource.type === 'browser')
       return (
         <BrowserSession

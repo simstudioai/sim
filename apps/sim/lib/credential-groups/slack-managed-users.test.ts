@@ -199,6 +199,7 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: false,
     },
     {
       name: 'legacy workflow pool without explicit scopes',
@@ -206,6 +207,7 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_SEARCH_USER_SCOPES,
       scopes: SLACK_MANAGED_USER_SCOPES,
+      upgradesSearchPolicy: false,
     },
     {
       name: 'existing Search pool',
@@ -213,10 +215,30 @@ describe('Slack managed-user authorization', () => {
       existingScopes: SLACK_SEARCH_USER_SCOPES,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: false,
+    },
+    {
+      name: 'legacy Search pool',
+      existing: true,
+      existingScopes: [
+        'channels:history',
+        'channels:read',
+        'groups:history',
+        'groups:read',
+        'im:history',
+        'im:read',
+        'mpim:history',
+        'mpim:read',
+        'users:read',
+        'users:read.email',
+      ],
+      requestedScopes: SLACK_MANAGED_USER_SCOPES,
+      scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: true,
     },
   ])(
-    'verifies an organization $name without replacing its scope policy or disconnecting members',
-    async ({ existing, existingScopes, requestedScopes, scopes }) => {
+    'verifies an organization $name with its explicit Search or workflow scope policy',
+    async ({ existing, existingScopes, requestedScopes, scopes, upgradesSearchPolicy }) => {
       const updatedAt = new Date('2026-08-12T00:00:00Z')
       const group = {
         id: 'group-1',
@@ -232,7 +254,9 @@ describe('Slack managed-user authorization', () => {
                 required: true,
                 authorizationAppId: 'slack:A123:T123',
                 requiredScopes: existingScopes,
-                scopeVersion: credentialGroupScopePolicyVersion([...scopes]),
+                scopeVersion: credentialGroupScopePolicyVersion([
+                  ...(existingScopes ?? SLACK_MANAGED_USER_SCOPES),
+                ]),
               },
             ]
           : [],
@@ -264,7 +288,6 @@ describe('Slack managed-user authorization', () => {
       const attempt = await consumeSlackManagedUsersAttempt(created.state)
       expect(attempt?.requiredScopes).toEqual([...scopes])
       if (!attempt) throw new Error('Expected an organization authorization attempt')
-      if (!existing) expect(attempt.requiredScopes).toHaveLength(10)
 
       queueTableRows(schemaMock.slackApp, [app])
       queueTableRows(schemaMock.credentialGroup, [group])
@@ -301,9 +324,10 @@ describe('Slack managed-user authorization', () => {
           options: [expect.objectContaining({ requiredScopes: [...scopes] })],
         })
       )
-      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
-      )
+      if (!upgradesSearchPolicy)
+        expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+          expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
+        )
     }
   )
 

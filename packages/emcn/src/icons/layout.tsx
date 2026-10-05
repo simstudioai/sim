@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 import { cn } from '../lib/cn'
 import styles from './animate/layout.module.css'
 
-export type LayoutAnimationVariant = 'clockwise' | 'counterclockwise'
+type LayoutAnimationVariant = 'clockwise' | 'counterclockwise'
 
 export interface LayoutProps extends SVGProps<SVGSVGElement> {
   /**

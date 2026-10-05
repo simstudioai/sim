@@ -187,30 +187,6 @@ describe('WhatsApp webhook provider', () => {
     ])
   })
 
-  async function formatMediaMessage(message: Record<string, unknown>) {
-    const result = await whatsappHandler.formatInput!({
-      webhook: { id: 'wh_media', providerConfig: {} },
-      workflow: { id: 'wf_media', userId: 'user_media' },
-      body: {
-        object: 'whatsapp_business_account',
-        entry: [
-          {
-            changes: [
-              {
-                field: 'messages',
-                value: { metadata: { phone_number_id: '12345' }, messages: [message] },
-              },
-            ],
-          },
-        ],
-      },
-      headers: {},
-      requestId: 'wa-format-media',
-    })
-
-    return result.input as Record<string, unknown>
-  }
-
   describe('handleChallenge', () => {
     function verificationRequest(): NextRequest {
       return new NextRequest(

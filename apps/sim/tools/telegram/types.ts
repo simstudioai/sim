@@ -198,7 +198,7 @@ export interface TelegramChatFullInfo {
   linked_chat_id?: number
 }
 
-export interface TelegramUser {
+interface TelegramUser {
   id: number
   is_bot: boolean
   first_name?: string
@@ -290,21 +290,4 @@ export interface TelegramGetChatMemberResponse extends ToolResponse {
   }
 }
 
-export type TelegramResponse =
-  | TelegramSendMessageResponse
-  | TelegramSendPhotoResponse
-  | TelegramSendAudioResponse
-  | TelegramSendMediaResponse
-  | TelegramSendDocumentResponse
-  | TelegramDeleteMessageResponse
-  | TelegramCopyMessageResponse
-  | TelegramBooleanResponse
-  | TelegramGetChatResponse
-  | TelegramGetChatMemberResponse
-
 // Legacy type for backwards compatibility
-interface TelegramMessageParams {
-  botToken: string
-  chatId: string
-  text: string
-}

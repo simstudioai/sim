@@ -85,7 +85,7 @@ const MENU_ROW_SELECTED_CLASS =
 const MENU_ROW_SINGLE_LINE_CLASS =
   'whitespace-nowrap [&>span]:min-w-0 [&>span:not([data-overflow-text])]:overflow-hidden [&>span:not([data-overflow-text])]:text-clip'
 
-export type DropdownMenuItemLabelProps = Omit<OverflowTextProps, 'focusTarget'>
+type DropdownMenuItemLabelProps = Omit<OverflowTextProps, 'focusTarget'>
 
 /** Canonical fade-only label for a menu row with icons, checks, or actions. */
 const DropdownMenuItemLabel = React.memo(function DropdownMenuItemLabel({
@@ -191,16 +191,6 @@ function DropdownMenu({
 }
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
-
-const DropdownMenuGroup = React.forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Group>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Group>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Group ref={ref} className={cn('flex flex-col', className)} {...props} />
-))
-DropdownMenuGroup.displayName = DropdownMenuPrimitive.Group.displayName
-
-const DropdownMenuPortal = DropdownMenuPrimitive.Portal
 
 const DropdownMenuSub = DropdownMenuPrimitive.Sub
 
@@ -320,7 +310,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 /** Large rows match the sidebar's chip geometry without changing menu behavior. */
-export const dropdownMenuItemVariants = cva(dropdownMenuRowClass, {
+const dropdownMenuItemVariants = cva(dropdownMenuRowClass, {
   variants: {
     size: { default: '', lg: chipGeometryClass },
   },
@@ -611,7 +601,7 @@ const DropdownMenuSearchInput = React.forwardRef<
           onKeyDown?.(e)
         }}
         className={cn(
-          'h-full w-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
+          'size-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
           className
         )}
         {...props}
@@ -644,8 +634,6 @@ export {
   DropdownMenuSeparator,
   DropdownMenuSearchInput,
   DropdownMenuShortcut,
-  DropdownMenuGroup,
-  DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
+import { getManagedMcpConnectorBgColor } from '@/lib/credential-groups/managed-mcp-connectors'
 import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
@@ -47,11 +48,11 @@ const SHOWCASE_TILES = [
 ] as const
 
 /**
- * Resolves the brand background color for a block type from the block registry.
- * Returns `null` when the block is unknown or has no brand color configured.
+ * Resolves the brand background color for workflow blocks and managed MCP connectors.
+ * Returns `null` when neither catalog provides a brand color.
  */
 function resolveBrandTileBg(blockType: string): string | null {
-  return getBlock(blockType)?.bgColor || null
+  return getBlock(blockType)?.bgColor || getManagedMcpConnectorBgColor(blockType) || null
 }
 
 interface IntegrationTileProps {
@@ -61,7 +62,7 @@ interface IntegrationTileProps {
 }
 
 /**
- * Brand-colored square tile that renders a block's icon. The unframed variant
+ * Brand-colored square tile that renders an integration's icon. The unframed variant
  * is a 36px tile used in list rows and headers; the framed variant adds an
  * outer 44px halo used inside the showcase grid.
  */

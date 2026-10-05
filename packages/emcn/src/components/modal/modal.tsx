@@ -424,8 +424,7 @@ const MODAL_SIZES = {
 
 export type ModalSize = keyof typeof MODAL_SIZES
 
-export interface ModalContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+interface ModalContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   /** Backdrop styling for specialized surfaces such as media viewers. */
   overlayClassName?: string
   /**
@@ -893,8 +892,5 @@ export {
   ModalTabsTrigger,
   ModalTabsContent,
   ModalFooter,
-  ModalPortal,
-  ModalOverlay,
   ModalClose,
-  MODAL_SIZES,
 }

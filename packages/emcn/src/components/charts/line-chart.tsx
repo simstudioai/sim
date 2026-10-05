@@ -27,12 +27,12 @@ import {
   useIsDarkTheme,
 } from '@sim/emcn'
 
-export interface LineChartPoint {
+interface LineChartPoint {
   timestamp: string
   value: number
 }
 
-export interface LineChartMultiSeries {
+interface LineChartMultiSeries {
   id: string
   label: string
   color: string

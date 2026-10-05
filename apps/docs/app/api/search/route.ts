@@ -1,13 +1,19 @@
+import { createLogger } from '@sim/logger'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db, docsEmbeddings } from '@/lib/db'
 import { generateSearchEmbedding } from '@/lib/embeddings'
+
+const logger = createLogger('DocsSearchAPI')
 
 export const runtime = 'nodejs'
 export const revalidate = 0
 
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 20
+/** Bounds the paid embedding call per request; real searches are a few words. */
+const MAX_QUERY_LENGTH = 256
 
 /** PostgreSQL text-search configuration for the docs' English content. */
 const TS_CONFIG = 'english'
@@ -25,7 +31,11 @@ function getSearchLimit(value: unknown): number {
 function getSearchParams(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   return {
-    query: searchParams.get('query') || searchParams.get('q') || '',
+    query: truncateAtCodePoint(
+      searchParams.get('query') || searchParams.get('q') || '',
+      MAX_QUERY_LENGTH,
+      ''
+    ),
     limit: getSearchLimit(searchParams.get('limit')),
   }
 }
@@ -35,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const { query, limit } = getSearchParams(request)
 
-    if (!query || query.trim().length === 0) {
+    if (query.trim().length === 0) {
       return NextResponse.json([])
     }
 
@@ -196,7 +206,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(searchResults)
   } catch (error) {
-    console.error('Semantic search error:', error)
+    logger.error('Semantic search error:', error)
 
     return NextResponse.json([])
   }

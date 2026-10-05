@@ -5,7 +5,7 @@ const INVALID_REFERENCE_CHARS = /[+*/=<>!&|]/
 const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
 const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
 
-export type WorkflowReferenceTokenKind = 'environment' | 'workflow'
+type WorkflowReferenceTokenKind = 'environment' | 'workflow'
 
 export interface WorkflowReferenceToken {
   kind: WorkflowReferenceTokenKind

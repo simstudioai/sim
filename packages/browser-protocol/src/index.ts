@@ -57,23 +57,20 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
 
-export const RETIRED_BROWSER_TOOL_NAMES = ['browser_request_takeover'] as const
+const RETIRED_BROWSER_TOOL_NAMES = ['browser_request_takeover'] as const
 
-export const BROWSER_TOOL_NAMES = [
-  ...CURRENT_BROWSER_TOOL_NAMES,
-  ...RETIRED_BROWSER_TOOL_NAMES,
-] as const
+const BROWSER_TOOL_NAMES = [...CURRENT_BROWSER_TOOL_NAMES, ...RETIRED_BROWSER_TOOL_NAMES] as const
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
-export const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
-export const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
-export const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
+const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
+const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
 export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
 export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
 export const BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS = BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
 const BROWSER_RENDERER_TRANSPORT_GRACE_MS = 2_000
-export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
+const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
   BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS +
   BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS +
@@ -132,7 +129,7 @@ export function browserToolRendererTimeoutMs(
   }
 }
 
-export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
+const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */
 export type BrowserTheme = (typeof BROWSER_THEMES)[number]

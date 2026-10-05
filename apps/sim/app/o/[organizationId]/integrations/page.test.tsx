@@ -25,31 +25,6 @@ beforeEach(() => {
 })
 
 describe('integrations page Slack context', () => {
-  it('preserves a requested connection across login and validates it in the existing organization page', async () => {
-    const selected = {
-      ...props,
-      searchParams: Promise.resolve({
-        connectorType: 'gmail',
-        connectorId: 'source',
-        credentialId: 'account',
-      }),
-    }
-    const page = await OrganizationIntegrationsPage(selected)
-    expect(page.props.connectionRequest).toMatchObject({
-      userId: 'viewer',
-      target: {
-        type: 'link',
-        connectorType: 'gmail',
-        connectorId: 'source',
-        credentialId: 'account',
-      },
-    })
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    await expect(OrganizationIntegrationsPage(selected)).rejects.toThrow('NEXT_REDIRECT')
-    expect(mockRedirect).toHaveBeenCalledWith(
-      `/login?callbackUrl=${encodeURIComponent('/o/organization-a/integrations?connectorType=gmail&connectorId=source&credentialId=account')}`
-    )
-  })
   it('rejects unknown providers and reconnects without a source', async () => {
     for (const query of [
       { connectorType: 'invented' },

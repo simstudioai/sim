@@ -24,9 +24,8 @@ export const BUFFER_POST_STATUSES = [
   'error',
 ] as const
 
-export type BufferShareMode = (typeof BUFFER_SHARE_MODES)[number]
-export type BufferSchedulingType = (typeof BUFFER_SCHEDULING_TYPES)[number]
-export type BufferPostStatus = (typeof BUFFER_POST_STATUSES)[number]
+type BufferShareMode = (typeof BUFFER_SHARE_MODES)[number]
+type BufferSchedulingType = (typeof BUFFER_SCHEDULING_TYPES)[number]
 
 /** Every Buffer tool authenticates with the account API key as a Bearer token. */
 interface BufferBaseParams {
@@ -97,7 +96,7 @@ export const BUFFER_POST_SELECTION = `
 
 // region Shared object shapes
 
-export interface BufferAsset {
+interface BufferAsset {
   id: string | null
   type: string
   mimeType: string
@@ -105,7 +104,7 @@ export interface BufferAsset {
   thumbnail: string
 }
 
-export interface BufferPostError {
+interface BufferPostError {
   message: string
   supportUrl: string | null
   rawError: string | null
@@ -145,14 +144,14 @@ export interface BufferChannel {
   organizationId: string
 }
 
-export interface BufferOrganization {
+interface BufferOrganization {
   id: string
   name: string
   channelCount: number
   ownerEmail: string
 }
 
-export interface BufferAccount {
+interface BufferAccount {
   id: string
   email: string
   name: string | null
@@ -168,13 +167,13 @@ export interface BufferIdea {
   text: string | null
 }
 
-export interface BufferIdeaGroup {
+interface BufferIdeaGroup {
   id: string
   name: string
   isLocked: boolean
 }
 
-export interface BufferPageInfo {
+interface BufferPageInfo {
   hasNextPage: boolean
   endCursor: string | null
 }

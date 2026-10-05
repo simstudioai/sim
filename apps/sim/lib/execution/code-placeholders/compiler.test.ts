@@ -6,6 +6,11 @@ import {
   type CodePlaceholderRuntimeBinding,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import {
+  applySourceEdits,
+  CodePlaceholderCompileError,
+  CodePlaceholderInvariantError,
+} from '@/lib/execution/code-placeholders/shared'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const installedGlobals = new Set<string>()
@@ -880,6 +885,26 @@ describe('code placeholder compiler', () => {
     expect(executeShell(compiled.code, compiled.bindings)).toBe('<secret-value>\n')
   })
 
+  it('keeps shell quote context after heredoc bodies with unbalanced quotes', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'cat <<EOF',
+        "Today's report",
+        'EOF',
+        "cat <<'EOF'",
+        'a "quote',
+        'EOF',
+        'printf "<%s>\\n" "{{KEY}}"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: ' * ' },
+    })
+
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      'Today\'s report\na "quote\n< * >\n'
+    )
+  })
+
   it('tracks nested shell command substitutions and their own quote contexts', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
@@ -1261,6 +1286,23 @@ describe('direct environment reads in shell', () => {
     expect(unquoted.resolvedSecretNames).toEqual(['API_KEY'])
   })
 
+  it('reports reads after heredoc bodies with unbalanced quotes', async () => {
+    for (const header of ['cat <<EOF', "cat <<'EOF'"]) {
+      const compiled = await compileCodePlaceholders({
+        code: [header, "Today's report", 'EOF', 'echo $API_KEY'].join('\n'),
+        language: CodeLanguage.Shell,
+        environmentVariables: { API_KEY: 'a-value' },
+      })
+      expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+    }
+    const inBody = await compileCodePlaceholders({
+      code: ['cat <<EOF', "it's $API_KEY", 'EOF'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+    expect(inBody.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
   it('ignores a shell variable that is not a configured secret', async () => {
     const compiled = await compileCodePlaceholders({
       code: 'echo "$PATH $HOME"',
@@ -1541,5 +1583,31 @@ describe('python true positives survive the dot guard', () => {
     ['double quotes', 'x = environmentVariables["API_KEY"]'],
   ])('%s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})
+
+describe('compiler failure classification', () => {
+  it('reports overlapping source edits as a compiler invariant, not a user compile error', () => {
+    const applyOverlappingEdits = () =>
+      applySourceEdits('return value', [
+        { start: 0, end: 6, text: 'yield' },
+        { start: 3, end: 9, text: 'x' },
+      ])
+
+    expect(applyOverlappingEdits).toThrow(CodePlaceholderInvariantError)
+    expect(applyOverlappingEdits).not.toThrow(CodePlaceholderCompileError)
+  })
+
+  it('reports an exhausted JavaScript sentinel space as a user compile error', async () => {
+    /** Every `$xyz$` sentinel a five-character `{{a}}` could take, packed under the code cap. */
+    const alphabet = [...'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ']
+    const payloads = alphabet.flatMap((a) =>
+      alphabet.flatMap((b) => alphabet.map((c) => `${a}${b}${c}`))
+    )
+    const code = `const taken = '$${payloads.join('$')}$'\nreturn {{a}}`
+
+    await expect(
+      compileCodePlaceholders({ code, language: CodeLanguage.JavaScript, params: { a: 1 } })
+    ).rejects.toBeInstanceOf(CodePlaceholderCompileError)
   })
 })

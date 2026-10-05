@@ -23,6 +23,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
@@ -44,12 +45,10 @@ import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
-import type {
-  GenericResourceData,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
@@ -111,7 +110,6 @@ interface ResourceContentProps {
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
-  genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
   /**
@@ -185,7 +183,6 @@ export const ResourceContent = memo(function ResourceContent({
   previewMode,
   previewSession,
   isAgentResponding,
-  genericResourceData,
   previewContextKey,
   onNotFound,
   visible = true,
@@ -297,6 +294,8 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'dashboard':
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} />
     case 'file':
       return (
         <EmbeddedFile
@@ -347,9 +346,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'generic':
-      return (
-        <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
-      )
+      return <GenericResourceContent key={resource.id} />
 
     case 'browser':
       // One panel serves every browser tab of the chat: the desktop app
@@ -401,6 +398,8 @@ export function ResourceActions({
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'dashboard':
+      return <EmbeddedDashboardActions workspaceId={workspaceId} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -515,6 +514,32 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
         </Tooltip.Content>
       </Tooltip.Root>
     </>
+  )
+}
+
+interface EmbeddedDashboardActionsProps {
+  workspaceId: string
+}
+
+function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps) {
+  const router = useRouter()
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  if (!dashboardsEnabled) return null
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction
+          variant='subtle'
+          onClick={() => router.push(`/workspace/${workspaceId}/dashboards`)}
+          aria-label='Open dashboard'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open dashboard</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 

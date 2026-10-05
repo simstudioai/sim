@@ -1,21 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipModalError } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
-import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
 import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/search-source-setup'
@@ -31,9 +27,9 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { useOrganizationSearchOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
+import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
-import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -44,21 +40,18 @@ interface OrganizationProviderDetailProps {
 export function OrganizationProviderDetail({ connectorType }: OrganizationProviderDetailProps) {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const router = useRouter()
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const [deactivating, setDeactivating] = useState(false)
   const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
-  const overview = useOrganizationSearchOverview(organization.id, { enabled: viewer.isAdmin })
+  const overview = useSearchIntegrations(organization.id)
   const sources = useSearchSources(scope, {
     connectorType,
     search: sourceSearch,
     enabled: viewer.isAdmin,
   })
   const availability = usePermissionConfig()
-  const approval = useUpdateSearchIntegration()
   const accounts = useOrganizationAccounts(
     viewer.isAdmin && connectorType === 'slack' ? organization.id : undefined
   )
@@ -73,7 +66,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     connectedAccountsParam.key,
     connectedAccountsParam.parser
   )
-  const provider = overview.data?.providers.find((item) => item.connectorType === connectorType)
+  const provider = overview.data?.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const back = {
     text: 'Sources',
@@ -103,13 +96,11 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
       approved && unavailable
         ? 'Unavailable in this deployment'
         : provider
-          ? liveSearch
-            ? connectorType === 'gitlab'
-              ? 'Projects and permissions'
-              : connectorType === 'github'
-                ? 'GitHub App repositories'
-                : 'Service account connections'
-            : organizationSearchStatusLabel(provider)
+          ? connectorType === 'gitlab'
+            ? 'Projects and permissions'
+            : connectorType === 'github'
+              ? 'GitHub App repositories'
+              : 'Service account connections'
           : undefined,
     docsLink: meta.searchDocsUrl,
     search: searchField,
@@ -135,30 +126,22 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     connectorType === 'slack' &&
     (option?.provider !== 'slack' || option.configurationStatus !== 'ready')
   const pending =
-    overview.isPending ||
-    overview.isError ||
-    approval.isPending ||
-    !availability.isIntegrationAvailabilityReady
+    overview.isPending || overview.isError || !availability.isIntegrationAvailabilityReady
   const startSource = () =>
     void setSetup({
       addConnector: searchSetupParam.parser.parse(connectorType),
       'source-access': access.admin ? null : 'members',
     })
-  const activate = () =>
-    approval.mutate({ organizationId: organization.id, connectorType, approved: true })
   const actions: SettingsAction[] = approved
     ? [
-        ...(needsSlackSetup ||
-        access.admin ||
-        (connectorType === 'github' && access.members) ||
-        (!liveSearch && access.members)
+        ...(needsSlackSetup || access.admin || (connectorType === 'github' && access.members)
           ? [
               {
                 text: needsSlackSetup
                   ? 'Set up Slack app'
-                  : liveSearch && connectorType === 'github'
+                  : connectorType === 'github'
                     ? 'Add repository'
-                    : liveSearch && connectorType !== 'gitlab'
+                    : connectorType !== 'gitlab'
                       ? 'Add service account'
                       : getSearchConnectionLabels(connectorType, access.admin ? 'admin' : 'members')
                           .add,
@@ -171,28 +154,15 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               },
             ]
           : []),
-        ...(!liveSearch
-          ? [
-              {
-                text: 'Deactivate',
-                disabled: approval.isPending,
-                onSelect: () => {
-                  approval.reset()
-                  setDeactivating(true)
-                },
-              },
-            ]
-          : []),
       ]
     : [
         {
-          text: liveSearch ? 'View sources' : provider ? 'Activate' : 'Add integration',
+          text: 'View sources',
           variant: 'primary',
           disabled: pending || (!access.admin && !access.members),
           tooltip: unavailable ? 'This integration is unavailable in this deployment.' : undefined,
-          onSelect: liveSearch
-            ? () => router.push(organizationRoutes(organization.id).settingsSection('integrations'))
-            : activate,
+          onSelect: () =>
+            router.push(organizationRoutes(organization.id).settingsSection('integrations')),
         },
       ]
   actions.push(...removalActions)
@@ -217,11 +187,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
 
   const renderSources = () => (
     <SettingsPanel {...panel} actions={actions}>
-      {approval.error && (
-        <SettingsEmptyState variant='inline' tone='error'>
-          {approval.error.message}
-        </SettingsEmptyState>
-      )}
       {availability.integrationAvailabilityError && (
         <SettingsQueryErrorState
           error={availability.integrationAvailabilityError}
@@ -255,7 +220,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
           {sources.data
             ?.filter(
               (source) =>
-                !liveSearch ||
                 source.accessMode === 'admin' ||
                 (connectorType === 'github' && source.isGitHubInstallation)
             )
@@ -263,41 +227,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               <SettingsResourceRow
                 key={source.connectorId}
                 title={source.sourceDescription || meta.name}
-                description={
-                  liveSearch
-                    ? !approved
-                      ? 'Unavailable'
-                      : !source.enabled
-                        ? 'Paused'
-                        : undefined
-                    : [
-                        connectorType === 'github'
-                          ? null
-                          : source.accessMode === 'members'
-                            ? 'Member accounts'
-                            : meta.auth.mode === 'oauth' &&
-                                meta.auth.adminCredentialType === 'service_account'
-                              ? 'Service account'
-                              : 'Admin or service account',
-                        !approved
-                          ? 'Deactivated'
-                          : !source.enabled
-                            ? 'Paused'
-                            : source.hasSyncError
-                              ? source.isSyncing
-                                ? 'Indexing · Previous sync failed'
-                                : 'Sync failed'
-                              : source.viewerFailedDocumentCount > 0
-                                ? `${source.viewerFailedDocumentCount} ${source.viewerFailedDocumentCount === 1 ? 'document' : 'documents'} failed to index`
-                                : source.isSyncing
-                                  ? 'Indexing'
-                                  : source.lastSyncAt
-                                    ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                                    : 'Waiting for the first sync',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                }
+                description={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
                 href={organizationRoutes(organization.id).searchSource(source.connectorId)}
                 clickLabel={`Open ${source.sourceDescription || meta.name}`}
                 navigable
@@ -305,7 +235,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
             ))}
           {!sources.data?.some(
             (source) =>
-              !liveSearch ||
               source.accessMode === 'admin' ||
               (connectorType === 'github' && source.isGitHubInstallation)
           ) &&
@@ -343,26 +272,6 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
           onRemoved={() => setRemovingSlackAccounts(false)}
         />
       )}
-      <ChipConfirmModal
-        open={deactivating}
-        onOpenChange={(open) => {
-          if (!approval.isPending) setDeactivating(open)
-        }}
-        title={`Deactivate ${meta.name}?`}
-        text='Its content will be unavailable in Search, Assistant, and MCP. Connections and accounts are preserved.'
-        confirm={{
-          label: 'Deactivate',
-          variant: 'destructive',
-          pending: approval.isPending,
-          onClick: () =>
-            approval.mutate(
-              { organizationId: organization.id, connectorType, approved: false },
-              { onSuccess: () => setDeactivating(false) }
-            ),
-        }}
-      >
-        <ChipModalError>{approval.error?.message}</ChipModalError>
-      </ChipConfirmModal>
     </>
   )
 }

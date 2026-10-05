@@ -20,14 +20,14 @@
  *       <PopoverContent>
  *         <PopoverBackButton />
  *         <PopoverItem rootOnly onClick={() => console.log('Docs')}>
- *           <BookOpen className="h-3.5 w-3.5" />
+ *           <BookOpen className="size-3.5" />
  *           <span>Docs</span>
  *         </PopoverItem>
  *
  *         <PopoverFolder
  *           id="workflows"
  *           title="All workflows"
- *           icon={<Workflow className="h-3.5 w-3.5" />}
+ *           icon={<Workflow className="size-3.5" />}
  *           onOpen={async () => {
  *             const data = await fetchWorkflows()
  *             setWorkflows(data)
@@ -184,7 +184,7 @@ const usePopoverContext = () => {
   return context
 }
 
-export interface PopoverProps extends PopoverPrimitive.PopoverProps {
+interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)

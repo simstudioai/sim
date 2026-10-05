@@ -5,8 +5,6 @@ import {
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
-import { loadIndexedSearchIntegrationInventory } from '@/lib/sim-search/indexed'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { listLiveSearchAccounts } from '@/lib/sim-search/live/application'
 
 const MAX_INVENTORY_BYTES = 256 * 1024
@@ -32,14 +30,6 @@ export async function loadCopilotSearchIntegrations(
     }
   )
   await authorizeOrganizationChatDelegation.execute({ principal })
-
-  if (isIndexedOrgSearchEnabled())
-    return loadIndexedSearchIntegrationInventory({
-      principal,
-      organizationId: context.organizationId,
-      signal: context.signal,
-      maxBytes: MAX_INVENTORY_BYTES,
-    })
 
   const [inventory, connections] = await Promise.all([
     listLiveSearchAccounts.execute({

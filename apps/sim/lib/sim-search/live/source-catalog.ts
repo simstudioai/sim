@@ -67,7 +67,8 @@ export function getLiveSearchAccessAvailability(
       (liveSearchMcpConnector(type)
         ? context.isIntegrationAvailabilityReady &&
           context.memberAccessAvailable &&
-          (type !== 'hubspot' || context.availableMcpConnectors?.includes('hubspot') === true)
+          ((type !== 'hubspot' && type !== 'zoom') ||
+            context.availableMcpConnectors?.includes(type) === true)
         : access.members),
   }
 }

@@ -140,7 +140,12 @@ export async function loadForkPreviewRevision(
   }
 }
 
-/** Locks normalized graph rows as well as workflow metadata, including realtime-only writes. */
+/**
+ * Locks normalized graph rows as well as workflow metadata, including realtime-only writes.
+ *
+ * Rank 5 - see the rank table on `acquireForkLineageLock`. Takes `FOR UPDATE` on `workspace`
+ * rows, so a caller needing the rank-2 lineage lock must take it first.
+ */
 export async function lockForkRevision(tx: DbTransaction, scope: ForkRevisionScope): Promise<void> {
   const workspaceIds = [
     ...new Set([
@@ -155,15 +160,15 @@ export async function lockForkRevision(tx: DbTransaction, scope: ForkRevisionSco
   )
   await tx.execute(sql`SELECT id FROM ${workspace} WHERE id IN (${values}) ORDER BY id FOR UPDATE`)
   await tx.execute(
-    sql`SELECT id FROM ${workflow} WHERE workspace_id IN (${values}) ORDER BY id FOR UPDATE`
+    sql`SELECT count(*) FROM (SELECT id FROM ${workflow} WHERE workspace_id IN (${values}) ORDER BY id FOR UPDATE) locked`
   )
   for (const table of [workflowBlocks, workflowEdges, workflowSubflows]) {
     await tx.execute(
-      sql`SELECT r.id FROM ${table} r JOIN ${workflow} w ON w.id = r.workflow_id WHERE w.workspace_id IN (${values}) ORDER BY r.id FOR UPDATE OF r`
+      sql`SELECT count(*) FROM (SELECT r.id FROM ${table} r JOIN ${workflow} w ON w.id = r.workflow_id WHERE w.workspace_id IN (${values}) ORDER BY r.id FOR UPDATE OF r) locked`
     )
   }
   await tx.execute(
-    sql`SELECT d.id FROM ${workflowDeploymentVersion} d JOIN ${workflow} w ON w.id = d.workflow_id WHERE w.workspace_id IN (${values}) AND d.is_active = true ORDER BY d.id FOR SHARE OF d`
+    sql`SELECT count(*) FROM (SELECT d.id FROM ${workflowDeploymentVersion} d JOIN ${workflow} w ON w.id = d.workflow_id WHERE w.workspace_id IN (${values}) AND d.is_active = true ORDER BY d.id FOR SHARE OF d) locked`
   )
   if (scope.edge) {
     const [edge] = await tx.execute<{ parent: string | null }>(
@@ -197,15 +202,23 @@ export async function assertForkPreviewFresh(
 export async function assertForkSourceVersions(
   tx: DbOrTx,
   sourceWorkspaceId: string,
-  expected: ReadonlyMap<string, { id: string; digest: string }>
+  expected: ReadonlyMap<string, { id: string; digest: string }>,
+  reviewed?: readonly { workflowId: string; deploymentVersionId: string }[]
 ): Promise<void> {
   const rows = await tx.execute<{ workflowId: string; id: string; digest: string }>(sql`
     SELECT w.id AS "workflowId", d.id, md5(d.state::text) AS digest FROM ${workflow} w
     JOIN ${workflowDeploymentVersion} d ON d.workflow_id = w.id AND d.is_active = true
     WHERE w.workspace_id = ${sourceWorkspaceId} AND w.is_deployed = true
       AND w.archived_at IS NULL AND w.fork_sync_excluded = false
+    LIMIT ${expected.size + 1}
   `)
   if (
+    (reviewed !== undefined &&
+      (reviewed.length !== expected.size ||
+        new Set(reviewed.map((entry) => entry.workflowId)).size !== reviewed.length ||
+        reviewed.some(
+          (entry) => expected.get(entry.workflowId)?.id !== entry.deploymentVersionId
+        ))) ||
     rows.length !== expected.size ||
     rows.some(
       (row) =>
@@ -214,7 +227,7 @@ export async function assertForkSourceVersions(
     )
   )
     throw new WorkspaceOperationConflict(
-      'Source deployment changed during loading; request a new preview',
+      'Source deployment changed; refresh the sync details and review the comparison again',
       {
         applied: false,
         reason: 'stale_preview',

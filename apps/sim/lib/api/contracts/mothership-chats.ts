@@ -203,6 +203,7 @@ export const mothershipChatStreamQuerySchema = z
     streamId: z.string().optional(),
     after: z.string().optional(),
     batch: z.string().optional(),
+    source: z.enum(['ring', 'log']).optional(),
   })
   .passthrough()
 

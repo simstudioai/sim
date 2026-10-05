@@ -1,12 +1,12 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export interface JupyterAuthParams {
+interface JupyterAuthParams {
   serverUrl: string
   token: string
 }
 
-export interface JupyterContentItem {
+interface JupyterContentItem {
   name: string
   path: string
   type: 'directory' | 'file' | 'notebook'
@@ -18,7 +18,7 @@ export interface JupyterContentItem {
   format: 'json' | 'text' | 'base64' | null
 }
 
-export interface JupyterKernel {
+interface JupyterKernel {
   id: string
   name: string
   lastActivity: string | null
@@ -26,7 +26,7 @@ export interface JupyterKernel {
   connections: number | null
 }
 
-export interface JupyterKernelSpec {
+interface JupyterKernelSpec {
   name: string
   displayName: string
   language: string | null
@@ -34,7 +34,7 @@ export interface JupyterKernelSpec {
   interruptMode: string | null
 }
 
-export interface JupyterSession {
+interface JupyterSession {
   id: string
   path: string
   name: string

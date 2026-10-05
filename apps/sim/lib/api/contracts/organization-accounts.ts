@@ -18,7 +18,6 @@ import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/pri
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import {
-  ORGANIZATION_ACCOUNT_INDEXING_SOURCE_LIMIT,
   ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
   ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
 } from '@/lib/credential-groups/limits'
@@ -102,8 +101,18 @@ export type OrganizationAccountConnectionResponse = z.output<
 >
 
 export const startOrganizationAccountConnectionBodySchema = z.union([
-  z.object({ optionId: z.string().min(1).max(128) }).strict(),
-  z.object({ mcpServerId: z.string().min(1).max(128) }).strict(),
+  z
+    .object({
+      optionId: z.string().min(1).max(128),
+      oauthCompletionId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mcpServerId: z.string().min(1).max(128),
+      oauthCompletionId: z.string().uuid().optional(),
+    })
+    .strict(),
 ])
 export type StartOrganizationAccountConnectionBody = z.input<
   typeof startOrganizationAccountConnectionBodySchema
@@ -130,31 +139,6 @@ export type OrganizationAccountsSettings = z.output<
   typeof getOrganizationAccountsContract.response.schema
 >
 
-export const updateOrganizationAccountIndexingBodySchema = z
-  .object({
-    optionId: z.string().min(1, 'Provider option is required').max(128),
-    enabled: z.boolean(),
-  })
-  .strict()
-
-export const updateOrganizationAccountIndexingContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/organizations/[id]/connected-accounts/indexing',
-  params: organizationAccountsParamsSchema,
-  body: updateOrganizationAccountIndexingBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      enabled: z.boolean(),
-      knowledgeBaseIds: z
-        .array(z.string().min(1).max(128))
-        .max(ORGANIZATION_ACCOUNT_INDEXING_SOURCE_LIMIT),
-    }),
-  },
-})
-export type UpdateOrganizationAccountIndexingBody = z.input<
-  NonNullable<typeof updateOrganizationAccountIndexingContract.body>
->
 export type EnsureOrganizationAccountsBody = z.input<
   NonNullable<typeof ensureOrganizationAccountsContract.body>
 >
@@ -372,10 +356,18 @@ export const listPersonalOrganizationAccountsContract = defineRouteContract({
     }),
   },
 })
+export const reconnectPersonalOrganizationAccountQuerySchema = z.object({
+  oauthCompletionId: z.string().uuid().optional(),
+})
+export type ReconnectPersonalOrganizationAccountQuery = z.input<
+  typeof reconnectPersonalOrganizationAccountQuerySchema
+>
+
 export const reconnectPersonalOrganizationAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/users/me/organization-accounts/[credentialId]/reconnect',
   params: z.object({ credentialId: z.string().min(1).max(128) }),
+  query: reconnectPersonalOrganizationAccountQuerySchema,
   response: { mode: 'json', schema: organizationAccountConnectionResponseSchema },
 })
 export const disconnectPersonalOrganizationAccountContract = defineRouteContract({

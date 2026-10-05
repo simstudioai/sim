@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface MongoDBConnectionConfig {
+interface MongoDBConnectionConfig {
   host: string
   port: number
   database: string
@@ -51,7 +51,7 @@ export interface MongoDBIntrospectParams {
   ssl?: 'disabled' | 'required' | 'preferred'
 }
 
-export interface MongoDBCollectionInfo {
+interface MongoDBCollectionInfo {
   name: string
   type: string
   documentCount: number
@@ -77,11 +77,6 @@ interface MongoDBBaseResponse extends ToolResponse {
   error?: string
 }
 
-interface MongoDBQueryResponse extends MongoDBBaseResponse {}
-interface MongoDBInsertResponse extends MongoDBBaseResponse {}
-interface MongoDBUpdateResponse extends MongoDBBaseResponse {}
-interface MongoDBDeleteResponse extends MongoDBBaseResponse {}
-interface MongoDBExecuteResponse extends MongoDBBaseResponse {}
 export interface MongoDBResponse extends MongoDBBaseResponse {}
 
 export interface MongoDBIntrospectResponse extends ToolResponse {

@@ -1,7 +1,6 @@
 import { DowndetectorIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DowndetectorResponse } from '@/tools/downdetector/types'
 
 const COMPANY_ID_OPERATIONS = [
   'downdetector_get_company',
@@ -46,7 +45,7 @@ const PAGE_NUMBER_OPERATIONS = [
   'downdetector_list_incidents',
 ]
 
-export const DowndetectorBlock: BlockConfig<DowndetectorResponse> = {
+export const DowndetectorBlock: BlockConfig = {
   type: 'downdetector',
   name: 'Downdetector',
   description: 'Monitor outages and service status with Downdetector',

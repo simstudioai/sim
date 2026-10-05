@@ -33,11 +33,11 @@ describe('the guarded roots', () => {
       forbidden: FORBIDDEN_PREFIXES,
     })
     expect(violations).toHaveLength(1)
-    expect(violations[0].forbidden).toBe('providers/utils.ts')
+    expect(violations[0].forbidden).toBe('providers/models.ts')
     expect(violations[0].reason).toBe(FORBIDDEN_PREFIXES['providers/'])
     expect(violations[0].path).toEqual([
       'lib/permission-groups/model-access.ts',
-      'providers/utils.ts',
+      'providers/models.ts',
     ])
   })
 })
@@ -51,22 +51,20 @@ describe('a deferred edge into a forbidden tree', () => {
    */
   it('is reported when a root defers the load of a forbidden module', () => {
     /**
-     * Walked from a module that defers the block registry — `const
-     * { getBlockRegistry } = await import('@/blocks/registry')`. A root's own
+     * Walked from a live chat payload module that defers `@/tools/params`. A root's own
      * deferred edges are checked before its static imports, so the reported chain
      * is that single deferred hop, whatever else the root reaches.
      */
-    const root =
-      'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data.ts'
+    const root = 'lib/mothership/chat/payload.ts'
     const violations = findViolations({
       root,
-      forbidden: { 'blocks/': FORBIDDEN_PREFIXES['blocks/'] },
+      forbidden: { 'tools/': FORBIDDEN_PREFIXES['tools/'] },
     })
 
     expect(violations).toHaveLength(1)
-    expect(violations[0].forbidden).toBe('blocks/registry.ts')
+    expect(violations[0].forbidden).toBe('tools/params.ts')
     expect(violations[0].reason).toContain('deferred')
-    expect(violations[0].path).toEqual([root, 'blocks/registry.ts'])
+    expect(violations[0].path).toEqual([root, 'tools/params.ts'])
   })
 
   /**

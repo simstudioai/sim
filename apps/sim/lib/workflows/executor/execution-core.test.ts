@@ -1570,6 +1570,60 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(clearExecutionCancellationMock).not.toHaveBeenCalled()
   })
 
+  it('still persists a pause when its trace spans cannot be built', async () => {
+    buildTraceSpansMock.mockImplementation(() => {
+      throw new TypeError('directChildren is not iterable')
+    })
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'paused',
+      output: {},
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      executionState: { blockStates: {} },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithPauseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ totalDurationMs: 123, traceSpans: [] })
+    )
+  })
+
+  it('still finalizes a failed execution when its trace spans cannot be built', async () => {
+    buildTraceSpansMock.mockImplementation(() => {
+      throw new TypeError('directChildren is not iterable')
+    })
+    const error = Object.assign(new Error('block threw'), {
+      executionResult: {
+        success: false,
+        output: {},
+        logs: [],
+        metadata: { duration: 55, startTime: 'start', endTime: 'end' },
+      },
+    })
+    executorExecuteMock.mockRejectedValue(error)
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot() as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+    ).rejects.toBe(error)
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ traceSpans: [] })
+    )
+    expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
+  })
+
   it('clears cancellation intent when pause finalization observes a persisted cancellation', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,

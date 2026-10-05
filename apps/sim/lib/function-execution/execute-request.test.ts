@@ -47,6 +47,7 @@ const {
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
   mockMountContributors,
+  mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
@@ -54,6 +55,7 @@ const {
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
   mockMountContributors: vi.fn(),
+  mockUnprovenancedMountCount: vi.fn(),
   mockRenderedMountContributors: vi.fn(),
 }))
 
@@ -153,6 +155,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
   }) => ({
     contributingFiles: mockMountContributors(),
     renderedContributingFiles: mockRenderedMountContributors(),
+    unprovenancedMountCount: mockUnprovenancedMountCount(),
     sandboxFiles: planned.map(({ mountPath }) => ({
       type: 'url' as const,
       path: mountPath,
@@ -259,6 +262,7 @@ describe('Function execution request', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockMountContributors.mockReturnValue(undefined)
+    mockUnprovenancedMountCount.mockReturnValue(0)
     mockRenderedMountContributors.mockReturnValue(undefined)
     mockUploadExecutionFile.mockImplementation(async (context, buffer, name, type) => ({
       id: 'execution-file-1',
@@ -2260,11 +2264,13 @@ describe('Function execution request', () => {
     )
 
     it.each([
-      { reason: 'source-provenance-incomplete', status: 200 },
-      { reason: 'entry-decrypt-failed', status: 400 },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: false, text: false },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: true, text: false },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: true, text: true },
+      { reason: 'entry-decrypt-failed', status: 400, knownMount: false, text: false },
     ] as const)(
-      'distinguishes historical absence from provenance faults: $reason',
-      async ({ reason, status }) => {
+      'distinguishes historical absence from provenance faults: $reason knownMount=$knownMount text=$text',
+      async ({ reason, status, knownMount, text }) => {
         envFlagsMock.isRemoteSandboxEnabled = true
         const registry = new ResolvedSecretTraceRegistry([], {
           userId: 'user-123',
@@ -2274,7 +2280,7 @@ describe('Function execution request', () => {
         const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
         mockMountContributors.mockReturnValue([
           {
-            fileId: 'legacy-file',
+            fileId: knownMount ? 'known-file' : 'legacy-file',
             key: 'execution/workspace-1/workflow-1/execution-1/a/input.txt',
             context: 'execution',
             contentUpdatedAt,
@@ -2283,25 +2289,38 @@ describe('Function execution request', () => {
         dbChainMockFns.limit.mockResolvedValue([
           {
             fileContentUpdatedAt: contentUpdatedAt,
-            secretProvenanceVersion: null,
-            provenanceContentUpdatedAt: null,
-            status: null,
-            entries: null,
+            secretProvenanceVersion: knownMount ? 1 : null,
+            provenanceContentUpdatedAt: knownMount ? contentUpdatedAt : null,
+            status: knownMount ? 'exact' : null,
+            entries: knownMount
+              ? [
+                  {
+                    name: 'API_KEY',
+                    encryptedValue: 'encrypted:mounted-secret',
+                    sourceUserId: 'user-123',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ]
+              : null,
           },
         ])
-        const buffer = Buffer.from('ordinary file')
-        mockExecuteInSandbox.mockResolvedValueOnce({
+        const buffer = Buffer.from(text ? 'Bearer mounted-secret' : 'ordinary file')
+        mockExecuteInSandbox.mockResolvedValue({
           result: null,
           stdout: '',
           sandboxId: 'sbx',
-          collectedFiles: [
-            {
-              relativePath: 'report.zip',
-              path: '/tmp/sim/outputs/report.zip',
-              contentBase64: buffer.toString('base64'),
-              byteLength: buffer.length,
-            },
-          ],
+          ...(text
+            ? { exportedFiles: { '/home/user/report.txt': buffer.toString('utf8') } }
+            : {
+                collectedFiles: [
+                  {
+                    relativePath: 'report.zip',
+                    path: '/tmp/sim/outputs/report.zip',
+                    contentBase64: buffer.toString('base64'),
+                    byteLength: buffer.length,
+                  },
+                ],
+              }),
         })
         const response = await POST(
           createMockRequest('POST', {
@@ -2310,13 +2329,42 @@ describe('Function execution request', () => {
             workspaceId: 'workspace-1',
             workflowId: 'workflow-1',
             executionId: 'execution-1',
+            ...(text
+              ? {
+                  outputs: {
+                    files: [
+                      {
+                        path: 'files/report.txt',
+                        sandboxPath: '/home/user/report.txt',
+                        mimeType: 'text/plain',
+                      },
+                    ],
+                  },
+                }
+              : {}),
           }),
           registry
         )
         expect(response.status).toBe(status)
-        if (status === 200)
-          expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unrecorded' })
-        else expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+        if (status === 200) {
+          if (text) {
+            expect(mockWriteWorkspaceFileByPath.mock.calls[0][0].secretProvenance).toEqual({
+              status: 'exact',
+              entries: [
+                {
+                  name: 'API_KEY',
+                  encryptedValue: 'encrypted:mounted-secret',
+                  sourceUserId: 'user-123',
+                  sourceWorkspaceId: 'workspace-1',
+                },
+              ],
+            })
+          } else {
+            expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
+              status: knownMount ? 'unknown' : 'unrecorded',
+            })
+          }
+        } else expect(mockUploadExecutionFile).not.toHaveBeenCalled()
       }
     )
 
@@ -2558,6 +2606,33 @@ describe('Function execution request', () => {
       expect(response.status).toBe(400)
       expect((await response.json()).error).toContain('workflow, and execution context')
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['a mount with no provenance source', true],
+      ['no mounts', false],
+    ] as const)('keeps workbench use available for %s', async (_label, mounted) => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      mockUnprovenancedMountCount.mockReturnValue(mounted ? 1 : 0)
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'x',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          sandboxSessionKey: 'chat-session',
+          ...(mounted ? { contextVariables: { doc: MOUNT_REF } } : {}),
+        })
+      )
+      expect(response.status).toBe(200)
+      const session = mockExecuteInSandbox.mock.calls.at(-1)?.[0].session
+      expect(session.key).toBe('chat-session')
+      expect(session.unprovenancedInputs).not.toBe(true)
     })
 
     it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {

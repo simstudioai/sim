@@ -23,6 +23,7 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
+import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -202,7 +203,7 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
@@ -342,7 +343,9 @@ export function ResourceTabs({
       if (resource.type === 'browser') {
         void openBrowserTab(desktopScopeId)
           .then((state) => {
-            if (state?.activeTabId) selectResource(state.activeTabId)
+            if (!state?.activeTabId) return
+            requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
+            selectResource(state.activeTabId)
           })
           .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
         return

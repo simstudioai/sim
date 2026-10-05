@@ -38,17 +38,12 @@ import {
 } from '@/lib/mcp/orchestration/server-lifecycle'
 
 const mockClearCache = mcpServiceMockFns.mockClearCache
-const mockEvictServerConnections = mcpServiceMockFns.mockEvictServerConnections
 const mockOauthCredsChanged = mcpOauthMockFns.mockOauthCredsChanged
 const mockRevokeOauthTokens = mcpOauthMockFns.mockRevokeMcpOauthTokens
 
 describe('MCP server lifecycle orchestration', () => {
   const auditUpdatedFields = (): string[] | undefined =>
     auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].metadata.updatedFields
-  const auditAction = (): string | undefined =>
-    auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].action
-  const auditMetadata = (): Record<string, unknown> | undefined =>
-    auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].metadata
 
   beforeEach(() => {
     resetDbChainMock()

@@ -155,7 +155,7 @@ export const executionLimitsMockFns = {
     }
     return false
   }),
-  mockGetTimeoutErrorMessage: vi.fn((_error: unknown, timeoutMs?: number): string => {
+  mockGetTimeoutErrorMessage: vi.fn((timeoutMs?: number): string => {
     if (timeoutMs) {
       const timeoutSeconds = Math.floor(timeoutMs / 1000)
       const timeoutMinutes = Math.floor(timeoutSeconds / 60)

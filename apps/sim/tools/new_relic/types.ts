@@ -2,7 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 export type NewRelicRegion = 'us' | 'eu'
 
-export interface NewRelicBaseParams {
+interface NewRelicBaseParams {
   apiKey: string
   region?: NewRelicRegion
 }
@@ -25,7 +25,7 @@ export interface NewRelicSearchEntitiesParams extends NewRelicBaseParams {
   cursor?: string
 }
 
-export interface NewRelicEntityTag {
+interface NewRelicEntityTag {
   key: string | null
   values: string[]
 }
@@ -101,9 +101,3 @@ export interface NewRelicCreateDeploymentEventResponse extends ToolResponse {
     messages: string[]
   }
 }
-
-export type NewRelicResponse =
-  | NewRelicNrqlQueryResponse
-  | NewRelicSearchEntitiesResponse
-  | NewRelicGetEntityResponse
-  | NewRelicCreateDeploymentEventResponse

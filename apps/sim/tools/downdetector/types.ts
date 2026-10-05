@@ -9,7 +9,7 @@ interface DowndetectorBaseParams {
 }
 
 /** Company summary returned by the search endpoint (restricted field set). */
-export interface DowndetectorCompanySummary {
+interface DowndetectorCompanySummary {
   id: number | null
   name: string | null
   slug: string | null
@@ -19,7 +19,7 @@ export interface DowndetectorCompanySummary {
 }
 
 /** Full company detail returned by the company endpoint. */
-export interface DowndetectorCompany {
+interface DowndetectorCompany {
   id: number | null
   name: string | null
   slug: string | null
@@ -36,7 +36,7 @@ export interface DowndetectorCompany {
 }
 
 /** A single reported indicator (e.g. "App crashing", "Login") for a company. */
-export interface DowndetectorIndicator {
+interface DowndetectorIndicator {
   slug: string | null
   indicator: string | null
   key: string | null
@@ -45,7 +45,7 @@ export interface DowndetectorIndicator {
 }
 
 /** A time bucket of report counts. */
-export interface DowndetectorReportBucket {
+interface DowndetectorReportBucket {
   pointInTime: string | null
   total: number | null
   indicators: number | null
@@ -67,14 +67,14 @@ export interface DowndetectorIncident {
 }
 
 /** A Downdetector category (e.g. "Telecom", "Gaming"). */
-export interface DowndetectorCategory {
+interface DowndetectorCategory {
   id: number | null
   name: string | null
   slug: string | null
 }
 
 /** A Downdetector site (regional status page domain). */
-export interface DowndetectorSite {
+interface DowndetectorSite {
   id: number | null
   name: string | null
   domain: string | null
@@ -82,7 +82,7 @@ export interface DowndetectorSite {
 }
 
 /** Company summary including current status (returned by the site companies endpoint). */
-export interface DowndetectorSiteCompany {
+interface DowndetectorSiteCompany {
   id: number | null
   name: string | null
   slug: string | null
@@ -93,7 +93,7 @@ export interface DowndetectorSiteCompany {
 }
 
 /** An event (e.g. a detected outage) published for a company. */
-export interface DowndetectorEvent {
+interface DowndetectorEvent {
   id: number | null
   title: string | null
   body: string | null
@@ -110,7 +110,7 @@ export interface DowndetectorEvent {
 }
 
 /** Incident attribution detail for a company. */
-export interface DowndetectorAttribution {
+interface DowndetectorAttribution {
   attribution: number | null
   attributionCalculatedAt: string | null
   userImpact: number | null
@@ -122,7 +122,7 @@ export interface DowndetectorAttribution {
 }
 
 /** A Downdetector provider (ISP / network operator). */
-export interface DowndetectorProvider {
+interface DowndetectorProvider {
   id: number | null
   name: string | null
   downdetectorId: number | null
@@ -300,19 +300,3 @@ export interface DowndetectorGetProviderResponse extends ToolResponse {
     provider: DowndetectorProvider
   }
 }
-
-export type DowndetectorResponse =
-  | DowndetectorSearchCompaniesResponse
-  | DowndetectorGetCompanyResponse
-  | DowndetectorGetCompanyStatusResponse
-  | DowndetectorGetCompanyBaselineResponse
-  | DowndetectorGetCompanyIndicatorsResponse
-  | DowndetectorGetReportsResponse
-  | DowndetectorIncidentsResponse
-  | DowndetectorListCategoriesResponse
-  | DowndetectorListSitesResponse
-  | DowndetectorGetCompanyLast15Response
-  | DowndetectorGetCompanyEventsResponse
-  | DowndetectorGetCompanyAttributionResponse
-  | DowndetectorGetSiteCompaniesResponse
-  | DowndetectorGetProviderResponse

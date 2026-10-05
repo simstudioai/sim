@@ -34,6 +34,10 @@ import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import {
+  onBrowserOmniboxFocusRequest,
+  takeBrowserOmniboxFocusRequest,
+} from '@/lib/browser-agent/omnibox-focus'
 import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
   loadBrowserSearchSuggestions,
@@ -189,15 +193,15 @@ const MAX_HANDLED_PERMISSION_REQUESTS = 256
 
 /** Claims the one renderer response allowed for a native browser permission request. */
 export function claimPermissionResponse(
-  handledRequestIds: { current: Set<string> },
+  handledRequestIds: Set<string>,
   requestId: string
 ): boolean {
-  if (handledRequestIds.current.has(requestId)) return false
-  handledRequestIds.current.add(requestId)
-  while (handledRequestIds.current.size > MAX_HANDLED_PERMISSION_REQUESTS) {
-    const oldest = handledRequestIds.current.values().next().value
+  if (handledRequestIds.has(requestId)) return false
+  handledRequestIds.add(requestId)
+  while (handledRequestIds.size > MAX_HANDLED_PERMISSION_REQUESTS) {
+    const oldest = handledRequestIds.values().next().value
     if (typeof oldest !== 'string') break
-    handledRequestIds.current.delete(oldest)
+    handledRequestIds.delete(oldest)
   }
   return true
 }
@@ -445,7 +449,8 @@ export function BrowserSession({
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
-  const handledPermissionRequestIdsRef = useRef<Set<string>>(new Set())
+  const handledPermissionRequestIdsRef = useRef<Set<string> | null>(null)
+  const handledPermissionRequestIds = (handledPermissionRequestIdsRef.current ??= new Set())
   const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
     null
   )
@@ -501,7 +506,7 @@ export function BrowserSession({
       action: ReturnType<typeof browserPermissionResponseAction>,
       allowed: boolean
     ) => {
-      if (!claimPermissionResponse(handledPermissionRequestIdsRef, requestId)) {
+      if (!claimPermissionResponse(handledPermissionRequestIds, requestId)) {
         return
       }
       setAnsweredPermissionRequestId(requestId)
@@ -643,16 +648,17 @@ export function BrowserSession({
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
-  // A fresh blank tab coming on screen — opened from the resource strip or by
-  // Cmd+T — gets the omnibox, the way Chrome's new-tab page does. A tab with a
-  // page keeps its content.
-  const focusedBlankTabIdRef = useRef<string | null>(null)
+  // A blank tab the user opened from the resource strip gets the omnibox once
+  // it is on screen, the way Chrome's new-tab page does. Cmd+T arrives from the
+  // shell above. A blank tab the agent opened must never take the caret.
   useEffect(() => {
-    if (!visible || !activeTabId || !showEmptyState) return
-    if (focusedBlankTabIdRef.current === activeTabId) return
-    focusedBlankTabIdRef.current = activeTabId
-    focusOmnibox('clear')
-  }, [activeTabId, focusOmnibox, showEmptyState, visible])
+    if (!visible || !activeTabId) return
+    const claimFocusRequest = () => {
+      if (takeBrowserOmniboxFocusRequest(activeTabId, scopeId)) focusOmnibox('clear')
+    }
+    claimFocusRequest()
+    return onBrowserOmniboxFocusRequest(claimFocusRequest)
+  }, [activeTabId, focusOmnibox, scopeId, visible])
 
   // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
   // before the workspace's global "Go to Logs" command can navigate away.
@@ -1151,6 +1157,8 @@ export function BrowserSession({
                   }}
                   onKeyDown={(event) => {
                     event.stopPropagation()
+                    // Keys during an IME composition edit the composed text, not the URL.
+                    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                       // Never move a highlight through a list that is not on screen.
                       if (!suggestionsOpen) return
@@ -1167,10 +1175,17 @@ export function BrowserSession({
                     }
                     if (event.key === 'Enter') submitUrl()
                     if (event.key === 'Escape') {
-                      // Dismiss the list first; leave the omnibox only once
-                      // there is no highlight left to back out of.
-                      if (activeSuggestion !== null) setActiveSuggestion(null)
-                      else urlInputRef.current?.blur()
+                      // Back out one step at a time, as Chrome does: the
+                      // highlight, then the edited text, then the omnibox.
+                      if (activeSuggestion !== null) {
+                        setActiveSuggestion(null)
+                      } else if ((urlDraft ?? '') !== (pageState?.url ?? '')) {
+                        setUrlDraft(pageState?.url ?? '')
+                        setSuggestionsVisible(false)
+                        selectFocusedOmniboxOnNextFrame(event.currentTarget)
+                      } else {
+                        urlInputRef.current?.blur()
+                      }
                     }
                   }}
                 />

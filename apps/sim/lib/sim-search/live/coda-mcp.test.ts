@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { McpToolResult } from '@/lib/mcp/types'
 import { type CodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
-import { managedMcpPayload } from '@/lib/sim-search/live/managed-mcp'
+import { managedMcpPayload } from '@/lib/sim-search/live/managed-mcp-payload'
 
 const codaMcpPayload = (result: McpToolResult) => managedMcpPayload(result, 'Coda')
 

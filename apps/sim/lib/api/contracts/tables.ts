@@ -480,9 +480,7 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
-/* --------------------------- v2 predicate grammar --------------------------- */
+// v2 predicate grammar
 
 /**
  * Body cap for the row-query routes. A query body is a predicate tree plus a

@@ -10,6 +10,7 @@ export interface ToolCatalogEntry {
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
     | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
     | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
+    | 'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.'
   hidden?: boolean
   id:
     | 'apply_file_edit'
@@ -54,6 +55,7 @@ export interface ToolCatalogEntry {
     | 'create_empty_file'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
+    | 'dashboards'
     | 'delete_workspace_mcp_server'
     | 'deploy'
     | 'deploy_as_api'
@@ -5196,7 +5198,6 @@ export const ReadDocument: ToolCatalogEntry = {
         description: 'Canonical document ID returned by search or selected document context.',
       },
       limit: {
-        default: 3,
         description:
           'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.',
         type: 'integer',
@@ -6046,7 +6047,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
     properties: {
       startDate: {
         description:
-          'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
+          'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Google Meet, Zoom, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
         type: 'string',
         format: 'date-time',
         pattern:
@@ -6096,7 +6097,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       },
       nativeQueries: {
         description:
-          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to 4 per account run separately and merge; GitHub, GitLab, and HubSpot take one per kind. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
         minItems: 1,
         maxItems: 9,
         type: 'array',
@@ -6108,6 +6109,8 @@ export const SearchWorkspace: ToolCatalogEntry = {
               enum: [
                 'google_drive',
                 'gmail',
+                'google_meet',
+                'zoom',
                 'google_calendar',
                 'slack',
                 'jira',
@@ -6115,6 +6118,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
                 'github',
                 'gitlab',
                 'linear',
+                'lucid',
                 'hubspot',
                 'fireflies',
                 'granola',
@@ -6137,9 +6141,20 @@ export const SearchWorkspace: ToolCatalogEntry = {
                 'companies',
                 'deals',
                 'tickets',
+                'lucidchart',
+                'lucidspark',
+                'transcript',
+                'smart_notes',
+                'meeting',
               ],
             },
             project: { type: 'string', minLength: 1, maxLength: 300 },
+            browse: {
+              description:
+                'Queryless discovery: Lucid folder lists one folder page (omit project for root; otherwise use a returned numeric folder ID). Notion private/shared list sidebar pages, favorites lists pinned pages, recent lists recently viewed pages, not recently modified pages. These lists are not an exhaustive workspace inventory. Follow the returned cursor with the same account, browse mode, project, filters and topK.',
+              type: 'string',
+              enum: ['folder', 'private', 'shared', 'favorites', 'recent'],
+            },
             cursor: { type: 'string', maxLength: 4000 },
             termClauses: { maxItems: 10, type: 'array', items: { type: 'string', maxLength: 500 } },
             modifiers: { type: 'string', maxLength: 1000 },
@@ -6152,7 +6167,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       query: {
         default: '',
         description:
-          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.',
+          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.',
         type: 'string',
         maxLength: 2000,
       },
@@ -7726,6 +7741,41 @@ export const ListWorkspaces: ToolCatalogEntry = {
   },
 }
 
+export const Dashboards: ToolCatalogEntry = {
+  id: 'dashboards',
+  description:
+    'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      workspaceId: { type: 'string', minLength: 1, maxLength: 100 },
+      action: {
+        anyOf: [
+          { type: 'string', const: 'get' },
+          { type: 'string', const: 'set' },
+        ],
+      },
+      content: {
+        description: 'Required for action: set. Only used for action: set. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 131072,
+      },
+      expectedRevision: {
+        description:
+          'The revision from `dashboards get`; required once the dashboard exists. Only used for action: set. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 256,
+      },
+    },
+    required: ['action'],
+    additionalProperties: false,
+  },
+}
+
 export const Workspaces: ToolCatalogEntry = {
   id: 'workspaces',
   description:
@@ -7849,7 +7899,6 @@ export const SearchSources: ToolCatalogEntry = {
         type: 'string',
         maxLength: 200,
       },
-      mine: { description: 'Only used for action: list. Omit for other actions.', type: 'boolean' },
       connectorId: {
         description: 'Required for action: get. Only used for action: get. Omit for other actions.',
         type: 'string',
@@ -8442,6 +8491,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [WebSearch.id]: WebSearch,
   [Workflow.id]: Workflow,
   [ListWorkspaces.id]: ListWorkspaces,
+  [Dashboards.id]: Dashboards,
   [Workspaces.id]: Workspaces,
   [Settings.id]: Settings,
   [SearchSources.id]: SearchSources,

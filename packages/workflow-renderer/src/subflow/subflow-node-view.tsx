@@ -3,6 +3,10 @@ import { ChipTag, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Ban, Lock, Repeat, Split } from '@sim/emcn/icons'
 import { getWorkflowTypeAccent } from '@sim/workflow-renderer/workflow-type'
 import {
+  getWorkflowSubflowHandleIds,
+  WORKFLOW_TARGET_HANDLE_ID,
+} from '@sim/workflow-types/workflow'
+import {
   Handle,
   Position,
   type ReactFlowState,
@@ -151,13 +155,13 @@ interface SubflowStartViewProps {
 }
 
 /** Start control shared by editable and preview subflow containers. */
-export function SubflowStartView({
+function SubflowStartView({
   parentId,
   kind,
   isPreview = false,
   isHighlighted = false,
 }: SubflowStartViewProps) {
-  const startHandleId = kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+  const startHandleId = getWorkflowSubflowHandleIds(kind).start
   /*
    * The swell's temporary handle carries the branch-cursor form of the start
    * id. The plain cursor id normalizes by block type — for a container that is
@@ -342,7 +346,7 @@ export function SubflowNodeView({
   const isPreview = data?.isPreview || false
   const isPreviewSelected = data?.isPreviewSelected || false
 
-  const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+  const endHandleId = getWorkflowSubflowHandleIds(data.kind).end
   const showFixedEndPort = useReactFlowStore(
     useMemo(() => {
       let previousEdges: ReactFlowState['edges'] | undefined
@@ -690,7 +694,7 @@ export function SubflowNodeView({
         <Handle
           type='target'
           position={Position.Left}
-          id='target'
+          id={WORKFLOW_TARGET_HANDLE_ID}
           className={getHandleClasses('left')}
           style={{
             ...HANDLE_STYLE,

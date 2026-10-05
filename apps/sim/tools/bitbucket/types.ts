@@ -1,10 +1,10 @@
 import type { ToolOutputProperty } from '@/tools/types'
 
-export interface BitbucketAuthParams {
+interface BitbucketAuthParams {
   accessToken: string
 }
 
-export interface BitbucketPaginationParams {
+interface BitbucketPaginationParams {
   nextUrl?: string
   pageLen?: number
 }
@@ -94,7 +94,7 @@ export interface BitbucketCreatePullRequestParams extends BitbucketRepositoryPar
   reviewerUuids?: string[]
 }
 
-export type BitbucketMergeStrategy =
+type BitbucketMergeStrategy =
   | 'merge_commit'
   | 'squash'
   | 'fast_forward'
@@ -138,15 +138,10 @@ export interface BitbucketListPullRequestCommitStatusesParams
   sort?: string
 }
 
-export type BitbucketPipelineListRefType = 'BRANCH' | 'TAG' | 'ANNOTATED_TAG'
-export type BitbucketPipelineListSelectorType =
-  | 'BRANCH'
-  | 'TAG'
-  | 'CUSTOM'
-  | 'PULLREQUESTS'
-  | 'DEFAULT'
-export type BitbucketPipelineTriggerType = 'PUSH' | 'MANUAL' | 'SCHEDULED' | 'PARENT_STEP'
-export type BitbucketPipelineStatus =
+type BitbucketPipelineListRefType = 'BRANCH' | 'TAG' | 'ANNOTATED_TAG'
+type BitbucketPipelineListSelectorType = 'BRANCH' | 'TAG' | 'CUSTOM' | 'PULLREQUESTS' | 'DEFAULT'
+type BitbucketPipelineTriggerType = 'PUSH' | 'MANUAL' | 'SCHEDULED' | 'PARENT_STEP'
+type BitbucketPipelineStatus =
   | 'PARSING'
   | 'PENDING'
   | 'PAUSED'

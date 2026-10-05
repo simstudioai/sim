@@ -4,14 +4,14 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Credentials and region shared by every Thrive tool.
  * Thrive uses HTTP Basic auth (Tenant ID as username, API key as password).
  */
-export interface ThriveBaseParams {
+interface ThriveBaseParams {
   tenantId: string
   apiKey: string
   /** Region-specific API host, e.g. `public.api.learn.link`. Defaults to Production. */
   host?: string
 }
 
-export interface ThrivePagination {
+interface ThrivePagination {
   totalResults: number
   totalPages: number
   page: number
@@ -449,7 +449,7 @@ export const THRIVE_SKILL_LEVEL_OUTPUT_PROPERTIES: Record<string, OutputProperty
   value: { type: 'number', description: 'The numeric value of the skill level' },
 }
 
-// ─── Users ───────────────────────────────────────────────────────────────────
+// Users
 
 export interface ThriveCreateUserParams extends ThriveBaseParams {
   ref: string
@@ -525,7 +525,7 @@ export interface ThriveDeleteResponse extends ToolResponse {
   output: { success: boolean }
 }
 
-// ─── Audiences ─────────────────────────────────────────────────────────────
+// Audiences
 
 export interface ThriveListAudiencesParams extends ThriveBaseParams {
   apiControlled?: boolean
@@ -610,7 +610,7 @@ export interface ThriveMessageResponse extends ToolResponse {
   output: { status: number; message: string }
 }
 
-// ─── Assignments & Enrolments ──────────────────────────────────────────────
+// Assignments & Enrolments
 
 export interface ThriveListAssignmentsParams extends ThriveBaseParams {
   audienceId?: string
@@ -676,7 +676,7 @@ export interface ThriveListEnrolmentsResponse extends ToolResponse {
   output: { enrolments: Record<string, any>[] }
 }
 
-// ─── Completions ───────────────────────────────────────────────────────────
+// Completions
 
 export interface ThriveListCompletionsParams extends ThriveBaseParams {
   contentId?: string
@@ -710,7 +710,7 @@ export interface ThriveCreateCompletionResponse extends ToolResponse {
   output: { statementId: string | null }
 }
 
-// ─── Content ───────────────────────────────────────────────────────────────
+// Content
 
 export interface ThriveGetContentParams extends ThriveBaseParams {
   id: string
@@ -732,7 +732,7 @@ export interface ThriveQueryContentResponse extends ToolResponse {
   output: { results: Record<string, any>[]; pagination: ThrivePagination | null }
 }
 
-// ─── Activities ────────────────────────────────────────────────────────────
+// Activities
 
 export interface ThriveGetActivityParams extends ThriveBaseParams {
   id: string
@@ -757,7 +757,7 @@ export interface ThriveQueryActivitiesResponse extends ToolResponse {
   output: { results: Record<string, any>[]; pagination: ThrivePagination | null }
 }
 
-// ─── CPD ───────────────────────────────────────────────────────────────────
+// Cpd
 
 export interface ThriveGetCpdCategoryParams extends ThriveBaseParams {
   categoryId: string
@@ -814,7 +814,7 @@ export interface ThriveCpdPaginatedResponse extends ToolResponse {
   output: { results: Record<string, any>[]; pagination: ThrivePagination | null }
 }
 
-// ─── Tags & Skills ─────────────────────────────────────────────────────────
+// Tags & Skills
 
 export interface ThriveListTagsParams extends ThriveBaseParams {
   page?: number

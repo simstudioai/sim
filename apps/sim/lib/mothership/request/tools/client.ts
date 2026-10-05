@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncTerminalCompletionSnapshot,
@@ -15,7 +15,10 @@ import {
   unsealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import {
+  boundRunResultForModel,
+  presentWorkflowLogsForModel,
+} from '@/lib/mothership/tools/workflow-output'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
@@ -369,35 +372,44 @@ export async function waitForWorkflowToolCompletion({
   const executionId = trustedExecution.executionId
   const status = getWorkflowToolConfirmationStatus(trustedExecution.status)
   const genericMessage = getWorkflowToolCompletionMessage(status)
-  const rawData: Record<string, unknown> = {
-    success: status === MothershipStreamV1ToolOutcome.success,
-    workflowId,
+  const error =
+    status !== MothershipStreamV1ToolOutcome.success
+      ? (trustedExecution.error ?? genericMessage)
+      : undefined
+  const rawData = boundRunResultForModel(
+    {
+      success: status === MothershipStreamV1ToolOutcome.success,
+      workflowId,
+      executionId,
+      ...(Object.hasOwn(trustedExecution, 'finalOutput')
+        ? { output: trustedExecution.finalOutput }
+        : {}),
+      // Built from raw logs before projection, matching the server handler's presentation.
+      ...presentWorkflowLogsForModel(trustedExecution.blockLogs, executionId, toolRegistry, select),
+      ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
+      ...(status === MothershipStreamV1ToolOutcome.cancelled
+        ? { reason: 'user_cancelled', cancelledByUser: true }
+        : {}),
+    },
+    error,
     executionId,
-    ...(Object.hasOwn(trustedExecution, 'finalOutput')
-      ? { output: trustedExecution.finalOutput }
-      : {}),
-    logs: trustedExecution.blockLogs,
-    ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
-    ...(status === MothershipStreamV1ToolOutcome.cancelled
-      ? { reason: 'user_cancelled', cancelledByUser: true }
-      : {}),
-  }
+    toolRegistry
+  )
   const projection = inspectToolResultForCopilot(
     {
       success: status === MothershipStreamV1ToolOutcome.success,
       output: rawData,
-      ...(status !== MothershipStreamV1ToolOutcome.success
-        ? { error: trustedExecution.error ?? genericMessage }
-        : {}),
+      ...(error !== undefined ? { error } : {}),
     },
     toolRegistry
   )
   const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
-  const { logs, ...projectedFields } = projectedData
+  // Log fields go last, where they have always been, ahead of the structural fields.
+  const { logs, selected, logsOmitted, ...projectedFields } = projectedData
   const data = {
     ...projectedFields,
-    ...(Object.hasOwn(projectedData, 'logs') ? presentWorkflowLogs(logs, select) : {}),
+    ...filterUndefined({ logs, selected, logsOmitted }),
     ...createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
   }
   const message =

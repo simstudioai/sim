@@ -214,7 +214,6 @@ export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
  * these only off-hosted, where no subscription plan exists to decide entitlement.
  */
 export const deploymentFeaturesSchema = z.object({
-  liveEnterpriseSearch: z.boolean().optional(),
   accessControl: z.boolean(),
   auditLogs: z.boolean(),
   customBlocks: z.boolean(),

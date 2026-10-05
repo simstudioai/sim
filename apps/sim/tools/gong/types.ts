@@ -873,35 +873,3 @@ export interface GongGetLogsResponse extends ToolResponse {
     currentPageNumber: number | null
   }
 }
-
-/** Union type for all Gong responses */
-export type GongResponse =
-  | GongListCallsResponse
-  | GongCreateCallResponse
-  | GongGetCallResponse
-  | GongGetCallTranscriptResponse
-  | GongGetExtensiveCallsResponse
-  | GongListUsersResponse
-  | GongGetUserResponse
-  | GongAggregateActivityResponse
-  | GongDayByDayActivityResponse
-  | GongAggregateByPeriodResponse
-  | GongInteractionStatsResponse
-  | GongAnsweredScorecardsResponse
-  | GongListLibraryFoldersResponse
-  | GongGetFolderContentResponse
-  | GongListScorecardsResponse
-  | GongListTrackersResponse
-  | GongListWorkspacesResponse
-  | GongListFlowsResponse
-  | GongGetCoachingResponse
-  | GongLookupEmailResponse
-  | GongLookupPhoneResponse
-  | GongPurgeEmailAddressResponse
-  | GongPurgePhoneNumberResponse
-  | GongAssignFlowProspectsResponse
-  | GongGetProspectFlowsResponse
-  | GongAskAnythingResponse
-  | GongGetBriefResponse
-  | GongUnassignFlowProspectsResponse
-  | GongGetLogsResponse

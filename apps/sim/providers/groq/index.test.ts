@@ -32,10 +32,6 @@ vi.mock('@/providers/models', () => providersModelsMock)
 
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
-vi.mock('@/providers/groq/utils', () => ({
-  createReadableStreamFromGroqStream: vi.fn(),
-}))
-
 vi.mock('@/providers/openai-compat/streaming-tool-loop', () => ({
   createOpenAICompatStreamingToolLoopStream: vi.fn(),
 }))
@@ -97,7 +93,7 @@ describe('groqProvider reasoning payload', () => {
     }))
     mockExecuteTool.mockResolvedValue({ success: true, output: {} })
     let generated = 0
-    mockCreate.mockImplementation((payload) => {
+    mockCreate.mockImplementation(() => {
       const final = false
       return Promise.resolve({
         choices: [

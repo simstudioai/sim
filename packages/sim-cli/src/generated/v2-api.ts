@@ -1367,6 +1367,140 @@ export type ChatResponse = {
   }
 }
 
+/** `GET /api/v2/workflows/[workflowId]/versions/compare` */
+export type CompareWorkflowVersionsParams = {
+  workflowId: string
+}
+
+export type CompareWorkflowVersionsQuery = {
+  base: number
+  target: number
+}
+
+type CompareWorkflowVersionsResponseRef0 = {
+  workflowId: string
+  base: number
+  target: number
+  diff: {
+    addedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    removedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    modifiedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        scope: 'block' | 'subblock'
+      }>
+    }>
+    edgeChanges: {
+      added: number
+      removed: number
+      addedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+      removedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+    }
+    loopChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    parallelChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    containerChanges: Array<{
+      id: string
+      kind: 'loop' | 'parallel'
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+      }>
+      nodesAdded: Array<string>
+      nodesRemoved: Array<string>
+    }>
+    variableChanges: {
+      added: number
+      removed: number
+      modified: number
+      addedNames: Array<string>
+      removedNames: Array<string>
+      modifiedNames: Array<string>
+    }
+    hasChanges: boolean
+  }
+}
+
+export type CompareWorkflowVersionsResponse = {
+  data: CompareWorkflowVersionsResponseRef0
+}
+
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
 export type CompleteFileUploadParams = {
   uploadId: string
@@ -1572,6 +1706,7 @@ export type CreateCredentialConnectionBody =
         | 'microsoft-dataverse'
         | 'microsoft-excel'
         | 'microsoft-planner'
+        | 'microsoft-powerbi'
         | 'microsoft-teams'
         | 'microsoft-word'
         | 'outlook'
@@ -1702,6 +1837,7 @@ type CreateFileResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type CreateFileResponse = {
@@ -5553,7 +5689,9 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
   id: string
@@ -6202,6 +6340,13 @@ export type GetSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -8998,6 +9143,13 @@ export type ListSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -10336,6 +10488,26 @@ type PreviewWorkspacePullResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string
@@ -10466,6 +10638,26 @@ type PreviewWorkspacePushResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string
@@ -14520,6 +14712,22 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  compareWorkflowVersions: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/versions/compare',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Compare Workflow Versions',
+    query: {
+      base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
+      target: {
+        kind: 'integer',
+        required: true,
+        describe: 'Deployment version to compare to, in the same workflow.',
+      },
+    },
+  },
   completeFileUpload: {
     method: 'POST',
     path: '/api/v2/files/uploads/[uploadId]/complete',
@@ -16559,6 +16767,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
   },
   getLogStats: {
     method: 'GET',
@@ -16945,6 +17160,13 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',
@@ -19028,6 +19250,13 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',
@@ -20087,7 +20316,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
@@ -20111,7 +20341,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',

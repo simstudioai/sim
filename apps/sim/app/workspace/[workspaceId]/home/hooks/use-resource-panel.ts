@@ -154,7 +154,8 @@ export function useChatResourcePanel(
     | 'removeResource'
     | 'setActiveResourceId'
   >,
-  controller: ReturnType<typeof useResourcePanelController>
+  controller: ReturnType<typeof useResourcePanelController>,
+  userId?: string
 ) {
   const {
     desktopScopeId,
@@ -168,13 +169,9 @@ export function useChatResourcePanel(
   const {
     activeResourceParam,
     activeResourceParamRef,
-    activeResourceState,
-    setActiveResourceUrl,
     isResourceCollapsed,
     setResourceCollapsed,
-    skipResourceTransition,
     setSkipResourceTransition,
-    resourceActivityIds,
     setResourceActivityIds,
     isResourceCollapsedRef,
     resourceCollapseOwnedByUserRef,
@@ -182,22 +179,16 @@ export function useChatResourcePanel(
     effectiveActiveResourceIdRef,
     onResourceEvent: handleResourceEvent,
   } = controller
-  const {
-    mothershipRef,
-    handleResizePointerDown,
-    handleResizeKeyDown,
-    handleResizeFocus,
-    clearWidth,
-  } = useMothershipResize(desktopScopeId)
+  const { mothershipRef, handleResizePointerDown, handleResizeKeyDown, handleResizeFocus } =
+    useMothershipResize(desktopScopeId, { userId, collapsed: isResourceCollapsed })
   effectiveActiveResourceIdRef.current = activeResourceId
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
     resourceCollapseOwnedByUserRef.current = true
     resourceSelectionOwnedByUserRef.current = true
-    clearWidth()
     setResourceCollapsed(true)
-  }, [clearWidth, setResourceCollapsed])
+  }, [setResourceCollapsed])
 
   const clearResourceActivity = useCallback((resourceId: string) => {
     setResourceActivityIds((current) => {
@@ -279,7 +270,6 @@ export function useChatResourcePanel(
     const previousChatId = resourceAttentionChatIdRef.current
     resourceAttentionChatIdRef.current = resolvedChatId
     if (!resolvedChatId) {
-      clearWidth()
       setResourceCollapsed(true)
     }
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
@@ -287,7 +277,7 @@ export function useChatResourcePanel(
       resourceSelectionOwnedByUserRef.current = false
       setResourceActivityIds(new Set())
     }
-  }, [resolvedChatId, clearWidth, setResourceCollapsed])
+  }, [resolvedChatId, setResourceCollapsed])
 
   useEffect(() => {
     if (
@@ -304,10 +294,9 @@ export function useChatResourcePanel(
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
-      clearWidth()
       setResourceCollapsed(true)
     }
-  }, [resources, clearWidth, setResourceCollapsed])
+  }, [resources, setResourceCollapsed])
 
   useEffect(() => {
     const resourceIds = new Set(resources.map(getChatResourceSelectionId))

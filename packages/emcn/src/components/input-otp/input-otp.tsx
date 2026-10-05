@@ -22,13 +22,11 @@
  * @see InputOTP - Root component wrapping OTPInput
  * @see InputOTPGroup - Groups slots together
  * @see InputOTPSlot - Individual digit slot
- * @see InputOTPSeparator - Visual separator between groups
  */
 'use client'
 
 import * as React from 'react'
 import { OTPInput, OTPInputContext } from 'input-otp'
-import { Minus } from '../../icons'
 import { cn } from '../../lib/cn'
 
 /**
@@ -77,7 +75,7 @@ const InputOTPSlot = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        'relative flex h-12 w-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-primary)] text-lg transition-colors',
+        'relative flex size-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-primary)] text-lg transition-colors',
         isActive && 'z-10 border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]',
         className
       )}
@@ -94,17 +92,4 @@ const InputOTPSlot = React.forwardRef<
 })
 InputOTPSlot.displayName = 'InputOTPSlot'
 
-/**
- * Visual separator between OTP slot groups.
- */
-const InputOTPSeparator = React.forwardRef<
-  React.ElementRef<'div'>,
-  React.ComponentPropsWithoutRef<'div'>
->(({ ...props }, ref) => (
-  <div ref={ref} role='separator' className='text-[var(--text-muted)]' {...props}>
-    <Minus />
-  </div>
-))
-InputOTPSeparator.displayName = 'InputOTPSeparator'
-
-export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
+export { InputOTP, InputOTPGroup, InputOTPSlot }

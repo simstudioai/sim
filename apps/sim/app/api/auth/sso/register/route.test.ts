@@ -374,7 +374,7 @@ describe('POST /api/auth/sso/register', () => {
 
   it('does not SSRF-validate userInfoEndpoint when skipUserInfoEndpoint is requested', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    mockValidateUrlWithDNS.mockImplementation(async (url: string, label: string) => {
+    mockValidateUrlWithDNS.mockImplementation(async (_url: string, label: string) => {
       if (label === 'OIDC userInfoEndpoint') {
         return { isValid: false, error: 'resolves to a private IP address' }
       }

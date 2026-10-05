@@ -12,6 +12,10 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'https://analysis.windows.net/powerbi/api/Workspace.Read.All': 'View Power BI workspaces',
+  'https://analysis.windows.net/powerbi/api/Report.Read.All': 'View Power BI reports',
+  'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All':
+    'Read, create, update, refresh, and delete Power BI semantic models within your account’s permissions',
   'users.profile:write': 'Update Slack user profiles',
   'users.profile:read': 'View Slack user profiles',
   'channels:join': 'Join public Slack channels',
@@ -625,7 +629,6 @@ export function getProviderIdFromServiceId(serviceId: string): string {
     }
   }
 
-  // Default fallback
   return serviceId
 }
 
@@ -887,7 +890,6 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
  * Uses the pre-computed mapping from OAUTH_PROVIDERS for accuracy.
  */
 export function parseProvider(provider: OAuthProvider): ProviderConfig {
-  // First, check if this is a known providerId from our config
   const mapping = PROVIDER_ID_TO_BASE_PROVIDER[provider]
   if (mapping) {
     return {
@@ -906,7 +908,6 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     }
   }
 
-  // For simple providers, use 'default' as feature type
   return {
     baseProvider: provider,
     featureType: 'default',

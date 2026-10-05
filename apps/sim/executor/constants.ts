@@ -287,12 +287,6 @@ export function buildResumeUiUrl(
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-interface ConditionConfig {
-  id: string
-  label?: string
-  condition: string
-}
-
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
 }
@@ -427,17 +421,12 @@ export function parseReferencePath(reference: string): string[] {
 
 export const PATTERNS = {
   UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-  UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   ENV_VAR_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
 } as const
 
 export function isUuid(value: string): boolean {
   return PATTERNS.UUID.test(value)
-}
-
-export function isUuidV4(value: string): boolean {
-  return PATTERNS.UUID_V4.test(value)
 }
 
 export function startsWithUuid(value: string): boolean {

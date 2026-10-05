@@ -191,13 +191,6 @@ export async function loadCredentialGroupCredentialListContext(
   return loadCredentialGroupContext(eq(credentialGroup.id, credentialGroupId))
 }
 
-/** Loads the workspace's single accounts container without decrypting provider settings. */
-export async function loadWorkspaceAccountsCredentialListContext(
-  workspaceId: string
-): Promise<CredentialGroupCredentialListContext | null> {
-  return loadCredentialGroupContext(eq(credentialGroup.workspaceId, workspaceId))
-}
-
 async function loadCredentialGroupContext(
   scope: SQL
 ): Promise<CredentialGroupCredentialListContext | null> {

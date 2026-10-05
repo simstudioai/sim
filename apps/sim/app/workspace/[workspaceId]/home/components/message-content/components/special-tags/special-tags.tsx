@@ -53,6 +53,7 @@ import {
   parseSearchConnectionBody,
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
@@ -356,7 +357,7 @@ export interface QuestionItem {
 /** Normalized `<question>` payload: single-object bodies become a one-element array. */
 export type QuestionTagData = QuestionItem[]
 
-export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
+export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'dashboard', 'file'] as const
 
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
@@ -1930,6 +1931,8 @@ function fallbackWorkspaceResourceTitle(type: WorkspaceResourceTagType): string 
       return 'Workflow'
     case 'table':
       return 'Table'
+    case 'dashboard':
+      return 'Dashboard'
     case 'file':
       return 'File'
   }
@@ -1945,6 +1948,8 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
       return { kind: 'workflow', label, workflowId: data.id ?? '' }
     case 'table':
       return { kind: 'table', label, tableId: data.id ?? '' }
+    case 'dashboard':
+      return { kind: 'dashboard', label, dashboardId: data.id ?? '' }
     case 'file':
       return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
   }
@@ -2000,13 +2005,15 @@ function WorkspaceResourceDisplayContent({
         : data.type === 'table'
           ? (tables.find((table) => table.id === data.id)?.name ??
             fallbackWorkspaceResourceTitle(data.type))
-          : data.type === 'file'
-            ? (files.find((file) => file.id === data.id)?.name ??
-              fileFromPath?.name ??
-              data.title ??
-              fallbackWorkspaceResourceTitle(data.type))
-            : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
-              fallbackWorkspaceResourceTitle(data.type))
+          : data.type === 'dashboard'
+            ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
+            : data.type === 'file'
+              ? (files.find((file) => file.id === data.id)?.name ??
+                fileFromPath?.name ??
+                data.title ??
+                fallbackWorkspaceResourceTitle(data.type))
+              : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
+                fallbackWorkspaceResourceTitle(data.type))
 
     const id = data.id ?? fileFromPath?.id
     return {
@@ -3482,6 +3489,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
         {canManageBilling ? (
           <ChipLink
             href={href}
+            onNavigate={() => rememberSettingsReturnUrl(href)}
             variant='border'
             rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
             target={hosted ? undefined : '_blank'}

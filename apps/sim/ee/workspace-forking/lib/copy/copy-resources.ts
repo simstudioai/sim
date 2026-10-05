@@ -49,6 +49,10 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 import {
+  connectorIndexingCondition,
+  requiresConnectorIndexing,
+} from '@/lib/knowledge/connectors/indexing-policy'
+import {
   createKnowledgeDocumentSourceValue,
   type KnowledgeDocumentSourceValue,
   loadKnowledgeDocumentDurableSecretProvenance,
@@ -758,6 +762,7 @@ export async function copyForkResourceContainers(
         and(
           inArray(knowledgeBase.id, selection.knowledgeBases),
           eq(knowledgeBase.workspaceId, sourceWorkspaceId),
+          connectorIndexingCondition(),
           isNull(knowledgeBase.deletedAt)
         )
       )
@@ -951,17 +956,43 @@ export async function planForkMappedKbDocumentCopies(params: {
     .where(
       and(
         inArray(document.id, candidateIds),
+        exists(
+          tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(
+                eq(knowledgeBase.id, document.knowledgeBaseId),
+                connectorIndexingCondition(),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+        ),
         isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
     )
 
-  const planned = docs.flatMap((doc) => {
+  const candidates = docs.flatMap((doc) => {
     const targetKbId = resolver('knowledge-base', doc.knowledgeBaseId)
     if (targetKbId == null) return []
     return [{ doc, targetKbId, childDocId: deriveCopyIdentity('document', targetKbId, doc.id) }]
   })
+  if (candidates.length === 0) return { documents, docIdMap, mappingEntries }
+  const targets = await tx
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(candidates.map(({ targetKbId }) => targetKbId))]),
+        connectorIndexingCondition(),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .for('share')
+  const targetIds = new Set(targets.map(({ id }) => id))
+  const planned = candidates.filter(({ targetKbId }) => targetIds.has(targetKbId))
   const existingTargets =
     planned.length === 0
       ? []
@@ -1690,13 +1721,19 @@ async function finalizeKbDocument(params: {
   } = params
   return db.transaction(async (tx) => {
     const [lockedKnowledgeBase] = await tx
-      .select({ workspaceId: knowledgeBase.workspaceId })
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        isSearchIndex: knowledgeBase.isSearchIndex,
+      })
       .from(knowledgeBase)
       .where(eq(knowledgeBase.id, childKnowledgeBaseId))
       .for('update')
     assertForkCopyActive(params.control)
     if (!lockedKnowledgeBase) {
       throw new Error(`Copied document knowledge base ${childKnowledgeBaseId} is missing`)
+    }
+    if (!requiresConnectorIndexing(lockedKnowledgeBase.isSearchIndex)) {
+      throw new Error('Retired Search documents cannot be activated by a workspace copy')
     }
     if (lockedKnowledgeBase.workspaceId !== billingContext.workspaceId) {
       throw new Error(
@@ -1809,6 +1846,24 @@ async function copyKbDocument(params: {
     billingContext,
   } = params
   assertForkCopyActive(params.control)
+  const bases = await db
+    .select({ id: knowledgeBase.id, isSearchIndex: knowledgeBase.isSearchIndex })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [source.knowledgeBaseId, childKnowledgeBaseId]),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+  const basesById = new Map(bases.map((base) => [base.id, base]))
+  if (
+    [source.knowledgeBaseId, childKnowledgeBaseId].some((id) => {
+      const base = basesById.get(id)
+      return !base || !requiresConnectorIndexing(base.isSearchIndex)
+    })
+  ) {
+    throw new Error('Workspace copies require active ordinary knowledge bases')
+  }
   const sourceSecretContext = await loadKnowledgeDocumentDurableSecretProvenance(source.id)
   const sourceSnapshotHash = hashDurableSecretProvenanceValue(
     createKnowledgeDocumentSourceValue(source)

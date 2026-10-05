@@ -7,23 +7,19 @@ import type { ToolResponse } from '@/tools/types'
  * Context Profile, which is saved logged-in state selected with `use_profile`
  * and `profile_id`.
  */
-export type TinyFishBrowserProfile = 'lite' | 'stealth'
+type TinyFishBrowserProfile = 'lite' | 'stealth'
 
 /** Agent behavior mode. `strict` fails fast, which suits test automation. */
-export type TinyFishAgentMode = 'default' | 'strict'
+type TinyFishAgentMode = 'default' | 'strict'
 
 /** Lifecycle states a TinyFish run can be in. */
-export type TinyFishRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+type TinyFishRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 
 /** Classification TinyFish attaches to a failed run. */
-export type TinyFishErrorCategory =
-  | 'SYSTEM_FAILURE'
-  | 'AGENT_FAILURE'
-  | 'BILLING_FAILURE'
-  | 'UNKNOWN'
+type TinyFishErrorCategory = 'SYSTEM_FAILURE' | 'AGENT_FAILURE' | 'BILLING_FAILURE' | 'UNKNOWN'
 
 /** Output format the Fetch API extracts page content into. */
-export type TinyFishFetchFormat = 'markdown' | 'html' | 'json'
+type TinyFishFetchFormat = 'markdown' | 'html' | 'json'
 
 interface TinyFishApiKeyParams {
   apiKey: string
