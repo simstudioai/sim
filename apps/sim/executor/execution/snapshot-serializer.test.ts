@@ -348,6 +348,10 @@ describe('buildCompletedExecutionState', () => {
   it.each([
     ['a subtree shared twice', { first: shared, second: shared }],
     ['a cycle hidden behind toJSON', { value: cycleBehindToJSON }],
+    [
+      'a boxed number carrying a BigInt property',
+      { value: Object.assign(Object(1), { big: BigInt(1) }) },
+    ],
   ])('serializes like the JSON-cloned pause state for %s', (_name, output) => {
     const context = contextWithOutput(output)
     expect(JSON.stringify(buildCompletedExecutionState(context))).toBe(

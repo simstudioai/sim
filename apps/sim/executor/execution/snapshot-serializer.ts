@@ -339,7 +339,7 @@ const LIVE_EXECUTION_STATE = Symbol('liveExecutionState')
  * that native serialization handles cannot overflow the JS stack here.
  */
 function assertJsonSerializable(value: unknown): void {
-  type Frame = { node: object; keys: string[] | undefined; index: number }
+  type Frame = { node: object; keys: string[] | undefined; length: number; index: number }
   const ancestors = new Set<object>()
   const stack: Frame[] = []
 
@@ -357,13 +357,19 @@ function assertJsonSerializable(value: unknown): void {
       throw new TypeError('Do not know how to serialize a BigInt')
     }
     if (typeof current !== 'object' || current === null) return
+    // Serialized as their primitive value; their own properties are never read.
+    if (current instanceof Number || current instanceof String || current instanceof Boolean) {
+      return
+    }
     if (ancestors.has(current)) {
       throw new TypeError('Converting circular structure to JSON')
     }
     ancestors.add(current)
+    const keys = Array.isArray(current) ? undefined : Object.keys(current)
     stack.push({
       node: current,
-      keys: Array.isArray(current) ? undefined : Object.keys(current),
+      keys,
+      length: keys ? keys.length : (current as unknown[]).length,
       index: 0,
     })
   }
@@ -371,8 +377,7 @@ function assertJsonSerializable(value: unknown): void {
   enter(value, '')
   while (stack.length > 0) {
     const frame = stack[stack.length - 1]
-    const length = frame.keys ? frame.keys.length : (frame.node as unknown[]).length
-    if (frame.index >= length) {
+    if (frame.index >= frame.length) {
       ancestors.delete(frame.node)
       stack.pop()
       continue

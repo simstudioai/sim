@@ -2,9 +2,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { quotedStringBytes } from '@/lib/core/utils/bounded-json'
 
 /**
- * Approximate byte length of `JSON.stringify(value)`, measured without building
- * the string. Stops early and returns `maxBytes + 1` once the count passes
- * `maxBytes`; returns `undefined` if the walk fails.
+ * Byte length of `JSON.stringify(value)`, measured without building the string.
+ * Stops early and returns `maxBytes + 1` once the count passes `maxBytes`. A
+ * cycle or BigInt, which `JSON.stringify` rejects, is still measured (the cycle
+ * edge as absent, the BigInt as its string) so oversized data stays eligible
+ * for compaction; callers treat `undefined` as fitting. Returns `undefined` only
+ * if a `toJSON` throws.
  */
 export function getJsonByteSize(value: unknown, maxBytes: number): number | undefined {
   // Ancestors only: JSON.stringify writes a shared subtree once per occurrence,
@@ -42,7 +45,13 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     item === undefined || typeof item === 'function' || typeof item === 'symbol'
 
   /** A container whose members are still being measured. Iterative, so nesting depth cannot overflow the stack. */
-  type Frame = { node: object; keys: string[] | undefined; index: number; written: number }
+  type Frame = {
+    node: object
+    keys: string[] | undefined
+    length: number
+    index: number
+    written: number
+  }
   const stack: Frame[] = []
 
   /** Measures a resolved value; a container's members are measured as the loop below reaches them. */
@@ -68,9 +77,11 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     }
     ancestors.add(item)
     add(2)
+    const keys = Array.isArray(item) ? undefined : Object.keys(item)
     stack.push({
       node: item,
-      keys: Array.isArray(item) ? undefined : Object.keys(item),
+      keys,
+      length: keys ? keys.length : (item as unknown[]).length,
       index: 0,
       written: 0,
     })
@@ -80,8 +91,7 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     enter(resolve(value, ''))
     while (stack.length > 0) {
       const frame = stack[stack.length - 1]
-      const length = frame.keys ? frame.keys.length : (frame.node as unknown[]).length
-      if (frame.index >= length) {
+      if (frame.index >= frame.length) {
         ancestors.delete(frame.node)
         stack.pop()
         continue

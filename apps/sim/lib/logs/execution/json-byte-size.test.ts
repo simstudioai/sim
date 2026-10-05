@@ -42,9 +42,9 @@ describe('getJsonByteSize', () => {
     expect(getJsonByteSize(nested, LIMIT)).toBe(depth * '{"c":}'.length + '{}'.length)
   })
 
-  it('terminates on a cycle', () => {
+  it('still measures a cycle, so oversized cyclic data stays eligible for compaction', () => {
     const node: Record<string, unknown> = { a: 1 }
     node.self = node
-    expect(getJsonByteSize(node, LIMIT)).toBeGreaterThan(0)
+    expect(getJsonByteSize(node, LIMIT)).toBe(jsonBytes({ a: 1 }) + ',"self":'.length)
   })
 })
