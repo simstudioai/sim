@@ -926,6 +926,14 @@ export function useChat(
     new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  /** Cleared on unmount, so a late rollback cannot hand a pick to a surface the user left. */
+  const surfaceMountedRef = useRef(true)
+  useEffect(() => {
+    surfaceMountedRef.current = true
+    return () => {
+      surfaceMountedRef.current = false
+    }
+  }, [])
   const tableViewContextsRef = useRef({
     scopeId: desktopScopeId,
     views: new Map<string, MothershipTableViewContext>(),
@@ -3542,8 +3550,15 @@ export function useChat(
       }
 
       const rollbackOptimisticSend = () => {
-        // A withdrawn first send hands its pick back to the new-chat composer for the retry.
-        if (!requestChatId && effortChoice)
+        // A withdrawn first send hands its pick back to the new-chat composer for the retry,
+        // only while that surface is still open on the new chat.
+        if (
+          !requestChatId &&
+          effortChoice &&
+          surfaceMountedRef.current &&
+          !chatIdRef.current &&
+          !selectedChatIdRef.current
+        )
           useMothershipEffortStore.getState().setNewChatEffort(effortChoice)
         if (requestChatId) {
           upsertChatHistory(requestChatId, (current) => ({
