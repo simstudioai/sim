@@ -177,6 +177,10 @@ export const AuditAction = {
   PERMISSION_ACCESS_REQUEST_CLOSED: 'permission_access_request.closed',
   PERMISSION_ACCESS_REQUEST_SETTINGS_CHANGED: 'permission_access_request.settings_changed',
 
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
+
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_UPDATED: 'sandbox.updated',
   SANDBOX_DELETED: 'sandbox.deleted',
@@ -218,9 +222,6 @@ export const AuditAction = {
   WORKFLOW_EXPORTED: 'workflow.exported',
 
   WORKSPACE_CREATED: 'workspace.created',
-  PROJECT_CREATED: 'project.created',
-  PROJECT_UPDATED: 'project.updated',
-  PROJECT_ARCHIVED: 'project.archived',
   WORKSPACE_UPDATED: 'workspace.updated',
   WORKSPACE_DELETED: 'workspace.deleted',
   WORKSPACE_DUPLICATED: 'workspace.duplicated',
@@ -278,6 +279,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   PERMISSION_ACCESS_REQUEST: 'permission_access_request',
+  PROJECT: 'project',
   SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',
   SCIM_CONNECTION: 'scim_connection',
@@ -290,7 +292,6 @@ export const AuditResourceType = {
   USER: 'user',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
-  PROJECT: 'project',
   WORKSPACE: 'workspace',
 } as const
 

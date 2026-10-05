@@ -28,10 +28,10 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -116,18 +116,16 @@ export const POST = withRouteHandler(
       const workflowId = generateId()
       const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
 
-      await db.transaction(async (tx) => {
-        await tx.insert(workflow).values(
-          await buildNewWorkflowRow(tx, {
-            id: workflowId,
-            userId: workspaceData.ownerId,
-            workspaceId,
-            folderId: folderId || null,
-            name: dedupedName,
-            description: workflowDescription,
-          })
-        )
-      })
+      await db.transaction((tx) =>
+        insertNewWorkflowRow(tx, {
+          id: workflowId,
+          userId: workspaceData.ownerId,
+          workspaceId,
+          folderId: folderId || null,
+          name: dedupedName,
+          description: workflowDescription,
+        })
+      )
 
       /**
        * Same normalization the editor and the v1 import API run, via the one
@@ -183,7 +181,7 @@ export const POST = withRouteHandler(
 
       return NextResponse.json(response)
     } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'not_found') {
+      if (asOrchestrationError(error)?.code === 'not_found') {
         return notFoundResponse('Workspace')
       }
       if (error instanceof FolderNotFoundError) {
