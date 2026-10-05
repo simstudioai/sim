@@ -36,6 +36,7 @@ import {
   detachAsyncToolCall,
   settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
+import { getToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
 import {
   reportQueuedClientWorkflowTool,
@@ -288,6 +289,10 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
 
     await reportQueuedClientWorkflowTool({ toolCallId, executionId, workflowId })
 
+    expect(await getToolConfirmation(toolCallId)).toMatchObject({
+      status: 'background',
+      data: { executionId },
+    })
     expect(await waiting).toMatchObject({
       status: 'background',
       data: { workflowId, executionId },

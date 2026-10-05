@@ -1611,3 +1611,17 @@ describe('compiler failure classification', () => {
     ).rejects.toBeInstanceOf(CodePlaceholderCompileError)
   })
 })
+
+describe('python keyword lookback', () => {
+  it('terminates when the only keyword match on the line sits inside a string', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'x = """\nlambda""" + {{A}}\n',
+      language: CodeLanguage.Python,
+      params: { A: 'v' },
+    })
+
+    expect(compiled.code).toBe(
+      `x = """\nlambda""" + (${compiled.bindings[0].name} if True else None)\n`
+    )
+  })
+})
