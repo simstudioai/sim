@@ -143,3 +143,43 @@ describe('embedded artifact destinations', () => {
     expect(noWriter.stderr).toContain('no machine to write to')
   })
 })
+
+describe('embedded request defaults', () => {
+  function capture(body: unknown) {
+    const requests: { url: URL; body: Record<string, unknown> | undefined }[] = []
+    const transport = async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: new URL(String(input)),
+        body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      })
+      return jsonResponse({ data: body })
+    }
+    return { requests, identity: { ...IDENTITY, transport } }
+  }
+
+  it('asks a synchronous run for file references unless the caller wants inline bytes', async () => {
+    const { requests, identity } = capture({ runId: 'run-1', status: 'completed', output: null })
+    expect((await runEmbeddedCli(['workflows', 'run', 'wf', '--manual'], identity)).exitCode).toBe(
+      0
+    )
+    expect(
+      (await runEmbeddedCli(['workflows', 'run', 'wf', '--include-file-base64'], identity)).exitCode
+    ).toBe(0)
+    expect(requests.map((request) => request.body?.includeFileBase64)).toEqual([false, true])
+  })
+
+  it('never sends the field on an async run, which the server rejects', async () => {
+    const { requests, identity } = capture({ runId: 'run-1', statusUrl: 'https://x.test/s' })
+    expect((await runEmbeddedCli(['workflows', 'run', 'wf', '--async'], identity)).exitCode).toBe(0)
+    expect(requests[0]?.body).not.toHaveProperty('includeFileBase64')
+  })
+
+  it('reads a log without its workflow snapshot unless the caller asks for it', async () => {
+    const { requests, identity } = capture({ runId: 'run-1', traceSpans: [] })
+    await runEmbeddedCli(['logs', 'get', 'run-1'], identity)
+    await runEmbeddedCli(['logs', 'get', 'run-1', '--include-workflow-state'], identity)
+    expect(requests.map((request) => request.url.searchParams.get('includeWorkflowState'))).toEqual(
+      ['false', 'true']
+    )
+  })
+})

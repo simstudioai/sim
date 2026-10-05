@@ -643,7 +643,10 @@ export async function buildRequest(
       // A contract default only applies to what the caller left unsaid, so
       // typing the flag — including typing the server's own default back — still
       // decides. It is validated like any other value, enum choices included.
-      const raw = provided ?? flag.requestDefault
+      const raw =
+        provided ??
+        (embedStore.getStore() ? flag.embeddedRequestDefault : undefined) ??
+        flag.requestDefault
 
       /**
        * A blank filter is a mistake, and every v2 JSON route says so

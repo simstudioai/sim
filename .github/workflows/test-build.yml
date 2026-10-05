@@ -206,7 +206,7 @@ jobs:
       # immediately, and either way the server log tail lands in the job log. No
       # step timeout: the job's bound covers a hang without cutting a slow but
       # healthy suite short of writing its report.
-      - name: Verify SCIM, administration and workflow comparisons over real HTTP
+      - name: Verify SCIM, administration, workflow comparisons and CLI runs over real HTTP
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
@@ -268,6 +268,12 @@ jobs:
           VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
+          CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
+          CLI_LATENCY_E2E_RUNS=3 \
+          CLI_LATENCY_E2E_WARMUP=1 \
+          CLI_LATENCY_E2E_REPORT_PATH="$report_dir/cli-run-latency-report.json" \
+            bun run test:cli-run-latency:e2e
 
       # A self-hosted app: hosted billing admits a run only through a Redis usage
       # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
