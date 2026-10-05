@@ -39,6 +39,14 @@ export const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
 })
 
+/** The effort the user picked for a chat; null while the chat follows the default. */
+const mothershipChatEffortChoiceSchema = ChatPayloadSchema.shape.effort.unwrap().nullable()
+
+const setMothershipChatEffortBodySchema = z.object({
+  effort: ChatPayloadSchema.shape.effort.unwrap(),
+})
+export type SetMothershipChatEffortBody = z.input<typeof setMothershipChatEffortBodySchema>
+
 export const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
@@ -309,6 +317,19 @@ export const updateMothershipChatContract = defineRouteContract({
   },
 })
 
+export const setMothershipChatEffortContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/mothership/chats/[chatId]/effort',
+  params: mothershipChatParamsSchema,
+  body: setMothershipChatEffortBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
 export const deleteMothershipChatContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/mothership/chats/[chatId]',
@@ -399,6 +420,7 @@ export const getMothershipChatResponseSchema = z.object({
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
+      effort: mothershipChatEffortChoiceSchema,
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),

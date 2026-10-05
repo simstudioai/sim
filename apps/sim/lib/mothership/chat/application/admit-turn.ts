@@ -11,6 +11,7 @@ import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/avail
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { withChatEffortChoice } from '@/lib/mothership/chat/intent'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import {
@@ -18,6 +19,7 @@ import {
   type UserMessageParams,
 } from '@/lib/mothership/chat/persisted-message'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   assertChatStreamLease,
@@ -34,6 +36,8 @@ interface AdmitTurnInput {
   lease: ChatStreamLease
   sendClaim: { normalizedKey: string; claimToken: string }
   notifyWorkspaceStatus: boolean
+  /** The effort this send picked, kept as the chat's choice for later turns. */
+  effortChoice?: MothershipEffort
 }
 
 /** The accepted message, its start intent and retry destination commit together. */
@@ -79,13 +83,16 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
+    const turnConfig = sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx
         .update(copilotChats)
         .set({
           conversationId: request.messageId,
           updatedAt: new Date(),
-          config: sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`,
+          config: input.effortChoice
+            ? withChatEffortChoice(turnConfig, input.effortChoice)
+            : turnConfig,
         })
         .where(
           and(

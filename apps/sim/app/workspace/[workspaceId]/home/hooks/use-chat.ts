@@ -926,6 +926,14 @@ export function useChat(
     new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  /** Cleared on unmount, so a late rollback cannot hand a pick to a surface the user left. */
+  const surfaceMountedRef = useRef(true)
+  useEffect(() => {
+    surfaceMountedRef.current = true
+    return () => {
+      surfaceMountedRef.current = false
+    }
+  }, [])
   const tableViewContextsRef = useRef({
     scopeId: desktopScopeId,
     views: new Map<string, MothershipTableViewContext>(),
@@ -3396,6 +3404,18 @@ export function useChat(
 
       let requestChatId =
         queuedSendHandoff?.chatId ?? selectedChatIdRef.current ?? chatIdRef.current
+      // Read before the composer can unmount. Sent only when picked; otherwise the server
+      // uses the chat's stored pick or the default.
+      const effortStore = useMothershipEffortStore.getState()
+      const effortChoice =
+        options?.requestMode === 'assistant'
+          ? undefined
+          : requestChatId
+            ? (effortStore.chatEfforts[requestChatId] ??
+              queryClient.getQueryData<MothershipChatHistory>(
+                mothershipChatKeys.detail(requestChatId)
+              )?.effort)
+            : effortStore.newChatEffort
       const writeQueuedSendHandoff = (chatId?: string) => {
         if (!queuedSendHandoff) return
         if (!chatId && !queuedSendHandoff.supersededStreamId) return
@@ -3530,6 +3550,16 @@ export function useChat(
       }
 
       const rollbackOptimisticSend = () => {
+        // A withdrawn first send hands its pick back to the new-chat composer for the retry,
+        // only while that surface is still open on the new chat.
+        if (
+          !requestChatId &&
+          effortChoice &&
+          surfaceMountedRef.current &&
+          !chatIdRef.current &&
+          !selectedChatIdRef.current
+        )
+          useMothershipEffortStore.getState().setNewChatEffort(effortChoice)
         if (requestChatId) {
           upsertChatHistory(requestChatId, (current) => ({
             ...current,
@@ -3707,10 +3737,11 @@ export function useChat(
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             ...(options?.requestMode !== 'assistant'
               ? {
-                  ...resolveMothershipModelSettings(
+                  modelSelection: resolveMothershipModelSettings(
                     useMothershipEffortStore.getState(),
                     modelSelectorEnabled
-                  ),
+                  ).modelSelection,
+                  ...(effortChoice ? { effort: effortChoice } : {}),
                 }
               : {}),
           }),
@@ -3727,6 +3758,8 @@ export function useChat(
           return consumedByTranscript
         }
         if (admittedChatId && !requestChatId) {
+          if (effortChoice)
+            useMothershipEffortStore.getState().adoptNewChatEffort(admittedChatId, effortChoice)
           requestChatId = admittedChatId
           streamTargetChatId = admittedChatId
           adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
@@ -3775,6 +3808,9 @@ export function useChat(
             const conflictChatId =
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
             if (conflictChatId && !streamTargetChatId) {
+              // The retry carries the same pick the first attempt stored on that chat.
+              if (effortChoice)
+                useMothershipEffortStore.getState().adoptNewChatEffort(conflictChatId, effortChoice)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,
                 invalidateList: true,
