@@ -1117,7 +1117,10 @@ describe('ExecutionEngine', () => {
         handleNodeCompletion: vi.fn(),
       } as unknown as NodeExecutionOrchestrator
       const engine = new ExecutionEngine(
-        createMockContext({ stopAfterBlockId }),
+        createMockContext({
+          stopAfterBlockId,
+          decisions: { router: new Map(), condition: new Map() },
+        }),
         dag,
         new EdgeManager(dag),
         nodeOrchestrator
@@ -1182,6 +1185,46 @@ describe('ExecutionEngine', () => {
 
       await expect(engine.run('start')).rejects.toThrow('Stop block "stop" (stop) was not reached')
       expect(executed).toEqual(['start', 'router'])
+    })
+
+    it('fails rather than pausing when another branch pauses after the stop block is skipped', async () => {
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [
+            block('start', BlockType.STARTER),
+            block('approval'),
+            block('condition', BlockType.CONDITION),
+            block('taken'),
+            block('stop'),
+          ],
+          connections: [
+            { source: 'start', target: 'approval' },
+            { source: 'start', target: 'condition' },
+            { source: 'condition', target: 'taken', sourceHandle: 'condition-if' },
+            { source: 'condition', target: 'stop', sourceHandle: 'condition-else' },
+          ],
+          loops: {},
+          parallels: {},
+        },
+        'stop',
+        {
+          approval: {
+            response: { status: 'paused' },
+            _pauseMetadata: {
+              contextId: 'pause-1',
+              blockId: 'approval',
+              response: { status: 'paused' },
+              timestamp: new Date().toISOString(),
+              pauseKind: 'hitl',
+            },
+          },
+          condition: { selectedOption: 'if' },
+        }
+      )
+
+      await expect(engine.run('start')).rejects.toThrow('Stop block "stop" (stop) was not reached')
+      expect(executed).toEqual(['start', 'approval', 'condition'])
     })
 
     it('fails when the stop block sits on an error path the run never takes', async () => {
@@ -1332,7 +1375,7 @@ describe('ExecutionEngine', () => {
 
       const pastResponse = buildRun(workflow, 'stop')
       await expect(pastResponse.engine.run('start')).rejects.toThrow(
-        'Stop block "stop" (stop) was not reached'
+        'Stop block "stop" (stop) was not reached: a Response block ended the run first'
       )
       expect(pastResponse.executed).toEqual(['start', 'respond'])
     })

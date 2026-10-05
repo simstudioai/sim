@@ -37,6 +37,7 @@ export class ExecutionEngine {
   private stoppedEarlyFlag = false
   private stopBlockQueued = false
   private stopBlockReached = false
+  private stopBlockUnreachable = false
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
@@ -127,12 +128,13 @@ export class ExecutionEngine {
         throw this.executionError
       }
 
-      if (this.pausedBlocks.size > 0) {
-        return this.buildPausedResult(startTime)
+      /** A pause keeps a run whose stop block can still run; one proven unreachable fails. */
+      if (!this.cancelledFlag && (this.stopBlockUnreachable || this.pausedBlocks.size === 0)) {
+        this.assertStopBlockReached()
       }
 
-      if (!this.cancelledFlag) {
-        this.assertStopBlockReached()
+      if (this.pausedBlocks.size > 0) {
+        return this.buildPausedResult(startTime)
       }
 
       const endTime = performance.now()
@@ -546,6 +548,7 @@ export class ExecutionEngine {
       return
     }
     this.execLogger.info('Stopping execution: the stop block can no longer run', { stopBlockId })
+    this.stopBlockUnreachable = true
     this.stoppedEarlyFlag = true
   }
 
@@ -562,7 +565,11 @@ export class ExecutionEngine {
       : node?.block.metadata?.name
         ? `"${node.block.metadata.name}" (${stopBlockId})`
         : stopBlockId
-    throw new Error(`Stop block ${label} was not reached: no path this run took leads to it`)
+    const reason =
+      this.responseOutputLocked && !this.stopBlockUnreachable
+        ? 'a Response block ended the run first'
+        : 'no path this run took leads to it'
+    throw new Error(`Stop block ${label} was not reached: ${reason}`)
   }
 
   private setFinalOutput(nodeId: string, output: NormalizedBlockOutput): void {
