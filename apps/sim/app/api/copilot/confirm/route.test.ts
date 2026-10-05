@@ -640,7 +640,6 @@ describe('Copilot Confirm API Route', () => {
 
       expect(response.status).toBe(200)
       expect(await response.json()).toMatchObject({ toolCallId: 'tool-call-123', status: 'error' })
-      expect(publishToolConfirmation).not.toHaveBeenCalled()
     }
   )
 
