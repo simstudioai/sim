@@ -49,7 +49,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     if (context.mode !== 'agent' && context.mode !== 'plan') {
       throw new OrchestrationError('forbidden', 'Private memory requires an interactive agent chat')
     }
-    const enabled = await isMemorySpacesEnabled()
+    const enabled = await isMemorySpacesEnabled(context.userId)
     const organizationId = context.organizationId ?? context.workspaceOrganizationId ?? null
     if (enabled && context.memorySpaceId) {
       if (!organizationId) throw new OrchestrationError('not_found', 'Knowledge graph not found')

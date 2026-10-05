@@ -83,7 +83,7 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
+    isPlanModeEnabled(session.user.id),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),

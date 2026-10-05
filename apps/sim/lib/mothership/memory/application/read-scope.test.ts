@@ -1,8 +1,7 @@
 /** @vitest-environment node */
-import { copilotChats, member, workspace } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { copilotChats, member, settings, user, workspace } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock, setEnvFlags } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
@@ -22,7 +21,6 @@ vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) 
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
   assertWorkspaceCapability: mocks.capability,
 }))
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 const input = { chatId: 'chat-1' }
 function principal() {
   return createTrustedOrganizationCopilotPrincipal(
@@ -39,7 +37,9 @@ function queueChat(mode = 'plan', membership = true) {
 describe('private memory scope', () => {
   beforeEach(() => {
     resetDbChainMock()
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+    setEnvFlags({ isMothershipBenchmarkEnabled: true })
+    queueTableRows(user, [{ role: 'admin' }])
+    queueTableRows(settings, [{ superUserModeEnabled: true }])
     authBanMockFns.mockGetActivelyBannedUserIds.mockResolvedValue([])
     permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(
       null
@@ -57,7 +57,7 @@ describe('private memory scope', () => {
     })
   })
   it('reports Graphiti disabled independently of the chat mode and preserves its graph binding', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+    setEnvFlags({ isMothershipBenchmarkEnabled: false })
     queueTableRows(copilotChats, [
       {
         userId: 'actor',

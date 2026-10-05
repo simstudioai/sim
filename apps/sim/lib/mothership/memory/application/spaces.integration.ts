@@ -2,10 +2,12 @@ import { db } from '@sim/db'
 import {
   copilotChats,
   member,
+  mothershipBenchmarks,
   mothershipMemorySelections,
   mothershipMemorySpaces,
   organization,
   permissions,
+  settings,
   user,
   workspace,
 } from '@sim/db/schema'
@@ -19,7 +21,10 @@ import {
 import { createWorkspaceChat } from '@/lib/mothership/chat/application/create-workspace-chat'
 import { forkChat } from '@/lib/mothership/chat/application/fork'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import { createOrganizationChat } from '@/lib/mothership/chat/organization-chats'
+import {
+  createOrganizationChat,
+  createOrganizationChatRecord,
+} from '@/lib/mothership/chat/organization-chats'
 import {
   MEMORY_SCOPE_AUDIENCE,
   readMemoryScope,
@@ -30,10 +35,9 @@ import {
   selectMemorySpace,
 } from '@/lib/mothership/memory/application/spaces'
 
-const gate = vi.hoisted(() => ({ enabled: true }))
-vi.mock('@/lib/mothership/feature-flags', () => ({
-  isMemorySpacesEnabled: async () => gate.enabled,
-}))
+vi.hoisted(() => {
+  process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
+})
 /** The worker conversation copy is a separate service; Sim persistence and authorization stay real. */
 vi.mock('@/lib/mothership/chat/fork-worker', () => ({ copyWorkerConversation: async () => {} }))
 
@@ -41,6 +45,7 @@ const ids = {
   owner: generateId(),
   other: generateId(),
   outsider: generateId(),
+  regular: generateId(),
   org: generateId(),
   secondOrg: generateId(),
   workspace: generateId(),
@@ -57,30 +62,41 @@ const create = (name: string) =>
 const select = (spaceId: string | null) =>
   selectMemorySpace.execute({ principal: principal(), input: { ...input, spaceId } })
 const list = () => listMemorySpaces.execute({ principal: principal(), input })
-async function scope(chatId: string, workspaceId?: string) {
+async function scope(chatId: string, workspaceId?: string, userId = ids.owner) {
   const options = { audience: MEMORY_SCOPE_AUDIENCE, ttlMs: 60_000 }
   const caller = workspaceId
     ? createTrustedCopilotPrincipal(
-        { userId: ids.owner, workspaceId, chatId, delegationId: generateId() },
+        { userId, workspaceId, chatId, delegationId: generateId() },
         options
       )
     : createTrustedOrganizationCopilotPrincipal(
-        { userId: ids.owner, organizationId: ids.org, chatId, delegationId: generateId() },
+        { userId, organizationId: ids.org, chatId, delegationId: generateId() },
         options
       )
-  return readMemoryScope.execute({ principal: caller, input: { chatId } })
+  return readMemoryScope.execute({
+    principal: caller,
+    input: { chatId },
+  })
 }
 
 beforeAll(async () => {
   const now = new Date()
   await db.insert(user).values(
-    [ids.owner, ids.other, ids.outsider].map((id) => ({
+    [ids.owner, ids.other, ids.outsider, ids.regular].map((id) => ({
       id,
       name: 'KG fixture',
+      role: id === ids.owner || id === ids.other ? 'admin' : 'user',
       email: `${id}@fixture.test`,
       emailVerified: true,
       createdAt: now,
       updatedAt: now,
+    }))
+  )
+  await db.insert(settings).values(
+    [ids.owner, ids.other, ids.regular].map((userId) => ({
+      id: generateId(),
+      userId,
+      superUserModeEnabled: true,
     }))
   )
   await db
@@ -91,6 +107,7 @@ beforeAll(async () => {
   await db.insert(member).values([
     { id: generateId(), organizationId: ids.org, userId: ids.owner, role: 'member' },
     { id: generateId(), organizationId: ids.org, userId: ids.other, role: 'admin' },
+    { id: generateId(), organizationId: ids.org, userId: ids.regular, role: 'admin' },
   ])
   await db.insert(workspace).values(
     [ids.workspace, ids.secondWorkspace].map((id) => ({
@@ -113,10 +130,56 @@ beforeAll(async () => {
 })
 afterAll(async () => {
   await db.delete(organization).where(inArray(organization.id, [ids.org, ids.secondOrg]))
-  await db.delete(user).where(inArray(user.id, [ids.owner, ids.other, ids.outsider]))
+  await db.delete(user).where(inArray(user.id, [ids.owner, ids.other, ids.outsider, ids.regular]))
 })
 
 describe('private KG selection through authorized application boundaries', () => {
+  it('rejects an organization admin without platform super-user access at every public entry', async () => {
+    const caller = principal(ids.regular)
+    await expect(
+      createOrganizationChat.execute({ principal: caller, input: { ...input, mode: 'plan' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(listMemorySpaces.execute({ principal: caller, input })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await expect(
+      createMemorySpace.execute({ principal: caller, input: { ...input, name: 'Forbidden' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      selectMemorySpace.execute({ principal: caller, input: { ...input, spaceId: null } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    const chat = await createOrganizationChat.execute({
+      principal: caller,
+      input: { ...input, mode: 'agent' },
+    })
+    expect(await scope(chat.id, undefined, ids.regular)).toMatchObject({
+      enabled: false,
+      userId: ids.regular,
+    })
+  })
+
+  it('does not grant an ineligible user access through a benchmark operator', async () => {
+    const benchmarkId = generateId()
+    await db.insert(mothershipBenchmarks).values({
+      id: benchmarkId,
+      organizationId: ids.org,
+      userId: ids.owner,
+      runAsUserId: ids.regular,
+      sourceWorkspaceId: ids.workspace,
+      name: 'Synthetic scope fixture',
+      artifacts: {},
+    })
+    const chat = await createOrganizationChatRecord(
+      { userId: ids.regular, organizationId: ids.org },
+      'plan',
+      { id: benchmarkId, operatorUserId: ids.owner }
+    )
+    expect(await scope(chat.id, undefined, ids.regular)).toMatchObject({
+      enabled: false,
+      userId: ids.regular,
+    })
+  })
+
   it('keeps Default implicit and rolls back an invalid first creation', async () => {
     expect(await list()).toEqual({ spaces: [{ id: null, name: 'Default' }], activeSpaceId: null })
     await expect(create('  Default  ')).rejects.toMatchObject({ code: 'validation' })
@@ -235,7 +298,10 @@ describe('private KG selection through authorized application boundaries', () =>
       principal: principal(),
       input: { ...input, mode: 'plan' },
     })
-    gate.enabled = false
+    await db
+      .update(settings)
+      .set({ superUserModeEnabled: false })
+      .where(eq(settings.userId, ids.owner))
     try {
       await expect(list()).rejects.toMatchObject({ code: 'not_found' })
       await expect(create('Hidden')).rejects.toMatchObject({ code: 'not_found' })
@@ -244,13 +310,22 @@ describe('private KG selection through authorized application boundaries', () =>
         enabled: false,
         spaceId: selected.activeSpaceId,
       })
+      await expect(
+        createOrganizationChat.execute({
+          principal: principal(),
+          input: { ...input, mode: 'plan' },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
       const next = await createOrganizationChat.execute({
         principal: principal(),
-        input: { ...input, mode: 'plan' },
+        input: { ...input, mode: 'agent' },
       })
       expect((await scope(next.id)).spaceId).toBeUndefined()
     } finally {
-      gate.enabled = true
+      await db
+        .update(settings)
+        .set({ superUserModeEnabled: true })
+        .where(eq(settings.userId, ids.owner))
     }
     expect(await scope(chat.id)).toMatchObject({ enabled: true, spaceId: selected.activeSpaceId })
     expect((await list()).spaces).toContainEqual({

@@ -1018,7 +1018,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (body.mode !== 'assistant') {
       const [selectorEnabled, planEnabled] = await Promise.all([
         isMothershipModelSelectorEnabled(),
-        body.mode === 'plan' ? isPlanModeEnabled() : false,
+        body.mode === 'plan' ? isPlanModeEnabled(authenticatedUserId) : false,
       ])
       modelSelectorEnabled = selectorEnabled
       if (body.mode === 'plan' && !planEnabled)

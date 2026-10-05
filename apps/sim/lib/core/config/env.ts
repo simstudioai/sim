@@ -589,7 +589,6 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
-    MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
     PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     MSHIP_COMPUTER_USE: z.boolean().optional(),

@@ -41,7 +41,6 @@ setEnv({
   APPCONFIG_ENVIRONMENT: 'staging',
   DASHBOARDS: undefined,
   MSHIP_MODEL_SELECTOR: undefined,
-  MSHIP_PLAN_MODE: undefined,
   MSHIP_COMPUTER_USE: undefined,
   AGENT_MEMORY_HISTORY: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,
@@ -298,20 +297,16 @@ describe('isFeatureEnabled', () => {
   })
 })
 
-describe('Mothership model and Plan flags', () => {
+describe('Mothership model selector flag', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.MSHIP_MODEL_SELECTOR = undefined
-    envRef.MSHIP_PLAN_MODE = undefined
   })
 
   it('defaults off without AppConfig and accepts explicit self-hosted settings', async () => {
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(false)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(false)
     envRef.MSHIP_MODEL_SELECTOR = true
-    envRef.MSHIP_PLAN_MODE = true
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(true)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(true)
   })
 
   it.each(['sim-dev', 'sim-staging', 'sim-production'])(
@@ -323,10 +318,8 @@ describe('Mothership model and Plan flags', () => {
         for (const value of [true, false]) {
           withAppConfig({
             'mothership-model-selector': { enabled: value },
-            'mothership-plan-mode': { enabled: value },
           })
           expect(await isFeatureEnabled('mothership-model-selector')).toBe(value)
-          expect(await isFeatureEnabled('mothership-plan-mode')).toBe(value)
         }
       } finally {
         envRef.APPCONFIG_APPLICATION = previous

@@ -93,7 +93,7 @@ export async function selectedMemorySpaceForNewChat(
   organizationId?: string | null,
   workspaceId?: string | null
 ): Promise<string | null> {
-  if (!(await isMemorySpacesEnabled())) return null
+  if (!(await isMemorySpacesEnabled(userId))) return null
   const ownerOrganizationId =
     organizationId ??
     (workspaceId

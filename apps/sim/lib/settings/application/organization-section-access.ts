@@ -25,7 +25,7 @@ export async function authorizeOrganizationSettingsSection({
 }: AuthorizeOrganizationSettingsSectionInput): Promise<boolean> {
   if (!(await canOpenOrganizationSettingsSection(organizationId, userId, section))) return false
 
-  if (section === 'knowledge-graphs') return isMemorySpacesEnabled()
+  if (section === 'knowledge-graphs') return isMemorySpacesEnabled(userId)
 
   if (section === 'connected-accounts') {
     return isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })

@@ -10,6 +10,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
@@ -72,6 +73,8 @@ export const authorizeOrganizationChat = {
     )
     if (input.mode === 'agent' || input.mode === 'plan')
       await requireOrganizationBuildPermission(context)
+    if (input.mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     return context
   },
 }
@@ -122,6 +125,8 @@ export const createOrganizationChat = {
     )
     if (input.mode === 'agent' || input.mode === 'plan')
       await requireOrganizationBuildPermission(context)
+    if (input.mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     return createOrganizationChatRecord(context, input.mode ?? 'assistant')
   },
 }

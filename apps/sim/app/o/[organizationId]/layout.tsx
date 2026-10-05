@@ -75,9 +75,9 @@ export default async function OrganizationLayout({
       getActiveOrganizationId(session)
     ),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
+    isPlanModeEnabled(session.user.id),
     isDashboardsEnabled(organizationId),
-    isMemorySpacesEnabled(),
+    isMemorySpacesEnabled(session.user.id),
     canUseBenchmarks(session.user.id),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
