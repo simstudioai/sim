@@ -1039,6 +1039,64 @@ describe('code placeholder compiler', () => {
     }
   })
 
+  it.each([
+    'total=$(( {{KEY}} * 2 ))',
+    'printf "%s" "$(( {{KEY}} * 2 ))"',
+    'total=$(( "{{KEY}}" * 2 ))',
+    'total=$[ {{KEY}} * 2 ]',
+    'printf "%s" "$[ {{KEY}} * 2 ]"',
+    'total=$[ values[0] + {{KEY}} ]',
+    '(( total = {{KEY}} * 2 ))',
+    'for (( i = {{KEY}}; i < 2; i++ )); do :; done',
+    'total=$(( $(printf "%s" "{{KEY}}") * 2 ))',
+    'total=$(( `printf "%s" "{{KEY}}"` * 2 ))',
+    'total=$(( $(( 1 + 1 )) + {{KEY}} ))',
+    'cat <<PAYLOAD\n$(( {{KEY}} * 2 ))\nPAYLOAD',
+    'cat <<PAYLOAD\n$[ {{KEY}} * 2 ]\nPAYLOAD',
+  ])('rejects shell placeholders whose values enter arithmetic: %s', async (code) => {
+    await expect(
+      compileCodePlaceholders({
+        code,
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: 'values[$(printf injected >&2)]' },
+      })
+    ).rejects.toThrow('is not supported in shell arithmetic')
+  })
+
+  it('preserves shell literal arithmetic text and leaves completed arithmetic frames', async () => {
+    const value = 'values[$(printf injected >&2)]'
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'printf "%s\\n" "{{KEY}}"',
+        "printf '%s\\n' '$(( {{KEY}} ))'",
+        "printf '%s\\n' '$[ {{KEY}} ]'",
+        'printf "%s\\n" "$(printf %s "{{KEY}}")"',
+        'printf "%s\\n" "$(( 1 + 1 )){{KEY}}"',
+        'printf "%s\\n" "$[ values[0] + 2 ]{{KEY}}"',
+        '(( total = 2 )); printf "%s\\n" "{{KEY}}"',
+        'cat <<PAYLOAD',
+        '(( {{KEY}} ))',
+        'PAYLOAD',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: value },
+    })
+
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      `${value}\n$(( ${value} ))\n$[ ${value} ]\n${value}\n2${value}\n2${value}\n${value}\n(( ${value} ))\n`
+    )
+  })
+
+  it('discovers shell arithmetic placeholders without compiling missing values', async () => {
+    const code = 'total=$(( {{MISSING}} + {{KEY}} ))'
+    await expect(analyzeCodePlaceholders(code, CodeLanguage.Shell)).resolves.toEqual([
+      'MISSING',
+      'KEY',
+    ])
+    const compiled = await compileCodePlaceholders({ code, language: CodeLanguage.Shell })
+    expect(compiled.code).toBe(code)
+  })
+
   it('renders quoted shell heredocs nested in double-quoted command substitutions', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
