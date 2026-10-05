@@ -58,6 +58,7 @@ import {
 } from '@/lib/mothership/observability/database'
 import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { markSpanForError } from '@/lib/mothership/request/otel'
+import { USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
@@ -216,6 +217,22 @@ export async function requestRunStop(
  * none can be claimed afterwards and none is left looking live. A call nobody claimed never
  * started; one the desktop claimed may already have acted.
  */
+function isUserLocalVfsPath(path: SQL): SQL {
+  return sql`(${path} = ${USER_LOCAL_VFS_ROOT} OR ${path} LIKE ${`${USER_LOCAL_VFS_ROOT}/%`})`
+}
+
+/** The SQL form of `isUserLocalVfsToolCall`: a VFS read of a granted local folder. */
+const isUserLocalVfsCall = or(
+  and(
+    inArray(copilotAsyncToolCalls.toolName, ['read', 'grep']),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'path'`)
+  ),
+  and(
+    eq(copilotAsyncToolCalls.toolName, 'glob'),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'pattern'`)
+  )
+)
+
 async function cancelOpenDesktopToolCalls(
   tx: RunAdmissionTransaction,
   stoppedRuns: SQL | undefined
@@ -247,8 +264,9 @@ async function cancelOpenDesktopToolCalls(
         inArray(copilotAsyncToolCalls.status, [
           ASYNC_TOOL_STATUS.pending,
           ASYNC_TOOL_STATUS.running,
+          ASYNC_TOOL_STATUS.delivered,
         ]),
-        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_NAMES])
+        or(inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_NAMES]), isUserLocalVfsCall)
       )
     )
 }

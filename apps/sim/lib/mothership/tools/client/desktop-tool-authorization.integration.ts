@@ -16,7 +16,7 @@ const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
     COPILOT_TOOL_PERMISSIONS_ENABLED: process.env.COPILOT_TOOL_PERMISSIONS_ENABLED,
   }
   /** The real Redis module, the confirmation channel and the permission flag read these at import. */
-  process.env.REDIS_URL = url
+  if (url) process.env.REDIS_URL = url
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   return { redisUrl: url, inheritedEnv }
 })
@@ -253,7 +253,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
     await requestRunStop({ userId, workspaceId, streamId, chatId })
 
-    expect((await desktopClaims(toolCallId)).ok).toBe(false)
+    expect((await desktopClaims(toolCallId)).status).toBe(410)
     expect(await storedCall(toolCallId)).toMatchObject({
       status: 'cancelled',
       claimedBy: null,
@@ -267,7 +267,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
     await closeStreamToolAdmission(streamId, userId)
 
-    expect((await desktopClaims(toolCallId)).ok).toBe(false)
+    expect((await desktopClaims(toolCallId)).status).toBe(410)
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
   })
 
@@ -277,7 +277,17 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
     await closeStreamToolAdmission(streamId, userId)
 
-    expect((await desktopClaims(toolCallId)).ok).toBe(false)
+    expect((await desktopClaims(toolCallId)).status).toBe(410)
+  })
+
+  it('settles a read of a granted local folder when the user stops', async () => {
+    const { runId, streamId } = await startRun()
+    const toolCallId = await agentCalls(runId, 'read', { path: 'user-local/Project--mount-1/a.md' })
+
+    await requestRunStop({ userId, workspaceId, streamId, chatId })
+
+    expect(await storedCall(toolCallId)).toMatchObject({ status: 'cancelled' })
+    expect((await desktopClaims(toolCallId)).status).toBe(410)
   })
 
   it('refuses the claim itself once admission closed, so a claim racing Stop cannot win', async () => {

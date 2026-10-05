@@ -59,17 +59,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const toolCall = await getAsyncToolCall(parsed.data.body.toolCallId)
-  if (!toolCall || (toolCall.status !== 'pending' && toolCall.status !== 'running')) {
-    return createNotFoundResponse('Pending client tool call not found')
-  }
+  if (!toolCall) return createNotFoundResponse('Pending client tool call not found')
   const run = await getRunSegment(toolCall.runId)
   if (!run || run.userId !== userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  // Ahead of the status checks: Stop settles the run's open calls in the same commit.
+  if (run.toolAdmissionClosedAt) return admissionClosedResponse()
+  if (toolCall.status !== 'pending' && toolCall.status !== 'running') {
+    return createNotFoundResponse('Pending client tool call not found')
+  }
   if (run.status === 'complete' || run.status === 'error' || run.status === 'cancelled') {
     return createNotFoundResponse('Pending client tool call not found')
   }
-  if (run.toolAdmissionClosedAt) return admissionClosedResponse()
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
   const isBrowserTool = isCurrentBrowserToolName(toolCall.toolName)
