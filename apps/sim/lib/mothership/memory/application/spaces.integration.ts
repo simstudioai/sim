@@ -229,7 +229,7 @@ describe('private KG selection through authorized application boundaries', () =>
       expect(after.spaces.some((space) => space.id === row.activeSpaceId)).toBe(true)
   })
 
-  it('disabling management preserves bound graphs and makes new chats use Default', async () => {
+  it('disabling Graphiti preserves bound graphs for reactivation and makes new chats use Default', async () => {
     const selected = await create('Flag lifecycle')
     const chat = await createOrganizationChat.execute({
       principal: principal(),
@@ -240,7 +240,10 @@ describe('private KG selection through authorized application boundaries', () =>
       await expect(list()).rejects.toMatchObject({ code: 'not_found' })
       await expect(create('Hidden')).rejects.toMatchObject({ code: 'not_found' })
       await expect(select(null)).rejects.toMatchObject({ code: 'not_found' })
-      expect((await scope(chat.id)).spaceId).toBe(selected.activeSpaceId)
+      expect(await scope(chat.id)).toMatchObject({
+        enabled: false,
+        spaceId: selected.activeSpaceId,
+      })
       const next = await createOrganizationChat.execute({
         principal: principal(),
         input: { ...input, mode: 'plan' },
@@ -249,6 +252,11 @@ describe('private KG selection through authorized application boundaries', () =>
     } finally {
       gate.enabled = true
     }
+    expect(await scope(chat.id)).toMatchObject({ enabled: true, spaceId: selected.activeSpaceId })
+    expect((await list()).spaces).toContainEqual({
+      id: selected.activeSpaceId,
+      name: 'Flag lifecycle',
+    })
   })
 
   it('rejects a foreign binding and rechecks membership before reading memory', async () => {

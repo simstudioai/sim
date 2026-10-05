@@ -15,7 +15,7 @@ export function isSearchIntegrationToolsEnabled(): Promise<boolean> {
   return isFeatureEnabled('mothership-search-integration-tools')
 }
 
-/** Graph management is enabled only through AppConfig. */
+/** One AppConfig gate controls private Graphiti memory and graph management. */
 export function isMemorySpacesEnabled(): Promise<boolean> {
   return isFeatureEnabled('mothership-memory-spaces')
 }

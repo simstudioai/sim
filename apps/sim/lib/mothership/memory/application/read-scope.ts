@@ -4,6 +4,7 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { isMemorySpacesEnabled } from '@/lib/mothership/feature-flags'
 import type { MemoryScopeRequest } from '@/lib/mothership/generated/memory-scope'
 import { requireOwnedMemorySpace } from '@/lib/mothership/memory/spaces'
 
@@ -48,8 +49,9 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     if (context.mode !== 'agent' && context.mode !== 'plan') {
       throw new OrchestrationError('forbidden', 'Private memory requires an interactive agent chat')
     }
+    const enabled = await isMemorySpacesEnabled()
     const organizationId = context.organizationId ?? context.workspaceOrganizationId ?? null
-    if (context.memorySpaceId) {
+    if (enabled && context.memorySpaceId) {
       if (!organizationId) throw new OrchestrationError('not_found', 'Knowledge graph not found')
       await requireOwnedMemorySpace(
         { userId: context.userId, organizationId },
@@ -57,6 +59,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
       )
     }
     return {
+      enabled,
       ...(context.memorySpaceId ? { spaceId: context.memorySpaceId } : {}),
       userId: context.userId,
       organizationId: context.organizationId ?? context.workspaceOrganizationId ?? null,

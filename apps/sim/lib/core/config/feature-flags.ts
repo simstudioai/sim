@@ -69,7 +69,7 @@ const FEATURE_FLAGS = {
     fallback: 'MSHIP_MODEL_SELECTOR',
   },
   'mothership-memory-spaces': {
-    description: 'Create and select private knowledge graphs for new Mothership chats.',
+    description: 'Enable private Graphiti memory and its graph-management settings in Mothership.',
     fallback: null,
   },
   'mothership-plan-mode': {
