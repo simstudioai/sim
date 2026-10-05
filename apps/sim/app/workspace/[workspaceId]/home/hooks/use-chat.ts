@@ -3681,6 +3681,12 @@ export function useChat(
             ? {}
             : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
+        // Sent only when picked; otherwise the server uses the chat's stored pick or the default.
+        const effortChoice = requestChatId
+          ? queryClient.getQueryData<MothershipChatHistory>(
+              mothershipChatKeys.detail(requestChatId)
+            )?.effort
+          : useMothershipEffortStore.getState().newChatEffort
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3707,10 +3713,11 @@ export function useChat(
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             ...(options?.requestMode !== 'assistant'
               ? {
-                  ...resolveMothershipModelSettings(
+                  modelSelection: resolveMothershipModelSettings(
                     useMothershipEffortStore.getState(),
                     modelSelectorEnabled
-                  ),
+                  ).modelSelection,
+                  ...(effortChoice ? { effort: effortChoice } : {}),
                 }
               : {}),
           }),
@@ -3727,6 +3734,13 @@ export function useChat(
           return consumedByTranscript
         }
         if (admittedChatId && !requestChatId) {
+          if (effortChoice) {
+            queryClient.setQueryData<MothershipChatHistory>(
+              mothershipChatKeys.detail(admittedChatId),
+              (current) => current && { ...current, effort: effortChoice }
+            )
+            useMothershipEffortStore.getState().setNewChatEffort(null)
+          }
           requestChatId = admittedChatId
           streamTargetChatId = admittedChatId
           adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })

@@ -813,7 +813,7 @@ describe('handleUnifiedChatPost', () => {
     ['high', 'high'],
     ['xhigh', 'xhigh'],
     ['max', 'xhigh'],
-    ['low', 'medium'],
+    ['low', 'low'],
     ['none', 'medium'],
   ])(
     'enforces the default model and effort range on submitted %s effort',
@@ -837,6 +837,39 @@ describe('handleUnifiedChatPost', () => {
           modelSelection: { model: 'gpt-6-astra', fastMode: false },
         })
       )
+    }
+  )
+
+  it.each([
+    { stored: null, sent: undefined, runs: 'medium' },
+    { stored: 'high', sent: undefined, runs: 'high' },
+    { stored: 'low', sent: undefined, runs: 'low' },
+    { stored: 'high', sent: 'low', runs: 'low' },
+  ] as const)(
+    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent',
+    async ({ stored, sent, runs }) => {
+      flags.models.mockResolvedValue(false)
+      resolveOrCreateChat.mockResolvedValue({
+        chatId: 'chat-1',
+        chat: { id: 'chat-1', effort: stored },
+        isNew: false,
+      })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Continue',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+            ...(sent ? { effort: sent } : {}),
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({ effort: runs })
+      )
+      expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent)
     }
   )
 

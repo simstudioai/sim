@@ -29,6 +29,7 @@ import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from 
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
 import { ChatPayloadSchema, ModelSelectionSchema } from '@/lib/mothership/generated/protocol'
+import { DEFAULT_MOTHERSHIP_EFFORT } from '@/lib/mothership/model-options'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   areModelSafeWorkspaceFileKeys,
@@ -971,7 +972,7 @@ export class MothershipBlockHandler implements BlockHandler {
       model: inputs.model ?? 'gpt-6-astra',
       fastMode: inputs.model === 'claude-opus-5' ? false : (inputs.fastMode ?? false),
     })
-    const effort = ChatPayloadSchema.shape.effort.parse(inputs.effort ?? 'high')
+    const effort = ChatPayloadSchema.shape.effort.parse(inputs.effort ?? DEFAULT_MOTHERSHIP_EFFORT)
     const body: Record<string, unknown> = {
       messages,
       useConversationHistory: true,

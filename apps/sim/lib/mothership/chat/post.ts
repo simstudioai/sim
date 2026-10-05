@@ -983,12 +983,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
+    // Admission records a send's own effort as the chat's explicit choice.
+    const effortChoice = body.mode === 'assistant' ? undefined : body.effort
+    let modelSelectorEnabled = false
     if (body.mode !== 'assistant') {
-      const [modelSelectorEnabled, planEnabled] = await Promise.all([
+      const [selectorEnabled, planEnabled] = await Promise.all([
         isMothershipModelSelectorEnabled(),
         body.mode === 'plan' ? isPlanModeEnabled() : false,
       ])
-      Object.assign(body, resolveMothershipModelSettings(body, modelSelectorEnabled))
+      modelSelectorEnabled = selectorEnabled
       if (body.mode === 'plan' && !planEnabled)
         return createBadRequestResponse('Plan mode is disabled')
     }
@@ -1178,6 +1181,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
       }
+      if (body.mode !== 'assistant')
+        Object.assign(
+          body,
+          resolveMothershipModelSettings(
+            {
+              effort: effortChoice ?? currentChat?.effort ?? undefined,
+              modelSelection: body.modelSelection,
+            },
+            modelSelectorEnabled
+          )
+        )
 
       let pendingStreamWaitMs = 0
       if (actualChatId) {
@@ -1466,6 +1480,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               requestMode: body.mode,
             },
             notifyWorkspaceStatus: branch.notifyChatStatus,
+            effortChoice,
           },
         })
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
