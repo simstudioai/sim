@@ -18,13 +18,20 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     }
   }
 
+  /** Applies `toJSON` the way `JSON.stringify` does before a value is written. */
+  const resolve = (raw: unknown, key: string): unknown => {
+    const toJSON =
+      (typeof raw === 'object' && raw !== null) || typeof raw === 'bigint'
+        ? (raw as { toJSON?: unknown }).toJSON
+        : undefined
+    return typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
+  }
+
+  const isOmitted = (item: unknown): boolean =>
+    item === undefined || typeof item === 'function' || typeof item === 'symbol'
+
   const visit = (item: unknown): void => {
-    if (
-      item === undefined ||
-      item === null ||
-      typeof item === 'function' ||
-      typeof item === 'symbol'
-    ) {
+    if (item === null || isOmitted(item)) {
       add(4)
       return
     }
@@ -40,32 +47,33 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
       add(Buffer.byteLength(JSON.stringify(item) ?? 'null', 'utf8'))
       return
     }
-    if (ancestors.has(item)) {
+    if (typeof item !== 'object' || ancestors.has(item)) {
       return
     }
     ancestors.add(item)
 
+    add(2)
     if (Array.isArray(item)) {
-      add(2)
-      item.forEach((entry, index) => {
+      for (let index = 0; index < item.length; index++) {
         if (index > 0) add(1)
-        visit(entry)
-      })
+        visit(resolve(item[index], String(index)))
+      }
     } else {
-      const entries = Object.entries(item)
-      add(2)
-      entries.forEach(([key, entry], index) => {
-        if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') return
-        if (index > 0) add(1)
+      let written = 0
+      for (const [key, raw] of Object.entries(item)) {
+        const entry = resolve(raw, key)
+        if (isOmitted(entry)) continue
+        if (written > 0) add(1)
+        written++
         add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
         visit(entry)
-      })
+      }
     }
     ancestors.delete(item)
   }
 
   try {
-    visit(value)
+    visit(resolve(value, ''))
     return bytes
   } catch (error) {
     if (getErrorMessage(error) === 'json_size_limit_reached') {

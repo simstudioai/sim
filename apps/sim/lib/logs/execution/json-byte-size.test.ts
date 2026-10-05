@@ -23,6 +23,15 @@ describe('getJsonByteSize', () => {
     expect(getJsonByteSize(payload, 5000)).toBe(5001)
   })
 
+  it.each([
+    ['Dates through toJSON', { at: new Date(0), nested: [{ at: new Date(1) }] }],
+    ['a toJSON that omits its member', { gone: { toJSON: () => undefined }, kept: 1 }],
+    ['holes in a sparse array', { list: [1, undefined, 3, undefined, undefined] }],
+    ['an omitted member before the first written one', { skipped: undefined, kept: 1 }],
+  ])('matches JSON.stringify for %s', (_name, payload) => {
+    expect(getJsonByteSize(payload, LIMIT)).toBe(jsonBytes(payload))
+  })
+
   it('terminates on a cycle', () => {
     const node: Record<string, unknown> = { a: 1 }
     node.self = node
