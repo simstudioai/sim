@@ -14,6 +14,12 @@ import {
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbTransaction } from '@/lib/db/types'
+import {
+  FILES_PER_QUERY,
+  KEEP_SUPERSEDED,
+  releaseExpiredFileVersions,
+  selectExpiredFileVersions,
+} from '@/lib/file-retention/versions'
 import { deduplicateFolderNameInScope } from '@/lib/folders/naming'
 import { lockProject } from '@/lib/projects/membership'
 import { workspaceFileNameFolderCondition } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -26,8 +32,6 @@ import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 const cleanupDb = dbFor('cleanup')
-const KEEP_SUPERSEDED = 9
-const FILES_PER_QUERY = 500
 
 type FileRetentionJob = 'cleanup-file-versions' | 'cleanup-soft-deletes'
 
@@ -112,58 +116,18 @@ export async function cleanupProjectFileVersions(
         )
         .orderBy(asc(workspaceFiles.id))
         .for('update')
-      const ranked = tx
-        .select({
-          id: workspaceFileVersion.id,
-          supersededAt: workspaceFileVersion.supersededAt,
-          rank: sql<number>`row_number() over (partition by ${workspaceFileVersion.fileId} order by ${workspaceFileVersion.version} desc)`.as(
-            'rank'
-          ),
-        })
-        .from(workspaceFileVersion)
-        .where(
-          and(
-            inArray(
-              workspaceFileVersion.fileId,
-              candidates.map((row) => row.id)
-            ),
-            isNotNull(workspaceFileVersion.supersededAt)
-          )
-        )
-        .as('ranked')
       const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, limit - released)
-      const expired = await tx
-        .select({ id: ranked.id })
-        .from(ranked)
-        .where(
-          and(
-            gt(ranked.rank, KEEP_SUPERSEDED),
-            or(lt(ranked.supersededAt, policy.cutoff), gt(ranked.rank, maximum))
-          )
-        )
-        .limit(versionLimit)
-      const removed = expired.length
-        ? await tx
-            .delete(workspaceFileVersion)
-            .where(
-              and(
-                inArray(
-                  workspaceFileVersion.id,
-                  expired.map((row) => row.id)
-                ),
-                isNotNull(workspaceFileVersion.supersededAt)
-              )
-            )
-            .returning({ key: workspaceFileVersion.key })
-        : []
-      await enqueueWorkspaceFileStorageCleanups(
+      const expired = await selectExpiredFileVersions(
         tx,
-        removed.map((row) => row.key),
-        'project'
+        candidates.map(({ id }) => id),
+        policy.cutoff,
+        maximum,
+        versionLimit
       )
+      const removed = await releaseExpiredFileVersions(tx, expired, 'project')
       return {
-        lastId: removed.length === versionLimit ? afterId : candidates[candidates.length - 1].id,
-        removed: removed.length,
+        lastId: removed === versionLimit ? afterId : candidates[candidates.length - 1].id,
+        removed,
       }
     })
     if (!batch) break

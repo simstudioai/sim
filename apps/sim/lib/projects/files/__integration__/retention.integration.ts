@@ -30,7 +30,9 @@ vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
+import { beginFileArchiveCleanup, cleanupFileVersions } from '@/lib/file-retention'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
+import type { FileOwner } from '@/lib/workspace-files/ownership'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 
@@ -217,6 +219,95 @@ async function cleanupEvents(projectId: string) {
 }
 
 describe('Project file retention follows the current payer in PostgreSQL', () => {
+  check(
+    'unsupported file owners reject the whole batch before any history or archive deletion',
+    async () => {
+      const f = await fixture()
+      const expired = await seedFile(f, 40 * 24, true)
+      const owners: FileOwner[] = [
+        { entityType: 'project', entityId: f.projectId },
+        { entityType: 'user', entityId: f.ownerId },
+      ]
+      const options = { plan: 'free' as const, cutoff: new Date(), label: 'invalid-owner-batch' }
+      await expect(cleanupFileVersions(owners, options, 10)).rejects.toThrow(
+        'File owner is unavailable'
+      )
+      await expect(beginFileArchiveCleanup(owners, options)).rejects.toThrow(
+        'File owner is unavailable'
+      )
+      expect(await versions(expired.fileId)).toHaveLength(12)
+      expect(
+        await db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.id, expired.fileId))
+      ).toEqual([{ id: expired.fileId }])
+      expect(await cleanupEvents(f.projectId)).toEqual([])
+      const [usage] = await db
+        .select({ bytes: userStats.storageUsedBytes })
+        .from(userStats)
+        .where(eq(userStats.userId, f.ownerId))
+      expect(usage.bytes).toBe(15)
+    }
+  )
+
+  check(
+    'a mixed queued batch retains each owner policy and leaves unselected workspace history alone',
+    async () => {
+      const f = await fixture('pro')
+      const other = await fixture()
+      const projectFile = await seedFile(f, 60 * 24)
+      const workspaceFile = await seedFile(f, 60 * 24, false, 'workspace')
+      const unrelated = await seedFile(other, 60 * 24, false, 'workspace')
+      await runCleanupFileVersions({
+        ...payload(f.projectId),
+        projectIds: [f.projectId, f.projectId],
+        workspaceIds: [f.workspaceId, f.workspaceId],
+      })
+      expect(await versions(projectFile.fileId)).toHaveLength(12)
+      expect(await versions(workspaceFile.fileId)).toHaveLength(10)
+      expect(await versions(unrelated.fileId)).toHaveLength(12)
+      expect(await cleanupEvents(f.projectId)).toEqual([])
+      const events = await db
+        .select({ payload: outboxEvent.payload })
+        .from(outboxEvent)
+        .where(
+          and(
+            eq(outboxEvent.eventType, 'workspace-file.storage.cleanup'),
+            sql`${outboxEvent.payload}->>'key' LIKE ${`workspace/${f.workspaceId}/%`}`
+          )
+        )
+      expect(events.map(({ payload }) => payload)).toEqual(
+        expect.arrayContaining(workspaceFile.keys.slice(0, 2).map((key) => ({ key })))
+      )
+      expect(events).toHaveLength(2)
+    }
+  )
+
+  check(
+    'one version-deletion budget bounds a mixed owner batch without changing either current head',
+    async () => {
+      const f = await fixture()
+      const projectFile = await seedFile(f, 60 * 24)
+      const workspaceFile = await seedFile(f, 60 * 24, false, 'workspace')
+      const deleted = await cleanupFileVersions(
+        [
+          { entityType: 'project', entityId: f.projectId },
+          { entityType: 'workspace', entityId: f.workspaceId },
+        ],
+        { plan: 'free', cutoff: new Date(), label: 'bounded-owner-batch' },
+        3
+      )
+      expect(deleted).toBe(3)
+      expect(await versions(projectFile.fileId)).toEqual(
+        Array.from({ length: 10 }, (_, index) => ({ version: index + 3 }))
+      )
+      const remaining = await versions(workspaceFile.fileId)
+      expect(remaining).toHaveLength(11)
+      expect(remaining.at(-1)).toEqual({ version: 12 })
+    }
+  )
+
   check(
     'scheduled discovery includes shared Projects with their payer policy independently of environment chunks',
     async () => {
