@@ -32,6 +32,12 @@ function setFilteredValue(output: Record<string, unknown>, key: string, value: u
 /**
  * Recursively filters hidden keys from nested objects for cleaner display.
  * Used by both executor (for log output) and UI (for display).
+ *
+ * Copy-on-write: a plain object or array whose subtree needs no change is
+ * returned as-is, so a block log shares structure with the block's compacted
+ * state output instead of holding a second copy for the rest of the run. A
+ * copy starts only at the first changed child; non-plain prototypes (Date,
+ * class instances, null-prototype objects) are always rebuilt.
  */
 export function filterHiddenOutputKeys(value: unknown): unknown {
   if (value === null || value === undefined) {
@@ -39,18 +45,39 @@ export function filterHiddenOutputKeys(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => filterHiddenOutputKeys(item))
+    if (Object.getPrototypeOf(value) !== Array.prototype) {
+      return value.map((item) => filterHiddenOutputKeys(item))
+    }
+    let mapped: unknown[] | undefined
+    for (let index = 0; index < value.length; index++) {
+      if (!(index in value)) continue
+      const item = value[index]
+      const filteredItem = filterHiddenOutputKeys(item)
+      if (!mapped && filteredItem !== item) mapped = value.slice(0, index)
+      if (mapped) mapped[index] = filteredItem
+    }
+    if (!mapped) return value
+    mapped.length = value.length
+    return mapped
   }
 
   if (typeof value === 'object') {
-    const filtered: Record<string, unknown> = {}
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      if (HIDDEN_OUTPUT_KEYS.has(key)) {
-        continue
+    const entries = Object.entries(value as Record<string, unknown>)
+    let filtered: Record<string, unknown> | undefined =
+      Object.getPrototypeOf(value) === Object.prototype ? undefined : {}
+    for (let index = 0; index < entries.length; index++) {
+      const [key, val] = entries[index]
+      const hidden = HIDDEN_OUTPUT_KEYS.has(key)
+      const filteredVal = hidden ? undefined : filterHiddenOutputKeys(val)
+      if (!filtered && (hidden || filteredVal !== val)) {
+        filtered = {}
+        for (const [previousKey, previousVal] of entries.slice(0, index)) {
+          setFilteredValue(filtered, previousKey, previousVal)
+        }
       }
-      setFilteredValue(filtered, key, filterHiddenOutputKeys(val))
+      if (filtered && !hidden) setFilteredValue(filtered, key, filteredVal)
     }
-    return filtered
+    return filtered ?? value
   }
 
   return value
