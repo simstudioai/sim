@@ -44,24 +44,26 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
   ) => {
     const data = await response.json()
 
+    const emptyOutput = {
+      id: '',
+      name: null,
+      account_tag: null,
+      config_src: null,
+      status: null,
+      tun_type: null,
+      remote_config: null,
+      metadata: null,
+      created_at: null,
+      deleted_at: null,
+      conns_active_at: null,
+      conns_inactive_at: null,
+      connections: null,
+    }
+
     if (!data.success) {
       return {
         success: false,
-        output: {
-          id: '',
-          name: null,
-          account_tag: null,
-          config_src: null,
-          status: null,
-          tun_type: null,
-          remote_config: null,
-          metadata: null,
-          created_at: null,
-          deleted_at: null,
-          conns_active_at: null,
-          conns_inactive_at: null,
-          connections: null,
-        },
+        output: emptyOutput,
         error: cloudflareErrorMessage(data, 'Failed to get tunnel'),
       }
     }
@@ -77,13 +79,25 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
           signal: context?.signal,
         })
         const connectionsData = await connectionsRes.json()
-        if (connectionsData?.success && Array.isArray(connectionsData.result)) {
-          connections = connectionsData.result.flatMap(
-            (connector: { conns?: unknown[] }) => connector.conns ?? []
-          )
+        if (!connectionsRes.ok || !connectionsData?.success) {
+          return {
+            success: false,
+            output: emptyOutput,
+            error: cloudflareErrorMessage(connectionsData, 'Failed to get tunnel connections'),
+          }
         }
-      } catch {
-        connections = null
+        connections = Array.isArray(connectionsData.result)
+          ? connectionsData.result.flatMap(
+              (connector: { conns?: unknown[] }) => connector.conns ?? []
+            )
+          : []
+      } catch (error) {
+        if (context?.signal?.aborted || (error as Error)?.name === 'AbortError') throw error
+        return {
+          success: false,
+          output: emptyOutput,
+          error: 'Failed to get tunnel connections',
+        }
       }
     }
 
