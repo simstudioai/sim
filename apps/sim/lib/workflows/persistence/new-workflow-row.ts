@@ -1,6 +1,6 @@
 import { type workflow, workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 
 interface NewWorkflowRowInput {
@@ -40,7 +40,7 @@ export async function readForkSyncNewWorkflowsExcluded(
  * column default. A fork or promote copy is not new and is written by
  * `copyWorkflowStateIntoTarget` instead.
  */
-export async function buildNewWorkflowRow(executor: DbOrTx, input: NewWorkflowRowInput) {
+export async function buildNewWorkflowRow(executor: DbTransaction, input: NewWorkflowRowInput) {
   const workspace = await lockActiveWorkspace(executor, input.workspaceId)
   const now = input.now ?? new Date()
   return {

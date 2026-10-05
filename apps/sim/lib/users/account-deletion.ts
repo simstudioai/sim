@@ -25,7 +25,10 @@ import type {
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
+import {
+  getProjectAccountDeletionBlockers,
+  prepareProjectsForAccountDeletion,
+} from '@/lib/projects/account-deletion'
 import { appendTableEvent, type TableEvent } from '@/lib/table/events'
 import {
   type CancelledCellMarker,
@@ -323,7 +326,7 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
         .limit(1),
     ])
 
-  return classifyAccountDeletion({
+  const plan = classifyAccountDeletion({
     workspaces,
     company: await loadWorkspaceCompany(userId, workspaces),
     organizationNames,
@@ -333,6 +336,14 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
     personalPlan: personalSubscription?.plan ?? null,
     hasDataDrains: drains.length > 0,
   })
+  const projectBlockers = await getProjectAccountDeletionBlockers(
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  plan.blockers.push(
+    ...projectBlockers.map((message) => ({ code: 'project_lifecycle' as const, message }))
+  )
+  return plan
 }
 
 interface StorageKeyRow {

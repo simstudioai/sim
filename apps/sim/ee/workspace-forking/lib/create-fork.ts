@@ -233,6 +233,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       )
     }
     const parentProject = await requireForkProject(tx, source.id)
+    await setForkLockTimeout(tx)
     if (admission) {
       await lockForkRevision(tx, { sourceWorkspaceId: source.id })
       await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)

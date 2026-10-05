@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { listProjectsContract } from '@/lib/api/contracts/projects'
 
@@ -20,6 +21,8 @@ export function useProjects(organizationId: string) {
       }),
     getNextPageParam: (page) => page.nextCursor,
     staleTime: PROJECT_LIST_STALE_TIME,
+    retry: (failureCount, error) =>
+      !(isApiClientError(error) && error.status === 503) && failureCount < 3,
     enabled: Boolean(organizationId),
   })
 }

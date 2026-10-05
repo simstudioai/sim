@@ -42,10 +42,13 @@ import {
 import { archiveProjectInTransaction } from '@/lib/projects/lifecycle'
 import {
   createProjectForWorkspace,
+  lockProject,
   lockWorkspaceProject,
+  splitForkProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
-import { restoreWorkflow } from '@/lib/workflows/lifecycle'
+import { getAccountDeletionPlan } from '@/lib/users/account-deletion'
+import { disableUserResources, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -1080,6 +1083,148 @@ describe('Project foundation at the database and application boundary', () => {
       await expect(
         db.transaction((tx) => transferWorkspaceProjects(tx, [f.ids[0]], generateId()))
       ).rejects.toMatchObject({ code: 'conflict' })
+    }
+  )
+
+  check(
+    'account deletion preview reports a surviving Project losing its last active environment',
+    async () => {
+      const f = await fixture(false)
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.entityId, f.ids[0]), eq(permissions.userId, f.teammateId)))
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.entityId, f.ids[1]), eq(permissions.userId, f.ownerId)))
+      await db.insert(permissions).values({
+        id: generateId(),
+        entityId: f.ids[1],
+        entityType: 'workspace',
+        userId: f.teammateId,
+        permissionType: 'admin',
+      })
+      await db
+        .update(workspace)
+        .set({ archivedAt: new Date(), ownerId: f.teammateId, billedAccountUserId: f.teammateId })
+        .where(eq(workspace.id, f.ids[1]))
+      const plan = await getAccountDeletionPlan(f.ownerId)
+      expect(plan.workspacesToDelete.map((row) => row.id)).toEqual([f.ids[0]])
+      expect(plan.blockers).toEqual([
+        { code: 'project_lifecycle', message: expect.stringContaining('Archive') },
+      ])
+      await expect(
+        db.transaction((tx) => prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[0]]))
+      ).rejects.toMatchObject({ code: 'conflict' })
+      await db.transaction((tx) => archiveProjectInTransaction(tx, f.projectId))
+      expect((await getAccountDeletionPlan(f.ownerId)).blockers).toEqual([])
+    }
+  )
+
+  check(
+    'account teardown can choose an organization admin without per-environment grants',
+    async () => {
+      const f = await fixture()
+      if (!f.organizationId) throw new Error('Missing organization fixture')
+      await db.insert(member).values({
+        id: generateId(),
+        organizationId: f.organizationId,
+        userId: f.teammateId,
+        role: 'admin',
+        createdAt: new Date(),
+      })
+      await db.transaction((tx) => prepareProjectsForAccountDeletion(tx, f.ownerId, []))
+      const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+      expect(record.ownerId).toBe(f.teammateId)
+    }
+  )
+
+  check(
+    'account teardown re-reads Projects created by an unlink while waiting for the old Project',
+    async () => {
+      const f = await fixture(false)
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      let detachedProjectId: string | null = null
+      const unlink = db.transaction(async (tx) => {
+        await lockProject(tx, f.projectId)
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+        detachedProjectId = await splitForkProject(tx, f.ids[1])
+        await tx
+          .update(workspace)
+          .set({ forkedFromWorkspaceId: null })
+          .where(eq(workspace.id, f.ids[1]))
+      })
+      const blocker = await held.promise
+      const deletion = db.transaction((tx) =>
+        prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
+      )
+      try {
+        let waiting = false
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const rows = await db.execute(
+            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
+          )
+          if (rows.length) {
+            waiting = true
+            break
+          }
+          await sleep(10)
+        }
+        expect(waiting).toBe(true)
+      } finally {
+        release.resolve()
+        await unlink
+      }
+      await deletion
+      if (!detachedProjectId) throw new Error('Unlink did not create a Project')
+      expect(await db.select().from(project).where(eq(project.id, detachedProjectId))).toEqual([])
+    }
+  )
+
+  check(
+    'banning a former owner cannot archive environments transferred while waiting for the Project',
+    async () => {
+      const f = await fixture(false)
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      const transfer = db.transaction(async (tx) => {
+        await lockProject(tx, f.projectId)
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+        await tx
+          .update(workspace)
+          .set({ ownerId: f.teammateId })
+          .where(inArray(workspace.id, f.ids))
+      })
+      const blocker = await held.promise
+      const ban = disableUserResources(f.ownerId)
+      try {
+        let waiting = false
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const rows = await db.execute(
+            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
+          )
+          if (rows.length) {
+            waiting = true
+            break
+          }
+          await sleep(10)
+        }
+        expect(waiting).toBe(true)
+      } finally {
+        release.resolve()
+        await transfer
+      }
+      await ban
+      const rows = await db.select().from(workspace).where(inArray(workspace.id, f.ids))
+      expect(rows.every((row) => row.archivedAt === null && row.ownerId === f.teammateId)).toBe(
+        true
+      )
+      const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+      expect(record.archivedAt).toBeNull()
     }
   )
 

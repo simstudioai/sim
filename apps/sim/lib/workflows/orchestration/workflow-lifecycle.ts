@@ -8,7 +8,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -182,7 +182,10 @@ async function isWorkflowFolderInWorkspace(
 }
 
 /** Inserts only the workflow row so compound creation can commit its graph and receipt together. */
-export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCreateWorkflowParams) {
+export async function createWorkflowInTransaction(
+  tx: DbTransaction,
+  params: PerformCreateWorkflowParams
+) {
   const folderId = params.folderId ?? null
   if (!(await isWorkflowFolderInWorkspace(folderId, params.workspaceId, tx))) {
     throw new OrchestrationError('not_found', 'Target folder not found')

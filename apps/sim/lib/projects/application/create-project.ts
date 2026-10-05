@@ -88,6 +88,14 @@ export const createProject: OperationUseCase<
         getPostgresConstraintName(error) === 'workspace_owner_id_user_id_fk'
       )
         throw new OrchestrationError('unauthorized', 'Unauthorized')
+      if (
+        getPostgresErrorCode(error) === '23503' &&
+        getPostgresConstraintName(error) === 'workspace_billed_account_user_id_user_id_fk'
+      )
+        throw new OrchestrationError(
+          'conflict',
+          'The billing account changed; retry Project creation'
+        )
       throw error
     }
     const environment = created.workspace

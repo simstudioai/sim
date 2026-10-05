@@ -350,16 +350,18 @@ async function importSingleWorkflow(
     const workflowId = generateId()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
-    await db.insert(workflow).values(
-      await buildNewWorkflowRow(db, {
-        id: workflowId,
-        userId: ownerId,
-        workspaceId,
-        folderId: targetFolderId,
-        name: dedupedName,
-        description: workflowData.metadata?.description || 'Imported via Admin API',
-      })
-    )
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values(
+        await buildNewWorkflowRow(tx, {
+          id: workflowId,
+          userId: ownerId,
+          workspaceId,
+          folderId: targetFolderId,
+          name: dedupedName,
+          description: workflowData.metadata?.description || 'Imported via Admin API',
+        })
+      )
+    })
 
     /**
      * Same normalization the editor, the v1 import API and the single-workflow
