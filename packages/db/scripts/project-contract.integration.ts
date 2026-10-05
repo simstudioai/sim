@@ -73,6 +73,49 @@ async function seed(sql: Sql) {
 const constraintFailure = (error: unknown) => getPostgresErrorCode(error) === '23514'
 
 describe('Project expand/backfill/contract against PostgreSQL', () => {
+  it('validates a bulk archive once per final Project row version', async () => {
+    await database(async (sql) => {
+      await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Root', 'owner')`
+      await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id)
+        SELECT 'child-' || n, 'Child', 'owner', 'root' FROM generate_series(1, 200) n`
+      await enforce(sql)
+      await sql.unsafe(`
+        CREATE SEQUENCE project_validation_count;
+        ALTER FUNCTION project_contract_assert_project(text) RENAME TO measured_project_assert;
+        CREATE FUNCTION project_contract_assert_project(target_id text) RETURNS void LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM nextval('project_validation_count');
+          PERFORM measured_project_assert(target_id);
+        END $$;
+      `)
+      await sql.begin(async (tx) => {
+        await tx`UPDATE workspace SET archived_at = now()`
+        await tx`UPDATE project SET archived_at = now()`
+      })
+      const [calls] = await sql`SELECT last_value::int AS count FROM project_validation_count`
+      expect(calls.count).toBe(1)
+      const [state] =
+        await sql`SELECT count(*)::int AS count FROM workspace WHERE archived_at IS NOT NULL`
+      expect(state.count).toBe(201)
+    })
+  })
+
+  it('revalidates each mutation after constraints switch to immediate mode', async () => {
+    await database(async (sql) => {
+      await seed(sql)
+      await expect(
+        sql.begin(async (tx) => {
+          await tx`UPDATE workspace SET archived_at = now() WHERE id = 'root'`
+          await tx`SET CONSTRAINTS ALL IMMEDIATE`
+          await tx`UPDATE workspace SET archived_at = now() WHERE id = 'child'`
+        })
+      ).rejects.toSatisfy(constraintFailure)
+      const [active] =
+        await sql`SELECT count(*)::int AS count FROM workspace WHERE archived_at IS NULL`
+      expect(active.count).toBe(2)
+    })
+  })
+
   it('requires rollout evidence only for an existing database with enforcement pending', async () => {
     await database(async (sql, url) => {
       const run = () =>

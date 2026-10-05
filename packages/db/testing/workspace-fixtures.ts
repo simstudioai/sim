@@ -18,7 +18,17 @@ export async function insertWorkspaceFixture(
       .insert(workspace)
       .values(Array.isArray(values) ? values : [values])
       .returning()
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const children = new Map<string, typeof rows>()
+    const ordered: typeof rows = []
     for (const row of rows) {
+      if (row.forkedFromWorkspaceId && byId.has(row.forkedFromWorkspaceId)) {
+        const siblings = children.get(row.forkedFromWorkspaceId) ?? []
+        siblings.push(row)
+        children.set(row.forkedFromWorkspaceId, siblings)
+      } else ordered.push(row)
+    }
+    for (const row of ordered) {
       const [parent] = row.forkedFromWorkspaceId
         ? await tx
             .select()
@@ -35,7 +45,9 @@ export async function insertWorkspaceFixture(
           archivedAt: row.archivedAt,
         })
       await tx.insert(projectWorkspace).values({ projectId, workspaceId: row.id })
+      ordered.push(...(children.get(row.id) ?? []))
     }
+    if (ordered.length !== rows.length) throw new Error('Workspace fixture contains a fork cycle')
     return rows
   })
 }
@@ -45,6 +57,7 @@ export async function deleteWorkspaceFixture(
   database: FixtureDatabase | FixtureTransaction,
   condition: SQL | undefined
 ) {
+  if (!condition) throw new Error('Workspace fixture deletion requires a predicate')
   await database.transaction(async (tx) => {
     const rows = await tx
       .select({ projectId: projectWorkspace.projectId })

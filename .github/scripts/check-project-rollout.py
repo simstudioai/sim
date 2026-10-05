@@ -6,6 +6,7 @@ compatible writers are deployed and relevant old worker jobs are drained.
 AWS checks below independently verify ECS retirement, not worker drainage.
 """
 import argparse
+import datetime
 import json
 import re
 import subprocess
@@ -22,14 +23,31 @@ def aws(region, *args):
     return json.loads(result.stdout)
 
 
+def latest_execution(region, pipeline):
+    executions = aws(region, 'codepipeline', 'list-pipeline-executions', '--pipeline-name', pipeline).get('pipelineExecutionSummaries', [])
+    def epoch(execution):
+        value = execution['startTime']
+        return value if isinstance(value, (int, float)) else datetime.datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+    if not executions:
+        raise RuntimeError('No application deployment execution was found')
+    return max(executions, key=epoch)
+
+
+def matches_release(execution, digest):
+    return execution.get('status') == 'Succeeded' and any(
+        revision.get('actionName') == 'ECR_Source' and revision.get('revisionId') == digest
+        for revision in execution.get('sourceRevisions', [])
+    )
+
+
 def verify(environment, region, digest):
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
         raise RuntimeError('Set the environment-specific PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST after reviewing compatible rollout and worker-drain evidence')
     pipeline = f'sim-{environment}-{region}-app-deployment'
-    executions = aws(region, 'codepipeline', 'list-pipeline-executions', '--pipeline-name', pipeline).get('pipelineExecutionSummaries', [])
-    if not executions or executions[0].get('status') != 'Succeeded':
-        raise RuntimeError('The latest app pipeline has not completed; traffic cutover alone is insufficient')
-    execution_id = executions[0]['pipelineExecutionId']
+    execution = latest_execution(region, pipeline)
+    if not matches_release(execution, digest):
+        raise RuntimeError('The latest app pipeline has not completed for the acknowledged image; traffic cutover alone is insufficient')
+    execution_id = execution['pipelineExecutionId']
     group = aws(region, 'deploy', 'get-deployment-group', '--application-name', f'sim-{environment}-{region}-ecs-app',
                 '--deployment-group-name', f'sim-{environment}-{region}-app-dg')['deploymentGroupInfo']
     services = group.get('ecsServices', [])
@@ -61,8 +79,8 @@ def verify(environment, region, digest):
         app = [container for container in task.get('containers', []) if container.get('name') == 'app']
         if task.get('lastStatus') != 'RUNNING' or task.get('desiredStatus') != 'RUNNING' or len(app) != 1 or app[0].get('imageDigest') != digest:
             raise RuntimeError('A live ECS task does not match the acknowledged compatible release')
-    latest = aws(region, 'codepipeline', 'list-pipeline-executions', '--pipeline-name', pipeline).get('pipelineExecutionSummaries', [])
-    if not latest or latest[0].get('pipelineExecutionId') != execution_id or latest[0].get('status') != 'Succeeded':
+    latest = latest_execution(region, pipeline)
+    if latest.get('pipelineExecutionId') != execution_id or not matches_release(latest, digest):
         raise RuntimeError('Application deployment changed during preflight')
     print(json.dumps({'ecsRetired': True, 'expectedImageDigest': digest, 'pipelineExecutionId': execution_id,
                       'operatorAcknowledgedCompatibleWritersAndWorkers': True}))

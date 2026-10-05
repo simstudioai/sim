@@ -240,7 +240,6 @@ BEGIN
     RAISE EXCEPTION 'Connected fork environments must belong to the same Project'
       USING ERRCODE = '23514', CONSTRAINT = 'workspace_fork_project';
   END IF;
-  PERFORM project_contract_assert_project(member_project_id);
 END;
 $$;
 --> statement-breakpoint
@@ -251,8 +250,6 @@ DECLARE
 BEGIN
   FOR target_id IN SELECT DISTINCT id FROM unnest(target_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
     PERFORM pg_advisory_xact_lock(hashtextextended('project:' || target_id, 0));
-    -- Touch the row so repeatable-read transactions serialize rather than accepting a stale environment count.
-    UPDATE project SET updated_at = updated_at WHERE id = target_id;
   END LOOP;
 END;
 $$;
@@ -292,23 +289,43 @@ $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_contract_after_write() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+  previous_id text;
+  next_id text;
+  target_ids text[];
+  workspace_ids text[];
+  target_id text;
 BEGIN
   IF TG_TABLE_NAME = 'project' THEN
-    IF TG_OP <> 'INSERT' THEN PERFORM project_contract_assert_project(OLD.id); END IF;
-    IF TG_OP <> 'DELETE' THEN PERFORM project_contract_assert_project(NEW.id); END IF;
-  ELSIF TG_TABLE_NAME = 'project_workspace' THEN
-    IF TG_OP <> 'INSERT' THEN
-      PERFORM project_contract_assert_project(OLD.project_id);
-      PERFORM project_contract_assert_workspace(OLD.workspace_id);
+    -- Only the final row version needs a full scan; earlier deferred events describe superseded states.
+    IF TG_OP <> 'DELETE' AND EXISTS (SELECT 1 FROM project WHERE id = NEW.id AND ctid = NEW.ctid) THEN
+      PERFORM project_contract_assert_project(NEW.id);
     END IF;
-    IF TG_OP <> 'DELETE' THEN
-      PERFORM project_contract_assert_project(NEW.project_id);
-      PERFORM project_contract_assert_workspace(NEW.workspace_id);
-    END IF;
-  ELSE
-    IF TG_OP <> 'INSERT' THEN PERFORM project_contract_assert_workspace(OLD.id); END IF;
-    IF TG_OP <> 'DELETE' THEN PERFORM project_contract_assert_workspace(NEW.id); END IF;
+    RETURN NULL;
   END IF;
+  IF TG_TABLE_NAME = 'project_workspace' THEN
+    IF TG_OP <> 'INSERT' THEN previous_id := OLD.project_id; END IF;
+    IF TG_OP <> 'DELETE' THEN next_id := NEW.project_id; END IF;
+    target_ids := ARRAY[previous_id, next_id];
+    previous_id := NULL;
+    next_id := NULL;
+    IF TG_OP <> 'INSERT' THEN previous_id := OLD.workspace_id; END IF;
+    IF TG_OP <> 'DELETE' THEN next_id := NEW.workspace_id; END IF;
+    workspace_ids := ARRAY[previous_id, next_id];
+  ELSE
+    IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
+    IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
+    workspace_ids := ARRAY[previous_id, next_id];
+    SELECT array_agg(project_id) INTO target_ids FROM project_workspace
+      WHERE workspace_id = ANY(workspace_ids);
+  END IF;
+  FOR target_id IN SELECT DISTINCT id FROM unnest(target_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
+    -- Touch after the mutation: immediate constraints must see it too, and repeatable-read must detect stale snapshots.
+    UPDATE project SET updated_at = updated_at WHERE id = target_id;
+  END LOOP;
+  FOR target_id IN SELECT DISTINCT id FROM unnest(workspace_ids) AS ids(id) WHERE id IS NOT NULL ORDER BY id LOOP
+    PERFORM project_contract_assert_workspace(target_id);
+  END LOOP;
   RETURN NULL;
 END;
 $$;

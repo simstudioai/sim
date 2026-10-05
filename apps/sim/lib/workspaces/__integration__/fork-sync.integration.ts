@@ -1213,8 +1213,9 @@ describe('authorized fork and sync against PostgreSQL', () => {
     createdWorkspaceIds.push(sourceWorkspaceId, childWorkspaceId)
     await insertWorkspaceFixture(
       db,
-      [sourceWorkspaceId, childWorkspaceId].map((id) => ({
+      [childWorkspaceId, sourceWorkspaceId].map((id) => ({
         id,
+        forkedFromWorkspaceId: id === childWorkspaceId ? sourceWorkspaceId : null,
         name: 'Knowledge copy fixture',
         ownerId: userId,
         billedAccountUserId: userId,
