@@ -33,6 +33,10 @@
     "./table-presence": {
       "types": "./src/table-presence.ts",
       "default": "./src/table-presence.ts"
+    },
+    "./file-doc-target": {
+      "types": "./src/file-doc-target.ts",
+      "default": "./src/file-doc-target.ts"
     }
   },
   "scripts": {

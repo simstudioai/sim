@@ -58,9 +58,9 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
-  enqueueWorkspaceFileLiveDocReconciliation: mockEnqueueWorkspaceFileLiveDocReconciliation,
-  processWorkspaceFileLiveDocReconciliationNow: mockProcessWorkspaceFileLiveDocReconciliationNow,
+vi.mock('@/lib/uploads/server/live-doc-outbox', () => ({
+  enqueueFileLiveDocReconciliation: mockEnqueueWorkspaceFileLiveDocReconciliation,
+  processFileLiveDocReconciliationNow: mockProcessWorkspaceFileLiveDocReconciliationNow,
 }))
 
 vi.mock('@/lib/billing/storage', () => billingStorageMock)

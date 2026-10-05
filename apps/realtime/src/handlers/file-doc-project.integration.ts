@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server as HttpServer } from 'node:http'
 import { dirname, resolve } from 'node:path'
+import { createLogger } from '@sim/logger'
 import {
   FILE_DOC_EVENTS,
   FILE_DOC_SCHEMA_VERSION,
@@ -22,6 +23,7 @@ import {
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 import { MemoryRoomManager } from '@/rooms'
+import { createHttpHandler } from '@/routes/http'
 
 const projectId = generateId()
 const fileId = generateId()
@@ -98,6 +100,7 @@ beforeAll(async () => {
   http = createServer()
   io = new Server(http)
   const manager = new MemoryRoomManager(io)
+  http.on('request', createHttpHandler(manager, createLogger('OwnerProtocolFixture')))
   io.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket
     authed.userId = socket.handshake.auth.actor
@@ -109,7 +112,7 @@ beforeAll(async () => {
   socketUrl = await listen(http)
 })
 
-async function join(actor: string, assertedProject = projectId) {
+async function join(actor: string, assertedProject = projectId, owner?: unknown) {
   const socket = connect(socketUrl, { transports: ['websocket'], auth: { actor } })
   clients.push(socket)
   await new Promise<void>((resolve) => socket.once('connect', resolve))
@@ -122,7 +125,7 @@ async function join(actor: string, assertedProject = projectId) {
   client.destroy()
   socket.emit(FILE_DOC_EVENTS.JOIN, {
     fileId,
-    projectId: assertedProject,
+    ...(owner === undefined ? { projectId: assertedProject } : { owner }),
     clientId,
     schemaVersion: FILE_DOC_SCHEMA_VERSION,
   })
@@ -193,6 +196,44 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
     }
   )
 
+  check(
+    'owner-shaped clients share the existing room and preserve editor attribution',
+    async () => {
+      const owner = { entityType: 'project', entityId: projectId }
+      const writer = await join('writer', projectId, owner)
+      expect(writer.joined.docId).toBe(docId)
+      const edit = new Y.Doc()
+      Y.applyUpdate(edit, Buffer.from(seed, 'base64'))
+      edit.getText('body').insert(0, 'owner-shaped edit')
+      const reply = await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+        fileId,
+        owner,
+        docId,
+        updateId: generateId(),
+        update: Y.encodeStateAsUpdate(edit),
+      })
+      expect(reply).toMatchObject({ status: 'accepted' })
+      await flushAllFileDocRooms()
+      expect(capturedActors.at(-1)).toBe('writer')
+      edit.destroy()
+      await expect(join('reader', projectId, { ...owner, entityId: generateId() })).rejects.toThrow(
+        'NOT_FOUND'
+      )
+      await expect(
+        join('reader', projectId, { entityType: 'organization', entityId: projectId })
+      ).rejects.toThrow('INVALID_PAYLOAD')
+      const mismatched = await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+        fileId,
+        owner,
+        projectId: generateId(),
+        docId,
+        updateId: generateId(),
+        update: Y.encodeStateAsUpdate(document),
+      })
+      expect(mismatched).toMatchObject({ status: 'rejected', code: 'INVALID_UPDATE' })
+    }
+  )
+
   check('a downgraded writer remains a reader but cannot submit another update', async () => {
     const writer = await join('writer')
     actors.set('writer', 'read')
@@ -234,6 +275,52 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       expect(old.joined.docId).not.toBe(docId)
       const restored = await join('reader')
       expect(restored.joined.docId).toBe(docId)
+    }
+  )
+
+  check(
+    'HTTP owner targeting fences the same generation and refuses unsupported or conflicting owners',
+    async () => {
+      const owner = { entityType: 'project', entityId: projectId }
+      async function post(action: string, body: object) {
+        return fetch(`${socketUrl}/api/file-doc/${action}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+          body: JSON.stringify(body),
+        })
+      }
+      for (const action of ['apply-edit', 'invalidate', 'retire']) {
+        const body = {
+          fileId,
+          owner,
+          markdown: '',
+          version: 100,
+          retiredDocId: docId,
+          replacementDocId: generateId(),
+        }
+        expect((await post(action, { ...body, projectId: generateId() })).status).toBe(400)
+        expect(
+          (
+            await post(action, {
+              ...body,
+              owner: { entityType: 'organization', entityId: projectId },
+            })
+          ).status
+        ).toBe(400)
+      }
+      const joined = await join('reader', projectId, owner)
+      const invalidation = new Promise<{ docId: string }>((resolve) =>
+        joined.socket.once(FILE_DOC_EVENTS.INVALIDATED, resolve)
+      )
+      const response = await post('retire', {
+        fileId,
+        owner,
+        retiredDocId: docId,
+        replacementDocId: generateId(),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ status: 'applied' })
+      expect((await invalidation).docId).toBe(docId)
     }
   )
 })

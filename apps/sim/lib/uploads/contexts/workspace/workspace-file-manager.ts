@@ -66,10 +66,6 @@ import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  enqueueWorkspaceFileLiveDocReconciliation,
-  processWorkspaceFileLiveDocReconciliationNow,
-} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
-import {
   applyWorkspaceFileSecretProvenancePolicyInTx,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
@@ -100,6 +96,10 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
+import {
+  enqueueFileLiveDocReconciliation,
+  processFileLiveDocReconciliationNow,
+} from '@/lib/uploads/server/live-doc-outbox'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   getVerifiedUploadSessionObject,
@@ -2572,7 +2572,7 @@ export async function updateWorkspaceFileContent(
           options.syncLiveDoc !== false &&
           (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
             isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
-            ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+            ? await enqueueFileLiveDocReconciliation(tx, {
                 workspaceId,
                 fileId,
                 version: updatedFile.contentUpdatedAt.getTime(),
@@ -2608,7 +2608,7 @@ export async function updateWorkspaceFileContent(
 
     if (finalized.liveDocEventId) {
       try {
-        const result = await processWorkspaceFileLiveDocReconciliationNow(finalized.liveDocEventId)
+        const result = await processFileLiveDocReconciliationNow(finalized.liveDocEventId)
         if (result !== 'completed') {
           logger.warn('Live document reconciliation deferred to outbox retry', {
             workspaceId,

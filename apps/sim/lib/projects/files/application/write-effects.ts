@@ -13,9 +13,9 @@ import {
   buildWorkspaceFileFolderPathMap,
   listFileFolders,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { processWorkspaceFileLiveDocReconciliationNow } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { mapFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-doc-outbox'
 
 interface CommittedWriteEffects {
   billing: ProjectStorageBillingContext
@@ -42,8 +42,7 @@ export async function finishProjectFileWrite(result: object) {
     projectId: effects.billing.projectId,
     reason: 'released version',
   })
-  if (effects.liveDocEventId)
-    await processWorkspaceFileLiveDocReconciliationNow(effects.liveDocEventId)
+  if (effects.liveDocEventId) await processFileLiveDocReconciliationNow(effects.liveDocEventId)
 }
 
 /** Projects owner-aware metadata using the caller's authorized transaction. */

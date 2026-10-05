@@ -4,6 +4,7 @@ import {
   FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
+import { fileDocAdmissionRoom } from '@sim/realtime-protocol/file-doc-target'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { flushMicrotasks } from '@sim/testing/helpers'
 import { sleep } from '@sim/utils/helpers'
@@ -36,7 +37,6 @@ vi.mock('@/handlers/file-doc-app', () => ({
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
-  fileDocAdmissionRoom,
   flushAllFileDocRooms,
   invalidateLiveFileDocument,
   setupWorkspaceFileDocHandlers,
@@ -794,7 +794,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         }
         finishSubscription()
         await joining
-        expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(false)
+        expect(memberships.has(fileDocAdmissionRoom({ fileId: 'file-1' }))).toBe(false)
         expect(memberships.has(ROOM_NAME)).toBe(access === 'unchanged')
         if (access === 'unchanged') {
           expect(joinSuccessFileId(pending.socket)).toBe('file-1')

@@ -23,8 +23,8 @@ import { inboxCleanupOutboxHandlers } from '@/lib/mothership/inbox/cleanup-outbo
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
 import { projectFileDocumentOutboxHandlers } from '@/lib/projects/files/application/document-lifecycle'
 import { projectFilePrefixCleanupOutboxHandlers } from '@/lib/projects/files/prefix-cleanup'
-import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { fileLiveDocOutboxHandlers } from '@/lib/uploads/server/live-doc-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
@@ -48,7 +48,7 @@ const handlers = {
   ...organizationResourceCleanupOutboxHandlers,
   ...inboxCleanupOutboxHandlers,
   ...permissionAccessRequestOutboxHandlers,
-  ...workspaceFileLiveDocOutboxHandlers,
+  ...fileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,
   ...projectFilePrefixCleanupOutboxHandlers,
   ...projectFileDocumentOutboxHandlers,

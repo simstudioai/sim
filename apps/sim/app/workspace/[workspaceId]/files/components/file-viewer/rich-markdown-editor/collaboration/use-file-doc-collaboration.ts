@@ -112,9 +112,9 @@ export function useFileDocCollaboration({
     const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
     const scope = projectId
-      ? { projectId, userId }
+      ? { owner: { entityType: 'project' as const, entityId: projectId }, userId }
       : workspaceId
-        ? { workspaceId, userId }
+        ? { owner: { entityType: 'workspace' as const, entityId: workspaceId }, userId }
         : undefined
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, scope)
     setCanWrite(fileProvider.canWrite)

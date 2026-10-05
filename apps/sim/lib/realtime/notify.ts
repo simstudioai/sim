@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { type FileDocTarget, fileDocOwnerWireFields } from '@sim/realtime-protocol/file-doc-target'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { env } from '@/lib/core/config/env'
@@ -213,13 +214,18 @@ export async function applyEditToLiveFileDoc(
   markdown: string,
   order: LiveFileDocMergeOrder = {},
   signal?: AbortSignal,
-  owner?: { entityType: 'project'; entityId: string }
+  owner?: EditableFileOwner
 ): Promise<LiveFileDocMergeResponse> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ fileId, markdown, version: order.version, ...(owner ? { owner } : {}) }),
+    body: JSON.stringify({
+      fileId,
+      markdown,
+      version: order.version,
+      ...fileDocOwnerWireFields(owner),
+    }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   if (!response.ok) {
@@ -251,13 +257,13 @@ export async function invalidateLiveFileDoc(
   fileId: string,
   version: number,
   signal?: AbortSignal,
-  owner?: { entityType: 'project'; entityId: string }
+  owner?: EditableFileOwner
 ): Promise<void> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/invalidate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ fileId, version, ...(owner ? { owner } : {}) }),
+    body: JSON.stringify({ fileId, version, ...fileDocOwnerWireFields(owner) }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   await response.body?.cancel().catch(() => {})
@@ -266,9 +272,9 @@ export async function invalidateLiveFileDoc(
   }
 }
 
-/** Retire only a named Project document history, so delayed delivery cannot erase a restored file. */
-export async function retireLiveProjectFileDoc(
-  target: { projectId: string; fileId: string; retiredDocId: string; replacementDocId: string },
+/** Retire only a named document history, so delayed delivery cannot erase a restored file. */
+export async function retireLiveFileDoc(
+  target: FileDocTarget & { retiredDocId: string; replacementDocId: string },
   signal?: AbortSignal
 ): Promise<void> {
   const timeout = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
@@ -276,10 +282,9 @@ export async function retireLiveProjectFileDoc(
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/retire`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify(target),
+    body: JSON.stringify({ ...target, ...fileDocOwnerWireFields(target.owner) }),
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   })
   await response.body?.cancel().catch(() => {})
-  if (!response.ok)
-    throw new Error(`Project document retirement failed with status ${response.status}`)
+  if (!response.ok) throw new Error(`Document retirement failed with status ${response.status}`)
 }

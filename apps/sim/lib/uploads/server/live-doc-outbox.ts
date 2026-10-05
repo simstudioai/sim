@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { parseFileDocTarget } from '@sim/realtime-protocol/file-doc-target'
 import { isRecordLike } from '@sim/utils/object'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -13,18 +14,14 @@ import {
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
-import {
-  type FileOwnerAdapters,
-  requireFileOwnerAdapter,
-} from '@/lib/workspace-files/owner-adapters'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
-export const WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
+export const FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
 
-type WorkspaceFileLiveDocPayload = { fileId: string; version: number } & (
+type FileLiveDocPayload = { fileId: string; version: number } & (
   | { workspaceId: string; owner?: never }
-  | { owner: { entityType: 'project'; entityId: string }; workspaceId?: never }
+  | { owner: EditableFileOwner; workspaceId?: never }
 )
 
 interface ParsedLiveDocPayload {
@@ -33,51 +30,17 @@ interface ParsedLiveDocPayload {
   owner: EditableFileOwner
 }
 
-interface LiveDocDelivery {
-  invalidate(target: ParsedLiveDocPayload, version: number, signal: AbortSignal): Promise<void>
-  merge(
-    target: ParsedLiveDocPayload,
-    markdown: string,
-    signal: AbortSignal
-  ): ReturnType<typeof applyEditToLiveFileDoc>
-}
-
-const LIVE_DOC_DELIVERY: FileOwnerAdapters<LiveDocDelivery> = {
-  workspace: {
-    invalidate: (target, version, signal) => invalidateLiveFileDoc(target.fileId, version, signal),
-    merge: (target, markdown, signal) =>
-      applyEditToLiveFileDoc(target.fileId, markdown, { version: target.version }, signal),
-  },
-  project: {
-    invalidate: (target, version, signal) =>
-      invalidateLiveFileDoc(target.fileId, version, signal, {
-        entityType: 'project',
-        entityId: target.owner.entityId,
-      }),
-    merge: (target, markdown, signal) =>
-      applyEditToLiveFileDoc(target.fileId, markdown, { version: target.version }, signal, {
-        entityType: 'project',
-        entityId: target.owner.entityId,
-      }),
-  },
-}
-
 function parsePayload(payload: unknown): ParsedLiveDocPayload {
   if (!isRecordLike(payload)) {
     throw new Error('Workspace file live-document outbox payload must be an object')
   }
-  const candidate = payload as Partial<WorkspaceFileLiveDocPayload>
+  const candidate = payload as Partial<FileLiveDocPayload>
   let owner: EditableFileOwner
   if (candidate.owner !== undefined) {
-    if (
-      candidate.workspaceId !== undefined ||
-      !isRecordLike(candidate.owner) ||
-      candidate.owner.entityType !== 'project' ||
-      typeof candidate.owner.entityId !== 'string' ||
-      !candidate.owner.entityId
-    )
-      throw new Error('Invalid Project live-document owner')
-    owner = { entityType: 'project', entityId: candidate.owner.entityId }
+    const target = parseFileDocTarget(candidate)
+    if (candidate.workspaceId !== undefined || !target?.owner)
+      throw new Error('Invalid live-document owner')
+    owner = target.owner
   } else {
     if (typeof candidate.workspaceId !== 'string' || !candidate.workspaceId)
       throw new Error('Workspace file live-document outbox payload is missing workspaceId')
@@ -96,7 +59,7 @@ function parsePayload(payload: unknown): ParsedLiveDocPayload {
   return { fileId: candidate.fileId, version: candidate.version, owner }
 }
 
-const reconcileWorkspaceFileLiveDoc: OutboxHandler<unknown> = async (rawPayload, context) => {
+const reconcileFileLiveDoc: OutboxHandler<unknown> = async (rawPayload, context) => {
   const payload = parsePayload(rawPayload)
   context.signal.throwIfAborted()
   const [file] = await db
@@ -118,7 +81,6 @@ const reconcileWorkspaceFileLiveDoc: OutboxHandler<unknown> = async (rawPayload,
     .limit(1)
 
   if (!file) return
-  const delivery = requireFileOwnerAdapter(LIVE_DOC_DELIVERY, payload.owner)
   const currentVersion = file.contentUpdatedAt.getTime()
   if (currentVersion < payload.version) {
     throw new Error('Workspace file live-document reconciliation is ahead of durable content')
@@ -129,7 +91,7 @@ const reconcileWorkspaceFileLiveDoc: OutboxHandler<unknown> = async (rawPayload,
     file.sizeBytes > PASTE_LIMITS.RICH_MARKDOWN_BYTES
   ) {
     /** Later binary writes do not enqueue reconciliation, so retire the latest unsupported version. */
-    await delivery.invalidate(payload, currentVersion, context.signal)
+    await invalidateLiveFileDoc(payload.fileId, currentVersion, context.signal, payload.owner)
     return
   }
   if (currentVersion > payload.version) return
@@ -141,25 +103,31 @@ const reconcileWorkspaceFileLiveDoc: OutboxHandler<unknown> = async (rawPayload,
     signal: context.signal,
   })
   context.signal.throwIfAborted()
-  const result = await delivery.merge(payload, content.toString('utf-8'), context.signal)
+  const result = await applyEditToLiveFileDoc(
+    payload.fileId,
+    content.toString('utf-8'),
+    { version: payload.version },
+    context.signal,
+    payload.owner
+  )
   if (result.status === 'merge-unavailable') {
     return deferOutboxHandler('Live document merge slot is temporarily unavailable')
   }
 }
 
-export const workspaceFileLiveDocOutboxHandlers = {
-  [WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]: reconcileWorkspaceFileLiveDoc,
+export const fileLiveDocOutboxHandlers = {
+  [FILE_LIVE_DOC_OUTBOX_EVENT]: reconcileFileLiveDoc,
 } satisfies OutboxHandlerRegistry
 
 /** Enqueues live-document reconciliation in the same transaction as the durable file version. */
-export function enqueueWorkspaceFileLiveDocReconciliation(
+export function enqueueFileLiveDocReconciliation(
   executor: Pick<typeof db, 'insert'>,
-  payload: WorkspaceFileLiveDocPayload
+  payload: FileLiveDocPayload
 ): Promise<string> {
-  return enqueueOutboxEvent(executor, WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT, payload)
+  return enqueueOutboxEvent(executor, FILE_LIVE_DOC_OUTBOX_EVENT, payload)
 }
 
 /** Attempts a newly committed reconciliation immediately; the outbox worker owns retries. */
-export function processWorkspaceFileLiveDocReconciliationNow(eventId: string) {
-  return processOutboxEventById(eventId, workspaceFileLiveDocOutboxHandlers)
+export function processFileLiveDocReconciliationNow(eventId: string) {
+  return processOutboxEventById(eventId, fileLiveDocOutboxHandlers)
 }

@@ -9,9 +9,9 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
-  WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
-  workspaceFileLiveDocOutboxHandlers,
-} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+  FILE_LIVE_DOC_OUTBOX_EVENT,
+  fileLiveDocOutboxHandlers,
+} from '@/lib/uploads/server/live-doc-outbox'
 
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
@@ -28,7 +28,7 @@ const PAYLOAD = {
 function context(): OutboxEventContext {
   return {
     eventId: 'event-1',
-    eventType: WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
+    eventType: FILE_LIVE_DOC_OUTBOX_EVENT,
     attempts: 0,
     maxAttempts: 10,
     signal: new AbortController().signal,
@@ -37,7 +37,7 @@ function context(): OutboxEventContext {
 }
 
 function handler() {
-  const registered = workspaceFileLiveDocOutboxHandlers[WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]
+  const registered = fileLiveDocOutboxHandlers[FILE_LIVE_DOC_OUTBOX_EVENT]
   if (!registered) throw new Error('Workspace file live-document handler is not registered')
   return registered
 }
@@ -69,7 +69,8 @@ describe('workspace file live-document outbox', () => {
       'file-1',
       '# Durable content',
       { version: VERSION.getTime() },
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      { entityType: 'workspace', entityId: 'workspace-1' }
     )
   })
 
@@ -129,7 +130,8 @@ describe('workspace file live-document outbox', () => {
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
       'file-1',
       VERSION.getTime(),
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      { entityType: 'workspace', entityId: 'workspace-1' }
     )
   })
 
@@ -151,7 +153,8 @@ describe('workspace file live-document outbox', () => {
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
       'file-1',
       VERSION.getTime(),
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      { entityType: 'workspace', entityId: 'workspace-1' }
     )
   })
 
@@ -174,7 +177,8 @@ describe('workspace file live-document outbox', () => {
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
       'file-1',
       latestVersion,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      { entityType: 'workspace', entityId: 'workspace-1' }
     )
   })
 })

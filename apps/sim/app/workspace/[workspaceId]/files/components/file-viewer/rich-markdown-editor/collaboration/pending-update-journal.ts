@@ -2,6 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_LIMITS } from '@sim/realtime-protocol/file-doc'
+import type { FileDocOwner } from '@sim/realtime-protocol/file-doc-target'
 import { get, update as updateValue } from 'idb-keyval'
 import * as Y from 'yjs'
 
@@ -27,10 +28,11 @@ interface JournalDocument extends PendingDocumentRecovery {
   quarantined?: boolean
 }
 
-type PendingUpdateJournalScope = { fileId: string; userId: string } & (
-  | { workspaceId: string; projectId?: never }
-  | { projectId: string; workspaceId?: never }
-)
+interface PendingUpdateJournalScope {
+  fileId: string
+  userId: string
+  owner: FileDocOwner
+}
 
 interface JournalSaveResult {
   pendingUpdate: Uint8Array
@@ -104,7 +106,7 @@ export class PendingFileDocUpdateJournal {
   private readonly key: string
   private mutationQueue = Promise.resolve()
 
-  constructor({ workspaceId, projectId, fileId, userId }: PendingUpdateJournalScope) {
+  constructor({ owner, fileId, userId }: PendingUpdateJournalScope) {
     const origin = typeof location === 'undefined' ? 'server' : location.origin
     this.key = [
       'sim',
@@ -112,7 +114,7 @@ export class PendingFileDocUpdateJournal {
       JOURNAL_VERSION,
       origin,
       userId,
-      ...(projectId ? ['project', projectId] : [workspaceId]),
+      ...(owner.entityType === 'workspace' ? [owner.entityId] : [owner.entityType, owner.entityId]),
       fileId,
     ].join(':')
   }

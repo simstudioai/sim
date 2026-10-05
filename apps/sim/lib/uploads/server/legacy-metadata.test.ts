@@ -17,7 +17,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-import { getFileMetadata } from '@/lib/uploads/core/storage-client'
+import { getFileMetadata } from '@/lib/uploads/server/legacy-metadata'
 
 setUploadsConfig({
   USE_S3_STORAGE: true,

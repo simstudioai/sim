@@ -115,8 +115,6 @@
   "stutter\tapps/sim/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-folder-manager.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-folder-manager.ts",
-  "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox.test.ts",
-  "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-manager-download.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-manager-errors.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-manager-page.test.ts",

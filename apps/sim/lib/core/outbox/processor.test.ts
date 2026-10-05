@@ -40,8 +40,8 @@ vi.mock('@/lib/organizations/resource-cleanup', () => ({
 vi.mock('@/ee/access-requests/lib/notifications', () => ({
   permissionAccessRequestOutboxHandlers: {},
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
-  workspaceFileLiveDocOutboxHandlers: {},
+vi.mock('@/lib/uploads/server/live-doc-outbox', () => ({
+  fileLiveDocOutboxHandlers: {},
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
   workspaceFileStorageCleanupOutboxHandlers: {},

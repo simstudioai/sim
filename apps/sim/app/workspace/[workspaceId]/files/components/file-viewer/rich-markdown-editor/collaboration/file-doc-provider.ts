@@ -17,7 +17,13 @@ import {
   type JoinFileDocSuccess,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
-import { projectFileDocRoom, ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import {
+  type FileDocOwner,
+  fileDocOwnerWireFields,
+  fileDocRoom,
+  parseFileDocTarget,
+} from '@sim/realtime-protocol/file-doc-target'
+import { roomName } from '@sim/realtime-protocol/rooms'
 import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import * as decoding from 'lib0/decoding'
@@ -62,10 +68,10 @@ function hasYjsUpdateContent(update: Uint8Array): boolean {
   return decoded.structs.length > 0 || decoded.ds.clients.size > 0
 }
 
-type FileDocProviderScope = { userId: string } & (
-  | { workspaceId: string; projectId?: never }
-  | { projectId: string; workspaceId?: never }
-)
+interface FileDocProviderScope {
+  userId: string
+  owner: FileDocOwner
+}
 
 interface PendingClientUpdate {
   updateId: string
@@ -133,7 +139,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   synced = false
   canWrite = true
-  private readonly projectId: string | undefined
+  private readonly owner: FileDocOwner | undefined
+  private readonly scopedPermissions: boolean
   private readonly membershipKey: string
   /**
    * The current readiness failure, or `null`. Retryable timeouts clear once authoritative sync
@@ -187,9 +194,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   ) {
     super()
 
-    this.projectId = scope?.projectId
-    this.canWrite = !this.projectId
-    this.membershipKey = this.projectId ? `project:${this.projectId}/${fileId}` : fileId
+    this.owner = scope?.owner
+    this.scopedPermissions = Boolean(this.owner && this.owner.entityType !== 'workspace')
+    this.canWrite = !this.scopedPermissions
+    this.membershipKey = roomName(fileDocRoom({ fileId, owner: this.owner }))
     this.journal = scope ? new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId }) : null
     this.registerActiveProvider()
 
@@ -254,7 +262,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.disposed || this.fatal || (this.synced && this.isSeeded())) return
     this.joinError = {
       fileId: this.fileId,
-      ...(this.projectId ? { projectId: this.projectId } : {}),
+      ...fileDocOwnerWireFields(this.owner),
       error: 'Realtime document was not ready in time',
       code: 'READINESS_TIMEOUT',
       retryable: true,
@@ -320,7 +328,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }, FILE_DOC_TIMEOUTS.joinAckMs)
     this.socket.emit(FILE_DOC_EVENTS.JOIN, {
       fileId: this.fileId,
-      ...(this.projectId ? { projectId: this.projectId } : {}),
+      ...fileDocOwnerWireFields(this.owner),
       clientId: this.doc.clientID,
       schemaVersion: FILE_DOC_SCHEMA_VERSION,
     })
@@ -398,12 +406,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (
       data.fileId !== this.fileId ||
-      data.projectId !== this.projectId ||
+      !this.matchesTarget(data) ||
       !this.joinPending ||
       (data.clientId !== undefined && data.clientId !== this.doc.clientID)
     )
       return
-    if (this.projectId) this.setCanWrite(data.canWrite === true)
+    if (this.scopedPermissions) this.setCanWrite(data.canWrite === true)
     this.clearJoinAckTimer()
     this.joinPending = false
     this.joinRetryAttempt = 0
@@ -419,7 +427,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
     const recoveryDocId = data.docId
-    if (this.projectId && !this.canWrite) {
+    if (this.scopedPermissions && !this.canWrite) {
       void this.journal.discard(recoveryDocId).then(() => {
         this.finishAcceptJoin(data, generation, null)
       })
@@ -536,7 +544,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.fatal || this.disposed) return
     const error: JoinFileDocError = {
       fileId: this.fileId,
-      ...(this.projectId ? { projectId: this.projectId } : {}),
+      ...fileDocOwnerWireFields(this.owner),
       error: message,
       code,
       retryable: false,
@@ -626,9 +634,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * instead of silently accepting keystrokes that go nowhere.
    */
   private handleAccessRevoked = (data: RoomAccessRevokedBroadcast) => {
-    const room = this.projectId
-      ? projectFileDocRoom(this.projectId, this.fileId)
-      : { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: this.fileId }
+    const room = fileDocRoom({ fileId: this.fileId, owner: this.owner })
     if (data.room?.type !== room.type || data.room.id !== room.id) return
     this.failFatally(data.message, 'ACCESS_REVOKED')
   }
@@ -719,7 +725,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     /** A terminal document cannot publish; inbound and recovery updates must not echo. */
     if (
       this.fatal ||
-      (this.projectId && !this.canWrite) ||
+      (this.scopedPermissions && !this.canWrite) ||
       origin === this ||
       origin === RECOVERY_ORIGIN
     )
@@ -837,7 +843,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     const generation = this.connectionGeneration
     const payload: FileDocUpdatePayload = {
       fileId: this.fileId,
-      ...(this.projectId ? { projectId: this.projectId } : {}),
+      ...fileDocOwnerWireFields(this.owner),
       docId,
       updateId: pending.updateId,
       update: pending.update,
@@ -868,7 +874,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
-    if (this.projectId && ack.code === 'ACCESS_REVOKED') {
+    if (this.scopedPermissions && ack.code === 'ACCESS_REVOKED') {
       this.setCanWrite(false)
       return
     }
@@ -958,7 +964,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       if (!this.canWrite) return
       const payload: FileDocUpdatePayload = {
         fileId: this.fileId,
-        ...(this.projectId ? { projectId: this.projectId } : {}),
+        ...fileDocOwnerWireFields(this.owner),
         docId,
         updateId,
         update,
@@ -1068,8 +1074,22 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
   }
 
+  private matchesTarget(data: {
+    fileId: string
+    owner?: FileDocOwner
+    projectId?: string
+  }): boolean {
+    const target = parseFileDocTarget(data)
+    if (!target || target.fileId !== this.fileId) return false
+    if (!target.owner) return !this.scopedPermissions
+    return (
+      target.owner.entityType === this.owner?.entityType &&
+      target.owner.entityId === this.owner.entityId
+    )
+  }
+
   private handlePermission = (data: FileDocPermission) => {
-    if (data.projectId !== this.projectId || data.fileId !== this.fileId || !this.projectId) return
+    if (!this.matchesTarget(data) || data.fileId !== this.fileId || !this.scopedPermissions) return
     this.setCanWrite(data.canWrite)
     if (data.canWrite) this.sendInFlightUpdate()
   }
@@ -1078,7 +1098,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (this.canWrite === canWrite) return
     this.canWrite = canWrite
     if (!canWrite) this.clearUpdateTimers()
-    if (this.projectId && !canWrite) {
+    if (this.scopedPermissions && !canWrite) {
       this.pendingUpdatesDrained = true
       this.pendingUpdateBatch = []
       this.inFlightUpdate = null
@@ -1142,7 +1162,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (releaseRoomMembership(this.socket, this.membershipKey)) {
       this.socket.emit(FILE_DOC_EVENTS.LEAVE, {
         fileId: this.fileId,
-        ...(this.projectId ? { projectId: this.projectId } : {}),
+        ...fileDocOwnerWireFields(this.owner),
       })
     }
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)

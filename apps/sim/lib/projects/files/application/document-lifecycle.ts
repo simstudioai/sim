@@ -11,7 +11,7 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
-import { retireLiveProjectFileDoc } from '@/lib/realtime/notify'
+import { retireLiveFileDoc } from '@/lib/realtime/notify'
 
 const RETIRE_DOCUMENT_EVENT = 'project-file.document.retire'
 
@@ -93,9 +93,9 @@ export const projectFileDocumentOutboxHandlers = {
     )
       throw new Error('Invalid Project document retirement')
     context.signal.throwIfAborted()
-    await retireLiveProjectFileDoc(
+    await retireLiveFileDoc(
       {
-        projectId: payload.projectId,
+        owner: { entityType: 'project', entityId: payload.projectId },
         fileId: payload.fileId,
         retiredDocId: payload.retiredDocId,
         replacementDocId: payload.replacementDocId,

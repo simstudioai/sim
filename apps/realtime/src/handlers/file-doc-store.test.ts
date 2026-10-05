@@ -461,7 +461,13 @@ describe('FileDocStore', () => {
       'replaced by a newer durable version'
     )
     await expect(
-      store.publishClientUpdateAndWait(NAME, 'stale-update', updateFor('stale acknowledged write'))
+      store.publishClientUpdateAndWait(
+        NAME,
+        'stale-update',
+        updateFor('stale acknowledged write'),
+        undefined,
+        { userId: 'editor', connectionId: 'socket-editor' }
+      )
     ).rejects.toThrow('replaced by a newer durable version')
 
     const fresh = seedFor('fresh generation')
@@ -488,15 +494,24 @@ describe('FileDocStore', () => {
     await store.seedIfEmpty(NAME, seedFor('base'), 10)
     const generation = await store.getDocumentGeneration(NAME)
     const delta = updateFor('edit')
-    await store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation)
+    await store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation, {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
     state.backing!.streams.delete(`filedoc:stream:${NAME}`)
 
     await expect(store.publishAndWait(NAME, delta, generation)).rejects.toThrow('replaced')
     await expect(
-      store.publishClientUpdateAndWait(NAME, 'new-update', delta, generation)
+      store.publishClientUpdateAndWait(NAME, 'new-update', delta, generation, {
+        userId: 'editor',
+        connectionId: 'socket-editor',
+      })
     ).rejects.toThrow('replaced')
     await expect(
-      store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation)
+      store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation, {
+        userId: 'editor',
+        connectionId: 'socket-editor',
+      })
     ).rejects.toThrow('replaced')
     expect(state.backing!.streams.has(`filedoc:stream:${NAME}`)).toBe(false)
   })
@@ -753,8 +768,14 @@ describe('FileDocStore', () => {
     const store = await newStore()
     const update = updateFor('retry-safe')
 
-    await store.publishClientUpdateAndWait(NAME, 'update-1', update)
-    await store.publishClientUpdateAndWait(NAME, 'update-1', update)
+    await store.publishClientUpdateAndWait(NAME, 'update-1', update, undefined, {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
+    await store.publishClientUpdateAndWait(NAME, 'update-1', update, undefined, {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
 
     expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
   })
@@ -763,8 +784,14 @@ describe('FileDocStore', () => {
     seedLegacyStream()
     const store = await newStore()
 
-    await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('first'))
-    await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('second'))
+    await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('first'), undefined, {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
+    await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('second'), undefined, {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
 
     expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
   })
@@ -814,7 +841,10 @@ describe('FileDocStore', () => {
     state.backing!.onSnapshot = async () => {
       await replacer.invalidateDocument(NAME, 20)
       await replacer.seedIfEmpty(NAME, freshSeed, 20)
-      await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation')
+      await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
+        userId: 'editor',
+        connectionId: 'socket-editor',
+      })
       expect(state.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
         '1000-0',
         '1000-1',
@@ -827,7 +857,10 @@ describe('FileDocStore', () => {
       '1000-0',
       '1000-1',
     ])
-    await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation')
+    await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
+      userId: 'editor',
+      connectionId: 'socket-editor',
+    })
     expect(state.backing!.streams.get(streamKey)).toHaveLength(2)
     const persisted = await replacer.getStreamState(NAME)
     expect(persisted).not.toBeNull()
@@ -846,7 +879,10 @@ describe('FileDocStore', () => {
 
     await expect(store.attachRoom(NAME, doc)).rejects.toThrow('not initialized')
     await expect(
-      store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('x'))
+      store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('x'), undefined, {
+        userId: 'editor',
+        connectionId: 'socket-editor',
+      })
     ).rejects.toThrow('not initialized')
     await expect(store.seedIfEmpty(NAME, seedFor('seed'))).rejects.toThrow('not initialized')
     await expect(store.getStreamState(NAME)).rejects.toThrow('not initialized')

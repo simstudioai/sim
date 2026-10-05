@@ -15,7 +15,6 @@ import {
   prepareProjectFileAccounting,
   recordProjectFileWriteEffects,
 } from '@/lib/projects/files/application/write-effects'
-import { enqueueWorkspaceFileLiveDocReconciliation } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import {
   ContentVersionConflictError,
   commitFileContentInTx,
@@ -30,6 +29,7 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import {
@@ -226,7 +226,7 @@ export const updateProjectFileContent = defineAuthorizedProjectFileUseCase({
         type: committed.previous.contentType,
       }) ||
         isMarkdownFile({ name: committed.file.originalName, type: committed.file.contentType }))
-        ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+        ? await enqueueFileLiveDocReconciliation(tx, {
             owner: context.owner,
             fileId: committed.file.id,
             version: committed.file.contentUpdatedAt.getTime(),
