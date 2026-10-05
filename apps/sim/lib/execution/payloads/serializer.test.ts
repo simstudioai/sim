@@ -258,6 +258,22 @@ describe('compactExecutionPayload', () => {
     expect(compacted.every(isLargeArrayManifest)).toBe(true)
   })
 
+  it('reuses already-compacted subflow entries instead of rebuilding them', async () => {
+    const unchanged = { rows: [{ id: 1, data: { name: 'a' } }], meta: { count: 1 } }
+    const file = { id: 'f1', key: 'k1', url: 'u', name: 'a.txt', size: 3, type: 'text/plain' }
+    const withBase64 = { file: { ...file, base64: 'YWJj' }, other: { kept: true } }
+
+    const [reused, stripped] = (await compactSubflowResults([unchanged, withBase64], {})) as [
+      typeof unchanged,
+      typeof withBase64,
+    ]
+
+    expect(reused).toBe(unchanged)
+    expect(stripped).not.toBe(withBase64)
+    expect(stripped.file).toEqual(file)
+    expect(stripped.other).toBe(withBase64.other)
+  })
+
   it('rejects durable compaction when storage context is incomplete', async () => {
     await expect(
       compactExecutionPayload(

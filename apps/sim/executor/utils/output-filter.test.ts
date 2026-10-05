@@ -33,4 +33,17 @@ describe('output filtering', () => {
     expect(output).not.toHaveProperty('childTraceSpans')
     expect(output.answer).toBe(42)
   })
+
+  it('shares untouched nested output with the block state instead of copying it', () => {
+    const rows = [{ id: 1, data: { name: 'a' } }]
+    const nestedSpans = { childTraceSpans: [{ id: 's1' }], kept: { value: 1 } }
+    const blockOutput = { rows, nested: nestedSpans }
+
+    const output = filterOutputForLog('table', blockOutput as never)
+
+    expect(output.rows).toBe(rows)
+    expect(output.nested).not.toBe(nestedSpans)
+    expect(output.nested).not.toHaveProperty('childTraceSpans')
+    expect((output.nested as typeof nestedSpans).kept).toBe(nestedSpans.kept)
+  })
 })
