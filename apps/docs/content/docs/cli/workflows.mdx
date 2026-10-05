@@ -642,7 +642,7 @@ sim workflows run <workflowId> [options]
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <blockId>` | No | Run manually from this saved workflow block. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
-| `--stop-after <blockId>` | No | Stop the run after this saved block; with --from-block on the same block, re-runs only that block (implies --manual). |
+| `--stop-after <blockId>` | No | Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |

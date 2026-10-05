@@ -21,13 +21,17 @@ vi.mock('@/lib/execution/cancellation', () => ({
   },
 }))
 
-import { EDGE } from '@/executor/constants'
-import type { DAG, DAGNode } from '@/executor/dag/builder'
-import type { EdgeManager } from '@/executor/execution/edge-manager'
+import { BlockType, EDGE } from '@/executor/constants'
+import { type DAG, DAGBuilder, type DAGNode } from '@/executor/dag/builder'
+import { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import type { SerializedBlock } from '@/serializer/types'
+import {
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
+} from '@/executor/utils/subflow-node-id-codec'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
 
 const executionEngineLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
@@ -1086,6 +1090,268 @@ describe('ExecutionEngine', () => {
 
       expect(result.success).toBe(true)
       expect(result.output).toEqual({ data: { response: true }, status: 200, headers: {} })
+    })
+  })
+  /**
+   * A stop-after run is a promise that the run ends with the stop block. These run the real DAG
+   * builder and edge manager, so a router or condition deciding a path is the same decision the
+   * engine makes in production.
+   */
+  describe('Stop-after block', () => {
+    function block(id: string, type = BlockType.FUNCTION): SerializedBlock {
+      return { ...createMockBlock(id), metadata: { id: type, name: id } }
+    }
+
+    function buildRun(
+      workflow: SerializedWorkflow,
+      stopAfterBlockId: string,
+      outputs: Record<string, ExecutionResult['output']> = {}
+    ) {
+      const dag = new DAGBuilder().build(workflow, { triggerBlockId: 'start' })
+      const executed: string[] = []
+      const nodeOrchestrator = {
+        executeNode: vi.fn(async (_ctx: ExecutionContext, nodeId: string) => {
+          executed.push(nodeId)
+          return { nodeId, output: outputs[nodeId] ?? {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as NodeExecutionOrchestrator
+      const engine = new ExecutionEngine(
+        createMockContext({ stopAfterBlockId }),
+        dag,
+        new EdgeManager(dag),
+        nodeOrchestrator
+      )
+      return { engine, executed }
+    }
+
+    /** start → condition; `if` → taken → takenTail, `else` → stop → after. */
+    const conditionWorkflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        block('start', BlockType.STARTER),
+        block('condition', BlockType.CONDITION),
+        block('taken'),
+        block('takenTail'),
+        block('stop'),
+        block('after'),
+      ],
+      connections: [
+        { source: 'start', target: 'condition' },
+        { source: 'condition', target: 'taken', sourceHandle: 'condition-if' },
+        { source: 'condition', target: 'stop', sourceHandle: 'condition-else' },
+        { source: 'taken', target: 'takenTail' },
+        { source: 'stop', target: 'after' },
+      ],
+      loops: {},
+      parallels: {},
+    }
+
+    it('fails as soon as a condition routes away from the stop block', async () => {
+      const { engine, executed } = buildRun(conditionWorkflow, 'stop', {
+        condition: { selectedOption: 'if' },
+      })
+
+      await expect(engine.run('start')).rejects.toThrow('Stop block "stop" (stop) was not reached')
+      expect(executed).toEqual(['start', 'condition'])
+    })
+
+    it('fails as soon as a router routes away from the stop block', async () => {
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [
+            block('start', BlockType.STARTER),
+            block('router', BlockType.ROUTER_V2),
+            block('taken'),
+            block('takenTail'),
+            block('stop'),
+          ],
+          connections: [
+            { source: 'start', target: 'router' },
+            { source: 'router', target: 'taken', sourceHandle: 'router-route-a' },
+            { source: 'router', target: 'stop', sourceHandle: 'router-route-b' },
+            { source: 'taken', target: 'takenTail' },
+          ],
+          loops: {},
+          parallels: {},
+        },
+        'stop',
+        { router: { selectedRoute: 'route-a' } }
+      )
+
+      await expect(engine.run('start')).rejects.toThrow('Stop block "stop" (stop) was not reached')
+      expect(executed).toEqual(['start', 'router'])
+    })
+
+    it('fails when the stop block sits on an error path the run never takes', async () => {
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [block('start', BlockType.STARTER), block('work'), block('next'), block('stop')],
+          connections: [
+            { source: 'start', target: 'work' },
+            { source: 'work', target: 'next', sourceHandle: 'source' },
+            { source: 'work', target: 'stop', sourceHandle: 'error' },
+          ],
+          loops: {},
+          parallels: {},
+        },
+        'stop'
+      )
+
+      await expect(engine.run('start')).rejects.toThrow('Stop block "stop" (stop) was not reached')
+      expect(executed).toEqual(['start', 'work'])
+    })
+
+    it('stops after the stop block when the condition routes to it', async () => {
+      const { engine, executed } = buildRun(conditionWorkflow, 'stop', {
+        condition: { selectedOption: 'else' },
+      })
+
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(['start', 'condition', 'stop'])
+    })
+
+    it('runs a join reached through one taken and one skipped branch', async () => {
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [
+            block('start', BlockType.STARTER),
+            block('condition', BlockType.CONDITION),
+            block('taken'),
+            block('skipped'),
+            block('stop'),
+            block('after'),
+          ],
+          connections: [
+            { source: 'start', target: 'condition' },
+            { source: 'condition', target: 'taken', sourceHandle: 'condition-if' },
+            { source: 'condition', target: 'skipped', sourceHandle: 'condition-else' },
+            { source: 'taken', target: 'stop' },
+            { source: 'skipped', target: 'stop' },
+            { source: 'stop', target: 'after' },
+          ],
+          loops: {},
+          parallels: {},
+        },
+        'stop',
+        { condition: { selectedOption: 'if' } }
+      )
+
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(['start', 'condition', 'taken', 'stop'])
+    })
+
+    it('runs a loop stop block queued by a dead end inside the loop', async () => {
+      const sentinelStart = buildLoopSentinelStartId('loop')
+      const sentinelEnd = buildLoopSentinelEndId('loop')
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [
+            block('start', BlockType.STARTER),
+            block('loop', BlockType.LOOP),
+            block('condition', BlockType.CONDITION),
+            block('inner'),
+            block('after'),
+          ],
+          connections: [
+            { source: 'start', target: 'loop' },
+            { source: 'loop', target: 'condition', sourceHandle: 'loop-start-source' },
+            { source: 'condition', target: 'inner', sourceHandle: 'condition-if' },
+            { source: 'loop', target: 'after', sourceHandle: 'loop-end-source' },
+          ],
+          loops: { loop: { id: 'loop', nodes: ['condition', 'inner'], iterations: 1 } },
+          parallels: {},
+        },
+        sentinelEnd,
+        { condition: { selectedOption: 'else' } }
+      )
+
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(['start', sentinelStart, 'condition', sentinelEnd])
+    })
+
+    it('stops after a loop stop block whose loop has nothing to run', async () => {
+      const sentinelStart = buildLoopSentinelStartId('loop')
+      const { engine, executed } = buildRun(
+        {
+          version: '1',
+          blocks: [
+            block('start', BlockType.STARTER),
+            block('loop', BlockType.LOOP),
+            block('inner'),
+            block('after'),
+          ],
+          connections: [
+            { source: 'start', target: 'loop' },
+            { source: 'loop', target: 'inner', sourceHandle: 'loop-start-source' },
+            { source: 'loop', target: 'after', sourceHandle: 'loop-end-source' },
+          ],
+          loops: { loop: { id: 'loop', nodes: ['inner'], iterations: 0 } },
+          parallels: {},
+        },
+        buildLoopSentinelEndId('loop'),
+        {
+          [sentinelStart]: { sentinelStart: true, shouldExit: true, selectedRoute: EDGE.LOOP_EXIT },
+        }
+      )
+
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(['start', sentinelStart])
+    })
+
+    it('succeeds when the stop block is a Response block, and fails when one ends the run first', async () => {
+      const workflow: SerializedWorkflow = {
+        version: '1',
+        blocks: [
+          block('start', BlockType.STARTER),
+          block('respond', BlockType.RESPONSE),
+          block('stop'),
+        ],
+        connections: [
+          { source: 'start', target: 'respond' },
+          { source: 'respond', target: 'stop' },
+        ],
+        loops: {},
+        parallels: {},
+      }
+
+      const atResponse = buildRun(workflow, 'respond')
+      expect((await atResponse.engine.run('start')).success).toBe(true)
+
+      const pastResponse = buildRun(workflow, 'stop')
+      await expect(pastResponse.engine.run('start')).rejects.toThrow(
+        'Stop block "stop" (stop) was not reached'
+      )
+      expect(pastResponse.executed).toEqual(['start', 'respond'])
+    })
+
+    it('stops after the entry block when the stop block is the entry', async () => {
+      const { engine, executed } = buildRun(conditionWorkflow, 'start')
+
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(['start'])
+    })
+
+    it('fails when the stop block is not in the graph the run executes', async () => {
+      const { engine } = buildRun(conditionWorkflow, 'missing', {
+        condition: { selectedOption: 'if' },
+      })
+
+      await expect(engine.run('start')).rejects.toThrow('Stop block missing was not reached')
     })
   })
 })

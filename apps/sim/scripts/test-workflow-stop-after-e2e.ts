@@ -29,6 +29,10 @@ import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
  * in for an expensive upstream block, so a single-block re-run of Check that
  * finishes well under Slow's delay proves Slow was not re-executed, and an
  * absent After output proves the run stopped where it was told to.
+ *
+ * A second fixture branches: `Start → Gate (condition, always if)`, with `if →
+ * Taken → Tail (slow wait)` and `else → Skipped`. A stop on Skipped must fail the
+ * run once Gate routes away from it, well before Tail's delay would elapse.
  */
 const logger = createLogger('WorkflowStopAfterE2E')
 const execFileAsync = promisify(execFile)
@@ -76,6 +80,14 @@ interface PipelineFixture {
 
 const pipeline = fixtureIds()
 const otherPipeline = fixtureIds()
+const branch = {
+  workflowId: generateId(),
+  start: generateId(),
+  gate: generateId(),
+  taken: generateId(),
+  tail: generateId(),
+  skipped: generateId(),
+}
 
 function fixtureIds(): PipelineFixture {
   return {
@@ -116,11 +128,6 @@ function record(value: unknown): Record<string, unknown> {
 async function seedPipeline(tx: postgres.TransactionSql, fixture: PipelineFixture) {
   await tx`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
     values (${fixture.workflowId}, ${ownerId}, ${workspaceId}, ${`Stop-after fixture ${fixture.workflowId}`}, now(), now(), now())`
-  const wait = (seconds: number) => ({
-    timeValue: { id: 'timeValue', type: 'short-input', value: String(seconds) },
-    timeUnit: { id: 'timeUnit', type: 'dropdown', value: 'seconds' },
-    async: { id: 'async', type: 'switch', value: false },
-  })
   const blocks = [
     {
       id: fixture.start,
@@ -128,9 +135,9 @@ async function seedPipeline(tx: postgres.TransactionSql, fixture: PipelineFixtur
       name: 'Start',
       subBlocks: { inputFormat: { id: 'inputFormat', type: 'input-format', value: [] } },
     },
-    { id: fixture.slow, type: 'wait', name: 'Slow', subBlocks: wait(SLOW_SECONDS) },
-    { id: fixture.check, type: 'wait', name: 'Check', subBlocks: wait(0.2) },
-    { id: fixture.after, type: 'wait', name: 'After', subBlocks: wait(0.2) },
+    { id: fixture.slow, type: 'wait', name: 'Slow', subBlocks: waitSubBlocks(SLOW_SECONDS) },
+    { id: fixture.check, type: 'wait', name: 'Check', subBlocks: waitSubBlocks(0.2) },
+    { id: fixture.after, type: 'wait', name: 'After', subBlocks: waitSubBlocks(0.2) },
   ]
   for (const [index, block] of blocks.entries()) {
     await tx`insert into workflow_blocks (id, workflow_id, type, name, position_x, position_y, sub_blocks)
@@ -143,6 +150,59 @@ async function seedPipeline(tx: postgres.TransactionSql, fixture: PipelineFixtur
   ]) {
     await tx`insert into workflow_edges (id, workflow_id, source_block_id, target_block_id, source_handle, target_handle)
       values (${generateId()}, ${fixture.workflowId}, ${source}, ${target}, 'source', 'target')`
+  }
+}
+
+function waitSubBlocks(seconds: number) {
+  return {
+    timeValue: { id: 'timeValue', type: 'short-input', value: String(seconds) },
+    timeUnit: { id: 'timeUnit', type: 'dropdown', value: 'seconds' },
+    async: { id: 'async', type: 'switch', value: false },
+  }
+}
+
+async function seedBranch(tx: postgres.TransactionSql) {
+  await tx`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
+    values (${branch.workflowId}, ${ownerId}, ${workspaceId}, ${`Stop-after branch fixture ${branch.workflowId}`}, now(), now(), now())`
+  const conditions = [
+    { id: `${branch.gate}-if`, title: 'if', value: 'true' },
+    { id: `${branch.gate}-else`, title: 'else', value: '' },
+  ]
+  const blocks = [
+    {
+      id: branch.start,
+      type: 'start_trigger',
+      name: 'Start',
+      subBlocks: { inputFormat: { id: 'inputFormat', type: 'input-format', value: [] } },
+    },
+    {
+      id: branch.gate,
+      type: 'condition',
+      name: 'Gate',
+      subBlocks: {
+        conditions: {
+          id: 'conditions',
+          type: 'condition-input',
+          value: JSON.stringify(conditions),
+        },
+      },
+    },
+    { id: branch.taken, type: 'wait', name: 'Taken', subBlocks: waitSubBlocks(0.2) },
+    { id: branch.tail, type: 'wait', name: 'Tail', subBlocks: waitSubBlocks(SLOW_SECONDS) },
+    { id: branch.skipped, type: 'wait', name: 'Skipped', subBlocks: waitSubBlocks(0.2) },
+  ]
+  for (const [index, block] of blocks.entries()) {
+    await tx`insert into workflow_blocks (id, workflow_id, type, name, position_x, position_y, sub_blocks)
+      values (${block.id}, ${branch.workflowId}, ${block.type}, ${block.name}, ${index * 300}, 0, ${JSON.stringify(block.subBlocks)}::text::jsonb)`
+  }
+  for (const [source, target, sourceHandle] of [
+    [branch.start, branch.gate, 'source'],
+    [branch.gate, branch.taken, `condition-${branch.gate}-if`],
+    [branch.gate, branch.skipped, `condition-${branch.gate}-else`],
+    [branch.taken, branch.tail, 'source'],
+  ]) {
+    await tx`insert into workflow_edges (id, workflow_id, source_block_id, target_block_id, source_handle, target_handle)
+      values (${generateId()}, ${branch.workflowId}, ${source}, ${target}, ${sourceHandle}, 'target')`
   }
 }
 
@@ -161,6 +221,7 @@ async function seed() {
       values (${generateId()}, ${ownerId}, 'Stop-after fixture', ${personalKey}, ${sha256Hex(personalKey)}, 'personal')`
     await seedPipeline(tx, pipeline)
     await seedPipeline(tx, otherPipeline)
+    await seedBranch(tx)
   })
 }
 
@@ -240,10 +301,22 @@ async function runCli(args: string[]): Promise<V2ExecuteWorkflowData> {
   return v2ExecuteWorkflowDataSchema.parse(JSON.parse(stdout))
 }
 
+/** A CLI run the command itself must fail: exits non-zero and prints the failed run. */
+async function runCliExpectingFailure(args: string[]): Promise<V2ExecuteWorkflowData> {
+  try {
+    await runCli(args)
+  } catch (error) {
+    assert(isRecordLike(error) && typeof error.stdout === 'string', getErrorMessage(error))
+    assert.notEqual(error.code, 0, 'a failed run must exit non-zero')
+    return v2ExecuteWorkflowDataSchema.parse(JSON.parse(error.stdout))
+  }
+  assert.fail('the CLI exited 0 for a run that must fail')
+}
+
 const selectAll = ['Slow.status', 'Check.status', 'After.status']
 
 try {
-  await check('seed disposable workspace, personal key and two pipelines', seed)
+  await check('seed disposable workspace, personal key and fixtures', seed)
 
   let sourceRunId = ''
   await check('a full manual run executes every block and persists its state', async () => {
@@ -292,6 +365,52 @@ try {
       selectedOutputs: selectAll,
     })
     assert.deepEqual(until.blockOutputs, { 'Slow.status': 'completed' })
+  })
+
+  const branchOutputs = ['Taken.status', 'Tail.status', 'Skipped.status']
+
+  await check(
+    'a stop block on the branch the condition takes still stops the run there',
+    async () => {
+      const until = await run(branch.workflowId, {
+        run: { source: 'manual', stopAfterBlockId: branch.taken },
+        selectedOutputs: branchOutputs,
+      })
+      assert.deepEqual(until.blockOutputs, { 'Taken.status': 'completed' })
+    }
+  )
+
+  await check(
+    'a stop block the condition routes away from fails the run before the other branch finishes',
+    async () => {
+      const skipped = v2ExecuteWorkflowDataSchema.parse(
+        record(
+          await execute(branch.workflowId, {
+            run: { source: 'manual', stopAfterBlockId: branch.skipped },
+            selectedOutputs: branchOutputs,
+          })
+        ).data
+      )
+      assert.equal(skipped.status, 'failed')
+      assert.match(skipped.error?.message ?? '', /Stop block "Skipped" \(.+\) was not reached/)
+      assert.equal(skipped.blockOutputs?.['Skipped.status'], undefined)
+      assert.equal(skipped.blockOutputs?.['Tail.status'], undefined)
+      assert(
+        (skipped.durationMs ?? Number.POSITIVE_INFINITY) < SLOW_MS,
+        `the run must end once Gate decides, not after Tail's ${SLOW_MS} ms, took ${skipped.durationMs} ms`
+      )
+    }
+  )
+
+  await check('the CLI exits non-zero when the stop block is not reached', async () => {
+    const skipped = await runCliExpectingFailure([
+      branch.workflowId,
+      '--stop-after',
+      branch.skipped,
+      ...branchOutputs.flatMap((selector) => ['--select-output', selector]),
+    ])
+    assert.equal(skipped.status, 'failed')
+    assert.match(skipped.error?.message ?? '', /was not reached/)
   })
 
   await check('a block entry without stopAfterBlockId still runs downstream blocks', async () => {
@@ -375,7 +494,7 @@ try {
     await check('remove disposable fixtures', async () => {
       // A response returns before its run finishes persisting logs and large-value
       // references; a cascade delete racing those writes can be chosen as a deadlock victim.
-      const workflowIds = [pipeline.workflowId, otherPipeline.workflowId]
+      const workflowIds = [pipeline.workflowId, otherPipeline.workflowId, branch.workflowId]
       for (let attempt = 0; attempt < 120; attempt++) {
         const [{ open }] =
           await sql`select count(*)::int as open from workflow_execution_logs where workflow_id in ${sql(workflowIds)} and ended_at is null`
