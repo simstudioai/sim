@@ -630,6 +630,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       await acquireForkTargetLock(tx, targetWorkspaceId)
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
       await lockForkRevision(tx, revisionScope)
+      /** Before any target write, so a concurrent archive and this promote lock in one order. */
+      await lockActiveWorkspace(tx, targetWorkspaceId)
       if (admission) {
         await assertForkPreviewFresh(tx, revisionScope, admission)
       }
@@ -997,7 +999,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       const writtenItems: typeof plan.items = []
       const needsConfiguration: PromoteTxApplied['needsConfiguration'] = []
       const clearedOptional: PromoteTxApplied['clearedOptional'] = []
-      if (plan.items.length) await lockActiveWorkspace(tx, targetWorkspaceId)
       for (const item of plan.items) {
         // Use the pre-read source state (loaded above, before the tx). An item only
         // exists when its state was present at read time, so this lookup hits; the

@@ -1,10 +1,18 @@
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
-import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import {
+  member,
+  permissionGroup,
+  permissions,
+  project,
+  projectWorkspace,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
@@ -48,7 +56,8 @@ type ProjectAccess = Awaited<ReturnType<typeof loadProjectAccess>>
 
 /**
  * Loads the caller's org role and every environment with its grant for `records` in three
- * queries, whatever their count.
+ * queries, whatever their count. A snapshot read also learns, in one more query, which
+ * records any permission group restricts, so unrestricted ones skip per-environment policy.
  */
 async function loadProjectAccess(
   tx: DbTransaction,
@@ -106,7 +115,27 @@ async function loadProjectAccess(
     if (rows) rows.push(access)
     else environmentsByProject.set(projectId, [access])
   }
+  const organizationIds = [
+    ...new Set(records.flatMap((record) => (record.organizationId ? [record.organizationId] : []))),
+  ]
+  const restricted =
+    mode === 'snapshot' && organizationIds.length
+      ? new Set(
+          (
+            await tx.execute<{ id: string }>(sql`
+              SELECT DISTINCT denied.id FROM ${permissionGroup},
+                jsonb_array_elements_text(
+                  COALESCE(${permissionGroup.config}->'deniedPartialAccessProjectIssues', '[]'::jsonb)
+                ) AS denied(id)
+              WHERE ${inArray(permissionGroup.organizationId, organizationIds)}
+                AND denied.id = ANY(${textArrayLiteral(records.map((record) => record.id))})
+            `)
+          ).map((row) => row.id)
+        )
+      : null
   return {
+    /** Whether a permission group might restrict Issues for the Project; held reads check all. */
+    mayRestrictIssues: (projectId: string) => restricted === null || restricted.has(projectId),
     isOrgAdmin: (organizationId: string | null) =>
       organizationId !== null &&
       membership?.organizationId === organizationId &&
@@ -145,7 +174,12 @@ async function evaluateProjectAccess(
       'Organization admin or admin access to every environment is required'
     )
   let canUseIssues = !record.archivedAt && visible.length > 0
-  if (canUseIssues && visible.length < active.length && record.organizationId) {
+  if (
+    canUseIssues &&
+    visible.length < active.length &&
+    record.organizationId &&
+    access.mayRestrictIssues(record.id)
+  ) {
     for (const environment of visible) {
       const { config } = await resolveVerifiedUserAccessControlContext(
         principal.userId,

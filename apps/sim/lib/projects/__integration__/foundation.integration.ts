@@ -174,15 +174,21 @@ async function fixture(org = true, count = 2) {
   return { ownerId, teammateId, outsiderId, organizationId, projectId, ids, owner, teammate }
 }
 
-/** Waits until a session is blocked behind `blockerPid`'s locks. */
-async function waitUntilBlockedBy(blockerPid: number) {
+/**
+ * Waits until the operation under test is blocked behind `blockerPid`: a session whose
+ * current statement contains `waitingIn` (an advisory lock tag or row-lock clause), so an
+ * unrelated waiter cannot release the barrier early.
+ */
+async function waitUntilBlockedBy(blockerPid: number, waitingIn: string) {
   await expect
     .poll(
       async () =>
         (
-          await db.execute(
-            sql`SELECT 1 FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))`
-          )
+          await db.execute(sql`
+            SELECT 1 FROM pg_stat_activity
+            WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+              AND position(${waitingIn.toLowerCase()} in lower(query)) > 0
+          `)
         ).length,
       { timeout: 2000, interval: 10 }
     )
@@ -457,7 +463,7 @@ describe('Project foundation at the database and application boundary', () => {
       name: 'Concurrent child',
     })
     try {
-      await waitUntilBlockedBy(await locked.promise)
+      await waitUntilBlockedBy(await locked.promise, "lock='project_backfill'")
     } finally {
       release.resolve()
     }
@@ -841,7 +847,7 @@ describe('Project foundation at the database and application boundary', () => {
         {}
       )
       try {
-        await waitUntilBlockedBy(blocker)
+        await waitUntilBlockedBy(blocker, 'for share')
       } finally {
         release.resolve()
         await archive
@@ -870,7 +876,7 @@ describe('Project foundation at the database and application boundary', () => {
       (error: unknown) => error
     )
     try {
-      await waitUntilBlockedBy(blocker)
+      await waitUntilBlockedBy(blocker, 'for share')
     } finally {
       release.resolve()
       await archive
@@ -1196,7 +1202,7 @@ describe('Project foundation at the database and application boundary', () => {
         prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
       )
       try {
-        await waitUntilBlockedBy(blocker)
+        await waitUntilBlockedBy(blocker, "lock='project'")
       } finally {
         release.resolve()
         await unlink
@@ -1226,7 +1232,7 @@ describe('Project foundation at the database and application boundary', () => {
       const blocker = await held.promise
       const ban = disableUserResources(f.ownerId)
       try {
-        await waitUntilBlockedBy(blocker)
+        await waitUntilBlockedBy(blocker, "lock='project'")
       } finally {
         release.resolve()
         await transfer

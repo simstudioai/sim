@@ -247,6 +247,8 @@ function emptyCopyResult() {
 
 beforeEach(() => {
   resetDbChainMock()
+  queueTableRows(workspace, [{ name: 'Target' }])
+  queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
   mockGetUsersWithPermissions.mockResolvedValue([])
   mockLoadSourceDeployedStates.mockResolvedValue({
     deployedWorkflows: [],
@@ -367,11 +369,6 @@ describe('promoteFork gates', () => {
 })
 
 describe('promoteFork dependent values', () => {
-  beforeEach(() => {
-    queueTableRows(workspace, [{ name: 'Target' }])
-    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
-  })
-
   it('unions the dependent-value picks into the copy discovery set (a re-picked document must be copied)', async () => {
     mockComputePlan.mockResolvedValue(
       makePlan({
@@ -482,8 +479,6 @@ describe('promoteFork dependent values', () => {
 
 describe('promoteFork trigger URLs', () => {
   beforeEach(() => {
-    queueTableRows(workspace, [{ name: 'Target' }])
-    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
     // A block only holds a public URL when its config declares a `useWebhookUrl` field, so the
     // fixture has to look like a webhook trigger to the shared predicate.
     vi.mocked(getBlock).mockReturnValue({

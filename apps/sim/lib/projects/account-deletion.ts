@@ -39,15 +39,20 @@ type ProjectDeletionDecision =
   | { remove: true }
   | { archive: boolean; ownerId?: string }
 
-/** An org admin, else a teammate who administers every surviving environment. */
+/**
+ * An org admin, else a teammate who administers every surviving environment. With `hold`,
+ * the successor's membership or grants stay share-locked until commit, so the handoff
+ * cannot land on someone demoted concurrently.
+ */
 async function findProjectSuccessor(
   executor: DbOrTx,
   record: typeof project.$inferSelect,
   userId: string,
-  survivorIds: string[]
+  survivorIds: string[],
+  hold: boolean
 ): Promise<string | null> {
   if (record.organizationId) {
-    const [admin] = await executor
+    const adminQuery = executor
       .select({ userId: member.userId })
       .from(member)
       .where(
@@ -59,6 +64,7 @@ async function findProjectSuccessor(
       )
       .orderBy(asc(member.userId))
       .limit(1)
+    const [admin] = await (hold ? adminQuery.for('share') : adminQuery)
     if (admin) return admin.userId
   }
   const [teammate] = await executor
@@ -76,7 +82,20 @@ async function findProjectSuccessor(
     .having(sql`count(*) = ${survivorIds.length}`)
     .orderBy(asc(permissions.userId))
     .limit(1)
-  return teammate?.userId ?? null
+  if (!teammate || !hold) return teammate?.userId ?? null
+  const held = await executor
+    .select({ id: permissions.id })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.permissionType, 'admin'),
+        eq(permissions.userId, teammate.userId),
+        inArray(permissions.entityId, survivorIds)
+      )
+    )
+    .for('share')
+  return held.length === survivorIds.length ? teammate.userId : null
 }
 
 interface ProjectEnvironment {
@@ -111,7 +130,8 @@ async function planProjectDeletion(
   record: typeof project.$inferSelect,
   members: ProjectEnvironment[],
   userId: string,
-  doomed: Set<string>
+  doomed: Set<string>,
+  hold: boolean
 ): Promise<ProjectDeletionDecision> {
   const survivors = members.filter((row) => !doomed.has(row.id))
   if (!survivors.length) {
@@ -125,7 +145,8 @@ async function planProjectDeletion(
     executor,
     record,
     userId,
-    survivors.map((row) => row.id)
+    survivors.map((row) => row.id),
+    hold
   )
   return ownerId
     ? { archive, ownerId }
@@ -153,7 +174,8 @@ export async function getProjectAccountDeletionBlockers(
       record,
       environments.get(record.id) ?? [],
       userId,
-      doomed
+      doomed,
+      false
     )
     if ('blocker' in decision) blockers.push(decision.blocker)
   }
@@ -198,7 +220,8 @@ export async function prepareProjectsForAccountDeletion(
       record,
       environments.get(record.id) ?? [],
       userId,
-      doomed
+      doomed,
+      true
     )
     if ('blocker' in decision) throw new ProjectConflictError(decision.blocker)
     if ('remove' in decision) {

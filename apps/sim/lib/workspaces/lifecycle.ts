@@ -241,7 +241,7 @@ async function archiveWorkspaceRecordsInTransaction(
       isPublic: false,
       updatedAt: now,
     })
-    .where(and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt)))
+    .where(eq(workflowMcpServer.workspaceId, workspaceId))
     .returning({ id: workflowMcpServer.id })
 
   await tx
