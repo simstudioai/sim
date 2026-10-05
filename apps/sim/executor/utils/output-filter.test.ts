@@ -46,4 +46,15 @@ describe('output filtering', () => {
     expect(output.nested).not.toHaveProperty('childTraceSpans')
     expect((output.nested as typeof nestedSpans).kept).toBe(nestedSpans.kept)
   })
+
+  it('keeps the file size a block completed with when hydration later updates it in place', () => {
+    const file = { id: 'f1', key: 'k1', url: 'u', name: 'deck.pptx', size: 10, type: 'pptx' }
+    const blockOutput = { file, rows: [{ id: 1 }] }
+
+    const output = filterOutputForLog('function', blockOutput as never)
+    file.size = 4096
+
+    expect((output.file as typeof file).size).toBe(10)
+    expect(output.rows).toBe(blockOutput.rows)
+  })
 })
