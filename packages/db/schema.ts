@@ -230,9 +230,9 @@ export const folder = pgTable(
   {
     id: text('id').primaryKey(),
     /** File folders may belong to a Project; other resource folders remain workspace-owned. */
-    // contract-pending(after folder entity backfill and owner-aware readers are deployed): require both ownership fields.
-    entityType: text('entity_type'),
-    entityId: text('entity_id'),
+    projectId: text('project_id').references((): AnyPgColumn => project.id, {
+      onDelete: 'restrict',
+    }),
     resourceType: folderResourceTypeEnum('resource_type').notNull(),
     name: text('name').notNull(),
     /** Project creator references clear on account deletion; legacy folders retain their cascade. */
@@ -252,27 +252,19 @@ export const folder = pgTable(
   (table) => ({
     creatorLifetimeCheck: check(
       'folder_creator_lifetime_check',
-      sql`${table.userId} IS NOT NULL OR coalesce(${table.entityType} = 'project' AND char_length(${table.originalCreatorUserId}) > 0, false)`
+      sql`${table.userId} IS NOT NULL OR coalesce(${table.projectId} IS NOT NULL AND char_length(${table.originalCreatorUserId}) > 0, false)`
     ),
-    entityBindingCheck: check(
-      'folder_entity_binding_check',
-      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} IS NOT NULL AND ${table.entityId} IS NOT NULL AND char_length(${table.entityId}) > 0 AND ((${table.entityType} = 'workspace' AND ${table.workspaceId} IS NOT NULL AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND ${table.workspaceId} IS NULL AND ${table.resourceType} = 'file')))`
+    ownerCheck: check(
+      'folder_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND (${table.projectId} IS NULL OR ${table.resourceType} = 'file')`
     ),
-    entityIdIdx: index('folder_entity_id_idx')
-      .on(table.entityType, table.entityId, table.id)
-      .concurrently(),
-    entityResourceParentNameActiveUnique: uniqueIndex(
-      'folder_entity_resource_parent_name_active_unique'
+    projectIdIdx: index('folder_project_id_idx').on(table.projectId, table.id).concurrently(),
+    projectResourceParentNameActiveUnique: uniqueIndex(
+      'folder_project_resource_parent_name_active_unique'
     )
-      .on(
-        table.entityType,
-        table.entityId,
-        table.resourceType,
-        sql`coalesce(${table.parentId}, '')`,
-        table.name
-      )
+      .on(table.projectId, table.resourceType, sql`coalesce(${table.parentId}, '')`, table.name)
       .concurrently()
-      .where(sql`${table.deletedAt} IS NULL`),
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     userIdx: index('folder_user_idx').on(table.userId),
     workspaceResourceParentIdx: index('folder_workspace_resource_parent_idx').on(
       table.workspaceId,
@@ -2503,10 +2495,8 @@ export const workspaceFiles = pgTable(
   'workspace_files',
   {
     id: text('id').primaryKey(),
-    /** Canonical ownership, independent of purpose, creator, and secret source. NULL awaits repair. */
-    // contract-pending(after entity-aware readers and audited backfill are deployed): require both ownership fields.
-    entityType: text('entity_type'),
-    entityId: text('entity_id'),
+    /** Direct owner, independent of creator, caller, and billing payer. */
+    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     key: text('key').notNull(),
     /** Project creator references clear on account deletion; other file contexts retain their cascade. */
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
@@ -2591,26 +2581,25 @@ export const workspaceFiles = pgTable(
   (table) => ({
     creatorLifetimeCheck: check(
       'workspace_files_creator_lifetime_check',
-      sql`${table.userId} IS NOT NULL OR coalesce(${table.entityType} = 'project' AND char_length(${table.originalCreatorUserId}) > 0, false)`
+      sql`${table.userId} IS NOT NULL OR coalesce(${table.projectId} IS NOT NULL AND char_length(${table.originalCreatorUserId}) > 0, false)`
     ),
-    entityBindingCheck: check(
-      'workspace_files_entity_binding_check',
-      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL) OR (${table.entityType} IS NOT NULL AND ${table.entityId} IS NOT NULL AND ${table.entityType} IN ('workspace', 'project', 'organization', 'user') AND char_length(${table.entityId}) > 0)`
+    ownerCheck: check(
+      'workspace_files_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}, ${table.organizationId}) <= 1`
     ),
-    entityIdIdx: index('workspace_files_entity_id_idx')
-      .on(table.entityType, table.entityId, table.id)
+    projectBindingCheck: check(
+      'workspace_files_project_binding_check',
+      sql`(${table.projectId} IS NOT NULL) = (${table.context} = 'project') AND (${table.projectId} IS NULL OR ${table.chatId} IS NULL)`
+    ),
+    projectIdIdx: index('workspace_files_project_id_idx')
+      .on(table.projectId, table.id)
       .concurrently(),
-    entityFolderOriginalNameActiveUnique: uniqueIndex(
-      'workspace_files_entity_folder_name_active_unique'
+    projectFolderOriginalNameActiveUnique: uniqueIndex(
+      'workspace_files_project_folder_name_active_unique'
     )
-      .on(
-        table.entityType,
-        table.entityId,
-        sql`coalesce(${table.folderId}, '')`,
-        table.originalName
-      )
+      .on(table.projectId, sql`coalesce(${table.folderId}, '')`, table.originalName)
       .concurrently()
-      .where(sql`${table.deletedAt} IS NULL AND ${table.context} IN ('workspace', 'project')`),
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
@@ -2635,12 +2624,12 @@ export const workspaceFiles = pgTable(
      */
     ownerSearchKeysetIdx: index('workspace_files_search_owner_keyset_idx')
       .on(
-        sql`coalesce(${table.entityType}, 'workspace')`,
-        sql`coalesce(${table.entityId}, ${table.workspaceId})`,
+        sql`CASE WHEN ${table.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+        sql`coalesce(${table.projectId}, ${table.workspaceId})`,
         table.id
       )
       .where(
-        sql`${table.deletedAt} IS NULL AND ((${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL) OR (${table.context} = 'project' AND ${table.entityType} = 'project' AND ${table.entityId} IS NOT NULL))`
+        sql`${table.deletedAt} IS NULL AND ((${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL) OR (${table.context} = 'project' AND ${table.projectId} IS NOT NULL))`
       )
       .concurrently(),
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')

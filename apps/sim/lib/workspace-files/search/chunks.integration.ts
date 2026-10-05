@@ -166,7 +166,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
     await connection`CREATE TABLE workspace (id text PRIMARY KEY)`
     await connection`CREATE TABLE workspace_files (id text PRIMARY KEY, workspace_id text REFERENCES workspace(id) ON DELETE CASCADE,
       context text NOT NULL, content_updated_at timestamp NOT NULL, deleted_at timestamp,
-      original_name text NOT NULL, key text NOT NULL DEFAULT 'key', user_id text NOT NULL DEFAULT 'owner', folder_id text, entity_type text, entity_id text, organization_id text, chat_id text)`
+      original_name text NOT NULL, key text NOT NULL DEFAULT 'key', user_id text NOT NULL DEFAULT 'owner', folder_id text, project_id text, organization_id text, chat_id text)`
     for (const migration of [
       '0313_puzzling_zodiak.sql',
       '0358_workspace_file_content_version_precision.sql',

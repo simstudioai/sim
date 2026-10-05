@@ -1,13 +1,12 @@
 import { folder, workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
-/** Selects only coherent canonical ownership, including the audited workspace expansion fallback. */
+/** Selects only coherent canonical ownership, independent of creator and purpose. */
 export function fileOwnerCondition(owner: EditableFileOwner, includeChatUploads = false) {
   if (owner.entityType === 'project') {
     return and(
-      eq(workspaceFiles.entityType, 'project'),
-      eq(workspaceFiles.entityId, owner.entityId),
+      eq(workspaceFiles.projectId, owner.entityId),
       eq(workspaceFiles.context, 'project'),
       isNull(workspaceFiles.workspaceId),
       isNull(workspaceFiles.organizationId),
@@ -20,10 +19,7 @@ export function fileOwnerCondition(owner: EditableFileOwner, includeChatUploads 
     includeChatUploads
       ? inArray(workspaceFiles.context, ['workspace', 'mothership'])
       : eq(workspaceFiles.context, 'workspace'),
-    or(
-      and(isNull(workspaceFiles.entityType), isNull(workspaceFiles.entityId)),
-      and(eq(workspaceFiles.entityType, 'workspace'), eq(workspaceFiles.entityId, owner.entityId))
-    )
+    isNull(workspaceFiles.projectId)
   )
 }
 
@@ -32,17 +28,7 @@ export function fileFolderOwnerCondition(owner: EditableFileOwner) {
   return and(
     eq(folder.resourceType, 'file'),
     owner.entityType === 'workspace'
-      ? and(
-          eq(folder.workspaceId, owner.entityId),
-          or(
-            and(isNull(folder.entityType), isNull(folder.entityId)),
-            and(eq(folder.entityType, 'workspace'), eq(folder.entityId, owner.entityId))
-          )
-        )
-      : and(
-          isNull(folder.workspaceId),
-          eq(folder.entityType, 'project'),
-          eq(folder.entityId, owner.entityId)
-        )
+      ? eq(folder.workspaceId, owner.entityId)
+      : eq(folder.projectId, owner.entityId)
   )
 }

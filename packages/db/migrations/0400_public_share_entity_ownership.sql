@@ -43,12 +43,8 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Public share file does not exist' USING ERRCODE = '23503';
     END IF;
-    target_type := target.entity_type;
-    target_id := target.entity_id;
-    IF target_type IS NULL AND target_id IS NULL THEN
-      SELECT entity_type, entity_id INTO target_type, target_id
-        FROM workspace_file_legacy_entity(target.context, target.workspace_id, target.organization_id, target.user_id);
-    END IF;
+    SELECT entity_type, entity_id INTO target_type, target_id
+      FROM workspace_file_owner(target.context, target.workspace_id, target.project_id, target.organization_id, target.user_id);
     IF ROW(NEW.entity_type, NEW.entity_id) IS DISTINCT FROM ROW(target_type, target_id) THEN
       RAISE EXCEPTION 'Public share file belongs to a different or unknown owner' USING ERRCODE = '23514';
     END IF;
@@ -73,18 +69,10 @@ BEGIN
     DELETE FROM public_share WHERE resource_type = 'file' AND resource_id = OLD.id;
     RETURN OLD;
   END IF;
-  previous_type := OLD.entity_type;
-  previous_id := OLD.entity_id;
-  current_type := NEW.entity_type;
-  current_id := NEW.entity_id;
-  IF previous_type IS NULL AND previous_id IS NULL THEN
-    SELECT entity_type, entity_id INTO previous_type, previous_id
-      FROM workspace_file_legacy_entity(OLD.context, OLD.workspace_id, OLD.organization_id, OLD.user_id);
-  END IF;
-  IF current_type IS NULL AND current_id IS NULL THEN
-    SELECT entity_type, entity_id INTO current_type, current_id
-      FROM workspace_file_legacy_entity(NEW.context, NEW.workspace_id, NEW.organization_id, NEW.user_id);
-  END IF;
+  SELECT entity_type, entity_id INTO previous_type, previous_id
+    FROM workspace_file_owner(OLD.context, OLD.workspace_id, OLD.project_id, OLD.organization_id, OLD.user_id);
+  SELECT entity_type, entity_id INTO current_type, current_id
+    FROM workspace_file_owner(NEW.context, NEW.workspace_id, NEW.project_id, NEW.organization_id, NEW.user_id);
   IF NEW.id IS DISTINCT FROM OLD.id
     OR ROW(previous_type, previous_id) IS DISTINCT FROM ROW(current_type, current_id) THEN
     DELETE FROM public_share WHERE resource_type = 'file' AND resource_id = OLD.id;
@@ -94,7 +82,7 @@ END;
 $$;--> statement-breakpoint
 DROP TRIGGER IF EXISTS workspace_file_retire_public_shares ON workspace_files;--> statement-breakpoint
 CREATE TRIGGER workspace_file_retire_public_shares
-AFTER DELETE OR UPDATE OF id, entity_type, entity_id, workspace_id, organization_id, user_id, context
+AFTER DELETE OR UPDATE OF id, project_id, workspace_id, organization_id, user_id, context
 ON workspace_files FOR EACH ROW EXECUTE FUNCTION workspace_file_retire_public_shares();--> statement-breakpoint
 COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint

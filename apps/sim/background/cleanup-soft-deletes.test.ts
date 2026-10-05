@@ -496,8 +496,7 @@ describe('folder cleanup target', () => {
           name: 'Reports',
           workspaceId: 'ws-1',
           resourceType: 'knowledge_base',
-          entityType: null,
-          entityId: null,
+          projectId: null,
         },
       ])
       mockDeduplicateFolderName.mockResolvedValueOnce('Reports (1)')

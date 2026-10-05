@@ -115,8 +115,7 @@ export const GET = withRouteHandler(
           id: folderTable.id,
           name: folderTable.name,
           workspaceId: folderTable.workspaceId,
-          entityType: folderTable.entityType,
-          entityId: folderTable.entityId,
+          projectId: folderTable.projectId,
         })
         .from(folderTable)
         .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))

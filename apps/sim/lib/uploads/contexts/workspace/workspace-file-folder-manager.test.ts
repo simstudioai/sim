@@ -100,8 +100,7 @@ describe('listWorkspaceFileFolders', () => {
   const activeParent = {
     id: 'parent-1',
     resourceType: 'file',
-    entityType: null,
-    entityId: null,
+    projectId: null,
     workspaceId: 'workspace-1',
     userId: 'user-1',
     name: 'Engineering',
@@ -188,8 +187,7 @@ describe('relocateWorkspaceFileFolderByPath', () => {
   const source = {
     id: 'folder-source',
     resourceType: 'file',
-    entityType: null,
-    entityId: null,
+    projectId: null,
     workspaceId: 'workspace-1',
     userId: 'user-1',
     name: 'xp-files',

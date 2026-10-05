@@ -39,12 +39,12 @@ export async function backfillPublicShareEntities(sql: Sql) {
           AND share.workspace_id IS NOT NULL
           AND (share.resource_type <> 'file' OR EXISTS (
             SELECT 1 FROM workspace_files file
-            CROSS JOIN LATERAL workspace_file_legacy_entity(
-              file.context, file.workspace_id, file.organization_id, file.user_id
+            CROSS JOIN LATERAL workspace_file_owner(
+              file.context, file.workspace_id, file.project_id, file.organization_id, file.user_id
             ) owner
             WHERE file.id = share.resource_id
-              AND coalesce(file.entity_type, owner.entity_type) = 'workspace'
-              AND coalesce(file.entity_id, owner.entity_id) = share.workspace_id
+              AND owner.entity_type = 'workspace'
+              AND owner.entity_id = share.workspace_id
           ))
         RETURNING share.id
       `

@@ -1,8 +1,5 @@
 import { readFileSync } from 'node:fs'
-import {
-  backfillFileFolderEntities,
-  backfillFileFolderEntitiesMigration,
-} from '@sim/db/script-migrations/0031_backfill_file_folder_entities'
+import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
 import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -107,59 +104,16 @@ describe('file folder and version ownership in PostgreSQL', () => {
     }
   })
 
-  it('backfills several bounded pages without changing folder hierarchy or version attribution', async () => {
-    await sql`ALTER TABLE folder DISABLE TRIGGER folder_entity_binding`
-    await sql`ALTER TABLE workspace_file_version DISABLE TRIGGER workspace_file_version_owner_match`
-    try {
-      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
-        SELECT 'folder-' || lpad(id::text, 4, '0'), 'Folder ' || id, 'user-a', 'workspace-a', 'file'
-        FROM generate_series(1, 506) id`
-      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
-        VALUES ('child', 'Child', 'user-a', 'workspace-a', 'file', 'folder-0001')`
-      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
-        VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-      await sql`INSERT INTO workspace_file_version (id, file_id, workspace_id)
-        VALUES ('bad-version', 'file', 'workspace-b')`
-    } finally {
-      await sql`ALTER TABLE folder ENABLE TRIGGER folder_entity_binding`
-      await sql`ALTER TABLE workspace_file_version ENABLE TRIGGER workspace_file_version_owner_match`
-    }
-    await sql`UPDATE folder SET name = 'Renamed' WHERE id = 'child'`
-    expect(await backfillFileFolderEntities(sql)).toEqual({
-      backfilled: 507,
-      mismatchedVersions: 1,
-      sampleVersionIds: ['bad-version'],
-    })
-    expect((await backfillFileFolderEntities(sql)).backfilled).toBe(0)
-    const [child] =
-      await sql`SELECT name, parent_id, entity_type, entity_id FROM folder WHERE id = 'child'`
-    expect(child).toEqual({
-      name: 'Renamed',
-      parent_id: 'folder-0001',
-      entity_type: 'workspace',
-      entity_id: 'workspace-a',
-    })
-    const [version] =
-      await sql`SELECT workspace_id, key FROM workspace_file_version WHERE id = 'bad-version'`
-    expect(version).toEqual({ workspace_id: 'workspace-b', key: 'unchanged-version-key' })
-  })
-
-  it('preserves metadata and content changes on unbackfilled files with retained versions', async () => {
-    await sql`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_sync_entity_binding`
-    try {
-      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
-        VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-    } finally {
-      await sql`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_sync_entity_binding`
-    }
+  it('preserves metadata and content changes on existing workspace files with retained versions', async () => {
+    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
+      VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
     await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
     await sql`UPDATE workspace_files SET key = 'new-revision-key', original_name = 'renamed.md' WHERE id = 'file'`
-    await sql`UPDATE workspace_files SET entity_type = entity_type WHERE id = 'file'`
     const [file] =
-      await sql`SELECT entity_type, entity_id, key, secret_provenance_version FROM workspace_files`
+      await sql`SELECT workspace_id, project_id, key, secret_provenance_version FROM workspace_files`
     expect(file).toEqual({
-      entity_type: 'workspace',
-      entity_id: 'workspace-a',
+      workspace_id: 'workspace-a',
+      project_id: null,
       key: 'new-revision-key',
       secret_provenance_version: 1,
     })
@@ -176,7 +130,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
       await sql`ALTER TABLE workspace_file_version ENABLE TRIGGER workspace_file_version_owner_match`
     }
 
-    await expect(runScriptMigrations(sql, [backfillFileFolderEntitiesMigration])).rejects.toThrow(
+    await expect(runScriptMigrations(sql, [validateFileOwnershipMigration])).rejects.toThrow(
       'Retained file versions require ownership repair'
     )
     expect(await sql`SELECT name FROM script_migrations`).toEqual([])
@@ -186,10 +140,10 @@ describe('file folder and version ownership in PostgreSQL', () => {
 
     await sql`UPDATE workspace_file_version SET workspace_id = 'workspace-a'
       WHERE id = 'conflicting-version'`
-    await runScriptMigrations(sql, [backfillFileFolderEntitiesMigration])
-    await runScriptMigrations(sql, [backfillFileFolderEntitiesMigration])
+    await runScriptMigrations(sql, [validateFileOwnershipMigration])
+    await runScriptMigrations(sql, [validateFileOwnershipMigration])
     expect(await sql`SELECT name FROM script_migrations`).toEqual([
-      { name: '0031_backfill_file_folder_entities' },
+      { name: '0031_validate_file_ownership' },
     ])
     expect(
       await sql`SELECT workspace_id, key FROM workspace_file_version WHERE id = 'conflicting-version'`
@@ -198,34 +152,26 @@ describe('file folder and version ownership in PostgreSQL', () => {
 
   it('requires explicit Project file-folder ownership and rejects unknown or conflicting bindings', async () => {
     const [before] = await sql`SELECT * FROM project WHERE id = 'project-a'`
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('project-folder', 'Documentation', 'user-a', 'file', 'project', 'project-a')`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('project-folder', 'Documentation', 'user-a', 'file', 'project-a')`
     const [after] = await sql`SELECT * FROM project WHERE id = 'project-a'`
     expect(after).toEqual(before)
     for (const resourceType of ['workflow', 'knowledge_base', 'table']) {
-      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-        VALUES (${resourceType}, 'Invalid', 'user-a', ${resourceType}, 'project', 'project-a')`).rejects.toMatchObject(
+      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+        VALUES (${resourceType}, 'Invalid', 'user-a', ${resourceType}, 'project-a')`).rejects.toMatchObject(
         { code: '23514' }
       )
     }
-    for (const pair of [
-      { type: null, id: null },
-      { type: 'organization', id: 'organization-a' },
-      { type: 'project', id: null },
-    ]) {
-      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-        VALUES ('invalid', 'Invalid', 'user-a', 'file', ${pair.type}, ${pair.id})`).rejects.toMatchObject(
-        { code: '23514' }
-      )
-    }
-    await expect(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, entity_type, entity_id)
-      VALUES ('conflict', 'Invalid', 'user-a', 'workspace-a', 'file', 'project', 'project-a')`).rejects.toMatchObject(
+    await expect(sql`INSERT INTO folder (id, name, user_id, resource_type)
+      VALUES ('invalid', 'Invalid', 'user-a', 'file')`).rejects.toMatchObject({ code: '23514' })
+    await expect(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, project_id)
+      VALUES ('conflict', 'Invalid', 'user-a', 'workspace-a', 'file', 'project-a')`).rejects.toMatchObject(
       { code: '23514' }
     )
-    await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('missing', 'Invalid', 'user-a', 'file', 'project', 'missing')`).rejects.toMatchObject(
-      { code: '23503' }
-    )
+    await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('missing', 'Invalid', 'user-a', 'file', 'missing')`).rejects.toMatchObject({
+      code: '23503',
+    })
   })
 
   it('keeps folder identity and type immutable and rejects cross-owner parents', async () => {
@@ -240,7 +186,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
       sql`UPDATE folder SET parent_id = 'workflow-folder' WHERE id = 'file-folder'`
     ).rejects.toMatchObject({ code: '23514' })
     await expect(
-      sql`UPDATE folder SET workspace_id = 'workspace-b', entity_id = 'workspace-b' WHERE id = 'file-folder'`
+      sql`UPDATE folder SET workspace_id = 'workspace-b' WHERE id = 'file-folder'`
     ).rejects.toMatchObject({ code: '23514' })
     await expect(
       sql`UPDATE folder SET resource_type = 'table' WHERE id = 'file-folder'`
@@ -274,42 +220,42 @@ describe('file folder and version ownership in PostgreSQL', () => {
   it('separates active names by owner type and parent and rejects conflicting restoration', async () => {
     await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
       VALUES ('workspace-folder', 'Docs', 'user-a', 'same-id', 'file')`
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'project', 'same-id')`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'same-id')`
     await expect(
       sql`UPDATE folder SET parent_id = 'workspace-folder' WHERE id = 'project-folder'`
     ).rejects.toMatchObject({ code: '23514' })
-    await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('duplicate', 'Docs', 'user-a', 'file', 'project', 'same-id')`).rejects.toMatchObject({
+    await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('duplicate', 'Docs', 'user-a', 'file', 'same-id')`).rejects.toMatchObject({
       code: '23505',
     })
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id, parent_id)
-      VALUES ('nested', 'Docs', 'user-a', 'file', 'project', 'same-id', 'project-folder')`
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id, deleted_at)
-      VALUES ('deleted', 'Docs', 'user-a', 'file', 'project', 'same-id', now())`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id, parent_id)
+      VALUES ('nested', 'Docs', 'user-a', 'file', 'same-id', 'project-folder')`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id, deleted_at)
+      VALUES ('deleted', 'Docs', 'user-a', 'file', 'same-id', now())`
     await expect(
       sql`UPDATE folder SET deleted_at = NULL WHERE id = 'deleted'`
     ).rejects.toMatchObject({ code: '23505' })
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('project-file', 'project', 'user-a', 'project', 'same-id')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('project-file', 'project', 'user-a', 'same-id')`
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('workspace-file', 'workspace', 'user-a', 'same-id')`
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('duplicate-file', 'project', 'user-a', 'project', 'same-id')`).rejects.toMatchObject({
+    await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('duplicate-file', 'project', 'user-a', 'same-id')`).rejects.toMatchObject({
       code: '23505',
     })
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-      VALUES ('nested-file', 'project', 'user-a', 'project', 'same-id', 'project-folder')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id, folder_id)
+      VALUES ('nested-file', 'project', 'user-a', 'same-id', 'project-folder')`
   })
 
   it('accepts Project file folders and rejects mismatched owners and resource types', async () => {
     await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
       VALUES ('workspace-folder', 'Files', 'user-a', 'workspace-a', 'file'),
         ('workflow-folder', 'Workflows', 'user-a', 'workspace-a', 'workflow')`
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'project', 'project-a')`
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-      VALUES ('project-file', 'project', 'user-a', 'project', 'project-a', 'project-folder')`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'project-a')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id, folder_id)
+      VALUES ('project-file', 'project', 'user-a', 'project-a', 'project-folder')`
     await expect(
       sql`UPDATE workspace_files SET folder_id = 'workspace-folder' WHERE id = 'project-file'`
     ).rejects.toMatchObject({ code: '23514' })
@@ -324,8 +270,8 @@ describe('file folder and version ownership in PostgreSQL', () => {
   })
 
   it('protects retained Project folders from parent and creator deletion', async () => {
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id, deleted_at)
-      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'project', 'project-a', now())`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id, deleted_at)
+      VALUES ('project-folder', 'Docs', 'user-a', 'file', 'project-a', now())`
     await expect(sql`DELETE FROM project WHERE id = 'project-a'`).rejects.toMatchObject({
       code: '23503',
     })
@@ -343,8 +289,8 @@ describe('file folder and version ownership in PostgreSQL', () => {
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('workspace-file', 'workspace', 'user-a', 'workspace-a'),
         ('chat-file', 'mothership', 'user-a', 'workspace-a')`
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('project-file', 'project', 'user-a', 'project', 'project-a')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('project-file', 'project', 'user-a', 'project-a')`
     await sql`INSERT INTO workspace_files (id, context, user_id) VALUES ('personal', 'copilot', 'user-a')`
     await sql`INSERT INTO workspace_file_version (id, file_id)
       VALUES ('workspace-version', 'workspace-file'), ('project-version', 'project-file')`
@@ -387,10 +333,11 @@ describe('file folder and version ownership in PostgreSQL', () => {
     async (ownerType, isolation) => {
       const ownerId = ownerType === 'workspace' ? 'workspace-a' : 'project-a'
       const workspaceId = ownerType === 'workspace' ? ownerId : null
+      const projectId = ownerType === 'project' ? ownerId : null
       const lockKey = `resource_folders:file:${ownerType === 'workspace' ? ownerId : `${ownerType}:${ownerId}`}`
-      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, entity_type, entity_id)
-      VALUES ('folder-a', 'A', 'user-a', ${workspaceId}, 'file', ${ownerType}, ${ownerId}),
-        ('folder-b', 'B', 'user-a', ${workspaceId}, 'file', ${ownerType}, ${ownerId})`
+      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, project_id)
+      VALUES ('folder-a', 'A', 'user-a', ${workspaceId}, 'file', ${projectId}),
+        ('folder-b', 'B', 'user-a', ${workspaceId}, 'file', ${projectId})`
       const moved = createDeferred<void>()
       const release = createDeferred<void>()
       const firstMove = sql.begin(async (tx) => {
@@ -458,8 +405,8 @@ describe('file folder and version ownership in PostgreSQL', () => {
         await creation
       }
       await rejection
-      const [file] = await sql`SELECT entity_id FROM workspace_files WHERE id = 'file'`
-      expect(file.entity_id).toBe('workspace-a')
+      const [file] = await sql`SELECT workspace_id FROM workspace_files WHERE id = 'file'`
+      expect(file.workspace_id).toBe('workspace-a')
     }
   )
 
@@ -505,8 +452,8 @@ describe('file folder and version ownership in PostgreSQL', () => {
       const inserted = createDeferred<void>()
       const release = createDeferred<void>()
       const creation = sql.begin(async (tx) => {
-        await tx`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-          VALUES ('folder', 'Docs', 'user-a', 'file', 'project', 'project-a')`
+        await tx`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+          VALUES ('folder', 'Docs', 'user-a', 'file', 'project-a')`
         inserted.resolve()
         await release.promise
       })
@@ -521,7 +468,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
           await tx`DELETE FROM project WHERE id = 'project-a'`
         })
         rejection = expect(deletion).rejects.toMatchObject({
-          code: isolation === 'repeatable read' ? '40001' : '23503',
+          code: '23503',
         })
         await waitForDatabaseLock(await waiting.promise)
       } finally {
@@ -534,10 +481,10 @@ describe('file folder and version ownership in PostgreSQL', () => {
   )
 
   it('replays the expansion while preserving existing Project folders and version pointers', async () => {
-    await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('folder', 'Docs', 'user-a', 'file', 'project', 'project-a')`
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-      VALUES ('file', 'project', 'user-a', 'project', 'project-a', 'folder')`
+    await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('folder', 'Docs', 'user-a', 'file', 'project-a')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id, folder_id)
+      VALUES ('file', 'project', 'user-a', 'project-a', 'folder')`
     await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
     await applyMigration(migrations[1])
     const [file] = await sql`SELECT folder_id, key,
@@ -612,10 +559,10 @@ describe('file ownership composed with enforced Project membership', () => {
       }
       const [project] = await chain<{ id: string }[]>`SELECT id FROM project`
       const [before] = await chain`SELECT * FROM project WHERE id = ${project.id}`
-      await chain`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-        VALUES ('folder', 'Architecture', 'creator', 'file', 'project', ${project.id})`
-      await chain`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-        VALUES ('file', 'project', 'creator', 'project', ${project.id}, 'folder')`
+      await chain`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+        VALUES ('folder', 'Architecture', 'creator', 'file', ${project.id})`
+      await chain`INSERT INTO workspace_files (id, context, user_id, project_id, folder_id)
+        VALUES ('file', 'project', 'creator', ${project.id}, 'folder')`
       await chain`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
       const [after] = await chain`SELECT * FROM project WHERE id = ${project.id}`
       expect(after).toEqual(before)

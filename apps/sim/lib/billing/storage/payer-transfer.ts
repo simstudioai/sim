@@ -869,19 +869,15 @@ async function getExactProjectStorageBytes(tx: DbTransaction, projectIds: string
   if (!projectIds.length) return bytesById
   const totals = await tx
     .select({
-      projectId: workspaceFiles.entityId,
+      projectId: workspaceFiles.projectId,
       bytes: sql<string>`coalesce(sum(${workspaceFiles.sizeBytes}), 0)::text`,
       invalidCount: sql<number>`count(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL OR ${workspaceFiles.sizeBytes} < 0)::integer`,
     })
     .from(workspaceFiles)
     .where(
-      and(
-        eq(workspaceFiles.entityType, 'project'),
-        eq(workspaceFiles.context, 'project'),
-        inArray(workspaceFiles.entityId, projectIds)
-      )
+      and(eq(workspaceFiles.context, 'project'), inArray(workspaceFiles.projectId, projectIds))
     )
-    .groupBy(workspaceFiles.entityId)
+    .groupBy(workspaceFiles.projectId)
   for (const total of totals) {
     if (!total.projectId || total.invalidCount > 0)
       throw new Error('Project has invalid canonical size metadata')

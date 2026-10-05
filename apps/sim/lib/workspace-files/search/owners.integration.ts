@@ -153,8 +153,7 @@ async function create(
     .values({
       id,
       userId: f.ownerId,
-      entityType: 'project',
-      entityId: f.projectId,
+      projectId: f.projectId,
       context: 'project',
       key,
       originalName: name,
@@ -185,7 +184,7 @@ async function claim(fileId: string) {
 async function changeFile(fileId: string, content: string) {
   const [old] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, fileId))
   if (!old) throw new Error('Search source fixture missing')
-  const key = `project/${old.entityId}/${generateId()}/${old.originalName}`
+  const key = `project/${old.projectId}/${generateId()}/${old.originalName}`
   await mkdir(dirname(join(storageRoot, key)), { recursive: true })
   await writeFile(join(storageRoot, key), content)
   await db
@@ -208,8 +207,7 @@ async function createFolder(
     .values({
       id: generateId(),
       resourceType: 'file',
-      entityType: 'project',
-      entityId: f.projectId,
+      projectId: f.projectId,
       userId: f.ownerId,
       name,
       parentId,
@@ -786,7 +784,7 @@ afterAll(async () => {
       .from(workspaceFiles)
       .where(
         inArray(
-          workspaceFiles.entityId,
+          workspaceFiles.projectId,
           fixtures.flatMap((f) => [f.projectId, f.workspaceId])
         )
       )
@@ -813,7 +811,7 @@ afterAll(async () => {
     }
   }
   for (const f of fixtures) {
-    await db.delete(folder).where(eq(folder.entityId, f.projectId))
+    await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(project).where(eq(project.id, f.projectId))
     await db.delete(organization).where(eq(organization.id, f.organizationId))

@@ -67,8 +67,8 @@ export function currentFileSearchDependencies(buildId: SQLWrapper, owner: Editab
     SELECT 1 FROM file_search_dependency dependency
     LEFT JOIN workspace_files input ON input.id = dependency.file_id
       AND input.context = ${owner.entityType}
-      AND coalesce(input.entity_type, 'workspace') = ${owner.entityType}
-      AND coalesce(input.entity_id, input.workspace_id) = ${owner.entityId}
+      AND (CASE WHEN input.project_id IS NOT NULL THEN 'project' ELSE 'workspace' END) = ${owner.entityType}
+      AND coalesce(input.project_id, input.workspace_id) = ${owner.entityId}
     WHERE dependency.build_id = ${buildId}
       AND (input.id IS NULL OR input.deleted_at IS NOT NULL OR input.key <> dependency.key
         OR input.content_updated_at <> dependency.source_content_updated_at)

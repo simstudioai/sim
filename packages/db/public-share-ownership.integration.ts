@@ -136,8 +136,8 @@ describe('Public share canonical ownership in PostgreSQL', () => {
   })
 
   async function file(id = 'file', owner = 'project-a', kind: 'project' | 'workspace' = 'project') {
-    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, entity_type, entity_id, original_name)
-      VALUES (${id}, ${kind}, 'user-a', ${kind === 'workspace' ? owner : null}, ${kind}, ${owner}, ${id})`
+    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id, original_name)
+      VALUES (${id}, ${kind}, 'user-a', ${kind === 'workspace' ? owner : null}, ${kind === 'project' ? owner : null}, ${id})`
   }
   function share(
     executor: Sql,

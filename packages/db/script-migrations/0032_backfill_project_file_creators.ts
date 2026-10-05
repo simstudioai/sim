@@ -11,7 +11,7 @@ async function backfillTable(sql: Sql, table: 'workspace_files' | 'folder'): Pro
   for (;;) {
     const rows = await sql<{ id: string }[]>`
       SELECT id FROM ${sql(table)}
-      WHERE entity_type = 'project' AND original_creator_user_id IS NULL AND user_id IS NOT NULL
+      WHERE project_id IS NOT NULL AND original_creator_user_id IS NULL AND user_id IS NOT NULL
         AND id > ${afterId}
       ORDER BY id LIMIT ${BATCH_SIZE}
     `
@@ -24,7 +24,7 @@ async function backfillTable(sql: Sql, table: 'workspace_files' | 'folder'): Pro
       await tx`SELECT id FROM ${tx(table)} WHERE id = ANY(${ids}::text[]) ORDER BY id FOR UPDATE`
       return tx<{ id: string }[]>`
         UPDATE ${tx(table)} SET original_creator_user_id = user_id
-        WHERE id = ANY(${ids}::text[]) AND entity_type = 'project'
+        WHERE id = ANY(${ids}::text[]) AND project_id IS NOT NULL
           AND original_creator_user_id IS NULL AND user_id IS NOT NULL
         RETURNING id
       `

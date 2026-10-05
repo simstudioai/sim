@@ -8,7 +8,6 @@ import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName, deduplicateFolderNameInScope } from '@/lib/folders/naming'
 import {
   buildFolderPath,
@@ -33,7 +32,8 @@ import {
   folderPathSegments,
 } from '@/lib/workspace-files/folder-display-path'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
-import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
+import { type EditableFileOwner, editableFileOwnerColumns } from '@/lib/workspace-files/ownership'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -277,13 +277,12 @@ export function workspaceFileNameFolderCondition(folderId?: string | null) {
 
 async function acquireWorkspaceFileFolderMutationLock(tx: DbTransaction, workspaceId: string) {
   await lockWorkspaceProject(tx, workspaceId)
-  await acquireFolderMutationLock(tx, workspaceId, FILE_FOLDER_RESOURCE_TYPE)
+  await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
 }
 
 async function acquireFileFolderMutationLock(tx: DbTransaction, owner: EditableFileOwner) {
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
-  const ownerKey = owner.entityType === 'workspace' ? owner.entityId : `project:${owner.entityId}`
-  await acquireFolderMutationLock(tx, ownerKey, FILE_FOLDER_RESOURCE_TYPE)
+  await lockFileDirectories(tx, [owner])
 }
 
 export function buildWorkspaceFileFolderPathMap(
@@ -695,9 +694,7 @@ async function createFileFolder<O extends EditableFileOwner>(
         resourceType: FILE_FOLDER_RESOURCE_TYPE,
         name,
         userId: params.userId,
-        entityType: params.owner.entityType,
-        entityId: params.owner.entityId,
-        workspaceId: params.owner.entityType === 'workspace' ? params.owner.entityId : null,
+        ...editableFileOwnerColumns(params.owner),
         parentId,
         sortOrder:
           params.sortOrder ??

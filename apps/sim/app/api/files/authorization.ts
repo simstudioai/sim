@@ -129,7 +129,7 @@ export async function verifyFileAccess(
   const requireWrite = options?.requireWrite ?? false
   try {
     const canonical = await getFileMetadataByKey(cloudKey, undefined, { includeDeleted: true })
-    if (canonical?.entityType === 'project' || canonical?.context === 'project') return false
+    if (canonical?.projectId != null || canonical?.context === 'project') return false
     const keyContext = inferContextFromKey(cloudKey)
     /** Organization logos are changed only through the organization-authorized upload lifecycle. */
     if (keyContext === 'organization-logos') return !requireWrite

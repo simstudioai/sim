@@ -213,24 +213,24 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
 
   const rows = await tx
     .select({
-      entityType: sql<string>`coalesce(${workspaceFiles.entityType}, 'workspace')`,
-      entityId: sql<string>`coalesce(${workspaceFiles.entityId}, ${workspaceFiles.workspaceId})`,
+      entityType: sql<string>`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+      entityId: sql<string>`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
       fileId: workspaceFiles.id,
       sourceContentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
     .from(workspaceFiles)
     .where(
       and(
-        sql`((${workspaceFiles.context} = 'workspace' AND ${workspaceFiles.workspaceId} IS NOT NULL) OR (${workspaceFiles.context} = 'project' AND ${workspaceFiles.entityType} = 'project' AND ${workspaceFiles.entityId} IS NOT NULL))`,
+        sql`((${workspaceFiles.context} = 'workspace' AND ${workspaceFiles.workspaceId} IS NOT NULL) OR (${workspaceFiles.context} = 'project' AND ${workspaceFiles.projectId} IS NOT NULL))`,
         isNull(workspaceFiles.deletedAt),
         afterEntityType && afterEntityId && afterFileId
-          ? sql`(coalesce(${workspaceFiles.entityType}, 'workspace'), coalesce(${workspaceFiles.entityId}, ${workspaceFiles.workspaceId}), ${workspaceFiles.id}) > (${afterEntityType}, ${afterEntityId}, ${afterFileId})`
+          ? sql`(CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END, coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId}), ${workspaceFiles.id}) > (${afterEntityType}, ${afterEntityId}, ${afterFileId})`
           : undefined
       )
     )
     .orderBy(
-      sql`coalesce(${workspaceFiles.entityType}, 'workspace')`,
-      sql`coalesce(${workspaceFiles.entityId}, ${workspaceFiles.workspaceId})`,
+      sql`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+      sql`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
       asc(workspaceFiles.id)
     )
     .limit(FILE_SEARCH_BACKFILL_PAGE_SIZE)
@@ -299,8 +299,8 @@ async function reapStaleClaims(
       workspaceFiles,
       and(
         eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
-        sql`coalesce(${workspaceFiles.entityType}, 'workspace') = coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
-        sql`coalesce(${workspaceFiles.entityId}, ${workspaceFiles.workspaceId}) = coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId})`,
+        sql`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END = coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
+        sql`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId}) = coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId})`,
         sql`${workspaceFiles.context} = coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
         isNull(workspaceFiles.deletedAt),
         eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
@@ -432,8 +432,8 @@ async function claimQueuedOwnerJobs(
         CROSS JOIN LATERAL (
           SELECT 1 FROM workspace_files file WHERE file.id = search_index.file_id
             AND file.context = selected.entity_type
-            AND coalesce(file.entity_type, 'workspace') = selected.entity_type
-            AND coalesce(file.entity_id, file.workspace_id) = selected.entity_id
+            AND CASE WHEN file.project_id IS NOT NULL THEN 'project' ELSE 'workspace' END = selected.entity_type
+            AND coalesce(file.project_id, file.workspace_id) = selected.entity_id
             AND file.deleted_at IS NULL AND file.content_updated_at = search_index.source_content_updated_at
           LIMIT 1
         ) live_file

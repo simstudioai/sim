@@ -679,7 +679,7 @@ function durableSecretProvenanceFromWorkspaceFile(
 ): DurableSecretProvenance {
   if (provenance.status === 'unknown') return provenance
   const sourceUserId = binding.userId
-  if (!sourceUserId || binding.entityType === 'project') return { status: 'unknown' }
+  if (!sourceUserId || binding.projectId != null) return { status: 'unknown' }
   if (provenance.status === 'unrecorded') return EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
   return {
     status: 'exact',

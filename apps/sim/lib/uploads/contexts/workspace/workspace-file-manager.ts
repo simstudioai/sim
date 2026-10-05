@@ -55,7 +55,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
@@ -104,8 +103,10 @@ import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/sha
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { displaySegmentPattern } from '@/lib/vfs/path'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import {
   type EditableFileOwner,
+  editableFileOwnerColumns,
   type FileOwner,
   resolveFileOwner,
 } from '@/lib/workspace-files/ownership'
@@ -321,9 +322,7 @@ async function insertFileMetadataInTx(
     .insert(workspaceFiles)
     .values({
       ...omit(metadata, ['size']),
-      entityType: owner.entityType,
-      entityId: owner.entityId,
-      workspaceId: owner.entityType === 'workspace' ? owner.entityId : null,
+      ...editableFileOwnerColumns(owner),
       sizeBytes: metadata.size,
       context: owner.entityType,
       displayName: metadata.originalName,
@@ -626,7 +625,7 @@ export async function uploadWorkspaceFile(
       try {
         finalized = await db.transaction(async (tx) => {
           await lockWorkspaceProject(tx, workspaceId)
-          await acquireFolderMutationLock(tx, workspaceId, 'file')
+          await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
           let activeFolderId: string | null
           if (options?.folderPath !== undefined) {
             const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
@@ -897,7 +896,7 @@ export async function registerUploadedWorkspaceFile(params: {
 
     const finalized = await db.transaction(async (tx) => {
       await lockWorkspaceProject(tx, workspaceId)
-      await acquireFolderMutationLock(tx, workspaceId, 'file')
+      await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
       const activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
         id: fileId,
@@ -1878,8 +1877,7 @@ export async function loadActiveWorkspaceFileContext(
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
       billedAccountUserId: workspace.billedAccountUserId,
       ownership: {
-        entityType: workspaceFiles.entityType,
-        entityId: workspaceFiles.entityId,
+        projectId: workspaceFiles.projectId,
         context: workspaceFiles.context,
         workspaceId: workspaceFiles.workspaceId,
         organizationId: workspaceFiles.organizationId,
@@ -1929,8 +1927,7 @@ export async function loadWorkspaceFileLifecycleContext(
       billedAccountUserId: workspace.billedAccountUserId,
       deletedAt: workspaceFiles.deletedAt,
       ownership: {
-        entityType: workspaceFiles.entityType,
-        entityId: workspaceFiles.entityId,
+        projectId: workspaceFiles.projectId,
         context: workspaceFiles.context,
         workspaceId: workspaceFiles.workspaceId,
         organizationId: workspaceFiles.organizationId,
@@ -2538,11 +2535,7 @@ async function renameFileInTx(
 ): Promise<WorkspaceFileRow> {
   const name = normalizeWorkspaceFileItemName(newName.trim(), 'File')
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
-  await acquireFolderMutationLock(
-    tx,
-    owner.entityType === 'workspace' ? owner.entityId : `project:${owner.entityId}`,
-    'file'
-  )
+  await lockFileDirectories(tx, [owner])
   const [file] = await tx
     .select()
     .from(workspaceFiles)
@@ -2729,11 +2722,7 @@ async function restoreFileInTx(
   fileId: string
 ): Promise<WorkspaceFileRow> {
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
-  await acquireFolderMutationLock(
-    tx,
-    owner.entityType === 'workspace' ? owner.entityId : `project:${owner.entityId}`,
-    'file'
-  )
+  await lockFileDirectories(tx, [owner])
   const [file] = await tx
     .select()
     .from(workspaceFiles)

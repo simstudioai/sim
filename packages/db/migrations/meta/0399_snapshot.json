@@ -8528,18 +8528,6 @@
           "primaryKey": true,
           "notNull": true
         },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "resource_type": {
           "name": "resource_type",
           "type": "folder_resource_type",
@@ -8610,76 +8598,15 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
-        "folder_entity_id_idx": {
-          "name": "folder_entity_id_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "folder_entity_resource_parent_name_active_unique": {
-          "name": "folder_entity_resource_parent_name_active_unique",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"parent_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"folder\".\"deleted_at\" IS NULL",
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
         "folder_user_idx": {
           "name": "folder_user_idx",
           "columns": [
@@ -8813,6 +8740,61 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "folder_project_id_idx": {
+          "name": "folder_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
+        },
+        "folder_project_resource_parent_name_active_unique": {
+          "name": "folder_project_resource_parent_name_active_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"parent_id\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"folder\".\"deleted_at\" IS NULL AND \"folder\".\"project_id\" IS NOT NULL",
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8842,6 +8824,15 @@
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "folder_project_id_project_id_fk": {
+          "name": "folder_project_id_project_id_fk",
+          "tableFrom": "folder",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -8850,11 +8841,11 @@
       "checkConstraints": {
         "folder_creator_lifetime_check": {
           "name": "folder_creator_lifetime_check",
-          "value": "\"folder\".\"user_id\" IS NOT NULL OR coalesce(\"folder\".\"entity_type\" = 'project' AND char_length(\"folder\".\"original_creator_user_id\") > 0, false)"
+          "value": "\"folder\".\"user_id\" IS NOT NULL OR coalesce(\"folder\".\"project_id\" IS NOT NULL AND char_length(\"folder\".\"original_creator_user_id\") > 0, false)"
         },
-        "folder_entity_binding_check": {
-          "name": "folder_entity_binding_check",
-          "value": "(\"folder\".\"entity_type\" IS NULL AND \"folder\".\"entity_id\" IS NULL AND \"folder\".\"workspace_id\" IS NOT NULL) OR (\"folder\".\"entity_type\" IS NOT NULL AND \"folder\".\"entity_id\" IS NOT NULL AND char_length(\"folder\".\"entity_id\") > 0 AND ((\"folder\".\"entity_type\" = 'workspace' AND \"folder\".\"workspace_id\" IS NOT NULL AND \"folder\".\"entity_id\" = \"folder\".\"workspace_id\") OR (\"folder\".\"entity_type\" = 'project' AND \"folder\".\"workspace_id\" IS NULL AND \"folder\".\"resource_type\" = 'file')))"
+        "folder_owner_check": {
+          "name": "folder_owner_check",
+          "value": "num_nonnulls(\"folder\".\"workspace_id\", \"folder\".\"project_id\") = 1 AND (\"folder\".\"project_id\" IS NULL OR \"folder\".\"resource_type\" = 'file')"
         }
       },
       "isRLSEnabled": false
@@ -28224,18 +28215,6 @@
           "primaryKey": true,
           "notNull": true
         },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "key": {
           "name": "key",
           "type": "text",
@@ -28358,70 +28337,15 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
-        "workspace_files_entity_id_idx": {
-          "name": "workspace_files_entity_id_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_files_entity_folder_name_active_unique": {
-          "name": "workspace_files_entity_folder_name_active_unique",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"folder_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "original_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"context\" IN ('workspace', 'project')",
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
         "workspace_files_key_active_unique": {
           "name": "workspace_files_key_active_unique",
           "columns": [
@@ -28651,6 +28575,55 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "workspace_files_project_id_idx": {
+          "name": "workspace_files_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_files_project_folder_name_active_unique": {
+          "name": "workspace_files_project_folder_name_active_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"folder_id\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "original_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"project_id\" IS NOT NULL",
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -28698,6 +28671,15 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "workspace_files_project_id_project_id_fk": {
+          "name": "workspace_files_project_id_project_id_fk",
+          "tableFrom": "workspace_files",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -28706,15 +28688,19 @@
       "checkConstraints": {
         "workspace_files_creator_lifetime_check": {
           "name": "workspace_files_creator_lifetime_check",
-          "value": "\"workspace_files\".\"user_id\" IS NOT NULL OR coalesce(\"workspace_files\".\"entity_type\" = 'project' AND char_length(\"workspace_files\".\"original_creator_user_id\") > 0, false)"
-        },
-        "workspace_files_entity_binding_check": {
-          "name": "workspace_files_entity_binding_check",
-          "value": "(\"workspace_files\".\"entity_type\" IS NULL AND \"workspace_files\".\"entity_id\" IS NULL) OR (\"workspace_files\".\"entity_type\" IS NOT NULL AND \"workspace_files\".\"entity_id\" IS NOT NULL AND \"workspace_files\".\"entity_type\" IN ('workspace', 'project', 'organization', 'user') AND char_length(\"workspace_files\".\"entity_id\") > 0)"
+          "value": "\"workspace_files\".\"user_id\" IS NOT NULL OR coalesce(\"workspace_files\".\"project_id\" IS NOT NULL AND char_length(\"workspace_files\".\"original_creator_user_id\") > 0, false)"
         },
         "workspace_files_organization_binding_check": {
           "name": "workspace_files_organization_binding_check",
           "value": "\"workspace_files\".\"organization_id\" IS NULL OR (\"workspace_files\".\"workspace_id\" IS NULL AND \"workspace_files\".\"context\" = 'knowledge-base' AND \"workspace_files\".\"folder_id\" IS NULL AND \"workspace_files\".\"chat_id\" IS NULL)"
+        },
+        "workspace_files_owner_check": {
+          "name": "workspace_files_owner_check",
+          "value": "num_nonnulls(\"workspace_files\".\"workspace_id\", \"workspace_files\".\"project_id\", \"workspace_files\".\"organization_id\") <= 1"
+        },
+        "workspace_files_project_binding_check": {
+          "name": "workspace_files_project_binding_check",
+          "value": "(\"workspace_files\".\"project_id\" IS NOT NULL) = (\"workspace_files\".\"context\" = 'project') AND (\"workspace_files\".\"project_id\" IS NULL OR \"workspace_files\".\"chat_id\" IS NULL)"
         }
       },
       "isRLSEnabled": false

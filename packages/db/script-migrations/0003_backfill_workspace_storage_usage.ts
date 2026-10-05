@@ -227,8 +227,8 @@ export function createPostgresStorageReconciliationStore(sql: Sql): StorageRecon
             WHERE organization_id = ${organizationId}
             UNION ALL
             SELECT file.size_bytes AS bytes FROM workspace_files file
-            INNER JOIN project ON project.id = file.entity_id
-            WHERE file.entity_type = 'project' AND file.context = 'project'
+            INNER JOIN project ON project.id = file.project_id
+            WHERE file.context = 'project'
               AND project.organization_id = ${organizationId}
           ) retained
         `
@@ -274,8 +274,8 @@ export function createPostgresStorageReconciliationStore(sql: Sql): StorageRecon
             WHERE organization_id IS NULL AND billed_account_user_id = ${userId}
             UNION ALL
             SELECT file.size_bytes AS bytes FROM workspace_files file
-            INNER JOIN project ON project.id = file.entity_id
-            WHERE file.entity_type = 'project' AND file.context = 'project'
+            INNER JOIN project ON project.id = file.project_id
+            WHERE file.context = 'project'
               AND project.organization_id IS NULL AND project.owner_id = ${userId}
           ) retained
         `

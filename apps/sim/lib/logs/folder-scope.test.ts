@@ -24,8 +24,7 @@ describe('resolveLogFolderScope', () => {
       FOLDERS.map((row) => ({
         ...row,
         workspaceId: 'workspace-1',
-        entityType: 'workspace',
-        entityId: 'workspace-1',
+        projectId: null,
       }))
     )
   })

@@ -660,8 +660,7 @@ async function reRootActiveFolderChildrenUnguarded(
       name: folderTable.name,
       workspaceId: folderTable.workspaceId,
       resourceType: folderTable.resourceType,
-      entityType: folderTable.entityType,
-      entityId: folderTable.entityId,
+      projectId: folderTable.projectId,
     })
     .from(folderTable)
     .where(and(inArray(folderTable.parentId, expiredIds), isNull(folderTable.deletedAt)))

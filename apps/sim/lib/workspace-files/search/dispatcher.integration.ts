@@ -72,7 +72,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`CREATE TABLE workspace_files (
       id text PRIMARY KEY, workspace_id text, context text NOT NULL,
       deleted_at timestamp, content_updated_at timestamp NOT NULL,
-      entity_type text, entity_id text, key text NOT NULL DEFAULT 'key'
+      project_id text, key text NOT NULL DEFAULT 'key'
     )`
     await connection`CREATE TABLE workspace_file_search_revision (
       file_id text PRIMARY KEY, workspace_id text NOT NULL,
@@ -151,15 +151,15 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     entityType: 'workspace' | 'project' = 'workspace'
   ) {
     await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
-    await connection`INSERT INTO workspace_files (id, workspace_id, context, entity_type, entity_id, content_updated_at)
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, project_id, content_updated_at)
       SELECT ${entityType === 'workspace' ? '' : 'project-'} || ${workspaceId} || '-' || lpad(n::text, 6, '0'),
-        ${entityType === 'workspace' ? workspaceId : null}, ${entityType}, ${entityType}, ${workspaceId}, '2026-09-16'
+        ${entityType === 'workspace' ? workspaceId : null}, ${entityType}, ${entityType === 'project' ? workspaceId : null}, '2026-09-16'
       FROM generate_series(1, ${queued + active}) n`
     await connection`INSERT INTO workspace_file_search_revision
       (file_id, workspace_id, entity_type, entity_id, source_content_updated_at, status, updated_at, dispatched_at)
-      SELECT id, workspace_id, entity_type, entity_id, content_updated_at, 'pending', '2026-09-16',
+      SELECT id, workspace_id, context, coalesce(project_id, workspace_id), content_updated_at, 'pending', '2026-09-16',
         CASE WHEN row_number() OVER (ORDER BY id DESC) <= ${active} THEN now() ELSE NULL END
-      FROM workspace_files WHERE entity_type = ${entityType} AND entity_id = ${workspaceId}`
+      FROM workspace_files WHERE context = ${entityType} AND coalesce(project_id, workspace_id) = ${workspaceId}`
     await connection`INSERT INTO file_search_dispatch_queue
       (entity_type, entity_id, enqueued_at, updated_at) VALUES (${entityType}, ${workspaceId}, now(), now())`
   }
@@ -310,7 +310,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     )
     expect(walk).toBeDefined()
     expect(walk?.query).toContain(
-      'coalesce("workspace_files"."entity_id", "workspace_files"."workspace_id"), "workspace_files"."id") >'
+      'coalesce("workspace_files"."project_id", "workspace_files"."workspace_id"), "workspace_files"."id") >'
     )
 
     const plan = await connection.begin(async (tx) => {

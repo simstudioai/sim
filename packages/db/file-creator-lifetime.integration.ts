@@ -129,20 +129,20 @@ describe('Project creator lifetime in PostgreSQL', () => {
   check(
     'creator deletion preserves Project folders, heads, history and immutable attribution',
     async () => {
-      await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-      VALUES ('folder', 'Docs', 'user-a', 'file', 'project', 'project-a')`
-      await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-      VALUES ('file', 'project', 'user-a', 'project', 'project-a', 'folder')`
+      await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+      VALUES ('folder', 'Docs', 'user-a', 'file', 'project-a')`
+      await sql`INSERT INTO workspace_files (id, context, user_id, project_id, folder_id)
+      VALUES ('file', 'project', 'user-a', 'project-a', 'folder')`
       await sql`INSERT INTO workspace_file_version (id, file_id, author_user_ids)
       VALUES ('version', 'file', ARRAY['user-a'])`
       const [before] =
         await sql`SELECT key, content_updated_at, secret_provenance_version FROM workspace_files`
       await sql`DELETE FROM "user" WHERE id = 'user-a'`
       expect(
-        await sql`SELECT user_id, original_creator_user_id, entity_id FROM workspace_files`
-      ).toEqual([{ user_id: null, original_creator_user_id: 'user-a', entity_id: 'project-a' }])
-      expect(await sql`SELECT user_id, original_creator_user_id, entity_id FROM folder`).toEqual([
-        { user_id: null, original_creator_user_id: 'user-a', entity_id: 'project-a' },
+        await sql`SELECT user_id, original_creator_user_id, project_id FROM workspace_files`
+      ).toEqual([{ user_id: null, original_creator_user_id: 'user-a', project_id: 'project-a' }])
+      expect(await sql`SELECT user_id, original_creator_user_id, project_id FROM folder`).toEqual([
+        { user_id: null, original_creator_user_id: 'user-a', project_id: 'project-a' },
       ])
       expect(
         (
@@ -178,11 +178,11 @@ describe('Project creator lifetime in PostgreSQL', () => {
       await sql`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_creator_lifetime`
       await sql`ALTER TABLE folder DISABLE TRIGGER folder_creator_lifetime`
       try {
-        await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, original_name)
-        SELECT 'file-' || lpad(id::text, 4, '0'), 'project', 'user-a', 'project', 'project-a', 'document-' || id
+        await sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_name)
+        SELECT 'file-' || lpad(id::text, 4, '0'), 'project', 'user-a', 'project-a', 'document-' || id
         FROM generate_series(1, 507) id`
-        await sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id)
-        SELECT 'folder-' || lpad(id::text, 4, '0'), 'Docs ' || id, 'user-a', 'file', 'project', 'project-a'
+        await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
+        SELECT 'folder-' || lpad(id::text, 4, '0'), 'Docs ' || id, 'user-a', 'file', 'project-a'
         FROM generate_series(1, 507) id`
       } finally {
         await sql`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_creator_lifetime`
@@ -220,16 +220,16 @@ describe('Project creator lifetime in PostgreSQL', () => {
   check(
     'rejects missing and forged Project creators and immutable snapshot replacement',
     async () => {
-      await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, original_creator_user_id)
-      VALUES ('missing', 'project', NULL, 'project', 'project-a', 'user-a')`).rejects.toMatchObject(
-        { code: '23514' }
-      )
-      await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, original_creator_user_id)
-      VALUES ('forged', 'project', 'user-a', 'project', 'project-a', 'user-b')`).rejects.toMatchObject(
-        { code: '23514' }
-      )
-      await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+      await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_creator_user_id)
+      VALUES ('missing', 'project', NULL, 'project-a', 'user-a')`).rejects.toMatchObject({
+        code: '23514',
+      })
+      await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_creator_user_id)
+      VALUES ('forged', 'project', 'user-a', 'project-a', 'user-b')`).rejects.toMatchObject({
+        code: '23514',
+      })
+      await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('file', 'project', 'user-a', 'project-a')`
       for (const creator of ['user-b', null]) {
         await expect(
           sql`UPDATE workspace_files SET original_creator_user_id = ${creator} WHERE id = 'file'`
@@ -238,10 +238,10 @@ describe('Project creator lifetime in PostgreSQL', () => {
       await expect(
         sql`UPDATE workspace_files SET user_id = 'user-b' WHERE id = 'file'`
       ).rejects.toMatchObject({ code: '23514' })
-      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, entity_type, entity_id, original_creator_user_id)
-      VALUES ('forged', 'Docs', 'user-a', 'file', 'project', 'project-a', 'user-b')`).rejects.toMatchObject(
-        { code: '23514' }
-      )
+      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id, original_creator_user_id)
+      VALUES ('forged', 'Docs', 'user-a', 'file', 'project-a', 'user-b')`).rejects.toMatchObject({
+        code: '23514',
+      })
       await expect(sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('legacy-null', 'workspace', NULL, 'workspace-a')`).rejects.toMatchObject({
         code: '23514',
@@ -253,8 +253,8 @@ describe('Project creator lifetime in PostgreSQL', () => {
     'retained Project owner deletion stays fail-closed and rolls back creator cleanup',
     async () => {
       await sql`UPDATE project SET owner_id = 'user-a' WHERE id = 'project-a'`
-      await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+      await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('file', 'project', 'user-a', 'project-a')`
       await expect(sql`DELETE FROM "user" WHERE id = 'user-a'`).rejects.toMatchObject({
         code: '23503',
       })
@@ -289,8 +289,8 @@ describe('Project creator lifetime in PostgreSQL', () => {
         )
         await snapshot.promise
         const insertion = sql.begin(async (tx) => {
-          await tx`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-          VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+          await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+          VALUES ('file', 'project', 'user-a', 'project-a')`
           inserted.resolve()
           await releaseInsert.promise
         })
@@ -329,8 +329,8 @@ describe('Project creator lifetime in PostgreSQL', () => {
       const insertion = sql.begin(async (tx) => {
         const [connection] = await tx`SELECT pg_backend_pid() AS pid`
         insertPid.resolve(connection.pid)
-        await tx`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-        VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+        await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+        VALUES ('file', 'project', 'user-a', 'project-a')`
       })
       const insertionOutcome = insertion.then(
         () => ({ code: null }),

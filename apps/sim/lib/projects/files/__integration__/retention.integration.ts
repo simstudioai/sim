@@ -163,8 +163,7 @@ async function seedFile(
   await db.insert(workspaceFiles).values({
     id: fileId,
     userId: f.creatorId,
-    entityType: kind,
-    entityId: ownerId,
+    projectId: kind === 'project' ? f.projectId : null,
     context: kind,
     workspaceId: kind === 'workspace' ? f.workspaceId : null,
     key: keys[11],
@@ -392,8 +391,7 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const childId = generateId()
       const rootFolderId = generateId()
       const owner = {
-        entityType: 'project' as const,
-        entityId: f.projectId,
+        projectId: f.projectId,
         userId: f.creatorId,
         resourceType: 'file' as const,
       }
@@ -480,14 +478,8 @@ afterAll(async () => {
         .where(
           sql`${outboxEvent.payload}->>'key' LIKE ${`project/${f.projectId}/%`} OR ${outboxEvent.payload}->>'key' LIKE ${`workspace/${f.workspaceId}/%`}`
         )
-      await db
-        .delete(workspaceFiles)
-        .where(
-          and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-        )
-      await db
-        .delete(folder)
-        .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+      await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+      await db.delete(folder).where(eq(folder.projectId, f.projectId))
       await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
       await db
         .delete(subscription)

@@ -170,7 +170,9 @@ async function fixture(org = true, count = 2) {
       updatedAt: now,
     })
   }
-  await db.insert(userStats).values({ id: generateId(), userId: ownerId })
+  await db
+    .insert(userStats)
+    .values([ownerId, teammateId, outsiderId].map((userId) => ({ id: generateId(), userId })))
   const organizationId = org ? generateId() : null
   if (organizationId) {
     await db

@@ -83,7 +83,7 @@ BEGIN
     SELECT coalesce(entity_type, 'workspace'), coalesce(entity_id, workspace_id)
       INTO target_type, target_id FROM workspace_file_search_build WHERE id = NEW.build_id;
   ELSE
-    SELECT coalesce(entity_type, 'workspace'), coalesce(entity_id, workspace_id)
+    SELECT CASE WHEN project_id IS NOT NULL THEN 'project' ELSE 'workspace' END, coalesce(project_id, workspace_id)
       INTO target_type, target_id FROM workspace_files
       WHERE id = NEW.file_id AND context IN ('workspace', 'project') FOR SHARE;
   END IF;
@@ -116,8 +116,8 @@ BEGIN
   IF TG_OP = 'DELETE' THEN
     UPDATE workspace_file_search_build SET expires_at = now()
       WHERE id = (SELECT build_id FROM workspace_file_search_revision WHERE file_id = OLD.id);
-    owner_type := coalesce(OLD.entity_type, CASE WHEN OLD.context = 'workspace' THEN 'workspace' END);
-    owner_id := coalesce(OLD.entity_id, OLD.workspace_id);
+    owner_type := CASE WHEN OLD.project_id IS NOT NULL THEN 'project' WHEN OLD.context = 'workspace' THEN 'workspace' END;
+    owner_id := coalesce(OLD.project_id, OLD.workspace_id);
     IF owner_type IN ('workspace', 'project') AND OLD.context = owner_type AND owner_id IS NOT NULL THEN
       INSERT INTO file_search_dispatch_queue (entity_type, entity_id) VALUES (owner_type, owner_id)
       ON CONFLICT (entity_type, entity_id) DO UPDATE SET updated_at = now();
@@ -125,16 +125,16 @@ BEGIN
     RETURN OLD;
   END IF;
   IF TG_OP = 'UPDATE' THEN
-    IF ROW(NEW.content_updated_at, NEW.deleted_at, NEW.context, NEW.workspace_id, NEW.entity_type, NEW.entity_id)
-      IS NOT DISTINCT FROM ROW(OLD.content_updated_at, OLD.deleted_at, OLD.context, OLD.workspace_id, OLD.entity_type, OLD.entity_id) THEN
+    IF ROW(NEW.content_updated_at, NEW.deleted_at, NEW.context, NEW.workspace_id, NEW.project_id)
+      IS NOT DISTINCT FROM ROW(OLD.content_updated_at, OLD.deleted_at, OLD.context, OLD.workspace_id, OLD.project_id) THEN
       RETURN NEW;
     END IF;
     UPDATE workspace_file_search_build SET expires_at = now()
       WHERE id = (SELECT build_id FROM workspace_file_search_revision WHERE file_id = NEW.id);
     DELETE FROM workspace_file_search_revision WHERE file_id = NEW.id;
   END IF;
-  owner_type := coalesce(NEW.entity_type, CASE WHEN NEW.context = 'workspace' THEN 'workspace' END);
-  owner_id := coalesce(NEW.entity_id, NEW.workspace_id);
+  owner_type := CASE WHEN NEW.project_id IS NOT NULL THEN 'project' WHEN NEW.context = 'workspace' THEN 'workspace' END;
+  owner_id := coalesce(NEW.project_id, NEW.workspace_id);
   IF owner_type IN ('workspace', 'project') AND NEW.context = owner_type AND owner_id IS NOT NULL THEN
     -- Waking the owner also reconciles bounded dependent builds without rewriting their sources here.
     INSERT INTO file_search_dispatch_queue (entity_type, entity_id) VALUES (owner_type, owner_id)
@@ -163,6 +163,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_search_revision_owner_pending_idx"
 --> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_search_revision_owner_status_idx" ON "workspace_file_search_revision" USING btree (coalesce("entity_type", 'workspace'),coalesce("entity_id", "workspace_id"),"status","dispatched_at");
 --> statement-breakpoint
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "workspace_files_search_owner_keyset_idx" ON "workspace_files" USING btree (coalesce("entity_type", 'workspace'),coalesce("entity_id", "workspace_id"),"id") WHERE "workspace_files"."deleted_at" IS NULL AND (("workspace_files"."context" = 'workspace' AND "workspace_files"."workspace_id" IS NOT NULL) OR ("workspace_files"."context" = 'project' AND "workspace_files"."entity_type" = 'project' AND "workspace_files"."entity_id" IS NOT NULL));
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "workspace_files_search_owner_keyset_idx" ON "workspace_files" USING btree ((CASE WHEN "project_id" IS NOT NULL THEN 'project' ELSE 'workspace' END),coalesce("project_id", "workspace_id"),"id") WHERE "workspace_files"."deleted_at" IS NULL AND (("workspace_files"."context" = 'workspace' AND "workspace_files"."workspace_id" IS NOT NULL) OR ("workspace_files"."context" = 'project' AND "workspace_files"."project_id" IS NOT NULL));
 --> statement-breakpoint
 SET lock_timeout = '5s';

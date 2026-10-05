@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { resolveFileOwner } from '@/lib/workspace-files/ownership'
 
 const legacyWorkspaceFile = {
-  entityType: null,
-  entityId: null,
+  projectId: null,
   context: 'workspace',
   workspaceId: 'workspace-a',
   organizationId: null,
@@ -14,37 +13,23 @@ const legacyWorkspaceFile = {
 
 const projectFile = {
   ...legacyWorkspaceFile,
-  entityType: 'project',
-  entityId: 'project-a',
+  projectId: 'project-a',
   context: 'project',
   workspaceId: null,
 }
 
 describe('file ownership isolation', () => {
-  it('keeps audited legacy workspace ownership while its pair awaits backfill', () => {
+  it('keeps audited workspace ownership independent of Project support', () => {
     expect(resolveFileOwner(legacyWorkspaceFile)).toEqual({
       entityType: 'workspace',
       entityId: 'workspace-a',
     })
   })
 
-  it.each([
-    { entityType: 'workspace', entityId: null },
-    { entityType: null, entityId: 'workspace-a' },
-    { entityType: 'workspace', entityId: '' },
-    { entityType: 'unrecognized', entityId: 'workspace-a' },
-    { entityType: 'workspace', entityId: 'workspace-b' },
-    { entityType: 'user', entityId: 'uploader-a' },
-  ])('rejects a conflicting or incomplete pair %j', (binding) => {
-    expect(resolveFileOwner({ ...legacyWorkspaceFile, ...binding })).toBeNull()
-  })
-
   it('does not change shared ownership when the uploader changes', () => {
     expect(
       resolveFileOwner({
         ...legacyWorkspaceFile,
-        entityType: 'workspace',
-        entityId: 'workspace-a',
         userId: 'different-uploader',
       })
     ).toEqual({ entityType: 'workspace', entityId: 'workspace-a' })
@@ -66,14 +51,12 @@ describe('file ownership isolation', () => {
     (context) => {
       const file = { ...legacyWorkspaceFile, context, workspaceId: null }
       expect(resolveFileOwner(file)).toBeNull()
-      expect(resolveFileOwner({ ...file, entityType: 'user', entityId: file.userId })).toBeNull()
     }
   )
 
   it.each([
-    { entityType: null, entityId: null },
-    { entityType: 'workspace', entityId: 'workspace-a' },
-    { entityType: 'project', entityId: '' },
+    { projectId: null },
+    { projectId: '' },
     { workspaceId: 'workspace-a' },
     { organizationId: 'organization-a' },
     { chatId: 'chat-a' },
@@ -93,9 +76,6 @@ describe('file ownership isolation', () => {
       entityType: 'organization',
       entityId: 'organization-a',
     })
-    expect(
-      resolveFileOwner({ ...file, entityType: 'organization', entityId: 'organization-b' })
-    ).toBeNull()
   })
 
   it.each(['copilot', 'profile-pictures'])(
@@ -103,9 +83,7 @@ describe('file ownership isolation', () => {
     (context) => {
       const file = { ...legacyWorkspaceFile, context, workspaceId: null }
       expect(resolveFileOwner(file)).toEqual({ entityType: 'user', entityId: 'uploader-a' })
-      expect(
-        resolveFileOwner({ ...file, entityType: 'user', entityId: 'different-person' })
-      ).toBeNull()
+      expect(resolveFileOwner({ ...file, userId: null })).toBeNull()
     }
   )
 })

@@ -53,8 +53,7 @@ export const GENERATED_SCHEMA_TABLES = {
   verification: ['id', 'identifier', 'value', 'expiresAt', 'createdAt', 'updatedAt'],
   folder: [
     'id',
-    'entityType',
-    'entityId',
+    'projectId',
     'resourceType',
     'name',
     'userId',
@@ -604,8 +603,7 @@ export const GENERATED_SCHEMA_TABLES = {
   ],
   workspaceFiles: [
     'id',
-    'entityType',
-    'entityId',
+    'projectId',
     'key',
     'userId',
     'originalCreatorUserId',

@@ -1,9 +1,9 @@
 import { folder, publicShare, workspaceFiles, workspaceFileVersion } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { retireProjectUploadsInTx } from '@/lib/projects/files/prefix-cleanup'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 
 const PURGE_BATCH_SIZE = 500
 
@@ -17,10 +17,9 @@ export async function purgeProjectFilesInTx(
   expectedBillableBytes: number
 ): Promise<string[]> {
   await retireProjectUploadsInTx(tx, projectId)
-  await acquireFolderMutationLock(tx, `project:${projectId}`, 'file')
+  await lockFileDirectories(tx, [{ entityType: 'project', entityId: projectId }])
   const ownedFiles = and(
-    eq(workspaceFiles.entityType, 'project'),
-    eq(workspaceFiles.entityId, projectId),
+    eq(workspaceFiles.projectId, projectId),
     eq(workspaceFiles.context, 'project')
   )
   const eventIds: string[] = []
@@ -68,13 +67,7 @@ export async function purgeProjectFilesInTx(
     throw new Error('Project storage changed during retirement')
   const removedFolders = await tx
     .delete(folder)
-    .where(
-      and(
-        eq(folder.entityType, 'project'),
-        eq(folder.entityId, projectId),
-        eq(folder.resourceType, 'file')
-      )
-    )
+    .where(and(eq(folder.projectId, projectId), eq(folder.resourceType, 'file')))
     .returning({ id: folder.id })
   if (removedFolders.length)
     await tx.delete(publicShare).where(

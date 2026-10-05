@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { backfillWorkspaceFileEntities } from '@sim/db/script-migrations/0030_backfill_workspace_file_entities'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
@@ -88,64 +87,30 @@ describe('file entity ownership migration in PostgreSQL', () => {
     }
   })
 
-  it('backfills several bounded pages, preserves revisions, and reports unresolved legacy rows', async () => {
-    await sql`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_sync_entity_binding`
-    try {
-      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
-        SELECT 'file-' || lpad(id::text, 4, '0'), 'workspace', 'user-a', 'workspace-a'
-        FROM generate_series(1, 506) id`
-      await sql`INSERT INTO workspace_files (id, context, user_id, organization_id)
-        VALUES ('org-kb', 'knowledge-base', 'user-a', 'organization-a')`
-      await sql`INSERT INTO workspace_files (id, context, user_id)
-        VALUES ('personal', 'copilot', 'user-a'), ('orphan-kb', 'knowledge-base', 'user-a'),
-          ('unknown', 'chat', 'user-a')`
-    } finally {
-      await sql`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_sync_entity_binding`
-    }
-
-    const result = await backfillWorkspaceFileEntities(sql)
-    expect(result.backfilled).toBe(508)
-    expect(result.unresolved).toEqual([
-      { context: 'knowledge-base', count: 1, sampleFileIds: ['orphan-kb'] },
-      { context: 'chat', count: 1, sampleFileIds: ['unknown'] },
-    ])
-    const [changed] = await sql<{ count: number }[]>`
-      SELECT count(*)::integer AS count FROM workspace_files
-      WHERE key <> 'unchanged-object-key'
-        OR content_updated_at <> TIMESTAMP '2026-10-03 01:02:03.456'
-        OR secret_provenance_version <> 1
-    `
-    expect(changed.count).toBe(0)
-    const owners = await sql`SELECT id, entity_type, entity_id FROM workspace_files
-      WHERE id IN ('file-0001', 'org-kb', 'personal', 'orphan-kb') ORDER BY id`
-    expect(owners).toEqual([
-      { id: 'file-0001', entity_type: 'workspace', entity_id: 'workspace-a' },
-      { id: 'org-kb', entity_type: 'organization', entity_id: 'organization-a' },
-      { id: 'orphan-kb', entity_type: null, entity_id: null },
-      { id: 'personal', entity_type: 'user', entity_id: 'user-a' },
-    ])
-    expect((await backfillWorkspaceFileEntities(sql)).backfilled).toBe(0)
-  })
-
   it('keeps legacy inserts and owner changes consistent while retaining chat purpose bindings', async () => {
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, chat_id)
       VALUES ('chat-file', 'mothership', 'user-a', 'workspace-a', 'chat-a')`
     await sql`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'chat-file'`
-    const [chat] = await sql`SELECT entity_type, entity_id, chat_id FROM workspace_files`
-    expect(chat).toEqual({ entity_type: 'workspace', entity_id: 'workspace-b', chat_id: 'chat-a' })
+    const [chat] = await sql`SELECT workspace_id, project_id, chat_id FROM workspace_files`
+    expect(chat).toEqual({ workspace_id: 'workspace-b', project_id: null, chat_id: 'chat-a' })
     await sql`UPDATE workspace_files SET context = 'workspace', chat_id = NULL WHERE id = 'chat-file'`
     await sql`UPDATE workspace_files SET user_id = 'user-b' WHERE id = 'chat-file'`
-    const [materialized] = await sql`SELECT entity_type, entity_id, chat_id FROM workspace_files`
+    const [materialized] = await sql`SELECT workspace_id, project_id, chat_id FROM workspace_files`
     expect(materialized).toEqual({
-      entity_type: 'workspace',
-      entity_id: 'workspace-b',
+      workspace_id: 'workspace-b',
+      project_id: null,
       chat_id: null,
     })
     await sql`INSERT INTO workspace_files (id, context, user_id) VALUES ('personal', 'copilot', 'user-a')`
     await sql`UPDATE workspace_files SET user_id = 'user-b' WHERE id = 'personal'`
     const [personal] =
-      await sql`SELECT entity_type, entity_id FROM workspace_files WHERE id = 'personal'`
-    expect(personal).toEqual({ entity_type: 'user', entity_id: 'user-b' })
+      await sql`SELECT user_id, workspace_id, project_id, organization_id FROM workspace_files WHERE id = 'personal'`
+    expect(personal).toEqual({
+      user_id: 'user-b',
+      workspace_id: null,
+      project_id: null,
+      organization_id: null,
+    })
   })
 
   it.each(['execution', 'workspace-logos', 'knowledge-base'])(
@@ -153,62 +118,90 @@ describe('file entity ownership migration in PostgreSQL', () => {
     async (context) => {
       await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('file', ${context}, 'user-a', 'workspace-a')`
-      const [row] = await sql`SELECT entity_type, entity_id FROM workspace_files WHERE id = 'file'`
-      expect(row).toEqual({ entity_type: 'workspace', entity_id: 'workspace-a' })
+      const [row] =
+        await sql`SELECT workspace_id, project_id FROM workspace_files WHERE id = 'file'`
+      expect(row).toEqual({ workspace_id: 'workspace-a', project_id: null })
     }
   )
 
-  it('refuses contradictory, incomplete, and unregistered explicit ownership without changing stored ownership', async () => {
-    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
-      VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-    for (const pair of [
-      { type: 'workspace', id: 'workspace-b' },
-      { type: 'workspace', id: null },
-      { type: null, id: 'workspace-a' },
-      { type: 'user', id: 'user-a' },
-      { type: 'future', id: 'workspace-a' },
-      { type: 'workspace', id: '' },
-    ]) {
-      await expect(sql`UPDATE workspace_files SET entity_type = ${pair.type}, entity_id = ${pair.id}
-        WHERE id = 'file'`).rejects.toMatchObject({ code: '23514' })
+  it.each([
+    ['workspace-a', 'project-a', null],
+    ['workspace-a', null, 'organization-a'],
+    [null, 'project-a', 'organization-a'],
+    ['workspace-a', 'project-a', 'organization-a'],
+  ])(
+    'rejects competing workspace %s, project %s, and organization %s owners',
+    async (workspaceId, projectId, organizationId) => {
+      const context = projectId ? 'project' : 'knowledge-base'
+      await expect(sql`INSERT INTO workspace_files
+      (id, context, user_id, workspace_id, project_id, organization_id, deleted_at)
+      VALUES ('mixed', ${context}, 'user-a', ${workspaceId}, ${projectId}, ${organizationId}, now())`).rejects.toMatchObject(
+        { code: '23514', constraint_name: 'workspace_files_owner_check' }
+      )
+      await sql`INSERT INTO workspace_files (id, context, user_id) VALUES ('file', 'copilot', 'user-a')`
+      await expect(sql`UPDATE workspace_files SET context = ${context}, workspace_id = ${workspaceId},
+      project_id = ${projectId}, organization_id = ${organizationId} WHERE id = 'file'`).rejects.toMatchObject(
+        { code: '23514', constraint_name: 'workspace_files_owner_check' }
+      )
+      expect(
+        await sql`SELECT workspace_id, project_id, organization_id FROM workspace_files`
+      ).toEqual([{ workspace_id: null, project_id: null, organization_id: null }])
     }
-    const [row] = await sql`SELECT entity_type, entity_id FROM workspace_files WHERE id = 'file'`
-    expect(row).toEqual({ entity_type: 'workspace', entity_id: 'workspace-a' })
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('unknown', 'general', 'user-a', 'user', 'user-a')`).rejects.toMatchObject({
+  )
+
+  it('requires a real Project and rejects absent, incorrect-purpose, or chat-bound Project ownership', async () => {
+    await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('missing', 'project', 'user-a', 'missing')`).rejects.toMatchObject({ code: '23503' })
+    await expect(sql`INSERT INTO workspace_files (id, context, user_id)
+      VALUES ('unowned', 'project', 'user-a')`).rejects.toMatchObject({ code: '23514' })
+    await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('purpose', 'workspace', 'user-a', 'project-a')`).rejects.toMatchObject({
+      code: '23514',
+    })
+    await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id, chat_id)
+      VALUES ('chat', 'project', 'user-a', 'project-a', 'chat-a')`).rejects.toMatchObject({
       code: '23514',
     })
   })
 
-  it('requires a real Project and refuses legacy tenancy or unsupported folders on a Project file', async () => {
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('missing', 'project', 'user-a', 'project', 'missing')`).rejects.toMatchObject({
-      code: '23503',
+  it('allows independent concurrent file inserts into the same Project', async () => {
+    const inserted = createDeferred<void>()
+    const release = createDeferred<void>()
+    const first = sql.begin(async (tx) => {
+      await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+        VALUES ('first', 'project', 'user-a', 'project-a')`
+      inserted.resolve()
+      await release.promise
     })
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, workspace_id)
-      VALUES ('bound', 'project', 'user-a', 'project', 'project-a', 'workspace-a')`).rejects.toMatchObject(
-      { code: '23514' }
-    )
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id, folder_id)
-      VALUES ('folder', 'project', 'user-a', 'project', 'project-a', 'workspace-folder')`).rejects.toMatchObject(
-      { code: '23514' }
-    )
-    await expect(sql`INSERT INTO workspace_files (id, context, user_id)
-      VALUES ('unowned', 'project', 'user-a')`).rejects.toMatchObject({ code: '23514' })
+    try {
+      await inserted.promise
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL statement_timeout = '2s'`
+        await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+          VALUES ('second', 'project', 'user-b', 'project-a')`
+      })
+    } finally {
+      release.resolve()
+      await first
+    }
+    expect(await sql`SELECT id FROM workspace_files ORDER BY id`).toEqual([
+      { id: 'first' },
+      { id: 'second' },
+    ])
   })
 
   it('retains Project ownership through attribution changes and blocks owner deletion while retained files exist', async () => {
     const [projectBefore] = await sql`SELECT * FROM project WHERE id = 'project-a'`
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('file', 'project', 'user-a', 'project-a')`
     const [projectAfter] = await sql`SELECT * FROM project WHERE id = 'project-a'`
     expect(projectAfter).toEqual(projectBefore)
     await sql`UPDATE workspace_files SET user_id = 'user-b', deleted_at = now() WHERE id = 'file'`
     await expect(
-      sql`UPDATE workspace_files SET entity_type = NULL, entity_id = NULL WHERE id = 'file'`
+      sql`UPDATE workspace_files SET project_id = NULL WHERE id = 'file'`
     ).rejects.toMatchObject({ code: '23514' })
     await expect(
-      sql`UPDATE workspace_files SET entity_id = 'project-b' WHERE id = 'file'`
+      sql`UPDATE workspace_files SET project_id = 'project-b' WHERE id = 'file'`
     ).rejects.toMatchObject({ code: '23514' })
     await expect(sql`DELETE FROM project WHERE id = 'project-a'`).rejects.toMatchObject({
       code: '23503',
@@ -222,8 +215,8 @@ describe('file entity ownership migration in PostgreSQL', () => {
   })
 
   it('protects shared Project files from uploader cascade until attribution has been reassigned', async () => {
-    await sql`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-      VALUES ('shared-file', 'project', 'user-a', 'project', 'project-a')`
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('shared-file', 'project', 'user-a', 'project-a')`
     await expect(sql`DELETE FROM "user" WHERE id = 'user-a'`).rejects.toMatchObject({
       code: '23503',
     })
@@ -231,8 +224,8 @@ describe('file entity ownership migration in PostgreSQL', () => {
     await sql`UPDATE workspace_files SET user_id = 'user-b' WHERE id = 'shared-file'`
     await sql`DELETE FROM "user" WHERE id = 'user-a'`
     const [file] =
-      await sql`SELECT user_id, entity_type, entity_id FROM workspace_files WHERE id = 'shared-file'`
-    expect(file).toEqual({ user_id: 'user-b', entity_type: 'project', entity_id: 'project-a' })
+      await sql`SELECT user_id, project_id FROM workspace_files WHERE id = 'shared-file'`
+    expect(file).toEqual({ user_id: 'user-b', project_id: 'project-a' })
   })
 
   it('preserves legacy workspace, organization, and personal owner deletion behavior', async () => {
@@ -256,8 +249,8 @@ describe('file entity ownership migration in PostgreSQL', () => {
       const inserted = createDeferred<void>()
       const release = createDeferred<void>()
       const creation = sql.begin(async (tx) => {
-        await tx`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-        VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+        await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+        VALUES ('file', 'project', 'user-a', 'project-a')`
         inserted.resolve()
         await release.promise
       })
@@ -272,7 +265,7 @@ describe('file entity ownership migration in PostgreSQL', () => {
           await tx`DELETE FROM project WHERE id = 'project-a'`
         })
         rejection = expect(deletion).rejects.toMatchObject({
-          code: isolation === 'repeatable read' ? '40001' : '23503',
+          code: '23503',
         })
         await waitForDatabaseLock(await deleting.promise)
       } finally {
@@ -290,8 +283,8 @@ describe('file entity ownership migration in PostgreSQL', () => {
       const inserted = createDeferred<void>()
       const release = createDeferred<void>()
       const creation = sql.begin(async (tx) => {
-        await tx`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-          VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+        await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+          VALUES ('file', 'project', 'user-a', 'project-a')`
         inserted.resolve()
         await release.promise
       })
@@ -336,8 +329,8 @@ describe('file entity ownership migration in PostgreSQL', () => {
           await tx`SET LOCAL statement_timeout = '5s'`
           const [backend] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
           inserting.resolve(backend.pid)
-          await tx`INSERT INTO workspace_files (id, context, user_id, entity_type, entity_id)
-          VALUES ('file', 'project', 'user-a', 'project', 'project-a')`
+          await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
+          VALUES ('file', 'project', 'user-a', 'project-a')`
         })
         rejection = expect(creation).rejects.toMatchObject({
           code: isolation === 'repeatable read' ? '40001' : '23503',
@@ -356,7 +349,7 @@ describe('file entity ownership migration in PostgreSQL', () => {
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
     await applyMigration()
-    const [row] = await sql`SELECT id, entity_type, entity_id FROM workspace_files`
-    expect(row).toEqual({ id: 'file', entity_type: 'workspace', entity_id: 'workspace-a' })
+    const [row] = await sql`SELECT id, workspace_id, project_id FROM workspace_files`
+    expect(row).toEqual({ id: 'file', workspace_id: 'workspace-a', project_id: null })
   })
 })

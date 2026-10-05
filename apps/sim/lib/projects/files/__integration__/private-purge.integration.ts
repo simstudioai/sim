@@ -134,16 +134,14 @@ async function fixture() {
     userId,
     resourceType: 'file',
     name: 'Docs',
-    entityType: 'project',
-    entityId: projectId,
+    projectId,
   })
   const revision = new Date()
   await db.insert(workspaceFiles).values(
     fileIds.map((id, index) => ({
       id,
       userId,
-      entityType: 'project',
-      entityId: projectId,
+      projectId,
       context: 'project',
       key: keys[index],
       folderId,
@@ -560,9 +558,7 @@ afterAll(async () => {
   try {
     for (const f of fixtures) {
       await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, f.fileIds))
-      await db
-        .delete(folder)
-        .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+      await db.delete(folder).where(eq(folder.projectId, f.projectId))
       await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
       await db.delete(uploadSession).where(eq(uploadSession.userId, f.userId))
       await db.delete(user).where(eq(user.id, f.userId))

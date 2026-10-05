@@ -56,9 +56,9 @@ export interface FolderIdScope {
   includeRootItems: boolean
 }
 
-type FolderScope = Pick<typeof folder.$inferSelect, 'workspaceId' | 'entityType' | 'entityId'>
+type FolderScope = Pick<typeof folder.$inferSelect, 'workspaceId' | 'projectId'>
 
-/** Narrows legacy and entity-owned rows to one canonical workspace folder. */
+/** Narrows persisted ownership to one canonical workspace folder. */
 export function isWorkspaceFolder<T extends FolderScope>(
   row: T,
   workspaceId?: string
@@ -67,8 +67,7 @@ export function isWorkspaceFolder<T extends FolderScope>(
     typeof row.workspaceId === 'string' &&
     row.workspaceId.length > 0 &&
     (workspaceId === undefined || row.workspaceId === workspaceId) &&
-    ((row.entityType === null && row.entityId === null) ||
-      (row.entityType === 'workspace' && row.entityId === row.workspaceId))
+    row.projectId === null
   )
 }
 
