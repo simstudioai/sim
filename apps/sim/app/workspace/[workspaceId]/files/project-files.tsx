@@ -78,8 +78,10 @@ import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useFileListRoom } from '@/hooks/use-file-list-room'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
+const FILES_SEARCH_DEBOUNCE_MS = 200
 const COLUMNS: ResourceColumn[] = [...FILE_BROWSER_COLUMNS]
 
 interface ProjectFilesProps {
@@ -118,10 +120,11 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   const sort = useUrlSort(filesSortParams, filesFilterUrlKeys)
   const [{ scope }, setScope] = useQueryStates(projectFilesScopeParsers)
   const archived = scope === 'archived'
+  const searchFilter = useSearchFilterValue(search, FILES_SEARCH_DEBOUNCE_MS)
   const list = useProjectFiles(project.id, {
     scope,
-    folderId: search || archived ? undefined : (folderId ?? undefined),
-    search: search || undefined,
+    folderId: searchFilter || archived ? undefined : (folderId ?? undefined),
+    search: searchFilter || undefined,
     types,
     sizes,
     creatorIds,
@@ -132,6 +135,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   const folders = useProjectFileFolders(project.id, scope)
   const detail = useProjectFile(project.id, fileId)
   const historyFile = useProjectFile(project.id, historyFileId ?? undefined)
+  const sharedFile = useProjectFile(project.id, shareFileId ?? undefined)
   const [copySource, setCopySource] = useState<FileCopySource | null>(null)
   const createFile = useCreateProjectFile(project.id)
   const createFolder = useCreateProjectFileFolder(project.id)
@@ -162,11 +166,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   const filesById = new Map(files.map((file) => [file.id, file]))
   const items = list.data?.pages.flatMap((page) => page.items) ?? []
   const creators = list.data?.pages[0]?.creators ?? []
-  const shareFile = shareFileId
-    ? file?.id === shareFileId
-      ? file
-      : files.find((item) => item.id === shareFileId)
-    : undefined
+  const shareFile = sharedFile.isError ? undefined : sharedFile.data?.file
   const allFolders = folders.data?.folders ?? []
   const folderById = useMemo(
     () => new Map(allFolders.map((folder) => [folder.id, folder])),
@@ -188,8 +188,18 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
     (value, options) => {
       void setFilters({ search: value }, options)
     },
-    { debounceMs: 200 }
+    { debounceMs: FILES_SEARCH_DEBOUNCE_MS }
   )
+
+  function navigateToFolder(nextFolderId: string | null) {
+    if (fileId) {
+      const folderQuery = nextFolderId ? `&folderId=${encodeURIComponent(nextFolderId)}` : ''
+      navigation.navigate(`${base}?${ownerQuery}${folderQuery}`)
+      return
+    }
+    searchSetter('')
+    void setNavigation({ folderId: nextFolderId, new: null })
+  }
 
   function openFile(id: string) {
     const target = filesById.get(id)
@@ -267,7 +277,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   async function addFolder() {
     try {
       const result = await createFolder.mutateAsync({ name: 'New Folder', parentId: folderId })
-      void setNavigation({ folderId: result.folder.id })
+      navigateToFolder(result.folder.id)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unable to create this folder'))
     }
@@ -321,8 +331,8 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   }
 
   const breadcrumbs: BreadcrumbItem[] = [
-    { label: project.name, onClick: () => navigation.navigate(`${base}?${ownerQuery}`) },
-    { label: 'Files', folderId: null, onClick: () => navigation.navigate(`${base}?${ownerQuery}`) },
+    { label: project.name, onClick: () => navigateToFolder(null) },
+    { label: 'Files', folderId: null, onClick: () => navigateToFolder(null) },
   ]
   const ancestors: BreadcrumbItem[] = []
   const visited = new Set<string>()
@@ -333,8 +343,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
     ancestors.unshift({
       label: ancestor.name,
       folderId: id,
-      onClick: () =>
-        navigation.navigate(`${base}?${ownerQuery}&folderId=${encodeURIComponent(id)}`),
+      onClick: () => navigateToFolder(id),
     })
     ancestor = ancestor.parentId ? folderById.get(ancestor.parentId) : undefined
   }
@@ -435,7 +444,13 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
     }
   })
 
-  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
+  const visibleRowIds = useMemo(
+    () =>
+      list.data?.pages.flatMap((page) =>
+        page.items.map((item) => (item.kind === 'folder' ? `folder:${item.id}` : item.id))
+      ) ?? [],
+    [list.data?.pages]
+  )
   const { selectedRowIds, selectable, clearSelection, replaceSelection } = useResourceRowSelection({
     visibleRowIds,
     isKeyboardBlocked: () => Boolean(fileId || rename.editingId || deleteTarget || archived),
@@ -475,7 +490,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
     selection: { selectedRowIds, visibleRowIds, replaceSelection },
     onSpringOpenFolder: (folderId, options) => void setNavigation({ folderId }, options),
     currentFolderId: folderId,
-    bodyDropFolderId: search ? undefined : folderId,
+    bodyDropFolderId: searchFilter ? undefined : folderId,
     externalDrop: {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
@@ -619,7 +634,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
               archived
                 ? undefined
                 : id.startsWith('folder:')
-                  ? void setNavigation({ folderId: id.slice('folder:'.length) })
+                  ? navigateToFolder(id.slice('folder:'.length))
                   : openFile(id)
             }
             onRowContextMenu={
@@ -686,7 +701,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
         position={menu.position}
         onClose={menu.closeMenu}
         onOpen={() => {
-          if (contextItem?.kind === 'folder') void setNavigation({ folderId: contextItem.id })
+          if (contextItem?.kind === 'folder') navigateToFolder(contextItem.id)
           else if (contextItem) openFile(contextItem.id)
         }}
         onShare={

@@ -39,7 +39,6 @@ import { requireWorkspaceFolder } from '@/lib/folders/scope'
 import { settleDetachedConnectorReservations } from '@/lib/knowledge/connectors/detachment'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
-import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
@@ -158,20 +157,7 @@ interface CleanupBatchContext {
   label: string
 }
 
-/**
- * Applies one re-root, treating the deduplicated name as a HINT rather than a guarantee.
- *
- * Both name allocators can hand back a name that is already taken: `fileExistsInWorkspace`
- * swallows query errors and returns `false`, so `allocateUniqueWorkspaceFileName` fails OPEN,
- * and `deduplicateWorkflowName`'s lookups can throw outright. Either way the UPDATE raises
- * 23505, and an uncaught 23505 here aborts the batch — precisely the permanent retention stall
- * this whole hook exists to prevent. So any failure retries with the row id, which is unique by
- * construction and cannot collide.
- *
- * A failure of that retry is swallowed too: one unfixable row must not stop the other children
- * from being made safe. It is logged at error level because the folder's DELETE can then still
- * stall on that row via the FK's SET NULL.
- */
+/** Retry a colliding name without letting one child permanently stall unrelated folder cleanup. */
 async function reRootOne(
   preferred: () => Promise<unknown>,
   withUniqueName: () => Promise<unknown>,
@@ -194,20 +180,7 @@ async function reRootOne(
   }
 }
 
-/**
- * Re-roots any still-active workflow or workspace file filed under a folder that is about to be
- * hard-deleted, giving it a collision-free name first.
- *
- * The `folder_id` FKs are `ON DELETE SET NULL`, so Postgres already re-roots these rows on its
- * own. The problem is the name: both tables carry a partial unique index keyed on
- * `coalesce(folder_id, '')`, so an implicit SET NULL can land a row on a name the workspace root
- * already holds and abort the whole DELETE with a 23505. `chunkedBatchDelete` counts that as a
- * failed batch and stops, and the same poison row re-fails on every later run — folder retention
- * would stall permanently for that workspace chunk. Renaming here leaves the SET NULL a no-op.
- *
- * An active child inside a soft-deleted folder is already an anomaly — the delete cascade
- * archives children — so this normally selects nothing, which is why the per-row loop is fine.
- */
+/** Surviving workflow children need collision-free root names before their folder FK clears. */
 async function reRootActiveFolderChildren(
   folderIds: string[],
   retentionDate: Date,
@@ -283,52 +256,11 @@ async function reRootActiveFolderChildrenUnguarded(
     )
   }
 
-  const files = await cleanupDb
-    .select({
-      id: workspaceFiles.id,
-      originalName: workspaceFiles.originalName,
-      workspaceId: workspaceFiles.workspaceId,
-    })
-    .from(workspaceFiles)
-    .where(
-      and(
-        inArray(workspaceFiles.folderId, expiredIds),
-        isNull(workspaceFiles.deletedAt),
-        eq(workspaceFiles.context, 'workspace')
-      )
-    )
-
-  for (const row of files) {
-    const workspaceId = row.workspaceId
-    if (!workspaceId) continue
-    await reRootOne(
-      async () => {
-        const originalName = await allocateUniqueWorkspaceFileName(
-          workspaceId,
-          row.originalName,
-          null
-        )
-        await cleanupDb
-          .update(workspaceFiles)
-          .set({ folderId: null, originalName })
-          .where(eq(workspaceFiles.id, row.id))
-      },
-      () =>
-        cleanupDb
-          .update(workspaceFiles)
-          .set({ folderId: null, originalName: `${row.originalName} (${row.id})` })
-          .where(eq(workspaceFiles.id, row.id)),
-      `workspace file ${row.id}`,
-      label
-    )
-  }
-
   /**
    * Subfolders are exposed to exactly the same failure. `folder.parentId` is itself
    * `ON DELETE SET NULL`, and `folder_workspace_resource_parent_name_active_unique` keys on
    * `coalesce(parent_id, '')`, so purging a parent re-roots a surviving active child into a
-   * namespace where its name may already be taken — the identical 23505 stall. Covering only
-   * workflows and files would leave the class half-closed.
+   * namespace where its name may already be taken — the identical 23505 stall. Subfolder names therefore need the same collision handling.
    */
   const childFolders = await cleanupDb
     .select({
@@ -367,10 +299,8 @@ async function reRootActiveFolderChildrenUnguarded(
     )
   }
 
-  if (workflows.length > 0 || files.length > 0) {
-    logger.warn(
-      `[${label}] Re-rooted ${workflows.length} workflow(s) and ${files.length} file(s) out of folders being purged`
-    )
+  if (workflows.length > 0) {
+    logger.warn(`[${label}] Re-rooted ${workflows.length} workflow(s) out of folders being purged`)
   }
 }
 
@@ -379,19 +309,7 @@ const CLEANUP_TARGETS = [
     table: folderTable,
     softDeleteCol: folderTable.deletedAt,
     wsCol: folderTable.workspaceId,
-    /**
-     * `folder` is shared by all four resource types, every one of which now writes here.
-     * The predicate is kept (rather than dropped) so a resource type added to the enum
-     * before its cutover lands is not silently hard-deleted by this pass. One widened
-     * predicate rather than a target per type: same table, same soft-delete column, same
-     * workspace scoping — splitting it would only multiply the batched scans.
-     */
-    additionalPredicate: inArray(folderTable.resourceType, [
-      'workflow',
-      'file',
-      'knowledge_base',
-      'table',
-    ]),
+    additionalPredicate: inArray(folderTable.resourceType, ['workflow', 'knowledge_base', 'table']),
     onBatch: (rows: { id: string }[], ctx: CleanupBatchContext) =>
       reRootActiveFolderChildren(
         rows.map(({ id }) => id),

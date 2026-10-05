@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { Chip, ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { FILE_BROWSER_SIZE_OPTIONS, FILE_BROWSER_TYPE_OPTIONS } from '@/lib/workspace-files/browser'
 import {
   ResourceFilterPanel,
@@ -94,13 +94,9 @@ export function FileFilterControls({
         </ResourceFilterSection>
       )}
       {(types.length > 0 || sizes.length > 0 || creatorIds.length > 0) && (
-        <Button
-          variant='ghost'
-          onClick={onClear}
-          className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
-        >
+        <Chip onClick={onClear} className='w-full'>
           Clear all filters
-        </Button>
+        </Chip>
       )}
     </ResourceFilterPanel>
   )

@@ -11,7 +11,13 @@ import {
 import { Files } from '@/app/workspace/[workspaceId]/files/files'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import { ProjectFiles } from '@/app/workspace/[workspaceId]/files/project-files'
-import { fileOwnerParsers } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  fileOwnerParsers,
+  filesFilterParsers,
+  filesFilterUrlKeys,
+  filesParsers,
+  projectFilesScopeParsers,
+} from '@/app/workspace/[workspaceId]/files/search-params'
 import { useWorkspaceProject } from '@/hooks/queries/project-files'
 
 interface FilesBrowserProps {
@@ -75,6 +81,13 @@ interface FileOwnerTabsProps {
 
 function FileOwnerTabs({ owner, projectId, workspaceId }: FileOwnerTabsProps) {
   const { navigate } = useFileNavigation(owner)
+  const { fileId } = useParams<{ fileId?: string }>()
+  const [, setLocation] = useQueryStates({
+    ...fileOwnerParsers,
+    ...filesParsers,
+    ...projectFilesScopeParsers,
+  })
+  const [, setFilters] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
   return (
     <TabStrip
       variant='underline'
@@ -82,13 +95,30 @@ function FileOwnerTabs({ owner, projectId, workspaceId }: FileOwnerTabsProps) {
         { id: 'project', title: 'Project', active: owner.entityType === 'project' },
         { id: 'workspace', title: 'Environment', active: owner.entityType === 'workspace' },
       ]}
-      onSelect={(next) =>
-        navigate(
-          next === 'project'
-            ? `/workspace/${encodeURIComponent(workspaceId)}/files?owner=project&projectId=${encodeURIComponent(projectId)}`
-            : `/workspace/${encodeURIComponent(workspaceId)}/files`
+      onSelect={(next) => {
+        if (next === owner.entityType || (next !== 'project' && next !== 'workspace')) return
+        if (fileId) {
+          navigate(
+            next === 'project'
+              ? `/workspace/${encodeURIComponent(workspaceId)}/files?owner=project&projectId=${encodeURIComponent(projectId)}`
+              : `/workspace/${encodeURIComponent(workspaceId)}/files`
+          )
+          return
+        }
+        void setFilters({ uploadedBy: null })
+        void setLocation(
+          {
+            owner: next,
+            projectId: next === 'project' ? projectId : null,
+            folderId: null,
+            shareFileId: null,
+            historyFileId: null,
+            new: null,
+            scope: null,
+          },
+          { history: 'push' }
         )
-      }
+      }}
     />
   )
 }

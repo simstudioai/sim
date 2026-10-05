@@ -1,4 +1,3 @@
-import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 
@@ -9,9 +8,6 @@ const { mockListWorkspaceFilesWithShares } = vi.hoisted(() => ({
 vi.mock('@/lib/workspace-files/queries', () => ({
   listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
 }))
-
-/** The key factory lives in a `'use client'` module that pulls emcn's CSS at import. */
-vi.mock('@sim/emcn', () => emcnMock)
 
 import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 

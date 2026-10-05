@@ -11,9 +11,11 @@ import {
 import { DEFAULT_DELETE_CHUNK_SIZE, selectRowsByIdChunks } from '@/lib/cleanup/batch-delete'
 import type { CleanupBudgets } from '@/lib/cleanup/limits'
 import { type CleanupOwnerScope, cleanupOwnerCondition } from '@/lib/cleanup/resource-scope'
+import { cleanupArchivedWorkspaceFileFolders } from '@/lib/file-retention/folders'
 import type { FileArchiveCleanup, FileRetentionOptions } from '@/lib/file-retention/types'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
@@ -43,8 +45,8 @@ interface WorkspaceFileStorageCleanupResult {
 
 /**
  * Select every soft-deleted file row that's eligible for permanent removal.
- * Returned once and reused for both S3 deletion and DB deletion so the external
- * cleanup cannot drift from the row-level cleanup.
+ * Workspace objects are released through the purge transaction; other legacy
+ * contexts retain the selected rows for their storage-first cleanup.
  */
 async function selectExpiredWorkspaceFiles(
   scope: CleanupOwnerScope,
@@ -114,14 +116,6 @@ async function selectExpiredWorkspaceFiles(
 async function cleanupWorkspaceFileStorage(
   scope: WorkspaceFileScope
 ): Promise<WorkspaceFileStorageCleanupResult> {
-  type Candidate =
-    | { source: 'legacy'; context: StorageContext; row: WorkspaceFileScope['legacyRows'][number] }
-    | {
-        source: 'multiContext'
-        context: StorageContext
-        row: WorkspaceFileScope['multiContextRows'][number]
-      }
-
   const result: WorkspaceFileStorageCleanupResult = {
     filesDeleted: 0,
     filesFailed: 0,
@@ -136,33 +130,30 @@ async function cleanupWorkspaceFileStorage(
     }
   }
 
-  const candidatesByContext = new Map<StorageContext, Candidate[]>()
-  const addCandidate = (candidate: Candidate) => {
-    const bucket = candidatesByContext.get(candidate.context)
-    if (bucket) bucket.push(candidate)
-    else candidatesByContext.set(candidate.context, [candidate])
-  }
-  for (const row of scope.legacyRows) {
-    addCandidate({ source: 'legacy', context: 'workspace', row })
-  }
+  const candidatesByContext = new Map<StorageContext, WorkspaceFileScope['multiContextRows']>()
+  result.legacyRows = scope.legacyRows
   for (const row of scope.multiContextRows) {
-    addCandidate({ source: 'multiContext', context: row.context, row })
+    if (row.context === 'workspace') {
+      result.multiContextRows.push(row)
+      continue
+    }
+    const bucket = candidatesByContext.get(row.context)
+    if (bucket) bucket.push(row)
+    else candidatesByContext.set(row.context, [row])
   }
 
   for (const [context, candidates] of candidatesByContext) {
     for (const batch of chunkArray(candidates, DEFAULT_DELETE_CHUNK_SIZE)) {
       const deletion = await StorageService.deleteFiles(
-        batch.map(({ row }) => row.key),
+        batch.map((row) => row.key),
         context
       )
       const failedKeys = new Set(deletion.failed.map(({ key }) => key))
-      result.filesDeleted += batch.filter(({ row }) => !failedKeys.has(row.key)).length
+      result.filesDeleted += batch.filter((row) => !failedKeys.has(row.key)).length
       result.filesFailed += deletion.failed.length
 
-      for (const candidate of batch) {
-        if (failedKeys.has(candidate.row.key)) continue
-        if (candidate.source === 'legacy') result.legacyRows.push(candidate.row)
-        else result.multiContextRows.push(candidate.row)
+      for (const row of batch) {
+        if (!failedKeys.has(row.key)) result.multiContextRows.push(row)
       }
       for (const { key, error } of deletion.failed) {
         logger.error(`Failed to delete storage file ${key} (context: ${context}):`, { error })
@@ -181,19 +172,26 @@ async function deleteExpiredLegacyWorkspaceFileRows(
   const result = { deleted: 0, failed: 0 }
   for (const batch of chunkArray(rows, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
-      const deleted = await cleanupDb
-        .delete(workspaceFile)
-        .where(
-          and(
-            inArray(
-              workspaceFile.id,
-              batch.map(({ id }) => id)
-            ),
-            isNotNull(workspaceFile.deletedAt),
-            lt(workspaceFile.deletedAt, retentionDate)
+      const deleted = await cleanupDb.transaction(async (tx) => {
+        const rows = await tx
+          .delete(workspaceFile)
+          .where(
+            and(
+              inArray(
+                workspaceFile.id,
+                batch.map(({ id }) => id)
+              ),
+              isNotNull(workspaceFile.deletedAt),
+              lt(workspaceFile.deletedAt, retentionDate)
+            )
           )
+          .returning({ id: workspaceFile.id, key: workspaceFile.key })
+        await enqueueWorkspaceFileStorageCleanups(
+          tx,
+          rows.map(({ key }) => key)
         )
-        .returning({ id: workspaceFile.id })
+        return rows
+      })
       result.deleted += deleted.length
       result.failed += batch.length - deleted.length
     } catch (error) {
@@ -305,8 +303,13 @@ async function deleteExpiredBillableWorkspaceFileRows(
             )
             .returning({
               id: workspaceFiles.id,
+              key: workspaceFiles.key,
               sizeBytes: workspaceFiles.sizeBytes,
             })
+          await enqueueWorkspaceFileStorageCleanups(
+            tx,
+            deletedRows.map(({ key }) => key)
+          )
           const deletedBytes = deletedRows.reduce(
             (total, row) => total + getWorkspaceFileSize(row),
             0
@@ -358,7 +361,11 @@ export async function prepareLegacyFileArchiveCleanup(
           )
           if (budgets && (legacy.failed || billable.failed || unbilled.failed))
             throw new Error('File row cleanup failed')
-          return legacy.deleted + billable.deleted + unbilled.deleted
+          const foldersDeleted =
+            scope.kind === 'workspace'
+              ? await cleanupArchivedWorkspaceFileFolders(scope.ids, cutoff, budgets?.folders)
+              : 0
+          return legacy.deleted + billable.deleted + unbilled.deleted + foldersDeleted
         },
       }
     },
