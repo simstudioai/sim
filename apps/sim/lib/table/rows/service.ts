@@ -27,7 +27,11 @@ import {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { getMaxPageBytes, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
-import { TableQueryValidationError } from '@/lib/table/errors'
+import {
+  isTableLockRace,
+  TablePartialWriteError,
+  TableQueryValidationError,
+} from '@/lib/table/errors'
 import {
   assertRowDelete,
   assertRowInsert,
@@ -58,6 +62,7 @@ import {
 } from '@/lib/table/rows/live-schema'
 import {
   acquireRowOrderLock,
+  type DeletedRowsHandler,
   type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
@@ -2371,6 +2376,18 @@ function dispatchBulkUpdateEffects(
  * @param requestId - Request ID for logging
  * @returns Bulk operation result
  */
+/**
+ * Rethrows a failure of a write that commits batch by batch. A lock race after a batch committed
+ * becomes a {@link TablePartialWriteError}, which callers must not answer as retryable; every other
+ * failure, and one before anything committed, is rethrown unchanged.
+ */
+function rethrowBatchedWriteFailure(error: unknown, committedCount: number): never {
+  if (committedCount > 0 && isTableLockRace(error)) {
+    throw new TablePartialWriteError(committedCount, error)
+  }
+  throw error
+}
+
 export async function updateRowsByFilter(
   table: TableDefinition,
   data: BulkUpdateData,
@@ -2439,43 +2456,47 @@ export async function updateRowsByFilter(
 
     const affectedRowIds: string[] = []
     afterId = undefined
-    while (true) {
-      const batchRows = await selectRowDataPage({
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        cutoff,
-        filterClause,
-        afterId,
-        limit: TABLE_LIMITS.UPDATE_BATCH_SIZE,
-      })
-      if (batchRows.length === 0) break
+    try {
+      while (true) {
+        const batchRows = await selectRowDataPage({
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          cutoff,
+          filterClause,
+          afterId,
+          limit: TABLE_LIMITS.UPDATE_BATCH_SIZE,
+        })
+        if (batchRows.length === 0) break
 
-      const nextAfterId = batchRows[batchRows.length - 1].id
-      const persisted = await persistBulkUpdateBatch({
-        table,
-        rows: batchRows,
-        raw: data.data,
-        patch,
-        patchJson,
-        filterClause,
-        now,
-        secretProvenance: data.secretProvenance,
-        requestId,
-        uncoercibleValues: options.uncoercibleValues,
-      })
-      affectedRowIds.push(...persisted.affectedRowIds)
-      dispatchBulkUpdateEffects(
-        persisted.table,
-        persisted.rows,
-        persisted.affectedRowIds,
-        persisted.patch,
-        now,
-        requestId,
-        data.actorUserId,
-        data.capabilityGovernedUserId
-      )
-      afterId = nextAfterId
-      if (batchRows.length < TABLE_LIMITS.UPDATE_BATCH_SIZE) break
+        const nextAfterId = batchRows[batchRows.length - 1].id
+        const persisted = await persistBulkUpdateBatch({
+          table,
+          rows: batchRows,
+          raw: data.data,
+          patch,
+          patchJson,
+          filterClause,
+          now,
+          secretProvenance: data.secretProvenance,
+          requestId,
+          uncoercibleValues: options.uncoercibleValues,
+        })
+        affectedRowIds.push(...persisted.affectedRowIds)
+        dispatchBulkUpdateEffects(
+          persisted.table,
+          persisted.rows,
+          persisted.affectedRowIds,
+          persisted.patch,
+          now,
+          requestId,
+          data.actorUserId,
+          data.capabilityGovernedUserId
+        )
+        afterId = nextAfterId
+        if (batchRows.length < TABLE_LIMITS.UPDATE_BATCH_SIZE) break
+      }
+    } catch (error) {
+      rethrowBatchedWriteFailure(error, affectedRowIds.length)
     }
 
     logger.info(`[${requestId}] Updated ${affectedRowIds.length} rows in table ${table.id}`)
@@ -2917,53 +2938,62 @@ export async function deleteRowsByFilter(
 
   const limit = data.limit
   const deletedRowIds: string[] = []
-  if (limit === undefined) {
-    const cutoff = new Date()
-    let afterId: string | undefined
-    while (true) {
-      const page = await selectRowIdPage({
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        cutoff,
-        filterClause,
-        afterId,
-        limit: TABLE_LIMITS.DELETE_PAGE_SIZE,
-      })
-      if (page.length === 0) break
-      const nextAfterId = page[page.length - 1]
-      for (let index = 0; index < page.length; index += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+  let committedCount = 0
+  const onDeleted: DeletedRowsHandler = (rows) => {
+    committedCount += rows.length
+    return dispatchDeleteTriggers(table, rows, requestId)
+  }
+  try {
+    if (limit === undefined) {
+      const cutoff = new Date()
+      let afterId: string | undefined
+      while (true) {
+        const page = await selectRowIdPage({
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          cutoff,
+          filterClause,
+          afterId,
+          limit: TABLE_LIMITS.DELETE_PAGE_SIZE,
+        })
+        if (page.length === 0) break
+        const nextAfterId = page[page.length - 1]
+        for (let index = 0; index < page.length; index += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+          const deletedIds = await deleteOrderedRowsByIds({
+            tableId: table.id,
+            workspaceId: table.workspaceId,
+            rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
+            proof,
+            onDeleted,
+          })
+          deletedRowIds.push(...deletedIds)
+        }
+        afterId = nextAfterId
+        if (page.length < TABLE_LIMITS.DELETE_PAGE_SIZE) break
+      }
+    } else {
+      const matchingRows = await withSeqscanOff(async (trx) =>
+        trx
+          .select({ id: userTableRows.id })
+          .from(userTableRows)
+          .where(and(baseConditions, filterClause))
+          .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
+          .limit(limit)
+      )
+      const rowIds = matchingRows.map((row) => row.id)
+      if (rowIds.length > 0) {
         const deletedIds = await deleteOrderedRowsByIds({
           tableId: table.id,
           workspaceId: table.workspaceId,
-          rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
+          rowIds,
           proof,
-          onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
+          onDeleted,
         })
         deletedRowIds.push(...deletedIds)
       }
-      afterId = nextAfterId
-      if (page.length < TABLE_LIMITS.DELETE_PAGE_SIZE) break
     }
-  } else {
-    const matchingRows = await withSeqscanOff(async (trx) =>
-      trx
-        .select({ id: userTableRows.id })
-        .from(userTableRows)
-        .where(and(baseConditions, filterClause))
-        .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
-        .limit(limit)
-    )
-    const rowIds = matchingRows.map((row) => row.id)
-    if (rowIds.length > 0) {
-      const deletedIds = await deleteOrderedRowsByIds({
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        rowIds,
-        proof,
-        onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
-      })
-      deletedRowIds.push(...deletedIds)
-    }
+  } catch (error) {
+    rethrowBatchedWriteFailure(error, committedCount)
   }
 
   if (deletedRowIds.length === 0) return { affectedCount: 0, affectedRowIds: [] }

@@ -1,4 +1,29 @@
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+/** `lock_not_available` (a `lock_timeout` fired) and `deadlock_detected`. */
+const LOCK_RACE_SQLSTATES = new Set(['55P03', '40P01'])
+
+/** Whether a table write's transaction failed because it lost a lock race, and so rolled back. */
+export function isTableLockRace(error: unknown): boolean {
+  const code = getPostgresErrorCode(error)
+  return code !== undefined && LOCK_RACE_SQLSTATES.has(code)
+}
+
+/**
+ * A write that commits batch by batch lost a lock race after at least one batch committed. Unlike
+ * a single rolled-back transaction it is not retryable as a whole: a re-run selects its rows again,
+ * so a limited filtered delete would remove more than its limit.
+ */
+export class TablePartialWriteError extends Error {
+  constructor(
+    readonly committedCount: number,
+    cause: unknown
+  ) {
+    super(`Table write failed after ${committedCount} rows were committed`, { cause })
+    this.name = 'TablePartialWriteError'
+  }
+}
 
 /** A disabled TTL feature, distinct from malformed column input. */
 export class TableRowTtlDisabledError extends OrchestrationError {

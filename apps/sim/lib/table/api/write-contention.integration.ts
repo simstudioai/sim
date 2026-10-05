@@ -23,7 +23,9 @@ import {
   internalTableRowsErrorPolicy,
   v2TableRowsErrorPolicy,
 } from '@/lib/table/api/row-route-policies'
-import { insertRow, updateRowsByFilter } from '@/lib/table/rows/service'
+import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
+import { TablePartialWriteError } from '@/lib/table/errors'
+import { deleteRowsByFilter, insertRow, updateRowsByFilter } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { orchestrationErrorResponse } from '@/app/api/table/utils'
@@ -61,6 +63,26 @@ async function createTable(): Promise<TableDefinition> {
   return table
 }
 
+/** Seeds `count` rows whose id order and row order agree, created before any write's cutoff. */
+async function seedNotes(tableId: string, count: number): Promise<string[]> {
+  const ids = Array.from(
+    { length: count },
+    (_, index) => `${tableId}-${String(index).padStart(4, '0')}`
+  )
+  const createdAt = new Date(Date.now() - 60_000)
+  await db.insert(userTableRows).values(
+    ids.map((id, index) => ({
+      id,
+      tableId,
+      workspaceId,
+      data: { note: 'n' },
+      orderKey: `a${String(index).padStart(4, '0')}`,
+      createdAt,
+    }))
+  )
+  return ids
+}
+
 /** Runs `write` while a second session holds whatever `hold` locks, and returns what it threw. */
 async function failedUnderLock(
   hold: (holder: postgres.ReservedSql) => Promise<unknown>,
@@ -90,6 +112,13 @@ function postgresErrorContext(error: unknown): string | undefined {
     current = current.cause
   }
   return undefined
+}
+
+/** Every surface leaves the failure to the route's generic 500 rather than inviting a retry. */
+async function expectNotRetryableOnAnySurface(error: unknown) {
+  expect(internalTableRowsErrorPolicy.project(error)).toBeNull()
+  expect(v2TableRowsErrorPolicy.render(error)).toBeNull()
+  expect(orchestrationErrorResponse(error)).toBeNull()
 }
 
 async function expectRetryableOnEverySurface(error: unknown) {
@@ -184,4 +213,57 @@ describe('table writes that lose a lock race', () => {
       expect(row.data).toEqual({ note: 'n' })
     }
   )
+
+  it('leaves a filtered update that loses a lock race after a committed page non-retryable', async () => {
+    const table = await createTable()
+    const ids = await seedNotes(table.id, TABLE_LIMITS.UPDATE_BATCH_SIZE + 1)
+    const lastId = ids[ids.length - 1]
+
+    const error = await failedUnderLock(
+      (holder) => holder`SELECT 1 FROM user_table_rows
+        WHERE id = ${lastId} AND table_id = ${table.id} AND workspace_id = ${workspaceId}
+        FOR UPDATE`,
+      () =>
+        updateRowsByFilter(
+          table,
+          {
+            filter: { note: 'n' },
+            data: { note: 'patched' },
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          'contention-partial-update'
+        )
+    )
+
+    expect(error).toBeInstanceOf(TablePartialWriteError)
+    expect(error).toMatchObject({ committedCount: TABLE_LIMITS.UPDATE_BATCH_SIZE })
+    await expectNotRetryableOnAnySurface(error)
+  })
+
+  it('leaves a limited filtered delete that loses a lock race after a committed batch non-retryable', async () => {
+    const table = await createTable()
+    const batchSize = getDeleteSnapshotBatchSize()
+    const ids = await seedNotes(table.id, batchSize + 1)
+    const lastId = ids[ids.length - 1]
+
+    const error = await failedUnderLock(
+      (holder) => holder`SELECT 1 FROM user_table_rows
+        WHERE id = ${lastId} AND table_id = ${table.id} AND workspace_id = ${workspaceId}
+        FOR UPDATE`,
+      () =>
+        deleteRowsByFilter(
+          table,
+          { filter: { note: 'n' }, limit: batchSize + 1 },
+          'contention-partial-delete'
+        )
+    )
+
+    expect(error).toBeInstanceOf(TablePartialWriteError)
+    expect(error).toMatchObject({ committedCount: batchSize })
+    await expectNotRetryableOnAnySurface(error)
+    const [{ remaining }] = await control<{ remaining: number }[]>`SELECT count(*)::int AS remaining
+      FROM user_table_rows WHERE table_id = ${table.id} AND workspace_id = ${workspaceId}`
+    expect(remaining).toBe(1)
+  })
 })
