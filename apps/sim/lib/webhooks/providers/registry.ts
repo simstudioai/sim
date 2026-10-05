@@ -63,6 +63,7 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
+import { windchillHandler } from '@/lib/webhooks/providers/windchill'
 import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
 import { zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
 import { zoomHandler } from '@/lib/webhooks/providers/zoom'
@@ -134,6 +135,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   vercel: vercelHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
+  windchill: windchillHandler,
   zendesk: zendeskHandler,
   zoho_desk: zohoDeskHandler,
   zoom: zoomHandler,

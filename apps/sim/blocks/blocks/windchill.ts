@@ -3,6 +3,7 @@ import { WindchillIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
+import { getTrigger } from '@/triggers'
 
 const SINGLE_DOCUMENT_OPERATIONS = [
   'windchill_get_document',
@@ -130,11 +131,42 @@ export const WindchillBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   authMode: AuthMode.ApiKey,
+  triggerAllowed: true,
   bgColor: '#FFFFFF',
   icon: WindchillIcon,
   canvasPresentation: {
     defaultTitle: 'Windchill',
     operationSubBlockId: 'operation',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        {
+          text: 'for',
+          field: ['triggerDocumentOid', 'triggerFolderOid', 'triggerContainerOid'],
+          core: true,
+        },
+      ],
+      byTrigger: {
+        windchill_document_lifecycle_state_changed: [
+          'Run when',
+          {
+            field: ['triggerDocumentOid', 'triggerFolderOid', 'triggerContainerOid'],
+            core: true,
+          },
+          { text: 'enters', field: 'triggerLifecycleStateValue', core: true },
+        ],
+        windchill_custom_document_event: [
+          'Run on',
+          { field: 'triggerEvent', core: true },
+          {
+            text: 'for',
+            field: ['triggerDocumentOid', 'triggerFolderOid', 'triggerContainerOid'],
+            core: true,
+          },
+        ],
+      },
+    },
     sentences: {
       byOperation: {
         windchill_list_documents: [
@@ -721,6 +753,10 @@ export const WindchillBlock: BlockConfig = {
       mode: 'advanced',
       required: true,
     },
+    ...getTrigger('windchill_document_attributes_changed').subBlocks,
+    ...getTrigger('windchill_document_identity_changed').subBlocks,
+    ...getTrigger('windchill_document_lifecycle_state_changed').subBlocks,
+    ...getTrigger('windchill_custom_document_event').subBlocks,
   ],
   tools: {
     access: [
@@ -919,6 +955,15 @@ export const WindchillBlock: BlockConfig = {
       description: 'Downloaded content MIME type',
       condition: { field: 'operation', value: DOWNLOAD_OPERATIONS },
     },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'windchill_document_attributes_changed',
+      'windchill_document_identity_changed',
+      'windchill_document_lifecycle_state_changed',
+      'windchill_custom_document_event',
+    ],
   },
 }
 

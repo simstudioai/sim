@@ -23,6 +23,10 @@ This integration talks to Windchill REST Services (WRS) 2.7 over OData — the q
 Bulk actions are atomic on Windchill's side: PTC documents that if the action fails for any object in the collection, the entire action is rolled back and nothing changes.
 
 Two limits are worth knowing before you build. Windchill identifies everything by OID (`OR:wt.doc.WTDocument:48796581`), so most operations need an OID you got from a list or get call rather than a document number. And this integration supports Basic authentication only — Windchill deployments fronted by OAuth are not currently supported.
+
+The block also supports provider-managed document webhook triggers for attribute changes, identity changes, lifecycle-state changes, and custom installed events. Choose one document, a folder, or a container as the subscription scope. Triggers require a self-managed Windchill deployment with WRS 2.7 and a Basic-authenticated account that can manage Event Management subscriptions; Windchill+ and OAuth authentication are not supported. A Windchill administrator must set the site-level **Webhooks > Outgoing Webhook URL** to the same host as the generated Sim callback URL.
+
+Sim creates the subscription when the trigger is saved and removes it during cleanup. Keep the generated callback URL private: PTC does not publish a callback payload schema, signing contract, or delivery identifier. Sim passes the JSON callback body through unchanged rather than exposing inferred event fields.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -934,4 +938,88 @@ Upload one or more files as document attachments
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
 
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Windchill Custom Document Event
+
+Trigger a workflow for an installed Windchill document event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerBaseUrl` | string | Yes | Complete versioned HTTPS OData service root for a self-managed Windchill deployment; Sim uses its installation root to access the default EventMgmt domain |
+| `triggerUsername` | string | Yes | Username |
+| `triggerPassword` | string | Yes | Password |
+| `triggerScope` | string | Yes | Scope |
+| `triggerDocumentOid` | string | No | Subscribe to one WT.Document object |
+| `triggerSubscribeAllVersions` | boolean | No | Apply the subscription to current and future versions of the document |
+| `triggerFolderOid` | string | No | Subscribe to documents in this folder |
+| `triggerContainerOid` | string | No | Subscribe to documents in this product, library, or other container |
+| `triggerEvent` | string | Yes | Exact event identifier returned by EventMgmt/GetApplicableEvents\(EntityName='PTC.DocMgmt.Document'\) |
+
+
+---
+
+### Windchill Document Attributes Changed
+
+Trigger a workflow when Windchill document attributes change
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerBaseUrl` | string | Yes | Complete versioned HTTPS OData service root for a self-managed Windchill deployment; Sim uses its installation root to access the default EventMgmt domain |
+| `triggerUsername` | string | Yes | Username |
+| `triggerPassword` | string | Yes | Password |
+| `triggerScope` | string | Yes | Scope |
+| `triggerDocumentOid` | string | No | Subscribe to one WT.Document object |
+| `triggerSubscribeAllVersions` | boolean | No | Apply the subscription to current and future versions of the document |
+| `triggerFolderOid` | string | No | Subscribe to documents in this folder |
+| `triggerContainerOid` | string | No | Subscribe to documents in this product, library, or other container |
+
+
+---
+
+### Windchill Document Identity Changed
+
+Trigger a workflow when a Windchill document identity changes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerBaseUrl` | string | Yes | Complete versioned HTTPS OData service root for a self-managed Windchill deployment; Sim uses its installation root to access the default EventMgmt domain |
+| `triggerUsername` | string | Yes | Username |
+| `triggerPassword` | string | Yes | Password |
+| `triggerScope` | string | Yes | Scope |
+| `triggerDocumentOid` | string | No | Subscribe to one WT.Document object |
+| `triggerSubscribeAllVersions` | boolean | No | Apply the subscription to current and future versions of the document |
+| `triggerFolderOid` | string | No | Subscribe to documents in this folder |
+| `triggerContainerOid` | string | No | Subscribe to documents in this product, library, or other container |
+
+
+---
+
+### Windchill Document Lifecycle State Changed
+
+Trigger a workflow when a Windchill document enters a selected lifecycle state
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerBaseUrl` | string | Yes | Complete versioned HTTPS OData service root for a self-managed Windchill deployment; Sim uses its installation root to access the default EventMgmt domain |
+| `triggerUsername` | string | Yes | Username |
+| `triggerPassword` | string | Yes | Password |
+| `triggerScope` | string | Yes | Scope |
+| `triggerDocumentOid` | string | No | Subscribe to one WT.Document object |
+| `triggerSubscribeAllVersions` | boolean | No | Apply the subscription to current and future versions of the document |
+| `triggerFolderOid` | string | No | Subscribe to documents in this folder |
+| `triggerContainerOid` | string | No | Subscribe to documents in this product, library, or other container |
+| `triggerLifecycleStateValue` | string | Yes | Internal lifecycle state value that should trigger the workflow |
 
