@@ -27,6 +27,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
@@ -55,8 +56,13 @@ import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
+import { POST as importAdminWorkflow } from '@/app/api/v1/admin/workflows/import/route'
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
+
+vi.hoisted(() => {
+  process.env.ADMIN_API_KEY = 'project-fixture-admin-key'
+})
 
 beforeEach(() => {
   vi.stubEnv('PROJECT_API_ENABLED', 'true')
@@ -839,6 +845,55 @@ describe('Project foundation at the database and application boundary', () => {
       expect(row.archivedAt).not.toBeNull()
       expect(row.isDeployed).toBe(false)
       expect(row.isPublicApi).toBe(false)
+    }
+  )
+
+  check(
+    'admin import returns not found when a concurrent archive wins the workspace lock',
+    async () => {
+      const f = await fixture(false, 1)
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      const archive = db.transaction(async (tx) => {
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        await archiveProjectInTransaction(tx, f.projectId)
+        held.resolve(connection.pid)
+        await release.promise
+      })
+      const blocker = await held.promise
+      const imported = importAdminWorkflow(
+        new NextRequest('http://localhost:3000/api/v1/admin/workflows/import', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-admin-key': 'project-fixture-admin-key',
+          },
+          body: JSON.stringify({
+            workspaceId: f.ids[0],
+            workflow: { blocks: {}, edges: [], loops: {}, parallels: {} },
+          }),
+        }),
+        {}
+      )
+      try {
+        let waiting = false
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const rows = await db.execute(
+            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
+          )
+          if (rows.length) {
+            waiting = true
+            break
+          }
+          await sleep(10)
+        }
+        expect(waiting).toBe(true)
+      } finally {
+        release.resolve()
+        await archive
+      }
+      expect((await imported).status).toBe(404)
+      expect(await db.select().from(workflow).where(eq(workflow.workspaceId, f.ids[0]))).toEqual([])
     }
   )
 
