@@ -17,6 +17,11 @@ import {
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
+import {
+  isTableWriteContention,
+  TABLE_WRITE_CONTENTION_MESSAGE,
+  TABLE_WRITE_CONTENTION_RETRY_AFTER_SECONDS,
+} from '@/lib/table/api/write-contention'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
@@ -136,6 +141,16 @@ export function orchestrationErrorResponse(error: unknown): NextResponse | null 
   // than an `OrchestrationError`, so it needs its own check first.
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
+
+  if (isTableWriteContention(error)) {
+    return NextResponse.json(
+      { error: TABLE_WRITE_CONTENTION_MESSAGE },
+      {
+        status: 503,
+        headers: { 'Retry-After': String(TABLE_WRITE_CONTENTION_RETRY_AFTER_SECONDS) },
+      }
+    )
+  }
 
   const classified = asOrchestrationError(error)
   if (!classified) return null
