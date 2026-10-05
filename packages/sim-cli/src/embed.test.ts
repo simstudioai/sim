@@ -168,6 +168,12 @@ describe('embedded request defaults', () => {
     expect(requests.map((request) => request.body?.includeFileBase64)).toEqual([false, true])
   })
 
+  it('asks a followed run for file references too', async () => {
+    const { requests, identity } = capture({})
+    await runEmbeddedCli(['workflows', 'run', 'wf', '--follow'], identity)
+    expect(requests[0]?.body).toMatchObject({ stream: true, includeFileBase64: false })
+  })
+
   it('never sends the field on an async run, which the server rejects', async () => {
     const { requests, identity } = capture({ runId: 'run-1', statusUrl: 'https://x.test/s' })
     expect((await runEmbeddedCli(['workflows', 'run', 'wf', '--async'], identity)).exitCode).toBe(0)

@@ -156,8 +156,8 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
  * Asks an embedded run for file references without inline bytes unless the caller
  * passed `--include-file-base64`. The embedding host hands stdout to a model, which
  * reads a produced file by id; inlined bytes only grew the result it had to skim and
- * cost the server a storage read and encode per file. Only the synchronous path sets
- * it: an `--async` run rejects the field outright.
+ * cost the server a storage read and encode per file. Only the synchronous and
+ * `--follow` paths set it: an `--async` run rejects the field outright.
  */
 function withEmbeddedFileReferences(
   body: Record<string, unknown> | undefined
@@ -377,7 +377,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
     method: 'POST',
     query: request.query,
     body: {
-      ...(request.body ?? {}),
+      ...withEmbeddedFileReferences(request.body),
       stream: true,
       ...(includeThinking ? { includeThinking: true } : {}),
       ...(includeToolCalls ? { includeToolCalls: true } : {}),

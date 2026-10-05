@@ -206,7 +206,7 @@ jobs:
       # immediately, and either way the server log tail lands in the job log. No
       # step timeout: the job's bound covers a hang without cutting a slow but
       # healthy suite short of writing its report.
-      - name: Verify SCIM, administration, workflow comparisons and CLI runs over real HTTP
+      - name: Verify SCIM, administration and workflow comparisons over real HTTP
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
@@ -268,6 +268,43 @@ jobs:
           VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
+
+      # Self-hosted without billing: hosted billing admits runs through Redis, which
+      # this job does not provision.
+      - name: Verify embedded CLI workflow runs and log reads over real HTTP
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3018
+          BETTER_AUTH_URL: http://127.0.0.1:3018
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          INTERNAL_API_SECRET: cli-http-ci-local-secret-at-least-32-characters
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          server_log="$report_dir/cli-next.log"
+          mkdir -p "$report_dir"
+          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          server_pid=$!
+          finish() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap finish EXIT
+          fail_startup() {
+            echo "::error::$1"
+            tail -n 200 "$server_log"
+            exit 1
+          }
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3018/api/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || fail_startup 'Local CLI app exited during startup.'
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] ||
+              fail_startup "Local CLI app did not become ready within $READY_TIMEOUT_SECONDS seconds."
+            sleep 2
+          done
+          echo "Local CLI app ready after $((SECONDS - started))s"
           CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
           CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
           CLI_LATENCY_E2E_RUNS=3 \

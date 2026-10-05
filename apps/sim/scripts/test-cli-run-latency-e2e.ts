@@ -26,8 +26,10 @@ import type { EmbeddedCliIdentity, EmbeddedCliResult } from 'sim/embed'
  * server time after execution ended, CLI rendering, and the sink write.
  *
  * Fixtures are seeded straight into a disposable database and removed at the end.
+ * With this checkout's CLI, the run also asserts the embedded results stay lean:
+ * file references without inline bytes, and a log without its workflow snapshot.
  * `CLI_LATENCY_E2E_CLI_MODULE` points the run at another checkout's `embed.ts`,
- * so two CLI builds can be compared against the same server, and
+ * so two CLI builds can be compared against the same server (measured, not asserted), and
  * `CLI_LATENCY_E2E_SINK_DIR` keeps every command's stdout for inspection.
  */
 const logger = createLogger('CliRunLatencyE2E')
@@ -57,8 +59,9 @@ const reportPath = requiredEnvironment('CLI_LATENCY_E2E_REPORT_PATH')
 const label = process.env.CLI_LATENCY_E2E_LABEL ?? 'local'
 const measuredRuns = positiveInteger('CLI_LATENCY_E2E_RUNS', 30)
 const warmupRuns = positiveInteger('CLI_LATENCY_E2E_WARMUP', 3)
+const comparedCliModule = process.env.CLI_LATENCY_E2E_CLI_MODULE
 const cliModulePath =
-  process.env.CLI_LATENCY_E2E_CLI_MODULE ??
+  comparedCliModule ??
   fileURLToPath(new URL('../../../packages/sim-cli/src/embed.ts', import.meta.url))
 assert(new Set(['localhost', '127.0.0.1', '[::1]']).has(baseUrl.hostname), 'Use a loopback app')
 assert.equal(baseUrl.protocol, 'http:', 'Use a local HTTP app')
@@ -337,6 +340,9 @@ async function iterate(
     typeof file.id === 'string' && file.name === 'latency-report.csv',
     'The run names its file'
   )
+  const inlineFileBytes = typeof file.base64 === 'string'
+  // Another CLI build is measured as it behaves; this checkout's CLI must stay lean.
+  if (!comparedCliModule) assert(!inlineFileBytes, 'An embedded run returns file references only')
 
   const logRow = await waitForSettledLog(runId)
   const logs = await timedCommand(
@@ -347,6 +353,8 @@ async function iterate(
   const log = record(JSON.parse(logs.result.stdout))
   assert.equal(log.runId, runId)
   assert(Array.isArray(log.traceSpans) && log.traceSpans.length > 0, 'The log carries trace spans')
+  const workflowState = isRecordLike(log.workflowState)
+  if (!comparedCliModule) assert(!workflowState, 'An embedded log read omits the workflow snapshot')
 
   if (!keep) return
   const { firstRequestEpochMs, lastBodyEpochMs } = run.marks
@@ -355,7 +363,7 @@ async function iterate(
     command: 'workflows run',
     iteration,
     stdoutBytes: Buffer.byteLength(run.result.stdout),
-    carried: { inlineFileBytes: typeof file.base64 === 'string' },
+    carried: { inlineFileBytes },
     segments: {
       ...run.segments,
       serverBeforeExecutionMs: logRow.startedAtMs - firstRequestEpochMs,
@@ -367,7 +375,7 @@ async function iterate(
     command: 'logs get',
     iteration,
     stdoutBytes: Buffer.byteLength(logs.result.stdout),
-    carried: { workflowState: isRecordLike(log.workflowState) },
+    carried: { workflowState },
     segments: logs.segments,
   })
 }
