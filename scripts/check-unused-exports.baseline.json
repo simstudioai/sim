@@ -3808,8 +3808,6 @@
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2DeployedWebhook",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2DownloadRunFileParams",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2DuplicateWorkflowBody",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowBody",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowData",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowHeaders",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecuteWorkflowQueued",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ExecutionError",
