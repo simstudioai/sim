@@ -92,7 +92,8 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         await tx`UPDATE workspace SET archived_at = now()`
         await tx`UPDATE project SET archived_at = now()`
       })
-      const [calls] = await sql`SELECT last_value::int AS count FROM project_validation_count`
+      const [calls] =
+        await sql`SELECT CASE WHEN is_called THEN last_value::int ELSE 0 END AS count FROM project_validation_count`
       expect(calls.count).toBe(1)
       const [state] =
         await sql`SELECT count(*)::int AS count FROM workspace WHERE archived_at IS NOT NULL`
