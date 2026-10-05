@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { quotedStringBytes } from '@/lib/core/utils/bounded-json'
 
 /**
  * Approximate byte length of `JSON.stringify(value)`, measured without building
@@ -18,13 +19,21 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
     }
   }
 
-  /** Applies `toJSON` the way `JSON.stringify` does before a value is written. */
+  const addString = (value: string) => {
+    add(quotedStringBytes(value, maxBytes - bytes) ?? maxBytes - bytes + 1)
+  }
+
+  /** Applies `toJSON`, then unboxes primitive wrappers, as `JSON.stringify` does. */
   const resolve = (raw: unknown, key: string): unknown => {
     const toJSON =
       (typeof raw === 'object' && raw !== null) || typeof raw === 'bigint'
         ? (raw as { toJSON?: unknown }).toJSON
         : undefined
-    return typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
+    const value = typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
+    if (value instanceof Number) return Number(value)
+    if (value instanceof String) return String(value)
+    if (value instanceof Boolean || value instanceof BigInt) return value.valueOf()
+    return value
   }
 
   const isOmitted = (item: unknown): boolean =>
@@ -36,11 +45,11 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
       return
     }
     if (typeof item === 'string') {
-      add(Buffer.byteLength(JSON.stringify(item), 'utf8'))
+      addString(item)
       return
     }
     if (typeof item === 'bigint') {
-      add(Buffer.byteLength(JSON.stringify(item.toString()), 'utf8'))
+      addString(item.toString())
       return
     }
     if (typeof item === 'number' || typeof item === 'boolean') {
@@ -65,7 +74,8 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
         if (isOmitted(entry)) continue
         if (written > 0) add(1)
         written++
-        add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
+        addString(key)
+        add(1)
         visit(entry)
       }
     }
