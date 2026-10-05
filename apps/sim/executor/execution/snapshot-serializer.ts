@@ -331,39 +331,55 @@ export function serializePauseSnapshot(
   }
 }
 
+const LIVE_EXECUTION_STATE = Symbol('liveExecutionState')
+
 /**
  * Throws exactly where `JSON.stringify(value)` would — a cycle or a BigInt,
  * after applying `toJSON` — without building the string. Iterative, so nesting
  * that native serialization handles cannot overflow the JS stack here.
  */
 function assertJsonSerializable(value: unknown): void {
-  type Frame = { kind: 'visit'; value: unknown; key: string } | { kind: 'exit'; node: object }
+  type Frame = { node: object; keys: string[] | undefined; index: number }
   const ancestors = new Set<object>()
-  const stack: Frame[] = [{ kind: 'visit', value, key: '' }]
-  for (let frame = stack.pop(); frame; frame = stack.pop()) {
-    if (frame.kind === 'exit') {
-      ancestors.delete(frame.node)
-      continue
-    }
-    let current = frame.value
-    if ((typeof current === 'object' && current !== null) || typeof current === 'bigint') {
+  const stack: Frame[] = []
+
+  const enter = (raw: unknown, key: string): void => {
+    let current = raw
+    if (
+      (typeof current === 'object' && current !== null) ||
+      typeof current === 'function' ||
+      typeof current === 'bigint'
+    ) {
       const toJSON = (current as { toJSON?: unknown }).toJSON
-      if (typeof toJSON === 'function') current = toJSON.call(current, frame.key)
+      if (typeof toJSON === 'function') current = toJSON.call(current, key)
     }
     if (typeof current === 'bigint' || current instanceof BigInt) {
       throw new TypeError('Do not know how to serialize a BigInt')
     }
-    if (typeof current !== 'object' || current === null) continue
+    if (typeof current !== 'object' || current === null) return
     if (ancestors.has(current)) {
       throw new TypeError('Converting circular structure to JSON')
     }
     ancestors.add(current)
-    stack.push({ kind: 'exit', node: current })
-    const keys = Array.isArray(current) ? Array.from(current.keys(), String) : Object.keys(current)
-    for (let index = keys.length - 1; index >= 0; index--) {
-      const key = keys[index]
-      stack.push({ kind: 'visit', value: (current as Record<string, unknown>)[key], key })
+    stack.push({
+      node: current,
+      keys: Array.isArray(current) ? undefined : Object.keys(current),
+      index: 0,
+    })
+  }
+
+  enter(value, '')
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    const length = frame.keys ? frame.keys.length : (frame.node as unknown[]).length
+    if (frame.index >= length) {
+      ancestors.delete(frame.node)
+      stack.pop()
+      continue
     }
+    const index = frame.index++
+    const key = frame.keys ? frame.keys[index] : String(index)
+    enter((frame.node as Record<string, unknown>)[key], key)
   }
 }
 
@@ -381,11 +397,27 @@ export function buildCompletedExecutionState(
 ): SerializableExecutionState {
   const { snapshot, state } = buildExecutionSnapshot(context, [], dag, edgeManager)
   assertJsonSerializable(snapshot.toSerializable())
-  return {
+  const completed: SerializableExecutionState = {
     ...state,
     blockLogs: state.blockLogs.map((log) => ({ ...log })),
     blockStates: Object.fromEntries(
       Object.entries(state.blockStates).map(([blockId, blockState]) => [blockId, { ...blockState }])
     ),
   }
+  // Enumerable so object spreads carry it; JSON serialization ignores symbol keys.
+  Object.defineProperty(completed, LIVE_EXECUTION_STATE, { value: true, enumerable: true })
+  return completed
+}
+
+/**
+ * Whether execution state came from {@link buildCompletedExecutionState} (or a
+ * spread of it) and so still holds live, not-yet-JSON-normalized values.
+ * Other states came out of a JSON round-trip already.
+ */
+export function isLiveExecutionState(state: unknown): boolean {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    (state as Record<symbol, unknown>)[LIVE_EXECUTION_STATE] === true
+  )
 }

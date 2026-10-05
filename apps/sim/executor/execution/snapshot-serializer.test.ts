@@ -3,6 +3,7 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import {
   buildCompletedExecutionState,
+  isLiveExecutionState,
   serializePauseSnapshot,
 } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
@@ -373,5 +374,15 @@ describe('buildCompletedExecutionState', () => {
 
     context.blockLogs[0].endedAt = 'later'
     expect(state.blockLogs[0].endedAt).toBe('2026-01-01T00:00:01.000Z')
+  })
+
+  it('marks completed state as live through spreads but not through JSON', () => {
+    const context = contextWithOutput({ rows: [{ id: 1 }] })
+    const state = buildCompletedExecutionState(context)
+
+    expect(isLiveExecutionState(state)).toBe(true)
+    expect(isLiveExecutionState({ ...state, sourceExecutionId: 'other' })).toBe(true)
+    expect(isLiveExecutionState(jsonClonedState(context))).toBe(false)
+    expect(JSON.stringify(state)).toBe(JSON.stringify(jsonClonedState(context)))
   })
 })
