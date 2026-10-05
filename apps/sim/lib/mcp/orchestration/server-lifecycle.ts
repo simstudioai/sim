@@ -435,11 +435,12 @@ export async function updateMcpServer(
 
     if (!currentServer) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
+    const checkedUrl =
+      !params.allowDestinationChange && params.url !== undefined ? currentServer.url : null
     if (
-      !params.allowDestinationChange &&
+      checkedUrl &&
       params.url !== undefined &&
-      currentServer.url &&
-      !isSameMcpServerDestination(currentServer.url, params.url)
+      !isSameMcpServerDestination(checkedUrl, params.url)
     ) {
       return {
         success: false,
@@ -505,7 +506,8 @@ export async function updateMcpServer(
           and(
             eq(mcpServers.id, params.serverId),
             eq(mcpServers.workspaceId, params.workspaceId),
-            isNull(mcpServers.deletedAt)
+            isNull(mcpServers.deletedAt),
+            checkedUrl ? eq(mcpServers.url, checkedUrl) : undefined
           )
         )
         .returning()
@@ -518,7 +520,15 @@ export async function updateMcpServer(
       return updated
     })
 
-    if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+    if (!server) {
+      return checkedUrl
+        ? {
+            success: false,
+            error: 'The MCP server URL changed while saving; reload and try again',
+            errorCode: 'conflict',
+          }
+        : { success: false, error: 'Server not found', errorCode: 'not_found' }
+    }
 
     const shouldClearCache =
       urlChanged ||

@@ -244,11 +244,18 @@ export function generateMcpServerId(workspaceId: string, url: string): string {
 }
 
 /**
- * Whether two URLs name the same MCP server destination — the origin and path
- * its id is derived from. Only the query string and fragment may differ.
+ * Whether two URLs name the same MCP server destination: the same origin and
+ * exact path. Only the query string and fragment may differ — paths can be
+ * case-sensitive, so this is stricter than the id hash.
  */
 export function isSameMcpServerDestination(a: string, b: string): boolean {
-  return normalizeUrlForHashing(a) === normalizeUrlForHashing(b)
+  try {
+    const parsedA = new URL(a)
+    const parsedB = new URL(b)
+    return parsedA.origin === parsedB.origin && parsedA.pathname === parsedB.pathname
+  } catch {
+    return a === b
+  }
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   generateManagedMcpConnectionId,
   generateMcpServerId,
   isManagedMcpConnectionId,
+  isSameMcpServerDestination,
   parseMcpToolId,
   parseMcpToolTarget,
 } from './utils'
@@ -46,6 +47,21 @@ describe('generateMcpServerId', () => {
     const id1 = generateMcpServerId('ws-123', url)
     const id2 = generateMcpServerId('ws-456', url)
     expect(id1).not.toBe(id2)
+  })
+})
+
+describe('isSameMcpServerDestination', () => {
+  it('ignores only the query string and fragment', () => {
+    const url = 'https://mcp.example.com/mcp'
+    expect(isSameMcpServerDestination(url, `${url}?token=abc#x`)).toBe(true)
+    expect(isSameMcpServerDestination(url, 'https://MCP.example.com/mcp')).toBe(true)
+  })
+
+  it('treats a different host, path case, or trailing slash as a new destination', () => {
+    const url = 'https://mcp.example.com/mcp'
+    expect(isSameMcpServerDestination(url, 'https://other.example.com/mcp')).toBe(false)
+    expect(isSameMcpServerDestination(url, 'https://mcp.example.com/MCP')).toBe(false)
+    expect(isSameMcpServerDestination(url, `${url}/`)).toBe(false)
   })
 })
 
