@@ -143,8 +143,12 @@ test('native file tools remember folder consent across chats and restarts until 
       await api.settings.setPreference('terminalEnabled', false)
     })
     const deniedPrompt = app.waitForEvent('window', { timeout: 10_000 })
-    const deniedRead = invoke({ operation: 'read', toolCallId: 'text' })
-    void deniedRead.catch(() => {})
+    const deniedReads = ['text', 'otherChat'].map((toolCallId) =>
+      invoke({ operation: 'read', toolCallId })
+    )
+    const deniedResults: unknown[] = []
+    for (const read of deniedReads)
+      void read.then((result) => deniedResults.push(result)).catch(() => {})
     const denial = await deniedPrompt
     await expect(denial.getByRole('button', { name: "Don't allow", exact: true })).toBeFocused()
     await denial.screenshot({
@@ -153,7 +157,11 @@ test('native file tools remember folder consent across chats and restarts until 
         test.info().outputPath('local-file-consent.png'),
     })
     await denial.getByRole('button', { name: "Don't allow", exact: true }).click()
-    expect(await deniedRead).toMatchObject({ ok: false })
+    await expect.poll(() => deniedResults.length).toBe(2)
+    expect(deniedResults).toEqual([
+      { ok: false, error: expect.any(String) },
+      { ok: false, error: expect.any(String) },
+    ])
 
     const folderPrompt = app.waitForEvent('window')
     const folderRead = invoke({ operation: 'read', toolCallId: 'directory' })

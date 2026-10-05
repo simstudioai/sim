@@ -40,10 +40,10 @@ async function revalidate(context: LocalFilePermissionContext): Promise<void> {
   assertCurrent(context)
 }
 
-/** Serializes new consent prompts while remembered folder access remains concurrent. */
+/** Shares each pending folder decision while remembered access remains concurrent. */
 export class LocalFilePermissions {
   private queue: Promise<void> = Promise.resolve()
-  private pending = 0
+  private readonly pending = new Map<string, Promise<void>>()
 
   constructor(private readonly filesystem: LocalFilesystemService) {}
 
@@ -62,32 +62,32 @@ export class LocalFilePermissions {
     const path = await realpath(nativePath(authorization.args.path))
     const existing = await this.filesystem.nativeAccess(path)
     if (existing) return this.authorizedAccess(existing, context)
-    if (this.pending >= MAX_PENDING_REQUESTS)
-      throw new Error('Too many local file requests are waiting for permission. Try again later.')
-    this.pending++
-    const pending = this.queue.then(() => this.requestFolder(path, context))
-    this.queue = pending.then(
-      () => undefined,
-      () => undefined
-    )
-    try {
-      return await pending
-    } finally {
-      this.pending--
-    }
-  }
-
-  private async requestFolder(
-    path: string,
-    context: LocalFilePermissionContext
-  ): Promise<LocalFileAccess> {
-    await revalidate(context)
-    const existing = await this.filesystem.nativeAccess(path)
-    if (existing) return this.authorizedAccess(existing, context)
     const info = await stat(path)
     if (!info.isFile() && !info.isDirectory())
       throw new Error('The path is not a regular file or directory.')
     const folder = info.isDirectory() ? path : dirname(path)
+    const key = JSON.stringify([context.generation, context.origin, folder])
+    let pending = this.pending.get(key)
+    if (!pending) {
+      if (this.pending.size >= MAX_PENDING_REQUESTS)
+        throw new Error('Too many local file requests are waiting for permission. Try again later.')
+      const decision = this.queue.then(() => this.requestFolder(folder, context))
+      this.queue = decision.then(
+        () => undefined,
+        () => undefined
+      )
+      pending = decision.finally(() => this.pending.delete(key))
+      this.pending.set(key, pending)
+    }
+    await pending
+    const access = await this.filesystem.nativeAccess(path)
+    if (!access) throw new Error('The approved folder is no longer available.')
+    return this.authorizedAccess(access, context)
+  }
+
+  private async requestFolder(folder: string, context: LocalFilePermissionContext): Promise<void> {
+    await revalidate(context)
+    if (await this.filesystem.nativeAccess(folder)) return
     const root = await lstat(folder)
     if (!root.isDirectory()) throw new Error('The folder is no longer available.')
     const displayedPath = JSON.stringify(folder).replace(
@@ -108,9 +108,6 @@ export class LocalFilePermissions {
     if (result.response !== 0) throw new Error('The user did not allow this local file access.')
     await revalidate(context)
     await this.filesystem.grantDirectory({ path: folder }, context.generation, root)
-    const access = await this.filesystem.nativeAccess(path)
-    if (!access) throw new Error('The approved folder is no longer available.')
-    return this.authorizedAccess(access, context)
   }
 
   private async authorizedAccess(
