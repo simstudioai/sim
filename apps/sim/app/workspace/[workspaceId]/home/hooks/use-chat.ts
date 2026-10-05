@@ -3542,6 +3542,9 @@ export function useChat(
       }
 
       const rollbackOptimisticSend = () => {
+        // A withdrawn first send hands its pick back to the new-chat composer for the retry.
+        if (!requestChatId && effortChoice)
+          useMothershipEffortStore.getState().setNewChatEffort(effortChoice)
         if (requestChatId) {
           upsertChatHistory(requestChatId, (current) => ({
             ...current,
