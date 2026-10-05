@@ -6,7 +6,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
   id: 'cloudflare_get_tunnel',
   name: 'Cloudflare Get Tunnel',
   description:
-    'Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections. Requires an API token with Account Cloudflare Tunnel Read.',
+    'Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections (from the dedicated connections endpoint). Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
 
   params: {
@@ -37,7 +37,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: CloudflareGetTunnelParams) => {
     const data = await response.json()
 
     if (!data.success) {
@@ -63,6 +63,25 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     }
 
     const tunnel = data.result
+    let connections: unknown[] | null = null
+    if (params?.accountId && params?.tunnelId && params?.apiKey) {
+      try {
+        const connectionsUrl = `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}/connections`
+        const connectionsRes = await fetch(connectionsUrl, {
+          method: 'GET',
+          headers: cloudflareHeaders(params.apiKey),
+        })
+        const connectionsData = await connectionsRes.json()
+        if (connectionsData?.success && Array.isArray(connectionsData.result)) {
+          connections = connectionsData.result.flatMap(
+            (connector: { conns?: unknown[] }) => connector.conns ?? []
+          )
+        }
+      } catch {
+        connections = null
+      }
+    }
+
     return {
       success: true,
       output: {
@@ -78,7 +97,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
         deleted_at: tunnel?.deleted_at ?? null,
         conns_active_at: tunnel?.conns_active_at ?? null,
         conns_inactive_at: tunnel?.conns_inactive_at ?? null,
-        connections: tunnel?.connections ?? null,
+        connections,
       },
     }
   },
@@ -126,7 +145,8 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     },
     connections: {
       type: 'json',
-      description: 'Active connector connections for the tunnel',
+      description:
+        'Active connector connections for the tunnel (from GET .../cfd_tunnel/{id}/connections)',
       optional: true,
     },
   },
