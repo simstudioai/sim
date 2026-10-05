@@ -17,12 +17,12 @@ export const MOTHERSHIP_MODEL_OPTIONS = [
   { value: 'claude-opus-5-5', label: 'Opus 5.5' },
 ] satisfies Array<{ value: ModelSelection['model']; label: string }>
 
-/** Labels deliberately describe the simplified product dial; values are provider efforts. */
-export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: string }> = [
-  { value: 'medium', label: 'Low' },
-  { value: 'high', label: 'Medium' },
-  { value: 'xhigh', label: 'High' },
-]
+const SIMPLE_EFFORT_VALUES: ReadonlySet<MothershipEffort> = new Set(['medium', 'high', 'xhigh'])
+
+/** The efforts the simple picker offers, labeled with the effort each one sends. */
+export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS = MOTHERSHIP_EFFORT_OPTIONS.filter((option) =>
+  SIMPLE_EFFORT_VALUES.has(option.value)
+)
 
 export function mothershipEffortOptions(model: ModelSelection['model']) {
   return model === 'gpt-6-sol'
