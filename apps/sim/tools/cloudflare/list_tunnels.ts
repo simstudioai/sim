@@ -18,7 +18,7 @@ export const listTunnelsTool: ToolConfig<
   id: 'cloudflare_list_tunnels',
   name: 'Cloudflare List Tunnels',
   description:
-  'Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status. Connections are no longer included on list responses (Cloudflare API change 2026-10-05); use cloudflare_get_tunnel for a tunnel’s connections. Requires an API token with Account Cloudflare Tunnel Read.',
+    'Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status. Connections are no longer included on list responses (Cloudflare API change 2026-10-05); use cloudflare_get_tunnel for a tunnel’s connections. Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
 
   params: {
