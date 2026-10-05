@@ -13,10 +13,7 @@ export const zoomDeleteRecordingTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'zoom',
-    requiredScopes: [
-      'cloud_recording:delete:recording_file',
-      'cloud_recording:delete:meeting_recording',
-    ],
+    requiredScopes: ['cloud_recording:delete:recording_file'],
   },
 
   params: {
