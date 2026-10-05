@@ -3790,8 +3790,9 @@ export function useChat(
             const conflictChatId =
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
             if (conflictChatId && !streamTargetChatId) {
-              // The first attempt already stored its own pick on that chat.
-              if (effortChoice) useMothershipEffortStore.getState().setNewChatEffort(null)
+              // The retry carries the same pick the first attempt stored on that chat.
+              if (effortChoice)
+                useMothershipEffortStore.getState().adoptNewChatEffort(conflictChatId, effortChoice)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,
                 invalidateList: true,
