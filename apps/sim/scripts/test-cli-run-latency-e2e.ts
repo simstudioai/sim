@@ -203,6 +203,10 @@ async function seed() {
 }
 
 async function cleanup() {
+  // Snapshots outlive their workflow (`workflow_id` is set null), so they go first,
+  // after the logs that reference them.
+  await sql`delete from workflow_execution_logs where workflow_id = ${workflowId}`
+  await sql`delete from workflow_execution_snapshots where workflow_id = ${workflowId}`
   await sql`delete from workspace where id = ${workspaceId}`
   await sql`delete from "user" where id = ${userId}`
 }
