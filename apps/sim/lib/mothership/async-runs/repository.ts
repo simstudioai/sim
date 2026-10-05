@@ -29,6 +29,11 @@ import {
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
+import {
+  DESKTOP_TOOL_NAMES,
+  STOPPED_BEFORE_START_MESSAGE,
+  STOPPED_WHILE_RUNNING_MESSAGE,
+} from '@/lib/mothership/async-runs/desktop-tools'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import {
   INTERRUPTED_SIM_TOOL_MESSAGE,
@@ -42,6 +47,7 @@ import {
   type AsyncTerminalStatus,
   DESKTOP_TOOL_CLAIM_OWNER,
   EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+  isAwaitingToolPermission,
   SIM_TOOL_EXECUTION_VERSION,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -191,13 +197,60 @@ export async function requestRunStop(
         .onConflictDoNothing()
     }
     if (run) {
+      const stoppedRuns = and(
+        eq(copilotRuns.userId, input.userId),
+        eq(copilotRuns.streamId, input.streamId)
+      )
       await tx
         .update(copilotRuns)
         .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
-        .where(and(eq(copilotRuns.userId, input.userId), eq(copilotRuns.streamId, input.streamId)))
+        .where(stoppedRuns)
+      await cancelOpenDesktopToolCalls(tx, stoppedRuns)
     }
     return run ?? null
   })
+}
+
+/**
+ * Settles the stopped runs' open desktop calls in the transaction that closes their admission, so
+ * none can be claimed afterwards and none is left looking live. A call nobody claimed never
+ * started; one the desktop claimed may already have acted.
+ */
+async function cancelOpenDesktopToolCalls(
+  tx: RunAdmissionTransaction,
+  stoppedRuns: SQL | undefined
+) {
+  const wasPending = sql`${copilotAsyncToolCalls.status} = ${ASYNC_TOOL_STATUS.pending}`
+  const notStarted = { error: STOPPED_BEFORE_START_MESSAGE, notStarted: true }
+  const outcomeUnknown = {
+    error: STOPPED_WHILE_RUNNING_MESSAGE,
+    outcomeUnknown: true,
+    doNotRetry: true,
+  }
+  await tx
+    .update(copilotAsyncToolCalls)
+    .set({
+      status: ASYNC_TOOL_STATUS.cancelled,
+      result: sql`CASE WHEN ${wasPending} THEN ${JSON.stringify(notStarted)}::jsonb ELSE ${JSON.stringify(outcomeUnknown)}::jsonb END`,
+      error: sql`CASE WHEN ${wasPending} THEN ${STOPPED_BEFORE_START_MESSAGE} ELSE ${STOPPED_WHILE_RUNNING_MESSAGE} END`,
+      claimedBy: null,
+      claimedAt: null,
+      completedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        inArray(
+          copilotAsyncToolCalls.runId,
+          tx.select({ id: copilotRuns.id }).from(copilotRuns).where(stoppedRuns)
+        ),
+        inArray(copilotAsyncToolCalls.status, [
+          ASYNC_TOOL_STATUS.pending,
+          ASYNC_TOOL_STATUS.running,
+        ]),
+        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_NAMES])
+      )
+    )
 }
 
 export async function isRunStopRequested(input: RunStopInput): Promise<boolean> {
@@ -386,6 +439,8 @@ export async function getRunSegment(runId: string) {
           // Needed to resolve the deciding user's permission group.
           workspaceId: copilotRuns.workspaceId,
           organizationId: copilotRuns.organizationId,
+          // Stop, a newer turn, or completion close admission; nothing may start after that.
+          toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
@@ -403,6 +458,8 @@ export async function upsertAsyncToolCall(input: {
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
   sealedContext?: AsyncCompletionData
+  /** The call is held for the user's decision before anything may run it. */
+  permissionRequested?: boolean
 }) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
@@ -448,6 +505,7 @@ export async function upsertAsyncToolCall(input: {
             args,
             status: incomingStatus,
             ...(sealedContext !== undefined ? { result: sealedContext } : {}),
+            ...(input.permissionRequested ? { permissionRequestedAt: now } : {}),
             updatedAt: now,
           })
           .onConflictDoNothing()
@@ -1265,12 +1323,26 @@ export async function releaseWorkflowToolExecutionClaim(toolCallId: string, exec
   )
 }
 
+export type PendingToolCallClaim =
+  | 'claimed'
+  /** Stop, a newer turn, or the run's end closed tool admission. */
+  | 'admission_closed'
+  /** Held for the user's decision, and not allowed (yet). */
+  | 'awaiting_permission'
+  /** Already claimed or settled, or missing. */
+  | 'not_pending'
+
 /**
- * Atomically claims a pending client tool exactly once. Native browser actions
+ * Atomically claims a pending client tool exactly once. Native desktop actions
  * use this before crossing the Electron boundary so a replayed renderer event
- * cannot click, type, submit, or navigate twice.
+ * cannot click, type, submit, or navigate twice. The run row is locked, so the
+ * claim serializes with Stop: nothing is claimed after admission closes, and a
+ * call held for the user's decision is claimed only once they allowed it.
  */
-export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: string) {
+export async function claimPendingAsyncToolCall(
+  toolCallId: string,
+  claimedBy: string
+): Promise<PendingToolCallClaim> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -1280,25 +1352,54 @@ export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: s
       [TraceAttr.CopilotAsyncToolStatus]: ASYNC_TOOL_STATUS.running,
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
-    async () => {
-      const now = new Date()
-      const [row] = await db
-        .update(copilotAsyncToolCalls)
-        .set({
-          status: ASYNC_TOOL_STATUS.running,
-          claimedBy,
-          claimedAt: now,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+    () =>
+      db.transaction(async (tx): Promise<PendingToolCallClaim> => {
+        const [run] = await tx
+          .select({
+            status: copilotRuns.status,
+            closedAt: copilotRuns.toolAdmissionClosedAt,
+          })
+          .from(copilotRuns)
+          .innerJoin(copilotAsyncToolCalls, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+          .for('update', { of: copilotRuns })
+        if (!run) return 'not_pending'
+        if (run.closedAt || TERMINAL_RUN_STATUSES.includes(run.status)) return 'admission_closed'
+        const now = new Date()
+        const [claimed] = await tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            status: ASYNC_TOOL_STATUS.running,
+            claimedBy,
+            claimedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+              eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              or(
+                isNull(copilotAsyncToolCalls.permissionRequestedAt),
+                inArray(copilotAsyncToolCalls.permissionDecision, [
+                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                ])
+              )
+            )
           )
-        )
-        .returning()
-      return row ?? null
-    }
+          .returning({ id: copilotAsyncToolCalls.id })
+        if (claimed) return 'claimed'
+        const [call] = await tx
+          .select({
+            status: copilotAsyncToolCalls.status,
+            permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
+            permissionDecision: copilotAsyncToolCalls.permissionDecision,
+          })
+          .from(copilotAsyncToolCalls)
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        return call?.status === ASYNC_TOOL_STATUS.pending && isAwaitingToolPermission(call)
+          ? 'awaiting_permission'
+          : 'not_pending'
+      })
   )
 }
 

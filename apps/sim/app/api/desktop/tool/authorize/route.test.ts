@@ -50,7 +50,7 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'active',
     })
-    claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
+    claimPendingAsyncToolCall.mockResolvedValue('claimed')
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -198,7 +198,7 @@ describe('desktop tool authorization', () => {
     )
     expect((await POST(request('import-1', true))).status).toBe(404)
     expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
-    claimPendingAsyncToolCall.mockResolvedValueOnce(null)
+    claimPendingAsyncToolCall.mockResolvedValueOnce('not_pending')
     expect((await POST(request('import-1', true))).status).toBe(409)
   })
 

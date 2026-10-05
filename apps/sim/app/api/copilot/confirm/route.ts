@@ -1,4 +1,5 @@
-import { isBrowserToolName, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import type { Span } from '@opentelemetry/api'
+import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
@@ -7,12 +8,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getDesktopToolClaimOwner } from '@/lib/mothership/async-runs/desktop-tools'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
-  DESKTOP_TOOL_CLAIM_OWNER,
+  type AsyncTerminalStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
   isWorkflowToolExecutionClaimable,
@@ -81,6 +83,24 @@ function createConfirmationResponse(
   message: string
 ): NextResponse {
   return NextResponse.json({ success: true, message, toolCallId, status })
+}
+
+/**
+ * A result for a call that is already settled — a retried delivery, or one that lost to the server
+ * settling the call first (Stop, a fast "not started" failure) — answers with the stored outcome.
+ * Nothing is written or published again, and the reporter stops retrying.
+ */
+function acknowledgeSettledToolCall(
+  span: Span,
+  toolCallId: string,
+  storedStatus: AsyncTerminalStatus
+): NextResponse {
+  const settledStatus = getWorkflowToolConfirmationStatus(storedStatus)
+  span.setAttributes({
+    [TraceAttr.ToolConfirmationStatus]: settledStatus,
+    [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
+  })
+  return createConfirmationResponse(toolCallId, settledStatus, 'Tool call was already settled')
 }
 
 /** Atomically finalize or detach a client tool before publishing its wakeup event. */
@@ -284,6 +304,10 @@ export const POST = withRouteHandler((req: NextRequest) => {
           )
         }
 
+        if (!isWorkflowTool && isTerminalAsyncStatus(existing.status)) {
+          return acknowledgeSettledToolCall(span, toolCallId, existing.status)
+        }
+
         const isErrorOrCancelledOutcome =
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
@@ -291,19 +315,11 @@ export const POST = withRouteHandler((req: NextRequest) => {
           isBrowserToolName(existing.toolName) ||
           isTerminalToolName(existing.toolName) ||
           existing.toolName === 'import_local_files'
+        const nativeClaimOwner = getDesktopToolClaimOwner(existing.toolName)
         const isPreclaimNativeTerminalOutcome =
-          (isCurrentBrowserToolName(existing.toolName) ||
-            isTerminalToolName(existing.toolName) ||
-            existing.toolName === 'import_local_files') &&
+          nativeClaimOwner !== undefined &&
           existing.status === ASYNC_TOOL_STATUS.pending &&
           isErrorOrCancelledOutcome
-        const nativeClaimOwner = isCurrentBrowserToolName(existing.toolName)
-          ? DESKTOP_TOOL_CLAIM_OWNER.browser
-          : isTerminalToolName(existing.toolName)
-            ? DESKTOP_TOOL_CLAIM_OWNER.terminal
-            : existing.toolName === 'import_local_files'
-              ? DESKTOP_TOOL_CLAIM_OWNER.files
-              : undefined
         const isIndeterminateNativeExit =
           isPreclaimNativeTerminalOutcome &&
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
@@ -452,6 +468,13 @@ export const POST = withRouteHandler((req: NextRequest) => {
                 }
               )
             : updateOutcome
+
+        if (reconciledOutcome === 'conflict' && !isWorkflowTool) {
+          const settled = await getAsyncToolCall(toolCallId).catch(() => null)
+          if (settled && isTerminalAsyncStatus(settled.status)) {
+            return acknowledgeSettledToolCall(span, toolCallId, settled.status)
+          }
+        }
 
         if (reconciledOutcome === 'conflict' && isPreclaimNativeTerminalOutcome) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)

@@ -1,7 +1,6 @@
-import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
-import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getDesktopToolClaimOwner } from '@/lib/mothership/async-runs/desktop-tools'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
@@ -312,12 +311,10 @@ export async function prePersistClientExecutableToolCall(
     // client tools retain the established "already dispatched" running state.
     // A gated tool is likewise pending: nothing has been dispatched yet.
     status:
-      gated ||
-      isCurrentBrowserToolName(data.toolName) ||
-      isTerminalToolName(data.toolName) ||
-      data.toolName === 'import_local_files'
+      gated || getDesktopToolClaimOwner(data.toolName)
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
+    permissionRequested: gated,
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {

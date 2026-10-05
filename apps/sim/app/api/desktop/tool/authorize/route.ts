@@ -12,6 +12,7 @@ import {
   claimPendingAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
+  type PendingToolCallClaim,
 } from '@/lib/mothership/async-runs/repository'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -20,12 +21,33 @@ import {
 } from '@/lib/mothership/request/http'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
+const admissionClosedResponse = () =>
+  NextResponse.json(
+    { error: 'This chat was stopped, so the tool call can no longer run' },
+    { status: 410 }
+  )
+
+/** A refused claim answers the same way for every tool, except how each reports a lost race. */
+function refusedClaimResponse(
+  claim: Exclude<PendingToolCallClaim, 'claimed'>,
+  notPending: () => NextResponse
+): NextResponse {
+  if (claim === 'admission_closed') return admissionClosedResponse()
+  if (claim === 'awaiting_permission')
+    return NextResponse.json({ error: 'The user has not approved this tool call' }, { status: 403 })
+  return notPending()
+}
+
 /**
  * Electron calls this endpoint from the main process before every privileged
  * native model action. It returns only server-persisted canonical tool args;
  * Electron validates local-file requests against them and uses them directly
  * for browser and terminal tools. The presentation-only `activity` field is
  * dropped: desktop actions reject arguments they do not declare.
+ *
+ * Nothing is handed over once the run's tool admission has closed (Stop, a
+ * newer turn, or the run's end), nor for a call held for the user's decision
+ * that they have not allowed.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -47,6 +69,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (run.status === 'complete' || run.status === 'error' || run.status === 'cancelled') {
     return createNotFoundResponse('Pending client tool call not found')
   }
+  if (run.toolAdmissionClosedAt) return admissionClosedResponse()
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
   const isBrowserTool = isCurrentBrowserToolName(toolCall.toolName)
@@ -84,14 +107,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(projected.body, { status: projected.status })
     }
     if (parsed.data.body.claim) {
-      if (
-        toolCall.status !== 'pending' ||
-        !(await claimPendingAsyncToolCall(toolCall.toolCallId, DESKTOP_TOOL_CLAIM_OWNER.files))
-      )
-        return NextResponse.json(
+      const alreadyStarted = () =>
+        NextResponse.json(
           { error: 'This import was already started; inspect its result before retrying' },
           { status: 409 }
         )
+      if (toolCall.status !== 'pending') return alreadyStarted()
+      const claim = await claimPendingAsyncToolCall(
+        toolCall.toolCallId,
+        DESKTOP_TOOL_CLAIM_OWNER.files
+      )
+      if (claim !== 'claimed') return refusedClaimResponse(claim, alreadyStarted)
     } else if (
       toolCall.status !== 'running' ||
       toolCall.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.files
@@ -104,16 +130,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   // the Electron boundary — a replayed renderer event must not run a command
   // or click a button twice.
   if (isBrowserTool || isTerminalTool) {
-    if (toolCall.status !== 'pending') {
-      return createNotFoundResponse('Pending client tool call not found')
-    }
-    const claimed = await claimPendingAsyncToolCall(
+    const notPending = () => createNotFoundResponse('Pending client tool call not found')
+    if (toolCall.status !== 'pending') return notPending()
+    const claim = await claimPendingAsyncToolCall(
       toolCall.toolCallId,
       isBrowserTool ? DESKTOP_TOOL_CLAIM_OWNER.browser : DESKTOP_TOOL_CLAIM_OWNER.terminal
     )
-    if (!claimed) {
-      return createNotFoundResponse('Pending client tool call not found')
-    }
+    if (claim !== 'claimed') return refusedClaimResponse(claim, notPending)
   }
 
   return NextResponse.json({

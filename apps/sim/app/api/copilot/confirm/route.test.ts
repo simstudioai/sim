@@ -624,6 +624,26 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
+  it.each([
+    ['client_tool', 'running', 'success', completeAsyncToolCall],
+    ['browser_snapshot', 'pending', 'error', completePendingAsyncToolCall],
+  ] as const)(
+    'acknowledges a %s result whose write lost to a settlement that landed first',
+    async (toolName, storedStatus, status, completion) => {
+      const row = { ...existingRow, toolName, claimedBy: null }
+      getAsyncToolCall
+        .mockResolvedValueOnce({ ...row, status: storedStatus })
+        .mockResolvedValueOnce({ ...row, status: 'failed' })
+      completion.mockResolvedValueOnce(null)
+
+      const response = await POST(createMockPostRequest({ toolCallId: 'tool-call-123', status }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ toolCallId: 'tool-call-123', status: 'error' })
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
+
   it('does not publish when another terminal confirmation already won', async () => {
     completeAsyncToolCall.mockResolvedValueOnce(null)
 
