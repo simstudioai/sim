@@ -18,7 +18,7 @@ import {
 import { detectMcpAuthType, oauthCredsChanged, revokeMcpOauthTokens } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpAuthType } from '@/lib/mcp/types'
-import { generateMcpServerId } from '@/lib/mcp/utils'
+import { generateMcpServerId, isSameMcpServerDestination } from '@/lib/mcp/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('McpServerOrchestration')
@@ -62,6 +62,11 @@ export interface PerformUpdateMcpServerParams extends ActorMetadata {
   workspaceId: string
   userId: string
   serverId: string
+  /**
+   * Whether the caller may point the server at a different host or path.
+   * Deployed workflows pin a server by id, so this is reserved for admins.
+   */
+  allowDestinationChange: boolean
   name?: string
   description?: string | null
   transport?: McpServerTransport
@@ -177,6 +182,19 @@ export async function createMcpServer(
       .limit(1)
 
     const urlChanged = existingServer ? existingServer.url !== params.url : true
+
+    /**
+     * Server ids are a 32-bit hash of the URL, so a different destination can
+     * collide with an existing row. Deployed workflows pin that id, so an
+     * upsert must never repoint it at another host.
+     */
+    if (existingServer?.url && !isSameMcpServerDestination(existingServer.url, params.url)) {
+      return {
+        success: false,
+        error: 'An MCP server with a conflicting id already exists in this workspace',
+        errorCode: 'conflict',
+      }
+    }
 
     if (existingServer?.managedConnectorId) {
       return {
@@ -416,6 +434,19 @@ export async function updateMcpServer(
       .limit(1)
 
     if (!currentServer) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+
+    if (
+      !params.allowDestinationChange &&
+      params.url !== undefined &&
+      currentServer.url &&
+      !isSameMcpServerDestination(currentServer.url, params.url)
+    ) {
+      return {
+        success: false,
+        error: 'Only workspace admins can point an MCP server at a different URL',
+        errorCode: 'forbidden',
+      }
+    }
 
     if (
       params.oauthClientId &&

@@ -2,7 +2,8 @@ import { resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPerformUpdateMcpServer } = vi.hoisted(() => ({
+const { mockPermission, mockPerformUpdateMcpServer } = vi.hoisted(() => ({
+  mockPermission: { current: 'admin' },
   mockPerformUpdateMcpServer: vi.fn(),
 }))
 
@@ -28,7 +29,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
           userEmail: 'test@example.com',
           workspaceId: 'workspace-1',
           requestId: 'request-1',
-          permission: 'admin',
+          permission: mockPermission.current,
         },
         routeContext
       ),
@@ -54,6 +55,7 @@ function updateRequest() {
 describe('MCP server PATCH route', () => {
   beforeEach(() => {
     resetDbChainMock()
+    mockPermission.current = 'admin'
   })
 
   afterAll(() => {
@@ -86,5 +88,23 @@ describe('MCP server PATCH route', () => {
     expect(body.data.server.headerNames).toEqual(['Authorization'])
     expect(body.data.server.oauthClientSecret).toBeUndefined()
     expect(body.data.server.hasOauthClientSecret).toBe(true)
+  })
+
+  it.each([
+    ['admin', true],
+    ['write', false],
+  ])('lets only an admin change the destination (%s)', async (permission, allowed) => {
+    mockPermission.current = permission
+    mockPerformUpdateMcpServer.mockResolvedValueOnce({
+      success: false,
+      error: 'Server not found',
+      errorCode: 'not_found',
+    })
+
+    await PATCH(updateRequest(), { params: Promise.resolve({ id: 'server-1' }) })
+
+    expect(mockPerformUpdateMcpServer).toHaveBeenCalledWith(
+      expect.objectContaining({ allowDestinationChange: allowed })
+    )
   })
 })
