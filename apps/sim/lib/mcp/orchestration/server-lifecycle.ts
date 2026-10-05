@@ -188,7 +188,10 @@ export async function createMcpServer(
      * collide with an existing row. Deployed workflows pin that id, so an
      * upsert must never repoint it at another host.
      */
-    if (existingServer?.url && !isSameMcpServerDestination(existingServer.url, params.url)) {
+    if (
+      existingServer &&
+      (!existingServer.url || !isSameMcpServerDestination(existingServer.url, params.url))
+    ) {
       return {
         success: false,
         error: 'An MCP server with a conflicting id already exists in this workspace',
@@ -267,11 +270,9 @@ export async function createMcpServer(
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
+      const checkedUrl = existingServer.url
       let updatedFields: string[] = []
-      await db.transaction(async (tx) => {
-        if (shouldClearOauth) {
-          await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
-        }
+      const rewritten = await db.transaction(async (tx) => {
         const updateValues: Partial<typeof mcpServers.$inferInsert> = {
           name: params.name,
           description: params.description,
@@ -319,8 +320,25 @@ export async function createMcpServer(
         updatedFields = Object.entries(updateValues)
           .filter(([key, value]) => key !== 'updatedAt' && value !== undefined)
           .map(([key]) => key)
-        await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
+        /** Matching the checked URL keeps a concurrent admin repoint from being written back. */
+        const [updated] = await tx
+          .update(mcpServers)
+          .set(updateValues)
+          .where(and(eq(mcpServers.id, serverId), eq(mcpServers.url, checkedUrl)))
+          .returning({ id: mcpServers.id })
+        if (!updated) return false
+        if (shouldClearOauth) {
+          await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
+        }
+        return true
       })
+      if (!rewritten) {
+        return {
+          success: false,
+          error: 'The MCP server URL changed while saving; reload and try again',
+          errorCode: 'conflict',
+        }
+      }
 
       const [server] = await db
         .select()

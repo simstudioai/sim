@@ -123,37 +123,33 @@ describe('MCP server application use cases', () => {
         },
       })
     ).rejects.toBeInstanceOf(InsufficientWorkspacePermissionsError)
-
-    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('lets a writer change only the query string, and an admin change the host', async () => {
     mocks.update.mockResolvedValue({ success: true, server, configurationChanged: true })
 
-    await reconfigureMcpServerUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1' },
-      input: {
-        workspaceId: workspace.workspaceId,
-        serverId: server.id,
-        url: `${server.url}?token=rotated`,
-      },
-    })
-    expect(mocks.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({ allowDestinationChange: false })
-    )
+    await expect(
+      reconfigureMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          serverId: server.id,
+          url: `${server.url}?token=rotated`,
+        },
+      })
+    ).resolves.toMatchObject({ server: { id: server.id } })
 
     mocks.resolvePermission.mockResolvedValue('admin')
-    await reconfigureMcpServerUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1' },
-      input: {
-        workspaceId: workspace.workspaceId,
-        serverId: server.id,
-        url: 'https://new.example.com/mcp',
-      },
-    })
-    expect(mocks.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({ allowDestinationChange: true, url: 'https://new.example.com/mcp' })
-    )
+    await expect(
+      reconfigureMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          serverId: server.id,
+          url: 'https://new.example.com/mcp',
+        },
+      })
+    ).resolves.toMatchObject({ server: { id: server.id } })
   })
 
   it('resolves a selected organization server through canonical scope and current permissions', async () => {

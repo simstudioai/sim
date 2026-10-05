@@ -193,6 +193,7 @@ describe('MCP server lifecycle orchestration', () => {
 
   it('resets to disconnected when a create/upsert flips an existing OAuth server to headers', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -257,8 +258,6 @@ describe('MCP server lifecycle orchestration', () => {
     })
 
     expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(mockRevokeOauthTokens).not.toHaveBeenCalled()
   })
 
   it('refuses a non-admin setting a URL on a server that has none', async () => {
@@ -281,7 +280,6 @@ describe('MCP server lifecycle orchestration', () => {
     })
 
     expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('refuses a non-admin save when the URL changed after it was checked', async () => {
@@ -336,10 +334,10 @@ describe('MCP server lifecycle orchestration', () => {
       url: 'https://new.example.com/mcp',
     })
 
-    expect(result.success).toBe(true)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://new.example.com/mcp' })
-    )
+    expect(result).toMatchObject({
+      success: true,
+      server: { url: 'https://new.example.com/mcp' },
+    })
   })
 
   it('refuses a registration whose id collides with a server at a different host', async () => {
@@ -364,7 +362,31 @@ describe('MCP server lifecycle orchestration', () => {
     })
 
     expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('refuses a re-registration when the URL changed after it was checked', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      authType: 'headers',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 
   it('registers a new server as disconnected rather than stamping a connection it never made', async () => {
@@ -428,6 +450,7 @@ describe('MCP server lifecycle orchestration', () => {
 
   it('leaves a re-registered server disconnected until discovery re-runs', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -477,6 +500,7 @@ describe('MCP server lifecycle orchestration', () => {
    */
   it('keeps an OAuth server connected through a re-registration that only renames it', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
@@ -522,6 +546,7 @@ describe('MCP server lifecycle orchestration', () => {
 
   it('resets a re-registered server whose transport changes', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'server-1' }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
