@@ -37,7 +37,11 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
-  transformResponse: async (response: Response, params?: CloudflareGetTunnelParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: CloudflareGetTunnelParams,
+    context?: { signal?: AbortSignal }
+  ) => {
     const data = await response.json()
 
     if (!data.success) {
@@ -70,6 +74,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
         const connectionsRes = await fetch(connectionsUrl, {
           method: 'GET',
           headers: cloudflareHeaders(params.apiKey),
+          signal: context?.signal,
         })
         const connectionsData = await connectionsRes.json()
         if (connectionsData?.success && Array.isArray(connectionsData.result)) {
