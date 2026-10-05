@@ -28,7 +28,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -181,7 +181,7 @@ export const POST = withRouteHandler(
 
       return NextResponse.json(response)
     } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'not_found') {
+      if (asOrchestrationError(error)?.code === 'not_found') {
         return notFoundResponse('Workspace')
       }
       if (error instanceof FolderNotFoundError) {

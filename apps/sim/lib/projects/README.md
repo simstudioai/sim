@@ -2,7 +2,7 @@
 
 A Project groups environments. An environment is an existing `workspace` record; there is no separate environment table. Every newly created Project starts with an environment.
 
-Project APIs return HTTP 503 until the `projects` feature flag is on (AppConfig on hosted deployments; the `PROJECT_API_ENABLED` secret elsewhere). Workspace creation always assigns a Project atomically. The API control defaults off and does not disable assignment. Existing assigned Projects always retain their lifecycle protections, including fork inheritance and disconnect behavior, even if activation is disabled.
+Project APIs return HTTP 503 until the `projects` feature flag is on (AppConfig on hosted deployments; the `PROJECT_API_ENABLED` secret elsewhere). The flag defaults off and gates only the Project APIs: workspace creation always assigns a Project atomically, and assigned Projects keep their lifecycle protections (fork inheritance, disconnect) either way.
 
 ## Choose the creation flow
 
@@ -12,9 +12,9 @@ Project APIs return HTTP 503 until the `projects` feature flag is on (AppConfig 
 | Existing workspace creation UI or caller | `POST /api/workspaces` | Creates a workspace and automatically creates its Project, preserving the existing workspace response. |
 | Create another environment by forking | Existing workspace fork operation | Inherits the source workspace's Project; unassigned legacy families remain unassigned until backfilled. |
 
-Both POST endpoints are internal, session-authenticated APIs. `POST /api/projects` is not a public `/api/v2` endpoint and does not accept API-key principals. This foundation does not remove or deprecate existing workspace creation endpoints.
+Both POST endpoints are internal, session-authenticated APIs. `POST /api/projects` is not a public `/api/v2` endpoint and does not accept API-key principals. Existing workspace creation endpoints remain supported.
 
-Do not call both creation endpoints for one onboarding flow: each creates a new workspace and a new Project. Neither endpoint attaches a workspace to an existing Project. A general Project environment-creation endpoint is follow-up work.
+Do not call both creation endpoints for one onboarding flow: each creates a new workspace and a new Project. Neither endpoint attaches a workspace to an existing Project.
 
 ## Create a Project and its first environment
 
@@ -79,4 +79,4 @@ Archiving a workspace through the existing workspace deletion flow never strands
 
 The Project route calls `createProject` in `application/create-project.ts`. Existing workspace callers continue through their current creation paths. Both use the shared transaction primitive in `lib/workspaces/create.ts`; surface adapters must not independently commit Project and workspace creation.
 
-Project descriptions and Project-scoped files are not part of this creation contract. Project-scoped files and a designated Project brief are follow-up work.
+Project descriptions and Project-scoped files are not part of this creation contract.

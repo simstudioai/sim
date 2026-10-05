@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import {
-  asOrchestrationError,
   messageForOrchestrationError,
   type OrchestrationErrorCode,
   statusForOrchestrationError,
@@ -137,13 +137,7 @@ export function orchestrationErrorResponse(error: unknown): NextResponse | null 
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
 
-  const classified = asOrchestrationError(error)
-  if (!classified) return null
-
-  return NextResponse.json(
-    { error: classified.message },
-    { status: statusForOrchestrationError(classified.code) }
-  )
+  return orchestrationFailureResponse(error)
 }
 
 /**

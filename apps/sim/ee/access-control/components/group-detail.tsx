@@ -1784,16 +1784,6 @@ export function GroupDetail({
 
         {configTab === 'platform' && (
           <div className='flex flex-col gap-7'>
-            <ProjectIssueRestrictions
-              organizationId={organizationId}
-              value={editingConfig.deniedPartialAccessProjectIssues}
-              onChange={(value) =>
-                setEditingConfig((previous) => ({
-                  ...previous,
-                  deniedPartialAccessProjectIssues: value,
-                }))
-              }
-            />
             <div className='flex items-center gap-2'>
               <ChipInput
                 icon={Search}
@@ -1871,6 +1861,16 @@ export function GroupDetail({
                 </div>
               </SettingsSection>
             ))}
+            <ProjectIssueRestrictions
+              organizationId={organizationId}
+              value={editingConfig.deniedPartialAccessProjectIssues}
+              onChange={(value) =>
+                setEditingConfig((previous) => ({
+                  ...previous,
+                  deniedPartialAccessProjectIssues: value,
+                }))
+              }
+            />
           </div>
         )}
       </SettingsPanel>

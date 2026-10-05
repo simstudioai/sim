@@ -10,17 +10,14 @@ import {
   type AuthorizedProject,
   authorizeProject,
   authorizeProjectsForRead,
+  type ProjectAuthorizationInput,
   requireProjectPrincipal,
 } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 
-interface ProjectInput {
-  projectId: string
-  organizationId?: string
-  workspaceId?: string
-}
+type ProjectInput = ProjectAuthorizationInput & { projectId: string }
 /** Reads see one consistent snapshot without locking the rows writers need. */
 const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
 

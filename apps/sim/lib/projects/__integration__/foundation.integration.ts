@@ -25,9 +25,8 @@ import {
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -49,6 +48,7 @@ import {
   createProjectForWorkspace,
   lockProject,
   lockWorkspaceProject,
+  projectBackfillLockKey,
   splitForkProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
@@ -82,7 +82,6 @@ beforeEach(() => {
 
 const users: string[] = []
 const organizations: string[] = []
-const environments: string[] = []
 const request = { requestId: 'project-foundation-integration', headers: new Headers() }
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
@@ -137,7 +136,6 @@ async function fixture(org = true, count = 2) {
   let projectId = ''
   await db.transaction(async (tx) => {
     for (const [index, id] of ids.entries()) {
-      environments.push(id)
       await tx.insert(workspace).values({
         id,
         name: `Environment ${index}`,
@@ -176,9 +174,23 @@ async function fixture(org = true, count = 2) {
   return { ownerId, teammateId, outsiderId, organizationId, projectId, ids, owner, teammate }
 }
 
+/** Waits until a session is blocked behind `blockerPid`'s locks. */
+async function waitUntilBlockedBy(blockerPid: number) {
+  await expect
+    .poll(
+      async () =>
+        (
+          await db.execute(
+            sql`SELECT 1 FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))`
+          )
+        ).length,
+      { timeout: 2000, interval: 10 }
+    )
+    .toBeGreaterThan(0)
+}
+
 async function addOrganizationProject(organizationId: string, ownerId: string) {
   const workspaceId = generateId()
-  environments.push(workspaceId)
   const projectId = await db.transaction(async (tx) => {
     await tx.insert(workspace).values({
       id: workspaceId,
@@ -220,7 +232,10 @@ afterAll(async () => {
     process.env.PROJECT_FOUNDATION_REPORT_PATH ?? resolve('test-results/project-foundation.json')
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (environments.length) await db.delete(workspace).where(inArray(workspace.id, environments))
+  if (users.length)
+    await db
+      .delete(workspace)
+      .where(or(inArray(workspace.ownerId, users), inArray(workspace.billedAccountUserId, users)))
   if (users.length) await db.delete(project).where(inArray(project.ownerId, users))
   if (organizations.length)
     await db.delete(organization).where(inArray(organization.id, organizations))
@@ -245,7 +260,6 @@ describe('Project foundation at the database and application boundary', () => {
           skipDefaultWorkflow: true,
         })
       )
-      environments.push(source.id)
       expect(
         await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, source.id))
       ).toHaveLength(1)
@@ -257,7 +271,6 @@ describe('Project foundation at the database and application boundary', () => {
         userId: f.ownerId,
         name: 'Legacy child',
       })
-      environments.push(fork.workspace.id)
       expect(
         await db
           .select()
@@ -314,48 +327,42 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
-  check(
-    'disabling activation preserves assigned fork membership and lifecycle protections',
-    async () => {
-      const f = await fixture(false, 1)
-      setProjectsEnabled(false)
-      const parent = await getWorkspaceWithOwner(f.ids[0])
-      if (!parent) throw new Error('Missing source fixture')
-      const fork = await createFork({
-        source: parent,
-        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
-        userId: f.ownerId,
-        name: 'Assigned child',
-      })
-      environments.push(fork.workspace.id)
-      const [membership] = await db
-        .select()
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
-      expect(membership.projectId).toBe(f.projectId)
-      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: fork.workspace.id })
-      const [detached] = await db
-        .select()
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
-      expect(detached.projectId).not.toBe(f.projectId)
-      await expect(
-        archiveWorkspace(fork.workspace.id, { requestId: 'disabled-project-rollout' })
-      ).resolves.toMatchObject({ archived: true })
-      const [detachedProject] = await db
-        .select()
-        .from(project)
-        .where(eq(project.id, detached.projectId))
-      expect(detachedProject.archivedAt).not.toBeNull()
-    }
-  )
+  check('a detached fork keeps its own Project, archived with its only environment', async () => {
+    const f = await fixture(false, 1)
+    const parent = await getWorkspaceWithOwner(f.ids[0])
+    if (!parent) throw new Error('Missing source fixture')
+    const fork = await createFork({
+      source: parent,
+      policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+      userId: f.ownerId,
+      name: 'Assigned child',
+    })
+    const [membership] = await db
+      .select()
+      .from(projectWorkspace)
+      .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+    expect(membership.projectId).toBe(f.projectId)
+    await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: fork.workspace.id })
+    const [detached] = await db
+      .select()
+      .from(projectWorkspace)
+      .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+    expect(detached.projectId).not.toBe(f.projectId)
+    await expect(
+      archiveWorkspace(fork.workspace.id, { requestId: 'detached-fork-archive' })
+    ).resolves.toMatchObject({ archived: true })
+    const [detachedProject] = await db
+      .select()
+      .from(project)
+      .where(eq(project.id, detached.projectId))
+    expect(detachedProject.archivedAt).not.toBeNull()
+  })
 
-  check('legacy fork and disconnect refuse a partially assigned subtree', async () => {
+  check('fork refuses a partially assigned lineage', async () => {
     const f = await fixture(false, 3)
     await db
       .delete(projectWorkspace)
       .where(inArray(projectWorkspace.workspaceId, f.ids.slice(0, 2)))
-    setProjectsEnabled(false)
     const parent = await getWorkspaceWithOwner(f.ids[1])
     if (!parent) throw new Error('Missing source fixture')
     await expect(
@@ -365,9 +372,6 @@ describe('Project foundation at the database and application boundary', () => {
         userId: f.ownerId,
         name: 'Invalid child',
       })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    await expect(
-      unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
     ).rejects.toMatchObject({ code: 'conflict' })
     const [child] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
     expect(child.forkedFromWorkspaceId).toBe(f.ids[0])
@@ -397,7 +401,7 @@ describe('Project foundation at the database and application boundary', () => {
         await Promise.race([read.promise, writer])
         await db.transaction(async (tx) => {
           const [lock] = await tx.execute<{ acquired: boolean }>(sql`
-            SELECT pg_try_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0)) AS acquired
+            SELECT pg_try_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0)) AS acquired
           `)
           expect(lock.acquired).toBe(false)
         })
@@ -407,7 +411,7 @@ describe('Project foundation at the database and application boundary', () => {
       }
       await db.transaction(async (tx) => {
         await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0))`
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0))`
         )
         await createProjectForWorkspace(tx, {
           workspaceId: f.ids[0],
@@ -429,13 +433,14 @@ describe('Project foundation at the database and application boundary', () => {
     const parent = await getWorkspaceWithOwner(f.ids[0])
     if (!parent) throw new Error('Missing source fixture')
     const policy = await getWorkspaceCreationPolicy({ userId: f.ownerId })
-    const locked = createDeferred<void>()
+    const locked = createDeferred<number>()
     const release = createDeferred<void>()
     const backfill = db.transaction(async (tx) => {
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0))`
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0))`
       )
-      locked.resolve()
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(connection.pid)
       await release.promise
       return createProjectForWorkspace(tx, {
         workspaceId: f.ids[0],
@@ -450,27 +455,13 @@ describe('Project foundation at the database and application boundary', () => {
       policy,
       userId: f.ownerId,
       name: 'Concurrent child',
-    }).then((result) => {
-      environments.push(result.workspace.id)
-      return result
     })
-    let blocked = false
     try {
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const rows = await db.execute<{ waiting: boolean }>(sql`SELECT EXISTS (
-          SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND mode = 'ShareLock' AND NOT granted
-        ) AS waiting`)
-        if (rows[0]?.waiting) {
-          blocked = true
-          break
-        }
-        await sleep(20)
-      }
+      await waitUntilBlockedBy(await locked.promise)
     } finally {
       release.resolve()
     }
     const [projectId, result] = await Promise.all([backfill, fork])
-    expect(blocked).toBe(true)
     const [membership] = await db
       .select()
       .from(projectWorkspace)
@@ -501,7 +492,6 @@ describe('Project foundation at the database and application boundary', () => {
           },
           request,
         })
-        environments.push(result.initialEnvironment.id)
         const [created] = await db.select().from(project).where(eq(project.id, result.project.id))
         expect(created).toMatchObject({
           name: 'Customer support',
@@ -795,9 +785,9 @@ describe('Project foundation at the database and application boundary', () => {
   check('concurrent removal of every environment archives the Project', async () => {
     const f = await fixture(false)
     const results = await Promise.allSettled(f.ids.map((id) => archiveWorkspace(id, request)))
-    expect(results.every((result) => result.status === 'fulfilled')).toBe(true)
+    expect(results).toMatchObject(f.ids.map(() => ({ status: 'fulfilled' })))
     const rows = await db.select().from(workspace).where(inArray(workspace.id, f.ids))
-    expect(rows.every((row) => row.archivedAt)).toBe(true)
+    expect(rows.map((row) => row.archivedAt)).not.toContain(null)
     const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
     expect(record.archivedAt).not.toBeNull()
   })
@@ -851,18 +841,7 @@ describe('Project foundation at the database and application boundary', () => {
         {}
       )
       try {
-        let waiting = false
-        for (let attempt = 0; attempt < 100; attempt++) {
-          const rows = await db.execute(
-            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
-          )
-          if (rows.length) {
-            waiting = true
-            break
-          }
-          await sleep(10)
-        }
-        expect(waiting).toBe(true)
+        await waitUntilBlockedBy(blocker)
       } finally {
         release.resolve()
         await archive
@@ -891,18 +870,7 @@ describe('Project foundation at the database and application boundary', () => {
       (error: unknown) => error
     )
     try {
-      let waiting = false
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const rows = await db.execute(sql`
-          SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))
-        `)
-        if (rows.length) {
-          waiting = true
-          break
-        }
-        await sleep(10)
-      }
-      expect(waiting).toBe(true)
+      await waitUntilBlockedBy(blocker)
     } finally {
       release.resolve()
       await archive
@@ -924,12 +892,14 @@ describe('Project foundation at the database and application boundary', () => {
         })
       ).rejects.toThrow('Abort compound archive')
       const untouched = await db.select().from(workspace).where(inArray(workspace.id, f.ids))
-      expect(untouched.every((row) => row.archivedAt === null)).toBe(true)
+      expect(untouched.map((row) => row.archivedAt)).toEqual([null, null])
       const activeWorkflows = await db
         .select()
         .from(workflow)
         .where(inArray(workflow.id, workflowIds))
-      expect(activeWorkflows.every((row) => row.archivedAt === null && row.isDeployed)).toBe(true)
+      expect(activeWorkflows).toMatchObject(
+        workflowIds.map(() => ({ archivedAt: null, isDeployed: true }))
+      )
       const args = { principal: f.owner, input: { projectId: f.projectId }, request }
       await archiveProject.execute(args)
       await archiveProject.execute(args)
@@ -1226,18 +1196,7 @@ describe('Project foundation at the database and application boundary', () => {
         prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
       )
       try {
-        let waiting = false
-        for (let attempt = 0; attempt < 100; attempt++) {
-          const rows = await db.execute(
-            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
-          )
-          if (rows.length) {
-            waiting = true
-            break
-          }
-          await sleep(10)
-        }
-        expect(waiting).toBe(true)
+        await waitUntilBlockedBy(blocker)
       } finally {
         release.resolve()
         await unlink
@@ -1267,18 +1226,7 @@ describe('Project foundation at the database and application boundary', () => {
       const blocker = await held.promise
       const ban = disableUserResources(f.ownerId)
       try {
-        let waiting = false
-        for (let attempt = 0; attempt < 100; attempt++) {
-          const rows = await db.execute(
-            sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`
-          )
-          if (rows.length) {
-            waiting = true
-            break
-          }
-          await sleep(10)
-        }
-        expect(waiting).toBe(true)
+        await waitUntilBlockedBy(blocker)
       } finally {
         release.resolve()
         await transfer

@@ -12,6 +12,7 @@ import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   createWorkspaceWithProjectInTransaction,
   emitWorkspaceCreatedPlatformEvent,
+  WORKSPACE_USER_FK_CONSTRAINTS,
 } from '@/lib/workspaces/create'
 import {
   getWorkspaceCreationPolicy,
@@ -74,21 +75,16 @@ export const createProject: OperationUseCase<
         )
       if (getPostgresErrorCode(error) === '55P03')
         throw new OrchestrationError(
-          'locked',
+          'conflict',
           'This organization is being updated; retry Project creation'
         )
       if (
         getPostgresErrorCode(error) === '23503' &&
-        getPostgresConstraintName(error) === 'workspace_owner_id_user_id_fk'
-      )
-        throw new OrchestrationError('unauthorized', 'Unauthorized')
-      if (
-        getPostgresErrorCode(error) === '23503' &&
-        getPostgresConstraintName(error) === 'workspace_billed_account_user_id_user_id_fk'
+        WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
       )
         throw new OrchestrationError(
           'conflict',
-          'The billing account changed; retry Project creation'
+          'The owning or billing account changed; retry Project creation'
         )
       throw error
     }

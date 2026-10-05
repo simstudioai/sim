@@ -5,9 +5,9 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
-import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
@@ -331,12 +331,8 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
-      if (error instanceof OrchestrationError) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: statusForOrchestrationError(error.code) }
-        )
-      }
+      const failure = orchestrationFailureResponse(error, 'Failed to delete workspace')
+      if (failure) return failure
       logger.error(`Error deleting workspace ${workspaceId}:`, error)
       return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
     }

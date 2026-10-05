@@ -1,5 +1,6 @@
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { member, permissions, project, projectWorkspace, workspace } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
@@ -11,9 +12,11 @@ import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups
 import { type ProjectOperation, projectOperations } from '@/lib/projects/application/operations'
 import { lockProject } from '@/lib/projects/membership'
 
+const logger = createLogger('ProjectAuthorization')
+
 export function requireProjectPrincipal(
   principal: Principal,
-  operation: Pick<ProjectOperation, 'id' | 'principalKinds'>
+  operation: Pick<ProjectOperation, 'id'>
 ): asserts principal is SessionPrincipal {
   if (principal.kind !== 'session')
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
@@ -30,7 +33,7 @@ interface ProjectEnvironmentAccess {
   permission: string | null
 }
 
-interface ProjectAuthorizationInput {
+export interface ProjectAuthorizationInput {
   organizationId?: string
   workspaceId?: string
 }
@@ -39,7 +42,7 @@ interface ProjectAuthorizationInput {
  * `hold` locks the Project and the rows the decision reads until commit, for callers that
  * act on it. `snapshot` takes no locks and relies on the caller's read-only snapshot.
  */
-export type ProjectAccessMode = 'hold' | 'snapshot'
+type ProjectAccessMode = 'hold' | 'snapshot'
 
 type ProjectAccess = Awaited<ReturnType<typeof loadProjectAccess>>
 
@@ -211,6 +214,15 @@ export async function authorizeProjectsForRead(
   const access = await loadProjectAccess(tx, principal.userId, records, 'snapshot')
   const authorized: AuthorizedProject[] = []
   for (const record of records) {
+    /** One inconsistent Project must not hide the rest of the caller's page. */
+    if (
+      access.environmentsFor(record.id).some((row) => row.organizationId !== record.organizationId)
+    ) {
+      logger.warn('Skipping a Project whose environments need ownership reconciliation', {
+        projectId: record.id,
+      })
+      continue
+    }
     authorized.push(
       await evaluateProjectAccess(
         tx,

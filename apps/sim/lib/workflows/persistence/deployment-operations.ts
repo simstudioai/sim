@@ -716,7 +716,7 @@ export async function recordDeploymentOperationRetry(
 }
 
 /**
- * Supersedes every in-flight operation for a workflow. Must run inside the
+ * Supersedes every in-flight operation for `workflowIds`. Must run inside the
  * undeploy/archive transaction so a queued preparation cannot activate a
  * version after the user explicitly took the workflow offline.
  */

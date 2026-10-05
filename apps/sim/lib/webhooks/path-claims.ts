@@ -45,7 +45,7 @@ function assertClaimGeneration(generation: number): void {
 }
 
 /**
- * Releases every path claim held by a workflow.
+ * Releases every path claim held by `workflowIds`.
  *
  * Claims stay sticky through generation rotations, but once a workflow is
  * explicitly undeployed or archived it no longer serves traffic, so other

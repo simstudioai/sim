@@ -4,8 +4,8 @@ import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
-  lockProject,
   lockProjectBackfillWrites,
+  lockProjects,
   ProjectConflictError,
 } from '@/lib/projects/membership'
 
@@ -79,17 +79,40 @@ async function findProjectSuccessor(
   return teammate?.userId ?? null
 }
 
+interface ProjectEnvironment {
+  id: string
+  archivedAt: Date | null
+}
+
+/** Every environment of `projectIds`, in one query, keyed by Project. */
+async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
+  const rows = projectIds.length
+    ? await executor
+        .select({
+          projectId: projectWorkspace.projectId,
+          id: workspace.id,
+          archivedAt: workspace.archivedAt,
+        })
+        .from(projectWorkspace)
+        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+        .where(inArray(projectWorkspace.projectId, projectIds))
+    : []
+  const byProject = new Map<string, ProjectEnvironment[]>()
+  for (const { projectId, ...environment } of rows) {
+    const environments = byProject.get(projectId)
+    if (environments) environments.push(environment)
+    else byProject.set(projectId, [environment])
+  }
+  return byProject
+}
+
 async function planProjectDeletion(
   executor: DbOrTx,
   record: typeof project.$inferSelect,
+  members: ProjectEnvironment[],
   userId: string,
   doomed: Set<string>
 ): Promise<ProjectDeletionDecision> {
-  const members = await executor
-    .select({ id: workspace.id, archivedAt: workspace.archivedAt })
-    .from(projectWorkspace)
-    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-    .where(eq(projectWorkspace.projectId, record.id))
   const survivors = members.filter((row) => !doomed.has(row.id))
   if (!survivors.length) {
     return record.organizationId || record.ownerId !== userId
@@ -118,10 +141,20 @@ export async function getProjectAccountDeletionBlockers(
   doomedWorkspaceIds: string[]
 ): Promise<string[]> {
   const records = await loadRelatedProjects(db, userId, doomedWorkspaceIds)
+  const environments = await loadProjectEnvironments(
+    db,
+    records.map((record) => record.id)
+  )
   const doomed = new Set(doomedWorkspaceIds)
   const blockers: string[] = []
   for (const record of records) {
-    const decision = await planProjectDeletion(db, record, userId, doomed)
+    const decision = await planProjectDeletion(
+      db,
+      record,
+      environments.get(record.id) ?? [],
+      userId,
+      doomed
+    )
     if ('blocker' in decision) blockers.push(decision.blocker)
   }
   return blockers
@@ -147,15 +180,26 @@ export async function prepareProjectsForAccountDeletion(
     records = await loadRelatedProjects(tx, userId, doomedWorkspaceIds)
     const pending = records.filter((row) => !locked.has(row.id))
     if (!pending.length) break
-    for (const { id } of pending) {
-      await lockProject(tx, id, { lockTimeoutAlreadyBounded: locked.size > 0 })
-      locked.add(id)
-    }
+    await lockProjects(
+      tx,
+      pending.map((row) => row.id)
+    )
+    for (const { id } of pending) locked.add(id)
   }
+  const environments = await loadProjectEnvironments(
+    tx,
+    records.map((record) => record.id)
+  )
   const doomed = new Set(doomedWorkspaceIds)
   const now = new Date()
   for (const record of records) {
-    const decision = await planProjectDeletion(tx, record, userId, doomed)
+    const decision = await planProjectDeletion(
+      tx,
+      record,
+      environments.get(record.id) ?? [],
+      userId,
+      doomed
+    )
     if ('blocker' in decision) throw new ProjectConflictError(decision.blocker)
     if ('remove' in decision) {
       await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, record.id))

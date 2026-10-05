@@ -19,7 +19,7 @@ import {
 } from '@/lib/workspaces/policy'
 
 /** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
-const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+export const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
   'workspace_owner_id_user_id_fk',
   'workspace_billed_account_user_id_user_id_fk',
 ])
