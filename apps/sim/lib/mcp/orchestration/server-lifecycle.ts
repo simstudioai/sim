@@ -271,6 +271,7 @@ export async function createMcpServer(
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
       const checkedUrl = existingServer.url
+      if (!checkedUrl) throw new Error(`MCP server ${serverId} has no URL to re-register against`)
       let updatedFields: string[] = []
       const rewritten = await db.transaction(async (tx) => {
         const updateValues: Partial<typeof mcpServers.$inferInsert> = {
