@@ -29,9 +29,17 @@ describe('getJsonByteSize', () => {
     ['holes in a sparse array', { list: [1, undefined, 3, undefined, undefined] }],
     ['an omitted member before the first written one', { skipped: undefined, kept: 1 }],
     ['boxed primitives', { n: new Number(12345), s: new String('boxed'), b: new Boolean(false) }],
+    ['a function with toJSON', { fn: Object.assign(() => 1, { toJSON: () => 'serialized' }) }],
     ['escapes, multi-byte text, and lone surrogates', { 'k"\\': 'a\n\u0001é漢😀\ud800' }],
   ])('matches JSON.stringify for %s', (_name, payload) => {
     expect(getJsonByteSize(payload, LIMIT)).toBe(jsonBytes(payload))
+  })
+
+  it('measures nesting deeper than a recursive walk could reach', () => {
+    const depth = 50_000
+    let nested: Record<string, unknown> = {}
+    for (let level = 0; level < depth; level++) nested = { c: nested }
+    expect(getJsonByteSize(nested, LIMIT)).toBe(depth * '{"c":}'.length + '{}'.length)
   })
 
   it('terminates on a cycle', () => {

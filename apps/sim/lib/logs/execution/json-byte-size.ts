@@ -26,7 +26,9 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
   /** Applies `toJSON`, then unboxes primitive wrappers, as `JSON.stringify` does. */
   const resolve = (raw: unknown, key: string): unknown => {
     const toJSON =
-      (typeof raw === 'object' && raw !== null) || typeof raw === 'bigint'
+      (typeof raw === 'object' && raw !== null) ||
+      typeof raw === 'function' ||
+      typeof raw === 'bigint'
         ? (raw as { toJSON?: unknown }).toJSON
         : undefined
     const value = typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
@@ -39,7 +41,12 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
   const isOmitted = (item: unknown): boolean =>
     item === undefined || typeof item === 'function' || typeof item === 'symbol'
 
-  const visit = (item: unknown): void => {
+  /** A container whose members are still being measured. Iterative, so nesting depth cannot overflow the stack. */
+  type Frame = { node: object; keys: string[] | undefined; index: number; written: number }
+  const stack: Frame[] = []
+
+  /** Measures a resolved value; a container's members are measured as the loop below reaches them. */
+  const enter = (item: unknown): void => {
     if (item === null || isOmitted(item)) {
       add(4)
       return
@@ -60,30 +67,39 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
       return
     }
     ancestors.add(item)
-
     add(2)
-    if (Array.isArray(item)) {
-      for (let index = 0; index < item.length; index++) {
-        if (index > 0) add(1)
-        visit(resolve(item[index], String(index)))
-      }
-    } else {
-      let written = 0
-      for (const [key, raw] of Object.entries(item)) {
-        const entry = resolve(raw, key)
-        if (isOmitted(entry)) continue
-        if (written > 0) add(1)
-        written++
-        addString(key)
-        add(1)
-        visit(entry)
-      }
-    }
-    ancestors.delete(item)
+    stack.push({
+      node: item,
+      keys: Array.isArray(item) ? undefined : Object.keys(item),
+      index: 0,
+      written: 0,
+    })
   }
 
   try {
-    visit(resolve(value, ''))
+    enter(resolve(value, ''))
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]
+      const length = frame.keys ? frame.keys.length : (frame.node as unknown[]).length
+      if (frame.index >= length) {
+        ancestors.delete(frame.node)
+        stack.pop()
+        continue
+      }
+      const index = frame.index++
+      if (!frame.keys) {
+        if (index > 0) add(1)
+        enter(resolve((frame.node as unknown[])[index], String(index)))
+        continue
+      }
+      const key = frame.keys[index]
+      const entry = resolve((frame.node as Record<string, unknown>)[key], key)
+      if (isOmitted(entry)) continue
+      if (frame.written++ > 0) add(1)
+      addString(key)
+      add(1)
+      enter(entry)
+    }
     return bytes
   } catch (error) {
     if (getErrorMessage(error) === 'json_size_limit_reached') {
