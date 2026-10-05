@@ -611,7 +611,7 @@ describe('E2B session lease', () => {
   const IDLE_MS = 20 * 60_000
   const LEASE_MS = IDLE_MS + 60_000
 
-  /** Models the provider's deadline rules (connect never shortens, setTimeout sets) and counts requests. */
+  /** Counts control-plane requests; connect and setTimeout both set the deadline, so a caller must preserve it. */
   function controlPlane(remainingMs: number) {
     const plane = { endAtMs: Date.now() + remainingMs, requests: 0 }
     list.mockReturnValue({ nextItems, hasNext: false })
@@ -629,7 +629,7 @@ describe('E2B session lease', () => {
     }
     connect.mockImplementation(async (_id: string, options: { timeoutMs: number }) => {
       plane.requests++
-      plane.endAtMs = Math.max(plane.endAtMs, Date.now() + options.timeoutMs)
+      plane.endAtMs = Date.now() + options.timeoutMs
       return sandbox
     })
     create.mockImplementation(async (_template: string, options: { timeoutMs: number }) => {
