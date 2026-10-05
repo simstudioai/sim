@@ -16016,6 +16016,16 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
               }
             },
             "required": [
@@ -16060,7 +16070,8 @@
               "disableToolAutoApproval",
               "hideSandboxesTab",
               "disableOAuthAppAccess",
-              "disableKnowledgeBaseExport"
+              "disableKnowledgeBaseExport",
+              "deniedPartialAccessProjectIssues"
             ],
             "additionalProperties": false,
             "description": "Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none."
@@ -16190,7 +16201,8 @@
                   "disableToolAutoApproval": false,
                   "hideSandboxesTab": false,
                   "disableOAuthAppAccess": false,
-                  "disableKnowledgeBaseExport": false
+                  "disableKnowledgeBaseExport": false,
+                  "deniedPartialAccessProjectIssues": []
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -16265,7 +16277,8 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16519,6 +16532,15 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
               }
             },
             "additionalProperties": false,
@@ -16610,7 +16632,8 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16683,7 +16706,8 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16944,6 +16968,15 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
               }
             },
             "additionalProperties": false,
@@ -18220,6 +18253,16 @@
                   "disableKnowledgeBaseExport": {
                     "type": "boolean",
                     "description": "Prevent downloading a whole knowledge base as an archive."
+                  },
+                  "deniedPartialAccessProjectIssues": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
                   }
                 },
                 "required": [
@@ -18264,7 +18307,8 @@
                   "disableToolAutoApproval",
                   "hideSandboxesTab",
                   "disableOAuthAppAccess",
-                  "disableKnowledgeBaseExport"
+                  "disableKnowledgeBaseExport",
+                  "deniedPartialAccessProjectIssues"
                 ],
                 "additionalProperties": false
               },
@@ -20749,7 +20793,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 42,
+            "maxItems": 43,
             "type": "array",
             "items": {
               "type": "object",
@@ -20798,7 +20842,8 @@
                     "disableToolAutoApproval",
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
-                    "disableKnowledgeBaseExport"
+                    "disableKnowledgeBaseExport",
+                    "deniedPartialAccessProjectIssues"
                   ],
                   "description": "Permission restriction changed by approval."
                 },
@@ -21310,7 +21355,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 42,
+            "maxItems": 43,
             "type": "array",
             "items": {
               "type": "object",
@@ -21359,7 +21404,8 @@
                     "disableToolAutoApproval",
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
-                    "disableKnowledgeBaseExport"
+                    "disableKnowledgeBaseExport",
+                    "deniedPartialAccessProjectIssues"
                   ],
                   "description": "Permission restriction changed by approval."
                 },

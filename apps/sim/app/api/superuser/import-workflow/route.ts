@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importWorkflowAsSuperuserContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -136,17 +137,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       null
     )
 
-    await db.insert(workflow).values(
-      await buildNewWorkflowRow(db, {
-        id: newWorkflowId,
-        userId: session.user.id,
-        workspaceId: targetWorkspaceId,
-        folderId: null,
-        name: dedupedName,
-        description: sourceWorkflow.description,
-        variables: sourceWorkflow.variables || {},
-      })
-    )
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values(
+        await buildNewWorkflowRow(tx, {
+          id: newWorkflowId,
+          userId: session.user.id,
+          workspaceId: targetWorkspaceId,
+          folderId: null,
+          name: dedupedName,
+          description: sourceWorkflow.description,
+          variables: sourceWorkflow.variables || {},
+        })
+      )
+    })
 
     // Save using existing persistence logic
     const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData, {
@@ -225,6 +228,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       copilotChatsImported,
     })
   } catch (error) {
+    if (error instanceof OrchestrationError && error.code === 'not_found') {
+      return NextResponse.json({ error: 'Target workspace not found' }, { status: 404 })
+    }
     logger.error('Error importing workflow', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

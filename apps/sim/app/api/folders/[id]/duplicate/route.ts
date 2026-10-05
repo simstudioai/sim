@@ -13,7 +13,7 @@ import { getSession } from '@/lib/auth'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { nextFolderSortOrder } from '@/lib/folders/orchestration'
 import { assertFolderCollectionHasRoom, toFolderApi } from '@/lib/folders/queries'
@@ -409,7 +409,7 @@ async function duplicateFolderStructure(
 }
 
 async function duplicateWorkflowsInFolderTree(
-  tx: DbOrTx,
+  tx: DbTransaction,
   sourceWorkspaceId: string,
   targetWorkspaceId: string,
   folderMapping: Map<string, string>,

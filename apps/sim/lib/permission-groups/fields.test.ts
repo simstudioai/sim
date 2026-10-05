@@ -163,6 +163,7 @@ const fixtures: readonly CoercionFixture[] = [
       hideSandboxesTab: true,
       disableOAuthAppAccess: true,
       disableKnowledgeBaseExport: true,
+      deniedPartialAccessProjectIssues: ['project-a'],
     },
     expected: {
       allowedIntegrations: ['slack_v2'],
@@ -207,6 +208,7 @@ const fixtures: readonly CoercionFixture[] = [
       hideSandboxesTab: true,
       disableOAuthAppAccess: true,
       disableKnowledgeBaseExport: true,
+      deniedPartialAccessProjectIssues: ['project-a'],
     },
   },
 ]

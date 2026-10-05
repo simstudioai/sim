@@ -7,6 +7,7 @@ import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/co
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
@@ -316,6 +317,12 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof OrchestrationError) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: statusForOrchestrationError(error.code) }
+        )
+      }
       logger.error(`Error deleting workspace ${workspaceId}:`, error)
       return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
     }

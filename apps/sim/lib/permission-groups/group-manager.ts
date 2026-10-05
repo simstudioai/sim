@@ -1,7 +1,12 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  project,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -51,6 +56,23 @@ async function validateWorkspaces(
     throw new OrchestrationError(
       'validation',
       'One or more selected workspaces do not belong to this organization'
+    )
+}
+
+async function validateProjectRestrictions(
+  organizationId: string,
+  ids: string[] | undefined,
+  tx: DbOrTx
+) {
+  if (!ids?.length) return
+  const projects = await tx
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.organizationId, organizationId), inArray(project.id, ids)))
+  if (projects.length !== new Set(ids).size)
+    throw new OrchestrationError(
+      'validation',
+      'A restricted Project does not belong to this organization'
     )
 }
 
@@ -115,6 +137,11 @@ export async function createPermissionGroupRecord(
       'Select at least one workspace when the group targets specific workspaces'
     )
   return withPermissionGroupMutation(organizationId, async (tx) => {
+    await validateProjectRestrictions(
+      organizationId,
+      input.config?.deniedPartialAccessProjectIssues,
+      tx
+    )
     await validateWorkspaces(organizationId, workspaceIds, tx)
     await assertAvailableName(organizationId, input.name, tx)
     const now = new Date()
@@ -151,6 +178,11 @@ export async function updatePermissionGroupRecord(
   updates: PermissionGroupChanges
 ) {
   return withPermissionGroupMutation(organizationId, async (tx) => {
+    await validateProjectRestrictions(
+      organizationId,
+      updates.config?.deniedPartialAccessProjectIssues,
+      tx
+    )
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     if (updates.name !== undefined)
       await assertAvailableName(organizationId, updates.name, tx, groupId)

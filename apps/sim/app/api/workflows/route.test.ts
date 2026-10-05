@@ -45,6 +45,9 @@ describe('Workflows API Route - POST ordering', () => {
 
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      { archivedAt: null, forkSyncNewWorkflowsExcluded: false },
+    ])
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('workflow-new-id'),

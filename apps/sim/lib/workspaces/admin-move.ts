@@ -30,6 +30,7 @@ import {
   planHasFixedSeatCap,
   resolveSeatCapacity,
 } from '@/lib/billing/validation/seat-management'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   addOutboxEventSourceOperationId,
   enqueueOrReschedulePendingOutboxEvent,
@@ -41,6 +42,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
 import {
@@ -116,6 +118,7 @@ export class WorkspaceMoveError extends Error {
       | 'destination-entitlement-downgrade'
       | 'fork-lineage-conflict'
       | 'pending-invitations-present'
+      | 'project-conflict'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -1356,6 +1359,8 @@ export async function moveWorkspaceToOrganization(params: {
             })
           : { detachedPermissionGroupIds: [] }
 
+        await transferWorkspaceProjects(tx, [params.workspaceId], params.destinationOrganizationId)
+
         await changeWorkspaceStoragePayerInTx(tx, {
           workspaceId: params.workspaceId,
           organizationId: params.destinationOrganizationId,
@@ -1496,6 +1501,9 @@ export async function moveWorkspaceToOrganization(params: {
       })
       break
     } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        throw new WorkspaceMoveError(error.message, 'project-conflict')
+      }
       if (error instanceof InvitationSetChangedError) {
         candidateInvitationIds = error.invitationIds
         continue

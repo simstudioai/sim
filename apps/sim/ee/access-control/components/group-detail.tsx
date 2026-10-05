@@ -61,6 +61,7 @@ import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { ProjectIssueRestrictions } from '@/ee/access-control/components/project-issue-restrictions'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   type PermissionGroup,
@@ -1783,6 +1784,16 @@ export function GroupDetail({
 
         {configTab === 'platform' && (
           <div className='flex flex-col gap-7'>
+            <ProjectIssueRestrictions
+              organizationId={organizationId}
+              value={editingConfig.deniedPartialAccessProjectIssues}
+              onChange={(value) =>
+                setEditingConfig((previous) => ({
+                  ...previous,
+                  deniedPartialAccessProjectIssues: value,
+                }))
+              }
+            />
             <div className='flex items-center gap-2'>
               <ChipInput
                 icon={Search}
