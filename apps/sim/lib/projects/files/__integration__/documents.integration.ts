@@ -21,7 +21,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -465,11 +465,7 @@ afterAll(async () => {
     await db.delete(outboxEvent).where(sql`${outboxEvent.payload}->>'fileId' = ${fileId}`)
   }
   for (const f of fixtures) {
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, [f.ownerId, f.editorId]))

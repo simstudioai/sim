@@ -19,7 +19,7 @@ import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { Document, Packer, Paragraph } from 'docx'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -501,11 +501,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
 
 afterAll(async () => {
   for (const f of fixtures) {
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(user).where(eq(user.id, f.userId))
   }

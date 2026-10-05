@@ -41,6 +41,7 @@ vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 import * as tracking from '@/lib/billing/storage/tracking'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as sandboxTask from '@/lib/execution/sandbox/run-task'
+import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import {
   createProjectFile,
   readProjectFileContent,
@@ -167,10 +168,7 @@ async function ledger(organizationId: string) {
 }
 
 async function rows(projectId: string) {
-  return db
-    .select()
-    .from(workspaceFiles)
-    .where(and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, projectId)))
+  return db.select().from(workspaceFiles).where(eq(workspaceFiles.projectId, projectId))
 }
 
 describe('Project file content against PostgreSQL and the local object store', () => {
@@ -554,12 +552,7 @@ describe('Project file content against PostgreSQL and the local object store', (
         })
       ).rejects.toMatchObject({ code: 'conflict' })
       expect(await rows(f.projectId)).toEqual([])
-      expect(
-        await db
-          .select()
-          .from(folder)
-          .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
-      ).toEqual([])
+      expect(await db.select().from(folder).where(eq(folder.projectId, f.projectId))).toEqual([])
       expect(await keys(f.projectId)).toEqual([])
       expect(await ledger(f.organizationId)).toBe(Buffer.byteLength('after source change') + 1)
     }
@@ -614,12 +607,7 @@ describe('Project file content against PostgreSQL and the local object store', (
         })
       ).rejects.toMatchObject({ name: 'StorageLimitExceededError' })
       expect(await rows(f.projectId)).toEqual([])
-      expect(
-        await db
-          .select()
-          .from(folder)
-          .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
-      ).toEqual([])
+      expect(await db.select().from(folder).where(eq(folder.projectId, f.projectId))).toEqual([])
       expect(await keys(f.projectId)).toEqual([])
       expect(await readFile(join(localStorageRoot, source.file.key), 'utf8')).toBe('before')
       expect(await ledger(f.organizationId)).toBe(1024 ** 3)
@@ -2528,7 +2516,6 @@ describe('private compound copy transport', () => {
   check(
     'native paired copy dispatch returns the destination resource and persists the current actor bytes',
     async () => {
-      const { executeAgentCliRequest } = await import('@/lib/mothership/agent-cli')
       const { createCopilotResourceAdmission } = await import(
         '@/lib/mothership/auth/application-delegation'
       )
@@ -2588,9 +2575,7 @@ describe('private compound copy transport', () => {
       const [copied] = await db
         .select()
         .from(workspaceFiles)
-        .where(
-          and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-        )
+        .where(eq(workspaceFiles.projectId, f.projectId))
       if (!copied) throw new Error('Native paired copy created no durable Project file')
       expect(copied.id).not.toBe(original.id)
       expect(copied.userId).toBe(f.editorId)
@@ -3241,10 +3226,7 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
   }
 
   async function folders(projectId: string) {
-    return db
-      .select()
-      .from(folder)
-      .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, projectId)))
+    return db.select().from(folder).where(eq(folder.projectId, projectId))
   }
 
   check(
@@ -3281,8 +3263,8 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
       expect(root).toMatchObject({
         parentId: parent.folder.id,
         userId: f.editorId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
+        workspaceId: null,
       })
       const children = (await rows(f.projectId)).filter((row) => row.id !== source.file.id)
       expect(children).toHaveLength(2)
@@ -3527,14 +3509,8 @@ afterAll(async () => {
       .where(
         sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/%`} OR ${outboxEvent.payload}::jsonb -> 'owner' ->> 'entityId' = ${f.projectId}`
       )
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
-    await db
-      .delete(folder)
-      .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+    await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(subscription).where(eq(subscription.referenceId, f.organizationId))
     await db.delete(organization).where(eq(organization.id, f.organizationId))

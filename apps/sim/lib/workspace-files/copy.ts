@@ -1,9 +1,7 @@
 import { folder, type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
-import { compareStrings } from '@sim/utils/string'
 import { and, asc, inArray, isNull, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import {
   assertFileFolderTarget,
@@ -57,18 +55,6 @@ function requireBoundedSelection(size: number) {
   if (size > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
     throw new OrchestrationError('validation', 'Copy expands beyond the file selection limit')
   }
-}
-
-/** Takes owner-qualified directory locks after the caller holds every involved Project mutex. */
-export async function lockFileCopyDirectories(tx: DbTransaction, owners: EditableFileOwner[]) {
-  const keys = [
-    ...new Set(
-      owners.map((owner) =>
-        owner.entityType === 'workspace' ? owner.entityId : `project:${owner.entityId}`
-      )
-    ),
-  ].sort(compareStrings)
-  for (const key of keys) await acquireFolderMutationLock(tx, key, 'file')
 }
 
 /** Captures only explicit source selections and their bounded active descendants. */

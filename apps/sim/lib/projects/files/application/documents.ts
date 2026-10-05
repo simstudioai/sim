@@ -88,8 +88,7 @@ function cacheUseCase(
         .where(
           and(
             eq(workspaceFiles.id, input.fileId),
-            eq(workspaceFiles.entityType, 'project'),
-            eq(workspaceFiles.entityId, input.projectId),
+            eq(workspaceFiles.projectId, input.projectId),
             eq(workspaceFiles.context, 'project'),
             isNull(workspaceFiles.deletedAt)
           )

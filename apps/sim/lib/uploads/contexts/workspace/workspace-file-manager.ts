@@ -56,7 +56,6 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { buildFolderPath, parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
@@ -630,9 +629,7 @@ export async function commitFileCreateInTx(
       throw new Error('Planned file identity does not belong to this owner')
   }
   if (args.owner.entityType === 'workspace') await lockWorkspaceProject(tx, args.owner.entityId)
-  const lockKey =
-    args.owner.entityType === 'workspace' ? args.owner.entityId : `project:${args.owner.entityId}`
-  await acquireFolderMutationLock(tx, lockKey, 'file')
+  await lockFileDirectories(tx, [args.owner])
   const target = await resolveFileFolderTarget(args.owner, args, tx)
   const folderId = target?.id ?? null
   const exists = async (name: string) => {

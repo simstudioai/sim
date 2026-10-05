@@ -238,14 +238,8 @@ afterAll(async () => {
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
   for (const f of fixtures) {
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
-    await db
-      .delete(folder)
-      .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+    await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, inArray(workspace.id, f.workspaces))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, f.users))
@@ -403,8 +397,7 @@ describe('Project file authority at the database boundary', () => {
       const folderId = generateId()
       await db.insert(folder).values({
         id: folderId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Docs',
         userId: f.ownerId,
@@ -413,8 +406,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: rootFileId,
           userId: f.ownerId,
-          entityType: 'project',
-          entityId: f.projectId,
+          projectId: f.projectId,
           context: 'project',
           key: `project/${f.projectId}/${rootFileId}`,
           originalName: 'a.md',
@@ -424,8 +416,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: nestedFileId,
           userId: f.ownerId,
-          entityType: 'project',
-          entityId: f.projectId,
+          projectId: f.projectId,
           context: 'project',
           folderId,
           key: `project/${f.projectId}/${nestedFileId}`,
@@ -446,8 +437,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: generateId(),
           userId: other.ownerId,
-          entityType: 'project',
-          entityId: other.projectId,
+          projectId: other.projectId,
           context: 'project',
           key: `project/${other.projectId}/a.md`,
           originalName: 'a.md',
@@ -484,16 +474,14 @@ describe('Project file authority at the database boundary', () => {
     await db.insert(folder).values([
       {
         id: docsId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Docs',
         userId: f.ownerId,
       },
       {
         id: nestedId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Q3/Q4',
         parentId: docsId,
@@ -501,8 +489,7 @@ describe('Project file authority at the database boundary', () => {
       },
       {
         id: siblingId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Elsewhere',
         userId: f.ownerId,
@@ -513,8 +500,7 @@ describe('Project file authority at the database boundary', () => {
       fileIds.map((id, index) => ({
         id,
         userId: f.ownerId,
-        entityType: 'project' as const,
-        entityId: f.projectId,
+        projectId: f.projectId,
         context: 'project',
         folderId: [null, docsId, nestedId, siblingId][index],
         key: `project/${f.projectId}/${id}`,
@@ -567,8 +553,7 @@ describe('Project file authority at the database boundary', () => {
       const folderId = generateId()
       await db.insert(folder).values({
         id: folderId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Q3/Q4',
         userId: f.ownerId,
@@ -580,8 +565,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: fileId,
           userId: f.ownerId,
-          entityType: 'project',
-          entityId: f.projectId,
+          projectId: f.projectId,
           context: 'project',
           folderId,
           key: `project/${f.projectId}/${fileId}`,
@@ -592,8 +576,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: foreignId,
           userId: other.ownerId,
-          entityType: 'project',
-          entityId: other.projectId,
+          projectId: other.projectId,
           context: 'project',
           key: `project/${other.projectId}/${foreignId}`,
           originalName: 'Architecture overview.md',
@@ -603,8 +586,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: archivedId,
           userId: f.ownerId,
-          entityType: 'project',
-          entityId: f.projectId,
+          projectId: f.projectId,
           context: 'project',
           key: `project/${f.projectId}/${archivedId}`,
           originalName: 'old.md',
@@ -655,8 +637,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: fileId,
           userId: f.ownerId,
-          entityType: 'project',
-          entityId: f.projectId,
+          projectId: f.projectId,
           context: 'project',
           key: `project/${f.projectId}/${fileId}`,
           originalName: 'architecture.md',
@@ -666,8 +647,7 @@ describe('Project file authority at the database boundary', () => {
         {
           id: foreignFileId,
           userId: other.ownerId,
-          entityType: 'project',
-          entityId: other.projectId,
+          projectId: other.projectId,
           context: 'project',
           key: `project/${other.projectId}/${foreignFileId}`,
           originalName: 'architecture.md',
@@ -936,15 +916,13 @@ describe('Project file authority at the database boundary', () => {
       await db.insert(folder).values({
         id: folderId,
         userId: f.ownerId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         resourceType: 'file',
         name: 'Architecture',
       })
       await db.insert(workspaceFiles).values({
         id: fileId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         userId: f.ownerId,
         context: 'project',
         folderId,
@@ -993,8 +971,7 @@ describe('Project file authority at the database boundary', () => {
       await db.insert(workspaceFiles).values({
         id: fileId,
         userId: f.ownerId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         context: 'project',
         key: `project/${f.projectId}/${fileId}`,
         originalName: 'architecture.md',
@@ -1048,8 +1025,7 @@ describe('Project file authority at the database boundary', () => {
       await db.insert(workspaceFiles).values({
         id: fileId,
         userId: f.ownerId,
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         context: 'project',
         key: `project/${f.projectId}/${fileId}`,
         originalName: 'transport.md',

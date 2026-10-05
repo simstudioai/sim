@@ -131,8 +131,7 @@ async function loadRegisteredFile(
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.entityType, 'project'),
-        eq(workspaceFiles.entityId, context.projectId),
+        eq(workspaceFiles.projectId, context.projectId),
         eq(workspaceFiles.context, 'project'),
         isNull(workspaceFiles.deletedAt)
       )

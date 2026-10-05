@@ -18,7 +18,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
@@ -138,10 +138,7 @@ function create(
 }
 
 async function rows(projectId: string) {
-  return db
-    .select()
-    .from(workspaceFiles)
-    .where(and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, projectId)))
+  return db.select().from(workspaceFiles).where(eq(workspaceFiles.projectId, projectId))
 }
 
 describe('private native Project writes against PostgreSQL and local storage', () => {
@@ -288,14 +285,8 @@ afterAll(async () => {
     await db
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/%`}`)
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
-    await db
-      .delete(folder)
-      .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+    await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(user).where(eq(user.id, f.userId))
   }

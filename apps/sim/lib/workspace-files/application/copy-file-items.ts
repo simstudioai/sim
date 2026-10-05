@@ -40,11 +40,11 @@ import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operat
 import {
   type CopiedFileItems,
   commitFileCopyInTx,
-  lockFileCopyDirectories,
   requireUnchangedFileCopy,
   snapshotFileCopyInTx,
 } from '@/lib/workspace-files/copy'
 import { rewriteCopiedFileReferences } from '@/lib/workspace-files/copy-references'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 
 async function prepareAccounting(
   tx: DbTransaction,
@@ -81,7 +81,7 @@ export const copyFileItems: AuthorizingUseCase<
     const authorize = await createFileCopyAuthorizer(args.principal, input)
     await db.transaction(async (tx) => {
       const context = await authorize(tx)
-      await lockFileCopyDirectories(tx, [context.source.owner, context.destination.owner])
+      await lockFileDirectories(tx, [context.source.owner, context.destination.owner])
       await assertFileFolderTarget(context.destination.owner, input.destination.folderId, tx)
       await snapshotFileCopyInTx(tx, { ...input.source, owner: context.source.owner })
     })
@@ -93,7 +93,7 @@ export const copyFileItems: AuthorizingUseCase<
     const userId = requirePrincipalSubjectUserId(args.principal)
     const prepared = await db.transaction(async (tx) => {
       const context = await authorize(tx)
-      await lockFileCopyDirectories(tx, [context.source.owner, context.destination.owner])
+      await lockFileDirectories(tx, [context.source.owner, context.destination.owner])
       await assertFileFolderTarget(context.destination.owner, input.destination.folderId, tx)
       return {
         context,
@@ -171,7 +171,7 @@ export const copyFileItems: AuthorizingUseCase<
         return await db.transaction(async (tx) => {
           const context = await authorize(tx)
           const accounting = await prepareAccounting(tx, context.destination, stagedBytes)
-          await lockFileCopyDirectories(tx, [context.source.owner, context.destination.owner])
+          await lockFileDirectories(tx, [context.source.owner, context.destination.owner])
           const current = await snapshotFileCopyInTx(tx, {
             ...input.source,
             owner: context.source.owner,

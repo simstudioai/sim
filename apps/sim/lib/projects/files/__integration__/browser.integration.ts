@@ -107,8 +107,7 @@ async function fixture() {
     owned.fileIds.push(id)
     await db.insert(workspaceFiles).values({
       id,
-      entityType: 'project',
-      entityId: projectId,
+      projectId: projectId,
       context: 'project',
       workspaceId: null,
       userId: options.userId ?? ownerId,
@@ -127,8 +126,7 @@ async function fixture() {
     owned.folderIds.push(id)
     await db.insert(folder).values({
       id,
-      entityType: 'project',
-      entityId: projectId,
+      projectId: projectId,
       workspaceId: null,
       resourceType: 'file',
       name,
@@ -152,8 +150,7 @@ afterAll(async () => {
                 .delete(workspaceFiles)
                 .where(
                   and(
-                    eq(workspaceFiles.entityType, 'project'),
-                    eq(workspaceFiles.entityId, fixture.projectId),
+                    eq(workspaceFiles.projectId, fixture.projectId),
                     inArray(workspaceFiles.id, fixture.fileIds)
                   )
                 )
@@ -162,8 +159,7 @@ afterAll(async () => {
                 .delete(folder)
                 .where(
                   and(
-                    eq(folder.entityType, 'project'),
-                    eq(folder.entityId, fixture.projectId),
+                    eq(folder.projectId, fixture.projectId),
                     inArray(folder.id, fixture.folderIds)
                   )
                 )

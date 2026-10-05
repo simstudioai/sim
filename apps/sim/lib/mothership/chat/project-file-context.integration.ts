@@ -104,8 +104,7 @@ async function fixture() {
   await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
   await db.insert(workspaceFiles).values({
     id: fileId,
-    entityType: 'project',
-    entityId: projectId,
+    projectId: projectId,
     key: `project/${projectId}/context.md`,
     userId,
     originalCreatorUserId: userId,

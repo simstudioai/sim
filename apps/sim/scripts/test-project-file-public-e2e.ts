@@ -164,7 +164,8 @@ async function shareFile(owner: 'workspace' | 'project', fileId: string) {
   const id = generateId()
   const token = generateShortId()
   await sql`INSERT INTO public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token)
-    SELECT ${id}, 'file', f.id, f.entity_type, f.entity_id, f.workspace_id, f.user_id, ${token}
+    SELECT ${id}, 'file', f.id, CASE WHEN f.project_id IS NOT NULL THEN 'project' ELSE 'workspace' END,
+      coalesce(f.project_id, f.workspace_id), f.workspace_id, f.user_id, ${token}
     FROM workspace_files f WHERE f.id = ${fileId}`
   const share = { id, token, fileId, owner }
   shares.push(share)

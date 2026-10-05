@@ -14,7 +14,6 @@ import {
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderNameInScope } from '@/lib/folders/naming'
 import { lockProject } from '@/lib/projects/membership'
 import { workspaceFileNameFolderCondition } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -23,6 +22,7 @@ import {
   MAX_SUPERSEDED_FILE_VERSIONS,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 const cleanupDb = dbFor('cleanup')
@@ -183,7 +183,7 @@ export async function cleanupArchivedProjectFiles(
     const removed = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-soft-deletes')
       if (!policy) return 0
-      await acquireFolderMutationLock(tx, `project:${projectId}`, 'file')
+      await lockFileDirectories(tx, [{ entityType: 'project', entityId: projectId }])
       const rows = await tx
         .select({
           id: workspaceFiles.id,
@@ -247,7 +247,7 @@ export async function cleanupArchivedProjectFileFolders(
     const removed = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-soft-deletes')
       if (!policy) return 0
-      await acquireFolderMutationLock(tx, `project:${projectId}`, 'file')
+      await lockFileDirectories(tx, [{ entityType: 'project', entityId: projectId }])
       const [expired] = await tx
         .select({ id: folder.id })
         .from(folder)

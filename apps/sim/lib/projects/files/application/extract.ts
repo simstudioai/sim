@@ -11,7 +11,6 @@ import {
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import {
   createProjectFileAuthorizer,
   type ProjectFileAuthorizationContext,
@@ -40,6 +39,7 @@ import {
   withFileExtractionLease,
 } from '@/lib/workspace-files/extraction-lease'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 interface ExtractProjectFileInput {
@@ -52,7 +52,7 @@ async function snapshotArchive(
   context: ProjectFileAuthorizationContext,
   fileId: string
 ) {
-  await acquireFolderMutationLock(tx, `project:${context.projectId}`, 'file')
+  await lockFileDirectories(tx, [context.owner])
   const [file] = await tx
     .select()
     .from(workspaceFiles)

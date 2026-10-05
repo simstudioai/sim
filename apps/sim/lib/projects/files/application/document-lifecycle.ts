@@ -52,8 +52,7 @@ export async function rotateProjectFileDocInTx(
     .where(
       and(
         eq(workspaceFiles.id, target.fileId),
-        eq(workspaceFiles.entityType, 'project'),
-        eq(workspaceFiles.entityId, target.projectId),
+        eq(workspaceFiles.projectId, target.projectId),
         eq(workspaceFiles.context, 'project')
       )
     )

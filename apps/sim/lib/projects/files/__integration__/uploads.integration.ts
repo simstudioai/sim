@@ -327,7 +327,7 @@ describe('Project upload sessions with real leases, storage, and accounting', ()
       ).rejects.toMatchObject({ code: 'payload_too_large' })
       expect(await readFile(join(storageRoot, session.finalKey), 'utf8')).toBe('file')
       expect(
-        await db.select().from(workspaceFiles).where(eq(workspaceFiles.entityId, f.projectId))
+        await db.select().from(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
       ).toHaveLength(0)
       await db
         .update(organization)
@@ -668,8 +668,7 @@ describe.skipIf(!redisUrl)('private Project upload transport', () => {
         .from(workspaceFileSecretProvenance)
         .where(eq(workspaceFileSecretProvenance.fileId, file.id))
       expect(file).toMatchObject({
-        entityType: 'project',
-        entityId: f.projectId,
+        projectId: f.projectId,
         userId: f.editorId,
         workspaceId: null,
       })
@@ -766,7 +765,7 @@ describe.skipIf(!redisUrl)('private Project upload transport', () => {
       await db.delete(permissions).where(eq(permissions.userId, f.editorId))
       expect((await completePrivateUpload(transport, f.projectId, session)).status).toBe(403)
       expect(
-        await db.select().from(workspaceFiles).where(eq(workspaceFiles.entityId, f.projectId))
+        await db.select().from(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
       ).toEqual([])
       expect(await usage(f.organizationId)).toBe(0)
       const current = await sessions.verifyUploadSessionToken(session.uploadToken)
@@ -782,14 +781,8 @@ afterAll(async () => {
     await db
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/%`}`)
-    await db
-      .delete(workspaceFiles)
-      .where(
-        and(eq(workspaceFiles.entityType, 'project'), eq(workspaceFiles.entityId, f.projectId))
-      )
-    await db
-      .delete(folder)
-      .where(and(eq(folder.entityType, 'project'), eq(folder.entityId, f.projectId)))
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+    await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, [f.ownerId, f.editorId]))
