@@ -73,6 +73,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     if (params?.accountId && params?.tunnelId && params?.apiKey) {
       try {
         const connectionsUrl = `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}/connections`
+        // boundary-raw-fetch: requests the external Cloudflare connections endpoint
         const connectionsRes = await fetch(connectionsUrl, {
           method: 'GET',
           headers: cloudflareHeaders(params.apiKey),
