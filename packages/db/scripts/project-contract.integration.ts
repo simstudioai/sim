@@ -381,20 +381,35 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           await release.promise
         })
         await archived.promise
-        const started = createDeferred<void>()
+        const started = createDeferred<number>()
         const second = sql
           .begin(`isolation level ${isolation}`, async (tx) => {
-            await tx`SELECT count(*) FROM workspace WHERE archived_at IS NULL`
-            started.resolve()
+            const [connection] =
+              await tx`SELECT pg_backend_pid() AS pid, count(*) FROM workspace WHERE archived_at IS NULL`
+            started.resolve(connection.pid)
             await tx`UPDATE workspace SET archived_at = now() WHERE id = 'child'`
           })
           .then(
             () => null,
             (error: unknown) => error
           )
-        await started.promise
-        release.resolve()
-        await first
+        const secondPid = await started.promise
+        try {
+          let waiting = false
+          for (let attempt = 0; attempt < 100; attempt++) {
+            const [state] =
+              await sql`SELECT cardinality(pg_blocking_pids(${secondPid})) > 0 AS waiting`
+            if (state.waiting) {
+              waiting = true
+              break
+            }
+            await sleep(10)
+          }
+          expect(waiting).toBe(true)
+        } finally {
+          release.resolve()
+          await first
+        }
         const failure = await second
         expect(['23514', '40001', '40P01']).toContain(getPostgresErrorCode(failure))
         expect(await sql`SELECT 1 FROM workspace WHERE archived_at IS NULL`).toHaveLength(1)
