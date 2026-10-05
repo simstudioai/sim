@@ -13,7 +13,7 @@ import {
   isSameMcpServerDestination,
   parseMcpToolId,
   parseMcpToolTarget,
-} from './utils'
+} from '@/lib/mcp/utils'
 
 describe('generateMcpServerId', () => {
   const workspaceId = 'ws-test-123'
