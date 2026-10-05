@@ -392,8 +392,8 @@ async function updateMcpServer(args: {
   }
   const changesDestination =
     args.input.url !== undefined &&
-    !!args.context.server.url &&
-    !isSameMcpServerDestination(args.context.server.url, args.input.url)
+    (!args.context.server.url ||
+      !isSameMcpServerDestination(args.context.server.url, args.input.url))
   if (changesDestination) {
     await authorizeWorkspaceOperation(
       args.principal,

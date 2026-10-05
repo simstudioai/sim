@@ -261,6 +261,29 @@ describe('MCP server lifecycle orchestration', () => {
     expect(mockRevokeOauthTokens).not.toHaveBeenCalled()
   })
 
+  it('refuses a non-admin setting a URL on a server that has none', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: null,
+        authType: 'headers',
+        headers: {},
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      allowDestinationChange: false,
+      url: 'https://other-host.example.com/mcp',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'forbidden' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
   it('refuses a non-admin save when the URL changed after it was checked', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {

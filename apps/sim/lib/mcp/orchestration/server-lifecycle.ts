@@ -435,12 +435,10 @@ export async function updateMcpServer(
 
     if (!currentServer) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
-    const checkedUrl =
-      !params.allowDestinationChange && params.url !== undefined ? currentServer.url : null
+    const guardedUrl = params.allowDestinationChange ? undefined : params.url
     if (
-      checkedUrl &&
-      params.url !== undefined &&
-      !isSameMcpServerDestination(checkedUrl, params.url)
+      guardedUrl !== undefined &&
+      (!currentServer.url || !isSameMcpServerDestination(currentServer.url, guardedUrl))
     ) {
       return {
         success: false,
@@ -448,6 +446,7 @@ export async function updateMcpServer(
         errorCode: 'forbidden',
       }
     }
+    const checkedUrl = guardedUrl !== undefined ? currentServer.url : null
 
     if (
       params.oauthClientId &&
