@@ -845,6 +845,7 @@ describe('handleUnifiedChatPost', () => {
     { stored: 'high', sent: undefined, runs: 'high' },
     { stored: 'low', sent: undefined, runs: 'low' },
     { stored: 'high', sent: 'low', runs: 'low' },
+    { stored: 'high', sent: 'max', runs: 'xhigh' },
   ] as const)(
     'runs a chat whose stored effort choice is $stored at $runs when the send names $sent',
     async ({ stored, sent, runs }) => {
@@ -869,7 +870,7 @@ describe('handleUnifiedChatPost', () => {
       expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
         expect.objectContaining({ effort: runs })
       )
-      expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent)
+      expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
     }
   )
 

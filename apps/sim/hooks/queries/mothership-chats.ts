@@ -35,6 +35,7 @@ import {
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -598,27 +599,27 @@ async function setChatEffort({
 }
 
 /**
- * Records the effort the user picked for a chat, shown immediately. Success needs no
- * refetch: the server stores exactly the picked value, and refetching the detail would
- * reload the whole transcript, possibly mid-stream.
+ * Records the effort the user picked for a chat. The pick shows and sends at once from the
+ * session's pick map; saves for one chat run one at a time so the last pick is the one stored.
  */
-export function useSetMothershipChatEffort() {
+export function useSetMothershipChatEffort(chatId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: setChatEffort,
-    onMutate: async ({ chatId, effort }) => {
-      const queryKey = mothershipChatKeys.detail(chatId)
-      const previousEffort = queryClient.getQueryData<MothershipChatHistory>(queryKey)?.effort
-      queryClient.setQueryData<MothershipChatHistory>(
-        queryKey,
-        (current) => current && { ...current, effort }
-      )
-      return { previousEffort }
+    mutationFn: (effort: MothershipEffort) => {
+      if (!chatId) throw new Error('A chat effort needs a chat')
+      return setChatEffort({ chatId, effort })
     },
-    onError: (_error, { chatId }, context) => {
+    scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
+    onMutate: (effort) => {
+      if (chatId) useMothershipEffortStore.getState().setChatEffort(chatId, effort)
+    },
+    onError: (_error, effort) => {
+      if (chatId) useMothershipEffortStore.getState().dropChatEffort(chatId, effort)
+    },
+    onSuccess: (_data, effort) => {
       queryClient.setQueryData<MothershipChatHistory>(
         mothershipChatKeys.detail(chatId),
-        (current) => current && { ...current, effort: context?.previousEffort }
+        (current) => current && { ...current, effort }
       )
     },
   })

@@ -39,4 +39,14 @@ describe('Build reasoning preferences', () => {
       modelSelection: { model: 'gpt-6-astra', fastMode: true },
     })
   })
+
+  it('keeps a newer chat pick when an older pick fails to save', () => {
+    const store = useMothershipEffortStore.getState()
+    store.setChatEffort('chat-1', 'low')
+    store.setChatEffort('chat-1', 'high')
+    store.dropChatEffort('chat-1', 'low')
+    expect(useMothershipEffortStore.getState().chatEfforts).toEqual({ 'chat-1': 'high' })
+    store.dropChatEffort('chat-1', 'high')
+    expect(useMothershipEffortStore.getState().chatEfforts).toEqual({})
+  })
 })

@@ -3396,6 +3396,18 @@ export function useChat(
 
       let requestChatId =
         queuedSendHandoff?.chatId ?? selectedChatIdRef.current ?? chatIdRef.current
+      // Read before the composer can unmount. Sent only when picked; otherwise the server
+      // uses the chat's stored pick or the default.
+      const effortStore = useMothershipEffortStore.getState()
+      const effortChoice =
+        options?.requestMode === 'assistant'
+          ? undefined
+          : requestChatId
+            ? (effortStore.chatEfforts[requestChatId] ??
+              queryClient.getQueryData<MothershipChatHistory>(
+                mothershipChatKeys.detail(requestChatId)
+              )?.effort)
+            : effortStore.newChatEffort
       const writeQueuedSendHandoff = (chatId?: string) => {
         if (!queuedSendHandoff) return
         if (!chatId && !queuedSendHandoff.supersededStreamId) return
@@ -3681,12 +3693,6 @@ export function useChat(
             ? {}
             : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
-        // Sent only when picked; otherwise the server uses the chat's stored pick or the default.
-        const effortChoice = requestChatId
-          ? queryClient.getQueryData<MothershipChatHistory>(
-              mothershipChatKeys.detail(requestChatId)
-            )?.effort
-          : useMothershipEffortStore.getState().newChatEffort
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3734,13 +3740,8 @@ export function useChat(
           return consumedByTranscript
         }
         if (admittedChatId && !requestChatId) {
-          if (effortChoice) {
-            queryClient.setQueryData<MothershipChatHistory>(
-              mothershipChatKeys.detail(admittedChatId),
-              (current) => current && { ...current, effort: effortChoice }
-            )
-            useMothershipEffortStore.getState().setNewChatEffort(null)
-          }
+          if (effortChoice)
+            useMothershipEffortStore.getState().adoptNewChatEffort(admittedChatId, effortChoice)
           requestChatId = admittedChatId
           streamTargetChatId = admittedChatId
           adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
@@ -3789,6 +3790,8 @@ export function useChat(
             const conflictChatId =
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
             if (conflictChatId && !streamTargetChatId) {
+              if (effortChoice)
+                useMothershipEffortStore.getState().adoptNewChatEffort(conflictChatId, effortChoice)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,
                 invalidateList: true,

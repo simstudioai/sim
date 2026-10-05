@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,10 +34,13 @@ export function ModelSelector() {
   const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
   const { chatId } = useChatSurface()
   const { data: chatHistory } = useMothershipChatHistory(chatId)
+  const chatPick = useMothershipEffortStore((state) =>
+    chatId ? state.chatEfforts[chatId] : undefined
+  )
   const newChatEffort = useMothershipEffortStore((state) => state.newChatEffort)
   const setNewChatEffort = useMothershipEffortStore((state) => state.setNewChatEffort)
-  const { mutate: setChatEffort } = useSetMothershipChatEffort()
-  const effortChoice = chatId ? chatHistory?.effort : newChatEffort
+  const { mutate: saveChatEffort } = useSetMothershipChatEffort(chatId)
+  const effortChoice = chatId ? (chatPick ?? chatHistory?.effort) : newChatEffort
   const { effort, modelSelection } = resolveMothershipModelSettings(
     { effort: effortChoice ?? undefined, modelSelection: selection },
     advanced
@@ -45,9 +49,15 @@ export function ModelSelector() {
     ? mothershipEffortOptions(modelSelection.model)
     : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {
-    if (chatId) setChatEffort({ chatId, effort: choice })
+    if (chatId) saveChatEffort(choice)
     else setNewChatEffort(choice)
   }
+
+  useEffect(() => {
+    if (chatId) return
+    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
+  }, [chatId])
+
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
   const modelLabel =
     MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??

@@ -1480,7 +1480,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               requestMode: body.mode,
             },
             notifyWorkspaceStatus: branch.notifyChatStatus,
-            effortChoice,
+            // The effort this turn actually runs at, so the stored pick is always one it can use.
+            effortChoice: effortChoice && body.effort,
           },
         })
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
