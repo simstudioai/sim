@@ -31,11 +31,14 @@ interface ShellScanFrame {
   kind: 'root' | 'command' | 'arithmetic' | 'backtick'
   quote: ShellQuote
   parenthesisDepth: number
+  bracketDepth?: number
   literalRoot: boolean
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
+  /** Includes nested command substitutions whose output can become an arithmetic operand. */
+  arithmetic?: boolean
   unsupported?: 'escaped sequence'
 }
 
@@ -445,10 +448,11 @@ function isShellAssignmentName(code: string, occurrence: CodePlaceholderOccurren
 function getUnsupportedShellPosition(
   code: string,
   occurrence: CodePlaceholderOccurrence,
-  quote: ShellQuote
+  context: ShellOccurrenceContext
 ): string | undefined {
+  if (context.arithmetic) return 'in shell arithmetic'
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
-  if (quote !== 'none') return undefined
+  if (context.quote !== 'none') return undefined
 
   const lineStart = Math.max(
     code.lastIndexOf('\n', occurrence.start - 1),
@@ -488,6 +492,7 @@ function collectShellOccurrenceContexts(
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
   ]
   let skippedRangeIndex = 0
+  let arithmeticDepth = 0
 
   for (let index = start; index < end; ) {
     const frame = frames.at(-1)
@@ -507,7 +512,7 @@ function collectShellOccurrenceContexts(
 
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
-      contexts.set(occurrence, { quote: frame.quote })
+      contexts.set(occurrence, { quote: frame.quote, arithmetic: arithmeticDepth > 0 })
       index = occurrence.end
       continue
     }
@@ -531,6 +536,24 @@ function collectShellOccurrenceContexts(
         if (character === "'") frame.quote = 'none'
         index += 1
       }
+      continue
+    }
+    const arithmeticExpansion =
+      character === '$' &&
+      ((code[index + 1] === '(' && code[index + 2] === '(') || code[index + 1] === '[')
+    const arithmeticCommand =
+      frame.quote === 'none' && !frame.literalRoot && shellArithmeticCommandStarts(code, index)
+    if (arithmeticExpansion || arithmeticCommand) {
+      const brackets = arithmeticExpansion && code[index + 1] === '['
+      frames.push({
+        kind: 'arithmetic',
+        quote: 'none',
+        parenthesisDepth: brackets ? 0 : 2,
+        ...(brackets ? { bracketDepth: 1 } : {}),
+        literalRoot: false,
+      })
+      arithmeticDepth += 1
+      index += arithmeticExpansion && !brackets ? 3 : 2
       continue
     }
     if (frame.quote === 'double') {
@@ -572,7 +595,7 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (!frame.literalRoot && shellCommentStarts(code, index)) {
+    if (frame.kind !== 'arithmetic' && !frame.literalRoot && shellCommentStarts(code, index)) {
       const newline = code.indexOf('\n', index)
       index = newline === -1 || newline >= end ? end : newline + 1
       continue
@@ -622,14 +645,29 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === '(') {
+    if (frame.kind === 'arithmetic' && frame.bracketDepth !== undefined) {
+      if (character === '[') frame.bracketDepth += 1
+      if (character === ']') {
+        frame.bracketDepth -= 1
+        if (frame.bracketDepth === 0) {
+          frames.pop()
+          arithmeticDepth -= 1
+        }
+      }
+      index += 1
+      continue
+    }
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === ')') {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
       frame.parenthesisDepth -= 1
-      if (frame.parenthesisDepth === 0) frames.pop()
+      if (frame.parenthesisDepth === 0) {
+        frames.pop()
+        if (frame.kind === 'arithmetic') arithmeticDepth -= 1
+      }
       index += 1
       continue
     }
@@ -849,7 +887,7 @@ export async function compileShellPlaceholders(
       const unsupportedPosition = getUnsupportedShellPosition(
         input.code,
         occurrence,
-        occurrenceContext.quote
+        occurrenceContext
       )
       if (unsupportedPosition) {
         if (context.hasValue(occurrence.name)) {
@@ -904,7 +942,7 @@ export async function compileShellPlaceholders(
     const unsupportedPosition = getUnsupportedShellPosition(
       input.code,
       occurrence,
-      occurrenceContext.quote
+      occurrenceContext
     )
     if (unsupportedPosition) {
       if (context.hasValue(occurrence.name)) {
