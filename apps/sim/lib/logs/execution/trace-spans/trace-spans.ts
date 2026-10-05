@@ -1,3 +1,4 @@
+import { isUserFile } from '@/lib/core/utils/user-file'
 import { groupIterationBlocks } from '@/lib/logs/execution/trace-spans/iteration-grouping'
 import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/span-factory'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -37,7 +38,7 @@ function setFilteredValue(output: Record<string, unknown>, key: string, value: u
  * returned as-is, so a block log shares structure with the block's compacted
  * state output instead of holding a second copy for the rest of the run. A
  * copy starts only at the first changed child; non-plain prototypes (Date,
- * class instances, null-prototype objects) are always rebuilt.
+ * class instances, null-prototype objects) and file objects are always rebuilt.
  */
 export function filterHiddenOutputKeys(value: unknown): unknown {
   if (value === null || value === undefined) {
@@ -63,8 +64,10 @@ export function filterHiddenOutputKeys(value: unknown): unknown {
 
   if (typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
+    // File objects are always copied: file hydration later updates `size` in
+    // place on the shared state object, and a log keeps the value it completed with.
     let filtered: Record<string, unknown> | undefined =
-      Object.getPrototypeOf(value) === Object.prototype ? undefined : {}
+      Object.getPrototypeOf(value) === Object.prototype && !isUserFile(value) ? undefined : {}
     for (let index = 0; index < entries.length; index++) {
       const [key, val] = entries[index]
       const hidden = HIDDEN_OUTPUT_KEYS.has(key)
