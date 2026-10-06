@@ -2773,6 +2773,13 @@
       "when": 1791254828269,
       "tag": "0396_user_table_row_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1791260527198,
+      "tag": "0397_desktop_devices",
+      "breakpoints": true
     }
   ]
 }

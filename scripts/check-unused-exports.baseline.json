@@ -4440,7 +4440,6 @@
   "apps/sim/lib/credentials/access.ts#ManagedCredentialType",
   "apps/sim/lib/credentials/access.ts#deriveCredentialAdmin",
   "apps/sim/lib/credentials/access.ts#isManagedCredentialType",
-  "apps/sim/lib/credentials/application/authorized-user-use-case.ts#CredentialUserAuditEntry",
   "apps/sim/lib/credentials/application/provider-catalog.ts#CredentialProviderAuthorizationOption",
   "apps/sim/lib/credentials/application/provider-catalog.ts#CredentialProviderField",
   "apps/sim/lib/credentials/application/provider-catalog.ts#CredentialProviderFieldOption",
