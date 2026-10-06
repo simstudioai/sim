@@ -706,8 +706,8 @@ export async function copyForkResourceContainers(
         schema: remappedSchema,
         createdBy: userId,
         rowsVersion: 0,
-        // Start at 0 - the post-commit content copy raises it to the rows actually
-        // copied, so a failed/partial copy never advertises the source's count.
+        // Start at 0 - the row-count trigger counts the rows the content copy actually
+        // inserts, so a failed/partial copy never advertises the source's count.
         rowCount: 0,
         // Locks are workspace-local governance and never transit a fork edge —
         // mirrors `copy-workflows.ts` writing `locked: false`. Inheriting them
@@ -1343,10 +1343,6 @@ export async function copyForkResourceContent(params: {
         }
         if (rows.length < PROVENANCE_CONTENT_PAGE) break
       }
-      await db
-        .update(userTableDefinitions)
-        .set({ rowCount: copied })
-        .where(eq(userTableDefinitions.id, table.childId))
       await completeForkCopyResource(control, `table:${table.childId}`)
       copiedResources += 1
     } catch (error) {

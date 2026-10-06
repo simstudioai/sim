@@ -1580,6 +1580,16 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Folds the table row-change log into each table's stored row count and version.
+    foldTableRowChanges:
+      enabled: true
+      name: fold-table-row-changes
+      schedule: "*/1 * * * *"
+      path: "/api/cron/fold-table-row-changes"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl
