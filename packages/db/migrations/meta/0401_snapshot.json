@@ -28775,7 +28775,7 @@
           "name": "workspace_files_search_owner_keyset_idx",
           "columns": [
             {
-              "expression": "CASE WHEN \"project_id\" IS NOT NULL THEN 'project' ELSE 'workspace' END",
+              "expression": "(CASE WHEN \"project_id\" IS NOT NULL THEN 'project' ELSE 'workspace' END)",
               "asc": true,
               "isExpression": true,
               "nulls": "last"

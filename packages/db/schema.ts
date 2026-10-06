@@ -2624,7 +2624,7 @@ export const workspaceFiles = pgTable(
      */
     ownerSearchKeysetIdx: index('workspace_files_search_owner_keyset_idx')
       .on(
-        sql`CASE WHEN ${table.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+        sql`(CASE WHEN ${table.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END)`,
         sql`coalesce(${table.projectId}, ${table.workspaceId})`,
         table.id
       )
