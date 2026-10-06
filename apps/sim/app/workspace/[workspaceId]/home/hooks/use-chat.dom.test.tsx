@@ -2601,6 +2601,8 @@ describe('useChat remount send recovery', () => {
         await waitFor(() => answerPost !== undefined)
 
         useMothershipQueueStore.getState().clearChat(history.id)
+        /** The server no longer returns a deleted chat. */
+        mockRequestJson.mockImplementation(() => Promise.reject(new Error('Chat not found')))
         await act(async () => {
           answerPost?.()
           await sleep(300)
@@ -2610,6 +2612,55 @@ describe('useChat remount send recovery', () => {
         expect(state.postBodies).toHaveLength(1)
       }
     )
+
+    /**
+     * Another tab deletes the chat while this tab's send waits on the lock. The
+     * busy refusal then rewrites the chat's history locally; that is not the
+     * server returning the chat, so the delete must still hold.
+     */
+    it('keeps a chat deleted in another tab empty when a pending send there is refused as busy', async () => {
+      const history = idleHistory('chat-deleted-in-other-tab')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      let answerPost: (() => void) | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          return new Promise<Response>((resolve) => {
+            answerPost = () =>
+              resolve(
+                Response.json(
+                  { error: 'A response is already in progress for this chat.' },
+                  { status: 409 }
+                )
+              )
+          })
+        }
+        if (String(input).includes('/api/mothership/chat')) {
+          return Response.json({ error: 'Chat not found' }, { status: 404 })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Sent as another tab deleted the chat')
+      })
+      await waitFor(() => answerPost !== undefined)
+
+      mockRequestJson.mockImplementation(() => Promise.reject(new Error('Chat not found')))
+      handleMothershipChatStatusEvent(
+        queryClient,
+        'ws-1',
+        JSON.stringify({ chatId: history.id, type: 'deleted', timestamp: Date.now() })
+      )
+      await act(async () => {
+        answerPost?.()
+        await sleep(300)
+      })
+      useMothershipQueueStore.getState().enqueue(history.id, { id: 'later', content: 'Later' })
+
+      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
+      expect(state.postBodies).toHaveLength(1)
+    })
 
     /**
      * With Redis down the server refuses every send as busy without naming a
@@ -2911,7 +2962,8 @@ describe('useChat remount send recovery', () => {
         return fetchStub(input, init)
       })
       useMothershipQueueStore.getState().clearChat(history.id)
-      const { getResult } = renderUseChatInChat(history.id, history)
+      /** Loaded from the server, not seeded: only a server read confirms the chat exists. */
+      const { getResult } = renderUseChatInChat(history.id)
       await waitFor(() => getResult().isSending)
 
       await act(async () => {

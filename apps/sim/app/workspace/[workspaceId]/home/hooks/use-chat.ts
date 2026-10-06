@@ -2023,8 +2023,6 @@ export function useChat(
 
     const activeStreamId = chatHistory.activeStreamId
     appliedChatHistoryKeyRef.current = hydrationKey
-    /** The server returned this chat, so it exists: a delete seen earlier no longer applies. */
-    useMothershipQueueStore.getState().reopenChat(chatHistory.id)
     const mappedMessages = chatHistory.messages.map(toDisplayMessage)
     const shouldReconnectActiveStream =
       Boolean(activeStreamId) &&

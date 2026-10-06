@@ -309,10 +309,25 @@ export async function fetchMothershipChatHistory(
   return parseChatHistory(await copilotRes.json())
 }
 
+/**
+ * A chat this tab saw deleted that the server returns again was restored, so it
+ * takes queued sends again. Only a read that began after the delete counts: one
+ * already in flight can return the chat from before it.
+ */
+async function fetchChatHistoryConfirmingRestore(
+  chatId: string,
+  signal: AbortSignal
+): Promise<MothershipChatHistory> {
+  const deletedBeforeRead = Boolean(useMothershipQueueStore.getState().cleared[chatId])
+  const history = await fetchMothershipChatHistory(chatId, signal)
+  if (deletedBeforeRead) useMothershipQueueStore.getState().reopenChat(chatId)
+  return history
+}
+
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
   return queryOptions({
     queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
+    queryFn: chatId ? ({ signal }) => fetchChatHistoryConfirmingRestore(chatId, signal) : skipToken,
     staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
   })
 }
