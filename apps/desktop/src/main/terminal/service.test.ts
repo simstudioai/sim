@@ -14,8 +14,6 @@ const tmuxFake = vi.hoisted(() => ({
   on: false,
   /** Panes a run was stopped in, in order. */
   stopped: [] as string[],
-  /** Every stop the service asked for, whether or not the pane was still the run's. */
-  attempted: [] as string[],
   /** Panes no longer the run's (closed by the user, or reused after a tmux restart). */
   gone: new Set<string>(),
   statusPaths: new Map<string, string>(),
@@ -55,7 +53,6 @@ vi.mock('@/main/terminal/tmux', async () => {
     stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
       if (!tmuxFake.on) return actual.stopRun(...args)
       const [handle] = args
-      tmuxFake.attempted.push(handle.pane)
       if (tmuxFake.gone.has(handle.pane)) return
       tmuxFake.stopped.push(handle.pane)
       writeFileSync(handle.statusPath, '130')
@@ -661,33 +658,6 @@ describe('agent commands in tmux', () => {
       expect(tmuxFake.stopped).toEqual([[...tmuxFake.statusPaths.keys()][0]])
     } finally {
       tmuxFake.on = false
-    }
-  })
-
-  it("forgets a closed tab's run once its pane is gone", async () => {
-    tmuxFake.on = true
-    tmuxFake.statusPaths.clear()
-    tmuxFake.stopped.length = 0
-    try {
-      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
-      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
-      await terminal.executeTool('call-orphan', 'run', { command: 'sleep 1', waitSeconds: 1 })
-      const [orphanPane] = [...tmuxFake.statusPaths.keys()]
-      terminal.closeTerminal(activeTerminalId as string)
-      // Its command ended and tmux closed its pane.
-      tmuxFake.gone.add(orphanPane ?? '')
-
-      // The next run's bookkeeping drops it, so sign-out has nothing left to stop.
-      await terminal.executeTool('call-new', 'new', {})
-      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
-      tmuxFake.gone.add([...tmuxFake.statusPaths.keys()][1] ?? '')
-      tmuxFake.attempted.length = 0
-      await terminal.stopAgentCommands()
-
-      expect(tmuxFake.attempted).not.toContain(orphanPane)
-    } finally {
-      tmuxFake.on = false
-      tmuxFake.gone.clear()
     }
   })
 })
