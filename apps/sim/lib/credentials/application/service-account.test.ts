@@ -253,14 +253,14 @@ describe('credential service-account application operations', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
-  it('resolves a stored secret whose name starts with a digit', async () => {
+  it('resolves stored secret names that workflows can reference', async () => {
     mocks.environment.mockResolvedValue({
-      '1_ANTHROPIC_KEY': { value: 'sk-ant-secret', scope: 'workspace', visible: true },
+      '1-ANTHROPIC-KEY': { value: 'sk-ant-secret', scope: 'workspace', visible: true },
     })
     await connectStored(copilotContext, {
       workspaceId: WORKSPACE_ID,
       providerId: 'claude-platform-service-account',
-      apiToken: '{{1_ANTHROPIC_KEY}}',
+      apiToken: '{{1-ANTHROPIC-KEY}}',
     })
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({ apiToken: 'sk-ant-secret' })
