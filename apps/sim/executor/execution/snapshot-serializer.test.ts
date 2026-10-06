@@ -353,6 +353,19 @@ describe('buildCompletedExecutionState', () => {
       { value: Object.assign(Object(1), { big: BigInt(1) }) },
     ],
     ['an object that only inherits from BigInt', { value: Object.create(BigInt.prototype) }],
+    [
+      'a proxy whose getPrototypeOf trap throws',
+      {
+        value: new Proxy(
+          { a: 1 },
+          {
+            getPrototypeOf: () => {
+              throw new Error('JSON.stringify never asks for the prototype')
+            },
+          }
+        ),
+      },
+    ],
   ])('serializes like the JSON-cloned pause state for %s', (_name, output) => {
     const context = contextWithOutput(output)
     expect(JSON.stringify(buildCompletedExecutionState(context))).toBe(
@@ -370,6 +383,14 @@ describe('buildCompletedExecutionState', () => {
     [
       'a BigInt wrapper whose prototype was swapped',
       { value: Object.setPrototypeOf(Object(BigInt(1)), {}) },
+    ],
+    [
+      'a BigInt wrapper whose prototype was reset to Object.prototype',
+      { value: Object.setPrototypeOf(Object(BigInt(1)), Object.prototype) },
+    ],
+    [
+      'a Number wrapper that converts to a BigInt',
+      { value: Object.assign(Object(1), { [Symbol.toPrimitive]: () => BigInt(1) }) },
     ],
   ])('throws like the pause snapshot for %s', (_name, output) => {
     const context = contextWithOutput(output)
