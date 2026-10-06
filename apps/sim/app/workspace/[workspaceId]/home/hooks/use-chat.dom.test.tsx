@@ -1136,6 +1136,96 @@ describe('useChat remount send recovery', () => {
     }
   })
 
+  /**
+   * After the user leaves and returns once, the return recovery owns the stream for
+   * the rest of the turn. When the network then drops, its tail either goes silent
+   * (the socket stalls) or fails into the reconnect backoff, which grows to 30s.
+   * Coming back online must re-attach at once, as it does while the send still owns
+   * the stream, instead of waiting out the idle timeout or the backoff.
+   */
+  it.each(['stalled', 'failed'] as const)(
+    're-attaches at once when the network returns to a return recovery whose tail %s',
+    async (tailOutcome) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        let online = true
+        let backOnline = false
+        let tailOpenedAfterReturn = false
+        let failedReconnects = 0
+        const openTails: ReadableStreamDefaultController<Uint8Array>[] = []
+        const history: MothershipChatHistory = {
+          id: `chat-recovery-${tailOutcome}`,
+          mode: 'agent',
+          title: 'Recovery',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        }
+        mockRequestJson.mockImplementation(() =>
+          Promise.resolve({
+            chat: { ...history, activeStreamId: state.postBodies[0]?.userMessageId ?? null },
+          })
+        )
+        state.postBehavior = 'accept'
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+          if (!online) {
+            failedReconnects++
+            throw new TypeError('Failed to fetch')
+          }
+          if (url.includes('batch=true')) {
+            return Response.json({ success: true, events: [], status: 'streaming' })
+          }
+          if (backOnline) tailOpenedAfterReturn = true
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start: (controller) => void openTails.push(controller),
+            }),
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )
+        })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void getResult().sendMessage('Keep going while I am away')
+        })
+        await act(async () => vi.advanceTimersByTimeAsync(100))
+        await act(async () => {
+          window.dispatchEvent(new Event('pageshow'))
+          await vi.advanceTimersByTimeAsync(100)
+        })
+        expect(openTails.length).toBeGreaterThan(0)
+
+        online = false
+        if (tailOutcome === 'failed') {
+          await act(async () => {
+            for (const tail of openTails.splice(0)) tail.error(new TypeError('network error'))
+            await vi.advanceTimersByTimeAsync(0)
+          })
+          for (let second = 0; second < 120 && failedReconnects < 6; second++) {
+            await act(async () => vi.advanceTimersByTimeAsync(1_000))
+          }
+          expect(failedReconnects).toBeGreaterThanOrEqual(6)
+        } else {
+          await act(async () => vi.advanceTimersByTimeAsync(20_000))
+        }
+
+        online = true
+        backOnline = true
+        await act(async () => {
+          window.dispatchEvent(new Event('online'))
+          await vi.advanceTimersByTimeAsync(500)
+        })
+
+        expect(tailOpenedAfterReturn).toBe(true)
+        expect(getResult().isSending).toBe(true)
+        expect(state.postBodies).toHaveLength(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('keeps re-attaching a long turn whose tails deliver events between separate network failures', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {

@@ -2982,12 +2982,17 @@ export function useChat(
       if (!chatId) return
 
       const subjectKey = buildRecoverySubjectKey(startingChatId, startingSelectedChatId)
+      /* A return signal supersedes a recovery already in flight, as it supersedes the
+         send's own reader: that recovery's tail may have gone silent while the tab was
+         away or offline, or it may be sleeping out a reconnect backoff, and either
+         would hold the stream for up to the idle timeout or the backoff. */
       const existingRecovery = activeStreamReturnRecoveryRef.current
-      if (existingRecovery?.subjectKey === subjectKey) {
-        return existingRecovery.promise
-      }
       if (existingRecovery) {
-        existingRecovery.controller.abort('replaced_by_new_recovery_subject')
+        existingRecovery.controller.abort(
+          existingRecovery.subjectKey === subjectKey
+            ? 'superseded_by_return'
+            : 'replaced_by_new_recovery_subject'
+        )
         activeStreamReturnRecoveryRef.current = null
       }
 
