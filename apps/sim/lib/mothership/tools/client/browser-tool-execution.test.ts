@@ -1470,9 +1470,12 @@ describe('pre-dispatch drops still resolve the waiter', () => {
     expect(mockReportCompletion).toHaveBeenCalledWith(
       'stale-call-1',
       'error',
-      expect.stringContaining('too late'),
+      expect.stringContaining('never started'),
       expect.objectContaining({ staleEvent: true })
     )
+    const [, , message] = mockReportCompletion.mock.calls[0] ?? []
+    expect(message).toContain('Do not retry it in this turn')
+    expect(message).toContain('keep this chat open in the Sim desktop app')
   })
 
   it('marks a stale stateful event outcome unknown and unsafe to retry', async () => {

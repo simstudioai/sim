@@ -13,6 +13,7 @@ vi.mock('@/stores/reset-all-stores', () => {
   return { resetAllStores: mockResetAllStores }
 })
 
+import { leaseDesktopTool } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { clearUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
 
 expect(mockModuleLoaded).not.toHaveBeenCalled()
@@ -94,5 +95,20 @@ describe('clearUserData', () => {
     expect(mockResetAllStores).toHaveBeenCalledOnce()
     expect(inMemoryResetSucceeded).toBe(false)
     expect(localStorage.getItem('private-cache')).toBeNull()
+  })
+
+  it('cancels desktop tools still running for the signed-out identity', async () => {
+    const localRead = leaseDesktopTool('turn-before-sign-out')
+    const browserAction = leaseDesktopTool('other-turn-before-sign-out')
+    mockResetAllStores.mockImplementationOnce(() => {
+      throw new Error('Chunk unavailable')
+    })
+
+    await clearUserData()
+
+    expect(localRead.signal.aborted).toBe(true)
+    expect(browserAction.signal.aborted).toBe(true)
+    localRead.release()
+    browserAction.release()
   })
 })

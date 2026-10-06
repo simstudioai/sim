@@ -115,6 +115,7 @@ export type CopilotChatPersistOutcomeValue =
 export const CopilotConfirmOutcome = {
   Delivered: 'delivered',
   Forbidden: 'forbidden',
+  HeldByDesktop: 'held_by_desktop',
   InternalError: 'internal_error',
   RunNotFound: 'run_not_found',
   ToolCallNotFound: 'tool_call_not_found',

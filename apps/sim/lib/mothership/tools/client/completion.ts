@@ -145,7 +145,7 @@ export async function reportClientToolCompletionOnPageExit(
     }),
     keepalive: true,
   })
-  if (!response.ok) {
+  if (!isSettledDelivery(response, toolCallId)) {
     throw new CompletionReportError(`Page-exit completion failed with status ${response.status}`)
   }
 }

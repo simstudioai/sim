@@ -1577,7 +1577,12 @@ export function useChat(
   )
 
   const startClientLocalFilesystemTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      turnStreamId: string | undefined
+    ) => {
       if (
         !isNativeFileTool(toolName) &&
         (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs))
@@ -1588,7 +1593,7 @@ export function useChat(
         return
       }
       handledClientLocalFilesystemToolIds.add(toolCallId)
-      const lease = streamIdRef.current ? leaseDesktopTool(streamIdRef.current) : undefined
+      const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
@@ -2226,7 +2231,8 @@ export function useChat(
         addResource,
         removeResource,
         startClientWorkflowTool,
-        startClientLocalFilesystemTool,
+        startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
+          startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, turnStreamId),
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,
         startBrowserAgentRun: startBrowserAgentRunForStream,

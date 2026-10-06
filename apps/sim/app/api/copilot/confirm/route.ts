@@ -89,7 +89,8 @@ function acknowledgeSettledToolCall(
  * report raced that claim and lost), so only the claim's own result settles it. Final, not
  * retryable: the reporter stops.
  */
-function heldByAnotherReporterResponse(): NextResponse {
+function heldByAnotherReporterResponse(span: Span): NextResponse {
+  span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.HeldByDesktop)
   return NextResponse.json(
     { error: 'The desktop app holds this tool call; only its own result settles it' },
     { status: 409 }
@@ -285,8 +286,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           ? isWorkflowToolExecutionClaimable(existing.status, existing.permissionDecision)
           : existing.status === ASYNC_TOOL_STATUS.running || isPreclaimNativeTerminalOutcome
         if (isNativeClientTool && !isMutableClientToolCall) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
-          return heldByAnotherReporterResponse()
+          return heldByAnotherReporterResponse(span)
         }
         if (isWorkflowTool && !isMutableClientToolCall) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
@@ -300,8 +300,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           data.notStarted === true &&
           existing.status !== ASYNC_TOOL_STATUS.pending
         ) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
-          return heldByAnotherReporterResponse()
+          return heldByAnotherReporterResponse(span)
         }
 
         let effectiveStatus = status
@@ -437,8 +436,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         }
 
         if (reconciledOutcome === 'conflict' && isPreclaimNativeTerminalOutcome) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
-          return heldByAnotherReporterResponse()
+          return heldByAnotherReporterResponse(span)
         }
 
         if (reconciledOutcome !== 'updated') {

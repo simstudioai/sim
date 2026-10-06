@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   leaseDesktopTool,
+  stopAllDesktopTools,
   stopDesktopTools,
 } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 
@@ -53,5 +54,20 @@ describe('desktop tool leases', () => {
     stopDesktopTools('turn-e', 'user_stop')
 
     expect(next.signal.aborted).toBe(true)
+  })
+
+  it('cancels the running tools of every turn when the session ends', () => {
+    const first = leaseDesktopTool('turn-f')
+    const second = leaseDesktopTool('turn-g')
+
+    stopAllDesktopTools('signed_out')
+    const next = leaseDesktopTool('turn-f')
+
+    expect(first.signal.aborted).toBe(true)
+    expect(second.signal.aborted).toBe(true)
+    expect(first.signal.reason).toBe('signed_out')
+    expect(next.signal.aborted).toBe(false)
+    first.release()
+    next.release()
   })
 })

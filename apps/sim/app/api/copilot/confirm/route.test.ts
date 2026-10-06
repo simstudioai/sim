@@ -1,3 +1,9 @@
+import { trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
@@ -6,7 +12,7 @@ import {
 } from '@sim/testing/mocks/mothership-async-runs.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import type { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { publishToolConfirmation, getTrustedWorkflowToolExecution } = vi.hoisted(() => ({
   publishToolConfirmation: vi.fn(),
@@ -27,6 +33,9 @@ vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution,
 }))
 
+import { CopilotConfirmOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { POST } from './route'
 
 const {
@@ -40,6 +49,17 @@ const {
 
 const encryptSecret = encryptionMockFns.mockEncryptSecret
 
+/** Records the confirm spans and returns a reader for the outcome the route recorded. */
+function recordConfirmOutcome(): () => unknown {
+  const exporter = new InMemorySpanExporter()
+  trace.setGlobalTracerProvider(
+    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+  )
+  return () =>
+    exporter.getFinishedSpans().find((span) => span.name === TraceSpan.CopilotConfirmToolResult)
+      ?.attributes[TraceAttr.CopilotConfirmOutcome]
+}
+
 describe('Copilot Confirm API Route', () => {
   const existingRow = {
     toolCallId: 'tool-call-123',
@@ -50,6 +70,10 @@ describe('Copilot Confirm API Route', () => {
     status: 'running',
     claimedBy: 'workflow:execution-1',
   }
+
+  afterEach(() => {
+    trace.disable()
+  })
 
   beforeEach(() => {
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
@@ -151,6 +175,7 @@ describe('Copilot Confirm API Route', () => {
   })
 
   it('rejects a native success before the desktop authorization claim', async () => {
+    const recordedOutcome = recordConfirmOutcome()
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
       toolName: 'browser_snapshot',
@@ -166,6 +191,7 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(response.status).toBe(409)
+    expect(recordedOutcome()).toBe(CopilotConfirmOutcome.HeldByDesktop)
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
     expect(detachAsyncToolCall).not.toHaveBeenCalled()
     expect(encryptSecret).not.toHaveBeenCalled()
@@ -218,6 +244,7 @@ describe('Copilot Confirm API Route', () => {
   ] as const)(
     'rejects a pending %s %s when the native authorization claim wins the race',
     async (toolName, status) => {
+      const recordedOutcome = recordConfirmOutcome()
       getAsyncToolCall.mockResolvedValue({
         ...existingRow,
         toolName,
@@ -237,6 +264,7 @@ describe('Copilot Confirm API Route', () => {
       expect(await response.json()).toEqual({
         error: 'The desktop app holds this tool call; only its own result settles it',
       })
+      expect(recordedOutcome()).toBe(CopilotConfirmOutcome.HeldByDesktop)
       expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
       expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
       expect(completeAsyncToolCall).not.toHaveBeenCalled()
@@ -284,6 +312,31 @@ describe('Copilot Confirm API Route', () => {
       expect(publishToolConfirmation).toHaveBeenCalledOnce()
     }
   )
+
+  it('refuses a not-started report for a call the desktop already claimed', async () => {
+    const recordedOutcome = recordConfirmOutcome()
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'running',
+      claimedBy: 'desktop-browser',
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop action did not start.',
+        data: { notStarted: true },
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(recordedOutcome()).toBe(CopilotConfirmOutcome.HeldByDesktop)
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
 
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
     getAsyncToolCall.mockResolvedValue({

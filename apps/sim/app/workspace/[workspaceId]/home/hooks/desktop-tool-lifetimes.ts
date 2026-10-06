@@ -8,6 +8,8 @@ interface RunningTurnTools {
  * Turns with a desktop tool still running in this tab, keyed by the turn's stream id. A tool
  * outlives the chat view that started it (and any stream reader), so the turn, not the view, owns
  * its Stop. A turn is held only while one of its tools runs: each tool releases it as it settles.
+ * Terminal commands take no lease: Stop ends them through the turn's resource activity, which
+ * clears the agent's commands in each scope it touched.
  */
 const runningTurns = new Map<string, RunningTurnTools>()
 
@@ -48,4 +50,10 @@ export function leaseDesktopTool(streamId: string): DesktopToolLease {
 export function stopDesktopTools(streamId: string, reason: string): void {
   runningTurns.get(streamId)?.stop.abort(reason)
   runningTurns.delete(streamId)
+}
+
+/** Cancels every running desktop tool in this tab, so none outlives the session that started it. */
+export function stopAllDesktopTools(reason: string): void {
+  for (const turn of runningTurns.values()) turn.stop.abort(reason)
+  runningTurns.clear()
 }
