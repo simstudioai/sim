@@ -332,6 +332,17 @@ try {
       )
     }
   )
+  await check('workspace session revert accepts an omitted optional revision guard', async () => {
+    const fileId = required(workspaceIds[0])
+    const path = `/api/workspaces/${workspaceId}/files/${fileId}/versions`
+    const result = json(await request('POST', `${path}/2/revert`, {}, 'session'))
+    assert.equal(result.reverted, true)
+    assert.ok(required(result.revision))
+    assert.equal(
+      (await request('GET', `/api/v2/files/${fileId}?workspaceId=${workspaceId}`)).text,
+      'workspace concurrent save'
+    )
+  })
   await check(
     'oversized historical bytes return 413 without changing the current head',
     async () => {

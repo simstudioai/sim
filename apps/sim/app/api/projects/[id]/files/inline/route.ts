@@ -20,14 +20,5 @@ export const GET = defineInternalBinaryRoute({
     referenceFileId: query.fileId,
   }),
   useCase: readProjectInlineFile,
-  present: (result) => {
-    const response = presentProjectFileContent(result)
-    response.headers.set(
-      'Cache-Control',
-      result.contentAddressed
-        ? 'private, max-age=31536000, immutable'
-        : 'private, no-cache, must-revalidate'
-    )
-    return response
-  },
+  present: presentProjectFileContent,
 })

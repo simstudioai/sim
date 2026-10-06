@@ -51,6 +51,7 @@ let http: HttpServer
 let io: Server
 let socketUrl: string
 const capturedActors: string[] = []
+const seedFailures = new Map<string, number>()
 const accessGates = new Map<
   string,
   {
@@ -108,6 +109,11 @@ beforeAll(async () => {
       return
     }
     if (request.url.endsWith('/seed')) {
+      const failure = seedFailures.get(actor)
+      if (failure) {
+        response.writeHead(failure).end('{}')
+        return
+      }
       response.end(JSON.stringify({ update: seed, version: 1 }))
       return
     }
@@ -182,6 +188,29 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 describe('Project documents across the Socket.IO and internal HTTP boundary', () => {
+  for (const status of [404, 503]) {
+    check(
+      `a seed response of ${status} distinguishes a missing file from a failed join`,
+      async () => {
+        const actor = `seed-reader-${generateId()}`
+        actors.set(actor, 'read')
+        seedFailures.set(actor, status)
+        const pending = await startJoin(actor)
+        try {
+          await expect(pending.joined).rejects.toThrow(status === 404 ? 'NOT_FOUND' : 'JOIN_FAILED')
+          expect(
+            io.sockets.sockets
+              .get(pending.socket.id ?? '')
+              ?.rooms.has(`project-file-doc:${projectId}/${fileId}`)
+          ).toBe(false)
+        } finally {
+          seedFailures.delete(actor)
+          pending.socket.disconnect()
+        }
+      }
+    )
+  }
+
   check('readers subscribe but cannot submit edits or become the persistence actor', async () => {
     const reader = await join('reader')
     expect(reader.joined.canWrite).toBe(false)

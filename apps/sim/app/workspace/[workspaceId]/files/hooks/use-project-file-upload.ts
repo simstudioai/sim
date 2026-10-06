@@ -30,6 +30,10 @@ export function useProjectFileUpload(projectId: string, canWrite: boolean) {
     []
   )
 
+  useEffect(() => {
+    if (!canWrite) active.current?.abort()
+  }, [canWrite])
+
   async function uploadFiles(files: File[], folderId: string | null) {
     if (!canWriteRef.current || active.current || files.length === 0) return
     const allowed: File[] = []

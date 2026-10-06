@@ -71,7 +71,7 @@ export const readProjectInlineFile = defineAuthorizedProjectFileUseCase({
     })
     return { file, content }
   },
-  async execute({ input, context, tx, prepared }) {
+  async execute({ context, tx, prepared }) {
     if (!prepared) throw new Error('Inline file bytes are unavailable')
     const [file] = await tx
       .select()
@@ -96,7 +96,6 @@ export const readProjectInlineFile = defineAuthorizedProjectFileUseCase({
     return {
       file: mapFileRecord(file, context.owner, buildWorkspaceFileFolderPathMap(folders)),
       content: prepared.content,
-      contentAddressed: input.key === file.key,
       secretProvenance: evidence.get(file.id),
     }
   },

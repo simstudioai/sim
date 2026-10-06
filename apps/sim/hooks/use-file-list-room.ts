@@ -44,6 +44,7 @@ const FILE_LIST_ROOMS = {
       const owner = { entityType: 'project', entityId: projectId } as const
       for (const queryKey of [
         projectFilesKeys.project(projectId),
+        workspaceFileTableKeys.projectPreviews(projectId),
         fileCopyKeys.destination(owner),
         fileHistoryKeys.owner(owner),
         getFileShareQueryAdapter(owner).ownerKey(projectId),

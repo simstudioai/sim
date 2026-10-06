@@ -17,6 +17,7 @@ export const GET = defineInternalBinaryRoute({
     reason: 'Authenticated bounded file rendering follows the existing private preview policy',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
+  headSafe: false,
   mapInput: ({ params, query }) => ({
     preview: query.preview === '1',
     projectId: params.id,

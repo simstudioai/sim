@@ -25,7 +25,7 @@ export const projectFileDownloadOpenApiRoutes = [
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'Selected files in their Project folder paths.',
-        headers: ['Content-Type', 'Content-Disposition'],
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
         contentTypes: ['application/zip'],
       },
     },
@@ -55,7 +55,7 @@ export const projectFileDownloadOpenApiRoutes = [
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'Markdown snapshot or its archive with embedded assets.',
-        headers: ['Content-Type', 'Content-Disposition'],
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
         contentTypes: ['text/markdown', 'application/zip'],
       },
     },

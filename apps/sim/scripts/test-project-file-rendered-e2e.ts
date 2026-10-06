@@ -277,6 +277,20 @@ try {
     }
   )
   if (ready) {
+    await check('Artifact HEAD authorizes without executing a document program', async () => {
+      const file = await create(
+        projectId,
+        `head-only-${runId}.pdf`,
+        'throw new Error("Artifact HEAD must not execute this program");',
+        sourceMimeTypes.pdf
+      )
+      const head = await request('HEAD', artifactPath(file), 'session')
+      assert.equal(head.status, 200)
+      assert.equal(head.buffer.length, 0)
+      assert.equal((await request('HEAD', artifactPath(file), 'none')).status, 401)
+      const rendered = await request('GET', artifactPath(file), 'session')
+      assert.ok(rendered.status >= 400, 'The program must fail if actually rendered')
+    })
     for (const format of ['docx', 'pptx', 'pdf'] as const) {
       await check(
         `Real ${format.toUpperCase()} rendering returns a parseable document with a Project asset`,

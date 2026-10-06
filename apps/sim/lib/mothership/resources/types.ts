@@ -82,11 +82,15 @@ export function hasValidChatResourceOwner(
 ): boolean {
   if (!resource.owner)
     return (
-      resource.type !== 'file' ||
+      (resource.type !== 'file' && resource.type !== 'filefolder') ||
       resource.workspaceId === undefined ||
       hasAddressableId(resource.workspaceId)
     )
-  if (resource.type !== 'file' || !hasAddressableId(resource.owner.entityId)) return false
+  if (
+    (resource.type !== 'file' && resource.type !== 'filefolder') ||
+    !hasAddressableId(resource.owner.entityId)
+  )
+    return false
   if (resource.owner.entityType === 'workspace')
     return resource.workspaceId === undefined || resource.workspaceId === resource.owner.entityId
   return resource.owner.entityType === 'project' && resource.workspaceId === undefined
@@ -97,7 +101,7 @@ export function normalizeChatResource(
   resource: MothershipResourceUpdate
 ): MothershipResourceUpdate {
   if (
-    resource.type !== 'file' ||
+    (resource.type !== 'file' && resource.type !== 'filefolder') ||
     resource.workspaceId === undefined ||
     !hasValidChatResourceOwner(resource)
   )

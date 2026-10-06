@@ -1933,13 +1933,15 @@ export function useChat(
 
     void recoverPendingClientWorkflowTools(mappedMessages)
 
-    const hasPersistedStreamingFile = chatHistory.resources.some((r) => r.id === 'streaming-file')
-    if (hasPersistedStreamingFile) {
+    const streamingResources = chatHistory.resources.filter((r) => r.id === 'streaming-file')
+    for (const resource of streamingResources) {
       requestJson(removeMothershipChatResourceContract, {
         body: {
           chatId: chatHistory.id,
-          resourceType: 'file',
-          resourceId: 'streaming-file',
+          resourceType: resource.type,
+          resourceId: resource.id,
+          owner: resource.owner,
+          workspaceId: resource.workspaceId,
         },
       }).catch(() => {})
     }
@@ -2075,7 +2077,7 @@ export function useChat(
       if (workflowResources.length > 0) {
         void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
-    } else if (resourcesRef.current.length > 0 || hasPersistedStreamingFile) {
+    } else if (resourcesRef.current.length > 0 || streamingResources.length > 0) {
       activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)

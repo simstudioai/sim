@@ -456,6 +456,77 @@ describe('canonical file panel ownership compatibility', () => {
 
 describe('legacy browser file address compatibility', () => {
   identityCheck(
+    'persists and hydrates owned file folders without mixing their owner addresses',
+    async () => {
+      const f = await fixture()
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: f.userId },
+        session: { id: generateId() },
+      })
+      const folderId = generateId()
+      const resources: MothershipResource[] = [
+        {
+          type: 'filefolder',
+          id: folderId,
+          title: 'Workspace folder',
+          owner: { entityType: 'workspace', entityId: f.workspaceId },
+        },
+        { type: 'filefolder', id: folderId, title: 'Project folder', owner: f.owner },
+      ]
+      for (const resource of resources) {
+        const response = await addCopilotResource(
+          createMockRequest({
+            method: 'POST',
+            url: 'http://localhost/api/copilot/chat/resources',
+            body: { chatId: f.chatId, resource },
+          }),
+          undefined
+        )
+        expect(response.status, JSON.stringify(await response.json())).toBe(200)
+      }
+      const history = await readMothershipChat(
+        createMockRequest({
+          method: 'GET',
+          url: `http://localhost/api/mothership/chats/${f.chatId}`,
+        }),
+        createRouteContext({ chatId: f.chatId })
+      )
+      expect(history.status).toBe(200)
+      expect(toRecord(toRecord(await history.json()).chat).resources).toEqual(resources)
+
+      const removed = await removeMothershipResource(
+        createMockRequest({
+          method: 'DELETE',
+          url: 'http://localhost/api/mothership/chat/resources',
+          body: {
+            chatId: f.chatId,
+            resourceType: 'filefolder',
+            resourceId: folderId,
+            owner: f.owner,
+          },
+        }),
+        undefined
+      )
+      expect(removed.status).toBe(200)
+      const [stored] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, f.chatId))
+      expect(stored.resources).toEqual([resources[0]])
+
+      const conflicting = await addCopilotResource(
+        createMockRequest({
+          method: 'POST',
+          url: 'http://localhost/api/copilot/chat/resources',
+          body: { chatId: f.chatId, resource: { ...resources[1], workspaceId: f.workspaceId } },
+        }),
+        undefined
+      )
+      expect(conflicting.status).toBe(400)
+    }
+  )
+
+  identityCheck(
     'projects Workspace aliases only in HTTP responses while keeping canonical storage',
     async () => {
       const f = await fixture()

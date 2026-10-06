@@ -1278,6 +1278,9 @@
               },
               "Content-Disposition": {
                 "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
               }
             },
             "content": {
@@ -1371,6 +1374,9 @@
               },
               "Content-Disposition": {
                 "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
               }
             },
             "content": {
