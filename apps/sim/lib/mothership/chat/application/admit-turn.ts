@@ -43,6 +43,20 @@ interface AdmitTurnInput {
   desktopDeviceId?: string
 }
 
+/**
+ * The desktop a turn runs on, if any. Only a workspace chat runs on a desktop in the background:
+ * its sidebar shows the status and an approval notification links back to it. An organization
+ * chat stays with its chat view.
+ */
+export async function turnDesktopDevice(
+  principal: SessionPrincipal,
+  workspaceId: string | null | undefined,
+  offeredDeviceId: string | undefined
+): Promise<string | null> {
+  if (!offeredDeviceId || !workspaceId) return null
+  return resolveTurnDesktopDevice(principal, offeredDeviceId)
+}
+
 /** The accepted message, its start intent and retry destination commit together. */
 export const admitChatTurn = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
@@ -86,12 +100,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
-    // Only a workspace chat runs on a desktop in the background: its sidebar shows the status and
-    // an approval notification links back to it. An organization chat stays with its chat view.
-    const desktopDeviceId =
-      input.desktopDeviceId && workspaceId
-        ? await resolveTurnDesktopDevice(principal, input.desktopDeviceId)
-        : null
+    const desktopDeviceId = await turnDesktopDevice(principal, workspaceId, input.desktopDeviceId)
     const turnConfig = sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx

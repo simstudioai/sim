@@ -324,7 +324,9 @@ describe('reflectBackgroundChatStatus', () => {
     queryClient.setQueryData(mothershipChatKeys.ownerList('ws-1'), [
       { id: 'chat-b', name: 'Fix CI' },
     ])
-    queryClient.setQueryData(desktopActivityKeys.list('ws-1'), [])
+    queryClient.setQueryData(desktopActivityKeys.list('ws-1'), [
+      { chatId: 'chat-b', state: 'running', deviceName: 'Studio Mac' },
+    ])
   }
 
   const activityStale = () =>
@@ -338,7 +340,12 @@ describe('reflectBackgroundChatStatus', () => {
     reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
 
     expect(shown).toEqual([
-      { title: 'Fix CI', body: 'Sim finished responding.', route: '/workspace/ws-1/chat/chat-b' },
+      {
+        title: 'Fix CI',
+        body: 'Sim finished responding.',
+        route: '/workspace/ws-1/chat/chat-b',
+        background: true,
+      },
     ])
   })
 
@@ -395,5 +402,18 @@ describe('reflectBackgroundChatStatus', () => {
     )
 
     expect(activityStale()).toBe(false)
+  })
+
+  it("never announces a teammate's chat that finished in the same workspace", () => {
+    showing('/workspace/ws-1/chat/chat-c')
+
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'teammate-chat', type: 'completed', streamId: 's-9' }),
+      true
+    )
+
+    expect(shown).toEqual([])
   })
 })

@@ -1,8 +1,8 @@
 import { listDesktopActivityContract } from '@/lib/api/contracts/desktop-executor'
 import { defineInternalJsonRoute, internalSessionAuth } from '@/lib/api/server/routes'
 import {
+  desktopActivityRateLimit,
   desktopExecutorErrorPolicy,
-  desktopExecutorRateLimit,
 } from '@/lib/api/server/routes/desktop-executor'
 import { listDesktopActivity } from '@/lib/desktop/application/activity'
 
@@ -12,7 +12,7 @@ export const GET = defineInternalJsonRoute({
   contract: listDesktopActivityContract,
   auth: internalSessionAuth,
   operation: listDesktopActivity.operation,
-  rateLimit: desktopExecutorRateLimit,
+  rateLimit: desktopActivityRateLimit,
   errorPolicy: desktopExecutorErrorPolicy,
   mapInput: ({ query }) => ({ workspaceId: query.workspaceId }),
   useCase: listDesktopActivity,

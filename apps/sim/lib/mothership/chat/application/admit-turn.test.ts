@@ -22,7 +22,7 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { admitChatTurn, turnDesktopDevice } from '@/lib/mothership/chat/application/admit-turn'
 
 const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
@@ -125,21 +125,11 @@ describe('organization turn admission through current private-chat authorization
   })
   it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {
     hoisted.resolveDesktop.mockResolvedValue('device-1')
-    queueTableRows(copilotChats, [chat])
-    queueTableRows(member, [{ role: 'member' }])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ model: null }])
-      .mockResolvedValueOnce([{ id: 'run-1', organizationId: 'org-1', workspaceId: null }])
-      .mockResolvedValueOnce([{ key: 'claim' }])
+    const offered = '33333333-3333-4333-8333-333333333333'
 
-    await admitChatTurn.execute({
-      principal,
-      input: { ...input(), desktopDeviceId: '33333333-3333-4333-8333-333333333333' },
-    })
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', desktopDeviceId: null })
-    )
+    await expect(turnDesktopDevice(principal, null, offered)).resolves.toBeNull()
+    await expect(turnDesktopDevice(principal, 'ws-1', offered)).resolves.toBe('device-1')
+    await expect(turnDesktopDevice(principal, 'ws-1', undefined)).resolves.toBeNull()
   })
   it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',

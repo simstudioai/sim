@@ -193,7 +193,7 @@ const DESKTOP_ACTIVITY_COLOR: Record<DesktopChatActivity['state'], string> = {
 
 function desktopActivityLabel({ state, deviceName }: DesktopChatActivity): string {
   if (state === 'needs_input') return 'Needs input'
-  if (state === 'blocked') return `Blocked: ${deviceName} is offline`
+  if (state === 'blocked') return `Waiting for ${deviceName} to come back online`
   return `Running on ${deviceName}`
 }
 

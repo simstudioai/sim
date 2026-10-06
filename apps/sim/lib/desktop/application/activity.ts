@@ -11,7 +11,8 @@ const logger = createLogger('DesktopActivity')
 /**
  * - `running`: the desktop is working on the chat's turn.
  * - `needs_input`: the turn waits on the user: an approval, a terminal handoff, a browser takeover.
- * - `blocked`: the desktop the turn runs on is offline, so its desktop calls cannot start.
+ * - `blocked`: the desktop the turn runs on is offline; its desktop calls fail as not run until it
+ *   returns, while the rest of the turn carries on.
  */
 type DesktopChatActivityState = 'running' | 'needs_input' | 'blocked'
 
@@ -35,7 +36,8 @@ async function readPresence(deviceId: string): Promise<boolean> {
 /**
  * Which of the caller's chats in a workspace are running on one of their desktops, and in what
  * state. Lists only the caller's own runs, never their content, so it needs no workspace role.
- * Runs already bound keep showing after the executor is turned off, until they end.
+ * The endpoint is not flag-gated (runs already bound are listed until they end); the sidebar asks
+ * only while the background executor is on for the user.
  */
 export const listDesktopActivity = defineAuthorizedCredentialUserUseCase({
   // permission-group-exempt: reports only the caller's own runs, with no content.

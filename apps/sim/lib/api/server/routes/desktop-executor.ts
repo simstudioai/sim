@@ -34,3 +34,12 @@ export const desktopExecutorRateLimit = internalRateLimits.user({
   bucketName: 'desktop-executor',
   config: { maxTokens: 600, refillRate: 10, refillIntervalMs: 1_000 },
 })
+
+/**
+ * The sidebar's desktop activity reads, in a bucket of their own: however many tabs poll it, they
+ * can never spend the tokens a device needs to renew its leases.
+ */
+export const desktopActivityRateLimit = internalRateLimits.user({
+  bucketName: 'desktop-activity',
+  config: { maxTokens: 120, refillRate: 2, refillIntervalMs: 1_000 },
+})

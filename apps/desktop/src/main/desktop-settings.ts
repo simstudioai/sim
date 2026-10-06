@@ -218,10 +218,12 @@ export function createDesktopSettingsService(
         return false
       }
       const window = deps.getMainWindow()
+      // A focused window holds back every notification, as it always has. Only a background
+      // chat's completion is shown anyway when the focused window is somewhere else.
       if (
         preferences.notificationsOnlyWhenUnfocused &&
         window?.isFocused() &&
-        showsRoute(window, payload.route)
+        (!payload.background || showsRoute(window, payload.route))
       ) {
         return false
       }

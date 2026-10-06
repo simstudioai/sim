@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
+import type { DesktopChatActivity } from '@/lib/api/contracts/desktop-executor'
 import { getDesktopBridge } from '@/lib/desktop'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
@@ -194,8 +195,8 @@ function chatRoute(owner: MothershipChatOwner, chatId: string): string {
 
 /**
  * Reflects a turn starting or ending in the chats that run in the background: the desktop
- * activity list changes and, with `announceCompletions`, a chat the user is not looking at that
- * finished its turn is announced. The desktop app decides whether to show that notification
+ * activity list changes and, with `announceCompletions`, a chat of the user's own that their
+ * desktop was running and that they are not looking at is announced when its turn finishes. The desktop app decides whether to show that notification
  * (notifications on, the chat not on screen in the focused window); the chat on screen announces
  * its own completion.
  */
@@ -207,8 +208,18 @@ export function reflectBackgroundChatStatus(
 ): void {
   const payload = parseChatStatusEventPayload(data)
   if (payload?.type !== 'started' && payload?.type !== 'completed') return
+  // Read before the refresh below drops it. The events carry every member's chats in the
+  // workspace; only one this user's own desktop was running is theirs to be told about.
+  const ranOnDesktop =
+    typeof owner === 'string' &&
+    Boolean(
+      queryClient
+        .getQueryData<DesktopChatActivity[]>(desktopActivityKeys.list(owner))
+        ?.some((activity) => activity.chatId === payload.chatId)
+    )
   queryClient.invalidateQueries({ queryKey: desktopActivityKeys.lists() })
   if (!announceCompletions || payload.type !== 'completed' || !payload.chatId) return
+  if (!ranOnDesktop) return
   const settings = getDesktopBridge()?.settings
   if (!settings) return
   const route = chatRoute(owner, payload.chatId)
@@ -218,7 +229,12 @@ export function reflectBackgroundChatStatus(
   )
   const name = chats?.find((chat) => chat.id === payload.chatId)?.name
   void settings
-    .notify({ title: name ?? 'Task complete', body: 'Sim finished responding.', route })
+    .notify({
+      title: name ?? 'Task complete',
+      body: 'Sim finished responding.',
+      route,
+      background: true,
+    })
     .catch((error) =>
       logger.warn('Could not show a chat completion notification', {
         error: getErrorMessage(error),

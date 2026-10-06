@@ -49,6 +49,7 @@ describe('desktop notifications in the default "background only" mode', () => {
       title: 'Fix CI',
       body: 'Sim finished responding.',
       route: BACKGROUND_CHAT,
+      background: true,
     })
 
     expect(shown).toBe(true)
@@ -60,6 +61,7 @@ describe('desktop notifications in the default "background only" mode', () => {
       title: 'Fix CI',
       body: 'Sim finished responding.',
       route: BACKGROUND_CHAT,
+      background: true,
     })
 
     expect(shown).toBe(false)
@@ -73,5 +75,17 @@ describe('desktop notifications in the default "background only" mode', () => {
     })
 
     expect(shown).toBe(false)
+  })
+
+  it('holds back an ordinary notification whenever the window is focused, wherever it is', () => {
+    // The workflow panel's chat completes while the user watches it on the workflow page.
+    const shown = service({ url: 'https://sim.ai/workspace/ws-1/w/wf-1', focused: true }).notify({
+      title: 'Task complete',
+      body: 'Sim finished responding.',
+      route: BACKGROUND_CHAT,
+    })
+
+    expect(shown).toBe(false)
+    expect(Notification.instances).toHaveLength(0)
   })
 })

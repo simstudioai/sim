@@ -305,10 +305,11 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (typeof raw !== 'object' || raw === null) {
     return null
   }
-  const { title, body, route } = raw as {
+  const { title, body, route, background } = raw as {
     title?: unknown
     body?: unknown
     route?: unknown
+    background?: unknown
   }
   if (
     typeof title !== 'string' ||
@@ -323,7 +324,12 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (route !== undefined && (typeof route !== 'string' || !isSafeInternalPath(route))) {
     return null
   }
-  return { title, body, ...(route !== undefined ? { route } : {}) }
+  return {
+    title,
+    body,
+    ...(route !== undefined ? { route } : {}),
+    ...(background === true ? { background: true } : {}),
+  }
 }
 
 export interface IpcDeps {
