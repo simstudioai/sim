@@ -1,18 +1,19 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({ mockRequestJson: vi.fn() }))
-
-vi.mock('@/lib/api/client/request', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/api/client/request')>()),
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   type MothershipChatHistory,
   mothershipChatHistoryQueryOptions,
 } from '@/hooks/queries/mothership-chats'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const history: MothershipChatHistory = {
   id: 'chat-1',
