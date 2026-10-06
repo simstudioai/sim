@@ -116,6 +116,7 @@ import {
   type MothershipChatHistory,
   mothershipChatKeys,
   useMothershipChatHistory,
+  useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -673,6 +674,7 @@ export function useChat(
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { mutate: saveChatEffort } = useSetMothershipChatEffort()
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
@@ -3416,6 +3418,16 @@ export function useChat(
                 mothershipChatKeys.detail(requestChatId)
               )?.effort)
             : effortStore.newChatEffort
+      /* Moves the new-chat pick onto the chat this send opened. Admission stored the pick
+         read above, so one changed while the send was pending is saved to the chat too. */
+      const adoptNewChatEffort = (chatId: string) => {
+        if (options?.requestMode === 'assistant') return
+        const store = useMothershipEffortStore.getState()
+        const latestChoice = store.newChatEffort ?? effortChoice
+        if (!latestChoice) return
+        store.adoptNewChatEffort(chatId, latestChoice)
+        if (latestChoice !== effortChoice) saveChatEffort({ chatId, effort: latestChoice })
+      }
       const writeQueuedSendHandoff = (chatId?: string) => {
         if (!queuedSendHandoff) return
         if (!chatId && !queuedSendHandoff.supersededStreamId) return
@@ -3758,8 +3770,7 @@ export function useChat(
           return consumedByTranscript
         }
         if (admittedChatId && !requestChatId) {
-          if (effortChoice)
-            useMothershipEffortStore.getState().adoptNewChatEffort(admittedChatId, effortChoice)
+          adoptNewChatEffort(admittedChatId)
           requestChatId = admittedChatId
           streamTargetChatId = admittedChatId
           adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
@@ -3809,8 +3820,7 @@ export function useChat(
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
             if (conflictChatId && !streamTargetChatId) {
               // The retry carries the same pick the first attempt stored on that chat.
-              if (effortChoice)
-                useMothershipEffortStore.getState().adoptNewChatEffort(conflictChatId, effortChoice)
+              adoptNewChatEffort(conflictChatId)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,
                 invalidateList: true,
@@ -3953,6 +3963,7 @@ export function useChat(
       organizationId,
       scopeKey,
       queryClient,
+      saveChatEffort,
       upsertChatHistory,
       modelSelectorEnabled,
       processSSEStream,

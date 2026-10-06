@@ -85,6 +85,7 @@ import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 authClientMockFns.mockUseSession.mockImplementation(() => ({
@@ -1962,6 +1963,39 @@ describe('useChat remount send recovery', () => {
     expect(getResult().messageQueue.map((entry) => entry.id)).toEqual(['unsent-entry'])
     expect(state.postBodies).toHaveLength(0)
   })
+
+  it.each([
+    { pendingPick: 'high', kept: 'high', saved: true },
+    { pendingPick: 'low', kept: 'low', saved: false },
+  ] as const)(
+    'keeps a new chat effort picked while its first send is pending ($pendingPick)',
+    async ({ pendingPick, kept, saved }) => {
+      mockRequestJson.mockClear()
+      useMothershipEffortStore.getState().reset()
+      useMothershipEffortStore.getState().setNewChatEffort('low')
+      const { getResult } = renderUseChat()
+      await act(async () => {
+        void getResult().sendMessage('Pick while pending')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      expect(state.postBodies[0]).toMatchObject({ effort: 'low' })
+
+      useMothershipEffortStore.getState().setNewChatEffort(pendingPick)
+      const userMessageId = state.postBodies[0].userMessageId ?? ''
+      await act(async () => {
+        state.pendingAdmissions.get(userMessageId)?.()
+      })
+      await waitFor(() => !getResult().isSending)
+
+      expect(useMothershipEffortStore.getState().chatEfforts[DEDUPED_CHAT_ID]?.effort).toBe(kept)
+      const saves = mockRequestJson.mock.calls.filter(
+        ([contract]) => contract.path === '/api/mothership/chats/[chatId]/effort'
+      )
+      expect(saves.map(([, input]) => input)).toEqual(
+        saved ? [{ params: { chatId: DEDUPED_CHAT_ID }, body: { effort: kept } }] : []
+      )
+    }
+  )
 
   it('loads the saved transcript once when its own stream completes', async () => {
     const chatId = 'chat-own-completion'

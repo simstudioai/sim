@@ -106,10 +106,10 @@ describe('tasks query boundary parsing', () => {
     const client = new tanstack.QueryClient()
     const observer = new tanstack.MutationObserver(
       client,
-      useSetMothershipChatEffort('chat-1') as unknown as MutationObserverOptions<
+      useSetMothershipChatEffort() as unknown as MutationObserverOptions<
         void,
         Error,
-        MothershipEffort,
+        { chatId: string; effort: MothershipEffort },
         { pick: number }
       >
     )
@@ -121,7 +121,7 @@ describe('tasks query boundary parsing', () => {
     for (const save of saves) vi.mocked(fetch).mockReturnValueOnce(save.promise)
     useMothershipEffortStore.getState().reset()
     const outcomes = (['low', 'high', 'low'] as const).map((effort) =>
-      observer.mutate(effort).catch(() => undefined)
+      observer.mutate({ chatId: 'chat-1', effort }).catch(() => undefined)
     )
     await sleep(1)
     expect(fetch).toHaveBeenCalledTimes(1)

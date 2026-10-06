@@ -588,10 +588,9 @@ export function useSetMothershipChatPinned(owner?: MothershipChatOwner) {
   })
 }
 
-async function setChatEffort({
-  chatId,
-  effort,
-}: SetMothershipChatEffortBody & { chatId: string }): Promise<void> {
+type SetMothershipChatEffortVariables = SetMothershipChatEffortBody & { chatId: string }
+
+async function setChatEffort({ chatId, effort }: SetMothershipChatEffortVariables): Promise<void> {
   await requestJson(setMothershipChatEffortContract, {
     params: { chatId },
     body: { effort },
@@ -600,27 +599,22 @@ async function setChatEffort({
 
 /**
  * Records the effort the user picked for a chat. The pick shows and sends at once from the
- * session's pick map; saves for one chat run one at a time so the last pick is the one stored.
+ * session's pick map; saves run one at a time so the last pick is the one stored.
  */
-export function useSetMothershipChatEffort(chatId: string | undefined) {
+export function useSetMothershipChatEffort() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (effort: MothershipEffort) => {
-      if (!chatId) throw new Error('A chat effort needs a chat')
-      return setChatEffort({ chatId, effort })
+    mutationFn: setChatEffort,
+    scope: { id: 'mothership-chat-effort' },
+    // Runs at once even while an earlier save holds the scope, so a failed save rolls
+    // back its own pick by token, never a later pick of the same value.
+    onMutate: ({ chatId, effort }: SetMothershipChatEffortVariables) => ({
+      pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort),
+    }),
+    onError: (_error, { chatId }, context) => {
+      if (context) useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
     },
-    scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
-    // Runs at once even while an earlier save for this chat holds the scope, so a failed
-    // save rolls back its own pick by token, never a later pick of the same value.
-    onMutate: (effort) => {
-      if (!chatId) return undefined
-      return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
-    },
-    onError: (_error, _effort, context) => {
-      if (chatId && context)
-        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
-    },
-    onSuccess: (_data, effort) => {
+    onSuccess: (_data, { chatId, effort }) => {
       queryClient.setQueryData<MothershipChatHistory>(
         mothershipChatKeys.detail(chatId),
         (current) => current && { ...current, effort }
