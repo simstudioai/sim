@@ -831,12 +831,10 @@ describe('handleUnifiedChatPost', () => {
         })
       )
       expect(response.status).toBe(200)
-      const params = buildCopilotRequestPayload.mock.lastCall?.[0] as Record<string, unknown>
-      expect(params?.effort).toBe(expected)
-      expect(params?.modelSelection).toBeUndefined()
-      expect(startCopilotOtelRoot.mock.results.at(-1)?.value.setRequestShape).toHaveBeenCalledWith(
-        expect.objectContaining({ model: undefined })
-      )
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      const wire = JSON.parse(JSON.stringify(requestPayload))
+      expect(wire.effort).toBe(expected)
+      expect(wire).not.toHaveProperty('modelSelection')
     }
   )
 
