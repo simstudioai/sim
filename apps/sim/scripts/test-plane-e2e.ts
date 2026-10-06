@@ -600,7 +600,14 @@ try {
         (await planeConnector.validateConfig(apiKey, { ...config, maxDocuments: true })).valid,
         false
       )
-      const capped = await planeConnector.listDocuments(apiKey, { ...config, maxDocuments: 1 })
+      const cappedContext: Record<string, unknown> = { totalDocsFetched: 0 }
+      const capped = await planeConnector.listDocuments(
+        apiKey,
+        { ...config, maxDocuments: 1 },
+        undefined,
+        cappedContext
+      )
+      assert.equal(cappedContext.listingCapped, true)
       assert.equal(capped.documents.length, 1)
       assert.equal(capped.hasMore, false)
       assert.equal(capped.reconciliationSafe, false)
@@ -976,6 +983,55 @@ try {
       }
     })
   }
+  await check(
+    'v1: knowledge connector preserves distinct capped cursor continuations',
+    async () => {
+      const projectId = id(
+        (
+          await call('plane_create_project', 'v1', {
+            name: 'Disposable cursor verification',
+            identifier: `P${generateId().replaceAll('-', '').slice(0, 7).toUpperCase()}`,
+          })
+        ).result
+      )
+      const itemIds: string[] = []
+      for (let index = 0; index < 102; index++) {
+        itemIds.push(
+          id(
+            (
+              await call('plane_create_work_item', 'v1', {
+                project_id: projectId,
+                name: `Cursor verification ${index}`,
+              })
+            ).result
+          )
+        )
+      }
+      for (const maxDocuments of [101, 102]) {
+        const config = { workspaceSlug, projectId, baseUrl, maxDocuments }
+        const context: Record<string, unknown> = { totalDocsFetched: 0 }
+        const externalIds: string[] = []
+        let cursor: string | undefined
+        let hasMore = true
+        for (let page = 0; page < itemIds.length && hasMore; page++) {
+          const listing = await planeConnector.listDocuments(apiKey, config, cursor, context)
+          externalIds.push(...listing.documents.map((document) => document.externalId))
+          cursor = listing.nextCursor
+          hasMore = listing.hasMore
+          if (hasMore) assert(cursor, 'A continuing listing must provide its next cursor')
+        }
+        assert.equal(hasMore, false)
+        assert.equal(cursor, undefined)
+        assert.deepEqual(
+          externalIds,
+          itemIds.slice(0, maxDocuments).map((itemId) => `work_item:${itemId}`)
+        )
+        assert.equal(context.totalDocsFetched, maxDocuments)
+        if (maxDocuments < itemIds.length) assert.equal(context.listingCapped, true)
+        else assert.notEqual(context.listingCapped, true)
+      }
+    }
+  )
   if (!publicCallback)
     checks.push({
       name: 'Signed public webhook delivery',

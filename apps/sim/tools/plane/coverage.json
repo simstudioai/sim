@@ -779,7 +779,7 @@
       "checked": 102,
       "failures": 0
     },
-    "liveVerification": "Disposable-project HTTP checks exercise v2 and v1 compatibility on Plane Cloud. A real signed webhook delivery exercises registration, signature verification, filtering and cleanup. Community Edition is source-audited; no separate self-hosted server was live-tested.",
+    "liveVerification": "The recorded Plane Cloud validation covers v2 and v1 compatibility and a real signed webhook delivery. These Cloud checks precede the connector cap fixes and have not been rerun for this follow-up. Official Community Edition v1.4.2 was also tested over real HTTP with production Sim actions and the knowledge connector, reverse-proxy paths, signed attachment storage, actual Celery webhook deliveries, and capped cursor continuations without duplicate source records.",
     "liveResponses": {
       "checked": 145,
       "failures": 0
@@ -791,10 +791,32 @@
       "successfulV2Operations": 67,
       "successfulV1CompatibilityVariants": 56,
       "verifiedSignedDeliveries": 1
+    },
+    "communityChecks": {
+      "release": "v1.4.2",
+      "reference": "https://github.com/makeplane/plane/releases/tag/v1.4.2",
+      "passed": 23,
+      "failed": 0,
+      "skipped": 1,
+      "requests": 180,
+      "successfulV1Operations": 51,
+      "additionalReverseProxyChecksPassed": 8,
+      "verifiedSignedDeliveries": 354,
+      "webhookProcessingErrors": 0,
+      "cleanupVerified": true,
+      "boundary": "Production action transport and knowledge connector over real provider HTTP; actual provider webhook deliveries through the production handler. Full Sim route/workflow execution is covered separately by synthetic HTTP and database integration checks.",
+      "cursorPagination": {
+        "sourceWorkItems": 102,
+        "verifiedCaps": [101, 102],
+        "distinctSourceOrderPreserved": true,
+        "exactExhaustionNotMarkedCapped": true,
+        "independentGuardReversionsVerified": true
+      }
     }
   },
   "documentedLimitations": [
     "API availability depends on the Plane edition and version. Community Edition compatibility uses v1.",
+    "Community Edition v1.4.2 does not expose the public project pages API or the v2 webhook management API. Work-item knowledge sync and manual webhook subscriptions were verified against the real Community server.",
     "Signed object-storage transfers are performed with the returned upload URL and form fields; asset initialization and confirmation are exposed as Plane actions.",
     "Expanded v2 objects without a published nested schema are preserved as JSON rather than assigning guessed fields.",
     "The knowledge connector uses v1 to access description content, which v2 work-item reads omit. Offset listings disable automatic deletion reconciliation.",
