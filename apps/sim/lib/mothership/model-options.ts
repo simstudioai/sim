@@ -18,7 +18,7 @@ export const MOTHERSHIP_MODEL_OPTIONS = [
 ] satisfies Array<{ value: ModelSelection['model']; label: string }>
 
 /** The effort a chat or Sim Chat block runs at until the user picks one. */
-export const DEFAULT_MOTHERSHIP_EFFORT: MothershipEffort = 'medium'
+export const DEFAULT_MOTHERSHIP_EFFORT: MothershipEffort = 'high'
 
 const SIMPLE_EFFORT_VALUES: ReadonlySet<MothershipEffort> = new Set([
   'low',

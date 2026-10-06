@@ -644,7 +644,7 @@ describe('E2B session lease', () => {
     const plane = controlPlane(5 * 60_000)
     const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
     expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
-    expect(sandbox?.outlives?.(IDLE_MS)).toBe(true)
+    expect(sandbox?.outlives?.(IDLE_MS, Date.now())).toBe(true)
     await sandbox?.extendLifetime?.(IDLE_MS)
     expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS)
     expect(plane.requests).toBe(1)
@@ -656,7 +656,7 @@ describe('E2B session lease', () => {
       sessionKey: 'chat',
       lifetimeMs: LEASE_MS,
     })
-    expect(sandbox.outlives?.(IDLE_MS)).toBe(true)
+    expect(sandbox.outlives?.(IDLE_MS, Date.now())).toBe(true)
     await sandbox.extendLifetime?.(IDLE_MS)
     expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
     expect(plane.requests).toBe(1)
@@ -673,7 +673,7 @@ describe('E2B session lease', () => {
   it('reads back and extends a lease it did not grant itself', async () => {
     const plane = controlPlane(5 * 60_000)
     const sandbox = await e2bProvider.findSessionSandbox?.('chat', {})
-    expect(sandbox?.outlives?.(IDLE_MS)).toBe(false)
+    expect(sandbox?.outlives?.(IDLE_MS, Date.now())).toBe(false)
     await sandbox?.extendLifetime?.(LEASE_MS)
     expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
     expect(plane.requests).toBe(3)

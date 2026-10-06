@@ -21,13 +21,15 @@
 
 import { act, type ReactNode, StrictMode, useEffect, useState } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson, mockExecuteWorkflow } = vi.hoisted(() => ({
+const { mockRequestJson, mockExecuteWorkflow, mockExecuteBrowserToolOnClient } = vi.hoisted(() => ({
+  mockExecuteBrowserToolOnClient: vi.fn(),
   mockRequestJson: vi.fn(),
   mockExecuteWorkflow:
     vi.fn<
@@ -44,6 +46,10 @@ vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => 
 }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/lib/desktop', () => libDesktopMock)
+vi.mock('@/lib/mothership/tools/client/browser-tool-execution', () => ({
+  executeBrowserToolOnClient: mockExecuteBrowserToolOnClient,
+}))
 vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/terminal')
@@ -85,6 +91,7 @@ import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 authClientMockFns.mockUseSession.mockImplementation(() => ({
@@ -105,7 +112,7 @@ interface NetworkState {
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
   postBehavior: 'hang' | 'accept' | 'deduped' | 'tool' | 'task'
-  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string }>
+  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string; effort?: string }>
   pendingAdmissions: Map<string, () => void>
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
@@ -689,6 +696,36 @@ describe('useChat remount send recovery', () => {
       await waitFor(() => state.postBodies.length === 2)
       expect(state.postBodies[1]).toMatchObject({ chatId: DEDUPED_CHAT_ID, createNewChat: false })
       expect(allQueuedMessages()).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    { surface: 'a new chat', newChatPick: null, storedPick: null, sends: undefined },
+    { surface: 'a new chat', newChatPick: 'medium', storedPick: null, sends: 'medium' },
+    { surface: 'an existing chat', newChatPick: null, storedPick: null, sends: undefined },
+    { surface: 'an existing chat', newChatPick: null, storedPick: 'medium', sends: 'medium' },
+  ] as const)(
+    'sends effort $sends from $surface only when the user picked one',
+    async ({ surface, newChatPick, storedPick, sends }) => {
+      state.postBehavior = 'accept'
+      useMothershipEffortStore.getState().reset()
+      if (newChatPick) useMothershipEffortStore.getState().setNewChatEffort(newChatPick)
+      const { getResult } =
+        surface === 'a new chat'
+          ? renderUseChat('ws-1', 'agent')
+          : renderUseChatInChat('chat-effort', {
+              id: 'chat-effort',
+              title: 'Effort',
+              messages: [],
+              activeStreamId: null,
+              resources: [],
+              effort: storedPick,
+            })
+      await act(async () => {
+        await getResult().sendMessage('Plan the launch')
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(state.postBodies[0].effort).toBe(sends)
     }
   )
 
@@ -1963,6 +2000,59 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies).toHaveLength(0)
   })
 
+  it.each([
+    { pendingPick: 'high', kept: 'high', saved: true },
+    { pendingPick: 'low', kept: 'low', saved: false },
+  ] as const)(
+    'keeps a new chat effort picked while its first send is pending ($pendingPick)',
+    async ({ pendingPick, kept, saved }) => {
+      mockRequestJson.mockClear()
+      useMothershipEffortStore.getState().reset()
+      useMothershipEffortStore.getState().setNewChatEffort('low')
+      const { getResult } = renderUseChat()
+      await act(async () => {
+        void getResult().sendMessage('Pick while pending')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      expect(state.postBodies[0]).toMatchObject({ effort: 'low' })
+
+      useMothershipEffortStore.getState().setNewChatEffort(pendingPick)
+      const userMessageId = state.postBodies[0].userMessageId ?? ''
+      await act(async () => {
+        state.pendingAdmissions.get(userMessageId)?.()
+      })
+      await waitFor(() => !getResult().isSending)
+
+      expect(useMothershipEffortStore.getState().chatEfforts[DEDUPED_CHAT_ID]?.effort).toBe(kept)
+      const saves = mockRequestJson.mock.calls.filter(
+        ([contract]) => contract.path === '/api/mothership/chats/[chatId]/effort'
+      )
+      expect(saves.map(([, input]) => input)).toEqual(
+        saved ? [{ params: { chatId: DEDUPED_CHAT_ID }, body: { effort: kept } }] : []
+      )
+    }
+  )
+
+  it('saves the latest new-chat effort to the chat a deduplicated send names', async () => {
+    mockRequestJson.mockClear()
+    useMothershipEffortStore.getState().reset()
+    useMothershipEffortStore.getState().setNewChatEffort('high')
+    state.postBehavior = 'deduped'
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('Retry of an admitted send')
+    })
+    await waitFor(() => state.postBodies.length === 1 && !getResult().isSending)
+
+    expect(useMothershipEffortStore.getState().chatEfforts[DEDUPED_CHAT_ID]?.effort).toBe('high')
+    const saves = mockRequestJson.mock.calls.filter(
+      ([contract]) => contract.path === '/api/mothership/chats/[chatId]/effort'
+    )
+    expect(saves.map(([, input]) => input)).toEqual([
+      { params: { chatId: DEDUPED_CHAT_ID }, body: { effort: 'high' } },
+    ])
+  })
+
   it('loads the saved transcript once when its own stream completes', async () => {
     const chatId = 'chat-own-completion'
     const history: MothershipChatHistory = {
@@ -2038,5 +2128,110 @@ describe('useChat remount send recovery', () => {
         .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
         ?.messages.map((message) => message.id)
     ).toEqual(['saved-user', 'saved-assistant'])
+  })
+  describe('a desktop browser action in flight', () => {
+    const chatId = 'chat-browser-action'
+    const history: MothershipChatHistory = {
+      id: chatId,
+      mode: 'agent',
+      title: 'Browser action',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+
+    /** Opens a turn whose stream delivers one desktop browser call and stays open. */
+    async function startBrowserAction() {
+      let streamId: string | undefined
+      const replays: string[] = []
+      mockRequestJson.mockImplementation((contract: AnyApiRouteContract) =>
+        Promise.resolve(
+          contract.path === '/api/mothership/chats/[chatId]'
+            ? { chat: { ...history, activeStreamId: streamId ?? null } }
+            : { chats: [] }
+        )
+      )
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/api/mothership/chat/stream')) replays.push(url)
+        if (url !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        streamId = JSON.parse(String(init.body)).userMessageId
+        const call: MothershipStreamV1EventEnvelope = {
+          v: 1,
+          seq: 1,
+          ts: new Date().toISOString(),
+          type: 'tool',
+          stream: { streamId: streamId ?? '' },
+          payload: {
+            phase: 'call',
+            executor: 'client',
+            mode: 'async',
+            toolName: 'browser_list_tabs',
+            toolCallId: 'browser-call',
+            arguments: {},
+          },
+        }
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(call)}\n\n`))
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+        )
+      })
+      const chat = renderUseChatInChat(chatId, history)
+      await act(async () => {
+        void chat.getResult().sendMessage('List my tabs')
+      })
+      await waitFor(() => mockExecuteBrowserToolOnClient.mock.calls.length === 1)
+      const toolSignal = mockExecuteBrowserToolOnClient.mock.calls[0]?.[5]
+      if (!(toolSignal instanceof AbortSignal))
+        throw new Error('The browser action has no lifetime')
+      return { ...chat, toolSignal, replays }
+    }
+
+    beforeEach(() => {
+      libDesktopMockFns.mockIsDesktopApp.mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      libDesktopMockFns.mockIsDesktopApp.mockReset()
+    })
+
+    it('keeps running when the window returns to view and the stream is recovered', async () => {
+      const { toolSignal, replays } = await startBrowserAction()
+
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      })
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      await waitFor(() => replays.length > 0)
+
+      expect(toolSignal.aborted).toBe(false)
+    })
+
+    it('keeps running when the chat view unmounts, so it finishes and reports its result', async () => {
+      const { toolSignal, unmount } = await startBrowserAction()
+
+      unmount()
+
+      expect(toolSignal.aborted).toBe(false)
+    })
+
+    it('is cancelled when the user stops the chat', async () => {
+      const { toolSignal, getResult } = await startBrowserAction()
+
+      await act(async () => {
+        await getResult().stopGeneration()
+      })
+
+      expect(toolSignal.aborted).toBe(true)
+    })
   })
 })

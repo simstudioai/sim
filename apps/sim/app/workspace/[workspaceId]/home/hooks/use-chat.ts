@@ -115,6 +115,7 @@ import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
   mothershipChatKeys,
+  saveMothershipChatEffort,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
@@ -450,6 +451,25 @@ export async function waitForDetachedChatResolution(
     )
     attempt++
   }
+}
+
+/** The abort reason of the user's Stop. */
+const USER_STOP_ABORT_REASON = 'user_stop:client_stopGeneration'
+
+/**
+ * The lifetime a browser action started from one stream observes: only the user's Stop cancels
+ * it. Replacing the stream reader (the window returning to view, a history reconnect) or leaving
+ * the chat view leaves it running, so it finishes and reports its own result.
+ */
+function browserToolLifetime(streamSignal: AbortSignal | undefined): AbortSignal | undefined {
+  if (!streamSignal) return undefined
+  const lifetime = new AbortController()
+  const followStop = () => {
+    if (streamSignal.reason === USER_STOP_ABORT_REASON) lifetime.abort(USER_STOP_ABORT_REASON)
+  }
+  if (streamSignal.aborted) followStop()
+  else streamSignal.addEventListener('abort', followStop, { once: true })
+  return lifetime.signal
 }
 
 /**
@@ -2151,7 +2171,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const streamAbortSignal = abortControllerRef.current?.signal
+      const browserToolSignal = browserToolLifetime(abortControllerRef.current?.signal)
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -2172,7 +2192,7 @@ export function useChat(
         eventTs?: string
       ) => {
         const scopeId = activityScopeId()
-        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, streamAbortSignal)
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, browserToolSignal)
       }
       const startClientTerminalToolForStream = (
         toolCallId: string,
@@ -3416,6 +3436,18 @@ export function useChat(
                 mothershipChatKeys.detail(requestChatId)
               )?.effort)
             : effortStore.newChatEffort
+      /* Moves the new-chat pick onto the chat a send opened and saves it there unless it is
+         the pick this send's admission stored. A pick changed while the send was pending,
+         or a chat an earlier attempt opened with an unknown pick, gets the latest one. */
+      const adoptNewChatEffort = (chatId: string, admittedThisSend: boolean) => {
+        if (options?.requestMode === 'assistant') return
+        const store = useMothershipEffortStore.getState()
+        const latestChoice = store.newChatEffort ?? effortChoice
+        if (!latestChoice) return
+        store.adoptNewChatEffort(chatId, latestChoice)
+        if (!admittedThisSend || latestChoice !== effortChoice)
+          saveMothershipChatEffort(queryClient, chatId, latestChoice)
+      }
       const writeQueuedSendHandoff = (chatId?: string) => {
         if (!queuedSendHandoff) return
         if (!chatId && !queuedSendHandoff.supersededStreamId) return
@@ -3758,8 +3790,7 @@ export function useChat(
           return consumedByTranscript
         }
         if (admittedChatId && !requestChatId) {
-          if (effortChoice)
-            useMothershipEffortStore.getState().adoptNewChatEffort(admittedChatId, effortChoice)
+          adoptNewChatEffort(admittedChatId, true)
           requestChatId = admittedChatId
           streamTargetChatId = admittedChatId
           adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
@@ -3808,9 +3839,7 @@ export function useChat(
             const conflictChatId =
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
             if (conflictChatId && !streamTargetChatId) {
-              // The retry carries the same pick the first attempt stored on that chat.
-              if (effortChoice)
-                useMothershipEffortStore.getState().adoptNewChatEffort(conflictChatId, effortChoice)
+              adoptNewChatEffort(conflictChatId, false)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,
                 invalidateList: true,
@@ -4424,7 +4453,7 @@ export function useChat(
       streamReaderRef.current = null
       const stoppedController = abortControllerRef.current
       if (stoppedController !== pendingAdmission?.controller) {
-        stoppedController?.abort('user_stop:client_stopGeneration')
+        stoppedController?.abort(USER_STOP_ABORT_REASON)
       }
       abortControllerRef.current = null
       setTransportIdle()
@@ -4520,7 +4549,7 @@ export function useChat(
             if (pendingAdmission && pendingAdmission.userMessageId === sid) {
               const admittedChatId = await pendingAdmission.settled
               resolvedChatId ??= admittedChatId
-              pendingAdmission.controller.abort('user_stop:client_stopGeneration')
+              pendingAdmission.controller.abort(USER_STOP_ABORT_REASON)
             }
             if (!resolvedChatId && sid) {
               resolvedChatId = await resolveChatIdForStream(sid, { preferExistingChatId: false })

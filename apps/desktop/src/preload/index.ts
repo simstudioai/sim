@@ -156,6 +156,7 @@ const api: SimDesktopApi = {
     ipcRenderer.invoke('desktop:local-filesystem', request),
   localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
     ipcRenderer.invoke('desktop:local-files', request),
+  localReadClaims: true,
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
     ipcRenderer.on('desktop:command', listener)

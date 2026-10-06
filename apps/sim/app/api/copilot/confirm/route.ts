@@ -1,7 +1,5 @@
 import type { Span } from '@opentelemetry/api'
-import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
-import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -14,6 +12,7 @@ import {
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
   type AsyncTerminalStatus,
+  getTerminalConfirmationStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
   isWorkflowToolExecutionClaimable,
@@ -41,12 +40,11 @@ import {
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
-import { getDesktopToolClaimOwner } from '@/lib/mothership/tools/desktop-tools'
+import { getDesktopToolClaimOwner, isNativeDesktopTool } from '@/lib/mothership/tools/desktop-tools'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
-  getWorkflowToolConfirmationStatus,
   getWorkflowToolLaunchError,
   resolveWorkflowToolTargetId,
   WORKFLOW_EXECUTION_BUSY,
@@ -92,7 +90,7 @@ function acknowledgeSettledToolCall(
   toolCallId: string,
   storedStatus: AsyncTerminalStatus
 ): NextResponse {
-  const settledStatus = getWorkflowToolConfirmationStatus(storedStatus)
+  const settledStatus = getTerminalConfirmationStatus(storedStatus)
   span.setAttributes({
     [TraceAttr.ToolConfirmationStatus]: settledStatus,
     [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
@@ -264,7 +262,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             return createNotFoundResponse('Completed workflow execution not found')
           }
 
-          const terminalStatus = getWorkflowToolConfirmationStatus(existing.status)
+          const terminalStatus = getTerminalConfirmationStatus(existing.status)
           span.setAttributes({
             [TraceAttr.ToolConfirmationStatus]: terminalStatus,
             [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
@@ -308,10 +306,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const isErrorOrCancelledOutcome =
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
-        const isNativeClientTool =
-          isBrowserToolName(existing.toolName) ||
-          isTerminalToolName(existing.toolName) ||
-          existing.toolName === 'import_local_files'
+        const isNativeClientTool = isNativeDesktopTool(existing.toolName)
         const nativeClaimOwner = getDesktopToolClaimOwner(existing.toolName)
         const isPreclaimNativeTerminalOutcome =
           nativeClaimOwner !== undefined &&
@@ -329,6 +324,17 @@ export const POST = withRouteHandler((req: NextRequest) => {
         if ((isNativeClientTool || isWorkflowTool) && !isMutableClientToolCall) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
+        }
+        // A reporter that says the call never started (a stale replay, a closed view) cannot speak
+        // for a call the desktop claimed: only the claim's own result may settle it.
+        if (
+          isNativeClientTool &&
+          isPlainRecord(data) &&
+          data.notStarted === true &&
+          existing.status !== ASYNC_TOOL_STATUS.pending
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Pending client tool call not found')
         }
 
         let effectiveStatus = status
@@ -365,7 +371,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             executionId = claimedExecutionId
             if (status !== ASYNC_TOOL_CONFIRMATION_STATUS.background) {
               if (trustedExecution) {
-                effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
+                effectiveStatus = getTerminalConfirmationStatus(trustedExecution.status)
               } else if (!isErrorOrCancelledOutcome) {
                 span.setAttribute(
                   TraceAttr.CopilotConfirmOutcome,
@@ -378,7 +384,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             executionId = submittedExecutionId
           } else if (trustedExecution) {
             executionId = trustedExecution.executionId
-            effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
+            effectiveStatus = getTerminalConfirmationStatus(trustedExecution.status)
           } else if (!isErrorOrCancelledOutcome) {
             effectiveStatus = ASYNC_TOOL_CONFIRMATION_STATUS.error
             executionId = undefined

@@ -530,6 +530,10 @@ export {
   mothershipChatStatusMockFns,
 } from './mothership-chat-status.mock'
 export {
+  mothershipClientToolWaiterMock,
+  mothershipClientToolWaiterMockFns,
+} from './mothership-client-tool-waiter.mock'
+export {
   mothershipEnvironmentContextMock,
   mothershipEnvironmentContextMockFns,
 } from './mothership-environment-context.mock'

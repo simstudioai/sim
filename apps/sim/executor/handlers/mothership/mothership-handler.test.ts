@@ -1095,6 +1095,13 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
+  it('runs a block with no effort set at high', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ content: 'done' })))
+    await handler.execute(context, block, { prompt: 'hello' })
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body.effort).toBe('high')
+  })
+
   it.each([true, false])('uses deployment agent-event opt-in: %s', async (agentEvents) => {
     context.stream = true
     context.selectedOutputs = [`${block.id}_content`]

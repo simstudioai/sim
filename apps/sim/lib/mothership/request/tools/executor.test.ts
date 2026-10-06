@@ -87,6 +87,7 @@ vi.mock('@/lib/mothership/chat/delegation', () => ({
 
 const {
   mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockCompletePendingAsyncToolCall: completePendingAsyncToolCall,
   mockMarkAsyncToolRunning: markAsyncToolRunning,
   mockUpsertAsyncToolCall: upsertAsyncToolCall,
   mockClaimToolExecution: claimToolExecution,
@@ -248,6 +249,23 @@ describe('pendingToolWaitBudgetMs', () => {
         params: { timeoutMs: 120_000 },
       })
     ).toBe(195_000)
+  })
+
+  it('outlasts the wait window the desktop holds a terminal run for', () => {
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'terminal',
+        status: 'executing',
+        params: { operation: 'run', args: { command: 'bun install', waitSeconds: 120 } },
+      })
+    ).toBeGreaterThan(120_000)
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'terminal',
+        status: 'executing',
+        params: { operation: 'read', args: {} },
+      })
+    ).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
 
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
@@ -874,7 +892,7 @@ describe('watchdog completion provenance', () => {
       status: 'error',
       message: expect.stringContaining('outcome is unknown'),
       data: {
-        error: expect.stringContaining('hung'),
+        error: expect.stringContaining('never came back'),
         outcomeUnknown: true,
         doNotRetry: true,
       },
@@ -890,6 +908,36 @@ describe('watchdog completion provenance', () => {
     expect(publishToolConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({ data: persisted.result })
     )
+  })
+
+  it('tells the model a desktop call nobody picked up never started', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: { error: expect.stringContaining('safe to retry'), notStarted: true },
+    })
+  })
+
+  it('tells the model a desktop call it picked up lost its result and may have acted', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('desktop app started this action'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
   })
 
   it('preserves an actual completion that settles while encryption is pending', async () => {
@@ -1042,7 +1090,7 @@ describe('watchdog completion provenance', () => {
       const completion = await execution
 
       expect(completion.status).toBe('error')
-      expect(completion.message).toContain('hung')
+      expect(completion.message).toContain('never came back')
       expect(toolCall.status).toBe('error')
       expect(completeAsyncToolCall).toHaveBeenCalledTimes(1)
       expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
@@ -1112,7 +1160,7 @@ describe('watchdog completion provenance', () => {
       const completion = await execution
 
       expect(completion.status).toBe('error')
-      expect(completion.message).toContain('hung')
+      expect(completion.message).toContain('never came back')
       expect(toolCall.status).toBe('error')
       expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
       expect(onEvent).not.toHaveBeenCalled()
@@ -1146,7 +1194,7 @@ describe('watchdog completion provenance', () => {
     const completion = await execution
 
     expect(completion.status).toBe('error')
-    expect(completion.message).toContain('hung')
+    expect(completion.message).toContain('never came back')
     expect(completeAsyncToolCall).toHaveBeenCalledTimes(1)
     expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(completion)).not.toContain('late rejected secret output')
