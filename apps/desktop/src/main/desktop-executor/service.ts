@@ -116,6 +116,8 @@ export function createDesktopExecutorService(
   let registrationAttempt = 0
   /** Logged once per run of missing routes, not on every recheck. */
   let routesMissingNoted = false
+  /** The last registration failed with no answer from Sim at all. */
+  let registrationFailedOffline = false
   let suspended = false
   let started = false
   /** Bumped on sign-out, so work started for the previous session cannot resume it. */
@@ -284,6 +286,7 @@ export function createDesktopExecutorService(
       })
       if (registrationGeneration !== generation || id !== deviceId) return
       registrationAttempt = 0
+      registrationFailedOffline = false
       routesMissingNoted = false
       // A Sim that speaks another protocol version gets no new turns bound to this device.
       device =
@@ -338,6 +341,7 @@ export function createDesktopExecutorService(
         scheduleRegistration(DORMANT_RECHECK_MS)
         return
       }
+      registrationFailedOffline = error instanceof DeviceRequestError && error.status === 0
       registrationAttempt += 1
       logger.warn('Desktop executor registration failed', {
         attempt: registrationAttempt,
@@ -407,7 +411,11 @@ export function createDesktopExecutorService(
     let online = net.isOnline()
     setInterval(() => {
       const now = net.isOnline()
-      if (now && !online) wake()
+      if (now && !online) {
+        wake()
+        // A registration that failed for want of a network need not wait out its backoff.
+        if (registrationFailedOffline) scheduleRegistration(0)
+      }
       online = now
     }, ONLINE_POLL_MS).unref?.()
   }

@@ -314,6 +314,12 @@ export interface TmuxRunHandle {
   dispose(): void
 }
 
+/**
+ * How many 50 ms polls a run's command waits for its go file: longer than the tagging call can
+ * take before it times out, so a tag that succeeds always lands inside the window.
+ */
+const RUN_GATE_POLLS = Math.ceil((2 * TMUX_TIMEOUT_MS + 5_000) / 50)
+
 /** The tmux user option that marks a pane as one run's own. */
 const RUN_ID_OPTION = '@sim-run-id'
 
@@ -358,8 +364,9 @@ export async function startRun(
   // tmux window, minutes after they closed the tab.
   //
   // The command waits for its pane to be tagged as this run's (the go file), so nothing runs that
-  // a later stop could not recognize. Untagged, the script gives up after five seconds and its
-  // pane closes on its own; no one has to close a pane whose id might no longer be its own.
+  // a later stop could not recognize. Untagged, the script gives up once the tagging call has
+  // surely failed, and its pane closes on its own; no one has to close a pane whose id might no
+  // longer be its own.
   //
   // The script is a file rather than a `bash -c` string: tmux hands its command to `sh -c`, which
   // would expand `$` references meant for bash (the gate's counter, PIPESTATUS) before bash ran.
@@ -368,7 +375,7 @@ export async function startRun(
     scriptPath,
     [
       'i=0',
-      `while [ ! -e ${JSON.stringify(goPath)} ] && [ "$i" -lt 100 ]; do sleep 0.05; i=$((i + 1)); done`,
+      `while [ ! -e ${JSON.stringify(goPath)} ] && [ "$i" -lt ${RUN_GATE_POLLS} ]; do sleep 0.05; i=$((i + 1)); done`,
       `[ -e ${JSON.stringify(goPath)} ] || exit 0`,
       `{ ${command}`,
       `printf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)} 2>/dev/null; } 2>&1 | tee ${JSON.stringify(outPath)}`,

@@ -488,6 +488,10 @@ export class TerminalService {
    * left alone: its `tee` is still appending to that directory.
    */
   private async reapFinishedRuns(terminalId: string, env: NodeJS.ProcessEnv): Promise<void> {
+    // A closed tab's run whose pane has since gone (its command ended) needs no stopping.
+    for (const [handle, orphanEnv] of this.orphanedRuns) {
+      if ((await runPaneState(handle, orphanEnv)) === 'gone') this.orphanedRuns.delete(handle)
+    }
     for (const handle of this.pendingRuns.get(terminalId) ?? []) {
       if (this.awaitedRuns.has(handle)) continue
       if (isRunComplete(handle) || (await runPaneState(handle, env)) === 'gone') {

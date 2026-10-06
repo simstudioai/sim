@@ -6,18 +6,25 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+import { net } from 'electron'
 import { createDesktopExecutorService, deviceName } from '@/main/desktop-executor/service'
 
 /** Sim's device routes, with registration answers held until the test releases them. */
 function fakeSim(protocolVersion = 1) {
   const requests: string[] = []
-  /** Answers to pending registrations: enabled or not, or an HTTP status Sim fails with. */
-  const registrations: Array<(answer: boolean | number) => void> = []
+  /**
+   * Answers to pending registrations: enabled or not, an HTTP status Sim fails with, or
+   * `'offline'` for a request that never reached Sim.
+   */
+  const registrations: Array<(answer: boolean | number | 'offline') => void> = []
   const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
     const path = new URL(url).pathname
     requests.push(`${init.method} ${path}`)
     if (path === '/api/desktop/devices') {
-      const answer = await new Promise<boolean | number>((resolve) => registrations.push(resolve))
+      const answer = await new Promise<boolean | number | 'offline'>((resolve) =>
+        registrations.push(resolve)
+      )
+      if (answer === 'offline') throw new TypeError('fetch failed')
       if (typeof answer === 'number') {
         return Response.json({ error: 'Not found' }, { status: answer })
       }
@@ -117,6 +124,30 @@ describe('desktop executor registration', () => {
       expect(sim.registrations).toHaveLength(2)
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it('registers again as soon as the network returns, not after its backoff', async () => {
+    const { sim, desktopExecutor } = await service()
+    vi.mocked(net.isOnline).mockReturnValue(false)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      desktopExecutor.start()
+      // Four failures with no network leave the next attempt at least 12.8 s away.
+      for (let failure = 0; failure < 4; failure += 1) {
+        await vi.waitFor(() => expect(sim.registrations).toHaveLength(failure + 1))
+        sim.registrations[failure]?.('offline')
+        await vi.advanceTimersByTimeAsync(failure < 3 ? 10_000 : 0)
+      }
+      expect(sim.registrations).toHaveLength(4)
+
+      vi.mocked(net.isOnline).mockReturnValue(true)
+      await vi.advanceTimersByTimeAsync(2_500)
+
+      expect(sim.registrations).toHaveLength(5)
+    } finally {
+      vi.useRealTimers()
+      vi.mocked(net.isOnline).mockReturnValue(true)
     }
   })
 
