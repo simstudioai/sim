@@ -17,7 +17,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
 
-const claimDesktopToolCall = mothershipAsyncRunsMockFns.mockClaimToolExecution
+const claimDesktopToolCall = mothershipAsyncRunsMockFns.mockClaimDesktopToolCall
 const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
 const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
