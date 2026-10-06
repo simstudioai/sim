@@ -115,6 +115,14 @@ describe('client tool completion reporting', () => {
     expect(signal?.aborted).toBe(true)
   })
 
+  it('treats a 409 as final: the desktop app holds the call', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 409 }))
+
+    await expect(
+      reportClientToolCompletionOnPageExit('tool-1', 'error', 'Browser failed')
+    ).resolves.toBeUndefined()
+  })
+
   it('rejects a non-success response', async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 503 }))
 

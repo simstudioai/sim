@@ -109,6 +109,8 @@ const OUTCOME_UNKNOWN_MESSAGE =
   'The Sim window closed while this browser action was in flight. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
 const REPLAY_OUTCOME_UNKNOWN_MESSAGE =
   'This browser action was recorded before the Sim page reloaded, but its terminal result could not be recovered. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+const STALE_OBSERVATION_NOT_RUN_MESSAGE =
+  'Not run: this browser observation reached the Sim desktop app too late to run safely, so it was not run this time and has no result. An observation changes nothing in the browser. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE =
   'This browser action was delivered too late to recover its exact result. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
 const REPLAY_GUARD_CAPACITY_MESSAGE =
@@ -593,7 +595,7 @@ export async function executeBrowserToolOnClient(
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
     const observationOnly = OBSERVATION_ONLY_BROWSER_TOOLS[toolName]
     const message = observationOnly
-      ? 'This browser observation was delivered too late to run safely. Ask again to retry it.'
+      ? STALE_OBSERVATION_NOT_RUN_MESSAGE
       : STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE
     retainAndReportTerminalCompletion(
       toolCallId,

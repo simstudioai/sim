@@ -305,6 +305,29 @@ describe('Copilot Confirm API Route', () => {
     }
   )
 
+  it('refuses a not-started report for a call the desktop already claimed', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'running',
+      claimedBy: 'desktop-browser',
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop action did not start.',
+        data: { notStarted: true },
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'The desktop app holds this tool call; only its own result settles it',
+    })
+  })
+
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
