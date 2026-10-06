@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -4363,6 +4363,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "claude-platform",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["agentic", "llm"]
@@ -5748,6 +5749,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "coda",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base", "spreadsheet", "project-management", "automation"]
@@ -11553,6 +11555,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "harmonic",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "automation", "agentic"]
@@ -17088,6 +17091,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "netsuite",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics", "payments"]
@@ -23677,6 +23681,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
+      "serviceAccountServiceId": "snowflake",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"]

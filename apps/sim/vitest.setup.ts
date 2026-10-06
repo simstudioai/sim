@@ -131,6 +131,8 @@ vi.mock('@/blocks/registry', () => ({
     outputs: {},
   })),
   getAllBlocks: vi.fn(() => []),
+  getTemplatesForBlock: vi.fn(() => []),
+  getSuggestedSkillsForBlock: vi.fn(() => []),
   getLatestBlock: vi.fn(() => undefined),
   /** Detail-read accessor: version-resolved and projected through the viewer's visibility. */
   getLatestBlockForViewer: vi.fn(() => undefined),

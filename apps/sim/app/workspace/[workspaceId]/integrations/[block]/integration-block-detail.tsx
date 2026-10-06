@@ -12,6 +12,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -69,6 +70,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
+  const serviceAccountService = resolveServiceAccountServiceForIntegration(integration)
   const { integrationAvailability, isLoading: permissionConfigLoading } = usePermissionConfig()
   const { chatEnabled } = useDeploymentShape()
   const availability = integrationAvailability.get(integration.type.toLowerCase())
@@ -94,22 +96,39 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const connectedCredentials = useMemo(() => {
     if (integration.type === 'gitlab')
       return credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab')
-    if (!oauthService) return []
+    const credentialService = oauthService ?? serviceAccountService
+    if (!credentialService) return []
     return credentials.filter(
       (c) =>
         (c.type === 'oauth' || c.type === 'service_account') &&
         c.providerId &&
-        credentialProviderMatchesService(c.providerId, oauthService)
+        credentialProviderMatchesService(c.providerId, credentialService)
     )
-  }, [credentials, oauthService, integration.type])
+  }, [credentials, oauthService, serviceAccountService, integration.type])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
-    serviceAccountProviderId: oauthService?.serviceAccountProviderId,
-    serviceName: oauthService?.serviceName,
-    serviceIcon: oauthService?.serviceIcon,
+    serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId,
+    serviceName: serviceAccountService?.serviceName,
+    serviceIcon: serviceAccountService?.serviceIcon,
   })
-  const serviceAccountDeploymentAvailable =
-    availability?.state === 'ready' || availability?.state === 'limited'
+  /**
+   * Unknown availability means two different things, and they want opposite
+   * defaults.
+   *
+   * While the permission config is still in flight the answer is imminent, so
+   * only an integration whose *sole* path is a stored service account offers the
+   * control — for one that also has OAuth, a `true` here would widen the header
+   * from a chip to a dropdown and then collapse it again as the config lands.
+   *
+   * Once both queries have settled and still produced nothing, the request
+   * failed, and withholding the control strands a user who has a perfectly good
+   * stored account behind a fetch they cannot retry. Fail open there, matching
+   * the `?? true` that `oauthAvailable` above already applies to the OAuth path;
+   * the server still refuses a provider the deployment does not offer.
+   */
+  const serviceAccountDeploymentAvailable = availability
+    ? availability.state === 'ready' || availability.state === 'limited'
+    : !oauthService || !permissionConfigLoading
   const hasServiceAccount =
     serviceAccountDeploymentAvailable &&
     Boolean(serviceAccountTarget) &&
@@ -147,28 +166,29 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     setConnectMode,
   ])
 
-  const connectOptions = oauthService
-    ? [
-        ...(oauthAvailable
-          ? [
-              {
-                value: CONNECT_MODE.oauth,
-                label: 'Connect with OAuth',
-                icon: oauthService.serviceIcon,
-              },
-            ]
-          : []),
-        ...(hasServiceAccount
-          ? [
-              {
-                value: CONNECT_MODE.serviceAccount,
-                label: serviceAccountConnectLabel,
-                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-              },
-            ]
-          : []),
-      ]
-    : []
+  const connectOptions =
+    oauthService || serviceAccountService
+      ? [
+          ...(oauthAvailable && oauthService
+            ? [
+                {
+                  value: CONNECT_MODE.oauth,
+                  label: 'Connect with OAuth',
+                  icon: oauthService.serviceIcon,
+                },
+              ]
+            : []),
+          ...(hasServiceAccount
+            ? [
+                {
+                  value: CONNECT_MODE.serviceAccount,
+                  label: serviceAccountConnectLabel,
+                  icon: serviceAccountTarget?.serviceIcon ?? serviceAccountService?.serviceIcon,
+                },
+              ]
+            : []),
+        ]
+      : []
 
   const handleSelectConnectOption = (value: string) => {
     if (value === CONNECT_MODE.oauth) setOAuthOpen(true)
@@ -179,6 +199,21 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     storeCuratedPrompt(`Explore ${integration.name}. What can I do?`)
     router.push(`/workspace/${workspaceId}/home`)
   }
+
+  /**
+   * Shown when no connect flow is on offer. "Unavailable" is a verdict about a
+   * connection the deployment grants, so it belongs only to an integration with
+   * an OAuth path. One authenticated by a stored service account still runs on
+   * the user's own API key, and so keeps the catalog's ordinary call to action —
+   * the same fallback an integration with no credential service at all gets.
+   */
+  const connectFallback = oauthService ? (
+    <Chip disabled>Unavailable</Chip>
+  ) : chatEnabled ? (
+    <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
+      Add to Sim
+    </Chip>
+  ) : null
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -191,7 +226,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
               Add personal token
             </Chip>
-          ) : oauthService ? (
+          ) : oauthService || serviceAccountService ? (
             connectOptions.length > 1 ? (
               <ChipDropdown
                 variant='primary'
@@ -211,13 +246,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 {serviceAccountConnectLabel}
               </Chip>
             ) : (
-              <Chip disabled>Unavailable</Chip>
+              connectFallback
             )
-          ) : chatEnabled ? (
-            <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
-              Add to Sim
-            </Chip>
-          ) : null}
+          ) : (
+            connectFallback
+          )}
         </div>
       </div>
       {personalTokenAvailable && (
@@ -247,7 +280,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
-          atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
+          atlassianProduct={
+            serviceAccountService?.providerId === 'confluence' ? 'confluence' : 'jira'
+          }
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
         />
