@@ -44,6 +44,7 @@ setEnv({
   TABLE_ROW_TTL: undefined,
   MSHIP_MODEL_SELECTOR: undefined,
   MSHIP_PLAN_MODE: undefined,
+  MSHIP_DESKTOP_BACKGROUND_EXECUTOR: undefined,
   AGENT_MEMORY_HISTORY: undefined,
   CREDENTIAL_GROUPS: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,

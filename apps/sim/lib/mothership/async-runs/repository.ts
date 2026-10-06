@@ -563,6 +563,16 @@ export async function getAsyncToolCall(toolCallId: string) {
   )
 }
 
+/**
+ * The execution owner a status change must still belong to, and what its lease must be: `live`
+ * (the default) for the owner's own result, and `any` where a late but real result beats the
+ * outcome-unknown settlement nobody has written yet.
+ */
+interface ExecutionOwnerFence {
+  token: string
+  lease?: 'live' | 'any'
+}
+
 async function markAsyncToolStatus(
   toolCallId: string,
   status: CopilotAsyncToolStatus,
@@ -572,10 +582,11 @@ async function markAsyncToolStatus(
     result?: AsyncCompletionData | null
     error?: string | null
     completedAt?: Date | null
+    executionSettledAt?: Date
   } = {},
   expectedStatuses?: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
-  expectedExecutionOwnerToken?: string
+  expectedOwner?: ExecutionOwnerFence
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -606,6 +617,7 @@ async function markAsyncToolStatus(
           result: sanitizeValueForJsonb(updates.result),
           error: updates.error,
           completedAt: updates.completedAt,
+          executionSettledAt: updates.executionSettledAt,
           updatedAt: new Date(),
         })
         .where(
@@ -613,11 +625,13 @@ async function markAsyncToolStatus(
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
             expectedStatuses ? inArray(copilotAsyncToolCalls.status, expectedStatuses) : undefined,
             expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined,
-            expectedExecutionOwnerToken
+            expectedOwner
               ? and(
-                  eq(copilotAsyncToolCalls.executionOwnerToken, expectedExecutionOwnerToken),
+                  eq(copilotAsyncToolCalls.executionOwnerToken, expectedOwner.token),
                   isNull(copilotAsyncToolCalls.executionRevokedAt),
-                  sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+                  expectedOwner.lease === 'any'
+                    ? undefined
+                    : sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
                 )
               : undefined
           )
@@ -638,7 +652,7 @@ export async function markAsyncToolRunning(toolCallId: string, claimedBy: string
  * serialize on the run row: nothing is claimed once tool admission has closed.
  */
 async function claimUnderRunAdmission<T>(
-  call: { toolCallId: string; runId: string; userId: string },
+  call: { toolCallId: string; runId: string; userId: string; desktopDeviceId?: string },
   claimedBy: string,
   requireCurrentVersion: boolean,
   claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>
@@ -662,7 +676,15 @@ async function claimUnderRunAdmission<T>(
               status: copilotRuns.status,
             })
             .from(copilotRuns)
-            .where(and(eq(copilotRuns.id, call.runId), eq(copilotRuns.userId, call.userId)))
+            .where(
+              and(
+                eq(copilotRuns.id, call.runId),
+                eq(copilotRuns.userId, call.userId),
+                call.desktopDeviceId
+                  ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
+                  : undefined
+              )
+            )
             .for('update')
         )
         if (
@@ -735,6 +757,11 @@ export interface DesktopToolCallClaimant {
   runId: string
   userId: string
   claimedBy: DesktopToolClaimOwner
+  /**
+   * Set when the desktop's background executor claims a call on a run bound to `deviceId`: the
+   * claim then also takes the execution lease under `ownerToken`, like Sim's own.
+   */
+  executor?: { deviceId: string; ownerToken: string }
 }
 
 export type DesktopToolCallClaim =
@@ -745,13 +772,15 @@ export type DesktopToolCallClaim =
 /**
  * The desktop app claims a pending call before crossing the Electron boundary, so a replayed
  * renderer event cannot click, type, or run a command twice, and a call held for the user's
- * decision only once they allowed it.
+ * decision only once they allowed it. A background executor's claim also requires the run to be
+ * bound to its device.
  */
 export async function claimDesktopToolCall(
   claimant: DesktopToolCallClaimant
 ): Promise<DesktopToolCallClaim> {
+  const { executor } = claimant
   return await claimUnderRunAdmission(
-    claimant,
+    { ...claimant, desktopDeviceId: executor?.deviceId },
     claimant.claimedBy,
     false,
     async (tx, thisCall): Promise<DesktopToolCallClaim> => {
@@ -764,6 +793,13 @@ export async function claimDesktopToolCall(
             claimedBy: claimant.claimedBy,
             claimedAt,
             updatedAt: claimedAt,
+            ...(executor
+              ? {
+                  executionStartedAt: claimedAt,
+                  executionOwnerToken: executor.ownerToken,
+                  executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+                }
+              : {}),
           })
           .where(
             and(
@@ -801,8 +837,15 @@ export async function claimDesktopToolCall(
   )
 }
 
-/** Expired ownership cannot be renewed, even before a follower has observed the expiry. */
-export async function renewSimToolExecutionLease(owner: SimToolExecutionOwner): Promise<boolean> {
+/**
+ * Expired ownership cannot be renewed, even before a follower has observed the expiry. With
+ * `desktop`, the call must still be running on a run bound to that device, so a call Stop settled
+ * cannot be renewed either.
+ */
+export async function renewSimToolExecutionLease(
+  owner: SimToolExecutionOwner,
+  desktop?: { deviceId: string }
+): Promise<boolean> {
   const [renewed] = await db
     .update(copilotAsyncToolCalls)
     .set({
@@ -816,7 +859,13 @@ export async function renewSimToolExecutionLease(owner: SimToolExecutionOwner): 
         isNull(copilotAsyncToolCalls.executionSettledAt),
         isNull(copilotAsyncToolCalls.executionRevokedAt),
         sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`,
-        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.user_id = ${owner.userId})`
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.user_id = ${owner.userId})`,
+        desktop
+          ? and(
+              eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+              sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id = ${desktop.deviceId})`
+            )
+          : undefined
       )
     )
     .returning({ id: copilotAsyncToolCalls.id })
@@ -1480,8 +1529,9 @@ async function completeAsyncToolCallFromStatuses(
   input: CompleteAsyncToolCallInput,
   expectedStatuses: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
-  expectedExecutionOwnerToken?: string
+  expectedOwner?: ExecutionOwnerFence & { settles?: 'execution' }
 ) {
+  const completedAt = new Date()
   return await markAsyncToolStatus(
     input.toolCallId,
     input.status,
@@ -1490,11 +1540,12 @@ async function completeAsyncToolCallFromStatuses(
       claimedAt: null,
       result: input.result ?? null,
       error: input.error ?? null,
-      completedAt: new Date(),
+      completedAt,
+      ...(expectedOwner?.settles === 'execution' ? { executionSettledAt: completedAt } : {}),
     },
     expectedStatuses,
     expectedClaimedBy,
-    expectedExecutionOwnerToken
+    expectedOwner
   )
 }
 
@@ -1514,10 +1565,26 @@ export async function completeOwnedSimToolCall(
     input,
     [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running],
     undefined,
-    ownerToken
+    { token: ownerToken }
   )
   if (!row) throw new SimToolExecutionLeaseLostError()
   return row
+}
+
+/**
+ * Records a desktop executor's result for the running call its token still owns. A lapsed lease
+ * does not block it: until the call is settled as lost, a late but real result is the better
+ * answer. Stop settles the row under the same row lock, so a result never lands after it.
+ */
+export async function completeOwnedDesktopToolCall(
+  input: CompleteAsyncToolCallInput,
+  ownerToken: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], undefined, {
+    token: ownerToken,
+    lease: 'any',
+    settles: 'execution',
+  })
 }
 
 /**

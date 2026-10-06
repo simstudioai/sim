@@ -4335,6 +4335,34 @@ export const copilotOrganizationRequestStops = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.organizationId, table.streamId] })]
 )
 
+/**
+ * A Sim desktop install that can run a user's desktop tools while no chat view is open. The id is
+ * the install's own identifier; the row binds it to one user and to the Better Auth session that
+ * registered it, so signing out (which deletes that session) disconnects the device.
+ */
+export const desktopDevices = pgTable(
+  'desktop_devices',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    appVersion: text('app_version').notNull(),
+    platform: text('platform').notNull(),
+    capabilities: jsonb('capabilities').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('desktop_devices_user_id_idx').on(table.userId),
+    sessionIdIdx: index('desktop_devices_session_id_idx').on(table.sessionId),
+  })
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
@@ -4361,6 +4389,10 @@ export const copilotRuns = pgTable(
     provider: text('provider'),
     status: copilotRunStatusEnum('status').notNull().default('active'),
     requestContext: jsonb('request_context').notNull().default('{}'),
+    /** Set at admission when the turn's desktop runs its tools in the background executor. */
+    desktopDeviceId: text('desktop_device_id').references(() => desktopDevices.id, {
+      onDelete: 'set null',
+    }),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4386,6 +4418,10 @@ export const copilotRuns = pgTable(
       table.id
     ),
     streamIdUnique: uniqueIndex('copilot_runs_stream_id_unique').on(table.streamId),
+    desktopDeviceStartedAtIdx: index('copilot_runs_desktop_device_started_at_idx')
+      .on(table.desktopDeviceId, table.startedAt)
+      .where(sql`${table.desktopDeviceId} IS NOT NULL`)
+      .concurrently(),
   })
 )
 

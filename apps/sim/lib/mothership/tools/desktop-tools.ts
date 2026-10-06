@@ -68,6 +68,18 @@ export function isClaimedOnPickup(
   )
 }
 
+/** Every tool name {@link isDesktopToolCall} can accept, for narrowing a query before it. */
+export const DESKTOP_TOOL_CALL_NAMES = [...DESKTOP_TOOL_NAMES, 'read', 'grep', 'glob']
+
+/**
+ * The claim owner a desktop background executor records. It is the per-surface owner the chat
+ * view's claim records, so file transfer and download admission recognize it, with local reads
+ * owned by the files surface; the run's `desktop_device_id` attributes it to a device.
+ */
+export function getDesktopExecutorClaimOwner(toolName: string): DesktopToolClaimOwner {
+  return getDesktopToolClaimOwner(toolName) ?? DESKTOP_TOOL_CLAIM_OWNER.files
+}
+
 /** What the model learns about a desktop call that Stop cancelled before the desktop picked it up. */
 export const STOPPED_BEFORE_START_MESSAGE =
   'Not run: the user stopped the chat before the Sim desktop app started this action. Nothing happened on their computer.'

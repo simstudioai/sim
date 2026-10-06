@@ -18,10 +18,6 @@ import {
   isWorkflowToolExecutionClaimable,
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
-  detachAsyncToolCall,
   getAsyncToolCall,
   getClaimedWorkflowExecutionId,
   getRunSegment,
@@ -29,7 +25,6 @@ import {
 import { CopilotConfirmOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -39,6 +34,11 @@ import {
 } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  type ClientToolSettlementGuard,
+  clientToolCompletionMessage,
+  settleClientToolCall,
+} from '@/lib/mothership/request/tools/client-settlement.server'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { getDesktopToolClaimOwner, isNativeDesktopTool } from '@/lib/mothership/tools/desktop-tools'
 import {
@@ -57,20 +57,6 @@ const NATIVE_HANDOFF_INTERRUPTED_MESSAGE =
   'The desktop action was interrupted during handoff. Its outcome is unknown; do not retry it automatically.'
 
 type ToolCallStatusUpdateOutcome = 'updated' | 'conflict' | 'failed'
-
-interface UpdateToolCallStatusOptions {
-  executionId?: string
-  completionGuard?:
-    | { status: typeof ASYNC_TOOL_STATUS.pending }
-    | { status: typeof ASYNC_TOOL_STATUS.running; claimedBy: string }
-}
-
-function getClientToolCompletionMessage(status: AsyncConfirmationStatus): string {
-  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.success) return 'Tool completed'
-  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) return 'Tool is running in background'
-  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled) return 'Tool cancelled'
-  return 'Tool failed'
-}
 
 function createConfirmationResponse(
   toolCallId: string,
@@ -104,53 +90,18 @@ async function updateToolCallStatus(
   status: AsyncConfirmationStatus,
   message?: string,
   data?: AsyncCompletionData,
-  options: UpdateToolCallStatusOptions = {}
+  options: { executionId?: string; guard?: ClientToolSettlementGuard } = {}
 ): Promise<ToolCallStatusUpdateOutcome> {
   const toolCallId = existing.toolCallId
   try {
-    if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      const detached = options.executionId
-        ? await detachAsyncToolCall(toolCallId, { preserveClaim: true })
-        : await detachAsyncToolCall(toolCallId)
-      if (!detached) return 'conflict'
-      publishToolConfirmation({
-        toolCallId,
-        status,
-        message: message || undefined,
-        timestamp: new Date().toISOString(),
-        data,
-        ...(options.executionId ? { executionId: options.executionId } : {}),
-      })
-      return 'updated'
-    }
-    const durableStatus =
-      status === ASYNC_TOOL_CONFIRMATION_STATUS.success
-        ? ASYNC_TOOL_STATUS.completed
-        : status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
-          ? ASYNC_TOOL_STATUS.cancelled
-          : ASYNC_TOOL_STATUS.failed
-    const completionInput = {
-      toolCallId,
-      status: durableStatus,
-      result: data ?? null,
-      error: status === 'success' ? null : message || status,
-    }
-    const completed =
-      options.completionGuard?.status === ASYNC_TOOL_STATUS.pending
-        ? await completePendingAsyncToolCall(completionInput)
-        : options.completionGuard?.status === ASYNC_TOOL_STATUS.running
-          ? await completeClaimedAsyncToolCall(completionInput, options.completionGuard.claimedBy)
-          : await completeAsyncToolCall(completionInput)
-    if (!completed) return 'conflict'
-    publishToolConfirmation({
+    return await settleClientToolCall({
       toolCallId,
       status,
-      message: message || undefined,
-      timestamp: new Date().toISOString(),
+      message: message ?? '',
       data,
-      ...(options.executionId ? { executionId: options.executionId } : {}),
+      executionId: options.executionId,
+      guard: options.guard ?? { kind: 'open' },
     })
-    return 'updated'
   } catch (error) {
     logger.error('Failed to update tool call status', {
       toolCallId,
@@ -419,7 +370,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
               ),
             }
           : {
-              message: getClientToolCompletionMessage(status),
+              message: clientToolCompletionMessage(status),
               data: await sealClientToolSettlement(existing.result, {
                 toolCallId,
                 runId: existing.runId,
@@ -447,9 +398,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           projected.data,
           {
             ...(isWorkflowTool && executionId ? { executionId } : {}),
-            ...(isPreclaimNativeTerminalOutcome
-              ? { completionGuard: { status: ASYNC_TOOL_STATUS.pending } as const }
-              : {}),
+            ...(isPreclaimNativeTerminalOutcome ? { guard: { kind: 'pending' } as const } : {}),
           }
         )
 
@@ -460,12 +409,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
                 ASYNC_TOOL_CONFIRMATION_STATUS.error,
                 projected.message,
                 projected.data,
-                {
-                  completionGuard: {
-                    status: ASYNC_TOOL_STATUS.running,
-                    claimedBy: nativeClaimOwner,
-                  },
-                }
+                { guard: { kind: 'claimed', claimedBy: nativeClaimOwner } }
               )
             : updateOutcome
 

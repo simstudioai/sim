@@ -57,6 +57,10 @@ export const AuditAction = {
   CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
   CONNECTOR_DOCUMENT_EXCLUDED: 'connector_document.excluded',
 
+  /** A desktop's background executor taking, then reporting on, a chat's action on the machine. */
+  DESKTOP_TOOL_CALL_CLAIMED: 'desktop_tool_call.claimed',
+  DESKTOP_TOOL_CALL_COMPLETED: 'desktop_tool_call.completed',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_UPDATED: 'document.updated',
   DOCUMENT_DELETED: 'document.deleted',
@@ -267,6 +271,7 @@ export const AuditResourceType = {
   CUSTOM_TOOL: 'custom_tool',
   DASHBOARD: 'dashboard',
   DATA_DRAIN: 'data_drain',
+  DESKTOP_DEVICE: 'desktop_device',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',
   FILE: 'file',
