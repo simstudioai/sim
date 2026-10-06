@@ -232,17 +232,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/scim-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
@@ -267,6 +272,12 @@ jobs:
       # A self-hosted app: hosted billing admits a run only through a Redis usage
       # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
       # so workflow execution gets its own app rather than adding Redis to that one.
+      #
+      # The apps in this job share apps/sim/.next. Each starts from an empty Turbopack
+      # dev cache: one written under other NEXT_PUBLIC_* values, by a server `next dev`
+      # SIGKILLs 100ms after SIGTERM, can panic Turbopack or wedge a route compile on
+      # restore. Each runs in its own session, and stop-session.sh returns only once
+      # all of it has exited, so no app starts beside one still writing .next/dev.
       - name: Verify single-block workflow runs over real HTTP
         working-directory: apps/sim
         env:
@@ -283,17 +294,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/stop-after-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
@@ -329,17 +345,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/desktop-inbox-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS

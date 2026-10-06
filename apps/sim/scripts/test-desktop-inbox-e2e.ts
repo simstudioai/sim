@@ -413,6 +413,17 @@ async function run() {
     assert(registration.reconcileMs < PICKUP_GRACE_SECONDS * 1000)
   })
 
+  /** `next dev` compiles a route on its first request, which must not count against the timed checks. */
+  await check('refuses malformed claim, lease and completion bodies', async () => {
+    for (const path of [
+      '/api/desktop/tool/claim',
+      '/api/desktop/tool/lease',
+      '/api/desktop/tool/complete',
+    ]) {
+      await request(desktop, 'POST', path, { body: {}, expected: 400 })
+    }
+  })
+
   /** Starts absent, so only the stream open below can mark the device present. */
   await redis.del(`desktop:presence:${desktop.deviceId}`)
   const doorbell = openDoorbell(desktop)
