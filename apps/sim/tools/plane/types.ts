@@ -261,6 +261,7 @@ export interface PlaneCreateWorkItemParams extends PlaneProjectScopedParams {
 
 export interface PlaneUpdateWorkItemParams extends PlaneWorkItemScopedParams {
   name?: string
+  clearFields?: string | string[]
   description?: string
   stateId?: string
   priority?: PlanePriority

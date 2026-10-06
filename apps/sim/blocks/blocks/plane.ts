@@ -326,7 +326,7 @@ export const PlaneBlock: BlockConfig = {
       id: 'parentId',
       title: 'Parent ID',
       type: 'short-input',
-      placeholder: 'Parent work item UUID (or parent label UUID when creating a label)',
+      placeholder: 'Parent work item or label UUID',
       mode: 'advanced',
       condition: { field: 'operation', value: [...WORK_ITEM_WRITE_OPS, 'plane_create_label'] },
     },
@@ -345,6 +345,24 @@ export const PlaneBlock: BlockConfig = {
       placeholder: 'Work item type UUID',
       mode: 'advanced',
       condition: { field: 'operation', value: [...WORK_ITEM_WRITE_OPS] },
+    },
+    {
+      id: 'clearFields',
+      title: 'Clear Fields',
+      type: 'dropdown',
+      multiSelect: true,
+      options: [
+        { label: 'Description', id: 'description' },
+        { label: 'Assignees', id: 'assigneeIds' },
+        { label: 'Labels', id: 'labelIds' },
+        { label: 'Parent', id: 'parentId' },
+        { label: 'Start Date', id: 'startDate' },
+        { label: 'Target Date', id: 'targetDate' },
+        { label: 'Estimate Point', id: 'estimatePointId' },
+        { label: 'Work Item Type', id: 'typeId' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'plane_update_work_item' },
     },
     {
       id: 'externalSource',
@@ -619,6 +637,7 @@ export const PlaneBlock: BlockConfig = {
           assigneeIds,
           labelIds,
           workItemIds,
+          clearFields,
           workItemIdentifier,
           projectIdentifier,
           linkUrl,
@@ -639,6 +658,8 @@ export const PlaneBlock: BlockConfig = {
         if (labels) result.labelIds = labels
         const items = parsePlaneIdList(workItemIds)
         if (items) result.workItemIds = items
+        const fieldsToClear = parsePlaneIdList(clearFields)
+        if (fieldsToClear) result.clearFields = fieldsToClear
 
         switch (operation) {
           case 'plane_get_work_item_by_identifier':
@@ -703,6 +724,7 @@ export const PlaneBlock: BlockConfig = {
     cycleId: { type: 'string', description: 'Cycle ID' },
     moduleId: { type: 'string', description: 'Module ID' },
     workItemIds: { type: 'string', description: 'Comma-separated work item IDs' },
+    clearFields: { type: 'json', description: 'Work item fields to clear on update' },
     orderBy: { type: 'string', description: 'Sort field' },
     perPage: { type: 'number', description: 'Results per page' },
     cursor: { type: 'string', description: 'Pagination cursor' },

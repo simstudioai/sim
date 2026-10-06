@@ -18201,7 +18201,7 @@
         },
         {
           "name": "Update Work Item",
-          "description": "Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided"
+          "description": "Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided, and clearFields empties fields"
         },
         {
           "name": "Delete Work Item",

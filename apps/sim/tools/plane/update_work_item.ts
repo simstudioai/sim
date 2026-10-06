@@ -11,7 +11,9 @@ import {
   planeProjectUrl,
 } from '@/tools/plane/utils'
 import {
+  applyPlaneClearFields,
   buildPlaneWorkItemBody,
+  PLANE_CLEARABLE_FIELD_NAMES,
   PLANE_WORK_ITEM_FIELD_PARAMS,
 } from '@/tools/plane/work_item_shared'
 import type { ToolConfig } from '@/tools/types'
@@ -21,7 +23,7 @@ export const planeUpdateWorkItemTool: ToolConfig<PlaneUpdateWorkItemParams, Plan
     id: 'plane_update_work_item',
     name: 'Plane Update Work Item',
     description:
-      'Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided',
+      'Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided, and clearFields empties fields',
     version: '1.0.0',
     errorExtractor: ErrorExtractorId.PLANE_ERRORS,
 
@@ -36,6 +38,13 @@ export const planeUpdateWorkItemTool: ToolConfig<PlaneUpdateWorkItemParams, Plan
         description: 'New work item title',
       },
       ...PLANE_WORK_ITEM_FIELD_PARAMS,
+      clearFields: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: `Fields to clear on the work item: ${PLANE_CLEARABLE_FIELD_NAMES.join(', ')}`,
+        items: { type: 'string', description: 'Field name to clear' },
+      },
     },
 
     request: {
@@ -44,7 +53,7 @@ export const planeUpdateWorkItemTool: ToolConfig<PlaneUpdateWorkItemParams, Plan
       method: 'PATCH',
       headers: planeHeaders,
       body: (params) => {
-        const body = buildPlaneWorkItemBody(params)
+        const body = applyPlaneClearFields(buildPlaneWorkItemBody(params), params.clearFields)
         if (Object.keys(body).length === 0) {
           throw new Error('Provide at least one field to update')
         }

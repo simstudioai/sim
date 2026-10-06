@@ -10,7 +10,7 @@ export const PLANE_WORK_ITEM_FIELD_PARAMS = {
     required: false,
     visibility: 'user-or-llm',
     description:
-      'Work item description as HTML (e.g., "<p>Steps to reproduce</p>"). Leave empty to keep the current description; pass "<p></p>" to clear it',
+      'Work item description as HTML (e.g., "<p>Steps to reproduce</p>"). Leave empty to keep the current description',
   },
   stateId: {
     type: 'string',
@@ -89,4 +89,54 @@ export function buildPlaneWorkItemBody(
     estimate_point: optionalTrimmed(params.estimatePointId),
     type_id: optionalTrimmed(params.typeId),
   })
+}
+
+/**
+ * Fields Update Work Item can clear, mapped to the request key and the value Plane stores for
+ * "empty". Plane rejects an empty description string as invalid HTML, so its empty value is the
+ * same `<p></p>` Plane uses as the default.
+ */
+const PLANE_CLEARABLE_FIELDS = {
+  description: ['description_html', '<p></p>'],
+  assigneeIds: ['assignees', []],
+  labelIds: ['labels', []],
+  parentId: ['parent', null],
+  startDate: ['start_date', null],
+  targetDate: ['target_date', null],
+  estimatePointId: ['estimate_point', null],
+  typeId: ['type_id', null],
+} as const satisfies Record<string, readonly [string, unknown]>
+
+type PlaneClearableField = keyof typeof PLANE_CLEARABLE_FIELDS
+
+export const PLANE_CLEARABLE_FIELD_NAMES = Object.keys(
+  PLANE_CLEARABLE_FIELDS
+) as PlaneClearableField[]
+
+function isClearableField(value: string): value is PlaneClearableField {
+  return Object.hasOwn(PLANE_CLEARABLE_FIELDS, value)
+}
+
+/**
+ * Applies `clearFields` to an update body. Clearing is explicit rather than inferred from an empty
+ * input, because an untouched or blanked canvas field must leave the stored value alone.
+ */
+export function applyPlaneClearFields(
+  body: Record<string, unknown>,
+  clearFields: unknown
+): Record<string, unknown> {
+  const requested = parsePlaneIdList(clearFields) ?? []
+  for (const field of requested) {
+    if (!isClearableField(field)) {
+      throw new Error(
+        `Cannot clear "${field}". Clearable fields: ${PLANE_CLEARABLE_FIELD_NAMES.join(', ')}`
+      )
+    }
+    const [key, emptyValue] = PLANE_CLEARABLE_FIELDS[field]
+    if (body[key] !== undefined) {
+      throw new Error(`"${field}" is both set and cleared; choose one`)
+    }
+    body[key] = Array.isArray(emptyValue) ? [] : emptyValue
+  }
+  return body
 }

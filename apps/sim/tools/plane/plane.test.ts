@@ -158,6 +158,31 @@ describe('Plane work item tools', () => {
     )
   })
 
+  it('clears requested fields with the empty value Plane stores', () => {
+    expect(
+      planeUpdateWorkItemTool.request.body?.({
+        ...SCOPE,
+        clearFields: ['description', 'labelIds', 'parentId', 'targetDate', 'typeId'],
+      })
+    ).toEqual({
+      description_html: '<p></p>',
+      labels: [],
+      parent: null,
+      target_date: null,
+      type_id: null,
+    })
+    expect(() =>
+      planeUpdateWorkItemTool.request.body?.({ ...SCOPE, stateId: 's', clearFields: ['state'] })
+    ).toThrow('Cannot clear "state"')
+    expect(() =>
+      planeUpdateWorkItemTool.request.body?.({
+        ...SCOPE,
+        targetDate: '2026-10-31',
+        clearFields: 'targetDate',
+      })
+    ).toThrow('both set and cleared')
+  })
+
   it('resolves a human-readable identifier to the workspace lookup route', () => {
     expect(
       resolveUrl(planeGetWorkItemByIdentifierTool, { ...CONNECTION, identifier: ' eng-42 ' })
