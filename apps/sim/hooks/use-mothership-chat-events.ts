@@ -10,6 +10,7 @@ import {
   type MothershipChatOwner,
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
+import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 const logger = createLogger('MothershipChatEvents')
 
@@ -119,8 +120,12 @@ export function handleMothershipChatStatusEvent(
     // mutation would leave pages and PTYs running indefinitely.
     void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
+    /** This tab's queue for the chat goes too, and no later send may bring it back. */
+    useMothershipQueueStore.getState().clearChat(payload.chatId)
     return
   }
+  /** A restore is published as `created`; the chat takes queued sends again. */
+  if (payload.type === 'created') useMothershipQueueStore.getState().reopenChat(payload.chatId)
   if (payload.type === 'renamed') {
     /**
      * The lists invalidated above carry the title every surface renders; the

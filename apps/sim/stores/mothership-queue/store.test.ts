@@ -88,5 +88,14 @@ describe('useMothershipQueueStore', () => {
       ])
       expect(useMothershipQueueStore.getState().queues['pending::abc']).toBeUndefined()
     })
+
+    it('does not move a new chat surface queue into a chat deleted meanwhile', () => {
+      useMothershipQueueStore.getState().enqueue('pending::abc', message('pending-1'))
+      useMothershipQueueStore.getState().clearChat('chat-X')
+      useMothershipQueueStore.getState().migrate('pending::abc', 'chat-X')
+      const state = useMothershipQueueStore.getState()
+      expect(state.queues['chat-X']).toBeUndefined()
+      expect(state.queues['pending::abc']).toBeUndefined()
+    })
   })
 })

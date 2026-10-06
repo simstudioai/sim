@@ -2023,6 +2023,8 @@ export function useChat(
 
     const activeStreamId = chatHistory.activeStreamId
     appliedChatHistoryKeyRef.current = hydrationKey
+    /** The server returned this chat, so it exists: a delete seen earlier no longer applies. */
+    useMothershipQueueStore.getState().reopenChat(chatHistory.id)
     const mappedMessages = chatHistory.messages.map(toDisplayMessage)
     const shouldReconnectActiveStream =
       Boolean(activeStreamId) &&
@@ -4046,6 +4048,8 @@ export function useChat(
               releaseRefusedSend()
               return { userMessageId, busy: true }
             }
+            /** The user may have moved on (another chat, another send) during the check. */
+            if (streamGenRef.current !== gen) return consumedByTranscript
             streamIdRef.current = conflictStreamId
             const succeeded = await retryReconnect({
               streamId: conflictStreamId,
@@ -4354,6 +4358,7 @@ export function useChat(
       if (
         !result.unreachable &&
         !result.held &&
+        !result.busy &&
         activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
       ) {
         handOffWithdrawnSend(withdrawn)
@@ -4374,7 +4379,7 @@ export function useChat(
           : {}),
         ...(result.held ? { retryRequired: true } : {}),
         ...(result.busy ? busyRetry(1) : {}),
-        ...(result.unreachable && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+        ...((result.unreachable || result.busy) && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
           ? { heldSurface: heldSendSurface }
           : {}),
       })
@@ -4968,7 +4973,12 @@ export function useChat(
            restore would strand this under the dead instance's key — hand it to
            the next surface instead. A chat-bound key is the stable chat id, so
            the queue itself is the durable retry. */
-        if (withdrawn && retriesOnItsOwn && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        if (
+          withdrawn &&
+          retriesOnItsOwn &&
+          !withdrawn.busy &&
+          dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+        ) {
           clearQueuedSendHandoffState(msg.id)
           handOffWithdrawnSend({
             content: dispatched.content,
@@ -4993,7 +5003,8 @@ export function useChat(
           ...(withdrawn?.unreachable && !withdrawn.networkReturned
             ? { heldUntilOnline: true }
             : {}),
-          ...(withdrawn?.unreachable && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+          ...((withdrawn?.unreachable || withdrawn?.busy) &&
+          dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
             ? { heldSurface: heldSendSurface }
             : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),

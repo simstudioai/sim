@@ -148,7 +148,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (!fromQueue && fromEditing === undefined) return state
 
             const queues = omitKey(state.queues, fromKey)
-            if (fromQueue && fromQueue.length > 0) {
+            /** A chat deleted meanwhile takes nothing: its queue is gone with it. */
+            if (fromQueue && fromQueue.length > 0 && !state.cleared[toKey]) {
               // Merge defensively in case a stale bucket survived in
               // sessionStorage. FIFO: existing first, then the resolved stream.
               const existing = state.queues[toKey] ?? []

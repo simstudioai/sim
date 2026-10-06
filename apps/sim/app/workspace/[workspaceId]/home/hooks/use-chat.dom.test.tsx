@@ -2621,9 +2621,14 @@ describe('useChat remount send recovery', () => {
       try {
         const history = idleHistory('chat-busy-without-redis')
         mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        const redis = { up: false, acceptedPosts: 0 }
         vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
           if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
             state.postBodies.push(JSON.parse(String(init.body)))
+            if (redis.up) {
+              redis.acceptedPosts++
+              return emptySseResponse()
+            }
             /** The server waits on the chat lock before refusing. */
             await sleep(5_000)
             return Response.json(
@@ -2645,10 +2650,15 @@ describe('useChat remount send recovery', () => {
         /** Back to back, a 5s refusal allows 18 attempts in 90s; backing off allows far fewer. */
         expect(state.postBodies.length).toBeGreaterThan(2)
         expect(state.postBodies.length).toBeLessThanOrEqual(8)
+
+        /** Kept through every refusal: it goes out once Redis is back, under the same id. */
+        redis.up = true
+        for (let second = 0; second < 45; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+        expect(redis.acceptedPosts).toBe(1)
+        expect(state.postBodies.at(-1)?.message).toBe('Refused while Redis is down')
         expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
-        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
-          'Refused while Redis is down'
-        )
       } finally {
         vi.useRealTimers()
       }
@@ -2769,6 +2779,148 @@ describe('useChat remount send recovery', () => {
 
       expect(state.postBodies[1].message).toBe('Told it was already sent')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
+    /**
+     * A first message from the new-chat surface can be refused as busy with no
+     * turn to wait for (Redis down). It must wait out the same growing delay
+     * there, not be handed to the surface's own send listener and resent at once.
+     */
+    it('backs off a busy refusal of a first message on the new-chat surface', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            /** Caps a hot loop so it fails the count below instead of starving the test. */
+            if (state.postBodies.length > 20) return new Promise<Response>(() => {})
+            return Response.json(
+              { error: 'A response is already in progress for this chat.' },
+              { status: 409 }
+            )
+          }
+          return fetchStub(input, init)
+        })
+        const { getResult } = renderHomeLikeSurface()
+        await act(async () => {
+          void getResult().sendMessage('First message while Redis is down')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        for (let second = 0; second < 10; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+
+        /** 1s, 2s, 4s, 8s of backoff fit at most 4 attempts in 10s. */
+        expect(state.postBodies.length).toBeGreaterThan(1)
+        expect(state.postBodies.length).toBeLessThanOrEqual(4)
+        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+        expect(allQueuedMessages().map((message) => message.content)).toEqual([
+          'First message while Redis is down',
+        ])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    /**
+     * The "already sent" check of a deduplicated send can resolve after the user
+     * has moved to another chat and started a turn there. Stop must still stop
+     * that new turn, not the one the stale check found.
+     */
+    it('keeps Stop on the new turn when a deduplicated send is checked after a chat switch', async () => {
+      const history = idleHistory('chat-deduped-then-left')
+      const other = idleHistory('chat-new-turn-after-switch')
+      mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
+        Promise.resolve({
+          chat: JSON.stringify(input).includes(other.id) ? other : history,
+        })
+      )
+      let finishCheck: (() => void) | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          if (state.postBodies.length === 1) {
+            return Response.json(
+              {
+                error: 'This message was already sent.',
+                activeStreamId: state.postBodies[0].userMessageId,
+              },
+              { status: 409 }
+            )
+          }
+          return new Response(new ReadableStream<Uint8Array>(), {
+            headers: { 'Content-Type': 'text/event-stream' },
+          })
+        }
+        if (url.includes('/api/mothership/chat/stream') && finishCheck === undefined) {
+          return new Promise<Response>((resolve) => {
+            finishCheck = () =>
+              resolve(Response.json({ success: true, events: [], status: 'streaming' }))
+          })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult, navigate } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Already sent here')
+      })
+      await waitFor(() => finishCheck !== undefined)
+
+      navigate(other.id, other)
+      await act(async () => {
+        void getResult().sendMessage('A new turn in the other chat')
+      })
+      await waitFor(() => state.postBodies.length === 2)
+      await act(async () => {
+        finishCheck?.()
+        await sleep(100)
+      })
+      await act(async () => {
+        await getResult().stopGeneration()
+      })
+
+      expect(state.abortBodies.map((body) => body.streamId)).toContain(
+        state.postBodies[1].userMessageId
+      )
+      expect(state.abortBodies.map((body) => body.streamId)).not.toContain(
+        state.postBodies[0].userMessageId
+      )
+    })
+
+    /**
+     * A chat this tab saw deleted can be restored from another tab without this
+     * tab hearing of it. Once the chat loads, it exists, so a follow-up queued
+     * behind its running turn must be kept.
+     */
+    it('queues a follow-up in a chat that loads after this tab saw it deleted', async () => {
+      const history: MothershipChatHistory = {
+        ...idleHistory('chat-restored-elsewhere'),
+        activeStreamId: 'turn-still-running',
+      }
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/api/mothership/chat/stream')) {
+          if (String(input).includes('batch=true')) {
+            return Response.json({ success: true, events: [], status: 'streaming' })
+          }
+          return new Response(new ReadableStream<Uint8Array>(), {
+            headers: { 'Content-Type': 'text/event-stream' },
+          })
+        }
+        return fetchStub(input, init)
+      })
+      useMothershipQueueStore.getState().clearChat(history.id)
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await waitFor(() => getResult().isSending)
+
+      await act(async () => {
+        await getResult().sendMessage('Follow-up after the restore')
+      })
+
+      expect(
+        useMothershipQueueStore.getState().queues[history.id]?.map((message) => message.content)
+      ).toEqual(['Follow-up after the restore'])
     })
 
     /** The `online` event can fire while no surface for the chat is mounted. */
