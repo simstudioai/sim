@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  type FoldTableRowChangesResponse,
+  foldTableRowChangesContract,
+} from '@/lib/api/contracts/tables'
+import { parseRequest } from '@/lib/api/server/validation'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { foldPendingTableRowChanges } from '@/lib/table/row-changes'
@@ -20,7 +25,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const authError = verifyCronAuth(request, 'Table row-change fold')
   if (authError) return authError
 
+  const parsed = await parseRequest(foldTableRowChangesContract, request, {})
+  if (!parsed.success) return parsed.response
+
   const result = await foldPendingTableRowChanges(FOLD_SWEEP_BUDGET_MS)
   logger.info('Table row-change fold sweep completed', { ...result })
-  return NextResponse.json({ success: true, ...result })
+  const body: FoldTableRowChangesResponse = { success: true, ...result }
+  return NextResponse.json(body)
 })
