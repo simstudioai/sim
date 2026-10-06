@@ -156,6 +156,7 @@ describe('Mothership owner-scoped event stream', () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
     const collected = collect(response.body!, chunks)
+    await vi.advanceTimersByTimeAsync(0)
     let authorizeDone: (() => void) | undefined
     authorize.mockReturnValueOnce(
       new Promise<void>((resolve) => {
@@ -178,6 +179,7 @@ describe('Mothership owner-scoped event stream', () => {
     const response = await GET(request('workspaceId=ws-1', abort.signal))
     const chunks: string[] = []
     const collected = collect(response.body!, chunks)
+    await vi.advanceTimersByTimeAsync(0)
     emit({ organizationId: 'org-1', userId: 'user-1', chatId: 'org-chat', type: 'created' })
     emit({ workspaceId: 'ws-2', chatId: 'other-workspace-chat', type: 'created' })
     emit({ workspaceId: 'ws-1', chatId: 'workspace-chat', type: 'renamed' })

@@ -7,6 +7,7 @@ import {
   HEARTBEAT_INTERVAL_MS,
   MAX_CONNECTION_MS,
   MAX_UNDRAINED_CHUNKS,
+  OPEN_DEADLINE_MS,
   OPENED_COMMENT,
   ROTATION_GRACE_MS,
 } from '@/lib/events/sse-endpoint'
@@ -199,6 +200,51 @@ describe('createSSEStream', () => {
     live()
     await vi.advanceTimersByTimeAsync(0)
 
+    expect(chunks).toEqual([OPENED_COMMENT])
+  })
+
+  it('holds events until the stream opens', async () => {
+    let live: () => void = () => {}
+    let publish: (eventName: string, data: Record<string, unknown>) => void = () => {}
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      subscriptions: [
+        {
+          subscribe: (send) => {
+            publish = send
+            return () => {}
+          },
+          ready: () =>
+            new Promise<void>((resolve) => {
+              live = resolve
+            }),
+        },
+      ],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+
+    publish('changed', { id: 1 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(chunks).toEqual([])
+
+    live()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(chunks).toEqual([OPENED_COMMENT, 'event: changed\ndata: {"id":1}\n\n'])
+  })
+
+  it('opens at the deadline when a subscription never becomes ready', async () => {
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      subscriptions: [{ subscribe: () => () => {}, ready: () => new Promise<void>(() => {}) }],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+
+    await vi.advanceTimersByTimeAsync(OPEN_DEADLINE_MS - 1)
+    expect(chunks).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(1)
     expect(chunks).toEqual([OPENED_COMMENT])
   })
 

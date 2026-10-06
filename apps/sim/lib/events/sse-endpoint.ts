@@ -36,6 +36,13 @@ export const HEARTBEAT_INTERVAL_MS = 30_000
 export const OPENED_COMMENT = ': connected\n\n'
 
 /**
+ * How long a stream waits for its subscriptions before opening anyway. A subscription still not
+ * live is in an outage, which open streams ride out the same way, and a client that hears nothing
+ * gives up on the connection: Sim desktop after 15 s.
+ */
+export const OPEN_DEADLINE_MS = 5_000
+
+/**
  * Starts a make-before-break rotation for one connection. Healthy clients open
  * a replacement before this stream closes; orphaned streams are released after
  * the grace period without relying on runtime disconnect propagation. Because
@@ -157,20 +164,26 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         })
         return authorization
       }
+      /** Settles when the stream announces itself; events wait for it so none opens it early. */
+      let opening: Promise<void> = Promise.resolve()
+      let opened = false
       let pendingEvents = 0
       const send = (eventName: string, data: Record<string, unknown>) => {
         if (cleaned) return
         const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
-        if (!config.revalidate) {
+        if (opened && !config.revalidate) {
           enqueue(payload)
           return
         }
         if (pendingEvents >= MAX_UNDRAINED_CHUNKS) {
-          close('authorization_backpressure')
+          close('pending_backpressure')
           return
         }
         pendingEvents += 1
-        void revalidate().then(
+        const authorized = opened
+          ? revalidate()
+          : opening.then(() => (cleaned ? undefined : revalidate()))
+        void authorized.then(
           () => {
             pendingEvents -= 1
             enqueue(payload)
@@ -183,6 +196,23 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
       }
 
       try {
+        // The runtime sends the status and headers with the first body chunk, so the stream writes
+        // one as soon as it opens. A client reads its state once the stream opens, so it opens once
+        // every subscription receives events, or at the deadline when one is in an outage. A
+        // heartbeat cannot open it first: the deadline is shorter than the heartbeat interval.
+        opening = Promise.race([
+          Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())),
+          new Promise<void>((resolve) => {
+            const deadline = setTimeout(resolve, OPEN_DEADLINE_MS)
+            teardowns.push(() => clearTimeout(deadline))
+          }),
+        ]).then(
+          () => {
+            opened = true
+            enqueue(OPENED_COMMENT)
+          },
+          () => close('subscription_failed')
+        )
         for (const subscription of config.subscriptions) {
           teardowns.push(subscription.subscribe(send))
         }
@@ -232,13 +262,6 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         })
         teardowns.push(() => listenerScope.abort())
 
-        // The runtime sends the status and headers with the first body chunk, so without this the
-        // response would not start until the first event or heartbeat. A client reads its state
-        // once the stream opens, so it opens only when no later event can be missed.
-        void Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())).then(
-          () => enqueue(OPENED_COMMENT),
-          () => close('subscription_failed')
-        )
         logger.info(`SSE connection opened for ${config.label}`)
       } catch (error) {
         cleanup('setup_failed')

@@ -34,7 +34,10 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   private sub: Redis
   private handlers = new Set<(event: T) => void>()
   private disposed = false
-  private readonly subscribed: Promise<void>
+  /** Whether the current connection has subscribed; a dropped connection has to again. */
+  private listening = false
+  private subscribed: Promise<void> = Promise.resolve()
+  private markSubscribed: () => void = noop
 
   constructor(
     redisUrl: string,
@@ -62,17 +65,26 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
     this.pub.on('connect', () => logger.info(`${config.label} publish client connected`))
     this.sub.on('connect', () => logger.info(`${config.label} subscribe client connected`))
 
-    // Settles on failure too: nothing retries a failed subscribe, so waiting on it would only
-    // hold back every stream on this channel.
-    this.subscribed = new Promise((resolve) => {
+    this.awaitSubscription()
+    // Subscribes on every ready connection: ioredis resubscribes after a reconnect on its own but
+    // does not report when that lands, and SUBSCRIBE is idempotent. Readiness settles on failure
+    // too: nothing retries a failed subscribe, so waiting on it would only hold back every stream
+    // on this channel.
+    this.sub.on('ready', () => {
       this.sub.subscribe(config.channel, (err) => {
         if (err) {
           logger.error(`Failed to subscribe to ${config.label} channel:`, err)
         } else {
+          this.listening = true
           logger.info(`Subscribed to ${config.label} channel`)
         }
-        resolve()
+        this.markSubscribed()
       })
+    })
+    this.sub.on('close', () => {
+      if (!this.listening) return
+      this.listening = false
+      this.awaitSubscription()
     })
 
     this.sub.on('message', (channel: string, message: string) => {
@@ -108,6 +120,12 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
 
   ready(): Promise<void> {
     return this.subscribed
+  }
+
+  private awaitSubscription(): void {
+    this.subscribed = new Promise((resolve) => {
+      this.markSubscribed = resolve
+    })
   }
 
   dispose(): void {

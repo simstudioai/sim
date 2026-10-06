@@ -432,6 +432,14 @@ async function run() {
     }
   })
 
+  /**
+   * Compiles the doorbell route before its open is timed. Refused before the use case runs, so the
+   * open below is still the first to subscribe this process to the doorbell channel.
+   */
+  await check('refuses a doorbell without a device', async () => {
+    await request(desktop, 'GET', '/api/desktop/inbox/stream', { expected: 400 })
+  })
+
   /** Starts absent, so only the stream open below can mark the device present. */
   await redis.del(`desktop:presence:${desktop.deviceId}`)
   const doorbell = openDoorbell(desktop)
