@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   awaitRun,
   isDescendantOf,
-  isRunPaneOurs,
   parseFormatLines,
   pollRun,
+  runPaneState,
   startRun,
   stopRun,
   type TmuxRunHandle,
@@ -101,6 +101,8 @@ interface FakeTmuxState {
   panes: Record<string, { window: string; options: Record<string, string> }>
   /** Every command that reached a pane: `send-keys %1 C-c`, `kill-pane %1`. */
   log: string[]
+  /** Commands the fake fails, with the error tmux would print. */
+  fail?: Record<string, string>
 }
 
 const FAKE_TMUX = `
@@ -111,6 +113,7 @@ const args = process.argv.slice(2)
 const save = () => fs.writeFileSync(file, JSON.stringify(state))
 const target = () => args[args.indexOf('-t') + 1]
 const fail = (message) => { process.stderr.write(message); process.exit(1) }
+if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
   case 'new-window': {
     const window = '@' + state.nextWindow++
@@ -210,7 +213,7 @@ describe('stopping a tmux run touches only its own pane', () => {
     state.panes[run.pane] = { window: run.window, options: {} }
     tmux.write(state)
 
-    expect(await isRunPaneOurs(run, tmux.env)).toBe(false)
+    expect(await runPaneState(run, tmux.env)).toBe('gone')
     await stopRun(run, tmux.env, 0)
 
     expect(tmux.read().log).toEqual([])
@@ -224,8 +227,31 @@ describe('stopping a tmux run touches only its own pane', () => {
     delete state.panes[run.pane]
     tmux.write(state)
 
-    expect(await isRunPaneOurs(run, tmux.env)).toBe(false)
+    expect(await runPaneState(run, tmux.env)).toBe('gone')
     await stopRun(run, tmux.env, 0)
+    expect(tmux.read().log).toEqual([])
+  })
+
+  it('closes a run it could not tag instead of leaving an unstoppable command', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
+
+    const started = await startRun('agent', 'sleep 600', null, tmux.env)
+
+    expect('error' in started).toBe(true)
+    expect(tmux.read().log).toEqual(['kill-pane %0'])
+    expect(tmux.read().panes).toEqual({})
+  })
+
+  it('neither stops nor gives up on a run while tmux cannot be asked', async () => {
+    const tmux = fakeTmux()
+    const run = await started(tmux)
+    tmux.write({ ...tmux.read(), fail: { 'display-message': 'server exited unexpectedly' } })
+
+    expect(await runPaneState(run, tmux.env)).toBe('unknown')
+    await stopRun(run, tmux.env, 0)
+
     expect(tmux.read().log).toEqual([])
   })
 })

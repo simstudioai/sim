@@ -382,28 +382,35 @@ export async function startRun(
   // a pane the user opened later under the same id, so it sends nothing at all.
   const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, runId], env)
   if (!tagged.ok) {
-    logger.warn('Could not tag the tmux run pane; it will not be stopped from Sim', {
-      error: tagged.stderr.trim(),
-    })
+    // Untagged, nothing could ever stop it safely later, so it does not get to run. The pane was
+    // created a moment ago by this call, so its id is still ours to close.
+    await runTmux(['kill-pane', '-t', pane], env)
+    dispose()
+    return {
+      error: `tmux could not mark the command's pane, so it was closed straight away (${tagged.stderr.trim() || 'no detail'}). It may have started; check before running it again.`,
+    }
   }
 
   return { window, pane, runId, outPath, statusPath, dispose }
 }
 
 /**
- * Whether the run's pane is still there and still the run's. A pane the user closed, or an id
- * a restarted tmux server handed to one of the user's own panes, is not.
+ * Whether the run's pane is still the run's: `ours`, or `gone` when tmux has no such pane or the
+ * pane under that id is not tagged as this run's (the user closed it, or a restarted tmux server
+ * handed the id to one of the user's own panes). `unknown` when tmux could not be asked: such a
+ * pane is neither touched nor given up on.
  */
-export async function isRunPaneOurs(
+export async function runPaneState(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv
-): Promise<boolean> {
-  if (!handle.pane) return false
+): Promise<'ours' | 'gone' | 'unknown'> {
+  if (!handle.pane) return 'gone'
   const shown = await runTmux(
     ['display-message', '-p', '-t', handle.pane, `#{${RUN_ID_OPTION}}`],
     env
   )
-  return shown.ok && shown.stdout.trim() === handle.runId
+  if (shown.ok) return shown.stdout.trim() === handle.runId ? 'ours' : 'gone'
+  return /can't find|no server running/i.test(shown.stderr) ? 'gone' : 'unknown'
 }
 
 /**
@@ -416,7 +423,7 @@ export async function stopRun(
   env: NodeJS.ProcessEnv,
   graceMs: number
 ): Promise<void> {
-  if (!(await isRunPaneOurs(handle, env))) return
+  if ((await runPaneState(handle, env)) !== 'ours') return
   await sendKey(handle.pane, 'C-c', env)
   const deadline = Date.now() + graceMs
   while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
@@ -488,7 +495,7 @@ export async function killPane(target: string, env: NodeJS.ProcessEnv): Promise<
  * one in it. Only the run's own pane, and only while it is still the run's.
  */
 export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
-  if (!(await isRunPaneOurs(handle, env))) return
+  if ((await runPaneState(handle, env)) !== 'ours') return
   const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
   if (!killed.ok) {
     logger.warn('Could not close the tmux run pane', { error: killed.stderr.trim() })

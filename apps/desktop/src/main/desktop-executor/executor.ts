@@ -196,6 +196,9 @@ export class DesktopExecutor {
           this.reconcileAgain = false
           await this.reconcileOnce()
         } while (this.reconcileAgain && !this.disposed)
+      } catch (error) {
+        // Callers fire and forget; one bad read must never become an unhandled rejection.
+        logger.error('Desktop inbox read failed unexpectedly', { error: getErrorMessage(error) })
       } finally {
         this.reconciling = null
       }

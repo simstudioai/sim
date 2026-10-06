@@ -110,6 +110,8 @@ export function createDesktopExecutorService(
   let registering = false
   let registerAgain = false
   let registrationAttempt = 0
+  /** Logged once per run of missing routes, not on every recheck. */
+  let routesMissingNoted = false
   let suspended = false
   let started = false
   /** Bumped on sign-out, so work started for the previous session cannot resume it. */
@@ -122,12 +124,23 @@ export function createDesktopExecutorService(
     return deviceId
   }
 
+  /**
+   * Mints a new install id and makes it durable before anything uses it: an id the next launch
+   * would not find again could never resume the calls bound to it. Fails if it cannot be saved.
+   */
   async function rotateInstallId(): Promise<string> {
-    deviceId = generateId()
-    await writeJsonFileAtomically(identityPath, { deviceId }).catch((error) =>
-      logger.warn('Could not save the desktop install id', { error: getErrorMessage(error) })
+    const next = generateId()
+    deviceId = null
+    await writeJsonFileAtomically(identityPath, { deviceId: next })
+    deviceId = next
+    return next
+  }
+
+  /** Rotates where a failure must not stop the caller; the next registration tries again. */
+  async function retireInstallId(): Promise<void> {
+    await rotateInstallId().catch((error) =>
+      logger.warn('Could not save a new desktop install id', { error: getErrorMessage(error) })
     )
-    return deviceId
   }
 
   function fetchWithAppSession(url: string, init: RequestInit): Promise<Response> {
@@ -251,6 +264,7 @@ export function createDesktopExecutorService(
       })
       if (registrationGeneration !== generation || id !== deviceId) return
       registrationAttempt = 0
+      routesMissingNoted = false
       // A Sim that speaks another protocol version gets no new turns bound to this device.
       device =
         nextTiming.enabled && nextTiming.protocolVersion === DESKTOP_EXECUTOR_PROTOCOL_VERSION
@@ -274,7 +288,7 @@ export function createDesktopExecutorService(
         // The id belongs to another account (a copied profile); this install takes a new one.
         logger.warn('Desktop install id is registered to another account; minting a new one')
         await resetExecutor()
-        await rotateInstallId()
+        await retireInstallId()
         scheduleRegistration(0)
         return
       }
@@ -284,10 +298,14 @@ export function createDesktopExecutorService(
         return
       }
       if (error instanceof DeviceRequestError && (error.status === 404 || error.status === 405)) {
-        // A Sim without the executor routes (older, or self-hosted): nothing to retry against. The
-        // next launch, session change or settings toggle asks again.
+        // A Sim without the executor routes (older, or self-hosted): dormant, with only the slow
+        // recheck, so an upgrade of Sim reaches this device without a relaunch.
         stopLoops()
-        logger.info('Sim does not offer the desktop background executor; staying dormant')
+        if (!routesMissingNoted) {
+          routesMissingNoted = true
+          logger.info('Sim does not offer the desktop background executor; staying dormant')
+        }
+        scheduleRegistration(DORMANT_RECHECK_MS)
         return
       }
       registrationAttempt += 1
@@ -384,7 +402,7 @@ export function createDesktopExecutorService(
       registrationTimer = null
       await resetExecutor()
       await journal.clear()
-      await rotateInstallId()
+      await retireInstallId()
     },
   }
 }

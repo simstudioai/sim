@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
@@ -101,16 +101,38 @@ describe('desktop executor registration', () => {
     expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
   })
 
-  it('stays dormant against a Sim without the executor routes, without retrying', async () => {
+  it('stays dormant against a Sim without the executor routes, checking back only slowly', async () => {
     const { sim, desktopExecutor } = await service()
-    desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      desktopExecutor.start()
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
 
-    sim.registrations[0]?.(404)
-    await sleep(2_500)
+      sim.registrations[0]?.(404)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(sim.registrations).toHaveLength(1)
+      expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
 
-    expect(sim.registrations).toHaveLength(1)
-    expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      expect(sim.registrations).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('registers with no install id it could not save', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+    await chmod(userData, 0o500)
+    try {
+      const { sim, desktopExecutor } = await service(1, userData)
+
+      desktopExecutor.start()
+      await sleep(200)
+
+      expect(sim.requests.filter((request) => request.includes('/api/desktop/devices'))).toEqual([])
+    } finally {
+      await chmod(userData, 0o700)
+    }
   })
 
   it('keeps its install id through a read failure instead of minting a new one', async () => {

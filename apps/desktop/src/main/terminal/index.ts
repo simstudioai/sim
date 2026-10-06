@@ -45,12 +45,12 @@ import {
   capturePane,
   closeRunPane,
   isRunComplete,
-  isRunPaneOurs,
   isTmuxUnavailable,
   killPane,
   listPanes,
   pollRun,
   resolveAttachment,
+  runPaneState,
   sendKey,
   sendText,
   startRun,
@@ -485,7 +485,7 @@ export class TerminalService {
   private async reapFinishedRuns(terminalId: string, env: NodeJS.ProcessEnv): Promise<void> {
     for (const handle of this.pendingRuns.get(terminalId) ?? []) {
       if (this.awaitedRuns.has(handle)) continue
-      if (isRunComplete(handle) || !(await isRunPaneOurs(handle, env))) {
+      if (isRunComplete(handle) || (await runPaneState(handle, env)) === 'gone') {
         this.untrackRun(terminalId, handle)
         handle.dispose()
       }

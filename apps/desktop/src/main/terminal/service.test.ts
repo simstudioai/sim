@@ -46,9 +46,9 @@ vi.mock('@/main/terminal/tmux', async () => {
         dispose: () => rmSync(dir, { recursive: true, force: true }),
       }
     },
-    isRunPaneOurs: async (...args: Parameters<typeof actual.isRunPaneOurs>) => {
-      if (!tmuxFake.on) return actual.isRunPaneOurs(...args)
-      return !tmuxFake.gone.has(args[0].pane)
+    runPaneState: async (...args: Parameters<typeof actual.runPaneState>) => {
+      if (!tmuxFake.on) return actual.runPaneState(...args)
+      return tmuxFake.gone.has(args[0].pane) ? 'gone' : 'ours'
     },
     stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
       if (!tmuxFake.on) return actual.stopRun(...args)

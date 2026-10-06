@@ -5,7 +5,7 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseRetryAfter } from '@sim/utils/retry'
-import { truncate } from '@sim/utils/string'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import {
   type ClaimedDesktopCall,
   COMPLETION_MESSAGE_MAX_CHARS,
@@ -197,7 +197,7 @@ export function createDesktopExecutorClient(
           executionToken,
           status: completion.status,
           // Leaves room for the ellipsis, so a cut message still fits Sim's limit.
-          message: truncate(completion.message, COMPLETION_MESSAGE_MAX_CHARS - 3),
+          message: truncateAtCodePoint(completion.message, COMPLETION_MESSAGE_MAX_CHARS - 3),
           ...(completion.data !== undefined ? { data: completion.data } : {}),
         })
       )
