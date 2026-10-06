@@ -41,10 +41,13 @@ const sessionStorageAdapter = {
   },
 }
 
+/** Numbers each delete, so a restore or read can tell the delete it saw from a later one. */
+let deleteCount = 0
+
 const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
-  cleared: {} as Record<string, true>,
+  cleared: {} as Record<string, number>,
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -206,13 +209,16 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
             editing: omitKey(state.editing, chatKey),
-            cleared: { ...state.cleared, [chatKey]: true },
+            cleared: { ...state.cleared, [chatKey]: ++deleteCount },
           })),
 
-        reopenChat: (chatKey) =>
-          set((state) =>
-            state.cleared[chatKey] ? { cleared: omitKey(state.cleared, chatKey) } : state
-          ),
+        reopenChat: (chatKey, deleteToken) =>
+          set((state) => {
+            const current = state.cleared[chatKey]
+            if (current === undefined) return state
+            if (deleteToken !== undefined && deleteToken !== current) return state
+            return { cleared: omitKey(state.cleared, chatKey) }
+          }),
 
         reset: () => set(initialState),
       }),

@@ -319,9 +319,9 @@ export async function fetchMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
-  const deletedBeforeRead = Boolean(useMothershipQueueStore.getState().cleared[chatId])
+  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
   const history = await readMothershipChatHistory(chatId, signal)
-  if (deletedBeforeRead) useMothershipQueueStore.getState().reopenChat(chatId)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().reopenChat(chatId, deleteSeen)
   return history
 }
 
@@ -381,8 +381,11 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
-    onSuccess: (_data, chatId) => {
-      useMothershipQueueStore.getState().reopenChat(chatId)
+    /** The delete this restore undoes; one that lands while it is in flight stays. */
+    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
+    onSuccess: (_data, chatId, context) => {
+      if (context?.deleteSeen === undefined) return
+      useMothershipQueueStore.getState().reopenChat(chatId, context.deleteSeen)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })

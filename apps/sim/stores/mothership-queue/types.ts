@@ -53,10 +53,11 @@ export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>
   editing: Record<string, string>
   /**
-   * Chats cleared this session (deleted). No write recreates their queue (a late
-   * restore, or a failed send handed back); restoring the chat lifts it.
+   * Chats cleared this session (deleted), each with the token of its latest
+   * delete. No write recreates their queue (a late restore, or a failed send
+   * handed back); restoring the chat lifts it.
    */
-  cleared: Record<string, true>
+  cleared: Record<string, number>
 
   enqueue: (chatKey: string, message: QueuedMothershipMessage) => void
   insertAt: (chatKey: string, index: number, message: QueuedMothershipMessage) => void
@@ -69,7 +70,10 @@ export interface MothershipQueueState {
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
   clearChat: (chatKey: string) => void
-  /** Lifts `cleared` for a chat restored from Recently Deleted. */
-  reopenChat: (chatKey: string) => void
+  /**
+   * Lifts `cleared` for a restored chat. Given the delete token an operation
+   * saw when it began, lifts only that delete, never one that landed after it.
+   */
+  reopenChat: (chatKey: string, deleteToken?: number) => void
   reset: () => void
 }
