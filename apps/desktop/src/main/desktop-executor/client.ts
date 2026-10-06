@@ -13,14 +13,19 @@ import {
   type DesktopCompletionRequest,
   type DesktopDeviceRegistration,
   type DesktopExecutorTiming,
+  type DesktopImportEntryRequest,
+  type DesktopImportedEntry,
   type DesktopInboxItem,
   parseClaim,
   parseCompletionOutcome,
+  parseImportedEntry,
   parseInbox,
   parseRegistration,
 } from '@/main/desktop-executor/protocol'
 
 const REQUEST_TIMEOUT_MS = 15_000
+/** An import entry carries up to a 64 MB file, so it gets longer than a control request. */
+const IMPORT_TIMEOUT_MS = 300_000
 
 /** A request Sim answered with a failure, or that never got an answer (`status` 0). */
 export class DeviceRequestError extends Error {
@@ -73,6 +78,10 @@ export interface DesktopExecutorClient {
   claim(toolCallId: string): Promise<ClaimedDesktopCall>
   renewLease(toolCallId: string, executionToken: string): Promise<void>
   complete(request: DesktopCompletionRequest): Promise<DesktopCompletionOutcome>
+  importEntry(
+    request: DesktopImportEntryRequest,
+    signal: AbortSignal
+  ): Promise<DesktopImportedEntry>
 }
 
 interface DesktopExecutorClientOptions {
@@ -97,13 +106,15 @@ export function createDesktopExecutorClient(
   const { deviceId } = options
 
   async function send(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT',
     path: string,
-    body?: Record<string, unknown>,
-    signal?: AbortSignal
+    body?: Record<string, unknown> | Blob,
+    signal?: AbortSignal,
+    timeoutMs = REQUEST_TIMEOUT_MS
   ): Promise<Response> {
-    const encoded = body ? encode(body) : undefined
-    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const timeout = AbortSignal.timeout(timeoutMs)
+    const raw = body instanceof Blob
+    const encoded = body === undefined ? undefined : raw ? body : encode(body)
     let response: Response
     try {
       response = await options.fetch(`${options.origin()}${path}`, {
@@ -111,7 +122,9 @@ export function createDesktopExecutorClient(
         credentials: 'include',
         headers: {
           Accept: 'application/json',
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(body
+            ? { 'Content-Type': raw ? 'application/octet-stream' : 'application/json' }
+            : {}),
         },
         ...(encoded !== undefined ? { body: encoded } : {}),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -203,6 +216,26 @@ export function createDesktopExecutorClient(
       )
       if (!outcome) throw malformed('completion')
       return outcome
+    },
+    async importEntry({ call, kind, sourceName, relativePath, content }, signal) {
+      const query = new URLSearchParams({
+        deviceId,
+        toolCallId: call.toolCallId,
+        executionToken: call.executionToken,
+        kind,
+        sourceName,
+        relativePath,
+      })
+      const response = await send(
+        'PUT',
+        `/api/desktop/tool/import?${query}`,
+        content,
+        signal,
+        IMPORT_TIMEOUT_MS
+      )
+      const entry = parseImportedEntry(await response.json().catch(() => null))
+      if (!entry) throw malformed('import')
+      return entry
     },
   }
 }

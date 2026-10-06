@@ -1,7 +1,14 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TerminalToolResponse } from '@sim/terminal-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ClaimedDesktopCall } from '@/main/desktop-executor/protocol'
+import type {
+  ClaimedDesktopCall,
+  DesktopImportEntryRequest,
+} from '@/main/desktop-executor/protocol'
 import { createDesktopToolRunner, type DesktopToolRunnerDeps } from '@/main/desktop-executor/runner'
+import { executeLocalFileRequest } from '@/main/local-files'
 
 function terminalCall(toolCallId: string, operation: string): ClaimedDesktopCall {
   return {
@@ -25,7 +32,11 @@ function runner(overrides: Partial<DesktopToolRunnerDeps> = {}) {
       restoreScope: vi.fn(),
     },
     terminal: { executeTool: vi.fn(), cancelTool: vi.fn(async () => true) },
-    localFiles: { read: vi.fn() },
+    localFiles: {
+      request: (call, request) =>
+        executeLocalFileRequest(request, { toolName: call.toolName, args: call.args }),
+    },
+    imports: { importEntry: vi.fn() },
     localFilesystem: { handle: vi.fn(), vfsRoot: () => 'user-local/x--1' },
     ...overrides,
   })
@@ -119,5 +130,128 @@ describe('local file calls', () => {
     expect(completion.data).toMatchObject({ notStarted: true })
     expect(completion.message).toContain('cannot reach local files')
     expect(completion.message).not.toContain('settings')
+  })
+})
+
+describe('background imports', () => {
+  const roots: string[] = []
+
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  })
+
+  /** A `Reports` folder holding `q3/summary.txt` and `notes.txt`. */
+  async function reportsFolder(): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'sim-runner-import-'))
+    roots.push(root)
+    const reports = join(root, 'Reports')
+    await mkdir(join(reports, 'q3'), { recursive: true })
+    await writeFile(join(reports, 'q3', 'summary.txt'), 'quarterly numbers')
+    await writeFile(join(reports, 'notes.txt'), 'remember')
+    return reports
+  }
+
+  function importCall(path: string): ClaimedDesktopCall {
+    return {
+      toolCallId: 'import-1',
+      toolName: 'import_local_files',
+      args: { path, targetWorkspaceId: 'ws-1', folderId: 'folder-1' },
+      chatId: 'chat-b',
+      workspaceId: 'ws-1',
+      executionToken: 'token-import-1',
+    }
+  }
+
+  /** Records what reached Sim, with each file's bytes as text. */
+  function recordingSim(fail?: (request: DesktopImportEntryRequest) => boolean) {
+    const stored: Array<{ kind: string; relativePath: string; text?: string }> = []
+    const importEntry = vi.fn(async (request: DesktopImportEntryRequest) => {
+      if (fail?.(request)) throw new Error('Sim refused the entry')
+      stored.push({
+        kind: request.kind,
+        relativePath: request.relativePath,
+        ...(request.content ? { text: await request.content.text() } : {}),
+      })
+      return { id: `id-${stored.length}`, name: request.relativePath || request.sourceName }
+    })
+    return { stored, importEntry }
+  }
+
+  it("stores a folder's tree in Sim, each file with the bytes on disk", async () => {
+    const sim = recordingSim()
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(await reportsFolder()),
+      new AbortController().signal
+    )
+
+    expect(completion.status).toBe('success')
+    expect(sim.stored).toEqual([
+      { kind: 'directory', relativePath: '' },
+      { kind: 'file', relativePath: 'notes.txt', text: 'remember' },
+      { kind: 'directory', relativePath: 'q3' },
+      { kind: 'file', relativePath: 'q3/summary.txt', text: 'quarterly numbers' },
+    ])
+    expect(sim.importEntry.mock.calls[0]?.[0]).toMatchObject({
+      sourceName: 'Reports',
+      call: { executionToken: 'token-import-1' },
+    })
+    expect(completion.data).toMatchObject({
+      success: true,
+      workspaceId: 'ws-1',
+      folders: [
+        { id: 'id-1', relativePath: '' },
+        { id: 'id-3', relativePath: 'q3' },
+      ],
+      files: [
+        { id: 'id-2', relativePath: 'notes.txt' },
+        { id: 'id-4', relativePath: 'q3/summary.txt' },
+      ],
+    })
+  })
+
+  it('reports what landed when an import stops part way, and not to retry it', async () => {
+    const sim = recordingSim((request) => request.relativePath === 'q3/summary.txt')
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(await reportsFolder()),
+      new AbortController().signal
+    )
+
+    expect(completion.status).toBe('error')
+    expect(completion.data).toMatchObject({
+      success: false,
+      partial: true,
+      doNotRetry: true,
+      outcomeUnknown: true,
+      error: 'Sim refused the entry',
+      files: [{ id: 'id-2', relativePath: 'notes.txt' }],
+    })
+  })
+
+  it('stores nothing more once the call is stopped', async () => {
+    const controller = new AbortController()
+    const sim = recordingSim()
+    sim.importEntry.mockImplementationOnce(async (request) => {
+      controller.abort()
+      return { id: 'id-root', name: request.sourceName }
+    })
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(await reportsFolder()),
+      controller.signal
+    )
+
+    expect(completion.status).toBe('error')
+    expect(sim.importEntry).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails without storing anything when the source cannot be read', async () => {
+    const sim = recordingSim()
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(join(tmpdir(), 'sim-runner-import-missing', 'Reports')),
+      new AbortController().signal
+    )
+
+    expect(completion.status).toBe('error')
+    expect(sim.importEntry).not.toHaveBeenCalled()
+    expect(completion.data).toMatchObject({ workspaceId: 'ws-1', partial: false })
   })
 })

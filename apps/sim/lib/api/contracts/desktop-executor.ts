@@ -211,3 +211,42 @@ export const listDesktopActivityContract = defineRouteContract({
   response: { mode: 'json', schema: desktopActivityResponseSchema },
   error: z.object({ error: z.string() }),
 })
+
+/** One relative path inside an import source, as the device's manifest lists it. */
+const desktopImportRelativePathSchema = z
+  .string()
+  .max(4096, 'Relative path is too long')
+  .refine(
+    (path) =>
+      path === '' ||
+      path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..'),
+    'Relative path must stay inside the import source'
+  )
+
+const importDesktopEntryQuerySchema = z.object({
+  deviceId: desktopDeviceIdSchema,
+  toolCallId: desktopToolCallIdSchema,
+  executionToken: z.string().min(1).max(128),
+  kind: z.enum(['file', 'directory']),
+  /** The import source's own name: the folder a directory import lands in, or the file. */
+  sourceName: z.string().trim().min(1, 'Source name is required').max(255),
+  relativePath: desktopImportRelativePathSchema,
+})
+
+const importDesktopEntryResponseSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+})
+
+/**
+ * Stores one entry of a claimed `import_local_files` call in the call's target workspace and
+ * folder, for the device's background executor. A file's bytes are the raw request body; a
+ * directory has none. Directories that already exist are reused, so a tree merges into them.
+ */
+export const importDesktopEntryContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/desktop/tool/import',
+  query: importDesktopEntryQuerySchema,
+  response: { mode: 'json', schema: importDesktopEntryResponseSchema },
+  error: z.object({ error: z.string() }),
+})

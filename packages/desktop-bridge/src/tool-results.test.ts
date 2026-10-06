@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeBrowserToolResultForModel } from './tool-results'
+import type { DesktopLocalFileEntry, DesktopLocalFileResponse } from './local-files'
+import { readImportEntry, sanitizeBrowserToolResultForModel } from './tool-results'
 
 describe('browser screenshot model projection', () => {
   it('keeps an image usable when an older desktop omits coordinate metadata', () => {
@@ -87,5 +88,45 @@ describe('browser screenshot model projection', () => {
     const result = { outline: 'button "Continue" [ref=3]' }
     expect(sanitizeBrowserToolResultForModel('browser_snapshot', result)).toBe(result)
     expect(sanitizeBrowserToolResultForModel('browser_snapshot', undefined)).toBeUndefined()
+  })
+})
+
+describe('import file reads', () => {
+  const entry: DesktopLocalFileEntry = {
+    relativePath: 'notes.txt',
+    kind: 'file',
+    size: 6,
+    revision: 'rev-1',
+  }
+
+  function chunks(...parts: Array<{ bytes: string; eof: boolean }>) {
+    const queue = [...parts]
+    return async (): Promise<DesktopLocalFileResponse> => {
+      const next = queue.shift()
+      if (!next) throw new Error('read past the end')
+      return {
+        ok: true,
+        data: { kind: 'chunk', bytes: new TextEncoder().encode(next.bytes), eof: next.eof },
+      }
+    }
+  }
+
+  it('reads a file across chunks', async () => {
+    const parts = await readImportEntry(
+      'call-1',
+      entry,
+      chunks({ bytes: 'abc', eof: false }, { bytes: 'def', eof: true })
+    )
+    expect(new TextDecoder().decode(Buffer.concat(parts))).toBe('abcdef')
+  })
+
+  it.each([
+    ['ends early', [{ bytes: 'abc', eof: true }]],
+    ['grows past its listed size', [{ bytes: 'abcdefg', eof: true }]],
+    ['stalls', [{ bytes: '', eof: false }]],
+  ])('refuses a file that %s since the manifest listed it', async (_case, parts) => {
+    await expect(readImportEntry('call-1', entry, chunks(...parts))).rejects.toThrow(
+      'The local file changed or its transfer was incomplete.'
+    )
   })
 })

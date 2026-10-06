@@ -1,6 +1,6 @@
 /**
  * The device side of Sim's background executor protocol (`/api/desktop/devices`, `/inbox`,
- * `/inbox/stream`, `/tool/claim`, `/tool/lease`, `/tool/complete`). Sim's contracts are the
+ * `/inbox/stream`, `/tool/claim`, `/tool/lease`, `/tool/complete`, `/tool/import`). Sim's contracts are the
  * source of truth; responses are parsed defensively here because a malformed one must never
  * reach a tool.
  */
@@ -61,6 +61,25 @@ export interface ClaimedDesktopCall {
 }
 
 export type DesktopCompletionOutcome = 'recorded' | 'duplicate' | 'superseded'
+
+/**
+ * One entry of a claimed import, stored under the call's target folder: `sourceName` is the
+ * import source's own name and `relativePath` the entry's place inside it (`''` for the source).
+ */
+export interface DesktopImportEntryRequest {
+  call: ClaimedDesktopCall
+  kind: 'file' | 'directory'
+  sourceName: string
+  relativePath: string
+  /** A file's bytes; a directory has none. */
+  content?: Blob
+}
+
+/** What Sim stored an import entry as: the file, or the folder it reused or created. */
+export interface DesktopImportedEntry {
+  id: string
+  name: string
+}
 
 export interface DesktopCompletionRequest {
   toolCallId: string
@@ -174,4 +193,10 @@ export function parseCompletionOutcome(body: unknown): DesktopCompletionOutcome 
     body.outcome === 'superseded'
     ? body.outcome
     : null
+}
+
+export function parseImportedEntry(body: unknown): DesktopImportedEntry | null {
+  if (!isRecordLike(body) || typeof body.id !== 'string' || typeof body.name !== 'string')
+    return null
+  return body.id && body.name ? { id: body.id, name: body.name } : null
 }

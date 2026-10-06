@@ -603,11 +603,11 @@ function main(): void {
       },
       terminal,
       localFiles: {
-        read: (call) =>
-          executeLocalFileRequest(
-            { operation: 'read', toolCallId: call.toolCallId },
-            { toolName: call.toolName, args: call.args }
-          ),
+        request: (call, request) =>
+          executeLocalFileRequest(request, { toolName: call.toolName, args: call.args }),
+      },
+      imports: {
+        importEntry: (request, signal) => desktopExecutor.importEntry(request, signal),
       },
       localFilesystem: {
         handle: (request) => localFilesystem.handle(request),

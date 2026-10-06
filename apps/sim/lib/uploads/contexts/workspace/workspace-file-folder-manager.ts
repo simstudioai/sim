@@ -621,6 +621,35 @@ export async function createWorkspaceFileFolder(params: {
 }
 
 /**
+ * The active folder `name` directly under `parentId` (the workspace root when null), created
+ * when it does not exist yet. Writers that copy a tree in, one entry at a time, merge into a
+ * folder that is already there instead of making a numbered sibling.
+ */
+export async function ensureWorkspaceFileChildFolder(params: {
+  workspaceId: string
+  userId: string
+  parentId: string | null
+  name: string
+}): Promise<string> {
+  const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
+  const existing = await findRawWorkspaceFileFolderByName(params.workspaceId, name, params.parentId)
+  if (existing) return existing.id
+  try {
+    const created = await createWorkspaceFileFolder({ ...params, name, exactName: true })
+    return created.id
+  } catch (error) {
+    if (!(error instanceof WorkspaceFileFolderConflictError)) throw error
+    const concurrent = await findRawWorkspaceFileFolderByName(
+      params.workspaceId,
+      name,
+      params.parentId
+    )
+    if (!concurrent) throw error
+    return concurrent.id
+  }
+}
+
+/**
  * Outcome of {@link ensureWorkspaceFileFolderPath}. `createdFolderIds` lists only the
  * folders this call actually inserted, outermost-first, so a caller that has to unwind
  * a partial write can delete exactly what it added (reverse the list for deepest-first)

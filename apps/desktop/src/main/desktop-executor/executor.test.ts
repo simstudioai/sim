@@ -67,6 +67,9 @@ class FakeSim {
     openInboxStream: async () => {
       throw new Error('not used')
     },
+    importEntry: async () => {
+      throw new Error('not used')
+    },
     claim: async (toolCallId) => {
       this.claims.push(toolCallId)
       const error = this.claimError?.(toolCallId)
