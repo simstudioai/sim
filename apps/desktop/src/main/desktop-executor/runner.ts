@@ -321,7 +321,9 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
       return localFileImportCompletion(
         localFileImportFailure(
           { workspaceId: targetWorkspaceId, files, folders },
-          getErrorMessage(error)
+          getErrorMessage(error),
+          // A rate limit that outlasted every retry refused the entry outright: nothing of it landed.
+          { outcomeKnown: error instanceof DeviceRequestError && error.status === 429 }
         )
       )
     }

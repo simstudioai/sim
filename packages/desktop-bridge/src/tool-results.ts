@@ -305,20 +305,24 @@ export interface DesktopLocalFileImportResult {
 }
 
 /**
- * An import that stopped part way. Files it already created stay; whether more landed than it
- * reports is unknown, so the model inspects the workspace instead of importing again.
+ * An import that stopped part way. Files it already created stay. Usually whether more landed than
+ * it reports is unknown, so the model inspects the workspace instead of importing again. With
+ * `outcomeKnown` (Sim refused the next entry outright), the list is exact, and an import where
+ * nothing landed can simply be asked for again.
  */
 export function localFileImportFailure(
   partial: Pick<DesktopLocalFileImportResult, 'workspaceId' | 'files' | 'folders'>,
-  error: string
+  error: string,
+  options: { outcomeKnown?: boolean } = {}
 ): DesktopLocalFileImportResult {
+  const landed = partial.files.length > 0 || partial.folders.length > 0
   return {
     success: false,
     ...partial,
     error,
-    partial: partial.files.length > 0 || partial.folders.length > 0,
-    doNotRetry: true,
-    outcomeUnknown: true,
+    partial: landed,
+    ...(landed || !options.outcomeKnown ? { doNotRetry: true as const } : {}),
+    ...(options.outcomeKnown ? {} : { outcomeUnknown: true as const }),
   }
 }
 

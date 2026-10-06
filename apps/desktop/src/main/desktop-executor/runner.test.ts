@@ -271,6 +271,19 @@ describe('background imports', () => {
     ])
   })
 
+  it('reports an import the rate limit never let start as safe to ask for again', async () => {
+    const sim = recordingSim(() => new DeviceRequestError(429, 'Too many requests', 1))
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(await reportsFolder()),
+      new AbortController().signal
+    )
+
+    expect(completion.status).toBe('error')
+    expect(completion.data).toMatchObject({ partial: false, files: [], folders: [] })
+    expect(completion.data).not.toHaveProperty('doNotRetry')
+    expect(completion.data).not.toHaveProperty('outcomeUnknown')
+  })
+
   it('fails without storing anything when the source cannot be read', async () => {
     const sim = recordingSim()
     const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
