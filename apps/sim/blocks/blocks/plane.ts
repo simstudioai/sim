@@ -80,7 +80,7 @@ export const PlaneBlock: BlockConfig = {
         ],
         plane_get_work_item: [{ text: 'Read work item', field: 'workItemId', core: true }],
         plane_get_work_item_by_identifier: [
-          { text: 'Read work item', field: 'workItemIdentifier', core: true },
+          { text: 'Read work item', field: 'identifier', core: true },
         ],
         plane_list_work_items: [
           { text: 'List work items in project', field: 'projectId', core: true },
@@ -104,7 +104,7 @@ export const PlaneBlock: BlockConfig = {
         plane_update_comment: [{ text: 'Edit comment', field: 'commentId', core: true }],
         plane_delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
         plane_create_link: [
-          { text: 'Link', field: 'linkUrl', core: true },
+          { text: 'Link', field: 'url', core: true },
           { text: 'to work item', field: 'workItemId', core: true },
         ],
         plane_list_links: [{ text: 'List links on work item', field: 'workItemId', core: true }],
@@ -127,7 +127,7 @@ export const PlaneBlock: BlockConfig = {
         plane_get_project: [{ text: 'Read project', field: 'projectId', core: true }],
         plane_create_project: [
           { text: 'Create project', field: 'name', core: true },
-          { text: ', with identifier', field: 'projectIdentifier' },
+          { text: ', with identifier', field: 'identifier' },
         ],
         plane_list_states: [{ text: 'List states in project', field: 'projectId', core: true }],
         plane_list_labels: [{ text: 'List labels in project', field: 'projectId', core: true }],
@@ -230,7 +230,7 @@ export const PlaneBlock: BlockConfig = {
       required: { field: 'operation', value: [...WORK_ITEM_SCOPED_OPS] },
     },
     {
-      id: 'workItemIdentifier',
+      id: 'identifier',
       title: 'Work Item Identifier',
       type: 'short-input',
       placeholder: 'e.g., PROJ-123',
@@ -252,7 +252,7 @@ export const PlaneBlock: BlockConfig = {
       },
     },
     {
-      id: 'projectIdentifier',
+      id: 'identifier',
       title: 'Project Identifier',
       type: 'short-input',
       placeholder: 'e.g., ENG (work items become ENG-1, ENG-2, ...)',
@@ -425,7 +425,7 @@ export const PlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'plane_create_comment' },
     },
     {
-      id: 'linkUrl',
+      id: 'url',
       title: 'URL',
       type: 'short-input',
       placeholder: 'https://github.com/org/repo/pull/42',
@@ -433,7 +433,7 @@ export const PlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'plane_create_link' },
     },
     {
-      id: 'linkTitle',
+      id: 'title',
       title: 'Link Title',
       type: 'short-input',
       placeholder: 'Display title',
@@ -638,10 +638,6 @@ export const PlaneBlock: BlockConfig = {
           labelIds,
           workItemIds,
           clearFields,
-          workItemIdentifier,
-          projectIdentifier,
-          linkUrl,
-          linkTitle,
           ...rest
         } = params
         const result: Record<string, unknown> = { ...rest }
@@ -661,23 +657,10 @@ export const PlaneBlock: BlockConfig = {
         const fieldsToClear = parsePlaneIdList(clearFields)
         if (fieldsToClear) result.clearFields = fieldsToClear
 
-        switch (operation) {
-          case 'plane_get_work_item_by_identifier':
-            if (workItemIdentifier !== undefined) result.identifier = workItemIdentifier
-            break
-          case 'plane_create_project':
-            if (projectIdentifier !== undefined) result.identifier = projectIdentifier
-            break
-          case 'plane_create_link':
-            if (linkUrl !== undefined) result.url = linkUrl
-            if (linkTitle !== undefined) result.title = linkTitle
-            break
-          case 'plane_upload_attachment': {
-            const normalizedFile = normalizeFileInput(file, { single: true })
-            if (!normalizedFile) throw new Error('A file is required to upload an attachment.')
-            result.file = normalizedFile
-            break
-          }
+        if (operation === 'plane_upload_attachment') {
+          const normalizedFile = normalizeFileInput(file, { single: true })
+          if (!normalizedFile) throw new Error('A file is required to upload an attachment.')
+          result.file = normalizedFile
         }
         return result
       },
@@ -691,9 +674,11 @@ export const PlaneBlock: BlockConfig = {
     baseUrl: { type: 'string', description: 'Self-hosted Plane URL (defaults to Plane Cloud)' },
     projectId: { type: 'string', description: 'Project ID' },
     workItemId: { type: 'string', description: 'Work item ID' },
-    workItemIdentifier: { type: 'string', description: 'Work item identifier (e.g., PROJ-123)' },
+    identifier: {
+      type: 'string',
+      description: 'Work item identifier (e.g., PROJ-123) or new project identifier (e.g., ENG)',
+    },
     name: { type: 'string', description: 'Work item, project, or label name' },
-    projectIdentifier: { type: 'string', description: 'New project identifier (e.g., ENG)' },
     description: { type: 'string', description: 'Description (HTML for work items)' },
     stateId: { type: 'string', description: 'State ID' },
     priority: { type: 'string', description: 'Priority (urgent, high, medium, low, none)' },
@@ -711,8 +696,8 @@ export const PlaneBlock: BlockConfig = {
     commentId: { type: 'string', description: 'Comment ID' },
     comment: { type: 'string', description: 'Comment body (HTML)' },
     access: { type: 'string', description: 'Comment visibility (INTERNAL or EXTERNAL)' },
-    linkUrl: { type: 'string', description: 'URL to link' },
-    linkTitle: { type: 'string', description: 'Link title' },
+    url: { type: 'string', description: 'URL to link' },
+    title: { type: 'string', description: 'Link title' },
     linkId: { type: 'string', description: 'Link ID' },
     file: { type: 'json', description: 'File to upload (UserFile or reference)' },
     attachmentId: { type: 'string', description: 'Attachment ID' },

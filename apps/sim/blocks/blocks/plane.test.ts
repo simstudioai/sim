@@ -7,31 +7,16 @@ import { PlaneBlock } from '@/blocks/blocks/plane'
 const params = (input: Record<string, unknown>) => PlaneBlock.tools.config.params?.(input) ?? {}
 
 describe('PlaneBlock params', () => {
-  it('maps canvas-only field ids onto the tool params they fill', () => {
-    expect(
-      params({ operation: 'plane_get_work_item_by_identifier', workItemIdentifier: 'ENG-42' })
-    ).toMatchObject({ identifier: 'ENG-42' })
-    expect(
-      params({ operation: 'plane_create_project', name: 'Eng', projectIdentifier: 'ENG' })
-    ).toMatchObject({ identifier: 'ENG' })
-    expect(
-      params({
-        operation: 'plane_create_link',
-        linkUrl: 'https://github.com/org/repo/pull/1',
-        linkTitle: 'PR 1',
-      })
-    ).toMatchObject({ url: 'https://github.com/org/repo/pull/1', title: 'PR 1' })
-  })
-
-  it('keeps values an agent passes under the tool param names', () => {
+  it('passes fields named after tool params through unchanged, from the canvas or an agent', () => {
     expect(
       params({ operation: 'plane_get_work_item_by_identifier', identifier: 'ENG-42' })
     ).toMatchObject({ identifier: 'ENG-42' })
     expect(params({ operation: 'plane_create_project', identifier: 'ENG' })).toMatchObject({
       identifier: 'ENG',
     })
-    const link = params({ operation: 'plane_create_link', url: 'https://x.dev', title: 'X' })
-    expect(link).toMatchObject({ url: 'https://x.dev', title: 'X' })
+    expect(
+      params({ operation: 'plane_create_link', url: 'https://x.dev', title: 'X' })
+    ).toMatchObject({ url: 'https://x.dev', title: 'X' })
     expect(params({ operation: 'plane_create_label', parentId: 'label-1' })).toMatchObject({
       parentId: 'label-1',
     })
