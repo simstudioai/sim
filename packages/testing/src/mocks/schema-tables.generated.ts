@@ -1778,6 +1778,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'updatedAt',
     'createdBy',
   ],
+  userTableRowChanges: ['id', 'tableId', 'rowDelta'],
   userTableRowSecretProvenance: ['rowId', 'contentUpdatedAt', 'status', 'entries', 'updatedAt'],
   tableViews: [
     'id',

@@ -2107,7 +2107,7 @@ export const project = pgTable(
   })
 )
 
-/** Deferred membership and lifecycle triggers are installed by 0396 after the Project backfill. */
+/** Deferred membership and lifecycle triggers are installed by 0397 after the Project backfill. */
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
@@ -7062,7 +7062,8 @@ export const userTableDefinitions = pgTable(
      * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
      * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
      * reused until the table mutates. Never written from application code — the
-     * triggers are the only writers (bypass-proof).
+     * triggers and the `user_table_row_changes` fold are the only writers. Read the
+     * live value through `lib/table/row-changes.ts`, never this column alone.
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**
@@ -7172,6 +7173,29 @@ export const userTableRows = pgTable(
      * O(all rows) per page.
      */
     tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Append-only log of row mutations not yet folded into `user_table_definitions`. A table's current
+ * `row_count` is the stored count plus the sum of its `row_delta`s, and its current `rows_version` is
+ * the stored version plus its number of log rows, read in one statement (see
+ * `lib/table/row-changes.ts`). Writers only insert here, so no row write waits on the shared
+ * definition row; a background fold moves each table's rows into the definition row and deletes
+ * them in one transaction.
+ */
+export const userTableRowChanges = pgTable(
+  'user_table_row_changes',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    /** `+n` for an insert, `-n` for a delete, `0` for an update of row content or order. */
+    rowDelta: integer('row_delta').notNull(),
+  },
+  (table) => ({
+    tableIdIdx: index('user_table_row_changes_table_id_idx').on(table.tableId),
   })
 )
 

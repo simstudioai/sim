@@ -1,6 +1,6 @@
 {
-  "id": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
-  "prevId": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "id": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "prevId": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -29841,6 +29841,74 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.user_table_row_changes": {
+      "name": "user_table_row_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "user_table_row_changes_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "table_id": {
+          "name": "table_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_delta": {
+          "name": "row_delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_table_row_changes_table_id_idx": {
+          "name": "user_table_row_changes_table_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_row_changes_table_id_user_table_definitions_id_fk": {
+          "name": "user_table_row_changes_table_id_user_table_definitions_id_fk",
+          "tableFrom": "user_table_row_changes",
+          "tableTo": "user_table_definitions",
+          "columnsFrom": ["table_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -30017,7 +30085,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",

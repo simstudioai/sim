@@ -85,6 +85,7 @@ import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 authClientMockFns.mockUseSession.mockImplementation(() => ({
@@ -105,7 +106,7 @@ interface NetworkState {
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
   postBehavior: 'hang' | 'accept' | 'deduped' | 'tool' | 'task'
-  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string }>
+  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string; effort?: string }>
   pendingAdmissions: Map<string, () => void>
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
@@ -689,6 +690,36 @@ describe('useChat remount send recovery', () => {
       await waitFor(() => state.postBodies.length === 2)
       expect(state.postBodies[1]).toMatchObject({ chatId: DEDUPED_CHAT_ID, createNewChat: false })
       expect(allQueuedMessages()).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    { surface: 'a new chat', newChatPick: null, storedPick: null, sends: undefined },
+    { surface: 'a new chat', newChatPick: 'medium', storedPick: null, sends: 'medium' },
+    { surface: 'an existing chat', newChatPick: null, storedPick: null, sends: undefined },
+    { surface: 'an existing chat', newChatPick: null, storedPick: 'medium', sends: 'medium' },
+  ] as const)(
+    'sends effort $sends from $surface only when the user picked one',
+    async ({ surface, newChatPick, storedPick, sends }) => {
+      state.postBehavior = 'accept'
+      useMothershipEffortStore.getState().reset()
+      if (newChatPick) useMothershipEffortStore.getState().setNewChatEffort(newChatPick)
+      const { getResult } =
+        surface === 'a new chat'
+          ? renderUseChat('ws-1', 'agent')
+          : renderUseChatInChat('chat-effort', {
+              id: 'chat-effort',
+              title: 'Effort',
+              messages: [],
+              activeStreamId: null,
+              resources: [],
+              effort: storedPick,
+            })
+      await act(async () => {
+        await getResult().sendMessage('Plan the launch')
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(state.postBodies[0].effort).toBe(sends)
     }
   )
 

@@ -12,14 +12,12 @@
  */
 
 import { createHash } from 'crypto'
-import { db } from '@sim/db'
-import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell } from '@/lib/table/export-format'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
+import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import type { TableDefinition } from '@/lib/table/types'
 import { createMultipartUpload, deleteFile, headObject } from '@/lib/uploads/core/storage-service'
 
@@ -76,13 +74,9 @@ function snapshotKey(
 }
 
 async function readRowsVersion(tableId: string): Promise<number> {
-  const [row] = await db
-    .select({ rowsVersion: userTableDefinitions.rowsVersion })
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.id, tableId))
-    .limit(1)
-  if (!row) throw new Error(`Table ${tableId} not found while reading rows_version`)
-  return row.rowsVersion
+  const version = await readCurrentRowsVersion(tableId)
+  if (version === null) throw new Error(`Table ${tableId} not found while reading rows_version`)
+  return version
 }
 
 /**
