@@ -352,6 +352,7 @@ describe('buildCompletedExecutionState', () => {
       'a boxed number carrying a BigInt property',
       { value: Object.assign(Object(1), { big: BigInt(1) }) },
     ],
+    ['an object that only inherits from BigInt', { value: Object.create(BigInt.prototype) }],
   ])('serializes like the JSON-cloned pause state for %s', (_name, output) => {
     const context = contextWithOutput(output)
     expect(JSON.stringify(buildCompletedExecutionState(context))).toBe(
@@ -359,9 +360,17 @@ describe('buildCompletedExecutionState', () => {
     )
   })
 
+  const numberLookalike = Object.create(Number.prototype)
+  numberLookalike.self = numberLookalike
+
   it.each([
     ['a cycle', cyclic],
     ['a BigInt', { big: BigInt(1) }],
+    ['a cycle in an object that only inherits from Number', { value: numberLookalike }],
+    [
+      'a BigInt wrapper whose prototype was swapped',
+      { value: Object.setPrototypeOf(Object(BigInt(1)), {}) },
+    ],
   ])('throws like the pause snapshot for %s', (_name, output) => {
     const context = contextWithOutput(output)
     expect(() => jsonClonedState(context)).toThrow(TypeError)

@@ -40,6 +40,14 @@ describe('getJsonByteSize', () => {
       },
     ],
     ['a function with toJSON', { fn: Object.assign(() => 1, { toJSON: () => 'serialized' }) }],
+    [
+      'objects that only inherit from wrapper prototypes',
+      {
+        n: Object.assign(Object.create(Number.prototype), { a: 1 }),
+        s: Object.assign(Object.create(String.prototype), { b: 'x' }),
+      },
+    ],
+    ['a Number wrapper whose prototype was swapped', { n: Object.setPrototypeOf(Object(42), {}) }],
     ['escapes, multi-byte text, and lone surrogates', { 'k"\\': 'a\n\u0001é漢😀\ud800' }],
   ])('matches JSON.stringify for %s', (_name, payload) => {
     expect(getJsonByteSize(payload, LIMIT)).toBe(jsonBytes(payload))
