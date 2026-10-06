@@ -325,7 +325,7 @@ describe('reflectBackgroundChatStatus', () => {
       { id: 'chat-b', name: 'Fix CI' },
     ])
     queryClient.setQueryData(desktopActivityKeys.list('ws-1'), [
-      { chatId: 'chat-b', state: 'running', deviceName: 'Studio Mac' },
+      { chatId: 'chat-b', streamId: 's-1', state: 'running', deviceName: 'Studio Mac' },
     ])
   }
 
@@ -411,6 +411,19 @@ describe('reflectBackgroundChatStatus', () => {
       queryClient,
       'ws-1',
       JSON.stringify({ chatId: 'teammate-chat', type: 'completed', streamId: 's-9' }),
+      true
+    )
+
+    expect(shown).toEqual([])
+  })
+
+  it('stays silent for a later turn the chat view ran in a chat a desktop ran before', () => {
+    showing('/workspace/ws-1/chat/chat-c')
+
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'chat-b', type: 'completed', streamId: 's-later' }),
       true
     )
 

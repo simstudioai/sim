@@ -209,13 +209,17 @@ export function reflectBackgroundChatStatus(
   const payload = parseChatStatusEventPayload(data)
   if (payload?.type !== 'started' && payload?.type !== 'completed') return
   // Read before the refresh below drops it. The events carry every member's chats in the
-  // workspace; only one this user's own desktop was running is theirs to be told about.
+  // workspace; only this very turn, seen running on this user's own desktop, is theirs to be told
+  // about. Matching the turn, not just the chat, keeps an earlier desktop turn from vouching for a
+  // later one the chat view ran.
   const ranOnDesktop =
     typeof owner === 'string' &&
     Boolean(
       queryClient
         .getQueryData<DesktopChatActivity[]>(desktopActivityKeys.list(owner))
-        ?.some((activity) => activity.chatId === payload.chatId)
+        ?.some(
+          (activity) => activity.chatId === payload.chatId && activity.streamId === payload.streamId
+        )
     )
   queryClient.invalidateQueries({ queryKey: desktopActivityKeys.lists() })
   if (!announceCompletions || payload.type !== 'completed' || !payload.chatId) return

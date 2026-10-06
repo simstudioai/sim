@@ -454,6 +454,7 @@ export async function listDesktopActivityRows(input: { userId: string; workspace
     .select({
       runId: copilotRuns.id,
       chatId: copilotRuns.chatId,
+      streamId: copilotRuns.streamId,
       deviceId: desktopDevices.id,
       deviceName: desktopDevices.name,
     })

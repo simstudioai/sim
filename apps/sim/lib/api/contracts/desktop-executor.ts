@@ -192,6 +192,8 @@ const desktopActivityQuerySchema = z.object({ workspaceId: workspaceIdSchema })
  */
 const desktopChatActivitySchema = z.object({
   chatId: z.string().min(1),
+  /** The turn the desktop runs, as chat status events name it. */
+  streamId: z.string().min(1),
   state: z.enum(['running', 'needs_input', 'blocked']),
   deviceName: z.string(),
 })

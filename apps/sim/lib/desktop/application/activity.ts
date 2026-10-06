@@ -18,6 +18,8 @@ type DesktopChatActivityState = 'running' | 'needs_input' | 'blocked'
 
 export interface DesktopChatActivityEntry {
   chatId: string
+  /** The turn the desktop runs, as chat status events name it. */
+  streamId: string
   state: DesktopChatActivityState
   deviceName: string
 }
@@ -66,6 +68,7 @@ export const listDesktopActivity = defineAuthorizedCredentialUserUseCase({
       if (chats.has(run.chatId)) continue
       chats.set(run.chatId, {
         chatId: run.chatId,
+        streamId: run.streamId,
         deviceName: run.deviceName,
         state: run.needsInput ? 'needs_input' : online.get(run.deviceId) ? 'running' : 'blocked',
       })

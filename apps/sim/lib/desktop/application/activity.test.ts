@@ -19,7 +19,13 @@ const principal = createSessionPrincipal({ userId: 'user-1', sessionId: 'session
 describe('desktop activity presence', () => {
   beforeEach(() => {
     rows.mockResolvedValue([
-      { chatId: 'chat-1', deviceId: 'device-1', deviceName: 'Studio Mac', needsInput: false },
+      {
+        chatId: 'chat-1',
+        streamId: 's-1',
+        deviceId: 'device-1',
+        deviceName: 'Studio Mac',
+        needsInput: false,
+      },
     ])
   })
 
@@ -32,7 +38,9 @@ describe('desktop activity presence', () => {
       input: { workspaceId: 'ws-1' },
     })
 
-    expect(chats).toEqual([{ chatId: 'chat-1', state: 'running', deviceName: 'Studio Mac' }])
+    expect(chats).toEqual([
+      { chatId: 'chat-1', streamId: 's-1', state: 'running', deviceName: 'Studio Mac' },
+    ])
   })
 
   it('calls a desktop blocked when presence is tracked and it is gone', async () => {
@@ -44,6 +52,8 @@ describe('desktop activity presence', () => {
       input: { workspaceId: 'ws-1' },
     })
 
-    expect(chats).toEqual([{ chatId: 'chat-1', state: 'blocked', deviceName: 'Studio Mac' }])
+    expect(chats).toEqual([
+      { chatId: 'chat-1', streamId: 's-1', state: 'blocked', deviceName: 'Studio Mac' },
+    ])
   })
 })

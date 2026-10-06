@@ -153,8 +153,18 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       ).chats
     ).toEqual(
       expect.arrayContaining([
-        { chatId: running.chatId, state: 'blocked', deviceName: 'Studio Mac' },
-        { chatId: waiting.chatId, state: 'needs_input', deviceName: 'Studio Mac' },
+        {
+          chatId: running.chatId,
+          streamId: expect.any(String),
+          state: 'blocked',
+          deviceName: 'Studio Mac',
+        },
+        {
+          chatId: waiting.chatId,
+          streamId: expect.any(String),
+          state: 'needs_input',
+          deviceName: 'Studio Mac',
+        },
       ])
     )
 
@@ -172,8 +182,18 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       expect(chats).toHaveLength(2)
       expect(chats).toEqual(
         expect.arrayContaining([
-          { chatId: running.chatId, state: 'running', deviceName: 'Studio Mac' },
-          { chatId: waiting.chatId, state: 'needs_input', deviceName: 'Studio Mac' },
+          {
+            chatId: running.chatId,
+            streamId: expect.any(String),
+            state: 'running',
+            deviceName: 'Studio Mac',
+          },
+          {
+            chatId: waiting.chatId,
+            streamId: expect.any(String),
+            state: 'needs_input',
+            deviceName: 'Studio Mac',
+          },
         ])
       )
     } finally {
