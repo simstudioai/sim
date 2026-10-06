@@ -3930,7 +3930,10 @@ export function useChat(
           : undefined
         resolveAdmission?.(admittedChatId)
         if (pendingChatAdmissionRef.current === admission) pendingChatAdmissionRef.current = null
-        if (streamGenRef.current !== gen) {
+        /* The user moved on (another chat) while the POST was out. A conflict is still
+           handled below: it means the message was not admitted, and must be re-queued
+           in its own chat rather than read as a turn this view no longer shows. */
+        if (streamGenRef.current !== gen && response.status !== 409) {
           await response.body?.cancel()
           return consumedByTranscript
         }
@@ -3964,6 +3967,8 @@ export function useChat(
                turn names that turn, or nothing when its stream id is unreadable. */
             const conflictStreamId =
               typeof errorData.activeStreamId === 'string' ? errorData.activeStreamId : undefined
+            /** Whether this view still shows the send; otherwise only its own chat changes. */
+            const viewOnSend = streamGenRef.current === gen
             const supersededStreamId = queuedSendHandoff?.supersededStreamId ?? pendingStopStreamId
             if (supersededStreamId && conflictStreamId === supersededStreamId) {
               rollbackOptimisticSend()
@@ -3974,7 +3979,8 @@ export function useChat(
                 clearActiveTurn()
                 setTransportIdle()
               }
-              setError('Previous response is still shutting down; queued message was restored.')
+              if (viewOnSend)
+                setError('Previous response is still shutting down; queued message was restored.')
               return { userMessageId, held: true }
             }
             /** Withdraws this refused send so the queue retries it, under the same id, later. */
@@ -3992,28 +3998,25 @@ export function useChat(
               /* Another turn holds the chat: one started in another tab, or one this
                  surface lost track of. This message was not admitted (the server
                  released its id), so it goes back to the queue under the same id. The
-                 queue drains only while the chat is idle, so the chat's running turn is
-                 read before the message is handed back: the chat then attaches to that
-                 turn and the message goes out once, after it ends. */
+                 queue drains only while the chat is idle, so the chat records the turn
+                 the refusal names before the message is handed back. */
               releaseRefusedSend()
-              if (requestChatId) {
-                const busyChatId = requestChatId
-                if (conflictStreamId) {
-                  upsertChatHistory(busyChatId, (current) => ({
-                    ...current,
-                    activeStreamId: conflictStreamId,
-                  }))
-                }
-                await queryClient
-                  .refetchQueries({ queryKey: mothershipChatKeys.detail(busyChatId), exact: true })
-                  .catch(() => {})
+              if (requestChatId && conflictStreamId) {
+                upsertChatHistory(requestChatId, (current) => ({
+                  ...current,
+                  activeStreamId: conflictStreamId,
+                }))
               }
-              /* The history read above can repeat one this surface skipped while the POST
-                 was pending, so nothing re-runs to attach to the turn it lists. Attach
-                 explicitly; the message is retried after that turn ends. */
-              if (pendingChatAdmissionRef.current === admission)
-                pendingChatAdmissionRef.current = null
-              void recoverActiveStreamRef.current('busy_refusal')
+              /* Attach to the turn that holds the chat: recovery reads the chat once and
+                 shows its running turn, and the message is retried after that turn ends.
+                 A view that moved to another chat leaves it to load fresh when reopened. */
+              if (viewOnSend) void recoverActiveStreamRef.current('busy_refusal')
+              else if (requestChatId)
+                void queryClient.invalidateQueries({
+                  queryKey: mothershipChatKeys.detail(requestChatId),
+                  exact: true,
+                  refetchType: 'none',
+                })
               return { userMessageId, busy: true }
             }
             /* A send deduplicated against an earlier attempt comes back naming
@@ -4022,7 +4025,7 @@ export function useChat(
                chat before the reconnect below replays it. */
             const conflictChatId =
               typeof errorData.chatId === 'string' ? errorData.chatId : undefined
-            if (conflictChatId && !streamTargetChatId) {
+            if (viewOnSend && conflictChatId && !streamTargetChatId) {
               adoptNewChatEffort(conflictChatId, false)
               adoptResolvedChatId(conflictChatId, {
                 replaceHomeHistory: true,

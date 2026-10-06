@@ -2528,6 +2528,72 @@ describe('useChat remount send recovery', () => {
       expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
     })
 
+    /**
+     * A send can wait on the chat lock while the user switches chats. The switch
+     * detaches the view but leaves the POST running, so the busy refusal that
+     * answers it must still put the message back in its own chat's queue.
+     */
+    it.each(['direct', 'queued'] as const)(
+      'keeps a %s send refused as busy after the user switched chats',
+      async (origin) => {
+        const history = idleHistory(`chat-busy-after-switch-${origin}`)
+        const other = idleHistory(`chat-switched-to-during-lock-${origin}`)
+        mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
+          Promise.resolve({
+            chat: JSON.stringify(input).includes(other.id) ? other : history,
+          })
+        )
+        let answerPost: (() => void) | undefined
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return new Promise<Response>((resolve) => {
+              answerPost = () =>
+                resolve(
+                  Response.json(
+                    {
+                      error: 'A response is already in progress for this chat.',
+                      activeStreamId: 'turn-from-another-tab',
+                    },
+                    { status: 409 }
+                  )
+                )
+            })
+          }
+          if (String(input).includes('/api/mothership/chat/stream')) {
+            return new Response(new ReadableStream<Uint8Array>(), {
+              headers: { 'Content-Type': 'text/event-stream' },
+            })
+          }
+          return fetchStub(input, init)
+        })
+        if (origin === 'queued') {
+          useMothershipQueueStore
+            .getState()
+            .enqueue(history.id, { id: 'queued-on-lock', content: 'Waiting on the lock' })
+        }
+        const { getResult, navigate } = renderUseChatInChat(history.id, history)
+        if (origin === 'direct') {
+          await act(async () => {
+            void getResult().sendMessage('Waiting on the lock')
+          })
+        }
+        await waitFor(() => answerPost !== undefined)
+
+        navigate(other.id, other)
+        await act(async () => {
+          answerPost?.()
+          await sleep(300)
+        })
+
+        const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
+        expect(queued.map((message) => message.content)).toEqual(['Waiting on the lock'])
+        expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+        expect(useMothershipQueueStore.getState().queues[other.id]).toBeUndefined()
+        expect(state.postBodies).toHaveLength(1)
+      }
+    )
+
     /** A chat deleted while its queued send was failing must not get that send back. */
     it('does not recreate the queue of a chat deleted while its queued send was failing', async () => {
       const history = idleHistory('chat-deleted-mid-dispatch')
