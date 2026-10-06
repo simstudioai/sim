@@ -89,22 +89,12 @@ const INBOX_ROW_LIMIT = 500
  * can share a millisecond, so the timestamp alone cannot order them. Rows persisted before the
  * sequence existed have none and come first, as they are the oldest.
  */
-const persistOrder = [
-  sql`${copilotAsyncToolCalls.persistSeq} ASC NULLS FIRST`,
-  asc(copilotAsyncToolCalls.createdAt),
-  asc(copilotAsyncToolCalls.toolCallId),
-]
-
-function comparePersistOrder(
-  a: { persistSeq: number | null; createdAt: Date; toolCallId: string },
-  b: { persistSeq: number | null; createdAt: Date; toolCallId: string }
-): number {
-  if (a.persistSeq !== b.persistSeq) {
-    if (a.persistSeq === null) return -1
-    if (b.persistSeq === null) return 1
-    return a.persistSeq - b.persistSeq
-  }
-  return a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
+function persistOrder() {
+  return [
+    sql`${copilotAsyncToolCalls.persistSeq} ASC NULLS FIRST`,
+    asc(copilotAsyncToolCalls.createdAt),
+    asc(copilotAsyncToolCalls.toolCallId),
+  ]
 }
 
 export interface DesktopDeviceRegistration {
@@ -232,27 +222,27 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           state
         )
       )
-      .orderBy(...persistOrder)
+      .orderBy(...persistOrder())
       .limit(INBOX_ROW_LIMIT)
-  const [waiting, cancelled] = await Promise.all([
-    rowsWhere(
-      and(
-        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-        isNull(copilotAsyncToolCalls.executionOwnerToken),
-        or(sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`, awaitingPermission),
-        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
-        isNull(copilotRuns.toolAdmissionClosedAt)
+  return rowsWhere(
+    and(
+      eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+      isNull(copilotAsyncToolCalls.executionOwnerToken),
+      or(sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`, awaitingPermission),
+      inArray(copilotRuns.status, LIVE_RUN_STATUSES),
+      isNull(copilotRuns.toolAdmissionClosedAt)
+    )
+  )
+    .unionAll(
+      rowsWhere(
+        and(
+          isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+          isNull(copilotAsyncToolCalls.executionSettledAt),
+          ne(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running)
+        )
       )
-    ),
-    rowsWhere(
-      and(
-        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
-        isNull(copilotAsyncToolCalls.executionSettledAt),
-        ne(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running)
-      )
-    ),
-  ])
-  return [...waiting, ...cancelled].sort(comparePersistOrder)
+    )
+    .orderBy(...persistOrder())
 }
 
 export type DesktopInboxRow = Awaited<ReturnType<typeof listDesktopInboxRows>>[number]
@@ -448,7 +438,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
         )
       )
     )
-    .orderBy(...persistOrder)
+    .orderBy(...persistOrder())
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
 }

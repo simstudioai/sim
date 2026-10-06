@@ -31,6 +31,7 @@ import {
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
@@ -887,7 +888,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       expect((await inbox(desktop)).items.map((item) => item.toolCallId)).toEqual(persisted)
     })
 
-    it('lists pending calls in persistence order even when their doorbell was never heard', async () => {
+    it('preserves legacy sub-millisecond order even when the doorbell was never heard', async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
       const first = await pendingCall(run.runId, 'browser_navigate', { url: 'https://sim.ai' })
@@ -896,13 +897,24 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         path: 'user-local/Project--mount-1',
         pattern: 'TODO',
       })
+      const persisted = [first, second, vfs].sort(compareStrings).reverse()
+      const createdAt = new Date(Date.now() - 1000).toISOString()
+      for (const [index, toolCallId] of persisted.entries()) {
+        await db
+          .update(copilotAsyncToolCalls)
+          .set({
+            persistSeq: null,
+            createdAt: sql`${createdAt}::timestamp + ${index} * interval '100 microseconds'`,
+          })
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      }
       await pendingCall(run.runId, 'run_workflow', {})
       /** Rung while no stream was open: nobody heard it. */
       ringDesktopInbox(desktop.deviceId, 'call')
 
       expect(
         (await inbox(desktop)).items.map((item) => item.kind === 'call' && item.toolCallId)
-      ).toEqual([first, second, vfs])
+      ).toEqual(persisted)
     })
 
     it('counts the device online after a pull or a stream open, and keeps it online when the stream closes', async () => {
