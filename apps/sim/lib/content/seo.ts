@@ -181,11 +181,8 @@ export function buildPostGraphJsonLd(post: ContentMeta, section: ContentSection)
 }
 
 /**
- * Filtered/paginated index variants render genuinely different lists, but
- * only the bare index is indexable — same policy as the integrations and
- * models catalogs — so canonical always points at the unfiltered index and
- * the variant itself is noindexed rather than asking Google to index every
- * tag/page permutation.
+ * Paginated collections contain distinct posts and use their own canonical
+ * URLs. Tag filters remain noindexed to avoid indexing list permutations.
  */
 export function buildIndexMetadata(
   section: ContentSection,
@@ -200,8 +197,8 @@ export function buildIndexMetadata(
     ? `Sim ${section.name.toLowerCase()} posts tagged "${tag}": ${section.description}`
     : section.description
 
-  const canonical = `${SITE_URL}${section.basePath}`
-  const isFiltered = Boolean(tag) || pageNum > 1
+  const isFiltered = Boolean(tag)
+  const canonical = `${SITE_URL}${section.basePath}${!isFiltered && pageNum > 1 ? `?page=${pageNum}` : ''}`
 
   return withFilteredNoindex(
     {
@@ -363,9 +360,8 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
  *
  * `tag`/`page` describe which filtered/paginated variant `posts` came from,
  * so `url` reflects the actual page these `posts` are visible on rather than
- * always the bare section index - the same variant is `noindex`ed (see
- * `buildIndexMetadata`), but the graph still shouldn't attribute a partial
- * list to the unfiltered collection URL.
+ * always the bare section index. Only tag-filtered variants are noindexed;
+ * unfiltered pagination uses the same URL in metadata and structured data.
  */
 export function buildCollectionPageJsonLd(
   section: ContentSection,

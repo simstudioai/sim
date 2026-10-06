@@ -22,8 +22,8 @@ interface ContentIndexPageProps {
  * Shared index/list layout for a content section (blog or library): section
  * header, featured-post row, remaining posts list, and pagination. Both
  * sections render this exact layout, parameterized by `basePath` and copy —
- * see `.claude/rules/landing-seo-geo.md` for the filtered/paginated noindex
- * policy this pairs with (`buildIndexMetadata` in `@/lib/content/seo`).
+ * paginated URLs are indexable, while tag-filtered variants are noindexed
+ * by `buildIndexMetadata` in `@/lib/content/seo`.
  */
 export function ContentIndexPage({
   basePath,
