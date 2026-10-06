@@ -16,6 +16,11 @@ interface SleepBlockerDeps {
   powerSaveBlocker: PowerSaveBlocker
 }
 
+/**
+ * Holds one `prevent-app-suspension` power blocker while the executor is busy and the switch is
+ * on, and releases it as soon as either stops being true. `setBusy` follows the executor;
+ * `refresh` follows the switch.
+ */
 export function createSleepBlocker(deps: SleepBlockerDeps) {
   let busy = false
   let blockerId: number | null = null

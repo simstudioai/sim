@@ -769,6 +769,44 @@ test.describe('background executor', () => {
     })
   })
 
+  test('I: an action the user never stops working long enough for does not run', async () => {
+    app = (await launch(mkdtempSync(join(tmpdir(), 'sim-executor-i2-')))).app
+    const deviceId = await registeredDevice()
+    const opened = sim.issue(deviceId, CHAT_A, 'browser_open_url', {
+      url: `${sim.origin}/counter?chat=I2`,
+    })
+    const outline = ((await settled(opened)).data?.snapshot as { outline: string }).outline
+    const button = refFor(outline, 'Count visit')
+    const typeInAgentPage = () =>
+      app?.evaluate(({ webContents }) => {
+        const page = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().includes('/counter?chat=I2'))
+        page?.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+        page?.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+      })
+
+    await typeInAgentPage()
+    const click = sim.issue(deviceId, CHAT_A, 'browser_click', { elementId: button })
+    let typing = true
+    const keepTyping = (async () => {
+      while (typing) {
+        await typeInAgentPage()
+        await sleep(1_000)
+      }
+    })()
+
+    await check('I: the click reports it never ran, instead of timing out', async () => {
+      const completion = await settled(click, 60_000)
+      typing = false
+      await keepTyping
+      expect(completion.status).toBe('error')
+      expect(completion.message).toContain('Not run: the user kept working in this page')
+      expect(completion.data).not.toMatchObject({ outcomeUnknown: true })
+      expect(sim.hits.get('I2') ?? 0).toBe(0)
+    })
+  })
+
   test('J: the machine stays awake only while a chat has work running', async () => {
     app = (await launch(mkdtempSync(join(tmpdir(), 'sim-executor-j-')))).app
     await app.evaluate(({ powerSaveBlocker }) => {

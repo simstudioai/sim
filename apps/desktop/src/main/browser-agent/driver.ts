@@ -5096,6 +5096,12 @@ function withNotices(result: unknown): unknown {
 
 /** Quiet time after the user's last click or keystroke before the agent takes the page back. */
 const USER_TAKEOVER_IDLE_MS = 4_000
+/** The longest an action waits for the user to finish; past it, the action does not run. */
+const USER_TAKEOVER_MAX_WAIT_MS = 30_000
+const USER_KEPT_WORKING =
+  'Not run: the user kept working in this page, so this browser action never started and nothing was sent to the page. Ask the user whether they are done before acting in this page again.'
+const USER_TOOK_OVER_MID_ACTION =
+  'Stopped: the user started working in this page, so this browser action stopped before sending its next input. Earlier steps may have taken effect; inspect the page before continuing.'
 
 function isUserWorkingInPage(): boolean {
   const since = session.msSinceUserIntervention()
@@ -5107,14 +5113,25 @@ function isUserWorkingInPage(): boolean {
  * or scrolling in the tab the agent drives, the agent's next action waits, marked as needing
  * attention, and resumes once the user has left the page alone for a few seconds.
  */
-async function yieldToUser(toolCallId: string | undefined, signal: AbortSignal): Promise<void> {
+async function yieldToUser(
+  toolCallId: string | undefined,
+  signal: AbortSignal,
+  maxWaitMs: number
+): Promise<void> {
   session.setAutomationNeedsAttention(true)
   logger.info('Browser automation yielding to the user', { toolCallId })
-  while (isUserWorkingInPage()) {
-    await interruptibleSleep(250, signal)
-    if (signal.aborted) throw new ToolError('This browser action was cancelled.')
+  // Bounded well inside the action's own deadline, so a user who keeps working gets the model a
+  // clear "not run" rather than a timeout with an unknown outcome.
+  const deadline = Date.now() + maxWaitMs
+  try {
+    while (isUserWorkingInPage()) {
+      if (Date.now() >= deadline) throw new ToolError(USER_KEPT_WORKING)
+      await interruptibleSleep(250, signal)
+      if (signal.aborted) throw new ToolError('This browser action was cancelled.')
+    }
+  } finally {
+    session.setAutomationNeedsAttention(false)
   }
-  session.setAutomationNeedsAttention(false)
   logger.info('Browser automation resumed after the user stopped', { toolCallId })
 }
 
@@ -5214,19 +5231,31 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
-          if (tool !== 'browser_request_takeover' && isUserWorkingInPage()) {
-            await yieldToUser(toolCallId, executionController.signal)
+          const yieldsToUser = tool !== 'browser_request_takeover'
+          const watchdogMs = browserToolWatchdogMs(tool, params)
+          if (yieldsToUser && isUserWorkingInPage()) {
+            await yieldToUser(
+              toolCallId,
+              executionController.signal,
+              watchdogMs === null
+                ? USER_TAKEOVER_MAX_WAIT_MS
+                : Math.min(USER_TAKEOVER_MAX_WAIT_MS, Math.floor(watchdogMs / 2))
+            )
           }
           const response = dialogResponse(tool, params)
           state.dialogResponse = response
             ? { contents: session.requireAutomationTab().view.webContents, response }
             : null
           const executionEpoch = ++state.toolExecutionEpoch
-          const watchdogMs = browserToolWatchdogMs(tool, params)
           const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
+          // Checked right before each input the action sends: a user who starts working in the
+          // page mid-action (between a batch's steps, during a click's target probes) wins it.
           const assertCurrentExecution = () => {
             if (state.toolExecutionEpoch !== executionEpoch) {
               throw new ToolError('This browser action expired before it could dispatch input.')
+            }
+            if (yieldsToUser && isUserWorkingInPage()) {
+              throw new ToolError(USER_TOOK_OVER_MID_ACTION)
             }
           }
           let actionOutcome: BrowserActionOutcome | undefined
