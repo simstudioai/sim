@@ -91,6 +91,10 @@ import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
+import {
+  desktopToolLifetime,
+  stopDesktopTools,
+} from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
   captureResourceActivityScope,
@@ -925,13 +929,6 @@ export function useChat(
   const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
-  /**
-   * The lifetime of the desktop tools (browser actions, local file reads and imports) this view
-   * starts: only the user's Stop ends it. It belongs to no stream reader, so replacing the reader
-   * (the window returning to view, a history reconnect) or leaving the chat view leaves a running
-   * tool alone to finish and report, and a Stop still reaches tools a replaced reader started.
-   */
-  const desktopToolStopRef = useRef<AbortController | null>(null)
   const detachedChatResolutionControllersRef = useRef<Set<AbortController> | null>(null)
   const detachedChatResolutionControllers = (detachedChatResolutionControllersRef.current ??=
     new Set())
@@ -1586,7 +1583,7 @@ export function useChat(
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
-        signal: (desktopToolStopRef.current ??= new AbortController()).signal,
+        signal: streamIdRef.current ? desktopToolLifetime(streamIdRef.current) : undefined,
       }
       /**
        * Dynamic on purpose: the local-filesystem executor only runs for desktop-local
@@ -2162,7 +2159,9 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const browserToolSignal = (desktopToolStopRef.current ??= new AbortController()).signal
+      const browserToolSignal = streamIdRef.current
+        ? desktopToolLifetime(streamIdRef.current)
+        : undefined
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -4434,8 +4433,7 @@ export function useChat(
         )
       }
       clearResourceActivity(stopActivityTracker, true)
-      desktopToolStopRef.current?.abort(USER_STOP_ABORT_REASON)
-      desktopToolStopRef.current = null
+      if (sid) stopDesktopTools(sid, USER_STOP_ABORT_REASON)
 
       // Establish the stream boundary immediately after synchronous activity
       // settlement. Native cancellation above is deliberately fire-and-forget,

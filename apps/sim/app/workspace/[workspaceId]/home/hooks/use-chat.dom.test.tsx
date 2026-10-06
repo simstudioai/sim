@@ -2212,7 +2212,7 @@ describe('useChat remount send recovery', () => {
       const toolSignal = lifetimeOf()
       if (!(toolSignal instanceof AbortSignal))
         throw new Error('The desktop action has no lifetime')
-      return { ...chat, toolSignal, replays }
+      return { ...chat, toolSignal, replays, streamId: () => streamId }
     }
 
     beforeEach(() => {
@@ -2259,6 +2259,36 @@ describe('useChat remount send recovery', () => {
 
       await act(async () => {
         await getResult().stopGeneration()
+      })
+
+      expect(toolSignal.aborted).toBe(true)
+    })
+
+    it('keeps running when the user stops a turn in another chat', async () => {
+      const { toolSignal, navigate, getResult } = await startDesktopAction()
+      navigate('chat-other', { ...history, id: 'chat-other' })
+      await act(async () => {
+        void getResult().sendMessage('Something else')
+      })
+
+      await act(async () => {
+        await getResult().stopGeneration()
+      })
+
+      expect(toolSignal.aborted).toBe(false)
+    })
+
+    it('is still cancelled by Stop from the chat view reopened on its turn', async () => {
+      const { toolSignal, unmount, streamId } = await startDesktopAction()
+      unmount()
+      const reopened = renderUseChatInChat(chatId, {
+        ...history,
+        activeStreamId: streamId() ?? null,
+      })
+      await waitFor(() => reopened.getResult().isSending)
+
+      await act(async () => {
+        await reopened.getResult().stopGeneration()
       })
 
       expect(toolSignal.aborted).toBe(true)
