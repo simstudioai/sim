@@ -233,14 +233,17 @@ jobs:
           server_log="$report_dir/scim-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            kill "$server_pid" 2>/dev/null || true
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
-            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
@@ -270,11 +273,11 @@ jobs:
       # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
       # so workflow execution gets its own app rather than adding Redis to that one.
       #
-      # Every app in this job starts from an empty Turbopack dev cache (.next/dev).
-      # Restoring the one the previous app left, built with other NEXT_PUBLIC_*
-      # values and cut off by `next dev` killing its server 100ms after SIGTERM,
-      # panicked Turbopack ("inner_of_upper_lost_follower") or wedged the first
-      # route compile in 12 of 175 CI runs.
+      # The apps in this job share apps/sim/.next. Each starts from an empty Turbopack
+      # dev cache: one written under other NEXT_PUBLIC_* values, by a server `next dev`
+      # SIGKILLs 100ms after SIGTERM, can panic Turbopack or wedge a route compile on
+      # restore. Each runs in its own session, and stop-session.sh returns only once
+      # all of it has exited, so no app starts beside one still writing .next/dev.
       - name: Verify single-block workflow runs over real HTTP
         working-directory: apps/sim
         env:
@@ -292,14 +295,17 @@ jobs:
           server_log="$report_dir/stop-after-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            kill "$server_pid" 2>/dev/null || true
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
-            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
@@ -340,14 +346,17 @@ jobs:
           server_log="$report_dir/desktop-inbox-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            kill "$server_pid" 2>/dev/null || true
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
-            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
