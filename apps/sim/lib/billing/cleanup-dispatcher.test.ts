@@ -1,3 +1,5 @@
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
@@ -157,6 +159,52 @@ describe('organization-owned Search retention dispatch', () => {
       }),
       expect.any(Object)
     )
+  })
+})
+
+describe('Project payer discovery backpressure', () => {
+  it('resolves multiple payers within a bounded window and skips a failed payer', async () => {
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true, isDataRetentionEnabled: true })
+    mockIsTriggerAvailable.mockReturnValue(false)
+    mockEnqueue.mockResolvedValue('cleanup-job')
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(
+      schemaMock.project,
+      Array.from({ length: 30 }, (_, index) => ({
+        id: `project-${index}`,
+        ownerId: `owner-${index}`,
+        organizationId: null,
+        settings: null,
+      }))
+    )
+    queueTableRows(schemaMock.project, [])
+    const release = createDeferred<void>()
+    let active = 0
+    let peak = 0
+    vi.mocked(getHighestPriorityPersonalSubscription).mockImplementation(async (userId) => {
+      active++
+      peak = Math.max(peak, active)
+      try {
+        await release.promise
+        if (userId === 'owner-12') throw new Error('Payer unavailable')
+        return null
+      } finally {
+        active--
+      }
+    })
+    const dispatch = dispatchCleanupJobs('cleanup-file-versions')
+    try {
+      await flushMicrotasks(100)
+      expect(peak).toBeGreaterThan(1)
+      expect(peak).toBeLessThanOrEqual(10)
+    } finally {
+      release.resolve()
+      await dispatch
+      vi.mocked(getHighestPriorityPersonalSubscription).mockReset()
+      resetDbChainMock()
+    }
+    expect(await dispatch).toMatchObject({ chunkCount: 29, jobCount: 29 })
   })
 })
 

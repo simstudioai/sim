@@ -48,6 +48,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 }))
 vi.mock('@/lib/projects/files/prefix-cleanup', () => ({
   projectFilePrefixCleanupOutboxHandlers: {},
+  recoverProjectStorageReconciliation: vi.fn(),
 }))
 vi.mock('@/lib/workflows/deployment-outbox', () => ({ workflowDeploymentOutboxHandlers: {} }))
 vi.mock('@/lib/workspaces/admin-move', () => ({ invitationMigrationOutboxHandlers: {} }))

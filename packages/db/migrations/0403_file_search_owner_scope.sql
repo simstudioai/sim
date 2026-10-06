@@ -162,15 +162,49 @@ BEGIN
 END;
 $$;
 --> statement-breakpoint
+DO $$
+DECLARE target record; recovery_name text; target_table regclass;
+BEGIN
+  FOR target IN SELECT * FROM (VALUES
+    ('file_search_chunk_owner_content_idx', 'workspace_file_search_chunk'),
+    ('file_search_revision_owner_pending_idx', 'workspace_file_search_revision'),
+    ('file_search_revision_owner_status_idx', 'workspace_file_search_revision'),
+    ('workspace_files_search_owner_keyset_idx', 'workspace_files')
+  ) AS indexes(index_name, table_name) LOOP
+    recovery_name := target.index_name || '_failed_0403';
+    target_table := to_regclass(target.table_name);
+    IF EXISTS (
+      SELECT 1 FROM pg_index WHERE indexrelid = to_regclass(recovery_name)
+        AND (indisvalid OR indrelid <> target_table)
+    ) THEN
+      RAISE EXCEPTION 'Refusing to drop unexpected recovery index %', recovery_name;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_index WHERE indexrelid = to_regclass(target.index_name)
+        AND indrelid = target_table AND NOT indisvalid
+    ) THEN
+      EXECUTE format('ALTER INDEX %I RENAME TO %I', target.index_name, recovery_name);
+    END IF;
+  END LOOP;
+END $$;
+--> statement-breakpoint
 COMMIT;
 --> statement-breakpoint
 SET lock_timeout = 0;
 --> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "file_search_chunk_owner_content_idx_failed_0403";
+--> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_search_chunk_owner_content_idx" ON "workspace_file_search_chunk" USING gin ("entity_type" text_ops,"entity_id" text_ops,"content" gin_trgm_ops) WITH (fastupdate=off) WHERE "workspace_file_search_chunk"."entity_type" = 'project';
+--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "file_search_revision_owner_pending_idx_failed_0403";
 --> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_search_revision_owner_pending_idx" ON "workspace_file_search_revision" USING btree (coalesce("entity_type", 'workspace'),coalesce("entity_id", "workspace_id"),"updated_at","file_id","source_content_updated_at") WHERE "workspace_file_search_revision"."status" = 'pending' AND "workspace_file_search_revision"."dispatched_at" IS NULL;
 --> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "file_search_revision_owner_status_idx_failed_0403";
+--> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_search_revision_owner_status_idx" ON "workspace_file_search_revision" USING btree (coalesce("entity_type", 'workspace'),coalesce("entity_id", "workspace_id"),"status","dispatched_at");
+--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "workspace_files_search_owner_keyset_idx_failed_0403";
 --> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "workspace_files_search_owner_keyset_idx" ON "workspace_files" USING btree ((CASE WHEN "project_id" IS NOT NULL THEN 'project' ELSE 'workspace' END),coalesce("project_id", "workspace_id"),"id") WHERE "workspace_files"."deleted_at" IS NULL AND (("workspace_files"."context" = 'workspace' AND "workspace_files"."workspace_id" IS NOT NULL) OR ("workspace_files"."context" = 'project' AND "workspace_files"."project_id" IS NOT NULL));
 --> statement-breakpoint

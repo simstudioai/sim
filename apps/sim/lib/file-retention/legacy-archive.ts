@@ -6,7 +6,6 @@ import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm'
 import {
   decrementStorageUsageForBillingContextInTx,
   resolveStorageBillingContext,
-  type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { DEFAULT_DELETE_CHUNK_SIZE, selectRowsByIdChunks } from '@/lib/cleanup/batch-delete'
 import type { CleanupBudgets } from '@/lib/cleanup/limits'
@@ -266,22 +265,11 @@ async function deleteExpiredBillableWorkspaceFileRows(
   }
 
   for (const [workspaceId, workspaceRows] of rowsByWorkspace) {
-    let billingContext: StorageBillingContext
-    try {
-      billingContext = await resolveStorageBillingContext(workspaceId)
-    } catch (error) {
-      result.failed += workspaceRows.length
-      logger.error(`[${label}/workspaceFiles] Failed to resolve current storage payer`, {
-        error,
-        workspaceId,
-      })
-      continue
-    }
-
     for (const batch of chunkArray(workspaceRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
         const deletedCount = await db.transaction(async (tx) => {
           await lockWorkspaceProject(tx, workspaceId)
+          const billingContext = await resolveStorageBillingContext(workspaceId, tx)
           await releaseWorkspaceFileVersionsForPurgeInTx(
             tx,
             batch.map(({ id }) => id),

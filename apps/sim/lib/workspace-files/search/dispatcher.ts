@@ -17,7 +17,6 @@ import {
   and,
   asc,
   eq,
-  exists,
   inArray,
   isNotNull,
   isNull,
@@ -157,6 +156,17 @@ function revisionFilter(rows: readonly RevisionIdentity[]): SQL | undefined {
 
 function rowOwner(row: { entityType: string; entityId: string }): EditableFileOwner {
   return resolveFileSearchOwner({ owner: row })
+}
+
+function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefined {
+  return or(
+    ...owners.map((owner) =>
+      and(
+        eq(fileSearchDispatchQueue.entityType, owner.entityType),
+        eq(fileSearchDispatchQueue.entityId, owner.entityId)
+      )
+    )
+  )
 }
 
 async function enqueueOwners(
@@ -483,19 +493,9 @@ async function claimQueuedOwnerJobs(
         )
       )
     )
-  const selected = or(
-    ...owners.map((owner) =>
-      and(
-        eq(fileSearchDispatchQueue.entityType, owner.entityType),
-        eq(fileSearchDispatchQueue.entityId, owner.entityId)
-      )
-    )
-  )
   await tx
-    .update(fileSearchDispatchQueue)
-    .set({ lastDispatchedAt: now, updatedAt: now })
-    .where(and(selected, exists(remaining)))
-  await tx.delete(fileSearchDispatchQueue).where(and(selected, notExists(remaining)))
+    .delete(fileSearchDispatchQueue)
+    .where(and(queuedOwnerFilter(owners), notExists(remaining)))
   return rows.map((row) => ({
     owner: rowOwner(row),
     fileId: row.fileId,
@@ -590,7 +590,16 @@ export async function prepareWorkspaceFileSearchDispatch(
             asc(fileSearchDispatchQueue.entityId)
           )
           .limit(Math.min(FILE_SEARCH_INDEX_DISPATCH_WORKSPACES, remainingGlobalCapacity))
-        const owners = await lockFileSearchOwners(tx, queued.map(rowOwner), { skipBusy: true })
+          .for('update', { skipLocked: true })
+        const candidates = queued.map(rowOwner)
+        if (candidates.length > 0) {
+          // Rotate busy owners too; otherwise a full locked page starves every later owner.
+          await tx
+            .update(fileSearchDispatchQueue)
+            .set({ lastDispatchedAt: now, updatedAt: now })
+            .where(queuedOwnerFilter(candidates))
+        }
+        const owners = await lockFileSearchOwners(tx, candidates, { skipBusy: true })
         await reconcileOwnerDependencies(tx, owners, now)
         const payloads = await runDispatchPhase('claim', () =>
           claimQueuedOwnerJobs(tx, owners, remainingGlobalCapacity, now)

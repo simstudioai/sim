@@ -348,6 +348,7 @@ except Exception as __sim_recalc_err:
 interface LegacyCompileArgs {
   source: string
   fileName: string
+  sourceMime?: string
   workspaceId: string
   ownerKey?: string
   signal?: AbortSignal
@@ -582,7 +583,7 @@ async function buildCompiledDoc(
     dependsOnReferencedFiles: touchesReferencedFiles(
       args.source,
       contributingFiles.length,
-      getDocumentSourceLanguage(args.source, fmt)
+      getDocumentSourceLanguage(args.source, fmt, args.sourceMime)
     ),
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
@@ -812,12 +813,13 @@ async function compileDocInLegacySandbox(
  * artifact until broker calls can report the exact file versions they accessed.
  */
 export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> {
-  const { source, fileName, workspaceId } = args
+  const { source, fileName, workspaceId, sourceMime } = args
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
   if (!isDocSandboxEnabled) return compileDocInLegacySandbox(args, fmt)
 
-  const referencedFileIds = collectReferencedFileIds(source, getDocumentSourceLanguage(source, fmt))
+  const sourceLanguage = getDocumentSourceLanguage(source, fmt, sourceMime)
+  const referencedFileIds = collectReferencedFileIds(source, sourceLanguage)
   const referencedImages = await resolveReferencedImages(
     workspaceId,
     args.filePrincipal,
@@ -852,7 +854,7 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
       dependsOnReferencedFiles: touchesReferencedFiles(
         source,
         contributingFiles.length,
-        getDocumentSourceLanguage(source, fmt)
+        sourceLanguage
       ),
       ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
     }
@@ -873,6 +875,7 @@ async function loadCompiledDocByExt(
     allowLegacyReferencedArtifact?: boolean
     allowPublishedReferencedArtifact?: boolean
     filePrincipal?: Principal
+    sourceMime?: string
   } = {}
 ): Promise<{
   buffer: Buffer
@@ -883,7 +886,10 @@ async function loadCompiledDocByExt(
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const readOptions: CompiledDocReadOptions = { maxBytes: options.maxBytes, signal: options.signal }
-  const referencedFileIds = collectReferencedFileIds(source, getDocumentSourceLanguage(source, fmt))
+  const referencedFileIds = collectReferencedFileIds(
+    source,
+    getDocumentSourceLanguage(source, fmt, options.sourceMime)
+  )
   if (!options.filePrincipal) {
     if (referencedFileIds.size === 0) {
       const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
@@ -968,7 +974,7 @@ export async function resolveServableDoc(
   workspaceId: string,
   storedBytes: Buffer,
   fileName: string,
-  options: CompiledDocReadOptions = {}
+  options: CompiledDocReadOptions & { sourceMime?: string } = {}
 ): Promise<ServableDoc> {
   const fmt = await getE2BDocFormat(fileName)
   if (!fmt) return { kind: 'passthrough' }
@@ -1037,12 +1043,13 @@ function compiledCacheSet(
 export async function resolveServableDocBytes(args: {
   rawBuffer: Buffer
   fileName: string
+  sourceMime?: string
   workspaceId: string | undefined
   filePrincipal?: Principal
   ownerKey?: string
   signal?: AbortSignal
 }): Promise<CompiledDocResult> {
-  const { rawBuffer, fileName, workspaceId, filePrincipal, ownerKey, signal } = args
+  const { rawBuffer, fileName, sourceMime, workspaceId, filePrincipal, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
@@ -1081,23 +1088,33 @@ export async function resolveServableDocBytes(args: {
     }
     const referencedFileIds = collectReferencedFileIds(
       source,
-      getDocumentSourceLanguage(source, fmt)
+      getDocumentSourceLanguage(source, fmt, sourceMime)
     )
     if (referencedFileIds.size > 0) {
       if (!filePrincipal) {
         const published = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
           allowPublishedReferencedArtifact: true,
+          sourceMime,
         })
         if (published) return { ...published, dependsOnReferencedFiles: true }
         throw new Error(
           'Referenced document resolution requires an authorized workspace file principal'
         )
       }
-      return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
+      return compileDoc({
+        source,
+        fileName,
+        sourceMime,
+        workspaceId,
+        filePrincipal,
+        ownerKey,
+        signal,
+      })
     }
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
       allowLegacyReferencedArtifact: true,
       filePrincipal,
+      sourceMime,
     })
     // Reached only where the source references nothing, so the artifact is keyed by the source
     // alone and cannot change while that source does not.

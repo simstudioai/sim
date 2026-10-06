@@ -25,6 +25,7 @@ interface PublicFileOwnerContext {
 interface DocumentRead {
   owner: EditableFileOwner
   source: Buffer
+  sourceMime: string
   fileName: string
   format: E2BDocFormat
   dependencies: readonly WorkspaceFileRow[]
@@ -52,9 +53,10 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
     },
     storageContext: 'workspace',
     pageOptions: (workspaceId) => ({ workspaceId }),
-    async readCompiled({ owner, source, fileName }) {
+    async readCompiled({ owner, source, sourceMime, fileName }) {
       const artifact = await resolveServableDoc(owner.entityId, source, fileName, {
         maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        sourceMime,
       })
       if (artifact.kind !== 'artifact')
         throw new OrchestrationError(

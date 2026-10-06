@@ -252,6 +252,7 @@ export async function readPublicFileShareContent({
       ;({ buffer, contentType } = await initial.adapter.readCompiled({
         owner: initial.owner,
         source: raw,
+        sourceMime: initial.file.contentType,
         fileName: initial.file.originalName,
         format,
         dependencies: manifest.dependencies,

@@ -19,12 +19,15 @@ const projectFile = {
 }
 
 describe('file ownership isolation', () => {
-  it('keeps audited workspace ownership independent of Project support', () => {
-    expect(resolveFileOwner(legacyWorkspaceFile)).toEqual({
-      entityType: 'workspace',
-      entityId: 'workspace-a',
-    })
-  })
+  it.each(['workspace', 'chat'])(
+    'preserves the explicit workspace owner of a legacy %s file',
+    (context) => {
+      expect(resolveFileOwner({ ...legacyWorkspaceFile, context })).toEqual({
+        entityType: 'workspace',
+        entityId: 'workspace-a',
+      })
+    }
+  )
 
   it('does not change shared ownership when the uploader changes', () => {
     expect(

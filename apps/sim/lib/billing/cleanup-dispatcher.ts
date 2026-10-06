@@ -18,6 +18,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isBillingEnabled, isDataRetentionEnabled } from '@/lib/core/config/env-flags'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('RetentionDispatcher')
@@ -25,6 +26,7 @@ const logger = createLogger('RetentionDispatcher')
 /** Trigger.dev's documented cap on items per `batchTrigger` call (SDK 4.3.1+). */
 const BATCH_TRIGGER_CHUNK_SIZE = 1000
 const WORKSPACE_SCOPE_PAGE_SIZE = 500
+const PROJECT_PAYER_LOOKUP_CONCURRENCY = 10
 
 /** Bounds per-run memory + DB connections regardless of plan size. */
 const WORKSPACES_PER_CLEANUP_CHUNK = 500
@@ -348,50 +350,48 @@ async function forEachCleanupChunk(
         .limit(pageSize)
       if (!rows.length) break
       afterProjectId = rows[rows.length - 1].id
-      const groups = new Map<
-        string,
-        { plan: PlanCategory; retentionHours: number; projectIds: string[] }
-      >()
-      for (const row of rows) {
-        if (shouldStop()) break
-        try {
-          let plan: PlanCategory = 'enterprise'
-          if (isBillingEnabled) {
-            const billing = await resolveProjectStorageBillingContext({
+      const scopes = await mapWithConcurrency(
+        rows,
+        PROJECT_PAYER_LOOKUP_CONCURRENCY,
+        async (row) => {
+          if (shouldStop()) return null
+          try {
+            let plan: PlanCategory = 'enterprise'
+            if (isBillingEnabled) {
+              const billing = await resolveProjectStorageBillingContext({
+                projectId: row.id,
+                ownerId: row.ownerId,
+                organizationId: row.organizationId,
+              })
+              if (row.organizationId && billing.plan === null) return null
+              plan = getPlanType(billing.plan)
+            }
+            const retentionHours =
+              plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
+            if (retentionHours === null) return null
+            if (!Number.isFinite(retentionHours) || retentionHours < 0)
+              throw new Error('Invalid Project retention policy')
+            return { projectId: row.id, plan, retentionHours }
+          } catch (error) {
+            if (failOnLookupError) throw error
+            logger.error('Skipping Project cleanup after payer policy lookup failed', {
               projectId: row.id,
-              ownerId: row.ownerId,
-              organizationId: row.organizationId,
+              error,
             })
-            if (row.organizationId && billing.plan === null) continue
-            plan = getPlanType(billing.plan)
+            return null
           }
-          const retentionHours =
-            plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
-          if (retentionHours === null) continue
-          if (!Number.isFinite(retentionHours) || retentionHours < 0)
-            throw new Error('Invalid Project retention policy')
-          const key = `${plan}:${retentionHours}`
-          const group = groups.get(key)
-          if (group) group.projectIds.push(row.id)
-          else groups.set(key, { plan, retentionHours, projectIds: [row.id] })
-        } catch (error) {
-          if (failOnLookupError) throw error
-          logger.error('Skipping Project cleanup after payer policy lookup failed', {
-            projectId: row.id,
-            error,
-          })
         }
-      }
-      for (const group of groups.values()) {
-        for (const projectId of group.projectIds) {
-          if (shouldStop()) break
-          await emitChunk({
-            ...group,
-            projectIds: [projectId],
-            workspaceIds: [],
-            label: `${group.plan}/projects/${projectId}`,
-          })
-        }
+      )
+      for (const scope of scopes) {
+        if (shouldStop()) break
+        if (!scope) continue
+        await emitChunk({
+          plan: scope.plan,
+          retentionHours: scope.retentionHours,
+          projectIds: [scope.projectId],
+          workspaceIds: [],
+          label: `${scope.plan}/projects/${scope.projectId}`,
+        })
       }
     }
   }

@@ -22,7 +22,10 @@ import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/pr
 import { inboxCleanupOutboxHandlers } from '@/lib/mothership/inbox/cleanup-outbox'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
 import { projectFileDocumentOutboxHandlers } from '@/lib/projects/files/application/document-lifecycle'
-import { projectFilePrefixCleanupOutboxHandlers } from '@/lib/projects/files/prefix-cleanup'
+import {
+  projectFilePrefixCleanupOutboxHandlers,
+  recoverProjectStorageReconciliation,
+} from '@/lib/projects/files/prefix-cleanup'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { fileLiveDocOutboxHandlers } from '@/lib/uploads/server/live-doc-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
@@ -72,6 +75,15 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     maxRuntimeMs: OUTBOX_PROCESSOR_MAX_RUNTIME_MS,
     minRemainingMs: 95_000,
   })
+
+  try {
+    if (Date.now() - startedAt < OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS)
+      await recoverProjectStorageReconciliation()
+  } catch (error) {
+    logger.error('Project storage reconciliation recovery failed', {
+      error: toError(error).message,
+    })
+  }
 
   let recoveredDocuments = 0
   try {

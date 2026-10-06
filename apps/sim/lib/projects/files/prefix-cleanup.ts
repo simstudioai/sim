@@ -1,14 +1,17 @@
-import { opendir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { opendir, rmdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
-import { project, uploadSession } from '@sim/db/schema'
+import { outboxEvent, project, uploadSession } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { compareStrings } from '@sim/utils/string'
+import { and, asc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm'
 import {
   continueOutboxHandler,
   deferOutboxHandler,
   enqueueOutboxEvent,
+  type OutboxEventContext,
   type OutboxHandler,
   type OutboxHandlerRegistry,
 } from '@/lib/core/outbox/service'
@@ -27,9 +30,11 @@ import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 
 const EVENT_TYPE = 'project-file.storage.prefix-cleanup'
+const RECONCILE_EVENT_TYPE = 'project-file.storage.reconcile'
 const PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
-const RETIRED_PREFIX_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
+const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000
+const logger = createLogger('ProjectStorageCleanup')
 
 type UploadCleanup = Pick<
   UploadSessionRecord,
@@ -38,8 +43,38 @@ type UploadCleanup = Pick<
 interface CleanupPayload {
   projectId: string
   uploads?: UploadCleanup[]
-  retained?: boolean
   uploadCursor?: number
+}
+
+interface ReconcilePayload {
+  cursor: string | null
+  page: string[]
+  index: number
+  unfinished: string[]
+  nextCursor: string | null
+  failedPrefixes: number
+}
+
+/** Resume an existing inventory after its provider-outage retry budget and cooldown expire. */
+export async function recoverProjectStorageReconciliation(now = new Date()): Promise<void> {
+  await db
+    .update(outboxEvent)
+    .set({
+      status: 'pending',
+      attempts: 0,
+      lockedAt: null,
+      lastError: null,
+      processedAt: null,
+      availableAt: now,
+    })
+    .where(
+      and(
+        eq(outboxEvent.id, RECONCILE_EVENT_TYPE),
+        eq(outboxEvent.eventType, RECONCILE_EVENT_TYPE),
+        eq(outboxEvent.status, 'dead_letter'),
+        lte(outboxEvent.processedAt, new Date(now.getTime() - RECONCILE_INTERVAL_MS))
+      )
+    )
 }
 
 /** Expired signatures stop new transfers, but a transfer already in progress may finish later. */
@@ -56,7 +91,6 @@ function parsePayload(value: unknown): CleanupPayload {
   if (!isRecordLike(value) || typeof value.projectId !== 'string')
     throw new Error('Invalid Project cleanup payload')
   const prefix = prefixFor(value.projectId)
-  const retained = value.retained === true
   const uploadCursor = value.uploadCursor === undefined ? 0 : value.uploadCursor
   if (
     !Number.isSafeInteger(uploadCursor) ||
@@ -65,7 +99,7 @@ function parsePayload(value: unknown): CleanupPayload {
     uploadCursor > PAGE_SIZE
   )
     throw new Error('Invalid retired upload cursor')
-  if (value.uploads === undefined) return { projectId: value.projectId, retained, uploadCursor }
+  if (value.uploads === undefined) return { projectId: value.projectId, uploadCursor }
   if (!Array.isArray(value.uploads) || value.uploads.length > PAGE_SIZE)
     throw new Error('Invalid upload cleanup batch')
   const uploads = value.uploads.map((upload): UploadCleanup => {
@@ -91,7 +125,7 @@ function parsePayload(value: unknown): CleanupPayload {
       finalKey: upload.finalKey,
     }
   })
-  return { projectId: value.projectId, uploads, retained, uploadCursor }
+  return { projectId: value.projectId, uploads, uploadCursor }
 }
 
 async function enqueueSweeps(
@@ -100,14 +134,30 @@ async function enqueueSweeps(
   retiredAt = new Date()
 ) {
   await enqueueOutboxEvent(executor, EVENT_TYPE, payload)
-  await enqueueOutboxEvent(
-    executor,
-    EVENT_TYPE,
-    { ...payload, retained: true },
-    {
+  await enqueueOutboxEvent(executor, EVENT_TYPE, payload, {
+    availableAt: projectUploadCleanupAvailableAt(retiredAt),
+  })
+  await executor
+    .insert(outboxEvent)
+    .values({
+      id: RECONCILE_EVENT_TYPE,
+      eventType: RECONCILE_EVENT_TYPE,
+      payload: {},
       availableAt: projectUploadCleanupAvailableAt(retiredAt),
-    }
-  )
+    })
+    .onConflictDoUpdate({
+      target: outboxEvent.id,
+      set: {
+        status: 'pending',
+        payload: {},
+        attempts: 0,
+        lockedAt: null,
+        lastError: null,
+        processedAt: null,
+        availableAt: projectUploadCleanupAvailableAt(retiredAt),
+      },
+      setWhere: inArray(outboxEvent.status, ['completed', 'dead_letter']),
+    })
 }
 
 /** Must follow Project and payer locks and precede directory/file locks in the retirement transaction. */
@@ -215,6 +265,14 @@ export async function queueRetiredProjectUploadCleanup(
   })
 }
 
+async function removeEmptyDirectory(path: string): Promise<void> {
+  try {
+    await rmdir(path)
+  } catch (error) {
+    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(describeError(error).code ?? '')) throw error
+  }
+}
+
 async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]> {
   const keys: string[] = []
   async function visit(key: string): Promise<void> {
@@ -233,6 +291,7 @@ async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]>
       else keys.push(child)
       if (keys.length >= PAGE_SIZE) return
     }
+    await removeEmptyDirectory(join(UPLOAD_DIR_SERVER, key))
   }
   await visit(prefix)
   return keys
@@ -274,6 +333,225 @@ async function listKeys(prefix: string, signal: AbortSignal): Promise<string[]> 
   return localKeys(prefix, signal)
 }
 
+async function sweepPrefix(projectId: string, context: OutboxEventContext): Promise<boolean> {
+  const prefix = prefixFor(projectId)
+  const keys = await listKeys(prefix, context.signal)
+  let deleted = 0
+  for (const key of keys) {
+    if (!key.startsWith(prefix)) throw new Error('Storage provider returned a foreign Project key')
+    context.signal.throwIfAborted()
+    if (deleted > 0 && context.deadlineAt && Date.now() + 5000 >= context.deadlineAt) return false
+    try {
+      await deleteFile({ key, context: 'project', signal: context.signal })
+    } catch (error) {
+      if (describeError(error).code !== 'ENOENT') throw error
+    }
+    if (!USE_S3_STORAGE && !USE_BLOB_STORAGE && !USE_GCS_STORAGE) {
+      const root = join(UPLOAD_DIR_SERVER, 'project', projectId)
+      let directory = dirname(join(UPLOAD_DIR_SERVER, key))
+      while (directory === root || directory.startsWith(`${root}/`)) {
+        await removeEmptyDirectory(directory)
+        directory = dirname(directory)
+      }
+    }
+    deleted++
+  }
+  return keys.length < PAGE_SIZE
+}
+
+function readProjectId(prefix: string): string {
+  const match = /^project\/([a-zA-Z0-9_-]+)\/$/.exec(prefix)
+  if (!match) throw new Error('Storage provider returned an invalid Project prefix')
+  return match[1]
+}
+
+async function listProjectPrefixes(cursor: string | null, signal: AbortSignal) {
+  signal.throwIfAborted()
+  if (USE_S3_STORAGE) {
+    const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
+    const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+    const page = await getS3Client().send(
+      new ListObjectsV2Command({
+        Bucket: getStorageConfig('project').bucket,
+        Prefix: 'project/',
+        Delimiter: '/',
+        MaxKeys: PAGE_SIZE,
+        ...(cursor ? { ContinuationToken: cursor } : {}),
+      }),
+      { abortSignal: signal }
+    )
+    return {
+      page: (page.CommonPrefixes ?? []).map((entry) => readProjectId(entry.Prefix ?? '')),
+      nextCursor: page.NextContinuationToken ?? null,
+    }
+  }
+  if (USE_BLOB_STORAGE) {
+    const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
+    const config = getStorageConfig('project')
+    if (!config.containerName) throw new Error('Project blob container missing')
+    const pages = (await getBlobServiceClient())
+      .getContainerClient(config.containerName)
+      .listBlobsByHierarchy('/', {
+        prefix: 'project/',
+        includeUncommitedBlobs: true,
+        abortSignal: signal,
+      })
+      .byPage({ maxPageSize: PAGE_SIZE, ...(cursor ? { continuationToken: cursor } : {}) })
+    const page = await pages.next()
+    return page.done
+      ? { page: [], nextCursor: null }
+      : {
+          page: (page.value.segment.blobPrefixes ?? []).map((entry) => readProjectId(entry.name)),
+          nextCursor: page.value.continuationToken || null,
+        }
+  }
+  if (USE_GCS_STORAGE) {
+    const { getGcsClient } = await import('@/lib/uploads/providers/google-cloud-storage/client')
+    const config = getStorageConfig('project')
+    if (!config.bucket) throw new Error('Project bucket missing')
+    const [, nextQuery, response] = await (await getGcsClient()).bucket(config.bucket).getFiles({
+      prefix: 'project/',
+      delimiter: '/',
+      maxResults: PAGE_SIZE,
+      autoPaginate: false,
+      ...(cursor ? { pageToken: cursor } : {}),
+    })
+    signal.throwIfAborted()
+    if (
+      !isRecordLike(response) ||
+      (response.prefixes !== undefined && !Array.isArray(response.prefixes))
+    )
+      throw new Error('Invalid Project storage listing')
+    const prefixes: unknown[] = response.prefixes ?? []
+    return {
+      page: prefixes.map((prefix) => {
+        if (typeof prefix !== 'string') throw new Error('Invalid Project storage prefix')
+        return readProjectId(prefix)
+      }),
+      nextCursor: nextQuery?.pageToken ?? null,
+    }
+  }
+  let directory
+  try {
+    directory = await opendir(join(UPLOAD_DIR_SERVER, 'project'))
+  } catch (error) {
+    if (describeError(error).code === 'ENOENT') return { page: [], nextCursor: null }
+    throw error
+  }
+  const ids: string[] = []
+  for await (const entry of directory) {
+    signal.throwIfAborted()
+    if (!entry.isDirectory() || (cursor && compareStrings(entry.name, cursor) <= 0)) continue
+    if (ids.length > PAGE_SIZE && compareStrings(entry.name, ids[ids.length - 1]) >= 0) continue
+    ids.push(readProjectId(`project/${entry.name}/`))
+    ids.sort(compareStrings)
+    if (ids.length > PAGE_SIZE + 1) ids.pop()
+  }
+  const page = ids.slice(0, PAGE_SIZE)
+  return { page, nextCursor: ids.length > PAGE_SIZE ? page[page.length - 1] : null }
+}
+
+function parseReconcilePayload(raw: unknown): ReconcilePayload {
+  if (!isRecordLike(raw)) throw new Error('Invalid Project reconciliation payload')
+  const cursor = raw.cursor ?? null
+  const nextCursor = raw.nextCursor ?? null
+  const page = raw.page ?? []
+  const unfinished = raw.unfinished ?? []
+  const index = raw.index ?? 0
+  const failedPrefixes = raw.failedPrefixes ?? 0
+  if (
+    (cursor !== null && typeof cursor !== 'string') ||
+    (nextCursor !== null && typeof nextCursor !== 'string') ||
+    !Array.isArray(page) ||
+    page.length > PAGE_SIZE ||
+    !Array.isArray(unfinished) ||
+    unfinished.length > PAGE_SIZE ||
+    typeof index !== 'number' ||
+    !Number.isSafeInteger(index) ||
+    index < 0 ||
+    index > page.length ||
+    typeof failedPrefixes !== 'number' ||
+    !Number.isSafeInteger(failedPrefixes) ||
+    failedPrefixes < 0
+  )
+    throw new Error('Invalid Project reconciliation checkpoint')
+  function ownerIds(values: unknown[]): string[] {
+    return values.map((id) => {
+      if (typeof id !== 'string') throw new Error('Invalid Project reconciliation identity')
+      prefixFor(id)
+      return id
+    })
+  }
+  return {
+    cursor,
+    nextCursor,
+    page: ownerIds(page),
+    unfinished: ownerIds(unfinished),
+    index,
+    failedPrefixes,
+  }
+}
+
+const reconcilePrefixes: OutboxHandler<unknown> = async (raw, context) => {
+  const payload = parseReconcilePayload(raw)
+  if (!payload.page.length) {
+    Object.assign(payload, await listProjectPrefixes(payload.cursor, context.signal), {
+      index: 0,
+      unfinished: [],
+    })
+    await context.checkpointPayload({ ...payload })
+  }
+  const owners = payload.page.length
+    ? await db.select({ id: project.id }).from(project).where(inArray(project.id, payload.page))
+    : []
+  const existing = new Set(owners.map((owner) => owner.id))
+  for (let index = payload.index; index < payload.page.length; index++) {
+    context.signal.throwIfAborted()
+    const id = payload.page[index]
+    if (!existing.has(id)) {
+      try {
+        if (!(await sweepPrefix(id, context))) payload.unfinished.push(id)
+      } catch (error) {
+        context.signal.throwIfAborted()
+        payload.failedPrefixes++
+        logger.warn('Project storage prefix cleanup failed; retrying on the next inventory', {
+          projectId: id,
+          error,
+        })
+      }
+    }
+    payload.index = index + 1
+    await context.checkpointPayload({
+      index: payload.index,
+      unfinished: payload.unfinished,
+      failedPrefixes: payload.failedPrefixes,
+    })
+    if (context.deadlineAt && Date.now() + 5000 >= context.deadlineAt)
+      return continueOutboxHandler('Continuing Project storage reconciliation')
+  }
+  if (payload.unfinished.length) {
+    await context.checkpointPayload({ page: payload.unfinished, index: 0, unfinished: [] })
+    return continueOutboxHandler('Continuing partially cleaned Project prefixes')
+  }
+  await context.checkpointPayload({
+    cursor: payload.nextCursor,
+    nextCursor: null,
+    page: [],
+    index: 0,
+    unfinished: [],
+    failedPrefixes: payload.nextCursor ? payload.failedPrefixes : 0,
+  })
+  if (payload.nextCursor) return continueOutboxHandler('Continuing Project storage inventory')
+  return {
+    ...deferOutboxHandler(
+      `Project storage inventory reconciled with ${payload.failedPrefixes} failed prefixes`,
+      RECONCILE_INTERVAL_MS,
+      false
+    ),
+    resetAttempts: payload.failedPrefixes === 0,
+  }
+}
+
 const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
   const payload = parsePayload(raw)
   const [owner] = await db
@@ -282,7 +560,6 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
     .where(eq(project.id, payload.projectId))
   // Canonical creation always generates fresh Project IDs; an extant owner is never disposable.
   if (owner) throw new Error('Cannot clean storage for an existing Project')
-  const prefix = prefixFor(payload.projectId)
   const uploads = payload.uploads ?? []
   for (let index = payload.uploadCursor ?? 0; index < uploads.length; index++) {
     const upload = uploads[index]
@@ -312,34 +589,11 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
       return continueOutboxHandler('Continuing retired Project upload cleanup')
     }
   }
-  const keys = await listKeys(prefix, context.signal)
-  let deleted = 0
-  for (const key of keys) {
-    if (!key.startsWith(prefix)) throw new Error('Storage provider returned a foreign Project key')
-    context.signal.throwIfAborted()
-    if (deleted > 0 && context.deadlineAt && Date.now() + 5000 >= context.deadlineAt)
-      return continueOutboxHandler('Continuing Project storage cleanup')
-    try {
-      await deleteFile({ key, context: 'project', signal: context.signal })
-    } catch (error) {
-      if (describeError(error).code !== 'ENOENT') throw error
-    }
-    deleted++
-  }
-  if (keys.length >= PAGE_SIZE) return continueOutboxHandler('Continuing Project storage cleanup')
-  if (payload.retained) {
-    await context.checkpointPayload({ uploadCursor: 0 })
-    return {
-      ...deferOutboxHandler(
-        'Retired Project prefix remains subject to late transfer cleanup',
-        RETIRED_PREFIX_SWEEP_INTERVAL_MS,
-        false
-      ),
-      resetAttempts: true,
-    }
-  }
+  if (!(await sweepPrefix(payload.projectId, context)))
+    return continueOutboxHandler('Continuing Project storage cleanup')
 }
 
 export const projectFilePrefixCleanupOutboxHandlers = {
   [EVENT_TYPE]: cleanupPrefix,
+  [RECONCILE_EVENT_TYPE]: reconcilePrefixes,
 } satisfies OutboxHandlerRegistry

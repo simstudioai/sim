@@ -113,14 +113,18 @@ describe('file entity ownership migration in PostgreSQL', () => {
     })
   })
 
-  it.each(['execution', 'workspace-logos', 'knowledge-base'])(
+  it.each(['chat', 'execution', 'workspace-logos', 'knowledge-base'])(
     'maps legacy %s rows to their workspace',
     async (context) => {
       await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('file', ${context}, 'user-a', 'workspace-a')`
-      const [row] =
-        await sql`SELECT workspace_id, project_id FROM workspace_files WHERE id = 'file'`
-      expect(row).toEqual({ workspace_id: 'workspace-a', project_id: null })
+      const [row] = await sql`SELECT owner.entity_type, owner.entity_id
+        FROM workspace_files file
+        CROSS JOIN LATERAL workspace_file_owner(
+          file.context, file.workspace_id, file.project_id, file.organization_id, file.user_id
+        ) owner
+        WHERE file.id = 'file'`
+      expect(row).toEqual({ entity_type: 'workspace', entity_id: 'workspace-a' })
     }
   )
 
