@@ -78,7 +78,6 @@ We compared nine platforms, retaining the original six and adding LangSmith, Ari
 - **[Langfuse](https://langfuse.com/docs):** Best overall for tracing, evaluations, cost analysis, prompt management, and self-hosting.
 - **[Braintrust](https://www.braintrust.dev/docs/observe):** Best for teams that want observability to drive evaluation and product improvement.
 - **[Galileo](https://docs.galileo.ai/api/experiments-api-guide):** Best for high-volume teams focused on automated output-quality and safety checks.
-- **[Langfuse](https://langfuse.com/docs):** Best for teams that want self-hosted LLM tracing with prompt management.
 - **[Arize AX](https://arize.com/docs/ax/observe/production-monitoring):** Best for enterprise teams that need production monitoring, continuous online evaluations, and alerts.
 - **[Datadog Agent Observability](https://docs.datadoghq.com/llm_observability/):** Best for organizations that already operate their production systems in Datadog.
 - **[PostHog AI Observability](https://posthog.com/docs/ai-observability):** Best for product teams that want to connect AI traces with user behavior, session replay, and product analytics.
@@ -249,7 +248,7 @@ That workflow matters for agents because many failures are technically valid. A 
 
 Braintrust also gives teams several ways to start collecting data. SDK integrations provide application-level context, [OpenTelemetry](https://www.braintrust.dev/docs/integrations/sdk-integrations/opentelemetry) fits teams that already emit standard traces, and the [Braintrust AI gateway](https://www.braintrust.dev/docs/deploy/gateway) can provide fast visibility into model traffic. Engineers can work in code while product managers and domain experts inspect traces, annotate examples, and compare changes in the interface.
 
-Braintrust ranks first because each part of that workflow is unusually easy to operate:
+Braintrust ranks first for evaluation-led development because each part of that workflow is unusually easy to operate. Langfuse remains the best overall choice because it balances evaluation with tracing, prompt management, cost analysis, and self-hosting:
 
 - **Tracing is easy:** Teams can start through an [SDK integration, OpenTelemetry, or the AI gateway](https://www.braintrust.dev/docs/observe), then add application-level spans when they need more context.
 - **Viewing traces is easy:** The [trace viewer](https://www.braintrust.dev/docs/observe/examine-traces) presents nested work as a hierarchy, timeline, or conversation, with inputs, outputs, timing, metadata, tokens, and scores attached to the relevant span.
