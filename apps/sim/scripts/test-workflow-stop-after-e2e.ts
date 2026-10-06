@@ -256,11 +256,11 @@ async function execute(
       },
       body: JSON.stringify(body),
     })
-    status = response.status
     text = await readResponseTextWithLimit(response, {
       maxBytes: MAX_RESPONSE_BYTES,
       label: 'Stop-after E2E response',
     })
+    status = response.status
   } catch (error) {
     const reason = isTimeout(error)
       ? `no complete response within ${timeoutMs / 1000}s`
