@@ -109,10 +109,7 @@ const MAX_FRAME_DELTA_SECONDS = 1 / 30
  * Returns a monotonic, capped animation step. Synchronous repaints can occur
  * between requested frames, so a later callback may carry an older timestamp.
  */
-export const getWorkflowBorderFrameDeltaSeconds = (
-  timestamp: number,
-  previousTimestamp: number
-) => {
+const getWorkflowBorderFrameDeltaSeconds = (timestamp: number, previousTimestamp: number) => {
   if (!Number.isFinite(timestamp)) return 0
   if (previousTimestamp === 0) return 1 / 60
   const elapsed = (timestamp - previousTimestamp) / 1000
@@ -120,7 +117,7 @@ export const getWorkflowBorderFrameDeltaSeconds = (
   return Math.min(MAX_FRAME_DELTA_SECONDS, Math.max(0, elapsed))
 }
 
-export const isActionMenuSwellReady = (target: number, value: number) =>
+const isActionMenuSwellReady = (target: number, value: number) =>
   target === 1 && value >= ACTION_MENU_CONTENT_READY_THRESHOLD
 
 export interface WorkflowBorderPort {

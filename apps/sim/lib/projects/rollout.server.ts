@@ -1,4 +1,5 @@
 import { envBoolean, getEnv } from '@/lib/core/config/env'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
 
 class ProjectUnavailableError extends HttpError {
@@ -8,18 +9,17 @@ class ProjectUnavailableError extends HttpError {
   }
 }
 
-export function requireProjectApiEnabled(): void {
-  if (!(envBoolean(getEnv('PROJECT_API_ENABLED')) ?? false)) throw new ProjectUnavailableError()
+export async function requireProjectApiEnabled(): Promise<void> {
+  if (!(await isFeatureEnabled('projects'))) throw new ProjectUnavailableError()
 }
 
 /** Deployment-wide cutover follows ownership backfill and compatible storage/worker rollout. */
-export function isProjectFileApiEnabled(): boolean {
+export async function isProjectFileApiEnabled(): Promise<boolean> {
   return (
-    (envBoolean(getEnv('PROJECT_API_ENABLED')) ?? false) &&
-    (envBoolean(getEnv('PROJECT_FILES_ENABLED')) ?? false)
+    (await isFeatureEnabled('projects')) && (envBoolean(getEnv('PROJECT_FILES_ENABLED')) ?? false)
   )
 }
 
-export function requireProjectFileApiEnabled(): void {
-  if (!isProjectFileApiEnabled()) throw new ProjectUnavailableError()
+export async function requireProjectFileApiEnabled(): Promise<void> {
+  if (!(await isProjectFileApiEnabled())) throw new ProjectUnavailableError()
 }

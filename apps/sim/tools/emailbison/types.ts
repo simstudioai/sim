@@ -242,13 +242,3 @@ export interface EmailBisonListTagsResponse extends ToolResponse {
 export interface EmailBisonTagResponse extends ToolResponse {
   output: EmailBisonTag
 }
-
-export type EmailBisonResponse =
-  | EmailBisonListLeadsResponse
-  | EmailBisonLeadResponse
-  | EmailBisonListCampaignsResponse
-  | EmailBisonCampaignResponse
-  | EmailBisonActionResponse
-  | EmailBisonListRepliesResponse
-  | EmailBisonListTagsResponse
-  | EmailBisonTagResponse

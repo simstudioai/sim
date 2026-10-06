@@ -606,3 +606,78 @@ describe('E2B session recovery', () => {
     expect(killSandbox).not.toHaveBeenCalled()
   })
 })
+
+describe('E2B session lease', () => {
+  const IDLE_MS = 20 * 60_000
+  const LEASE_MS = IDLE_MS + 60_000
+
+  /** Counts control-plane requests; connect and setTimeout both set the deadline, so a caller must preserve it. */
+  function controlPlane(remainingMs: number) {
+    const plane = { endAtMs: Date.now() + remainingMs, requests: 0 }
+    list.mockReturnValue({ nextItems, hasNext: false })
+    nextItems.mockResolvedValue([{ ...candidate('retained', 10), endAt: new Date(plane.endAtMs) }])
+    const sandbox = {
+      sandboxId: 'retained',
+      getInfo: async () => {
+        plane.requests++
+        return { endAt: new Date(plane.endAtMs) }
+      },
+      setTimeout: async (timeoutMs: number) => {
+        plane.requests++
+        plane.endAtMs = Date.now() + timeoutMs
+      },
+    }
+    connect.mockImplementation(async (_id: string, options: { timeoutMs: number }) => {
+      plane.requests++
+      plane.endAtMs = Date.now() + options.timeoutMs
+      return sandbox
+    })
+    create.mockImplementation(async (_template: string, options: { timeoutMs: number }) => {
+      plane.requests++
+      plane.endAtMs = Date.now() + options.timeoutMs
+      return sandbox
+    })
+    return plane
+  }
+
+  it('grants a reused lease in the reconnect and keeps the idle window without more requests', async () => {
+    const plane = controlPlane(5 * 60_000)
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
+    expect(sandbox?.outlives?.(IDLE_MS)).toBe(true)
+    await sandbox?.extendLifetime?.(IDLE_MS)
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS)
+    expect(plane.requests).toBe(1)
+  })
+
+  it('grants a created lease at creation without reading it back', async () => {
+    const plane = controlPlane(0)
+    const sandbox = await e2bProvider.create('mothership', {
+      sessionKey: 'chat',
+      lifetimeMs: LEASE_MS,
+    })
+    expect(sandbox.outlives?.(IDLE_MS)).toBe(true)
+    await sandbox.extendLifetime?.(IDLE_MS)
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
+    expect(plane.requests).toBe(1)
+  })
+
+  it('keeps a later deadline another job already granted', async () => {
+    const plane = controlPlane(2 * 3_600_000)
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    await sandbox?.extendLifetime?.(IDLE_MS)
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + 2 * 3_600_000 - 1000)
+    expect(plane.requests).toBe(1)
+  })
+
+  it('reads back and extends a lease it did not grant itself', async () => {
+    const plane = controlPlane(5 * 60_000)
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', {})
+    expect(sandbox?.outlives?.(IDLE_MS)).toBe(false)
+    await sandbox?.extendLifetime?.(LEASE_MS)
+    expect(plane.endAtMs).toBeGreaterThanOrEqual(Date.now() + LEASE_MS - 1000)
+    expect(plane.requests).toBe(3)
+    await sandbox?.extendLifetime?.(IDLE_MS)
+    expect(plane.requests).toBe(3)
+  })
+})

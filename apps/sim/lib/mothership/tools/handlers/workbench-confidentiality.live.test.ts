@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -942,6 +943,84 @@ describe('persistent workbench output confidentiality', () => {
     const saved = io.write.mock.calls.at(-1)![0]
     expect(saved.buffer).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]))
     expect(saved.secretProvenance).toEqual({ status: 'exact', entries: [] })
+  })
+  it('retains export lineage for archive inspection and redaction in a fresh workbench', async () => {
+    const initial = await run('printf "%s" "$TOKEN" > payload.txt', ['TOKEN'])
+    expect(initial.projected.safe).toBe(true)
+    const result = await inResourceScope(() =>
+      executeFunctionExecute(
+        {
+          code: `python3 - <<'PYTHON'
+import zipfile
+with zipfile.ZipFile('bundle.zip', 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.write('payload.txt')
+    archive.writestr('operations.json', '[]')
+PYTHON`,
+          language: 'shell',
+          outputs: { files: [{ path: 'files/bundle.zip', sandboxPath: 'bundle.zip' }] },
+        },
+        context()
+      )
+    )
+    expect(result.success).toBe(true)
+    const saved = io.write.mock.calls.at(-1)?.[0]
+    if (!saved) throw new Error('Archive export did not persist a file')
+    expect(saved.buffer.includes(Buffer.from(canary))).toBe(false)
+    expect(saved.secretProvenance).toMatchObject({
+      status: 'exact',
+      entries: [expect.objectContaining({ name: 'TOKEN', sourceUserId: scope.userId })],
+    })
+    expect(JSON.stringify(saved.secretProvenance)).not.toContain(canary)
+
+    root = await mkdtemp('/private/tmp/sim-workbench-test-')
+    roots.push(root)
+    await mkdir(workerPath('/home/user'), { recursive: true })
+    chatId = `review-${generateShortId(12)}`
+    machine = localWorker()
+    io.find.mockResolvedValue(machine)
+    parent = new ResolvedSecretTraceRegistry([], scope)
+    const identity = { providerId: 'e2b' as const, sandboxId: machine.sandboxId }
+    await initializeSessionFileProvenance(chatSandboxSessionKey(chatId), identity)
+    const file = createWorkbenchFileProvenance({
+      ...scope,
+      sessionKey: chatSandboxSessionKey(chatId),
+    })
+    const stream = new Blob([saved.buffer]).stream()
+    file.trackDownload(stream, saved.secretProvenance)
+    await machine.writeFile(
+      '/home/user/bundle.zip',
+      Buffer.from(await new Response(file.observeDownload(identity, stream)).arrayBuffer())
+    )
+    const listing = await run(`python3 - <<'PYTHON'
+import hashlib, zipfile
+with open('bundle.zip', 'rb') as source:
+    print(hashlib.sha256(source.read()).hexdigest())
+with zipfile.ZipFile('bundle.zip') as archive:
+    print(','.join(archive.namelist()))
+    archive.extractall()
+PYTHON`)
+    expect(listing.projected.safe).toBe(true)
+    expect(listing.projected.result).toMatchObject({
+      success: true,
+      output: {
+        stdout: `${createHash('sha256').update(saved.buffer).digest('hex')}\npayload.txt,operations.json`,
+      },
+    })
+    const readback = await run('cat payload.txt')
+    expect(readback.projected.safe).toBe(true)
+    expect(readback.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: '{{TOKEN}}' },
+    })
+    expect(JSON.stringify(readback.projected.result)).not.toContain(canary)
+    const ordinary = await run('printf ready')
+    expect(ordinary.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: 'ready' },
+    })
+    expect(
+      (await readCliInputFile(chatSandboxSessionKey(chatId), 'operations.json')).toString()
+    ).toBe('[]')
   })
   it('retains historical secret provenance on a text export', async () => {
     await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])

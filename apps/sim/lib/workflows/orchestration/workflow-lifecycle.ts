@@ -3,14 +3,25 @@ import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
-import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import {
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  OrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
+import type { WorkflowPersistGovernance } from '@/lib/workflows/persistence/block-access-guard'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
@@ -184,7 +195,7 @@ async function isWorkflowFolderInWorkspace(
 /** Inserts only the workflow row so compound creation can commit its graph and receipt together. */
 export async function createWorkflowInTransaction(
   tx: DbTransaction,
-  params: PerformCreateWorkflowParams
+  params: PerformCreateWorkflowParams & { variables?: WorkflowRowVariables }
 ) {
   const folderId = params.folderId ?? null
   if (!(await isWorkflowFolderInWorkspace(folderId, params.workspaceId, tx))) {
@@ -201,6 +212,7 @@ export async function createWorkflowInTransaction(
     name,
     description: params.description ?? null,
     sortOrder: params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId, tx)),
+    variables: params.variables,
   })
   if (!params.deduplicate) {
     await tx.insert(workflow).values(row)
@@ -219,6 +231,47 @@ export async function createWorkflowInTransaction(
     'conflict',
     'Concurrent workflow creation prevented assigning an available name; retry this request'
   )
+}
+
+type WorkflowRowVariables = (typeof workflow.$inferInsert)['variables']
+
+interface CreateWorkflowWithStateParams extends PerformCreateWorkflowParams {
+  state: WorkflowState
+  variables?: WorkflowRowVariables
+  governance: WorkflowPersistGovernance
+}
+
+/**
+ * Creates a workflow from supplied state in one transaction: the row (its name
+ * deduplicated under the workspace lock), its graph and its variables commit together,
+ * so a concurrent archive either refuses the create or finds it complete. Classified
+ * failures (archived workspace, missing folder, withheld block type) propagate; a
+ * persistence failure is logged and returned so the caller can report it.
+ */
+export async function createWorkflowWithState({
+  state,
+  governance,
+  ...params
+}: CreateWorkflowWithStateParams): Promise<
+  | { success: true; workflow: Awaited<ReturnType<typeof createWorkflowInTransaction>> }
+  | { success: false; error: string }
+> {
+  try {
+    const workflow = await db.transaction(async (tx) => {
+      const row = await createWorkflowInTransaction(tx, { ...params, deduplicate: true })
+      const saved = await saveWorkflowToNormalizedTables(row.id, state, governance, tx)
+      if (!saved.success) throw new Error(saved.error ?? 'Failed to save workflow state')
+      return row
+    })
+    return { success: true, workflow }
+  } catch (error) {
+    if (asOrchestrationError(error)) throw error
+    logger.error(`[${params.requestId ?? 'create'}] Failed to persist workflow state`, {
+      workspaceId: params.workspaceId,
+      error,
+    })
+    return { success: false, error: getErrorMessage(error, 'Failed to save workflow state') }
+  }
 }
 
 export async function performCreateWorkflowTransition(

@@ -55,7 +55,7 @@ function toDateString(year: number, month: number, day: number): string {
  * is parsed as local time to avoid the off-by-one day that `new Date('2026-05-08')`
  * (UTC midnight) produces in negative-offset timezones.
  */
-export function parseDateValue(value: string | Date | undefined): Date | null {
+function parseDateValue(value: string | Date | undefined): Date | null {
   if (!value) return null
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {

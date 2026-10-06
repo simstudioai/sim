@@ -176,15 +176,3 @@ export interface TinybirdGetJobResponse extends ToolResponse {
     job: Record<string, unknown> | null
   }
 }
-
-/**
- * Union type for all possible Tinybird responses
- */
-export type TinybirdResponse =
-  | TinybirdEventsResponse
-  | TinybirdQueryResponse
-  | TinybirdQueryPipeResponse
-  | TinybirdAppendDatasourceResponse
-  | TinybirdTruncateDatasourceResponse
-  | TinybirdDeleteDatasourceRowsResponse
-  | TinybirdGetJobResponse

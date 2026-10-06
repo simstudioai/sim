@@ -20,18 +20,22 @@ import {
   type MothershipChatScope,
   markMothershipChatReadContract,
   restoreMothershipChatContract,
+  type SetMothershipChatEffortBody,
+  setMothershipChatEffortContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -53,6 +57,8 @@ export interface MothershipChatHistory {
   messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
+  /** The effort the user picked for this chat; null or absent while it follows the default. */
+  effort?: MothershipEffort | null
   streamSnapshot?: {
     events: StreamBatchEvent[]
     previewSessions: FilePreviewSession[]
@@ -200,6 +206,7 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
+    effort: getMothershipChatResponseSchema.shape.chat.shape.effort.parse(chat.effort ?? null),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
   }
 }
@@ -577,6 +584,47 @@ export function useSetMothershipChatPinned(owner?: MothershipChatOwner) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
+    },
+  })
+}
+
+async function setChatEffort({
+  chatId,
+  effort,
+}: SetMothershipChatEffortBody & { chatId: string }): Promise<void> {
+  await requestJson(setMothershipChatEffortContract, {
+    params: { chatId },
+    body: { effort },
+  })
+}
+
+/**
+ * Records the effort the user picked for a chat. The pick shows and sends at once from the
+ * session's pick map; saves for one chat run one at a time so the last pick is the one stored.
+ */
+export function useSetMothershipChatEffort(chatId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (effort: MothershipEffort) => {
+      if (!chatId) throw new Error('A chat effort needs a chat')
+      return setChatEffort({ chatId, effort })
+    },
+    scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
+    // Runs at once even while an earlier save for this chat holds the scope, so a failed
+    // save rolls back its own pick by token, never a later pick of the same value.
+    onMutate: (effort) => {
+      if (!chatId) return undefined
+      return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
+    },
+    onError: (_error, _effort, context) => {
+      if (chatId && context)
+        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
+    },
+    onSuccess: (_data, effort) => {
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) => current && { ...current, effort }
+      )
     },
   })
 }

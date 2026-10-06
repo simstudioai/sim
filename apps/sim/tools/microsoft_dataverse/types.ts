@@ -382,23 +382,3 @@ export interface DataverseGetEntityMetadataResponse extends ToolResponse {
     success: boolean
   }
 }
-
-export type DataverseResponse =
-  | DataverseCreateRecordResponse
-  | DataverseGetRecordResponse
-  | DataverseUpdateRecordResponse
-  | DataverseDeleteRecordResponse
-  | DataverseListRecordsResponse
-  | DataverseUpsertRecordResponse
-  | DataverseWhoAmIResponse
-  | DataverseAssociateResponse
-  | DataverseDisassociateResponse
-  | DataverseFetchXmlQueryResponse
-  | DataverseExecuteActionResponse
-  | DataverseExecuteFunctionResponse
-  | DataverseCreateMultipleResponse
-  | DataverseUpdateMultipleResponse
-  | DataverseUploadFileResponse
-  | DataverseDownloadFileResponse
-  | DataverseSearchResponse
-  | DataverseGetEntityMetadataResponse

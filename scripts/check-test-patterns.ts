@@ -19,7 +19,7 @@
  * Run: `bun run check:test-patterns`
  */
 import { execFileSync } from 'node:child_process'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from '@babel/parser'
 
@@ -285,14 +285,35 @@ function key(violation: Violation): string {
 const violations = collect()
 const current = [...new Set(violations.map(key))].sort()
 
-if (process.argv.includes('--update')) {
-  writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
-  console.log(`Wrote ${current.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
-  process.exit(0)
+/**
+ * The committed baseline. A missing file fails closed: restore it from git. `--update --init`
+ * is the only way to create one, and it accepts every current violation.
+ */
+function readBaseline(): string[] {
+  if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8'))
+  if (process.argv.includes('--update') && process.argv.includes('--init')) return current
+  console.error(
+    `✗ ${path.relative(ROOT, BASELINE)} is missing. Restore it from git; ` +
+      'create a new one only with --update --init.'
+  )
+  process.exit(1)
 }
 
-const baseline = new Set<string>(JSON.parse(readFileSync(BASELINE, 'utf8')))
+const baseline = new Set<string>(readBaseline())
 const added = current.filter((entry) => !baseline.has(entry))
+
+if (process.argv.includes('--update')) {
+  // Shrink-only: drop fixed entries, never admit a new one, and write nothing if refusing.
+  for (const entry of added) {
+    const [rule, file, detail] = entry.split('\t')
+    console.error(`✗ not baselined — fix it: ${rule}: ${file} (${detail})`)
+  }
+  if (added.length) process.exit(1)
+  const kept = current.filter((entry) => baseline.has(entry))
+  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  process.exit(0)
+}
 const currentSet = new Set(current)
 const stale = [...baseline].filter((entry) => !currentSet.has(entry))
 

@@ -1,3 +1,4 @@
+import { unboxJsonPrimitive } from '@/lib/core/utils/boxed-primitives'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -183,12 +184,12 @@ function serializeParallelExecutions(
   return result
 }
 
-export function serializePauseSnapshot(
+function buildExecutionSnapshot(
   context: ExecutionContext,
   triggerBlockIds: string[],
   dag?: DAG,
   edgeManager?: EdgeManager
-): SerializedSnapshot {
+): { snapshot: ExecutionSnapshot; state: SerializableExecutionState } {
   const metadataFromContext = context.metadata as ExecutionMetadata | undefined
   let useDraftState: boolean
   if (metadataFromContext?.useDraftState !== undefined) {
@@ -316,9 +317,110 @@ export function serializePauseSnapshot(
     context.selectedOutputs,
     state
   )
+  return { snapshot, state }
+}
 
+export function serializePauseSnapshot(
+  context: ExecutionContext,
+  triggerBlockIds: string[],
+  dag?: DAG,
+  edgeManager?: EdgeManager
+): SerializedSnapshot {
   return {
-    snapshot: snapshot.toJSON(),
+    snapshot: buildExecutionSnapshot(context, triggerBlockIds, dag, edgeManager).snapshot.toJSON(),
     triggerIds: triggerBlockIds,
   }
+}
+
+const LIVE_EXECUTION_STATE = Symbol('liveExecutionState')
+
+/**
+ * Throws exactly where `JSON.stringify(value)` would — a cycle or a BigInt,
+ * after applying `toJSON` — without building the string. Iterative, so nesting
+ * that native serialization handles cannot overflow the JS stack here.
+ */
+function assertJsonSerializable(value: unknown): void {
+  type Frame = { node: object; keys: string[] | undefined; length: number; index: number }
+  const ancestors = new Set<object>()
+  const stack: Frame[] = []
+
+  const enter = (raw: unknown, key: string): void => {
+    let current = raw
+    if (
+      (typeof current === 'object' && current !== null) ||
+      typeof current === 'function' ||
+      typeof current === 'bigint'
+    ) {
+      const toJSON = (current as { toJSON?: unknown }).toJSON
+      if (typeof toJSON === 'function') current = toJSON.call(current, key)
+    }
+    if (typeof current === 'object' && current !== null) current = unboxJsonPrimitive(current)
+    if (typeof current === 'bigint') {
+      throw new TypeError('Do not know how to serialize a BigInt')
+    }
+    if (typeof current !== 'object' || current === null) return
+    if (ancestors.has(current)) {
+      throw new TypeError('Converting circular structure to JSON')
+    }
+    ancestors.add(current)
+    const keys = Array.isArray(current) ? undefined : Object.keys(current)
+    stack.push({
+      node: current,
+      keys,
+      length: keys ? keys.length : (current as unknown[]).length,
+      index: 0,
+    })
+  }
+
+  enter(value, '')
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    if (frame.index >= frame.length) {
+      ancestors.delete(frame.node)
+      stack.pop()
+      continue
+    }
+    const index = frame.index++
+    const key = frame.keys ? frame.keys[index] : String(index)
+    enter((frame.node as Record<string, unknown>)[key], key)
+  }
+}
+
+/**
+ * Execution state for a run whose blocks have all settled. Validates and fails
+ * exactly like `JSON.parse(serializePauseSnapshot(...).snapshot).state`, but
+ * skips that full JSON clone: block logs and block states are shallow copies
+ * sharing their inputs and outputs with the run, and JSON normalization is left
+ * to whoever serializes the state.
+ */
+export function buildCompletedExecutionState(
+  context: ExecutionContext,
+  dag?: DAG,
+  edgeManager?: EdgeManager
+): SerializableExecutionState {
+  const { snapshot, state } = buildExecutionSnapshot(context, [], dag, edgeManager)
+  assertJsonSerializable(snapshot.toSerializable())
+  const completed: SerializableExecutionState = {
+    ...state,
+    blockLogs: state.blockLogs.map((log) => ({ ...log })),
+    blockStates: Object.fromEntries(
+      Object.entries(state.blockStates).map(([blockId, blockState]) => [blockId, { ...blockState }])
+    ),
+  }
+  // Enumerable so object spreads carry it; JSON serialization ignores symbol keys.
+  Object.defineProperty(completed, LIVE_EXECUTION_STATE, { value: true, enumerable: true })
+  return completed
+}
+
+/**
+ * Whether execution state came from {@link buildCompletedExecutionState} (or a
+ * spread of it) and so still holds live, not-yet-JSON-normalized values.
+ * Other states came out of a JSON round-trip already.
+ */
+export function isLiveExecutionState(state: unknown): boolean {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    (state as Record<symbol, unknown>)[LIVE_EXECUTION_STATE] === true
+  )
 }

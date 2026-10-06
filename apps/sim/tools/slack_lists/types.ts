@@ -3,10 +3,10 @@ import type { listColumnResponseSchema, listFieldResponseSchema } from '@/tools/
 import type { columnSchema, fieldSchema, updateCellSchema } from '@/tools/slack_lists/validation'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export type SlackListColumn = z.infer<typeof columnSchema>
-export type SlackListResponseColumn = z.infer<typeof listColumnResponseSchema>
-export type SlackListField = z.infer<typeof fieldSchema>
-export type SlackListCell = z.infer<typeof updateCellSchema>
+type SlackListColumn = z.infer<typeof columnSchema>
+type SlackListResponseColumn = z.infer<typeof listColumnResponseSchema>
+type SlackListField = z.infer<typeof fieldSchema>
+type SlackListCell = z.infer<typeof updateCellSchema>
 
 export interface SlackListsAuthParams {
   accessToken: string
@@ -58,7 +58,7 @@ export interface SlackListsItemsUpdateParams extends SlackListsAuthParams {
   cells: SlackListCell[] | string
 }
 
-export interface SlackListItem {
+interface SlackListItem {
   id: string
   list_id: string
   date_created: number
@@ -69,7 +69,7 @@ export interface SlackListItem {
   parent_record_id: string | null
 }
 
-export interface SlackListSummary {
+interface SlackListSummary {
   id: string
   title: string
   schema: SlackListResponseColumn[]

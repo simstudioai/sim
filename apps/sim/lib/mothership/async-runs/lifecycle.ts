@@ -102,6 +102,21 @@ export function isExecutableToolPermissionDecision(
   return decision !== null && decision !== undefined && decision !== 'skip'
 }
 
+/**
+ * A call held for the user's decision may run only once they allowed it. A recorded decision
+ * that does not allow it disqualifies the call even without the gate marker, which calls gated
+ * before the marker existed lack.
+ */
+export function isAwaitingToolPermission(call: {
+  permissionRequestedAt: Date | null
+  permissionDecision: CopilotToolPermissionDecision | null
+}): boolean {
+  return (
+    Boolean(call.permissionRequestedAt || call.permissionDecision) &&
+    !isExecutableToolPermissionDecision(call.permissionDecision)
+  )
+}
+
 export function isWorkflowToolExecutionClaimable(
   status: CopilotAsyncToolStatus,
   permissionDecision: CopilotToolPermissionDecision | null | undefined

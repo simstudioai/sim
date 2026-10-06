@@ -1,11 +1,14 @@
 import { workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
-/** Transactional resource creation holds this row through insertion so archival cannot overtake it. */
-export async function lockActiveWorkspace(executor: DbOrTx, workspaceId: string) {
-  const [record] = await executor
+/**
+ * Transactional resource creation and restore hold this row through the write so
+ * archival cannot overtake it.
+ */
+export async function lockActiveWorkspace(tx: DbTransaction, workspaceId: string) {
+  const [record] = await tx
     .select({
       archivedAt: workspace.archivedAt,
       forkSyncNewWorkflowsExcluded: workspace.forkSyncNewWorkflowsExcluded,

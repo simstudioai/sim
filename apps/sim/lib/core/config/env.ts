@@ -599,6 +599,7 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
+    PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
@@ -669,7 +670,6 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
-    PROJECT_API_ENABLED:                  z.boolean().optional(),                 // Expose Projects after backfill and contract enforcement
     PROJECT_FILES_ENABLED:                z.boolean().optional(),                 // Enable Project files after entity-aware workers and storage consumers are deployed
     SCIM_ENABLED:                          z.boolean().optional(),                 // Enable SCIM directory provisioning
     USAGE_MONITORING_ENABLED:              z.boolean().optional(),                 // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)

@@ -42,7 +42,7 @@ export default async function FilesFilePage({
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<FilesFileLoading />}>
-        <FilesBrowser projectFilesEnabled={isProjectFileApiEnabled()} />
+        <FilesBrowser projectFilesEnabled={await isProjectFileApiEnabled()} />
       </Suspense>
     </HydrationBoundary>
   )

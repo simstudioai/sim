@@ -100,7 +100,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, workspace_id text NOT NULL, file_id text NOT NULL, expires_at timestamp)`
     await connection`CREATE TABLE workspace_file_search_chunk (build_id text NOT NULL, workspace_id text NOT NULL, content text NOT NULL, ordinal integer NOT NULL, PRIMARY KEY(build_id, ordinal))`
     const migration = readFileSync(
-      resolve(process.cwd(), '../../packages/db/migrations/0401_file_search_owner_scope.sql'),
+      resolve(process.cwd(), '../../packages/db/migrations/0403_file_search_owner_scope.sql'),
       'utf8'
     ).replaceAll('"public".', `"${schemaName}".`)
     const session = await connection.reserve()

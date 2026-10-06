@@ -1,6 +1,6 @@
 {
-  "id": "d54d271f-dbfb-4b1e-b3f7-2717fbb8d078",
-  "prevId": "4120041c-55f9-462f-b56c-7dfbd9eb7112",
+  "id": "09b19e2a-6ec5-4350-ae37-133a80f3b709",
+  "prevId": "6cd33290-e6cd-490b-938e-518e4f9f6282",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1539,6 +1539,12 @@
         },
         "permission_decided_at": {
           "name": "permission_decided_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permission_requested_at": {
+          "name": "permission_requested_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -22614,6 +22620,74 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.user_table_row_changes": {
+      "name": "user_table_row_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "user_table_row_changes_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "table_id": {
+          "name": "table_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_delta": {
+          "name": "row_delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_table_row_changes_table_id_idx": {
+          "name": "user_table_row_changes_table_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_row_changes_table_id_user_table_definitions_id_fk": {
+          "name": "user_table_row_changes_table_id_user_table_definitions_id_fk",
+          "tableFrom": "user_table_row_changes",
+          "tableTo": "user_table_definitions",
+          "columnsFrom": ["table_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.user_table_row_secret_provenance": {
       "name": "user_table_row_secret_provenance",
       "schema": "",
@@ -28246,12 +28320,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -28484,27 +28552,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "workspace_files_project_id_idx": {
-          "name": "workspace_files_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -28552,15 +28599,6 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "workspace_files_project_id_project_id_fk": {
-          "name": "workspace_files_project_id_project_id_fk",
-          "tableFrom": "workspace_files",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -28570,14 +28608,6 @@
         "workspace_files_organization_binding_check": {
           "name": "workspace_files_organization_binding_check",
           "value": "\"workspace_files\".\"organization_id\" IS NULL OR (\"workspace_files\".\"workspace_id\" IS NULL AND \"workspace_files\".\"context\" = 'knowledge-base' AND \"workspace_files\".\"folder_id\" IS NULL AND \"workspace_files\".\"chat_id\" IS NULL)"
-        },
-        "workspace_files_owner_check": {
-          "name": "workspace_files_owner_check",
-          "value": "num_nonnulls(\"workspace_files\".\"workspace_id\", \"workspace_files\".\"project_id\", \"workspace_files\".\"organization_id\") <= 1"
-        },
-        "workspace_files_project_binding_check": {
-          "name": "workspace_files_project_binding_check",
-          "value": "(\"workspace_files\".\"project_id\" IS NOT NULL) = (\"workspace_files\".\"context\" = 'project') AND (\"workspace_files\".\"project_id\" IS NULL OR \"workspace_files\".\"chat_id\" IS NULL)"
         }
       },
       "isRLSEnabled": false

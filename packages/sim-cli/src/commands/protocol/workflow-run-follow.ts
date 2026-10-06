@@ -43,16 +43,13 @@ export interface FollowOptions {
   stderr: CommentaryWriter
 }
 
-type WorkflowRunSelection =
-  | { source: 'manual' }
-  | {
-      source: 'manual'
-      entry: { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
-    }
-  | {
-      source: 'manual'
-      entry: { type: 'block'; blockId: string; sourceRunId: string }
-    }
+type WorkflowRunSelection = {
+  source: 'manual'
+  entry?:
+    | { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
+    | { type: 'block'; blockId: string; sourceRunId: string }
+  stopAfterBlockId?: string
+}
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
 export function resolveWorkflowRunSelection(
@@ -60,8 +57,10 @@ export function resolveWorkflowRunSelection(
 ): WorkflowRunSelection | undefined {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
   const useMockPayload = flags.mockPayload === true
-  /** A trigger entry only exists on the draft, so these flags imply `--manual`. */
-  const manual = flags.manual === true || trigger !== undefined || useMockPayload
+  const stopAfter = typeof flags.stopAfter === 'string' ? flags.stopAfter : undefined
+  /** A trigger entry and a stop block only exist on the draft, so these flags imply `--manual`. */
+  const manual =
+    flags.manual === true || trigger !== undefined || useMockPayload || stopAfter !== undefined
   const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
   const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
 
@@ -80,15 +79,20 @@ export function resolveWorkflowRunSelection(
   if (useMockPayload && flags.input !== undefined) {
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
   }
+  if (stopAfter !== undefined && stopAfter.trim() === '') {
+    throw new SimApiError('--stop-after requires a block ID', 0)
+  }
 
+  const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
   if (fromBlock && sourceRun) {
     return {
       source: 'manual',
       entry: { type: 'block', blockId: fromBlock, sourceRunId: sourceRun },
+      ...stop,
     }
   }
   if (!manual) return undefined
-  if (!trigger && !useMockPayload) return { source: 'manual' }
+  if (!trigger && !useMockPayload) return { source: 'manual', ...stop }
   return {
     source: 'manual',
     entry: {
@@ -96,6 +100,7 @@ export function resolveWorkflowRunSelection(
       ...(trigger ? { blockId: trigger } : {}),
       ...(useMockPayload ? { useMockPayload: true } : {}),
     },
+    ...stop,
   }
 }
 
@@ -487,6 +492,10 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option(
       '--source-run <runId>',
       'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
+    )
+    .option(
+      '--stop-after <blockId>',
+      'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
     )
     .option(
       '--follow',

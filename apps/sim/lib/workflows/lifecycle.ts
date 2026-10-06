@@ -3,7 +3,6 @@ import {
   apiKey,
   chat,
   folder as folderTable,
-  projectWorkspace,
   webhook,
   workflow,
   workflowDeploymentVersion,
@@ -109,7 +108,7 @@ export async function archiveWorkflow(
     .from(workflowMcpTool)
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
-  await db.transaction((tx) => archiveWorkflowInTransaction(tx, workflowId, now))
+  await db.transaction((tx) => archiveWorkflowsInTransaction(tx, [workflowId], now))
 
   await finishWorkflowArchive(
     workflowId,
@@ -295,54 +294,35 @@ export async function disableUserResources(userId: string): Promise<void> {
 
   const { archiveWorkspace } = await import('@/lib/workspaces/lifecycle')
 
+  /** Revoked first: the keys are the ban's access boundary, and an archive may fail. */
+  await db.delete(apiKey).where(eq(apiKey.userId, userId))
+
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
     .from(workspace)
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
-  const { archiveProjectInTransaction, finishProjectArchive } = await import(
-    '@/lib/projects/lifecycle'
-  )
-  const { lockWorkspaceProject } = await import('@/lib/projects/membership')
-  const processed = new Set<string>()
   for (const row of ownedWorkspaces) {
-    if (processed.has(row.id)) continue
-    const archived = await db.transaction(async (tx) => {
-      const record = await lockWorkspaceProject(tx, row.id)
-      if (!record) return null
-      const active = await tx
-        .select({ id: workspace.id, ownerId: workspace.ownerId })
-        .from(projectWorkspace)
-        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
-        .where(and(eq(projectWorkspace.projectId, record.id), isNull(workspace.archivedAt)))
-        .orderBy(workspace.id)
-        .for('no key update', { of: workspace })
-      if (!active.length || !active.every((entry) => entry.ownerId === userId)) return null
-      return archiveProjectInTransaction(tx, record.id)
-    })
-    if (archived) {
-      for (const entry of archived.environments) processed.add(entry.id)
-      await finishProjectArchive(archived, requestId)
-    } else {
-      await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
-      processed.add(row.id)
-    }
+    await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
   }
-  await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
   logger.info(
     `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
   )
 }
 
-/** Durable archive state shared by single-workflow and compound Project archival. */
-export async function archiveWorkflowInTransaction(
+/**
+ * Durable archive state shared by single-workflow and compound Project archival. Each
+ * statement covers the whole batch, so the round trips do not grow with its size.
+ */
+export async function archiveWorkflowsInTransaction(
   tx: DbTransaction,
-  workflowId: string,
+  workflowIds: readonly string[],
   now: Date
 ): Promise<void> {
-  await supersedeInFlightDeploymentOperations(tx, workflowId)
-  await releaseWebhookPathClaims(tx, workflowId)
+  if (workflowIds.length === 0) return
+  await supersedeInFlightDeploymentOperations(tx, workflowIds)
+  await releaseWebhookPathClaims(tx, workflowIds)
 
   await tx
     .update(workflowSchedule)
@@ -353,7 +333,9 @@ export async function archiveWorkflowInTransaction(
       nextRunAt: null,
       lastQueuedAt: null,
     })
-    .where(and(eq(workflowSchedule.workflowId, workflowId), isNull(workflowSchedule.archivedAt)))
+    .where(
+      and(inArray(workflowSchedule.workflowId, workflowIds), isNull(workflowSchedule.archivedAt))
+    )
 
   await tx
     .update(webhook)
@@ -362,7 +344,7 @@ export async function archiveWorkflowInTransaction(
       updatedAt: now,
       isActive: false,
     })
-    .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
+    .where(and(inArray(webhook.workflowId, workflowIds), isNull(webhook.archivedAt)))
 
   await tx
     .update(chat)
@@ -371,7 +353,7 @@ export async function archiveWorkflowInTransaction(
       updatedAt: now,
       isActive: false,
     })
-    .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+    .where(and(inArray(chat.workflowId, workflowIds), isNull(chat.archivedAt)))
 
   await tx
     .update(workflowMcpTool)
@@ -379,14 +361,21 @@ export async function archiveWorkflowInTransaction(
       archivedAt: now,
       updatedAt: now,
     })
-    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
+    .where(
+      and(inArray(workflowMcpTool.workflowId, workflowIds), isNull(workflowMcpTool.archivedAt))
+    )
 
   await tx
     .update(workflowDeploymentVersion)
     .set({
       isActive: false,
     })
-    .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+    .where(
+      and(
+        inArray(workflowDeploymentVersion.workflowId, workflowIds),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
 
   await tx
     .update(workflow)
@@ -396,7 +385,7 @@ export async function archiveWorkflowInTransaction(
       isDeployed: false,
       isPublicApi: false,
     })
-    .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
+    .where(and(inArray(workflow.id, workflowIds), isNull(workflow.archivedAt)))
 }
 
 /** Best-effort external notifications run only after durable archive state commits. */
@@ -419,13 +408,9 @@ export async function finishWorkflowArchive(
 
   await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
 
-  if (workspaceId && mcpPubSub && serverIds.length > 0) {
-    const uniqueServerIds = [...new Set(serverIds)]
-    for (const serverId of uniqueServerIds) {
-      mcpPubSub.publishWorkflowToolsChanged({
-        serverId,
-        workspaceId: workspaceId,
-      })
+  if (workspaceId && mcpPubSub) {
+    for (const serverId of new Set(serverIds)) {
+      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
     }
   }
 }

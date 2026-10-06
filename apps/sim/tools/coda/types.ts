@@ -4,7 +4,7 @@ export interface CodaAuthParams {
   accessToken: string
 }
 
-export interface CodaPaginationParams {
+interface CodaPaginationParams {
   limit?: number
   pageToken?: string
 }
@@ -17,7 +17,7 @@ export interface CodaPageParams extends CodaDocParams {
   pageId: string
 }
 
-export interface CodaTableParams extends CodaDocParams {
+interface CodaTableParams extends CodaDocParams {
   tableId: string
 }
 
@@ -25,25 +25,25 @@ export interface CodaRowParams extends CodaTableParams {
   rowId: string
 }
 
-export interface CodaIcon {
+interface CodaIcon {
   name: string | null
   type: string | null
   browserLink: string | null
 }
 
-export interface CodaPerson {
+interface CodaPerson {
   name: string | null
   email: string | null
 }
 
-export interface CodaPageRef {
+interface CodaPageRef {
   id: string
   name: string | null
   href: string | null
   browserLink: string | null
 }
 
-export interface CodaTableRef {
+interface CodaTableRef {
   id: string
   name: string | null
   tableType: string | null
@@ -51,7 +51,7 @@ export interface CodaTableRef {
   browserLink: string | null
 }
 
-export interface CodaWorkspaceRef {
+interface CodaWorkspaceRef {
   id: string
   name: string | null
   organizationId: string | null
@@ -206,7 +206,7 @@ export interface CodaPermission {
   }
 }
 
-export type CodaListResponse<K extends string, T> = ToolResponse & {
+type CodaListResponse<K extends string, T> = ToolResponse & {
   output: Record<K, T[]> & { nextPageToken: string | null }
 }
 
@@ -242,7 +242,7 @@ export interface CodaDocResponse extends ToolResponse {
   output: { doc: CodaDoc }
 }
 
-export interface CodaPageContentParams {
+interface CodaPageContentParams {
   pageType?: string
   contentFormat?: string
   content?: string
@@ -327,7 +327,7 @@ export interface CodaListPermissionsParams extends CodaDocParams, CodaPagination
 
 export type CodaListPermissionsResponse = CodaListResponse<'permissions', CodaPermission>
 
-export type CodaPrincipalType = 'email' | 'group' | 'domain' | 'workspace' | 'anyone'
+type CodaPrincipalType = 'email' | 'group' | 'domain' | 'workspace' | 'anyone'
 
 export interface CodaAddPermissionParams extends CodaDocParams {
   access: 'readonly' | 'write' | 'comment'
@@ -562,7 +562,7 @@ export interface CodaDeleteFolderResponse extends ToolResponse {
 
 export interface CodaListFolderChildrenParams extends CodaFolderParams, CodaPaginationParams {}
 
-export type CodaFolderChild = Omit<CodaFolder, 'icon'> & { visibility: string }
+type CodaFolderChild = Omit<CodaFolder, 'icon'> & { visibility: string }
 
 export type CodaListFolderChildrenResponse = CodaListResponse<'children', CodaFolderChild>
 
@@ -727,54 +727,3 @@ export interface CodaTriggerAutomationParams extends CodaDocParams {
   ruleId: string
   payload?: unknown
 }
-
-export type CodaResponse =
-  | CodaWhoamiResponse
-  | CodaListDocsResponse
-  | CodaDocResponse
-  | CodaCreateDocResponse
-  | CodaDocIdResponse
-  | CodaListCategoriesResponse
-  | CodaRequestIdResponse
-  | CodaSharingMetadataResponse
-  | CodaAclSettingsResponse
-  | CodaSearchPrincipalsResponse
-  | CodaListPermissionsResponse
-  | CodaAddPermissionResponse
-  | CodaDeletePermissionResponse
-  | CodaListPagesResponse
-  | CodaPageResponse
-  | CodaPageMutationResponse
-  | CodaGetPageContentResponse
-  | CodaExportPageResponse
-  | CodaPageExportStatusResponse
-  | CodaListTablesResponse
-  | CodaTableResponse
-  | CodaListColumnsResponse
-  | CodaColumnResponse
-  | CodaListRowsResponse
-  | CodaRowResponse
-  | CodaUpsertRowsResponse
-  | CodaRowMutationResponse
-  | CodaDeleteRowsResponse
-  | CodaPushButtonResponse
-  | CodaListFormulasResponse
-  | CodaFormulaResponse
-  | CodaListControlsResponse
-  | CodaControlResponse
-  | CodaListFoldersResponse
-  | CodaFolderResponse
-  | CodaDeleteFolderResponse
-  | CodaListFolderChildrenResponse
-  | CodaListWorkspaceMembersResponse
-  | CodaChangeUserRoleResponse
-  | CodaListWorkspaceRolesResponse
-  | CodaListDocAnalyticsResponse
-  | CodaListPageAnalyticsResponse
-  | CodaDocAnalyticsSummaryResponse
-  | CodaAnalyticsLastUpdatedResponse
-  | CodaListCustomDomainsResponse
-  | CodaCustomDomainResponse
-  | CodaGetCustomDomainProviderResponse
-  | CodaResolveBrowserLinkResponse
-  | CodaGetMutationStatusResponse

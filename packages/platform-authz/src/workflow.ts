@@ -6,8 +6,6 @@ import {
   resolveEffectiveWorkspacePermission,
 } from './workspace'
 
-export type { PermissionType }
-
 export type ActiveWorkflowRecord = typeof workflow.$inferSelect
 
 export interface ActiveWorkflowContext {
@@ -50,16 +48,6 @@ export async function getActiveWorkflowRecord(
   return context?.workflow ?? null
 }
 
-export async function assertActiveWorkflowContext(
-  workflowId: string
-): Promise<ActiveWorkflowContext> {
-  const context = await getActiveWorkflowContext(workflowId)
-  if (!context) {
-    throw new Error(`Active workflow not found: ${workflowId}`)
-  }
-  return context
-}
-
 type WorkflowRecord = typeof workflow.$inferSelect
 
 export class WorkflowLockedError extends Error {
@@ -80,7 +68,7 @@ export class FolderLockedError extends Error {
   }
 }
 
-export interface LockStatus {
+interface LockStatus {
   locked: boolean
   directLocked: boolean
   inheritedLocked: boolean
@@ -88,7 +76,7 @@ export interface LockStatus {
   lockedFolderId: string | null
 }
 
-export async function getFolderLockStatus(folderId: string | null): Promise<LockStatus> {
+async function getFolderLockStatus(folderId: string | null): Promise<LockStatus> {
   if (!folderId) {
     return {
       locked: false,
@@ -145,7 +133,7 @@ export async function getFolderLockStatus(folderId: string | null): Promise<Lock
   }
 }
 
-export async function getWorkflowLockStatus(workflowId: string): Promise<LockStatus> {
+async function getWorkflowLockStatus(workflowId: string): Promise<LockStatus> {
   const [wf] = await db
     .select({
       locked: workflow.locked,

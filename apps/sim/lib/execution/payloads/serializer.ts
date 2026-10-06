@@ -27,6 +27,12 @@ export interface CompactExecutionPayloadOptions extends LargeValueStoreContext {
 
 interface CompactState {
   seen: WeakSet<object>
+  /**
+   * Return an unchanged plain object or array as-is instead of rebuilding it.
+   * Only for input that `compactBlockOutput` already rebuilt: sharing a raw
+   * handler output would retain V8's heavier `JSON.parse` object shapes.
+   */
+  reuseUnchanged?: boolean
 }
 
 const BLOCK_LOG_COMPACTION_CONCURRENCY = 4
@@ -149,19 +155,32 @@ async function compactEntries(
   }
 
   if (Array.isArray(value)) {
-    return Promise.all(value.map((item) => compactValue(item, options, state, depth + 1)))
+    const compactedItems = await Promise.all(
+      value.map((item) => compactValue(item, options, state, depth + 1))
+    )
+    return state.reuseUnchanged &&
+      Object.getPrototypeOf(value) === Array.prototype &&
+      compactedItems.every((item, index) => item === value[index])
+      ? value
+      : compactedItems
   }
 
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(value).map(async ([key, entryValue]) => [
+  const entries = Object.entries(value)
+  const compactedEntries = await Promise.all(
+    entries.map(
+      async ([key, entryValue]): Promise<[string, unknown]> => [
         key,
         key === 'finalBlockLogs' && Array.isArray(entryValue)
           ? await compactBlockLogs(entryValue as BlockLog[], options)
           : await compactValue(entryValue, options, state, depth + 1),
-      ])
+      ]
     )
   )
+  return state.reuseUnchanged &&
+    Object.getPrototypeOf(value) === Object.prototype &&
+    compactedEntries.every(([, compacted], index) => compacted === entries[index][1])
+    ? value
+    : Object.fromEntries(compactedEntries)
 }
 
 async function compactEntriesWithEarlyReject(
@@ -245,7 +264,9 @@ export async function compactSubflowResults<T>(
 ): Promise<T[]> {
   const entryOptions = { ...options, preserveRoot: false }
   let compactedResults = (await Promise.all(
-    results.map((result) => compactExecutionPayload(result, entryOptions))
+    results.map((result) =>
+      compactValue(result, entryOptions, { seen: new WeakSet<object>(), reuseUnchanged: true })
+    )
   )) as T[]
 
   const aggregate = getJsonAndSize({ results: compactedResults })

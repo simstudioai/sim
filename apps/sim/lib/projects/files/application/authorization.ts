@@ -223,7 +223,7 @@ export async function createProjectFileAuthorizer(
   input: ProjectFileTarget
 ): Promise<(tx: DbTransaction) => Promise<ProjectFileAuthorizationContext>> {
   requirePrincipal(principal, operation, input)
-  requireProjectFileApiEnabled()
+  await requireProjectFileApiEnabled()
   const userId = requirePrincipalSubjectUserId(principal)
   if ((await getActivelyBannedUserIds([userId])).length) {
     throw new OrchestrationError('forbidden', 'User account is suspended')

@@ -468,8 +468,8 @@ export async function prepareArchiveExtraction(
  * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
  * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
  * them; the agent-facing extract path drops them. Decompression is not byte-preserving,
- * so known secret contributions become unknown on extracted files. Exact-empty and unrecorded
- * classifications retain their existing input policy without changing the extracted bytes.
+ * so every extracted file inherits the archive's full candidate set. Runtime consumers redact
+ * decoded content; direct opaque delivery still refuses known secret contributions.
  */
 export async function decompressArchiveBufferToWorkspaceFiles(
   buffer: Buffer,
@@ -498,11 +498,6 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     secretProvenance = { status: 'unknown' },
     notifyWorkspaceChange = true,
   } = opts
-  const extractedSecretProvenance: WorkspaceFileSecretProvenance =
-    secretProvenance.status === 'unrecorded' ||
-    (secretProvenance.status === 'exact' && secretProvenance.entries.length === 0)
-      ? secretProvenance
-      : { status: 'unknown' }
 
   const prepared = await prepareArchiveExtraction(buffer, {
     rootFolderSegments,
@@ -568,7 +563,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
             // Auto-suffix on collision: one leaf name that already exists must not
             // roll back an otherwise valid extraction.
             exactName: false,
-            secretProvenance: extractedSecretProvenance,
+            secretProvenance,
             notifyWorkspaceChange: false,
           },
         })

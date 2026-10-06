@@ -198,14 +198,3 @@ export interface LeadMagicGetCreditsResponse extends ToolResponse {
 }
 
 // Union response type
-
-export type LeadMagicResponse =
-  | LeadMagicValidateEmailResponse
-  | LeadMagicFindEmailResponse
-  | LeadMagicFindMobileResponse
-  | LeadMagicProfileSearchResponse
-  | LeadMagicProfileToEmailResponse
-  | LeadMagicEmailToProfileResponse
-  | LeadMagicCompanySearchResponse
-  | LeadMagicRoleFinderResponse
-  | LeadMagicGetCreditsResponse

@@ -424,9 +424,8 @@ export class BlockExecutor {
           typeof normalizedOutput._childWorkflowInstanceId === 'string'
             ? normalizedOutput._childWorkflowInstanceId
             : undefined
-        const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
-          block,
-        })
+        // Shallow top-level copy: streaming later writes token/cost keys onto blockLog.output.
+        const displayOutput = { ...blockLog.output }
         const displayInput = this.projectInputsForDisplay(inputsForLog, block, inputDisplayRegistry)
         blockLog.input = displayInput
         const displayProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue({
@@ -680,7 +679,7 @@ export class BlockExecutor {
 
       if (!isSentinel && blockLog) {
         const displayInput = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
-        const displayOutput = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
+        const displayOutput = { ...blockLog.output }
         const displayProvenance =
           ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
             input: displayInput,
@@ -798,7 +797,7 @@ export class BlockExecutor {
       const childWorkflowInstanceId = ChildWorkflowError.isChildWorkflowError(error)
         ? error.childWorkflowInstanceId
         : undefined
-      const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      const displayOutput = { ...blockLog.output }
       const displayInput = this.projectInputsForDisplay(input, block, inputDisplayRegistry)
       const displayProvenance = errorRegistry?.exportCommittedProvenanceForValue({
         input: displayInput,

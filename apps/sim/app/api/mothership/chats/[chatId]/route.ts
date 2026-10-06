@@ -97,6 +97,7 @@ export const GET = withRouteHandler(
           resources: Array.isArray(chat.resources)
             ? chat.resources.map(presentChatResourceForBrowser)
             : [],
+          effort: chat.effort,
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
           // Events stay out of the payload (the resume endpoint replays them),

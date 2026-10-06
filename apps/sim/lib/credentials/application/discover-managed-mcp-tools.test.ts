@@ -42,7 +42,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
-vi.mock('@sim/workflow-persistence', () => ({
+vi.mock('@sim/workflow-persistence/load', () => ({
   loadWorkflowFromNormalizedTablesRaw: hoisted.loadWorkflow,
 }))
 

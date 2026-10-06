@@ -121,7 +121,3 @@ export interface STSGetAccessKeyInfoResponse extends ToolResponse {
     account: string
   }
 }
-
-export interface STSBaseResponse extends ToolResponse {
-  output: { message: string }
-}

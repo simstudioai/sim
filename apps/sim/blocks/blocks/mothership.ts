@@ -1,5 +1,9 @@
 import { Blimp } from '@sim/emcn/icons'
-import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
+import {
+  DEFAULT_MOTHERSHIP_EFFORT,
+  MOTHERSHIP_EFFORT_OPTIONS,
+  MOTHERSHIP_MODEL_OPTIONS,
+} from '@/lib/mothership/model-options'
 import type { BlockConfig } from '@/blocks/types'
 
 export const MothershipBlock: BlockConfig = {
@@ -45,7 +49,7 @@ export const MothershipBlock: BlockConfig = {
       title: 'Reasoning Effort',
       type: 'dropdown',
       options: MOTHERSHIP_EFFORT_OPTIONS.map(({ value, label }) => ({ id: value, label })),
-      value: () => 'high',
+      value: () => DEFAULT_MOTHERSHIP_EFFORT,
     },
     {
       id: 'fastMode',

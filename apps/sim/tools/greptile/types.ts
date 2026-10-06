@@ -109,12 +109,3 @@ export interface GreptileStatusResponse extends ToolResponse {
     sha?: string
   }
 }
-
-/**
- * Union type for all Greptile responses
- */
-export type GreptileResponse =
-  | GreptileQueryResponse
-  | GreptileSearchResponse
-  | GreptileIndexResponse
-  | GreptileStatusResponse

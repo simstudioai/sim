@@ -20,7 +20,7 @@ export function clampParallelBatchSize(batchSize: unknown): number {
  * @param blocks - Record of all blocks in the workflow
  * @returns IDs of the blocks whose parent is this container
  */
-export function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
+function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
   return Object.values(blocks)
     .filter((block) => block.data?.parentId === containerId)
     .map((block) => block.id)
@@ -64,7 +64,7 @@ export function convertLoopBlockToLoop(
  * @param blocks - Record of all blocks in the workflow
  * @returns The parallel, or undefined when the block is missing or not a parallel
  */
-export function convertParallelBlockToParallel(
+function convertParallelBlockToParallel(
   parallelBlockId: string,
   blocks: Record<string, BlockState>
 ): Parallel | undefined {

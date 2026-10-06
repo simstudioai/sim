@@ -1,12 +1,10 @@
-import type { ToolResponse } from '@/tools/types'
-
 export interface SailPointCredentials {
   clientId: string
   clientSecret: string
   tenant: string
 }
 
-export interface SailPointPaginationParams {
+interface SailPointPaginationParams {
   limit?: number
   offset?: number
   count?: boolean
@@ -19,26 +17,6 @@ export interface SailPointListParams extends SailPointCredentials, SailPointPagi
 
 export interface SailPointGetByIdParams extends SailPointCredentials {
   id: string
-}
-
-export interface SailPointListOutput<T = Record<string, unknown>> {
-  items: T[]
-  count: number
-  totalCount: number | null
-}
-
-export interface SailPointListResponse<T = Record<string, unknown>> extends ToolResponse {
-  output: SailPointListOutput<T>
-}
-
-export interface SailPointResourceResponse<
-  T extends Record<string, unknown> = Record<string, unknown>,
-> extends ToolResponse {
-  output: T
-}
-
-export interface SailPointAcceptedResponse extends ToolResponse {
-  output: { accepted: boolean; status: number }
 }
 
 export interface SailPointListIdentitiesParams extends SailPointListParams {
@@ -96,7 +74,7 @@ export interface SailPointListReviewItemsParams extends SailPointListParams {
   roles?: string
 }
 
-export type SailPointSearchIndex =
+type SailPointSearchIndex =
   | 'accessprofiles'
   | 'accountactivities'
   | 'entitlements'
@@ -105,21 +83,21 @@ export type SailPointSearchIndex =
   | 'roles'
   | '*'
 
-export interface SailPointSearchQuery {
+interface SailPointSearchQuery {
   query?: string
   fields?: string
   timeZone?: string
   innerHit?: Record<string, unknown>
 }
 
-export interface SailPointTextQuery {
+interface SailPointTextQuery {
   terms: string[]
   fields: string[]
   matchAny?: boolean
   contains?: boolean
 }
 
-export interface SailPointTypeAheadQuery {
+interface SailPointTypeAheadQuery {
   query: string
   field: string
   nestedType?: string
@@ -129,12 +107,12 @@ export interface SailPointTypeAheadQuery {
   sortByValue?: boolean
 }
 
-export interface SailPointQueryResultFilter {
+interface SailPointQueryResultFilter {
   includes?: string[]
   excludes?: string[]
 }
 
-export interface SailPointSearchFilter {
+interface SailPointSearchFilter {
   type?: string
   range?: Record<string, unknown>
   terms?: string[]
@@ -170,26 +148,10 @@ export interface SailPointSearchAggregateParams
   extends SailPointSearchBodyParams,
     SailPointPaginationParams {}
 
-export interface SailPointSearchResponse extends ToolResponse {
-  output: { results: Record<string, unknown>[]; count: number; totalCount: number | null }
-}
+type SailPointAccessRequestType = 'GRANT_ACCESS' | 'REVOKE_ACCESS' | 'MODIFY_ACCESS'
+type SailPointRequestedItemType = 'ACCESS_PROFILE' | 'ROLE' | 'ENTITLEMENT'
 
-export interface SailPointSearchCountResponse extends ToolResponse {
-  output: { total: number }
-}
-
-export interface SailPointSearchAggregateResponse extends ToolResponse {
-  output: {
-    aggregations: Record<string, unknown>
-    hits: Record<string, unknown>[]
-    totalCount: number | null
-  }
-}
-
-export type SailPointAccessRequestType = 'GRANT_ACCESS' | 'REVOKE_ACCESS' | 'MODIFY_ACCESS'
-export type SailPointRequestedItemType = 'ACCESS_PROFILE' | 'ROLE' | 'ENTITLEMENT'
-
-export interface SailPointRequestedItem {
+interface SailPointRequestedItem {
   type: SailPointRequestedItemType
   id: string
   comment?: string
@@ -201,11 +163,11 @@ export interface SailPointRequestedItem {
   formInstanceId?: string | null
 }
 
-export type SailPointNestedRequestedItem = Omit<SailPointRequestedItem, 'assignmentId'> & {
+type SailPointNestedRequestedItem = Omit<SailPointRequestedItem, 'assignmentId'> & {
   accountSelection?: SailPointSourceItemRef[] | null
 }
 
-export interface SailPointAccountItemRef {
+interface SailPointAccountItemRef {
   accountUuid?: string | null
   nativeIdentity?: string
 }
@@ -215,7 +177,7 @@ export interface SailPointSourceItemRef {
   accounts?: SailPointAccountItemRef[] | null
 }
 
-export interface SailPointRequestedForWithItems {
+interface SailPointRequestedForWithItems {
   identityId: string
   identityType?: 'HUMAN' | 'MACHINE'
   requestedItems: SailPointNestedRequestedItem[]
@@ -227,22 +189,6 @@ export interface SailPointRequestAccessParams extends SailPointCredentials {
   requestedItems?: SailPointRequestedItem[] | string
   requestedForWithRequestedItems?: SailPointRequestedForWithItems[] | string
   clientMetadata?: Record<string, string> | string
-}
-
-export interface SailPointAccessRequestTracking {
-  requestedFor?: string
-  requestedItemsDetails?: Array<{ type?: SailPointRequestedItemType; id?: string }>
-  attributesHash?: number
-  accessRequestIds?: string[]
-}
-
-export interface SailPointAccessRequestResponse extends ToolResponse {
-  output: {
-    accepted: boolean
-    status: number
-    newRequests: SailPointAccessRequestTracking[]
-    existingRequests: SailPointAccessRequestTracking[]
-  }
 }
 
 export interface SailPointCancelAccessRequestParams extends SailPointCredentials {
@@ -269,38 +215,7 @@ export interface SailPointLoadEntitlementsParams extends SailPointCredentials {
   file?: unknown
 }
 
-export interface SailPointTask {
-  id?: string
-  type?: string
-  name?: string
-  uniqueName?: string
-  description?: string
-  launcher?: string
-  created?: string
-  launched?: string | null
-  completed?: string | null
-  completionStatus?: string | null
-  parentName?: string | null
-  messages?: Record<string, unknown>[]
-  progress?: string | null
-  percentComplete?: number
-  attributes?: Record<string, unknown>
-  returns?: Record<string, unknown>[]
-}
-
-export interface SailPointTaskResponse extends ToolResponse {
-  output: { task: SailPointTask }
-}
-
-export interface SailPointLoadAccountsResponse extends ToolResponse {
-  output: { success: boolean; task: SailPointTask }
-}
-
-export interface SailPointLoadEntitlementsResponse extends ToolResponse {
-  output: { task: SailPointTask }
-}
-
-export interface SailPointReviewRecommendation {
+interface SailPointReviewRecommendation {
   recommendation?: string | null
   reasons?: string[]
   timestamp?: string

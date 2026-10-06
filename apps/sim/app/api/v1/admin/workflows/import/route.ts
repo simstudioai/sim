@@ -15,7 +15,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   assertFolderInWorkspace,
@@ -28,13 +28,11 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -114,20 +112,6 @@ export const POST = withRouteHandler(
       )
 
       const workflowId = generateId()
-      const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
-
-      await db.transaction(async (tx) => {
-        await tx.insert(workflow).values(
-          await buildNewWorkflowRow(tx, {
-            id: workflowId,
-            userId: workspaceData.ownerId,
-            workspaceId,
-            folderId: folderId || null,
-            name: dedupedName,
-            description: workflowDescription,
-          })
-        )
-      })
 
       /**
        * Same normalization the editor and the v1 import API run, via the one
@@ -140,13 +124,16 @@ export const POST = withRouteHandler(
         logger.warn('Admin API: normalized imported workflow with warnings', { warnings })
       }
 
-      const saveResult = await saveWorkflowToNormalizedTables(
-        workflowId,
-        {
-          ...workflowData,
-          ...preparedState,
-        },
-        {
+      const created = await createWorkflowWithState({
+        id: workflowId,
+        userId: workspaceData.ownerId,
+        workspaceId,
+        folderId: folderId || null,
+        name: workflowName,
+        description: workflowDescription,
+        variables: normalizeImportedVariables(workflowData.variables),
+        state: { ...workflowData, ...preparedState },
+        governance: {
           /**
            * Actorless. This is the platform-admin surface: the caller is a Sim
            * operator restoring data, not a member of the target workspace, so no
@@ -155,35 +142,26 @@ export const POST = withRouteHandler(
            */
           workspaceId: null,
           subjectUserId: null,
-        }
-      )
+        },
+      })
 
-      if (!saveResult.success) {
-        await db.delete(workflow).where(eq(workflow.id, workflowId))
-        return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
-      }
-
-      const variablesRecord = normalizeImportedVariables(workflowData.variables)
-      if (Object.keys(variablesRecord).length > 0) {
-        await db
-          .update(workflow)
-          .set({ variables: variablesRecord, updatedAt: new Date() })
-          .where(eq(workflow.id, workflowId))
+      if (!created.success) {
+        return internalErrorResponse(`Failed to save workflow state: ${created.error}`)
       }
 
       logger.info(
-        `Admin API: Imported workflow ${workflowId} (${dedupedName}) into workspace ${workspaceId}`
+        `Admin API: Imported workflow ${workflowId} (${created.workflow.name}) into workspace ${workspaceId}`
       )
 
       const response: ImportSuccessResponse = {
         workflowId,
-        name: dedupedName,
+        name: created.workflow.name,
         success: true,
       }
 
       return NextResponse.json(response)
     } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'not_found') {
+      if (asOrchestrationError(error)?.code === 'not_found') {
         return notFoundResponse('Workspace')
       }
       if (error instanceof FolderNotFoundError) {

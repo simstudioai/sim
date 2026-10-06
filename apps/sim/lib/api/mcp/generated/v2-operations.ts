@@ -1277,7 +1277,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteToolContract,
     summary: 'Run Tool',
     description:
-      'Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: "failed"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: "failed"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace; a call that would use a hosted key from a workspace over its usage or billing limits returns `402`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/tools/[toolId]/execute/route').then((route) => route.POST),
   },

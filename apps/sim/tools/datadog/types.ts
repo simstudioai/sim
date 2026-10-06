@@ -43,9 +43,9 @@ export interface DatadogV2Resource<TAttributes> {
   attributes?: TAttributes
 }
 
-export type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
+type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
 
-export interface MetricPoint {
+interface MetricPoint {
   timestamp: number
   value: number
 }
@@ -140,7 +140,7 @@ export interface CreateEventParams extends DatadogWriteOnlyParams {
   dateHappened?: number
 }
 
-export interface EventData {
+interface EventData {
   id?: number
   title?: string
   text?: string
@@ -443,9 +443,9 @@ export interface CancelDowntimeResponse extends ToolResponse {
   output: CancelDowntimeOutput
 }
 
-export type SloType = 'metric' | 'monitor' | 'time_slice'
+type SloType = 'metric' | 'monitor' | 'time_slice'
 
-export type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
+type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
 
 interface SloThreshold {
   timeframe: SloTimeframe
@@ -604,7 +604,7 @@ export interface GetSloHistoryResponse extends ToolResponse {
   output: GetSloHistoryOutput
 }
 
-export type DashboardLayoutType = 'ordered' | 'free'
+type DashboardLayoutType = 'ordered' | 'free'
 
 interface DashboardData {
   id?: string
@@ -696,7 +696,7 @@ export interface DeleteDashboardResponse extends ToolResponse {
   output: DeleteDashboardOutput
 }
 
-export type SyntheticsTestPauseStatus = 'live' | 'paused'
+type SyntheticsTestPauseStatus = 'live' | 'paused'
 
 export interface SyntheticsTestData {
   public_id?: string
@@ -830,9 +830,9 @@ export interface UpdateSyntheticsStatusResponse extends ToolResponse {
   output: UpdateSyntheticsStatusOutput
 }
 
-export type SecuritySignalState = 'open' | 'archived' | 'under_review'
+type SecuritySignalState = 'open' | 'archived' | 'under_review'
 
-export type SecuritySignalArchiveReason =
+type SecuritySignalArchiveReason =
   | 'none'
   | 'false_positive'
   | 'testing_or_maintenance'
@@ -1027,7 +1027,7 @@ export interface ListServicesResponse extends ToolResponse {
   output: ListServicesOutput
 }
 
-export type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
+type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
 
 interface IncidentFieldValue {
   type?: string
@@ -1163,46 +1163,3 @@ interface AddIncidentTodoOutput {
 export interface AddIncidentTodoResponse extends ToolResponse {
   output: AddIncidentTodoOutput
 }
-
-export type DatadogResponse =
-  | SubmitMetricsResponse
-  | QueryTimeseriesResponse
-  | CreateEventResponse
-  | CreateMonitorResponse
-  | GetMonitorResponse
-  | ListMonitorsResponse
-  | MuteMonitorResponse
-  | UnmuteMonitorResponse
-  | SendLogsResponse
-  | QueryLogsResponse
-  | CreateDowntimeResponse
-  | ListDowntimesResponse
-  | CancelDowntimeResponse
-  | ListSlosResponse
-  | GetSloResponse
-  | CreateSloResponse
-  | UpdateSloResponse
-  | DeleteSloResponse
-  | GetSloHistoryResponse
-  | ListDashboardsResponse
-  | GetDashboardResponse
-  | CreateDashboardResponse
-  | DeleteDashboardResponse
-  | ListSyntheticsTestsResponse
-  | GetSyntheticsTestResponse
-  | GetSyntheticsResultsResponse
-  | GetBrowserSyntheticsResultsResponse
-  | TriggerSyntheticsTestsResponse
-  | UpdateSyntheticsStatusResponse
-  | ListSecuritySignalsResponse
-  | GetSecuritySignalResponse
-  | UpdateSecuritySignalStateResponse
-  | UpdateSecuritySignalAssigneeResponse
-  | ListSecurityRulesResponse
-  | SearchSpansResponse
-  | ListServicesResponse
-  | ListIncidentsResponse
-  | GetIncidentResponse
-  | CreateIncidentResponse
-  | UpdateIncidentResponse
-  | AddIncidentTodoResponse

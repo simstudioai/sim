@@ -67,7 +67,7 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
   },
   project: {
     async load(tx, entityId) {
-      requireProjectFileApiEnabled()
+      await requireProjectFileApiEnabled()
       await lockProject(tx, entityId)
       const [row] = await tx.select().from(project).where(eq(project.id, entityId)).for('share')
       if (!row || row.archivedAt) throw new OrchestrationError('not_found', 'File share not found')

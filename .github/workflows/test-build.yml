@@ -283,6 +283,51 @@ jobs:
           PROJECT_FILES_E2E_REPORT_PATH: ${{ runner.temp }}/e2e/project-files/orchestration.json
         run: bun --no-env-file scripts/test-project-files-e2e.ts
 
+      # A self-hosted app: hosted billing admits a run only through a Redis usage
+      # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
+      # so workflow execution gets its own app rather than adding Redis to that one.
+      - name: Verify single-block workflow runs over real HTTP
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3018
+          BETTER_AUTH_URL: http://127.0.0.1:3018
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          INTERNAL_API_SECRET: stop-after-http-ci-local-secret-at-least-32-characters
+          DB_TX_TRIPWIRE: throw
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_CHAT_DISABLED: 'true'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          server_log="$report_dir/stop-after-next.log"
+          mkdir -p "$report_dir"
+          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          server_pid=$!
+          finish() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
+          }
+          trap finish EXIT
+          fail_startup() {
+            echo "::error::$1"
+            tail -n 200 "$server_log"
+            exit 1
+          }
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3018/api/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || fail_startup 'Local workflow app exited during startup.'
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] ||
+              fail_startup "Local workflow app did not become ready within $READY_TIMEOUT_SECONDS seconds."
+            sleep 2
+          done
+          echo "Local workflow app ready after $((SECONDS - started))s"
+          STOP_AFTER_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          STOP_AFTER_E2E_DATABASE_URL="$DATABASE_URL" \
+          STOP_AFTER_E2E_REPORT_PATH="$report_dir/stop-after-http-report.json" \
+            bun run test:workflow-stop-after:e2e
+
       - name: Upload end-to-end reports and server logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

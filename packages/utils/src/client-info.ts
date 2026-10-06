@@ -31,9 +31,9 @@ export const CLIENT_INFO_HEADER = 'x-sim-client-info'
  * The official Sim clients, as they name themselves on the wire. `mcp` is the
  * Sim MCP server, which declares itself on each v2 request it dispatches.
  */
-export const SIM_SURFACES = ['web', 'desktop', 'cli', 'sdk-js', 'sdk-python', 'mcp'] as const
+const SIM_SURFACES = ['web', 'desktop', 'cli', 'sdk-js', 'sdk-python', 'mcp'] as const
 
-export type SimSurface = (typeof SIM_SURFACES)[number]
+type SimSurface = (typeof SIM_SURFACES)[number]
 
 export interface ClientInfo {
   surface: SimSurface
@@ -64,15 +64,15 @@ export interface ClientInfo {
  * - `webhook`, `schedule`: a run a trigger started rather than a client.
  * - `unknown`: none of the above, such as an unauthenticated webhook delivery.
  */
-export const UNDECLARED_SURFACES = ['api', 'internal', 'webhook', 'schedule', 'unknown'] as const
+const UNDECLARED_SURFACES = ['api', 'internal', 'webhook', 'schedule', 'unknown'] as const
 
-export type UndeclaredSurface = (typeof UNDECLARED_SURFACES)[number]
+type UndeclaredSurface = (typeof UNDECLARED_SURFACES)[number]
 
 /** Every surface a request or run can be attributed to. */
-export type RequestSurface = SimSurface | UndeclaredSurface
+type RequestSurface = SimSurface | UndeclaredSurface
 
 /** How the server established a request's client. */
-export type ClientInfoSource =
+type ClientInfoSource =
   | 'header'
   | 'user_agent'
   | 'fetch_metadata'

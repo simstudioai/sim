@@ -1,6 +1,6 @@
 {
-  "id": "6127dc99-6e8f-4842-9a28-7805522e406d",
-  "prevId": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
+  "id": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "prevId": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1623,6 +1623,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "permission_requested_at": {
+          "name": "permission_requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -17168,23 +17174,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_by": {
           "name": "created_by",
@@ -17241,33 +17235,6 @@
         }
       },
       "indexes": {
-        "public_share_entity_id_idx": {
-          "name": "public_share_entity_id_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "public_share_token_unique": {
           "name": "public_share_token_unique",
           "columns": [
@@ -17358,12 +17325,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "public_share_entity_binding_check": {
-          "name": "public_share_entity_binding_check",
-          "value": "\n      (\"public_share\".\"entity_type\" IS NULL AND \"public_share\".\"entity_id\" IS NULL AND \"public_share\".\"workspace_id\" IS NOT NULL)\n      OR (\"public_share\".\"entity_type\" IS NOT NULL AND \"public_share\".\"entity_id\" IS NOT NULL AND char_length(\"public_share\".\"entity_id\") > 0\n        AND ((\"public_share\".\"entity_type\" = 'workspace' AND \"public_share\".\"workspace_id\" IS NOT NULL AND \"public_share\".\"entity_id\" = \"public_share\".\"workspace_id\")\n          OR (\"public_share\".\"entity_type\" = 'project' AND \"public_share\".\"workspace_id\" IS NULL AND \"public_share\".\"resource_type\" = 'file')))\n    "
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.rate_limit_bucket": {
@@ -29879,6 +29841,74 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.user_table_row_changes": {
+      "name": "user_table_row_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "user_table_row_changes_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "table_id": {
+          "name": "table_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_delta": {
+          "name": "row_delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_table_row_changes_table_id_idx": {
+          "name": "user_table_row_changes_table_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_row_changes_table_id_user_table_definitions_id_fk": {
+          "name": "user_table_row_changes_table_id_user_table_definitions_id_fk",
+          "tableFrom": "user_table_row_changes",
+          "tableTo": "user_table_definitions",
+          "columnsFrom": ["table_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -30055,7 +30085,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",

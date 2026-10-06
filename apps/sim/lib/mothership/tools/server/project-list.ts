@@ -21,7 +21,7 @@ export const listProjectsServerTool: BaseServerTool<ListUserProjectsInput> = {
         listProjects,
         listUserProjectsInputSchema.parse(raw)
       )
-      if (!isProjectFileApiEnabled()) return { success: true, ...result }
+      if (!(await isProjectFileApiEnabled())) return { success: true, ...result }
       const fileOwnerCapabilities = []
       for (const project of result.projects) {
         try {

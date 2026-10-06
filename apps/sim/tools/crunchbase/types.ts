@@ -12,30 +12,6 @@ export interface CrunchbaseEntityIdentifier {
   image_id?: string
 }
 
-/** Location identifiers add a `location_type` on top of the entity identifier. */
-export interface CrunchbaseLocationIdentifier extends CrunchbaseEntityIdentifier {
-  location_type?: string
-}
-
-/** A date whose known precision may be coarser than a day. */
-export interface CrunchbaseDateWithPrecision {
-  precision: 'none' | 'year' | 'month' | 'day'
-  value?: string
-}
-
-/** A monetary amount, normalized to USD alongside its native currency. */
-export interface CrunchbaseMoney {
-  currency: string
-  value: number
-  value_usd?: number
-}
-
-/** A url paired with optional display text. */
-export interface CrunchbaseLink {
-  value?: string
-  label?: string
-}
-
 /**
  * Entity properties are shaped by the requested `field_ids`, so the payload is
  * a dynamic bag rather than a fixed record.
@@ -118,8 +94,3 @@ export interface CrunchbaseAutocompleteResponse extends ToolResponse {
     entities: CrunchbaseAutocompleteEntity[]
   }
 }
-
-export type CrunchbaseResponse =
-  | CrunchbaseSearchResponse
-  | CrunchbaseEntityResponse
-  | CrunchbaseAutocompleteResponse

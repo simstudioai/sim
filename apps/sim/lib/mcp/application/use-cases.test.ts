@@ -12,12 +12,14 @@ import {
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 
 const { events, hoisted } = vi.hoisted(() => ({
   events: [] as string[],
   hoisted: {
     idState: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
     effects: vi.fn(),
     getServer: vi.fn(),
     listServers: vi.fn(),
@@ -31,7 +33,7 @@ vi.mock('@/lib/mcp/orchestration', () => ({
   applyMcpServerMutationEffects: hoisted.effects,
   createMcpServer: hoisted.create,
   deleteMcpServer: vi.fn(),
-  updateMcpServer: vi.fn(),
+  updateMcpServer: hoisted.update,
 }))
 vi.mock('@/lib/mcp/queries', () => ({
   getMcpServerIdState: hoisted.idState,
@@ -45,6 +47,7 @@ import {
   discoverMcpServerToolsUseCase,
   discoverMcpToolsUseCase,
   getMcpServerUseCase,
+  reconfigureMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 
 const mocks = {
@@ -107,6 +110,46 @@ describe('MCP server application use cases', () => {
     mocks.getServer.mockResolvedValue(server)
     mocks.listServers.mockResolvedValue({ data: [server], nextCursorKeys: null })
     mocks.discoverServerTools.mockResolvedValue([])
+  })
+
+  it('refuses a writer pointing a server at a different host before writing', async () => {
+    await expect(
+      reconfigureMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          serverId: server.id,
+          url: 'https://other-host.example.com/mcp',
+        },
+      })
+    ).rejects.toBeInstanceOf(InsufficientWorkspacePermissionsError)
+  })
+
+  it('lets a writer change only the query string, and an admin change the host', async () => {
+    mocks.update.mockResolvedValue({ success: true, server, configurationChanged: true })
+
+    await expect(
+      reconfigureMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          serverId: server.id,
+          url: `${server.url}?token=rotated`,
+        },
+      })
+    ).resolves.toMatchObject({ server: { id: server.id } })
+
+    mocks.resolvePermission.mockResolvedValue('admin')
+    await expect(
+      reconfigureMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          serverId: server.id,
+          url: 'https://new.example.com/mcp',
+        },
+      })
+    ).resolves.toMatchObject({ server: { id: server.id } })
   })
 
   it('resolves a selected organization server through canonical scope and current permissions', async () => {

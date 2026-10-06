@@ -665,24 +665,3 @@ interface PipedriveDeleteLeadOutput {
 export interface PipedriveDeleteLeadResponse extends ToolResponse {
   output: PipedriveDeleteLeadOutput
 }
-
-// Union type of all responses
-export type PipedriveResponse =
-  | PipedriveGetAllDealsResponse
-  | PipedriveGetDealResponse
-  | PipedriveCreateDealResponse
-  | PipedriveUpdateDealResponse
-  | PipedriveGetFilesResponse
-  | PipedriveGetMailMessagesResponse
-  | PipedriveGetMailThreadResponse
-  | PipedriveGetPipelinesResponse
-  | PipedriveGetPipelineDealsResponse
-  | PipedriveGetProjectsResponse
-  | PipedriveCreateProjectResponse
-  | PipedriveGetActivitiesResponse
-  | PipedriveCreateActivityResponse
-  | PipedriveUpdateActivityResponse
-  | PipedriveGetLeadsResponse
-  | PipedriveCreateLeadResponse
-  | PipedriveUpdateLeadResponse
-  | PipedriveDeleteLeadResponse

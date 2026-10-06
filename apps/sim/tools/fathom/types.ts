@@ -147,11 +147,3 @@ export interface FathomListMeetingTypesResponse extends ToolResponse {
     next_cursor: string | null
   }
 }
-
-export type FathomResponse =
-  | FathomListMeetingsResponse
-  | FathomGetSummaryResponse
-  | FathomGetTranscriptResponse
-  | FathomListTeamMembersResponse
-  | FathomListTeamsResponse
-  | FathomListMeetingTypesResponse

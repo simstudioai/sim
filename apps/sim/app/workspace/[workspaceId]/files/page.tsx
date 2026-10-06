@@ -29,7 +29,7 @@ export default async function FilesPage({ params }: { params: Promise<{ workspac
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<FilesLoading />}>
-        <FilesBrowser projectFilesEnabled={isProjectFileApiEnabled()} />
+        <FilesBrowser projectFilesEnabled={await isProjectFileApiEnabled()} />
       </Suspense>
     </HydrationBoundary>
   )

@@ -1281,27 +1281,6 @@ export interface QuickBooksVoidResponse extends ToolResponse {
   }
 }
 
-export type QuickBooksResponse =
-  | QuickBooksCompanyInfoResponse
-  | QuickBooksListResponse<QuickBooksPurchaseOrder | QuickBooksBill>
-  | QuickBooksReadMasterDataResponse
-  | QuickBooksReadSalesTransactionsResponse
-  | QuickBooksReadPurchasingTransactionsResponse
-  | QuickBooksReadAccountingTransactionsResponse
-  | QuickBooksRunFinancialReportResponse
-  | QuickBooksEmailTransactionResponse
-  | QuickBooksReadAttachmentsResponse
-  | QuickBooksAddAttachmentResponse
-  | QuickBooksFileResponse
-  | QuickBooksMutationResponse<
-      QuickBooksCustomer | QuickBooksEmployee | QuickBooksVendor | QuickBooksItem
-    >
-  | QuickBooksMutationResponse<QuickBooksSalesTransaction>
-  | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
-  | QuickBooksCreateBillResponse
-  | QuickBooksMutationResponse<QuickBooksAccountingTransaction>
-  | QuickBooksVoidResponse
-
 export const QUICKBOOKS_REFERENCE_PROPERTIES: Record<string, OutputProperty> = {
   value: { type: 'string', description: 'QuickBooks entity ID', optional: true },
   name: { type: 'string', description: 'QuickBooks entity display name', optional: true },

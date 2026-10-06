@@ -120,6 +120,8 @@ export interface ExecuteWorkflowServiceParams {
     /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
     variableInputs?: Record<string, unknown>
   }
+  /** Saved block after which execution stops, validated by the application use case. */
+  stopAfterBlockId?: string
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -272,6 +274,7 @@ export async function executeWorkflowService(
     useDraftState = false,
     triggerBlockId,
     runFromBlock,
+    stopAfterBlockId,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -288,6 +291,9 @@ export async function executeWorkflowService(
   }
   if (runFromBlock && !useDraftState) {
     throw new Error('Run-from-block requires manual execution state')
+  }
+  if (stopAfterBlockId && !useDraftState) {
+    throw new Error('Stop-after-block requires manual execution state')
   }
 
   if (callChain) {
@@ -589,6 +595,7 @@ export async function executeWorkflowService(
               triggerBlockId,
               useDraftState,
               runFromBlock,
+              stopAfterBlockId,
               onStream,
               onBlockComplete: (blockId, data) =>
                 onBlockComplete(blockId, data.output, data.outputBlockId),
@@ -689,6 +696,7 @@ export async function executeWorkflowService(
           base64MaxBytes,
           abortSignal: timeoutController.signal,
           runFromBlock,
+          stopAfterBlockId,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })

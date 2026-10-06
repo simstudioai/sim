@@ -73,6 +73,8 @@ import {
   RESOLVED_SECRET_NAMES_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import {
   executeInSandbox,
   executeShellInSandbox,
@@ -1022,6 +1024,7 @@ interface FunctionRouteExecutionContext {
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
+  compiledBinaryFileProvenance?: WorkspaceFileSecretProvenance
   /**
    * In-scope names the caller's registry certified as redaction-exempt. They stay in
    * `outputSecretPlaintextsByName` — the response's resolved-name reporting and the usage
@@ -1325,51 +1328,21 @@ function activateReferencedSecretProvenance(context: FunctionRouteExecutionConte
   }
 }
 
-/**
- * Compiled secret names that still demand redaction, and whose value a scan could
- * actually find. Exempt names don't count.
- *
- * Non-identifying literals are excluded on the same predicate
- * {@link createResolvedSecretMatcher} uses to drop them, because the two decisions
- * have to agree. When every in-scope value is shorter than the substitutable-literal
- * minimum, the matcher builds nothing and returns `undefined`; a counter that still
- * reported those names would send
- * {@link getOutputFileSecretProvenance} down its no-matcher branch and classify
- * every output as `unknown` — failing an export while claiming it contains a
- * secret that, by that very policy, is too short to be attributed to anything.
- */
-function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext): number {
-  let count = 0
+/** Compiled candidates subject to the shared literal and exemption policies. */
+function getProtectedOutputSecretNames(context: FunctionRouteExecutionContext): string[] {
+  const names: string[] = []
   for (const [name, plaintext] of context.outputSecretPlaintextsByName) {
     if (context.unredactedSecretNames.has(name)) continue
     if (isNonIdentifyingSecretLiteral(plaintext)) continue
-    count += 1
+    names.push(name)
   }
-  return count
+  return names
 }
 
 /**
- * True when this execution compiled a secret placeholder or received a mounted file with verified
- * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
- * a Sim secret was resolved in this call. Exempt names don't count: a binary export whose only
- * in-scope secrets are redaction-exempt is deliberately classified exact-empty rather than locked.
- */
-function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
-  if (countProtectedOutputSecretNames(context) > 0) return true
-  return Boolean(
-    context.mountedFileSecretProvenanceScanner?.hasSecrets ||
-      context.runtimeFileSecretProvenanceScanner?.hasSecrets
-  )
-}
-
-/**
- * Classifies the secret provenance of one exported sandbox file.
- *
- * Text exports are scanned for the exact resolved-secret plaintexts in scope. Binary exports cannot
- * be scanned soundly — re-encoding can carry a secret without leaving a literal substring — so they
- * are classified only when no secret material was in scope at all; with nothing available to embed,
- * the bytes are provably secret-free. Otherwise they stay unknown, which fails closed at every
- * model and runtime boundary that later reads the file.
+ * Text exports narrow known candidates to matching literals. Opaque exports retain the complete
+ * encrypted candidate set, so runtime consumers can protect decoded output. Direct opaque model
+ * delivery still requires an empty set at its own boundary.
  */
 async function getOutputFileSecretProvenance(
   buffer: Buffer,
@@ -1384,63 +1357,77 @@ async function getOutputFileSecretProvenance(
       await createMountedFileSecretProvenanceScanner(provenance)
     if (!context.runtimeFileSecretProvenanceScanner && provenance.entries.length > 0) {
       context.runtimeFileSecretProvenanceScanner = {
-        hasSecrets: true,
+        provenance: { status: 'unknown' },
         scan: () => ({ status: 'unknown' }),
       }
     }
   }
-  if (isBinary) {
-    return hasSecretMaterialInScope(context)
-      ? { status: 'unknown' }
-      : context.runtimeInputProvenanceUnrecorded
-        ? { status: 'unrecorded' }
-        : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-  }
   const mountedFileProvenance = mergeWorkspaceFileSecretProvenance(
-    context.mountedFileSecretProvenanceScanner?.scan(buffer) ??
+    (isBinary
+      ? context.mountedFileSecretProvenanceScanner?.provenance
+      : context.mountedFileSecretProvenanceScanner?.scan(buffer)) ??
       EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
-    context.runtimeFileSecretProvenanceScanner?.scan(buffer) ??
+    (isBinary
+      ? context.runtimeFileSecretProvenanceScanner?.provenance
+      : context.runtimeFileSecretProvenanceScanner?.scan(buffer)) ??
       EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
     context.runtimeInputProvenanceUnrecorded
       ? { status: 'unrecorded' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   )
-  if (countProtectedOutputSecretNames(context) === 0) {
+  if (isBinary && context.compiledBinaryFileProvenance) {
+    return mergeWorkspaceFileSecretProvenance(
+      context.compiledBinaryFileProvenance,
+      mountedFileProvenance
+    )
+  }
+  const protectedNames = getProtectedOutputSecretNames(context)
+  if (protectedNames.length === 0 || mountedFileProvenance.status === 'unknown') {
     return mountedFileProvenance
   }
-  if (!context.outputSecretMatcher) return { status: 'unknown' }
 
-  const matchedNames = new Set<string>()
-  try {
-    scanResolvedSecretString(
-      buffer.toString('utf8'),
-      context.outputSecretMatcher,
-      (scanLiteral) => {
-        for (const name of context.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []) {
-          matchedNames.add(name)
-        }
-      },
-      MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
-    )
-  } catch {
-    return { status: 'unknown' }
+  const matchedNames = new Set(isBinary ? protectedNames : [])
+  if (!isBinary) {
+    if (!context.outputSecretMatcher) return { status: 'unknown' }
+    try {
+      scanResolvedSecretString(
+        buffer.toString('utf8'),
+        context.outputSecretMatcher,
+        (scanLiteral) => {
+          for (const name of context.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []) {
+            matchedNames.add(name)
+          }
+        },
+        MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
+      )
+    } catch {
+      return { status: 'unknown' }
+    }
   }
 
   try {
-    const entries = await Promise.all(
-      [...matchedNames].sort().map(async (name) => {
-        const plaintext = context.outputSecretPlaintextsByName.get(name)
-        if (plaintext === undefined) {
-          throw new Error('Resolved secret provenance name is outside the scoped catalog')
-        }
-        return {
-          name,
-          encryptedValue: (await encryptSecret(plaintext)).encrypted,
-          sourceUserId: scope.userId,
-          sourceWorkspaceId: scope.workspaceId,
-        }
-      })
-    )
+    const entries = []
+    const budget = new SecretProvenanceBudget()
+    for (const name of [...matchedNames].sort()) {
+      const plaintext = context.outputSecretPlaintextsByName.get(name)
+      if (plaintext === undefined) {
+        throw new Error('Resolved secret provenance name is outside the scoped catalog')
+      }
+      if (Buffer.byteLength(plaintext, 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES) {
+        return { status: 'unknown' }
+      }
+      const entry = {
+        name,
+        encryptedValue: (await encryptSecret(plaintext)).encrypted,
+        sourceUserId: scope.userId,
+        sourceWorkspaceId: scope.workspaceId,
+      }
+      if (!budget.add(entry.encryptedValue, Buffer.byteLength(JSON.stringify(entry), 'utf8'))) {
+        return { status: 'unknown' }
+      }
+      entries.push(entry)
+    }
+    if (isBinary) context.compiledBinaryFileProvenance = { status: 'exact', entries }
     return mergeWorkspaceFileSecretProvenance({ status: 'exact', entries }, mountedFileProvenance)
   } catch {
     return { status: 'unknown' }

@@ -150,7 +150,7 @@ export async function createFileCopyAuthorizer(
   input: CopyFileItemsInput
 ): Promise<(tx: DbTransaction) => Promise<FileCopyAuthorizationContext>> {
   requireCopyPrincipal(principal, input)
-  requireProjectFileApiEnabled()
+  await requireProjectFileApiEnabled()
   // actorless-unsupported: files.copy rejects executors and workspace keys; both owner policies require the acting human.
   const userId = requirePrincipalSubjectUserId(principal)
   if ((await getActivelyBannedUserIds([userId])).length) {

@@ -23,7 +23,7 @@ export async function withFileOwnerContext(
   if (
     !['/api/copilot', '/api/mothership'].includes(route) ||
     context.requestMode === 'assistant' ||
-    !isProjectFileApiEnabled() ||
+    !(await isProjectFileApiEnabled()) ||
     !hasCopilotResourceAdmission(context) ||
     !(await supportsFileOwnerProtocol(baseURL))
   )

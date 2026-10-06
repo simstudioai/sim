@@ -15,7 +15,7 @@ import postgres, { type Sql } from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 const migration = await readFile(
-  new URL('../migrations/0395_project_membership_enforcement.sql', import.meta.url),
+  new URL('../migrations/0397_project_membership_enforcement.sql', import.meta.url),
   'utf8'
 )
 
@@ -128,7 +128,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       await sql`CREATE SCHEMA drizzle`
       await sql`CREATE TABLE drizzle.__drizzle_migrations (created_at bigint)`
       const entry = journal.entries.find(
-        (item) => item.tag === '0395_project_membership_enforcement'
+        (item) => item.tag === '0397_project_membership_enforcement'
       )
       if (!entry) throw new Error('Missing contract migration')
       await sql`INSERT INTO drizzle.__drizzle_migrations VALUES (${entry.when - 1})`
@@ -145,13 +145,13 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     const directory = await mkdtemp(join(tmpdir(), 'project-contract-runner-'))
     try {
       await mkdir(join(directory, 'meta'))
-      await writeFile(join(directory, '0395_project_membership_enforcement.sql'), migration)
+      await writeFile(join(directory, '0397_project_membership_enforcement.sql'), migration)
       await writeFile(
         join(directory, 'meta/_journal.json'),
         JSON.stringify({
           ...journal,
           entries: journal.entries.filter(
-            (entry) => entry.tag === '0395_project_membership_enforcement'
+            (entry) => entry.tag === '0397_project_membership_enforcement'
           ),
         })
       )
@@ -227,7 +227,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           "SELECT count(*)::int AS count FROM pg_locks WHERE pid = $1 AND mode = 'AccessExclusiveLock' AND granted",
           [pid]
         ))[0].count;
-        const migration = await readFile('migrations/0395_project_membership_enforcement.sql', 'utf8');
+        const migration = await readFile('migrations/0397_project_membership_enforcement.sql', 'utf8');
         for (const statement of migration.split('--> statement-breakpoint')) {
           await sql.unsafe(statement);
           if (statement.includes('LOCK TABLE workspace,')) {
@@ -711,7 +711,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         import postgres from 'postgres';
         const sql = postgres(process.env.TEST_DATABASE_URL, { max: 1, onnotice: () => undefined });
         try {
-          const migration = await readFile('migrations/0395_project_membership_enforcement.sql', 'utf8');
+          const migration = await readFile('migrations/0397_project_membership_enforcement.sql', 'utf8');
           for (const statement of migration.split('--> statement-breakpoint')) await sql.unsafe(statement);
           await sql.end();
         } catch (error) {

@@ -12,7 +12,7 @@ interface ProjectFilePageProps {
 
 /** Resolves a durable Project link into an environment the current viewer can access. */
 export default async function ProjectFilePage({ params }: ProjectFilePageProps) {
-  if (!isProjectFileApiEnabled()) notFound()
+  if (!(await isProjectFileApiEnabled())) notFound()
   const { projectId, fileId } = await params
   if (!(await getSession())?.user) {
     const destination = `/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`

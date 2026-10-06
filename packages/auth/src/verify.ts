@@ -16,7 +16,7 @@ export interface VerifyAuthOptions {
  * created by `apps/sim`'s full auth config, so it can carry plugin fields
  * (e.g. `activeOrganizationId`) this minimal instance does not configure.
  */
-export interface VerifiedOneTimeTokenSession {
+interface VerifiedOneTimeTokenSession {
   user: {
     id: string
     name: string | null

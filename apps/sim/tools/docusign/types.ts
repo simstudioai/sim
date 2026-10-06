@@ -237,13 +237,3 @@ export interface DocuSignListRecipientsResponse extends ToolResponse {
     }>
   }
 }
-
-export type DocuSignResponse =
-  | DocuSignSendEnvelopeResponse
-  | DocuSignCreateFromTemplateResponse
-  | DocuSignGetEnvelopeResponse
-  | DocuSignListEnvelopesResponse
-  | DocuSignVoidEnvelopeResponse
-  | DocuSignDownloadDocumentResponse
-  | DocuSignListTemplatesResponse
-  | DocuSignListRecipientsResponse
