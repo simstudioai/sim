@@ -129,6 +129,7 @@ export function planeSetupInstructions(): string {
 export function buildPlaneExtraFields(triggerId: string): SubBlockConfig[] {
   const condition = { field: 'selectedTriggerId', value: triggerId }
   const automaticCondition = { ...condition, and: { field: 'autoRegister', value: true } }
+  const manualCondition = { ...condition, and: { field: 'autoRegister', value: true, not: true } }
   return [
     {
       id: 'autoRegister',
@@ -146,7 +147,7 @@ export function buildPlaneExtraFields(triggerId: string): SubBlockConfig[] {
       password: true,
       placeholder: 'Enter secret',
       paramVisibility: 'user-only',
-      required: true,
+      required: automaticCondition,
       mode: 'trigger',
       condition: automaticCondition,
     },
@@ -164,7 +165,7 @@ export function buildPlaneExtraFields(triggerId: string): SubBlockConfig[] {
       title: 'Workspace Slug',
       type: 'short-input',
       placeholder: 'my-team',
-      required: true,
+      required: automaticCondition,
       mode: 'trigger',
       condition: automaticCondition,
     },
@@ -175,9 +176,9 @@ export function buildPlaneExtraFields(triggerId: string): SubBlockConfig[] {
       password: true,
       placeholder: 'Enter secret',
       paramVisibility: 'user-only',
-      required: true,
+      required: manualCondition,
       mode: 'trigger',
-      condition: { ...condition, and: { field: 'autoRegister', value: true, not: true } },
+      condition: manualCondition,
     },
     {
       id: 'projectId',
