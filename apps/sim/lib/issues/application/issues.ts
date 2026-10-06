@@ -437,7 +437,11 @@ export const approveIssue = defineAuthorizedWorkspaceUseCase({
   async execute({ context, principal }) {
     await transition(
       context.issue.id,
-      { statuses: ['inbox'], hasWorkingChat: true },
+      {
+        statuses: ['inbox'],
+        hasWorkingChat: true,
+        ...(context.issue.workingChatId ? { workingChatId: context.issue.workingChatId } : {}),
+      },
       { status: 'done', closeReason: 'completed', completedAt: new Date() },
       () => [{ kind: 'approved' }],
       principal
@@ -458,7 +462,11 @@ export const requestIssueChanges = defineAuthorizedWorkspaceUseCase({
     const note = input.note?.trim() || null
     await transition(
       context.issue.id,
-      { statuses: ['inbox'], hasWorkingChat: true },
+      {
+        statuses: ['inbox'],
+        hasWorkingChat: true,
+        ...(context.issue.workingChatId ? { workingChatId: context.issue.workingChatId } : {}),
+      },
       { status: 'in_progress', reviewSummary: null },
       () => [{ kind: 'changes_requested', payload: note ? { note } : {} }],
       principal
