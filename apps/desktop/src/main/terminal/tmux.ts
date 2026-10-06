@@ -17,11 +17,12 @@
  * of the shell that launched it.
  */
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { TerminalPaneState } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 
@@ -337,6 +338,7 @@ export async function startRun(
   const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-run-'))
   const outPath = join(dir, 'out')
   const statusPath = join(dir, 'status')
+  const goPath = join(dir, 'go')
   const dispose = () => {
     try {
       rmSync(dir, { recursive: true, force: true })
@@ -354,8 +356,27 @@ export async function startRun(
   // writing to the unlinked inode — but an unredirected `printf` would fail
   // into the pipeline and print `No such file or directory` into the user's own
   // tmux window, minutes after they closed the tab.
-  const script = `${command}\nprintf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)} 2>/dev/null`
-  const wrapper = `bash -lc ${JSON.stringify(`{ ${script}; } 2>&1 | tee ${JSON.stringify(outPath)}`)}`
+  //
+  // The command waits for its pane to be tagged as this run's (the go file), so nothing runs that
+  // a later stop could not recognize. Untagged, the script gives up after five seconds and its
+  // pane closes on its own; no one has to close a pane whose id might no longer be its own.
+  //
+  // The script is a file rather than a `bash -c` string: tmux hands its command to `sh -c`, which
+  // would expand `$` references meant for bash (the gate's counter, PIPESTATUS) before bash ran.
+  const scriptPath = join(dir, 'run.sh')
+  writeFileSync(
+    scriptPath,
+    [
+      'i=0',
+      `while [ ! -e ${JSON.stringify(goPath)} ] && [ "$i" -lt 100 ]; do sleep 0.05; i=$((i + 1)); done`,
+      `[ -e ${JSON.stringify(goPath)} ] || exit 0`,
+      `{ ${command}`,
+      `printf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)} 2>/dev/null; } 2>&1 | tee ${JSON.stringify(outPath)}`,
+      '',
+    ].join('\n'),
+    { mode: 0o600 }
+  )
+  const wrapper = `bash -l ${JSON.stringify(scriptPath)}`
 
   const args = [
     'new-window',
@@ -382,13 +403,18 @@ export async function startRun(
   // a pane the user opened later under the same id, so it sends nothing at all.
   const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, runId], env)
   if (!tagged.ok) {
-    // Untagged, nothing could ever stop it safely later, so it does not get to run. The pane was
-    // created a moment ago by this call, so its id is still ours to close.
-    await runTmux(['kill-pane', '-t', pane], env)
+    // Untagged, nothing could stop it safely later, so it never starts: without the go file the
+    // wrapper exits by itself.
     dispose()
     return {
-      error: `tmux could not mark the command's pane, so it was closed straight away (${tagged.stderr.trim() || 'no detail'}). It may have started; check before running it again.`,
+      error: `tmux could not mark the command's pane (${tagged.stderr.trim() || 'no detail'}), so the command was not run.`,
     }
+  }
+  try {
+    writeFileSync(goPath, '')
+  } catch (error) {
+    dispose()
+    return { error: `The command could not be started: ${getErrorMessage(error)}` }
   }
 
   return { window, pane, runId, outPath, statusPath, dispose }

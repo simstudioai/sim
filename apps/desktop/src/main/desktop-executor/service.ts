@@ -16,7 +16,11 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import type { Session } from 'electron'
 import { app, net, powerMonitor } from 'electron'
-import { readFileWithinLimit, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 import {
   createDesktopExecutorClient,
   type DesktopExecutorClient,
@@ -136,11 +140,27 @@ export function createDesktopExecutorService(
     return next
   }
 
-  /** Rotates where a failure must not stop the caller; the next registration tries again. */
-  async function retireInstallId(): Promise<void> {
-    await rotateInstallId().catch((error) =>
+  /**
+   * Retires the current install id for good: a new one replaces it, or, if that cannot be saved,
+   * the old one is removed so no later launch or sign-in can pick it up again. False when neither
+   * worked and the old id is still on disk.
+   */
+  async function retireInstallId(): Promise<boolean> {
+    try {
+      await rotateInstallId()
+      return true
+    } catch (error) {
       logger.warn('Could not save a new desktop install id', { error: getErrorMessage(error) })
-    )
+    }
+    try {
+      await removeFileIfPresent(identityPath)
+      return true
+    } catch (error) {
+      logger.warn('Could not remove the retired desktop install id', {
+        error: getErrorMessage(error),
+      })
+      return false
+    }
   }
 
   function fetchWithAppSession(url: string, init: RequestInit): Promise<Response> {
@@ -288,8 +308,18 @@ export function createDesktopExecutorService(
         // The id belongs to another account (a copied profile); this install takes a new one.
         logger.warn('Desktop install id is registered to another account; minting a new one')
         await resetExecutor()
-        await retireInstallId()
-        scheduleRegistration(0)
+        if (await retireInstallId()) {
+          scheduleRegistration(0)
+        } else {
+          // The conflicting id is still on disk: retrying at once would only conflict again.
+          registrationAttempt += 1
+          scheduleRegistration(
+            backoffWithJitter(registrationAttempt, null, {
+              baseMs: 2_000,
+              maxMs: REGISTRATION_RETRY_MAX_MS,
+            })
+          )
+        }
         return
       }
       if (error instanceof DeviceRequestError && error.unregistered) {

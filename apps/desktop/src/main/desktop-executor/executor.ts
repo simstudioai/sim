@@ -248,9 +248,14 @@ export class DesktopExecutor {
     for (const item of items) {
       if (item.kind === 'cancel') void this.stop(item.toolCallId, 'Stopped by the user.')
     }
-    this.options.onApprovals?.(
-      items.filter((item): item is DesktopApprovalItem => item.kind === 'approval_needed')
-    )
+    try {
+      this.options.onApprovals?.(
+        items.filter((item): item is DesktopApprovalItem => item.kind === 'approval_needed')
+      )
+    } catch (error) {
+      // Notifications are a courtesy; the calls in this read still get claimed.
+      logger.warn('Could not notify about desktop approvals', { error: getErrorMessage(error) })
+    }
     for (const item of items) {
       if (item.kind !== 'call' || this.held.has(item.toolCallId)) continue
       if (this.paused || this.disposed) return

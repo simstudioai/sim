@@ -248,6 +248,11 @@ export class TerminalService {
    * Held here so the terminal's own lifecycle can reclaim them.
    */
   private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
+  /**
+   * Agent runs still going in tmux after their Sim terminal closed: the tmux session outlives the
+   * tab, but sign-out must still stop them.
+   */
+  private readonly orphanedRuns = new Map<TmuxRunHandle, NodeJS.ProcessEnv>()
   /** Runs a `run` call is still waiting on; their files are read when the wait ends. */
   private readonly awaitedRuns = new Set<TmuxRunHandle>()
   /** Awaited runs released meanwhile (their terminal closed); their files go once the wait ends. */
@@ -508,10 +513,13 @@ export class TerminalService {
    * Releases every tracked run for a terminal, finished or not. The terminal is
    * going away, so nothing will ever read these files again.
    */
-  private releasePendingRuns(terminalId: string): void {
+  private releasePendingRuns(terminalId: string, env?: NodeJS.ProcessEnv): void {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
-    for (const handle of pending) this.releaseRun(handle)
+    for (const handle of pending) {
+      if (env && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
+      this.releaseRun(handle)
+    }
     this.pendingRuns.delete(terminalId)
   }
 
@@ -525,10 +533,11 @@ export class TerminalService {
     const closedCwd = session.currentCwd
     const order = [...this.sessions.keys()]
     const index = order.indexOf(terminalId)
+    const env = session.env
     session.dispose()
     this.sessions.delete(terminalId)
     this.tmuxCache.delete(terminalId)
-    this.releasePendingRuns(terminalId)
+    this.releasePendingRuns(terminalId, env)
 
     this.rememberClosed(closedCwd)
     // Nothing is left for the user to hold on to; the next shell the agent
@@ -890,6 +899,10 @@ export class TerminalService {
         if (!isRunComplete(handle)) stops.push(stopRun(handle, session.env, STOP_ESCALATION_MS))
       }
     }
+    for (const [handle, env] of this.orphanedRuns) {
+      stops.push(stopRun(handle, env, STOP_ESCALATION_MS))
+    }
+    this.orphanedRuns.clear()
     await Promise.allSettled(stops)
   }
 

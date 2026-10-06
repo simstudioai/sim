@@ -1,6 +1,7 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   awaitRun,
@@ -120,6 +121,12 @@ switch (args[0]) {
     const pane = '%' + state.nextPane++
     state.panes[pane] = { window, options: {} }
     save()
+    // Runs the pane's command for real, the way tmux would, when a test asks for it.
+    if (process.env.FAKE_TMUX_EXEC) {
+      require('node:child_process')
+        .spawn('sh', ['-c', args[args.length - 1]], { detached: true, stdio: 'ignore' })
+        .unref()
+    }
     process.stdout.write(window + ' ' + pane + '\\n')
     break
   }
@@ -150,7 +157,7 @@ switch (args[0]) {
 }
 `
 
-function fakeTmux() {
+function fakeTmux(options: { exec?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'fake-tmux-'))
   const stateFile = join(dir, 'state.json')
   const binary = join(dir, 'tmux')
@@ -161,7 +168,12 @@ function fakeTmux() {
   const read = (): FakeTmuxState => JSON.parse(readFileSync(stateFile, 'utf8'))
   return {
     dir,
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}`, FAKE_TMUX_STATE: stateFile },
+    env: {
+      ...process.env,
+      PATH: `${dir}:${process.env.PATH ?? ''}`,
+      FAKE_TMUX_STATE: stateFile,
+      ...(options.exec ? { FAKE_TMUX_EXEC: '1' } : {}),
+    },
     read,
     write,
     /** The user splits a run's window: a new pane of theirs beside the run's. */
@@ -232,16 +244,24 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('closes a run it could not tag instead of leaving an unstoppable command', async () => {
+  it('never lets a run it could not tag start, and closes no pane by id to stop it', async () => {
     const tmux = fakeTmux()
     dirs.push(tmux.dir)
     tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
 
-    const started = await startRun('agent', 'sleep 600', null, tmux.env)
+    const result = await startRun('agent', 'sleep 600', null, tmux.env)
 
-    expect('error' in started).toBe(true)
-    expect(tmux.read().log).toEqual(['kill-pane %0'])
-    expect(tmux.read().panes).toEqual({})
+    expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+    // No pane is closed by an id that a restarted server might have handed to the user.
+    expect(tmux.read().log).toEqual([])
+  })
+
+  it('lets a tagged run start only once its pane is tagged', async () => {
+    const tmux = fakeTmux()
+    const run = await started(tmux)
+
+    expect(tmux.read().panes[run.pane]?.options['@sim-run-id']).toBe(run.runId)
+    expect(existsSync(join(run.statusPath, '..', 'go'))).toBe(true)
   })
 
   it('neither stops nor gives up on a run while tmux cannot be asked', async () => {
@@ -254,4 +274,26 @@ describe('stopping a tmux run touches only its own pane', () => {
 
     expect(tmux.read().log).toEqual([])
   })
+
+  it('runs a tagged command for real, and never runs one it could not tag', async () => {
+    const tagged = fakeTmux({ exec: true })
+    dirs.push(tagged.dir)
+    const run = await startRun('agent', 'echo ran', null, tagged.env)
+    if ('error' in run) throw new Error(run.error)
+    await expect
+      .poll(() => pollRun(run), { timeout: 10_000 })
+      .toMatchObject({
+        done: true,
+        exitCode: 0,
+      })
+
+    const untagged = fakeTmux({ exec: true })
+    dirs.push(untagged.dir)
+    untagged.write({ ...untagged.read(), fail: { 'set-option': 'invalid option' } })
+    const marker = join(untagged.dir, 'ran')
+    await startRun('agent', `touch ${JSON.stringify(marker)}`, null, untagged.env)
+    await sleep(6_000)
+
+    expect(existsSync(marker)).toBe(false)
+  }, 20_000)
 })
