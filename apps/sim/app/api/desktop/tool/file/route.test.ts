@@ -1,6 +1,7 @@
 import { authMockFns } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const { mockAdmit, mockRead, mockSave } = vi.hoisted(() => ({
@@ -40,6 +41,7 @@ const put = (query: string, body: Uint8Array, headers: Record<string, string> = 
     headers: { 'content-length': String(body.byteLength), ...headers },
     body,
   })
+const MCP_HOST = 'mcp.sim.test'
 
 describe('/api/desktop/tool/file', () => {
   beforeEach(() => {
@@ -49,6 +51,26 @@ describe('/api/desktop/tool/file', () => {
     mockSave.mockResolvedValue({
       file: { name: 'report.csv', size: 3, folderPath: null, vfsNamespace: 'files' },
     })
+  })
+
+  afterEach(() => {
+    resetEnvMock()
+  })
+
+  it('serves neither a read nor a save on the dedicated MCP host', async () => {
+    setEnv({ SIM_MCP_URL: `https://${MCP_HOST}/mcp` })
+    const onMcpHost = (request: NextRequest) =>
+      new NextRequest(request.url.replace('localhost', MCP_HOST), {
+        method: request.method,
+        headers: { ...Object.fromEntries(request.headers), host: MCP_HOST },
+        body: request.body,
+        duplex: 'half',
+      })
+
+    expect((await POST(onMcpHost(post({ toolCallId: 'call-1', index: 0 })), {})).status).toBe(404)
+    const save = onMcpHost(put('toolCallId=call-2&name=report.csv', new Uint8Array([1, 2, 3])))
+    expect((await PUT(save)).status).toBe(404)
+    expect(save.bodyUsed).toBe(false)
   })
 
   it('authenticates before parsing and conceals an unknown transfer', async () => {

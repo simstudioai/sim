@@ -1,6 +1,7 @@
 import { authMockFns } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopDeviceUnrecognizedError } from '@/lib/desktop/executor/errors'
 
 const { admitted, stored, admitError } = vi.hoisted(() => ({
@@ -76,6 +77,19 @@ describe('PUT /api/desktop/tool/import', () => {
     admitted.length = 0
     stored.length = 0
     admitError.next = null
+  })
+
+  afterEach(() => {
+    resetEnvMock()
+  })
+
+  it('serves nothing on the dedicated MCP host, reading no body', async () => {
+    setEnv({ SIM_MCP_URL: 'https://mcp.sim.test/mcp' })
+    const { request, pulled } = put({ host: 'mcp.sim.test' })
+
+    expect((await PUT(request, {})).status).toBe(404)
+    expect(pulled()).toBe(0)
+    expect(stored).toEqual([])
   })
 
   it('stores a whole file under the claim the token header names', async () => {
