@@ -67,7 +67,7 @@ Add each domain you own separately. Subdomains (`eng.acme.com`) are verified ind
 
 ## Self-hosted setup
 
-Domain verification has no flag of its own. It lives on the single sign-on page, so it appears exactly when SSO does:
+Domain verification appears on the single sign-on page when SSO is enabled:
 
 ```bash
 SSO_ENABLED=true
@@ -77,3 +77,31 @@ NEXT_PUBLIC_SSO_ENABLED=true
 `ENTERPRISE_ENABLED` turns both on together, but it needs its own browser twin — set `NEXT_PUBLIC_ENTERPRISE_ENABLED` alongside it, or the server and the settings page enable SSO while the login page still hides its SSO entry point. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
 
 Once enabled, verify domains from **Settings → Organization → Single sign-on → Domains**. The older `/workspace/<workspaceId>/settings/domains` path still resolves to the same page.
+
+### Restricted networks
+
+Sim queries `1.1.1.1` and `8.8.8.8` directly from the application server. Allow outbound DNS on UDP and TCP port 53 to these addresses. The lookup uses public DNS rather than the server's local resolver or an HTTP proxy, so the TXT record must be published in a publicly delegated DNS zone. A Route 53 private hosted zone is not visible to these resolvers.
+
+### Skip DNS verification
+
+For a deployment where the operator trusts every organization owner and admin to claim email domains, set this server-only variable and restart the application:
+
+```bash
+SSO_SKIP_DOMAIN_VERIFICATION=true
+```
+
+For Helm deployments, set it in your values file:
+
+```yaml
+app:
+  env:
+    SSO_SKIP_DOMAIN_VERIFICATION: "true"
+```
+
+Add the domain under **Domains**, then click **Verify**. No TXT record or DNS access is needed. The domain is recorded as verified for SSO account linking and SCIM provisioning, and another organization still cannot claim the same domain. Existing pending domains can be verified the same way.
+
+<Callout type="warn">
+  This option is off by default and ignored on Sim Cloud. It applies to every organization in the self-hosted instance: an organization administrator can authorize their identity provider for any unclaimed email domain without proving ownership. Enable it only when those administrators are trusted to make that decision.
+</Callout>
+
+Removing the variable or setting it to `false` restores DNS verification for pending and future claims. Domains already verified remain verified; remove a domain in **Domains** to revoke its trust.

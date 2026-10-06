@@ -14,7 +14,8 @@ import {
 } from '@/lib/auth/sso/domain-verification'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { env, isTruthy } from '@/lib/core/config/env'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
 import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
@@ -59,6 +60,9 @@ function domainConflict(): never {
     'conflict',
     'This domain is already verified by another organization'
   )
+}
+function requiresDomainDnsVerification(): boolean {
+  return isHosted || !isTruthy(env.SSO_SKIP_DOMAIN_VERIFICATION)
 }
 function providersOnDomain(organizationId: string, domain: string) {
   return and(
@@ -231,17 +235,19 @@ export const verifyOrganizationDomain = defineOrganizationConfigurationUseCase({
     if (!row) throw new OrchestrationError('not_found', 'Domain not found')
     if (row.status === 'verified')
       return { domain: domainValue(row, principal, true), verified: false }
-    const lookup = await checkDomainTxtRecord(row.domain, row.verificationToken)
-    if (lookup === 'unavailable')
-      throw new DomainVerificationLookupError(
-        503,
-        "We couldn't complete the DNS lookup, so we can't tell yet whether your record is published. Try again in a few minutes — if it keeps failing, check that your domain's nameservers are responding."
-      )
-    if (lookup === 'absent')
-      throw new DomainVerificationLookupError(
-        422,
-        'The verification TXT record was not found yet. DNS changes can take up to 48 hours to propagate — add the record shown and try again.'
-      )
+    if (requiresDomainDnsVerification()) {
+      const lookup = await checkDomainTxtRecord(row.domain, row.verificationToken)
+      if (lookup === 'unavailable')
+        throw new DomainVerificationLookupError(
+          503,
+          "We couldn't complete the DNS lookup, so we can't tell yet whether your record is published. Try again in a few minutes — if it keeps failing, check that your domain's nameservers are responding."
+        )
+      if (lookup === 'absent')
+        throw new DomainVerificationLookupError(
+          422,
+          'The verification TXT record was not found yet. DNS changes can take up to 48 hours to propagate — add the record shown and try again.'
+        )
+    }
     const [verifiedElsewhere] = await db
       .select({ organizationId: ssoDomain.organizationId })
       .from(ssoDomain)
@@ -306,7 +312,10 @@ export const verifyOrganizationDomain = defineOrganizationConfigurationUseCase({
           resourceType: AuditResourceType.ORGANIZATION,
           resourceId: input.organizationId,
           description: `Verified domain ${result.domain.domain}`,
-          metadata: { domain: result.domain.domain },
+          metadata: {
+            domain: result.domain.domain,
+            verificationMethod: requiresDomainDnsVerification() ? 'dns' : 'operator',
+          },
         }
       : undefined,
 })

@@ -254,6 +254,8 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    # Self-hosted only: trust every organization owner/admin to verify domains without DNS proof.
+    SSO_SKIP_DOMAIN_VERIFICATION: ""                      # Opt in with "true"; unset/"false" requires DNS
     # SSO_TRUSTED_PROVIDER_IDS: comma-separated SSO provider IDs to trust for automatic account linking when a
     # user signs in via SSO and an account with the same email already exists. Only needed for IdPs that do NOT
     # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
