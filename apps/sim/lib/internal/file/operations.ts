@@ -32,7 +32,6 @@ import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
-import { splitWorkspaceFilePath } from '@/lib/mothership/tools/server/files/workspace-file'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -111,6 +110,10 @@ import {
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { type FileTextLineRange, sliceFileTextLines } from '@/lib/workspace-files/text-lines'
+import {
+  parseRelativeWorkspaceFileCreatePath,
+  workspaceFileVfsPath,
+} from '@/lib/workspace-files/workspace-file-path'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -377,7 +380,13 @@ const stripExtension = (name: string): string => {
  * untrusted input cannot introduce nested or zip-slip-style paths.
  */
 const toFlatFileName = (name: string, fallback: string): string => {
-  const { leafName } = splitWorkspaceFilePath(name.replaceAll('\\', '/'))
+  const leafName =
+    name
+      .replaceAll('\\', '/')
+      .split('/')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .at(-1) ?? ''
   try {
     return normalizeWorkspaceFileItemName(leafName, 'File')
   } catch {
@@ -1370,16 +1379,10 @@ export async function executeFileManageOperation(
           ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
           : undefined
 
-        const { folderSegments: nameSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
-        /*
-         * The destination is the picked folder, then whatever folders the name
-         * itself spells. `folderPath` is canonical and percent-encoded, so it is
-         * decoded to names here — the same names `splitWorkspaceFilePath` yields
-         * — because the folder operation takes decoded segments.
-         */
-        const folderSegments = folderPath
-          ? [...parseFolderPath(folderPath), ...nameSegments]
-          : nameSegments
+        const { folderSegments, fileName: leafName } = parseRelativeWorkspaceFileCreatePath(
+          sourceName ?? '',
+          folderPath
+        )
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
@@ -1431,6 +1434,7 @@ export async function executeFileManageOperation(
               data: {
                 id: overwritten.id,
                 name: overwritten.name,
+                vfsPath: workspaceFileVfsPath(overwritten),
                 size: overwritten.size,
                 url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
                 version: overwritten.currentVersion,
@@ -1482,6 +1486,7 @@ export async function executeFileManageOperation(
           data: {
             id: result.file.id,
             name: result.file.name,
+            vfsPath: workspaceFileVfsPath(result.file),
             size: fileBuffer.length,
             url: ensureAbsoluteUrl(result.file.url ?? result.file.path),
             /** A file created with its content has no history yet, so those bytes are version 1. */

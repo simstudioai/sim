@@ -1112,7 +1112,7 @@ export const FileV5Block: BlockConfig = {
   description:
     'Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
+    'Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files at relative paths, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. It accepts selected files, canonical file IDs, or one or more workspace folders expanded at run time. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -1125,7 +1125,7 @@ export const FileV5Block: BlockConfig = {
   - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
   - Read, Get Content, Search, Append, Apply Edit, and Compress share a Folder scope. Pick folders, or switch the field to advanced and type canonical percent-encoded paths, comma-separated for several, including a reference from an earlier block such as /memory/<start.userId>.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
-  - Use Write to create a new workspace file and Append to add content to an existing one. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
+  - Use Write to create a new workspace file and Append to add content to an existing one. Write accepts relative paths such as Reports/2026/report.md and creates missing folders automatically. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
   - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
@@ -1363,9 +1363,11 @@ export const FileV5Block: BlockConfig = {
     },
     {
       id: 'fileName',
-      title: 'File Name',
+      title: 'File Path',
       type: 'short-input' as SubBlockType,
-      placeholder: 'File name (e.g., data.csv)',
+      placeholder: 'Reports/2026/report.md',
+      description: 'Relative workspace path. Missing folders are created automatically.',
+      tooltip: 'Relative workspace path. Missing folders are created automatically.',
       condition: { field: 'operation', value: 'file_write' },
       required: { field: 'operation', value: 'file_write' },
     },
@@ -2220,7 +2222,10 @@ export const FileV5Block: BlockConfig = {
     fileUrl: { type: 'string', description: 'External file URL for fetch' },
     headers: { type: 'json', description: 'Request headers for fetch' },
     fileType: { type: 'string', description: 'File type for fetch' },
-    fileName: { type: 'string', description: 'Name for a new file (write)' },
+    fileName: {
+      type: 'string',
+      description: 'Relative workspace path for a new file (write)',
+    },
     content: { type: 'string', description: 'File content to write' },
     writeFileInput: {
       type: 'json',
@@ -2389,6 +2394,10 @@ export const FileV5Block: BlockConfig = {
     name: {
       type: 'string',
       description: 'File name (write and append)',
+    },
+    vfsPath: {
+      type: 'string',
+      description: 'Canonical workspace path of the created file (write)',
     },
     size: {
       type: 'number',

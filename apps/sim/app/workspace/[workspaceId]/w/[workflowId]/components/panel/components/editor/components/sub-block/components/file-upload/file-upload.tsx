@@ -17,9 +17,9 @@ import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
+import { getWorkspaceFileDisplayLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/workspace-file-display'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
@@ -68,23 +68,6 @@ interface FileUploadProps {
   onValueChange?: (value: UploadedFile | UploadedFile[] | null) => void
 }
 
-/**
- * Label for a workspace file, prefixed with its folder so two files sharing a
- * name are distinguishable.
- *
- * The stored folder path escapes a slash inside a folder name, so it is decoded
- * into segments rather than split — otherwise a folder named `Q3/Q4` reads as
- * two levels.
- */
-function workspaceFileOptionLabel(file: { name: string; folderPath?: string | null }): string {
-  if (!file.folderPath) return file.name
-  try {
-    return `${parseWorkspaceFileFolderDisplayPath(file.folderPath).join(' / ')} / ${file.name}`
-  } catch {
-    return file.name
-  }
-}
-
 function byFolderThenName(
   a: { name: string; folderPath?: string | null },
   b: { name: string; folderPath?: string | null }
@@ -126,6 +109,7 @@ export interface UploadedFile {
 
 interface SingleFileSelectorProps {
   file: UploadedFile
+  displayName: string
   options: Array<{ label: string; value: string; disabled?: boolean }>
   selectedValue: string
   onInputChange: (value: string) => void
@@ -145,6 +129,7 @@ interface SingleFileSelectorProps {
  */
 function SingleFileSelector({
   file,
+  displayName,
   options,
   selectedValue,
   onInputChange,
@@ -156,7 +141,7 @@ function SingleFileSelector({
   isDeleting,
   workflowSearchHighlight,
 }: SingleFileSelectorProps) {
-  const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${workspaceFileSizeLabel(file.size)})`
+  const displayLabel = `${truncateMiddle(displayName, 20, 12)} (${workspaceFileSizeLabel(file.size)})`
   const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   // When not editing, always show the file's display label. When editing, show the user's query.
@@ -736,7 +721,9 @@ export function FileUpload({
   const renderFileItem = (file: UploadedFile, index: number) => {
     const fileKey = file.path || ''
     const isDeleting = deletingFiles[fileKey]
-    const displayName = truncateMiddle(file.name)
+    const matchedWorkspaceFile = findSelectedWorkspaceFile(file, workspaceFiles)
+    const fullDisplayName = getWorkspaceFileDisplayLabel(matchedWorkspaceFile ?? file)
+    const displayName = truncateMiddle(fullDisplayName)
     const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
       activeSearchTarget,
       blockId,
@@ -750,7 +737,7 @@ export function FileUpload({
         key={fileKey}
         className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-5)]'
       >
-        <div className='truncate pr-6 text-sm' title={file.name}>
+        <div className='truncate pr-6 text-sm' title={fullDisplayName}>
           <span className='text-[var(--text-primary)]'>
             {formatDisplayText(displayName, { workflowSearchHighlight })}
           </span>
@@ -810,7 +797,7 @@ export function FileUpload({
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
-          label: workspaceFileOptionLabel(file),
+          label: getWorkspaceFileDisplayLabel(file),
           value: file.id,
           // When cloud is required, local workspace files are also unpublishable.
           disabled: !isAccepted || cloudUploadBlocked,
@@ -832,7 +819,7 @@ export function FileUpload({
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
         return {
-          label: workspaceFileOptionLabel(file),
+          label: getWorkspaceFileDisplayLabel(file),
           value: file.id,
           disabled: !isAccepted || cloudUploadBlocked,
         }
@@ -958,6 +945,9 @@ export function FileUpload({
       {hasFiles && !multiple && !isUploading && (
         <SingleFileSelector
           file={filesArray[0]}
+          displayName={getWorkspaceFileDisplayLabel(
+            findSelectedWorkspaceFile(filesArray[0], workspaceFiles) ?? filesArray[0]
+          )}
           options={singleFileOptions}
           selectedValue={selectedFileId}
           onInputChange={handleComboboxChange}
@@ -974,7 +964,13 @@ export function FileUpload({
             blockId,
             subBlockId,
             valuePath: [],
-            label: `${truncateMiddle(filesArray[0].name, 20, 12)} (${workspaceFileSizeLabel(filesArray[0].size)})`,
+            label: `${truncateMiddle(
+              getWorkspaceFileDisplayLabel(
+                findSelectedWorkspaceFile(filesArray[0], workspaceFiles) ?? filesArray[0]
+              ),
+              20,
+              12
+            )} (${workspaceFileSizeLabel(filesArray[0].size)})`,
           })}
         />
       )}
