@@ -4019,24 +4019,12 @@ export function useChat(
                 })
               return { userMessageId, busy: true }
             }
-            /* A send deduplicated against an earlier attempt comes back naming
-               the chat that attempt opened. Adopting it here spares a chatless
-               surface the stream-to-chat lookup and puts the user in the right
-               chat before the reconnect below replays it. */
-            const conflictChatId =
-              typeof errorData.chatId === 'string' ? errorData.chatId : undefined
-            if (viewOnSend && conflictChatId && !streamTargetChatId) {
-              adoptNewChatEffort(conflictChatId, false)
-              adoptResolvedChatId(conflictChatId, {
-                replaceHomeHistory: true,
-                invalidateList: true,
-              })
-              streamTargetChatId = conflictChatId
-            }
             /* "Already sent" with no stream for it means the earlier attempt is still
                in flight on the server (or died before starting a turn), not that a turn
                ran: reattaching would read the missing stream as finished and drop the
-               message. Retry it later like a busy refusal; the server's claim settles. */
+               message. Retry it later like a busy refusal; the server's claim settles.
+               This is checked before adopting the chat the answer names, so a retried
+               message stays under the key it was sent from. */
             const dedupedStreamExists = await fetchStreamBatch(
               conflictStreamId,
               '0',
@@ -4051,6 +4039,20 @@ export function useChat(
             }
             /** The user may have moved on (another chat, another send) during the check. */
             if (streamGenRef.current !== gen) return consumedByTranscript
+            /* A send deduplicated against an earlier attempt comes back naming
+               the chat that attempt opened. Adopting it here spares a chatless
+               surface the stream-to-chat lookup and puts the user in the right
+               chat before the reconnect below replays it. */
+            const conflictChatId =
+              typeof errorData.chatId === 'string' ? errorData.chatId : undefined
+            if (conflictChatId && !streamTargetChatId) {
+              adoptNewChatEffort(conflictChatId, false)
+              adoptResolvedChatId(conflictChatId, {
+                replaceHomeHistory: true,
+                invalidateList: true,
+              })
+              streamTargetChatId = conflictChatId
+            }
             streamIdRef.current = conflictStreamId
             const succeeded = await retryReconnect({
               streamId: conflictStreamId,

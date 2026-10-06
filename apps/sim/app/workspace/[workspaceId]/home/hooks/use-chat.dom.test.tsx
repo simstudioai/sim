@@ -3073,6 +3073,48 @@ describe('useChat remount send recovery', () => {
       ).toEqual(['Follow-up after the restore'])
     })
 
+    /**
+     * On the new-chat surface the "already sent" answer also names the chat the
+     * earlier attempt opened. With no stream yet, the retry must still go out,
+     * not wait under the new-chat key after the surface moved to that chat.
+     */
+    it('retries a first message deduplicated against an attempt that opened no stream', async () => {
+      const opened = idleHistory('chat-opened-by-earlier-attempt')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: opened }))
+      let posts = 0
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          posts++
+          if (posts === 1) {
+            return Response.json(
+              {
+                error: 'This message was already sent.',
+                activeStreamId: state.postBodies[0].userMessageId,
+                chatId: opened.id,
+              },
+              { status: 409 }
+            )
+          }
+          return emptySseResponse()
+        }
+        if (url.includes('/api/mothership/chat/stream') && posts === 1) {
+          return Response.json({ error: 'Stream not found' }, { status: 404 })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderHomeLikeSurface()
+
+      await act(async () => {
+        await getResult().sendMessage('First message, told it was already sent')
+      })
+      await waitFor(() => state.postBodies.length === 2, 5_000)
+
+      expect(state.postBodies[1].message).toBe('First message, told it was already sent')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
     /** The `online` event can fire while no surface for the chat is mounted. */
     it('sends a held message when its chat mounts after the network came back', async () => {
       const history = idleHistory('chat-held-while-away')
