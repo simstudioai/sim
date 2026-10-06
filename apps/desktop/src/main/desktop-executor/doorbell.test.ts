@@ -1,4 +1,3 @@
-import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { DeviceRequestError } from '@/main/desktop-executor/client'
 import { InboxDoorbell, parseServerSentEvents } from '@/main/desktop-executor/doorbell'
@@ -92,6 +91,7 @@ describe('InboxDoorbell', () => {
   })
 
   it('backs off when every stream ends as soon as it opens', async () => {
+    vi.useFakeTimers()
     const opened: number[] = []
     const doorbell = new InboxDoorbell({
       client: {
@@ -104,11 +104,15 @@ describe('InboxDoorbell', () => {
       onUnregistered: vi.fn(),
       retryBaseMs: 5,
     })
-    doorbell.start()
-    await sleep(400)
-    doorbell.stop()
+    try {
+      doorbell.start()
+      await vi.advanceTimersByTimeAsync(400)
+      doorbell.stop()
+    } finally {
+      vi.useRealTimers()
+    }
 
-    // A fixed 5 ms retry would open dozens; doubling from 5 ms opens a handful.
+    // A fixed 5 ms retry would open 80; doubling from 5 ms opens a handful.
     expect(opened.length).toBeGreaterThan(2)
     expect(opened.length).toBeLessThan(15)
   })
