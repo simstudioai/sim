@@ -458,9 +458,9 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -yq xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 \
             libxtst6 libatk-bridge2.0-0t64 libxkbcommon0 > /dev/null
-          # Electron's Chromium sandbox needs unprivileged user namespaces, which Ubuntu 24.04 restricts.
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          (cd apps/desktop && bun run build)
+          # The build stages node-pty prebuilds in TMPDIR and renames them into node_modules, so
+          # TMPDIR must be on the workspace's filesystem.
+          (cd apps/desktop && TMPDIR="$RUNNER_TEMP" bun run build)
           (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
             exec bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
           realtime_pid=$!

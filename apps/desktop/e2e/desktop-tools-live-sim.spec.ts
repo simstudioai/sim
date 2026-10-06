@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -11,6 +10,7 @@ import {
   test,
 } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
+import { generateId } from '@sim/utils/id'
 import {
   type LiveSimConfig,
   liveSimConfig,
@@ -168,7 +168,7 @@ test.describe('desktop tools against a live Sim', () => {
 
   test('leaving the chat does not end a local file read already under way', async () => {
     const user = await db.seedUser(['Read chat', 'Other chat'])
-    const marker = randomUUID()
+    const marker = generateId()
     const file = writeFile(join(scratch, 'notes.txt'), `notes from disk ${marker}`)
     let callId = ''
     agent.script('[leave-read]', (turn) => {
@@ -283,7 +283,7 @@ test.describe('desktop tools against a live Sim', () => {
 
   test("a local read awaiting the user's approval cannot be claimed", async () => {
     const user = await db.seedUser(['Approval chat'])
-    const secret = randomUUID()
+    const secret = generateId()
     const file = writeFile(join(scratch, 'secret.txt'), `private ${secret}`)
     agent.script('[unapproved-read]', (turn) => {
       turn.toolCall({
@@ -365,9 +365,9 @@ test.describe('desktop tools against a live Sim', () => {
 
   test('with the background executor off, a foreground desktop round trip never binds a device or rings a doorbell', async () => {
     const user = await db.seedUser(['Round trip'])
-    const marker = randomUUID()
+    const marker = generateId()
     const file = writeFile(join(scratch, 'plan.txt'), `plan ${marker}`)
-    const deviceId = randomUUID()
+    const deviceId = generateId()
     const monitor = new RedisMonitor(sim.redisUrl)
     await monitor.start()
     try {

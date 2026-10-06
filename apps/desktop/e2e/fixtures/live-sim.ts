@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import {
   createServer,
   request as httpRequest,
@@ -9,6 +9,8 @@ import {
 } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import type { Duplex } from 'node:stream'
+import { generateId, generateShortId } from '@sim/utils/id'
+import { toArray } from '@sim/utils/object'
 import postgres from 'postgres'
 
 /**
@@ -47,7 +49,7 @@ export function liveSimConfig(): LiveSimConfig | string {
   ].filter((name) => !env[name])
   if (missing.length > 0) return `Needs a local Sim app: set ${missing.join(', ')}`
   const databaseUrl = env.SIM_DESKTOP_E2E_DATABASE_URL ?? ''
-  if (!/test/i.test(new URL(databaseUrl).pathname))
+  if (!/(?:^|[_-])test$/i.test(new URL(databaseUrl).pathname.slice(1)))
     return 'SIM_DESKTOP_E2E_DATABASE_URL must name a dedicated test database'
   return {
     upstream: env.SIM_DESKTOP_E2E_SIM_URL ?? '',
@@ -330,7 +332,7 @@ class AgentTurn {
 
   /** Issues a client-executed tool call and returns its id. */
   toolCall(call: ScriptedToolCall): string {
-    const toolCallId = `toolu_${randomUUID().replaceAll('-', '')}`
+    const toolCallId = `toolu_${generateShortId()}`
     this.toolCallIds.push(toolCallId)
     this.emit('tool', {
       phase: 'call',
@@ -349,9 +351,9 @@ class AgentTurn {
   pause(): void {
     this.emit('run', {
       kind: 'checkpoint_pause',
-      checkpointId: randomUUID(),
-      executionId: randomUUID(),
-      runId: randomUUID(),
+      checkpointId: generateId(),
+      executionId: generateId(),
+      runId: generateId(),
       pendingToolCallIds: [...this.toolCallIds],
     })
     this.finish()
@@ -452,7 +454,7 @@ export class ScriptedAgent {
     const body: Record<string, unknown> = raw ? JSON.parse(raw) : {}
     if (path === '/api/mothership' || path === '/api/copilot') {
       const message = typeof body.message === 'string' ? body.message : ''
-      const streamId = typeof body.messageId === 'string' ? body.messageId : randomUUID()
+      const streamId = typeof body.messageId === 'string' ? body.messageId : generateId()
       const turn = new AgentTurn(body, streamId, response)
       this.turns.push(turn)
       const entry = [...this.scripts].find(([marker]) => message.includes(marker))
@@ -465,7 +467,7 @@ export class ScriptedAgent {
     }
     if (path === '/api/tools/resume') {
       const streamId = typeof body.streamId === 'string' ? body.streamId : ''
-      const results = Array.isArray(body.results) ? (body.results as ResumedResult[]) : []
+      const results = toArray<ResumedResult>(body.results)
       const resume: Resume = { at: Date.now(), streamId, results }
       this.resumes.push(resume)
       for (const wake of this.waiters.splice(0)) wake()
@@ -518,25 +520,25 @@ export class SimDatabase {
 
   /** A user with a workspace, a session as the desktop sign-in creates, and one chat per title. */
   async seedUser(chatTitles: string[]): Promise<SeededUser> {
-    const userId = randomUUID()
-    const workspaceId = randomUUID()
-    const sessionId = randomUUID()
-    const token = randomUUID().replaceAll('-', '')
+    const userId = generateId()
+    const workspaceId = generateId()
+    const sessionId = generateId()
+    const token = generateShortId()
     const name = `Desktop E2E ${userId.slice(0, 6)}`
     const email = `${userId}@desktop-tools-e2e.test`
     const chats: Record<string, string> = {}
     await this.sql.begin(async (tx) => {
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
         values (${userId}, ${name}, ${email}, ${email}, true, now(), now())`
-      await tx`insert into user_stats (id, user_id) values (${randomUUID()}, ${userId})`
+      await tx`insert into user_stats (id, user_id) values (${generateId()}, ${userId})`
       await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
         values (${workspaceId}, 'Desktop tools E2E', ${userId}, ${userId})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
-        values (${randomUUID()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
+        values (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
       await tx`insert into session (id, token, user_id, user_agent, expires_at, created_at, updated_at)
         values (${sessionId}, ${token}, ${userId}, 'Sim Desktop', now() + interval '1 day', now(), now())`
       for (const title of chatTitles) {
-        const chatId = randomUUID()
+        const chatId = generateId()
         chats[title] = chatId
         await tx`insert into copilot_chats (id, user_id, workspace_id, type, title)
           values (${chatId}, ${userId}, ${workspaceId}, 'mothership', ${title})`
@@ -626,15 +628,27 @@ export class RedisMonitor {
       socket.once('connect', resolve)
       socket.once('error', reject)
     })
+    // Each command sent before MONITOR answers `+OK`; MONITOR's own `+OK` means it is recording.
+    let pendingAcks = target.password ? 2 : 1
     let buffer = ''
-    socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8')
-      const lines = buffer.split('\r\n')
-      buffer = lines.pop() ?? ''
-      this.lines.push(...lines.filter((line) => line.startsWith('+') && line !== '+OK'))
+    const acknowledged = new Promise<void>((resolve, reject) => {
+      socket.on('data', (chunk) => {
+        buffer += chunk.toString('utf8')
+        const lines = buffer.split('\r\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (pendingAcks > 0) {
+            if (line.startsWith('-')) reject(new Error(`Redis refused MONITOR: ${line}`))
+            else if (line === '+OK' && --pendingAcks === 0) resolve()
+            continue
+          }
+          if (line.startsWith('+')) this.lines.push(line)
+        }
+      })
     })
     if (target.password) socket.write(`AUTH ${decodeURIComponent(target.password)}\r\n`)
     socket.write('MONITOR\r\n')
+    await acknowledged
   }
 
   /** Commands seen that publish to a channel whose name contains `channel`. */
