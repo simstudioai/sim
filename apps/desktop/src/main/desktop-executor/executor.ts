@@ -86,6 +86,13 @@ export class DesktopExecutor {
   private paused = false
   private disposed = false
   private busy = false
+  /** Results a previous app run left, still on their way to Sim. */
+  private recoveredInFlight = 0
+  /** Results Sim refused because it no longer recognized this device; sent once it registers again. */
+  private readonly parked = new Map<
+    string,
+    { executionToken: string; completion: DesktopToolCompletion }
+  >()
 
   constructor(private readonly options: DesktopExecutorOptions) {}
 
@@ -131,7 +138,22 @@ export class DesktopExecutor {
         toolCallId: entry.toolCallId,
         state: entry.state,
       })
-      void this.deliver(entry.toolCallId, entry.executionToken, completion)
+      // Held awake like a running call: the result exists only on this machine until Sim has it.
+      this.recoveredInFlight += 1
+      this.updateBusy()
+      void this.deliver(entry.toolCallId, entry.executionToken, completion).finally(() => {
+        this.recoveredInFlight -= 1
+        this.updateBusy()
+      })
+    }
+  }
+
+  /** After registering again: sends the results parked while Sim did not recognize the device. */
+  resumeParked(): void {
+    const parked = [...this.parked]
+    this.parked.clear()
+    for (const [toolCallId, { executionToken, completion }] of parked) {
+      void this.deliver(toolCallId, executionToken, completion)
     }
   }
 
@@ -329,15 +351,21 @@ export class DesktopExecutor {
         break
       } catch (error) {
         if (!(error instanceof DeviceRequestError)) throw error
-        if (error.unregistered) this.options.onUnregistered()
-        else if (error.status === 413 && pending.data !== undefined) {
+        if (error.unregistered) {
+          // Retrying cannot help until the device registers again; the journal keeps the result.
+          this.parked.set(toolCallId, { executionToken, completion: pending })
+          this.options.onUnregistered()
+          return
+        }
+        if (error.status === 413 && pending.data !== undefined) {
           pending = {
             status: pending.status,
             message: RESULT_TOO_LARGE,
             data: { error: RESULT_TOO_LARGE, resultOmitted: true },
           }
           continue
-        } else if (!error.transient) {
+        }
+        if (!error.transient) {
           logger.warn('Sim refused a desktop call result; dropping it', {
             toolCallId,
             status: error.status,
@@ -413,7 +441,7 @@ export class DesktopExecutor {
   }
 
   private updateBusy(): void {
-    const busy = this.held.size > 0
+    const busy = this.held.size > 0 || this.recoveredInFlight > 0
     if (busy === this.busy) return
     this.busy = busy
     this.options.onBusyChange?.(busy)

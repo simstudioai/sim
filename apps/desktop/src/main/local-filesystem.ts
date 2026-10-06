@@ -493,7 +493,7 @@ export class LocalFilesystemService {
           this.activeRequests.delete(requestId)
         }
       }
-      if (grant && this.mounts.get(grant.id) !== grant) throw mountNotFound()
+      if (grant && this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)

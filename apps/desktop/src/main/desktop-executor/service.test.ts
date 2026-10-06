@@ -10,7 +10,7 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { createDesktopExecutorService } from '@/main/desktop-executor/service'
 
 /** Sim's device routes, with registration answers held until the test releases them. */
-function fakeSim() {
+function fakeSim(protocolVersion = 1) {
   const requests: string[] = []
   const registrations: Array<(enabled: boolean) => void> = []
   const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
@@ -20,7 +20,7 @@ function fakeSim() {
       const enabled = await new Promise<boolean>((resolve) => registrations.push(resolve))
       return Response.json({
         enabled,
-        protocolVersion: 1,
+        protocolVersion,
         leaseMs: 60_000,
         leaseRenewMs: 20_000,
         reconcileMs: 10_000,
@@ -34,8 +34,8 @@ function fakeSim() {
   return { fetch, requests, registrations }
 }
 
-async function service() {
-  const sim = fakeSim()
+async function service(protocolVersion = 1) {
+  const sim = fakeSim(protocolVersion)
   const desktopExecutor = createDesktopExecutorService({
     userDataPath: await mkdtemp(join(tmpdir(), 'sim-executor-service-')),
     origin: () => 'https://sim.test',
@@ -71,5 +71,16 @@ describe('desktop executor registration', () => {
     expect(desktopExecutor.getDevice()).toBeNull()
     expect(sim.requests).not.toContain('GET /api/desktop/inbox')
     expect(sim.requests).not.toContain('GET /api/desktop/inbox/stream')
+  })
+
+  it('offers no binding to a Sim that speaks another protocol version', async () => {
+    const { sim, desktopExecutor } = await service(2)
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+    sim.registrations[0]?.(true)
+    await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
+
+    expect(desktopExecutor.getDevice()).toBeNull()
   })
 })

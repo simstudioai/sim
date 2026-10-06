@@ -152,6 +152,7 @@ function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
   const journal = new MemoryJournal()
   const runner = new FakeRunner()
   const onUnregistered = vi.fn()
+  const busy: boolean[] = []
   const executor = new DesktopExecutor({
     client: sim.client,
     journal,
@@ -159,9 +160,10 @@ function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
     leaseRenewMs: options.leaseRenewMs ?? 60_000,
     retryBaseMs: 5,
     onUnregistered,
+    onBusyChange: (value) => busy.push(value),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered }
+  return { sim, journal, runner, executor, onUnregistered, busy }
 }
 
 describe('claiming', () => {
@@ -428,6 +430,79 @@ describe('restarting', () => {
     expect(reported.has('claiming-1')).toBe(false)
     expect(runner.started).toEqual([])
     await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+  })
+})
+
+describe('delivery', () => {
+  it('retries a result whose request timed out', async () => {
+    const { sim, journal, executor } = setup()
+    sim.completeErrors = [new DeviceRequestError(408, 'request timeout')]
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: DONE,
+    })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+  })
+
+  it('holds a result Sim refuses as unregistered until the device registers again', async () => {
+    const { sim, journal, executor, onUnregistered } = setup()
+    sim.completeErrors = [new DeviceRequestError(401, 'unregistered')]
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: DONE,
+    })
+
+    await executor.recover()
+    await vi.waitFor(() => expect(onUnregistered).toHaveBeenCalledTimes(1))
+    await sleep(40)
+
+    expect(onUnregistered).toHaveBeenCalledTimes(1)
+    expect(sim.completions).toHaveLength(0)
+    expect(journal.entries.get('r-1')?.state).toBe('result')
+
+    executor.resumeParked()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+  })
+})
+
+describe('keeping the machine awake', () => {
+  it('is busy from the claim until Sim has the result', async () => {
+    const { sim, runner, executor, busy } = setup()
+    sim.inbox = [callItem('call-1', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
+    expect(busy).toEqual([true])
+
+    runner.finish('call-1')
+
+    await vi.waitFor(() => expect(busy).toEqual([true, false]))
+    expect(sim.completions).toHaveLength(1)
+  })
+
+  it('stays busy while a result a previous run left is still on its way to Sim', async () => {
+    const { sim, journal, executor, busy } = setup()
+    sim.completeErrors = [new DeviceRequestError(503, 'deploying')]
+    await journal.put({
+      toolCallId: 'result-1',
+      state: 'result',
+      executionToken: 't-result',
+      completion: DONE,
+    })
+
+    await executor.recover()
+    expect(busy).toEqual([true])
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    await vi.waitFor(() => expect(busy).toEqual([true, false]))
   })
 })
 

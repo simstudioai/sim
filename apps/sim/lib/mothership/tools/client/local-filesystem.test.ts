@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockReportCompletion } = vi.hoisted(() => ({
@@ -260,12 +261,12 @@ describe('executeLocalFilesystemTool', () => {
     await vi.waitFor(() =>
       expect(localFilesystem).toHaveBeenCalledWith(expect.objectContaining({ operation: 'read' }))
     )
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     expect(resolved).toBe(false)
 
     finishRead({ ok: true, data: { content: 'hello', totalLines: 1 } })
     await vi.waitFor(() => expect(mockReportCompletion).toHaveBeenCalled())
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     expect(resolved).toBe(false)
 
     finishReport()

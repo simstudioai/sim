@@ -38,9 +38,9 @@ export class DeviceRequestError extends Error {
     return this.status === 401
   }
 
-  /** Worth retrying unchanged: no answer, a server fault, or a rate limit. */
+  /** Worth retrying unchanged: no answer, a timeout, a server fault, or a rate limit. */
   get transient(): boolean {
-    return this.status === 0 || this.status === 429 || this.status >= 500
+    return this.status === 0 || this.status === 408 || this.status === 429 || this.status >= 500
   }
 }
 

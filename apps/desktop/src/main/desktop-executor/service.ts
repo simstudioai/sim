@@ -150,7 +150,8 @@ export function createDesktopExecutorService(
       return
     }
     stopLoops()
-    scheduleRegistration(DORMANT_RECHECK_MS)
+    // Every refused request lands here; re-arming each time would push the recheck out forever.
+    if (!registrationTimer) scheduleRegistration(DORMANT_RECHECK_MS)
   }
 
   function stopLoops(): void {
@@ -186,6 +187,8 @@ export function createDesktopExecutorService(
       await executor.recover()
       // Signed out while recovering: sign-out already disposed this executor.
       if (registrationGeneration !== generation || !executor) return
+    } else {
+      executor.resumeParked()
     }
     if (!doorbell) {
       doorbell = new InboxDoorbell({
@@ -224,9 +227,11 @@ export function createDesktopExecutorService(
       })
       if (registrationGeneration !== generation || id !== deviceId) return
       registrationAttempt = 0
-      device = nextTiming.enabled
-        ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
-        : null
+      // A Sim that speaks another protocol version gets no new turns bound to this device.
+      device =
+        nextTiming.enabled && nextTiming.protocolVersion === DESKTOP_EXECUTOR_PROTOCOL_VERSION
+          ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
+          : null
       logger.info('Desktop executor registered', { enabled: nextTiming.enabled })
       // Off for this user: a turn already bound to this device still finishes here, so the
       // executor keeps serving the inbox; no new turn binds while `device` is null.
