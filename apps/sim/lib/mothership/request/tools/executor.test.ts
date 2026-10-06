@@ -940,11 +940,37 @@ describe('watchdog completion provenance', () => {
     })
   })
 
+  it('says a local read the desktop claimed started before its result was lost', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'read_local_file'
+    toolCall.params = { path: '/Users/me/notes.txt' }
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: toolCall.id,
+      claimedBy: 'desktop-files',
+    })
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('desktop app started this action'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
+  })
+
   it('does not claim a local read the server never saw picked up had started', async () => {
     const { toolCall, context, execContext } = createHungClient()
     toolCall.name = 'read_local_file'
     toolCall.params = { path: '/Users/me/notes.txt' }
     completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: toolCall.id,
+      claimedBy: null,
+    })
 
     await failPendingToolCall(toolCall.id, context, execContext)
 

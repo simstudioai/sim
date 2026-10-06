@@ -10,6 +10,7 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   type CompleteAsyncToolCallInput,
+  getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
@@ -451,17 +452,27 @@ export async function failPendingToolCall(
   }
   const message =
     failureMessage ??
-    (!desktopCall
-      ? TOOL_RESULT_LOST_MESSAGE
-      : isLocalReadToolCall(toolCall.execName ?? toolCall.name, toolCall.params)
-        ? DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE
-        : DESKTOP_TOOL_RESULT_LOST_MESSAGE)
+    (desktopCall ? await desktopResultLostMessage(toolCall) : TOOL_RESULT_LOST_MESSAGE)
   await settleAbandonedToolCall(toolCall, context, execContext, {
     message,
     data: { error: message, outcomeUnknown: true, doNotRetry: true },
     unclaimedOnly: false,
     resultLost: failureMessage === undefined,
   })
+}
+
+/**
+ * What a desktop call that lost its result tells the model. Only a local read can be in flight
+ * without a claim (an older desktop reads without claiming), and such a read may never have
+ * started; anything the desktop claimed did start.
+ */
+async function desktopResultLostMessage(toolCall: ToolCallState): Promise<string> {
+  if (!isLocalReadToolCall(toolCall.execName ?? toolCall.name, toolCall.params))
+    return DESKTOP_TOOL_RESULT_LOST_MESSAGE
+  const stored = await getAsyncToolCall(toolCall.id).catch(() => null)
+  return stored?.claimedBy
+    ? DESKTOP_TOOL_RESULT_LOST_MESSAGE
+    : DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE
 }
 
 /**

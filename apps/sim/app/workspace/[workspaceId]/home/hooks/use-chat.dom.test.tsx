@@ -2246,6 +2246,24 @@ describe('useChat remount send recovery', () => {
       expect(toolSignal.aborted).toBe(false)
     })
 
+    it('is still cancelled by Stop after the stream was recovered', async () => {
+      const { toolSignal, replays, getResult } = await startDesktopAction()
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      })
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      await waitFor(() => replays.length > 0)
+
+      await act(async () => {
+        await getResult().stopGeneration()
+      })
+
+      expect(toolSignal.aborted).toBe(true)
+    })
+
     it('is cancelled when the user stops the chat', async () => {
       const { toolSignal, getResult } = await startDesktopAction()
 

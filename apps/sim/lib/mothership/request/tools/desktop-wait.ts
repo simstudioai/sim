@@ -11,7 +11,7 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 const logger = createLogger('CopilotDesktopToolWait')
 
 const DESKTOP_TOOL_NOT_STARTED_MESSAGE =
-  'Not run: this action never started, because nothing in the Sim desktop app picked it up (this chat is not open there). Nothing happened on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
+  'Not run: this action never started, because nothing in the Sim desktop app picked it up. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 
 /** The model-facing result of a desktop call that was never picked up. */
 export function desktopToolNotStarted(): { message: string; data: Record<string, unknown> } {
