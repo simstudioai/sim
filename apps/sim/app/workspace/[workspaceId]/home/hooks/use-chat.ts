@@ -452,6 +452,25 @@ export async function waitForDetachedChatResolution(
   }
 }
 
+/** The abort reason of the user's Stop. */
+const USER_STOP_ABORT_REASON = 'user_stop:client_stopGeneration'
+
+/**
+ * The lifetime a browser action started from one stream observes: only the user's Stop cancels
+ * it. Replacing the stream reader (the window returning to view, a history reconnect) or leaving
+ * the chat view leaves it running, so it finishes and reports its own result.
+ */
+function browserToolLifetime(streamSignal: AbortSignal | undefined): AbortSignal | undefined {
+  if (!streamSignal) return undefined
+  const lifetime = new AbortController()
+  const followStop = () => {
+    if (streamSignal.reason === USER_STOP_ABORT_REASON) lifetime.abort(USER_STOP_ABORT_REASON)
+  }
+  if (streamSignal.aborted) followStop()
+  else streamSignal.addEventListener('abort', followStop, { once: true })
+  return lifetime.signal
+}
+
 /**
  * Runs a browser tool on the desktop client. The agent's tab reaches the
  * resource strip through the desktop tab list, so nothing is opened here.
@@ -2151,7 +2170,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const streamAbortSignal = abortControllerRef.current?.signal
+      const browserToolSignal = browserToolLifetime(abortControllerRef.current?.signal)
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -2172,7 +2191,7 @@ export function useChat(
         eventTs?: string
       ) => {
         const scopeId = activityScopeId()
-        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, streamAbortSignal)
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, browserToolSignal)
       }
       const startClientTerminalToolForStream = (
         toolCallId: string,
@@ -4424,7 +4443,7 @@ export function useChat(
       streamReaderRef.current = null
       const stoppedController = abortControllerRef.current
       if (stoppedController !== pendingAdmission?.controller) {
-        stoppedController?.abort('user_stop:client_stopGeneration')
+        stoppedController?.abort(USER_STOP_ABORT_REASON)
       }
       abortControllerRef.current = null
       setTransportIdle()
@@ -4520,7 +4539,7 @@ export function useChat(
             if (pendingAdmission && pendingAdmission.userMessageId === sid) {
               const admittedChatId = await pendingAdmission.settled
               resolvedChatId ??= admittedChatId
-              pendingAdmission.controller.abort('user_stop:client_stopGeneration')
+              pendingAdmission.controller.abort(USER_STOP_ABORT_REASON)
             }
             if (!resolvedChatId && sid) {
               resolvedChatId = await resolveChatIdForStream(sid, { preferExistingChatId: false })

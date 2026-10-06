@@ -312,6 +312,7 @@ const ChatMessageSchema = z
       .object({
         localFilesystem: z.boolean().optional(),
         localFiles: z.boolean().optional(),
+        localReadClaims: z.boolean().optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         terminals: z
@@ -1517,6 +1518,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           // Executor routing is decided HERE, once per turn, from the caller's declared
           // capabilities — dispatch never discovers client absence by burning a grace timer.
           clientToolPickupExpected,
+          desktopClaimsLocalReads: body.desktopCapabilities?.localReadClaims === true,
           executionContext,
           billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({

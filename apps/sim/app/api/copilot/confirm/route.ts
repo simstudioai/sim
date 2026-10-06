@@ -330,6 +330,17 @@ export const POST = withRouteHandler((req: NextRequest) => {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
         }
+        // A reporter that says the call never started (a stale replay, a closed view) cannot speak
+        // for a call the desktop claimed: only the claim's own result may settle it.
+        if (
+          isNativeClientTool &&
+          isPlainRecord(data) &&
+          data.notStarted === true &&
+          existing.status !== ASYNC_TOOL_STATUS.pending
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Pending client tool call not found')
+        }
 
         let effectiveStatus = status
         let executionId = submittedExecutionId

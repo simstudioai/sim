@@ -34,6 +34,28 @@ export function getDesktopToolClaimOwner(toolName: string): DesktopToolClaimOwne
   return undefined
 }
 
+/** A read of the user's machine: `read_local_file`, or a VFS read of a granted local folder. */
+export function isLocalReadToolCall(toolName: string, args: Record<string, unknown> | undefined) {
+  return toolName === 'read_local_file' || isUserLocalVfsToolCall(toolName, args)
+}
+
+/**
+ * Whether the server sees this call's pickup: the desktop claims it, pending, through
+ * `/api/desktop/tool/authorize` before acting, so a call still pending has provably not started.
+ * Browser, terminal and import calls are always claimed; a local read only by a desktop that
+ * declared for the turn that it claims local reads.
+ */
+export function isClaimedOnPickup(
+  toolName: string,
+  args: Record<string, unknown> | undefined,
+  desktopClaimsLocalReads: boolean
+): boolean {
+  return (
+    getDesktopToolClaimOwner(toolName) !== undefined ||
+    (desktopClaimsLocalReads && isLocalReadToolCall(toolName, args))
+  )
+}
+
 /** What the model learns about a desktop call that Stop cancelled before the desktop picked it up. */
 export const STOPPED_BEFORE_START_MESSAGE =
   'Not run: the user stopped the chat before the Sim desktop app started this action. Nothing happened on their computer.'

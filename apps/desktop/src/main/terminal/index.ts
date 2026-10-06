@@ -14,11 +14,10 @@ import { homedir } from 'node:os'
 import type { TerminalShortcutCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import {
-  DEFAULT_RUN_WAIT_MS,
   isTerminalControlKey,
   MAX_INPUT_KEYS,
-  MAX_RUN_WAIT_MS,
   MAX_TOOL_OUTPUT_CHARS,
+  resolveRunWaitMs,
   type TerminalCommandEvent,
   type TerminalControlKey,
   type TerminalCwdResult,
@@ -108,14 +107,6 @@ const HANDOFF_MAX_MS = 12 * 60 * 60 * 1000
  * agent to poll rather than holding the turn.
  */
 const HANDOFF_SETTLE_MS = 5_000
-
-/** How long to hold the turn before handing a still-running command back. */
-function resolveWaitMs(waitSeconds: number | undefined): number {
-  const requested = Number(waitSeconds)
-  return Number.isFinite(requested) && requested > 0
-    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
-    : DEFAULT_RUN_WAIT_MS
-}
 
 function elideOutput(value: string): { text: string; truncated: boolean } {
   return elide(value, MAX_TOOL_OUTPUT_CHARS)
@@ -1097,7 +1088,7 @@ export class TerminalService {
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
 
-    const waitMs = resolveWaitMs(args.waitSeconds)
+    const waitMs = resolveRunWaitMs(args.waitSeconds)
     const outcome = await awaitRun(handle, waitMs)
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
@@ -1149,7 +1140,7 @@ export class TerminalService {
       )
     }
 
-    return session.runCommand(command, toolCallId, resolveWaitMs(args.waitSeconds))
+    return session.runCommand(command, toolCallId, resolveRunWaitMs(args.waitSeconds))
   }
 
   private spawn(

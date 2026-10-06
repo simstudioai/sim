@@ -86,9 +86,17 @@ export const MAX_CAPTURE_CHARS = 512_000
  * `terminal_read`. Successive reads are also how it tells progress from a
  * stall — output that stops changing is a command waiting on input or wedged.
  */
-export const DEFAULT_RUN_WAIT_MS = 30_000
+const DEFAULT_RUN_WAIT_MS = 30_000
 
-export const MAX_RUN_WAIT_MS = 120_000
+const MAX_RUN_WAIT_MS = 120_000
+
+/** How long one `terminal_run` holds the turn, from the `waitSeconds` the model asked for. */
+export function resolveRunWaitMs(waitSeconds: unknown): number {
+  const requested = Number(waitSeconds)
+  return Number.isFinite(requested) && requested > 0
+    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
+    : DEFAULT_RUN_WAIT_MS
+}
 
 /**
  * How long output must be silent, with the cursor left mid-line, before the

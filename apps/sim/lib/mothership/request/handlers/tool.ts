@@ -9,6 +9,7 @@ import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+  DESKTOP_TOOL_PICKUP_GRACE_MS,
 } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -30,6 +31,7 @@ import { markToolResultSeen, wasToolResultSeen } from '@/lib/mothership/request/
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
 import {
   runGatedToolExecution,
@@ -47,7 +49,7 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
-import { getDesktopToolClaimOwner } from '@/lib/mothership/tools/desktop-tools'
+import { isClaimedOnPickup } from '@/lib/mothership/tools/desktop-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
@@ -304,14 +306,16 @@ export async function prePersistClientExecutableToolCall(
     toolName: data.toolName,
     args: data.arguments,
     sealedContext,
-    // Browser and terminal actions cross a second, native authorization
-    // boundary. Leave those rows pending until Electron atomically claims
-    // them — the authorize endpoint only hands over a pending call, so a row
-    // that arrives already running can never be executed natively. All other
-    // client tools retain the established "already dispatched" running state.
-    // A gated tool is likewise pending: nothing has been dispatched yet.
+    // Desktop calls the desktop claims on pickup (browser, terminal, import,
+    // and local reads when this turn's desktop claims them) cross a second,
+    // native authorization boundary. Leave those rows pending until Electron
+    // atomically claims them, so a replayed event cannot act twice and a call
+    // nobody picks up can fail fast. All other client tools retain the
+    // established "already dispatched" running state. A gated tool is
+    // likewise pending: nothing has been dispatched yet.
     status:
-      gated || getDesktopToolClaimOwner(data.toolName)
+      gated ||
+      isClaimedOnPickup(data.toolName, data.arguments, options?.desktopClaimsLocalReads === true)
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
     permissionRequested: gated,
@@ -935,6 +939,16 @@ async function dispatchToolExecution(
             return race.signal ?? errorCompletion('Tool completion missing')
           }
           completion = race.completion ?? null
+        } else if (isClaimedOnPickup(toolName, args, options.desktopClaimsLocalReads === true)) {
+          completion = await waitForDesktopToolCall({
+            toolCallId,
+            runId: context.runId,
+            userId: execContext.userId,
+            timeoutMs,
+            pickupGraceMs: DESKTOP_TOOL_PICKUP_GRACE_MS,
+            abortSignal: options.abortSignal,
+            registry: execContext.resolvedSecretTraceRegistry,
+          })
         } else {
           completion = await waitForClientToolCompletion({
             toolCallId,

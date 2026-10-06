@@ -25,6 +25,8 @@ const logger = createLogger('CopilotTerminalToolExecution')
 
 /** Tool events older than this are replays, not live instructions. */
 const MAX_EVENT_AGE_MS = 120_000
+const STALE_EVENT_MESSAGE =
+  'Not run: this terminal call reached the Sim desktop app too late to start safely, so nothing ran on the user’s computer. It is safe to retry.'
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:terminal-tool-executed:'
 
 /**
@@ -120,7 +122,23 @@ export function executeTerminalToolOnClient(
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
-    logger.info('Skipping stale terminal tool event', { toolCallId, operation, age })
+    logger.info('Reporting stale terminal tool event as not started', {
+      toolCallId,
+      operation,
+      age,
+    })
+    // Reported against the pending call only: one another window already claimed keeps its result.
+    void reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      STALE_EVENT_MESSAGE,
+      { error: STALE_EVENT_MESSAGE, notStarted: true, staleEvent: true }
+    ).catch((error) => {
+      logger.warn('Failed to report stale terminal tool event', {
+        toolCallId,
+        error: toError(error).message,
+      })
+    })
     return
   }
   markExecuted(toolCallId)

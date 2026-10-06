@@ -19,6 +19,7 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
+import { isLocalReadToolCall } from '@/lib/mothership/tools/desktop-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
 const admissionClosedResponse = () =>
@@ -127,6 +128,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       toolCall.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.files
     )
       return createNotFoundResponse('The import must be started before reading file bytes')
+  }
+
+  // A desktop that claims local reads claims each one before its first read; its later reads of
+  // the same call ride on that claim. A call persisted running (an older desktop's turn) is read
+  // as before.
+  if (parsed.data.body.claim && isLocalReadToolCall(toolCall.toolName, args)) {
+    const notPending = () => createNotFoundResponse('Pending client tool call not found')
+    if (toolCall.status === 'pending') {
+      const { outcome } = await claimToolExecution({
+        toolCallId: toolCall.toolCallId,
+        runId: toolCall.runId,
+        userId,
+        claimedBy: DESKTOP_TOOL_CLAIM_OWNER.files,
+      })
+      if (outcome !== 'claimed') return refusedClaimResponse(outcome, notPending)
+    } else if (toolCall.claimedBy !== null && toolCall.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.files)
+      return notPending()
   }
 
   // Browser and terminal actions are one-shot side effects on the user's own
