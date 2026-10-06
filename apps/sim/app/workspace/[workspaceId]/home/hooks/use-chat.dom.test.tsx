@@ -1935,14 +1935,18 @@ describe('useChat remount send recovery', () => {
      * The POST fails at the network layer until the network is back, and the
      * stream it would have opened does not exist.
      */
-    const network = { online: false }
+    const network = { online: false, acceptedPosts: 0 }
     function stubUnreachableSend() {
       network.online = false
+      network.acceptedPosts = 0
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         if (url === '/api/mothership/chat' && init?.method === 'POST') {
           state.postBodies.push(JSON.parse(String(init.body)))
-          if (network.online) return emptySseResponse()
+          if (network.online) {
+            network.acceptedPosts++
+            return emptySseResponse()
+          }
           throw new TypeError('Failed to fetch')
         }
         if (url.includes('/api/mothership/chat/stream')) {
@@ -2002,33 +2006,133 @@ describe('useChat remount send recovery', () => {
 
     /**
      * Another tab's turn holds the chat (this one missed its start). The server
-     * refuses the send naming that turn; the message must wait for it rather than
-     * render that turn's answer under itself and then vanish.
+     * refuses the send, naming that turn or, when its stream id is unreadable,
+     * nothing. The message must go out exactly once, under its id, after that turn
+     * ends: never rendered under the other turn's answer, never lost, never resent
+     * while the turn still runs.
      */
-    it('sends a message again after the turn that held the chat ends', async () => {
-      const history = idleHistory('chat-busy-elsewhere')
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          if (state.postBodies.length === 1) {
-            return Response.json(
-              { error: 'A response is already running', activeStreamId: 'turn-from-another-tab' },
-              { status: 409 }
-            )
+    it.each([
+      ['names', 'turn-from-another-tab'],
+      ['does not name', undefined],
+    ] as const)(
+      'sends a message once, after the turn that held the chat ends, when the refusal %s it',
+      async (_names, refusalStreamId) => {
+        const history = idleHistory(`chat-busy-${refusalStreamId ?? 'unnamed'}`)
+        let otherTurnRunning = true
+        mockRequestJson.mockImplementation(() =>
+          Promise.resolve({
+            chat: {
+              ...history,
+              activeStreamId: otherTurnRunning ? 'turn-from-another-tab' : null,
+            },
+          })
+        )
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            if (otherTurnRunning) {
+              return Response.json(
+                {
+                  error: 'A response is already in progress for this chat.',
+                  ...(refusalStreamId ? { activeStreamId: refusalStreamId } : {}),
+                },
+                { status: 409 }
+              )
+            }
+            return emptySseResponse()
           }
-          return emptySseResponse()
-        }
-        return fetchStub(input, init)
-      })
-      const { getResult } = renderUseChatInChat(history.id, history)
+          if (url.includes('/api/mothership/chat/stream')) {
+            if (url.includes('batch=true')) {
+              return Response.json({
+                success: true,
+                events: [],
+                status: otherTurnRunning ? 'streaming' : 'complete',
+              })
+            }
+            return emptySseResponse()
+          }
+          return fetchStub(input, init)
+        })
+        const { getResult } = renderUseChatInChat(history.id, history)
 
+        await act(async () => {
+          await getResult().sendMessage('Sent from the second tab')
+        })
+        await act(async () => {
+          await sleep(1500)
+        })
+        expect(state.postBodies).toHaveLength(1)
+        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+          'Sent from the second tab'
+        )
+
+        otherTurnRunning = false
+        await waitFor(() => state.postBodies.length === 2, 5000)
+        await act(async () => {
+          await sleep(500)
+        })
+
+        expect(state.postBodies).toHaveLength(2)
+        expect(state.postBodies[1].message).toBe('Sent from the second tab')
+        expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+      }
+    )
+
+    /**
+     * A chatless surface keys its queue by mount, so a held first message would
+     * be stranded by a reload or remount before the network returns. The next
+     * chatless mount of the same surface adopts it.
+     */
+    it('carries a first message held offline over to the next new-chat surface', async () => {
+      stubUnreachableSend()
+      const first = renderUseChat()
       await act(async () => {
-        await getResult().sendMessage('Sent from the second tab')
+        await first.getResult().sendMessage('First message, sent offline')
       })
+      await waitFor(() => allQueuedMessages().some((message) => message.retryRequired === true))
+      first.unmount()
+
+      const second = renderUseChat()
+      await waitFor(() =>
+        second
+          .getResult()
+          .messageQueue.some((message) => message.content === 'First message, sent offline')
+      )
+
+      network.online = true
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+      await waitFor(() => network.acceptedPosts === 1)
+      await act(async () => {
+        await sleep(300)
+      })
+
+      expect(network.acceptedPosts).toBe(1)
+      expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      expect(state.postBodies.at(-1)?.message).toBe('First message, sent offline')
+    })
+
+    /** The `online` event can fire while no surface for the chat is mounted. */
+    it('sends a held message when its chat mounts after the network came back', async () => {
+      const history = idleHistory('chat-held-while-away')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend()
+      const first = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        await first.getResult().sendMessage('Held while I was elsewhere')
+      })
+      await waitFor(
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.retryRequired === true
+      )
+      first.unmount()
+
+      network.online = true
+      renderUseChatInChat(history.id, history)
       await waitFor(() => state.postBodies.length === 2)
 
-      expect(state.postBodies[1].message).toBe('Sent from the second tab')
+      expect(state.postBodies[1].message).toBe('Held while I was elsewhere')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
     })
   })

@@ -729,6 +729,8 @@ export function useChat(
   const pendingStopModeRef = useRef<StopGenerationMode | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
+  /** Identifies this chatless surface across mounts, for the sends it holds. */
+  const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
   const onTitleUpdateRef = useRef(options?.onTitleUpdate)
@@ -3834,10 +3836,10 @@ export function useChat(
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
           if (response.status === 409) {
+            /* A deduplicated send always names itself; a chat busy with another
+               turn names that turn, or nothing when its stream id is unreadable. */
             const conflictStreamId =
-              typeof errorData.activeStreamId === 'string'
-                ? errorData.activeStreamId
-                : userMessageId
+              typeof errorData.activeStreamId === 'string' ? errorData.activeStreamId : undefined
             const supersededStreamId = queuedSendHandoff?.supersededStreamId ?? pendingStopStreamId
             if (supersededStreamId && conflictStreamId === supersededStreamId) {
               rollbackOptimisticSend()
@@ -3853,8 +3855,11 @@ export function useChat(
             }
             if (conflictStreamId !== userMessageId) {
               /* Another turn holds the chat: one started in another tab, or one this
-                 surface lost track of. This message was not admitted, so it waits in
-                 the queue behind that turn, which the chat now shows as running. */
+                 surface lost track of. This message was not admitted (the server
+                 released its id), so it goes back to the queue under the same id. The
+                 queue drains only while the chat is idle, so the chat's running turn is
+                 read before the message is handed back: the chat then attaches to that
+                 turn and the message goes out once, after it ends. */
               rollbackOptimisticSend()
               if (streamGenRef.current === gen) {
                 streamGenRef.current++
@@ -3865,13 +3870,15 @@ export function useChat(
               }
               if (requestChatId) {
                 const busyChatId = requestChatId
-                upsertChatHistory(busyChatId, (current) => ({
-                  ...current,
-                  activeStreamId: conflictStreamId,
-                }))
-                void queryClient.invalidateQueries({
-                  queryKey: mothershipChatKeys.detail(busyChatId),
-                })
+                if (conflictStreamId) {
+                  upsertChatHistory(busyChatId, (current) => ({
+                    ...current,
+                    activeStreamId: conflictStreamId,
+                  }))
+                }
+                await queryClient
+                  .refetchQueries({ queryKey: mothershipChatKeys.detail(busyChatId), exact: true })
+                  .catch(() => {})
               }
               return { userMessageId }
             }
@@ -4203,7 +4210,15 @@ export function useChat(
           options?.assistantSearch,
           options?.assistantSearchLevel
         ),
-        ...(result.unreachable ? { retryRequired: true, heldUntilOnline: true } : {}),
+        ...(result.unreachable
+          ? {
+              retryRequired: true,
+              heldUntilOnline: true,
+              ...(activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+                ? { heldSurface: heldSendSurface }
+                : {}),
+            }
+          : {}),
       })
     },
     [
@@ -4211,6 +4226,7 @@ export function useChat(
       createQueuedMessage,
       startSendMessage,
       handOffWithdrawnSend,
+      heldSendSurface,
       hasPendingChatAdmission,
     ]
   )
@@ -4810,7 +4826,14 @@ export function useChat(
           ...dispatched,
           ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
           retryRequired: !retriesOnItsOwn,
-          ...(withdrawn?.unreachable ? { heldUntilOnline: true } : {}),
+          ...(withdrawn?.unreachable
+            ? {
+                heldUntilOnline: true,
+                ...(dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+                  ? { heldSurface: heldSendSurface }
+                  : {}),
+              }
+            : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
       }
@@ -4865,7 +4888,7 @@ export function useChat(
         userRemovedDuringDispatch.delete(msg.id)
       }
     },
-    [startSendMessage, handOffWithdrawnSend]
+    [startSendMessage, handOffWithdrawnSend, heldSendSurface]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {
@@ -5019,21 +5042,31 @@ export function useChat(
     }
   }, [])
 
-  /** A send held because the server could not be reached goes out once the browser is back online. */
+  /**
+   * Sends held because the server could not be reached go out once the browser is
+   * online: on the `online` event, and on mount in case it fired while no chat
+   * surface was listening. A chatless surface first adopts what a dead mount of the
+   * same surface held, since that mount's queue key died with it.
+   */
   useEffect(() => {
     if (typeof window === 'undefined') return
     const releaseHeldSends = () => {
-      const chatKey = chatKeyRef.current
-      const queue = useMothershipQueueStore.getState().queues[chatKey]
-      if (!queue?.some((message) => message.heldUntilOnline)) return
-      useMothershipQueueStore.getState().releaseHeldUntilOnline(chatKey)
-      if (!sendingRef.current && !pendingStopPromiseRef.current) {
+      useMothershipQueueStore.getState().releaseHeldUntilOnline()
+      if (
+        useMothershipQueueStore.getState().queues[chatKeyRef.current]?.length &&
+        !sendingRef.current &&
+        !pendingStopPromiseRef.current
+      ) {
         void enqueueQueueDispatchRef.current({ type: 'send_head' })
       }
     }
+    if (chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+      useMothershipQueueStore.getState().adoptHeldSends(chatKey, heldSendSurface)
+    }
+    if (navigator.onLine) releaseHeldSends()
     window.addEventListener('online', releaseHeldSends)
     return () => window.removeEventListener('online', releaseHeldSends)
-  }, [])
+  }, [chatKey, heldSendSurface])
 
   /** A recovered send already in history belongs to its accepted turn, even after Stop. */
   useEffect(() => {
