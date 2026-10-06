@@ -2770,8 +2770,15 @@
     {
       "idx": 396,
       "version": "7",
-      "when": 1791257263939,
-      "tag": "0396_project_membership_enforcement",
+      "when": 1791254828269,
+      "tag": "0396_user_table_row_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1791257919410,
+      "tag": "0397_project_membership_enforcement",
       "breakpoints": true
     }
   ]

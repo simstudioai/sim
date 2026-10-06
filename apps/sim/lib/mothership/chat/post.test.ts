@@ -814,7 +814,7 @@ describe('handleUnifiedChatPost', () => {
     ['xhigh', 'xhigh'],
     ['max', 'xhigh'],
     ['low', 'low'],
-    ['none', 'medium'],
+    ['none', 'high'],
   ])(
     'enforces the default model and effort range on submitted %s effort',
     async (effort, expected) => {
@@ -841,8 +841,8 @@ describe('handleUnifiedChatPost', () => {
   )
 
   it.each([
-    { stored: null, sent: undefined, runs: 'medium' },
-    { stored: 'high', sent: undefined, runs: 'high' },
+    { stored: null, sent: undefined, runs: 'high' },
+    { stored: 'medium', sent: undefined, runs: 'medium' },
     { stored: 'low', sent: undefined, runs: 'low' },
     { stored: 'high', sent: 'low', runs: 'low' },
     { stored: 'high', sent: 'max', runs: 'xhigh' },

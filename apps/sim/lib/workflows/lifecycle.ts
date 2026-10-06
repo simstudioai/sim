@@ -294,6 +294,9 @@ export async function disableUserResources(userId: string): Promise<void> {
 
   const { archiveWorkspace } = await import('@/lib/workspaces/lifecycle')
 
+  /** Revoked first: the keys are the ban's access boundary, and an archive may fail. */
+  await db.delete(apiKey).where(eq(apiKey.userId, userId))
+
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
     .from(workspace)
@@ -302,7 +305,6 @@ export async function disableUserResources(userId: string): Promise<void> {
   for (const row of ownedWorkspaces) {
     await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
   }
-  await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
   logger.info(
     `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`

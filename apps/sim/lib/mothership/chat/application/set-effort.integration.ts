@@ -79,7 +79,7 @@ describe('a chat keeps the effort its owner picked', () => {
     await setChatEffort.execute({ principal: owner, input: { chatId: picked, effort: 'low' } })
 
     expect(await loadEffort(untouched)).toBeNull()
-    expect(await nextTurnEffort(untouched)).toBe('medium')
+    expect(await nextTurnEffort(untouched)).toBe('high')
     expect(await nextTurnEffort(picked)).toBe('low')
     const [row] = await db
       .select({ config: copilotChats.config })
@@ -97,7 +97,7 @@ describe('a chat keeps the effort its owner picked', () => {
   it('reads a stored value outside the effort range as no pick', async () => {
     const chatId = await createChat({ effort: 'turbo' })
     expect(await loadEffort(chatId)).toBeNull()
-    expect(await nextTurnEffort(chatId)).toBe('medium')
+    expect(await nextTurnEffort(chatId)).toBe('high')
   })
 
   it("refuses to change another user's chat in a shared workspace", async () => {
