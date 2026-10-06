@@ -883,6 +883,27 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       ).toEqual([first, second, vfs])
     })
 
+    it('lists calls persisted within the same millisecond in persistence order', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      /** Ids sorted against persistence order, so an id tiebreak would reverse them. */
+      const persisted = [generateId(), generateId(), generateId()].sort().reverse()
+      await db.insert(copilotAsyncToolCalls).values(
+        persisted.map((toolCallId, index) => ({
+          runId: run.runId,
+          toolCallId,
+          toolName: 'browser_click',
+          args: { ref: 'e1' },
+          pickupDeadlineAt: sql`now() + interval '1 minute'`,
+          createdAt: sql`date_trunc('milliseconds', localtimestamp) + ${index + 1} * interval '1 microsecond'`,
+        }))
+      )
+
+      expect(
+        (await inbox(desktop)).items.map((item) => item.kind === 'call' && item.toolCallId)
+      ).toEqual(persisted)
+    })
+
     it('counts the device online after a pull or a stream open, and keeps it online when the stream closes', async () => {
       const desktop = await signedInDesktop()
       const presenceKey = `desktop:presence:${desktop.deviceId}`
