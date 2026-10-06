@@ -98,13 +98,17 @@ export const knowledgeConnectorSync = task({
   id: 'knowledge-connector-sync',
   maxDuration: CONNECTOR_SYNC_MAX_DURATION_SECONDS,
   /**
-   * Sized from production telemetry: peak sampled RSS 2.6 GB and peak 1.4 vCPU,
-   * so `large-1x` holds ~3x memory and ~2.8x CPU headroom. No `outOfMemory`
-   * escalation: an OOM is a SIGKILL, so the run never reaches the terminal
-   * write that clears `syncLockToken`, and the escalated attempt would find the
-   * row still `syncing` and skip. The stale-lock reaper owns that recovery.
+   * Sized from production telemetry: p99.9 sampled RSS ~650 MB, peak 2.6 GB, and
+   * peak 1.4 vCPU, so `medium-2x` (4 GB, 2 vCPU) still clears the worst case.
+   * The run is I/O-bound — it mostly waits on source APIs and their rate-limit
+   * backoff — and Trigger.dev bills wall-clock per preset, so `large-1x` paid
+   * double for headroom no run used. Not `medium-1x`: 2 GB sits below the peak,
+   * and there is no `outOfMemory` escalation to absorb it. An OOM is a SIGKILL,
+   * so the run never reaches the terminal write that clears `syncLockToken`,
+   * and the escalated attempt would find the row still `syncing` and skip. The
+   * stale-lock reaper owns that recovery.
    */
-  machine: 'large-1x',
+  machine: 'medium-2x',
   retry: {
     maxAttempts: 3,
     factor: 2,
