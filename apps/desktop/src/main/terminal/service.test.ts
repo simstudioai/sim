@@ -1,11 +1,83 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
+
+/**
+ * A tmux attachment the service sees only when a test turns it on. Runs get real status files;
+ * stopping a run ends its command the way Ctrl-C in its pane would. Which panes tmux still holds
+ * as the run's, and the identity checks behind that, are covered against a fake tmux binary in
+ * `tmux.test.ts`; here the service's bookkeeping is what is under test.
+ */
+const tmuxFake = vi.hoisted(() => ({
+  on: false,
+  /** Panes a run was stopped in, in order. */
+  stopped: [] as string[],
+  /** Panes no longer the run's (closed by the user, or reused after a tmux restart). */
+  gone: new Set<string>(),
+  statusPaths: new Map<string, string>(),
+}))
+
+vi.mock('@/main/terminal/tmux', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/main/terminal/tmux')>('@/main/terminal/tmux')
+  let nextPane = 1
+  return {
+    ...actual,
+    isTmuxUnavailable: () => (tmuxFake.on ? false : actual.isTmuxUnavailable()),
+    resolveAttachment: async (pid: number, env: NodeJS.ProcessEnv) =>
+      tmuxFake.on
+        ? { session: 'agent', clientTty: '/dev/ttys001' }
+        : actual.resolveAttachment(pid, env),
+    startRun: async (...args: Parameters<typeof actual.startRun>) => {
+      if (!tmuxFake.on) return actual.startRun(...args)
+      const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
+      const pane = `%${nextPane++}`
+      const statusPath = join(dir, 'status')
+      writeFileSync(join(dir, 'out'), 'partial output')
+      tmuxFake.statusPaths.set(pane, statusPath)
+      return {
+        window: `@${pane.slice(1)}`,
+        pane,
+        runId: `run-${pane}`,
+        outPath: join(dir, 'out'),
+        statusPath,
+        dispose: () => rmSync(dir, { recursive: true, force: true }),
+      }
+    },
+    runPaneState: async (...args: Parameters<typeof actual.runPaneState>) => {
+      if (!tmuxFake.on) return actual.runPaneState(...args)
+      return tmuxFake.gone.has(args[0].pane) ? 'gone' : 'ours'
+    },
+    stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
+      if (!tmuxFake.on) return actual.stopRun(...args)
+      const [handle] = args
+      if (tmuxFake.gone.has(handle.pane)) return
+      tmuxFake.stopped.push(handle.pane)
+      writeFileSync(handle.statusPath, '130')
+    },
+    closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
+      if (!tmuxFake.on) return actual.closeRunPane(...args)
+    },
+  }
+})
 
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
   stubSessions: new Map<
     string,
-    { setBusy(busy: boolean): void; exit(): void; clearScrollback(): void }
+    {
+      setBusy(busy: boolean): void
+      exit(): void
+      clearScrollback(): void
+      /** Whether Ctrl-C ends the running command, as it does for most programs. */
+      setInterruptible(interruptible: boolean): void
+      /** Ends the running command the way its process exiting would. */
+      finishRun(exitCode: number): void
+      kill: ReturnType<typeof vi.fn>
+      readonly runningToolCallId: string | null
+    }
   >(),
 }))
 
@@ -32,11 +104,45 @@ vi.mock('@/main/terminal/session', async () => {
         terminalId: string
         callbacks: { onExit(terminalId: string): void }
       }) => {
-        const state = { cwd, disposed: false, busy: false }
+        const state = {
+          cwd,
+          disposed: false,
+          busy: false,
+          interruptible: true,
+          toolCallId: null as string | null,
+          resolveRun: null as ((result: Record<string, unknown>) => void) | null,
+        }
+        const finishRun = (exitCode: number) => {
+          const resolve = state.resolveRun
+          state.busy = false
+          state.toolCallId = null
+          state.resolveRun = null
+          resolve?.({ status: 'completed', exitCode, terminalId })
+        }
         const stub = {
           setBusy: (busy: boolean) => {
             state.busy = busy
           },
+          setInterruptible: (interruptible: boolean) => {
+            state.interruptible = interruptible
+          },
+          finishRun,
+          runCommand: (_command: string, toolCallId: string) =>
+            new Promise((resolve) => {
+              state.busy = true
+              state.toolCallId = toolCallId
+              state.resolveRun = resolve
+            }),
+          get runningToolCallId() {
+            return state.toolCallId
+          },
+          get agentCommandToolCallId() {
+            return state.toolCallId
+          },
+          kill: vi.fn((signal: string) => {
+            if (signal === 'SIGINT' && state.interruptible) finishRun(130)
+          }),
+          waitForShellIntegration: async () => {},
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true
@@ -330,5 +436,228 @@ describe('a shell that ends by itself', () => {
     const after = terminal.getTabs()
     expect(after.tabs).toHaveLength(0)
     expect(after.activeTerminalId).toBeNull()
+  })
+})
+
+describe('stopping a tool call', () => {
+  const COMMAND_GROUP = 4242
+
+  function cancellableService() {
+    /** The tty's foreground group as the OS would report it at each read. */
+    let foreground: number | null = COMMAND_GROUP
+    const processGroups = {
+      foreground: vi.fn(async (_shellPid: number) => foreground),
+      signal: vi.fn((_pgid: number, _signal: NodeJS.Signals) => {}),
+    }
+    const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
+    const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+    const session = stubSessions.get(activeTerminalId as string)
+    if (!session) throw new Error('No stub session')
+    return {
+      terminal,
+      session,
+      processGroups,
+      setForeground: (pgid: number | null) => {
+        foreground = pgid
+      },
+    }
+  }
+
+  /** Starts a run and waits until its command holds the terminal's foreground. */
+  async function startRun(
+    terminal: TerminalService,
+    session: { runningToolCallId: string | null },
+    toolCallId: string
+  ) {
+    const running = terminal.executeTool(toolCallId, 'run', { command: 'sleep 60' })
+    await vi.waitFor(() => expect(session.runningToolCallId).toBe(toolCallId))
+    return { running }
+  }
+
+  it('interrupts the command its run started, and the run reports how it ended', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-run')
+
+    await expect(terminal.cancelTool('call-run')).resolves.toBe(true)
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+    expect(processGroups.signal).not.toHaveBeenCalled()
+  })
+
+  it("terminates the command's own process group when it ignores Ctrl-C", async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    processGroups.signal.mockImplementation(() => session.finishRun(143))
+    const { running } = await startRun(terminal, session, 'call-stubborn')
+
+    await terminal.cancelTool('call-stubborn')
+
+    expect(processGroups.signal).toHaveBeenCalledWith(COMMAND_GROUP, 'SIGTERM')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 143 } })
+  })
+
+  it('never signals a different command that took the foreground meanwhile', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    const { running } = await startRun(terminal, session, 'call-replaced')
+    session.kill.mockImplementation(() => setForeground(9999))
+
+    await terminal.cancelTool('call-replaced')
+
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
+  })
+
+  it('runs nothing when the Stop arrives before the command starts', async () => {
+    const { terminal, session } = cancellableService()
+    const running = terminal.executeTool('call-early', 'run', { command: 'rm -rf build' })
+    await terminal.cancelTool('call-early')
+
+    await expect(running).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(session.runningToolCallId).toBeNull()
+  })
+
+  it('sends no signal or keys for a kill or input stopped before it starts', async () => {
+    const { terminal, session } = cancellableService()
+    session.setBusy(true)
+    const killing = terminal.executeTool('call-kill', 'kill', { signal: 'SIGTERM' })
+    const typing = terminal.executeTool('call-input', 'input', { text: 'yes\n' })
+    await Promise.all([terminal.cancelTool('call-kill'), terminal.cancelTool('call-input')])
+
+    await expect(killing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    await expect(typing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(session.kill).not.toHaveBeenCalled()
+  })
+
+  it("stops the agent's running command at sign-out", async () => {
+    const { terminal, session } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-left-running')
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+  })
+
+  it('leaves a command the user started alone at sign-out', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setBusy(true)
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(processGroups.signal).not.toHaveBeenCalled()
+  })
+
+  it('leaves the terminal alone for a call it is not running', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-other')
+
+    await expect(terminal.cancelTool('call-unknown')).resolves.toBe(false)
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
+  })
+})
+
+describe('agent commands in tmux', () => {
+  it('stops a tmux run at sign-out while its call still waits on it', async () => {
+    tmuxFake.on = true
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 60,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.stopped).toEqual(['%1'])
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'completed', exitCode: 130 },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it("keeps a run's output readable for its call when the terminal goes away mid-wait", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux-closed', 'run', {
+        command: 'make build',
+        waitSeconds: 1,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      terminal.dispose()
+
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'running', output: 'partial output' },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it('releases a run whose pane is gone instead of ever stopping it', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-first', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      const [pane, statusPath] = [...tmuxFake.statusPaths][0] ?? []
+      tmuxFake.gone.add(pane ?? '')
+
+      await terminal.stopAgentCommands()
+      expect(tmuxFake.stopped).toEqual([])
+
+      // The next run's bookkeeping drops it for good.
+      void terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+      await vi.waitFor(() => expect(existsSync(statusPath ?? '')).toBe(false))
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(2))
+      expect(existsSync(join(statusPath ?? '', '..'))).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.gone.clear()
+    }
+  })
+
+  it('still stops at sign-out a run whose Sim terminal was closed', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-orphan', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.stopped).toEqual([[...tmuxFake.statusPaths.keys()][0]])
+    } finally {
+      tmuxFake.on = false
+    }
   })
 })

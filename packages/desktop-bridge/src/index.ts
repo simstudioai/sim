@@ -1073,7 +1073,7 @@ interface SimDesktopServerApi {
 }
 
 /** The device the desktop app registered for its background executor. */
-interface DesktopExecutorDevice {
+export interface DesktopExecutorDevice {
   /** The install id Sim binds a turn to. */
   deviceId: string
   /** The executor protocol version Sim accepted at registration. */

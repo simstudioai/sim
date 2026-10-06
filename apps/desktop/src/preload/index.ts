@@ -28,6 +28,7 @@ import type {
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   DesktopCommand,
+  DesktopExecutorDevice,
   DesktopLocalFileRequest,
   DesktopLocalFileResponse,
   DesktopNotificationPayload,
@@ -192,6 +193,10 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:set-appearance', 'terminalTheme', theme),
     setTerminalDefaultZoom: (zoom: DesktopZoomPercent): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-terminal-default-zoom', zoom),
+  },
+  desktopExecutor: {
+    getDevice: (): Promise<DesktopExecutorDevice | null> =>
+      ipcRenderer.invoke('desktop-executor:get-device'),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),

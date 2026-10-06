@@ -316,6 +316,12 @@ export class TerminalSession {
   private altScreen = false
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
+  /**
+   * The agent tool call whose command is still running, until that command really ends. Unlike
+   * {@link runningToolCallId} it survives an interactive command detaching from the tool call:
+   * the command is still the agent's, so Stop and sign-out can still end it.
+   */
+  private agentToolCallId: string | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
@@ -434,6 +440,16 @@ export class TerminalSession {
     return this.foregroundCommand
   }
 
+  /** The agent tool call whose command holds the foreground, if one does. */
+  get runningToolCallId(): string | null {
+    return this.foregroundToolCallId
+  }
+
+  /** The agent tool call whose command is still running in this shell, if one is. */
+  get agentCommandToolCallId(): string | null {
+    return this.agentToolCallId
+  }
+
   /**
    * Tab-strip view of this terminal. The label prefers the running command,
    * which is what the user is actually waiting on, and falls back to the
@@ -508,10 +524,11 @@ export class TerminalSession {
    * The pause also lets a menu redraw between presses, which is what makes a
    * batch land on the row a person pressing the same keys would reach.
    */
-  async pressKeys(keys: TerminalControlKey[]): Promise<void> {
+  async pressKeys(keys: TerminalControlKey[], signal?: AbortSignal): Promise<void> {
     for (let index = 0; index < keys.length; index += 1) {
-      if (this.disposed) return
+      if (this.disposed || signal?.aborted) return
       if (index > 0) await this.settleBetweenKeystrokes()
+      if (signal?.aborted) return
       this.sendKey(keys[index])
     }
   }
@@ -522,11 +539,12 @@ export class TerminalSession {
    * gets a chance to redraw between them. See {@link toInputChunks} for why
    * sending it all at once leaves the text unsubmitted.
    */
-  async type(text: string): Promise<void> {
+  async type(text: string, signal?: AbortSignal): Promise<void> {
     const chunks = toInputChunks(text)
     for (let index = 0; index < chunks.length; index += 1) {
-      if (this.disposed) return
+      if (this.disposed || signal?.aborted) return
       if (index > 0) await this.settleBetweenKeystrokes()
+      if (signal?.aborted) return
       this.write(chunks[index])
     }
   }
@@ -597,6 +615,7 @@ export class TerminalSession {
       }
       this.foregroundCommand = command
       this.foregroundToolCallId = toolCallId
+      this.agentToolCallId = toolCallId
       this.emitState()
       this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
@@ -976,6 +995,7 @@ export class TerminalSession {
 
     this.foregroundCommand = null
     this.foregroundToolCallId = null
+    this.agentToolCallId = null
     this.announcedCommand = null
     this.altScreen = false
     this.emitState()
