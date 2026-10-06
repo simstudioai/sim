@@ -90,7 +90,6 @@ export const UPLOAD_SESSION_ASSET_MAX_BYTES = 5 * 1024 * 1024
 const PROCESSING_LEASE_MS = 5 * 60 * 1000
 const CLEANUP_BATCH_SIZE = 100
 const TERMINAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-const cleanupDb = dbFor('cleanup')
 
 export type { UploadSessionPurpose, UploadSessionStatus, UploadTransferMethod }
 
@@ -1115,6 +1114,7 @@ export async function cleanupExpiredUploadSessions(): Promise<{
   failed: number
   purged: number
 }> {
+  const cleanupDb = dbFor('cleanup')
   const now = new Date()
   const candidates = await cleanupDb
     .select()
