@@ -355,6 +355,7 @@ describe('sse-handlers tool lifecycle', () => {
       args: {},
       sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      permissionRequested: false,
     })
     expect(sealClientToolContext).toHaveBeenCalledWith({
       toolCallId: 'browser-tool-1',
@@ -396,6 +397,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'deploy_as_api',
       args: { versionName: 'v2' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      permissionRequested: true,
     })
     expect(event.payload.status).toBe('awaiting_approval')
   })
@@ -586,6 +588,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'run_workflow',
       args: { workflowId: 'workflow-1' },
       status: MothershipStreamV1AsyncToolRecordStatus.running,
+      permissionRequested: false,
     })
   })
 

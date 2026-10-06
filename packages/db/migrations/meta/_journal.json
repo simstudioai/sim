@@ -2763,8 +2763,15 @@
     {
       "idx": 395,
       "version": "7",
-      "when": 1790986787652,
-      "tag": "0395_project_membership_enforcement",
+      "when": 1791242831820,
+      "tag": "0395_desktop_tool_permission_requested",
+      "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1791257263939,
+      "tag": "0396_project_membership_enforcement",
       "breakpoints": true
     }
   ]

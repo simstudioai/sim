@@ -1,3 +1,4 @@
+import { unboxJsonPrimitive } from '@/lib/core/utils/boxed-primitives'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -353,14 +354,11 @@ function assertJsonSerializable(value: unknown): void {
       const toJSON = (current as { toJSON?: unknown }).toJSON
       if (typeof toJSON === 'function') current = toJSON.call(current, key)
     }
-    if (typeof current === 'bigint' || current instanceof BigInt) {
+    if (typeof current === 'object' && current !== null) current = unboxJsonPrimitive(current)
+    if (typeof current === 'bigint') {
       throw new TypeError('Do not know how to serialize a BigInt')
     }
     if (typeof current !== 'object' || current === null) return
-    // Serialized as their primitive value; their own properties are never read.
-    if (current instanceof Number || current instanceof String || current instanceof Boolean) {
-      return
-    }
     if (ancestors.has(current)) {
       throw new TypeError('Converting circular structure to JSON')
     }
