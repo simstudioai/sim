@@ -316,7 +316,9 @@ describe('workflow mutation Copilot adapters', () => {
         workspaceId: 'workspace-1',
         displayName: 'Support',
         description: undefined,
-        storedSlackSecrets: { signingSecretEnvVar: 'SIGNING', botTokenEnvVar: 'BOT' },
+        providerId: 'slack-custom-bot',
+        signingSecret: '{{SIGNING}}',
+        botToken: '{{BOT}}',
       }
     )
     expect(result.output).toEqual({

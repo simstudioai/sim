@@ -22,24 +22,16 @@ import {
   deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import type { CredentialRow } from '@/lib/credentials/queries'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
+import { SERVICE_ACCOUNT_SECRET_FIELD_IDS } from '@/lib/credentials/service-account-fields'
+import { parseExactEnvironmentReference } from '@/lib/environment/reference'
+import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
-type InlineServiceAccountInput = Omit<CreateServiceAccountCredentialParams, 'userId' | 'request'>
-
-export interface StoredSlackBotCredentialInput {
-  workspaceId: string
-  displayName: string
-  description?: string
-  storedSlackSecrets: {
-    signingSecretEnvVar: string
-    botTokenEnvVar: string
-  }
-}
-
-export type CreateServiceAccountInput = InlineServiceAccountInput | StoredSlackBotCredentialInput
+export type CreateServiceAccountInput = Omit<
+  CreateServiceAccountCredentialParams,
+  'userId' | 'request'
+>
 
 export interface CreateServiceAccountResult {
   credential: CredentialRow
@@ -58,6 +50,37 @@ class CredentialProviderUnavailableError extends HttpError {
   }
 }
 
+/** Copilot passes secret fields as `{{NAME}}` references, never raw values. */
+async function resolveDelegatedSecretReferences(
+  userId: string,
+  workspaceId: string,
+  input: CreateServiceAccountInput
+): Promise<CreateServiceAccountInput> {
+  const references = SERVICE_ACCOUNT_SECRET_FIELD_IDS.flatMap((field) => {
+    const value = input[field]
+    if (value === undefined) return []
+    return [{ field, name: parseExactEnvironmentReference(value) }]
+  })
+  const raw = references.filter(({ name }) => !name).map(({ field }) => field)
+  if (raw.length) {
+    throw new OrchestrationError(
+      'validation',
+      `Copilot must reference existing Sim secrets as {{NAME}} for: ${raw.join(', ')}`
+    )
+  }
+  const names = references.flatMap(({ name }) => (name ? [name] : []))
+  const environment = await resolveEffectiveEnvironmentVariables(userId, workspaceId, names)
+  const missing = names.filter((name) => !environment[name]?.value)
+  if (missing.length) {
+    throw new OrchestrationError('validation', `Stored secrets unavailable: ${missing.join(', ')}`)
+  }
+  const resolved: CreateServiceAccountInput = { ...input }
+  for (const { field, name } of references) {
+    if (name) resolved[field] = environment[name].value
+  }
+  return resolved
+}
+
 export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.createServiceAccount,
   resolveContext: async ({ input }: { input: CreateServiceAccountInput }) => {
@@ -67,38 +90,13 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
   },
   authorizationOptions: { delegation: credentialDelegationPolicy },
   async execute({ principal, input, context, request }): Promise<CreateServiceAccountResult> {
-    const stored = 'storedSlackSecrets' in input
-    if (principal.kind === 'delegated' && !stored) {
-      throw new OrchestrationError('validation', 'Copilot must reference existing Sim secrets')
-    }
     const catalog = await listCredentialProviderCatalog(principal, context)
-    const providerId = stored ? SLACK_CUSTOM_BOT_PROVIDER_ID : input.providerId
-    requireAvailableServiceAccountCredentialProvider(catalog, providerId)
+    requireAvailableServiceAccountCredentialProvider(catalog, input.providerId)
     const userId = requirePrincipalSubjectUserId(principal)
-    let credentialInput: InlineServiceAccountInput
-    if (stored) {
-      const { signingSecretEnvVar, botTokenEnvVar } = input.storedSlackSecrets
-      const environment = await getEffectiveDecryptedEnv(userId, context.workspaceId)
-      const missing = [signingSecretEnvVar, botTokenEnvVar].filter(
-        (name) => !Object.hasOwn(environment, name) || !environment[name]
-      )
-      if (missing.length) {
-        throw new OrchestrationError(
-          'validation',
-          `Stored secrets unavailable: ${missing.join(', ')}`
-        )
-      }
-      credentialInput = {
-        workspaceId: context.workspaceId,
-        providerId,
-        displayName: input.displayName,
-        description: input.description,
-        signingSecret: environment[signingSecretEnvVar],
-        botToken: environment[botTokenEnvVar],
-      }
-    } else {
-      credentialInput = input
-    }
+    const credentialInput =
+      principal.kind === 'delegated'
+        ? await resolveDelegatedSecretReferences(userId, context.workspaceId, input)
+        : input
     const result = await createServiceAccountCredential({
       ...credentialInput,
       workspaceId: context.workspaceId,

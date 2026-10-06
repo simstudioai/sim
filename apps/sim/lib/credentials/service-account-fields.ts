@@ -9,6 +9,16 @@ import {
 export const ATLASSIAN_PRODUCTS = ['jira', 'confluence'] as const
 export type AtlassianProduct = (typeof ATLASSIAN_PRODUCTS)[number]
 
+/** Fields that always hold secret values. */
+export const SERVICE_ACCOUNT_SECRET_FIELD_IDS = [
+  'serviceAccountJson',
+  'apiToken',
+  'signingSecret',
+  'botToken',
+  'clientSecret',
+  'privateKey',
+] as const
+
 /** Every secret field a service-account credential create/reconnect can carry. */
 export type ServiceAccountFieldId =
   | 'apiToken'
