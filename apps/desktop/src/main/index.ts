@@ -605,7 +605,10 @@ function main(): void {
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,
       browser: {
-        executeTool: executeAgentBrowserTool,
+        executeTool: (scopeId, tool, params, toolCallId) =>
+          executeAgentBrowserTool(scopeId, tool, params, toolCallId, undefined, {
+            background: true,
+          }),
         cancelTool: cancelAgentBrowserTool,
         hasSession: hasBrowserScopeSession,
         restoreScope: restoreAgentBrowserScope,

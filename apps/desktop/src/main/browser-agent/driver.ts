@@ -19,6 +19,7 @@
 import {
   BROWSER_DATA_KINDS,
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
+  BROWSER_TOOL_OBSERVES_ONLY,
   BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
   BROWSER_UPLOAD_MAX_FILES,
   type BrowserDataKind,
@@ -5135,12 +5136,23 @@ async function yieldToUser(
   logger.info('Browser automation resumed after the user stopped', { toolCallId })
 }
 
+/** How a browser call reached the driver. */
+interface BrowserToolExecutionOptions {
+  /**
+   * Run by the background executor while the user may be working in the same page, so it yields
+   * the page to them. A call from the chat view the user is watching never does: there the user
+   * steers the agent directly, as they always have.
+   */
+  background?: boolean
+}
+
 export async function executeTool(
   scopeId: string,
   tool: BrowserToolName,
   params: Record<string, unknown>,
   toolCallId?: string,
-  authorizationBoundary?: BrowserToolQueueBoundary
+  authorizationBoundary?: BrowserToolQueueBoundary,
+  options: BrowserToolExecutionOptions = {}
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (authorizationBoundary) {
@@ -5231,7 +5243,11 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
-          const yieldsToUser = tool !== 'browser_request_takeover'
+          // Only a background call acting on the page yields; reading it cannot collide with the user.
+          const yieldsToUser =
+            options.background === true &&
+            tool !== 'browser_request_takeover' &&
+            !BROWSER_TOOL_OBSERVES_ONLY[tool]
           const watchdogMs = browserToolWatchdogMs(tool, params)
           if (yieldsToUser && isUserWorkingInPage()) {
             await yieldToUser(

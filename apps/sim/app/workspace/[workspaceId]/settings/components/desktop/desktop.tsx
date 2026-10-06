@@ -33,6 +33,8 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
+  /** Whether Sim runs chats on this device in the background; only then can sleep matter. */
+  const [runsInBackground, setRunsInBackground] = useState(false)
   const updateState = useDesktopUpdateState()
   const shellVersion = getDesktopShellVersion()
 
@@ -46,6 +48,10 @@ export function Desktop() {
       .getPreferences()
       .then(setPreferences)
       .catch(() => toast.error('Could not load desktop settings'))
+    void bridge.desktopExecutor
+      ?.getDevice()
+      .then((device) => setRunsInBackground(device !== null))
+      .catch(() => setRunsInBackground(false))
   }, [router, workspaceId])
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
@@ -73,7 +79,8 @@ export function Desktop() {
 
   const notificationsDisabled =
     !preferences.notificationsEnabled || pendingPreference === 'notificationsEnabled'
-  const supportsPreventSleep = Boolean(getDesktopBridge()?.settings.setPreventSleepWhileRunning)
+  const supportsPreventSleep =
+    runsInBackground && Boolean(getDesktopBridge()?.settings.setPreventSleepWhileRunning)
 
   return (
     <SettingsPanel>

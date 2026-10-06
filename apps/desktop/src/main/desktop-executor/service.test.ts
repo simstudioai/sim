@@ -12,6 +12,8 @@ import { createDesktopExecutorService, deviceName } from '@/main/desktop-executo
 /** Sim's device routes, with registration answers held until the test releases them. */
 function fakeSim(protocolVersion = 1) {
   const requests: string[] = []
+  /** Calls the inbox offers; a claim answers for the first one. */
+  const offered: string[] = []
   /**
    * Answers to pending registrations: enabled or not, an HTTP status Sim fails with, or
    * `'offline'` for a request that never reached Sim.
@@ -37,25 +39,60 @@ function fakeSim(protocolVersion = 1) {
         reconcileMs: 10_000,
       })
     }
-    if (path === '/api/desktop/inbox') return Response.json({ items: [] })
+    if (path === '/api/desktop/inbox') {
+      return Response.json({
+        items: offered.map((toolCallId) => ({
+          kind: 'call',
+          toolCallId,
+          toolName: 'terminal',
+          chatId: 'chat-a',
+          workspaceId: 'ws-1',
+          createdAt: new Date().toISOString(),
+        })),
+      })
+    }
+    if (path === '/api/desktop/tool/claim') {
+      const toolCallId = offered.shift()
+      if (!toolCallId) return Response.json({ error: 'gone' }, { status: 404 })
+      return Response.json({
+        toolName: 'terminal',
+        args: { operation: 'run', args: { command: 'sleep 600' } },
+        chatId: 'chat-a',
+        workspaceId: 'ws-1',
+        executionToken: `token-${toolCallId}`,
+      })
+    }
+    if (path === '/api/desktop/tool/lease') return Response.json({ renewed: true })
     return new Promise<Response>((_resolve, reject) =>
       init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
     )
   })
-  return { fetch, requests, registrations }
+  return { fetch, requests, registrations, offered }
 }
 
 async function service(protocolVersion = 1, userDataPath?: string) {
   const sim = fakeSim(protocolVersion)
+  /** What the sleep blocker was told, in order. */
+  const busy: boolean[] = []
   const desktopExecutor = createDesktopExecutorService({
     userDataPath: userDataPath ?? (await mkdtemp(join(tmpdir(), 'sim-executor-service-'))),
     origin: () => 'https://sim.test',
     appSession: () => ({ fetch: sim.fetch }),
     preferences: () => ({ browserEnabled: true, terminalEnabled: true }),
     accountDataAvailable: () => true,
-    runner: { run: vi.fn(), cancel: vi.fn() },
+    // A command that runs until it is stopped.
+    runner: {
+      run: (_call, signal) =>
+        new Promise((resolve) =>
+          signal.addEventListener('abort', () =>
+            resolve({ status: 'cancelled', message: 'Stopped.' })
+          )
+        ),
+      cancel: async () => {},
+    },
+    onBusyChange: (value) => busy.push(value),
   })
-  return { sim, desktopExecutor }
+  return { sim, desktopExecutor, busy }
 }
 
 describe('desktop executor registration', () => {
@@ -176,6 +213,19 @@ describe('desktop executor registration', () => {
     await sleep(200)
 
     expect(sim.requests.filter((request) => request.includes('/api/desktop/devices'))).toEqual([])
+  })
+
+  it('releases the sleep blocker at sign-out while a call is still running', async () => {
+    const { sim, desktopExecutor, busy } = await service()
+    sim.offered.push('call-1')
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    sim.registrations[0]?.(true)
+    await vi.waitFor(() => expect(busy).toEqual([true]))
+
+    await desktopExecutor.signOut()
+
+    expect(busy).toEqual([true, false])
   })
 })
 
