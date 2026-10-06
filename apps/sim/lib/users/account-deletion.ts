@@ -15,6 +15,7 @@ import {
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
@@ -820,7 +821,23 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
 
-    await tx.delete(user).where(eq(user.id, userId))
+    try {
+      await tx.delete(user).where(eq(user.id, userId))
+    } catch (error) {
+      if (
+        getPostgresErrorCode(error) === '23503' &&
+        getPostgresConstraintName(error) === 'project_owner_id_user_id_fk'
+      ) {
+        throw new AccountDeletionBlockedError([
+          {
+            code: 'project_lifecycle',
+            message:
+              'A Project changed while your account was being deleted. Nothing was changed — try again.',
+          },
+        ])
+      }
+      throw error
+    }
   })
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)

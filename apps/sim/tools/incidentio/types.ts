@@ -374,7 +374,7 @@ export const INCIDENTIO_TEAM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common parameters for all incident.io tools
-export interface IncidentioBaseParams {
+interface IncidentioBaseParams {
   apiKey: string
 }
 
@@ -708,7 +708,7 @@ export interface WorkflowsDeleteResponse extends ToolResponse {
 }
 
 // Custom field types
-export type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
+type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
 
 interface CustomField {
   id: string
@@ -867,73 +867,6 @@ export interface IncidentioIncidentTypesListResponse extends ToolResponse {
     incident_types: IncidentioIncidentType[]
   }
 }
-
-export type IncidentioResponse =
-  | IncidentioIncidentsListResponse
-  | IncidentioIncidentsCreateResponse
-  | IncidentioIncidentsShowResponse
-  | IncidentioIncidentsUpdateResponse
-  | IncidentioActionsListResponse
-  | IncidentioActionsShowResponse
-  | IncidentioFollowUpsListResponse
-  | IncidentioFollowUpsShowResponse
-  | WorkflowsListResponse
-  | WorkflowsCreateResponse
-  | WorkflowsShowResponse
-  | WorkflowsUpdateResponse
-  | WorkflowsDeleteResponse
-  | CustomFieldsListResponse
-  | CustomFieldsCreateResponse
-  | CustomFieldsShowResponse
-  | CustomFieldsUpdateResponse
-  | CustomFieldsDeleteResponse
-  | IncidentioUsersListResponse
-  | IncidentioUsersShowResponse
-  | IncidentioSeveritiesListResponse
-  | IncidentioIncidentStatusesListResponse
-  | IncidentioIncidentTypesListResponse
-  | IncidentioEscalationsListResponse
-  | IncidentioEscalationsCreateResponse
-  | IncidentioEscalationsShowResponse
-  | IncidentioSchedulesListResponse
-  | IncidentioSchedulesCreateResponse
-  | IncidentioSchedulesShowResponse
-  | IncidentioSchedulesUpdateResponse
-  | IncidentioSchedulesDeleteResponse
-  | IncidentioIncidentRolesListResponse
-  | IncidentioIncidentRolesCreateResponse
-  | IncidentioIncidentRolesShowResponse
-  | IncidentioIncidentRolesUpdateResponse
-  | IncidentioIncidentRolesDeleteResponse
-  | IncidentioIncidentTimestampsListResponse
-  | IncidentioIncidentTimestampsShowResponse
-  | IncidentioIncidentUpdatesListResponse
-  | IncidentioScheduleEntriesListResponse
-  | IncidentioScheduleOverridesCreateResponse
-  | IncidentioEscalationPathsListResponse
-  | IncidentioEscalationPathsCreateResponse
-  | IncidentioEscalationPathsShowResponse
-  | IncidentioEscalationPathsUpdateResponse
-  | IncidentioEscalationPathsDeleteResponse
-  | IncidentioOnCallNowResponse
-  | IncidentioScheduleOverridesListResponse
-  | IncidentioAlertsListResponse
-  | IncidentioAlertsShowResponse
-  | IncidentioAlertsResolveResponse
-  | IncidentioAlertEventsCreateResponse
-  | IncidentioIncidentAlertsListResponse
-  | IncidentioEscalationsCancelResponse
-  | IncidentioCatalogTypesListResponse
-  | IncidentioCatalogEntriesListResponse
-  | IncidentioTeamsListResponse
-  | IncidentioTeamsShowResponse
-  | IncidentioFollowUpsCreateResponse
-  | IncidentioFollowUpsUpdateResponse
-  | IncidentioActionsCreateResponse
-  | IncidentioActionsUpdateResponse
-  | IncidentioIncidentParticipantsListResponse
-  | IncidentioIncidentMembershipsCreateResponse
-  | IncidentioIncidentMembershipsRevokeResponse
 
 // Escalations types
 export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
@@ -1373,7 +1306,7 @@ export interface IncidentioEscalationPathsDeleteResponse extends ToolResponse {
  * documents `email`, `role`, and `slack_user_id` as optional.
  * @see https://docs.incident.io/api-reference
  */
-export interface IncidentioSlimUser {
+interface IncidentioSlimUser {
   id: string
   name: string
   email?: string
@@ -1382,7 +1315,7 @@ export interface IncidentioSlimUser {
 }
 
 /** Pagination envelope returned by incident.io list endpoints. */
-export interface IncidentioPaginationMeta {
+interface IncidentioPaginationMeta {
   after?: string
   page_size: number
   total_record_count?: number
@@ -1423,7 +1356,7 @@ export interface IncidentioOnCallNowResponse extends ToolResponse {
 }
 
 /** A one-off change layered over a schedule's rotations, as the list endpoint returns it. */
-export interface IncidentioScheduleOverrideRecord {
+interface IncidentioScheduleOverrideRecord {
   id: string
   schedule_id: string
   rotation_id: string
@@ -1451,7 +1384,7 @@ export interface IncidentioScheduleOverridesListResponse extends ToolResponse {
 }
 
 /** A single value on an alert attribute, either a literal or a catalog entry reference. */
-export interface IncidentioAlertAttributeValue {
+interface IncidentioAlertAttributeValue {
   literal?: string
   label?: string
   catalog_entry?: {
@@ -1462,7 +1395,7 @@ export interface IncidentioAlertAttributeValue {
 }
 
 /** An attribute value parsed from an alert's payload by its alert source config. */
-export interface IncidentioAlertAttributeEntry {
+interface IncidentioAlertAttributeEntry {
   attribute: {
     id: string
     name: string
@@ -1475,7 +1408,7 @@ export interface IncidentioAlertAttributeEntry {
   array_value?: IncidentioAlertAttributeValue[]
 }
 
-export interface IncidentioAlert {
+interface IncidentioAlert {
   id: string
   title: string
   status: string
@@ -1491,7 +1424,7 @@ export interface IncidentioAlert {
 }
 
 /** The alert shape returned on incident-alert connections, which omits `attributes`. */
-export type IncidentioAlertSlim = Omit<IncidentioAlert, 'attributes'>
+type IncidentioAlertSlim = Omit<IncidentioAlert, 'attributes'>
 
 export interface IncidentioAlertsListParams extends IncidentioBaseParams {
   page_size?: number
@@ -1558,7 +1491,7 @@ export interface IncidentioAlertEventsCreateResponse extends ToolResponse {
 }
 
 /** The connection between an alert and the incident it was attached to. */
-export interface IncidentioIncidentAlert {
+interface IncidentioIncidentAlert {
   id: string
   alert: IncidentioAlertSlim
   incident: {
@@ -1598,7 +1531,7 @@ export interface IncidentioEscalationsCancelResponse extends ToolResponse {
 }
 
 /** A catalog type, describing the schema shared by all entries of that type. */
-export interface IncidentioCatalogType {
+interface IncidentioCatalogType {
   id: string
   name: string
   description: string
@@ -1642,7 +1575,7 @@ export interface IncidentioCatalogTypesListResponse extends ToolResponse {
 }
 
 /** A single entry of a catalog type, such as one service or one team. */
-export interface IncidentioCatalogEntry {
+interface IncidentioCatalogEntry {
   id: string
   name: string
   catalog_type_id: string
@@ -1670,7 +1603,7 @@ export interface IncidentioCatalogEntriesListResponse extends ToolResponse {
   }
 }
 
-export interface IncidentioTeam {
+interface IncidentioTeam {
   id: string
   name: string
   members: IncidentioSlimUser[]
@@ -1855,7 +1788,7 @@ export const INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES = {
  * Whoever caused something to happen. Exactly one of these is populated, so consumers should
  * check each in turn rather than assuming a user.
  */
-export interface IncidentioActor {
+interface IncidentioActor {
   user?: IncidentioSlimUser
   api_key?: { id: string; name: string }
   workflow?: { id: string; name: string }
@@ -1863,14 +1796,14 @@ export interface IncidentioActor {
 }
 
 /** A reference to the issue an action or follow-up was exported to. */
-export interface IncidentioExternalIssueReference {
+interface IncidentioExternalIssueReference {
   provider: string
   issue_name: string
   issue_permalink: string
 }
 
 /** A follow-up exactly as the incident.io API returns it. */
-export interface IncidentioFollowUpRecord {
+interface IncidentioFollowUpRecord {
   id: string
   incident_id: string
   title: string
@@ -1893,7 +1826,7 @@ export interface IncidentioFollowUpRecord {
 }
 
 /** An action exactly as the incident.io API returns it. */
-export interface IncidentioActionRecord {
+interface IncidentioActionRecord {
   id: string
   incident_id: string
   description: string
@@ -1968,7 +1901,7 @@ export interface IncidentioActionsUpdateResponse extends ToolResponse {
 }
 
 /** A person who took part in an incident, annotated with how they participated. */
-export interface IncidentioIncidentParticipant {
+interface IncidentioIncidentParticipant {
   participant_type: string
   user: IncidentioSlimUser
 }

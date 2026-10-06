@@ -285,17 +285,3 @@ export interface AsanaListSectionsResponse extends ToolResponse {
     }>
   }
 }
-
-export type AsanaResponse =
-  | AsanaGetTaskResponse
-  | AsanaCreateTaskResponse
-  | AsanaUpdateTaskResponse
-  | AsanaGetProjectsResponse
-  | AsanaSearchTasksResponse
-  | AsanaAddCommentResponse
-  | AsanaProjectRecordResponse
-  | AsanaListWorkspacesResponse
-  | AsanaDeleteTaskResponse
-  | AsanaAddFollowersResponse
-  | AsanaSectionResponse
-  | AsanaListSectionsResponse

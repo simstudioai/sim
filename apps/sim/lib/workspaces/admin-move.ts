@@ -29,7 +29,6 @@ import {
   planHasFixedSeatCap,
   resolveSeatCapacity,
 } from '@/lib/billing/validation/seat-management'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   addOutboxEventSourceOperationId,
   enqueueOrReschedulePendingOutboxEvent,
@@ -41,7 +40,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
-import { transferWorkspaceProjects } from '@/lib/projects/membership'
+import { ProjectConflictError, transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
 import {
@@ -1506,7 +1505,7 @@ export async function moveWorkspaceToOrganization(params: {
       })
       break
     } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'conflict') {
+      if (error instanceof ProjectConflictError) {
         throw new WorkspaceMoveError(error.message, 'project-conflict')
       }
       if (error instanceof InvitationSetChangedError) {

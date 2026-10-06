@@ -245,8 +245,6 @@ export interface CleanedOutlookMessage {
   importance?: string
 }
 
-export type OutlookResponse = OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse
-
 export interface OutlookForwardParams {
   accessToken: string
   messageId: string
@@ -323,15 +321,6 @@ export interface OutlookCopyResponse extends ToolResponse {
     }
   }
 }
-
-export type OutlookExtendedResponse =
-  | OutlookResponse
-  | OutlookForwardResponse
-  | OutlookMoveResponse
-  | OutlookMarkReadResponse
-  | OutlookDeleteResponse
-  | OutlookCopyResponse
-  | OutlookCalendarResponse
 
 /**
  * Output definition for mail folder objects.
@@ -608,7 +597,7 @@ export const OUTLOOK_EVENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Cleaned dateTimeTimeZone value returned by our tools. */
-export interface CleanedOutlookEventDateTime {
+interface CleanedOutlookEventDateTime {
   dateTime?: string
   timeZone?: string
 }
@@ -648,7 +637,7 @@ export interface GraphDateTimeTimeZone {
 }
 
 /** Raw Microsoft Graph emailAddress value. */
-export interface GraphEmailAddress {
+interface GraphEmailAddress {
   name?: string
   address?: string
 }
@@ -813,11 +802,3 @@ export interface OutlookCalendarRespondResponse extends ToolResponse {
     }
   }
 }
-
-export type OutlookCalendarResponse =
-  | OutlookCalendarListEventsResponse
-  | OutlookCalendarGetEventResponse
-  | OutlookCalendarCreateEventResponse
-  | OutlookCalendarUpdateEventResponse
-  | OutlookCalendarDeleteEventResponse
-  | OutlookCalendarRespondResponse

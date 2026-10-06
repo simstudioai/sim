@@ -246,7 +246,8 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
           tx,
           createSessionPrincipal({ userId: f.ownerId }),
           projectOperations.get,
-          { projectId: f.projectId }
+          { projectId: f.projectId },
+          'hold'
         )
         await tx
           .select({ id: workspace.id })

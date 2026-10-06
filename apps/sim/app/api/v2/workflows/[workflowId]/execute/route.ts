@@ -448,6 +448,7 @@ export const POST = withRouteHandler(
               mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               blockId: manualRun.entry.blockId,
               sourceRunId: manualRun.entry.sourceRunId,
+              stopAfterBlockId: manualRun.stopAfterBlockId,
             },
             request: req,
           })
@@ -460,6 +461,7 @@ export const POST = withRouteHandler(
               mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
+              stopAfterBlockId: manualRun.stopAfterBlockId,
             },
             request: req,
           })

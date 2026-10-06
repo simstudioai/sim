@@ -8,10 +8,7 @@ import type {
 } from '@/tools/youcom/types'
 import {
   mapResearchSources,
-  RESEARCH_CONTENT_OUTPUT,
-  RESEARCH_CONTENT_TYPE_OUTPUT,
-  RESEARCH_SOURCES_OUTPUT,
-  RESEARCH_WARNINGS_OUTPUT,
+  RESEARCH_ANSWER_OUTPUTS,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -118,13 +115,6 @@ export const youComGetResearchTaskTool: ToolConfig<
         type: { type: 'string', description: 'Task type (research)' },
       },
     },
-    content: {
-      ...RESEARCH_CONTENT_OUTPUT,
-      description: `${RESEARCH_CONTENT_OUTPUT.description} (completed only)`,
-      nullable: true,
-    },
-    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, nullable: true },
-    sources: RESEARCH_SOURCES_OUTPUT,
-    warnings: RESEARCH_WARNINGS_OUTPUT,
+    ...RESEARCH_ANSWER_OUTPUTS,
   },
 }

@@ -26,7 +26,7 @@ export interface ExaFreshnessParams {
  * documented set; `neural`, `keyword`, and `hybrid` are legacy values the API
  * still honors, kept so workflows saved against the old dropdown keep running.
  */
-export type ExaSearchType =
+type ExaSearchType =
   | 'instant'
   | 'fast'
   | 'auto'
@@ -213,7 +213,7 @@ export interface ExaAnswerResponse extends ToolResponse {
 }
 
 /** Effort levels the Agent API accepts, trading cost against depth. */
-export type ExaAgentEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'auto'
+type ExaAgentEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'auto'
 
 export interface ExaAgentParams extends ExaBaseParams {
   query: string
@@ -242,10 +242,3 @@ export interface ExaAgentResponse extends ToolResponse {
     __costDollars?: ExaCostDollars
   }
 }
-
-export type ExaResponse =
-  | ExaSearchResponse
-  | ExaGetContentsResponse
-  | ExaFindSimilarLinksResponse
-  | ExaAnswerResponse
-  | ExaAgentResponse

@@ -441,32 +441,3 @@ export interface SmartleadLeadListsResponse extends ToolResponse {
 export interface SmartleadLeadListResponse extends ToolResponse {
   output: SmartleadLeadList
 }
-
-export type SmartleadResponse =
-  | SmartleadListCampaignsResponse
-  | SmartleadCampaignResponse
-  | SmartleadCreateCampaignResponse
-  | SmartleadActionResponse
-  | SmartleadCampaignAnalyticsResponse
-  | SmartleadCampaignAnalyticsByDateResponse
-  | SmartleadSequencesResponse
-  | SmartleadSaveSequencesResponse
-  | SmartleadCampaignStatisticsResponse
-  | SmartleadAddLeadsResponse
-  | SmartleadListCampaignLeadsResponse
-  | SmartleadLeadDetailResponse
-  | SmartleadLeadCategoriesResponse
-  | SmartleadMessageHistoryResponse
-  | SmartleadListWebhooksResponse
-  | SmartleadUpsertWebhookResponse
-  | SmartleadDuplicateCampaignResponse
-  | SmartleadExportLeadsResponse
-  | SmartleadOpaqueListResponse
-  | SmartleadPaginatedRowsResponse
-  | SmartleadTopLevelAnalyticsResponse
-  | SmartleadLeadByIdResponse
-  | SmartleadMarkCompleteResponse
-  | SmartleadWebhookSummaryResponse
-  | SmartleadLeadListsResponse
-  | SmartleadLeadListResponse
-  | SmartleadEmailAccountsResponse

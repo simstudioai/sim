@@ -291,6 +291,54 @@ export function applySourceEdits(code: string, edits: SourceEdit[]): string {
   return output + code.slice(cursor)
 }
 
-export function isOffsetInRanges(offset: number, ranges: ReadonlyArray<[number, number]>): boolean {
-  return ranges.some(([start, end]) => offset >= start && offset < end)
+/** The first index whose item fails `isBefore`, for items ordered so that it holds on a prefix. */
+export function partitionPoint<T>(items: readonly T[], isBefore: (item: T) => boolean): number {
+  let lower = 0
+  let upper = items.length
+  while (lower < upper) {
+    const middle = (lower + upper) >>> 1
+    if (isBefore(items[middle])) lower = middle + 1
+    else upper = middle
+  }
+  return lower
+}
+
+/**
+ * Builds a membership test over `[start, end)` ranges. Sorting and merging once makes each
+ * lookup a binary search: scanning every range per placeholder is quadratic in user code.
+ */
+export function createOffsetRangeLookup(
+  ranges: ReadonlyArray<readonly [number, number]>
+): (offset: number) => boolean {
+  const merged: Array<[number, number]> = []
+  for (const [start, end] of [...ranges].sort((left, right) => left[0] - right[0])) {
+    if (end <= start) continue
+    const last = merged.at(-1)
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end)
+    else merged.push([start, end])
+  }
+  return (offset) => {
+    const containing = merged[partitionPoint(merged, ([start]) => start <= offset) - 1]
+    return containing !== undefined && offset < containing[1]
+  }
+}
+
+/**
+ * The placeholders lying wholly inside `[start, end]`. Occurrences are ordered and never
+ * overlap, so the matches are one contiguous run found by bisection.
+ */
+export function occurrencesWithin(
+  occurrences: readonly CodePlaceholderOccurrence[],
+  start: number,
+  end: number
+): CodePlaceholderOccurrence[] {
+  const matches: CodePlaceholderOccurrence[] = []
+  for (
+    let index = partitionPoint(occurrences, (occurrence) => occurrence.start < start);
+    index < occurrences.length && occurrences[index].end <= end;
+    index++
+  ) {
+    matches.push(occurrences[index])
+  }
+  return matches
 }

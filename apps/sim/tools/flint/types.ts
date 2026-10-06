@@ -44,7 +44,7 @@ export interface FlintTaskPage {
 /**
  * Shared output shape of the two task-creation endpoints.
  */
-export interface FlintTaskCreatedOutput {
+interface FlintTaskCreatedOutput {
   taskId: string | null
   status: string | null
   createdAt: string | null

@@ -4,7 +4,7 @@ import type { ToolResponse } from '@/tools/types'
 export type LinqServiceType = 'iMessage' | 'SMS' | 'RCS'
 
 /** Tapback / reaction types supported by the Linq API. */
-export type LinqReactionType =
+type LinqReactionType =
   | 'love'
   | 'like'
   | 'dislike'
@@ -15,7 +15,7 @@ export type LinqReactionType =
   | 'sticker'
 
 /** A participant handle within a chat. */
-export interface LinqChatHandle {
+interface LinqChatHandle {
   id: string
   handle: string
   joined_at: string

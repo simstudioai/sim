@@ -15,7 +15,6 @@ import {
   organization,
   permissionGroupMember,
   permissions,
-  project,
   subscription as subscriptionTable,
   user,
   userStats,
@@ -61,7 +60,7 @@ import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
-import { lockProjectBackfillWrites, tryLockProject } from '@/lib/projects/membership'
+import { reassignOrganizationProjects } from '@/lib/projects/membership'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -557,25 +556,12 @@ async function reassignOwnedOrganizationResourcesTx({
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
 
-  await lockProjectBackfillWrites(tx, workspaceIds)
-  const ownedProjects = await tx
-    .select({ id: project.id })
-    .from(project)
-    .where(and(eq(project.organizationId, organizationId), eq(project.ownerId, userId)))
-    .orderBy(project.id)
-  for (const row of ownedProjects) {
-    await tryLockProject(tx, row.id)
-    await tx
-      .update(project)
-      .set({ ownerId, updatedAt: new Date() })
-      .where(
-        and(
-          eq(project.id, row.id),
-          eq(project.ownerId, userId),
-          eq(project.organizationId, organizationId)
-        )
-      )
-  }
+  await reassignOrganizationProjects(tx, {
+    organizationId,
+    fromUserId: userId,
+    toUserId: ownerId,
+    workspaceIds,
+  })
 
   /** Creator attribution must survive account deletion without changing document ACLs. */
   await tx
@@ -1850,6 +1836,12 @@ export async function transferOrganizationOwnership(
         .returning({ id: workspace.id })
 
       result.workspacesReassigned = ownerUpdate.length
+      await reassignOrganizationProjects(tx, {
+        organizationId,
+        fromUserId: currentOwnerUserId,
+        toUserId: newOwnerUserId,
+        workspaceIds: ownerUpdate.map((workspaceRow) => workspaceRow.id),
+      })
 
       const reassignedWorkspaceIds = Array.from(
         new Set([...billedWorkspaceIds, ...ownerUpdate.map((workspaceRow) => workspaceRow.id)])

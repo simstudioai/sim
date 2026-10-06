@@ -87,36 +87,12 @@ export interface GoogleCalendarRespondParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
-  eventId: string
-  destinationCalendarId: string
-  sendUpdates?: 'all' | 'externalOnly' | 'none'
-}
-
-interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams {
-  eventId: string
-  timeMin?: string
-  timeMax?: string
-  maxResults?: number
-  pageToken?: string
-  showDeleted?: boolean
-}
-
 export interface GoogleCalendarFreeBusyParams {
   accessToken: string
   calendarIds: string
   timeMin: string
   timeMax: string
   timeZone?: string
-}
-
-interface GoogleCalendarListCalendarsParams {
-  accessToken: string
-  minAccessRole?: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
-  maxResults?: number
-  pageToken?: string
-  showDeleted?: boolean
-  showHidden?: boolean
 }
 
 export interface GoogleCalendarCreateCalendarParams {
@@ -152,24 +128,6 @@ export interface GoogleCalendarUnshareCalendarParams {
   calendarId?: string
   ruleId: string
 }
-
-export type GoogleCalendarToolParams =
-  | GoogleCalendarCreateParams
-  | GoogleCalendarListParams
-  | GoogleCalendarGetParams
-  | GoogleCalendarUpdateParams
-  | GoogleCalendarDeleteParams
-  | GoogleCalendarQuickAddParams
-  | GoogleCalendarInviteParams
-  | GoogleCalendarRespondParams
-  | GoogleCalendarMoveParams
-  | GoogleCalendarInstancesParams
-  | GoogleCalendarFreeBusyParams
-  | GoogleCalendarListCalendarsParams
-  | GoogleCalendarCreateCalendarParams
-  | GoogleCalendarShareCalendarParams
-  | GoogleCalendarListAclParams
-  | GoogleCalendarUnshareCalendarParams
 
 interface EventMetadata {
   id: string
@@ -369,43 +327,6 @@ export interface GoogleCalendarApiListResponse {
   items: GoogleCalendarApiEventResponse[]
 }
 
-interface GoogleCalendarDeleteResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: {
-      eventId: string
-      deleted: boolean
-    }
-  }
-}
-
-interface GoogleCalendarMoveResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: EventMetadata
-  }
-}
-
-interface GoogleCalendarInstancesResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: {
-      nextPageToken?: string
-      timeZone: string
-      instances: Array<
-        EventMetadata & {
-          recurringEventId: string
-          originalStartTime: {
-            dateTime?: string
-            date?: string
-            timeZone?: string
-          }
-        }
-      >
-    }
-  }
-}
-
 export interface GoogleCalendarFreeBusyResponse extends ToolResponse {
   output: {
     content: string
@@ -434,28 +355,6 @@ export interface GoogleCalendarApiFreeBusyResponse {
       errors?: Array<{ domain: string; reason: string }>
     }
   >
-}
-
-interface GoogleCalendarListCalendarsResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: {
-      nextPageToken?: string
-      calendars: Array<{
-        id: string
-        summary: string
-        description?: string
-        location?: string
-        timeZone: string
-        accessRole: string
-        backgroundColor: string
-        foregroundColor: string
-        primary?: boolean
-        hidden?: boolean
-        selected?: boolean
-      }>
-    }
-  }
 }
 
 export interface GoogleCalendarCreateCalendarResponse extends ToolResponse {
@@ -501,21 +400,3 @@ export interface GoogleCalendarUnshareCalendarResponse extends ToolResponse {
     }
   }
 }
-
-export type GoogleCalendarResponse =
-  | GoogleCalendarCreateResponse
-  | GoogleCalendarListResponse
-  | GoogleCalendarGetResponse
-  | GoogleCalendarQuickAddResponse
-  | GoogleCalendarInviteResponse
-  | GoogleCalendarRespondResponse
-  | GoogleCalendarUpdateResponse
-  | GoogleCalendarDeleteResponse
-  | GoogleCalendarMoveResponse
-  | GoogleCalendarInstancesResponse
-  | GoogleCalendarFreeBusyResponse
-  | GoogleCalendarListCalendarsResponse
-  | GoogleCalendarCreateCalendarResponse
-  | GoogleCalendarShareCalendarResponse
-  | GoogleCalendarListAclResponse
-  | GoogleCalendarUnshareCalendarResponse

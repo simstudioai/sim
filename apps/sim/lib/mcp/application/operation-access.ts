@@ -2,7 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflowDeploymentVersion } from '@sim/db/schema'
 import { isPlainRecord } from '@sim/utils/object'
-import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence'
+import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {

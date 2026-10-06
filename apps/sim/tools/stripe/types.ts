@@ -1907,24 +1907,3 @@ export interface EventListResponse extends ToolResponse {
     }
   }
 }
-
-export type StripeResponse =
-  | PaymentIntentResponse
-  | PaymentIntentListResponse
-  | CustomerResponse
-  | CustomerListResponse
-  | CustomerDeleteResponse
-  | SubscriptionResponse
-  | SubscriptionListResponse
-  | InvoiceResponse
-  | InvoiceListResponse
-  | InvoiceDeleteResponse
-  | ChargeResponse
-  | ChargeListResponse
-  | ProductResponse
-  | ProductListResponse
-  | ProductDeleteResponse
-  | PriceResponse
-  | PriceListResponse
-  | EventResponse
-  | EventListResponse

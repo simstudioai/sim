@@ -278,6 +278,11 @@ export interface SandboxHandle {
    * served an execution. Absent on providers without session support.
    */
   extendLifetime?(lifetimeMs: number): Promise<void>
+  /**
+   * True when a deadline this handle already established keeps the sandbox alive for
+   * `lifetimeMs` from now, so {@link extendLifetime} would make no provider request.
+   */
+  outlives?(lifetimeMs: number): boolean
   /** Reads provider metadata without materializing the file contents. */
   getFileSize(path: string): Promise<number>
   readFile(path: string): Promise<string>
@@ -475,10 +480,11 @@ export interface SandboxProvider {
    * {@link CreateSandboxOptions.sessionKey}, or resolves null when none is
    * available. Lookup failures must throw rather than masquerade as absence.
    * Providers without session support omit this method; callers then
-   * run every execution in a fresh sandbox.
+   * run every execution in a fresh sandbox. `lifetimeMs` asks the reconnect to keep the
+   * sandbox alive at least that long, never shortening a later deadline.
    */
   findSessionSandbox?(
     key: string,
-    options: { language?: CodeLanguage }
+    options: { language?: CodeLanguage; lifetimeMs?: number }
   ): Promise<SandboxHandle | null>
 }

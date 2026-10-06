@@ -4895,6 +4895,7 @@ export type ExecuteWorkflowBody = {
               blockId: string
               sourceRunId: string
             }
+        stopAfterBlockId?: string
       }
   async?: boolean
   executionTimeoutSeconds?: number

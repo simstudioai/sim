@@ -9,13 +9,14 @@ import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import { and, eq, exists, gt, inArray, isNull, lt, lte, notExists, sql } from 'drizzle-orm'
-import { claimWebhookPath } from '@/lib/webhooks/path-claims'
+import { claimWebhookPath, WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { projectDesiredWebhookProviderConfig } from '@/lib/webhooks/provider-subscriptions'
 import {
   fingerprintDesiredWebhookRegistration,
   normalizeWebhookRegistrationPath,
 } from '@/lib/webhooks/registration-identity'
 import { planWebhookRegistrationReconciliation } from '@/lib/webhooks/registration-reconciliation'
+import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import type { DeploymentOperationStatus } from '@/lib/workflows/deployment-lifecycle'
 import {
   isDeploymentOperationCurrent,
@@ -230,8 +231,18 @@ export async function prepareWebhookRegistrationIntents(input: {
 
     for (const desired of input.desired) {
       if (desired.path) {
+        // Unclaimed legacy rows of other workflows still own their path.
+        const path = normalizeWebhookRegistrationPath(desired.path) ?? desired.path
+        const conflictingOwner = await findConflictingWebhookPathOwner({
+          path,
+          workflowId: input.fence.workflowId,
+          tx,
+        })
+        if (conflictingOwner) {
+          throw new WebhookPathClaimConflictError(path, conflictingOwner)
+        }
         await claimWebhookPath(tx, {
-          path: desired.path,
+          path,
           workflowId: input.fence.workflowId,
           generation: input.fence.generation,
         })

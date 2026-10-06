@@ -1,4 +1,5 @@
-import { resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { workspace } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import {
   workflowsPersistenceUtilsMock,
@@ -246,6 +247,8 @@ function emptyCopyResult() {
 
 beforeEach(() => {
   resetDbChainMock()
+  queueTableRows(workspace, [{ name: 'Target' }])
+  queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
   mockGetUsersWithPermissions.mockResolvedValue([])
   mockLoadSourceDeployedStates.mockResolvedValue({
     deployedWorkflows: [],

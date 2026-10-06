@@ -30,7 +30,7 @@ export const PATCH = withRouteHandler(
   )(
     async (
       request: NextRequest,
-      { userId, userName, userEmail, workspaceId, requestId },
+      { userId, userName, userEmail, workspaceId, requestId, permission },
       { params }
     ) => {
       try {
@@ -59,6 +59,7 @@ export const PATCH = withRouteHandler(
           actorName: userName,
           actorEmail: userEmail,
           serverId,
+          allowDestinationChange: permission === 'admin',
           name: body.name,
           description: body.description,
           transport: body.transport,

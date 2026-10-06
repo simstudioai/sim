@@ -457,7 +457,6 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
     typecast: { type: 'boolean', description: 'Auto-convert string values to field types' },
     recordIds: { type: 'json', description: 'Record IDs to delete' }, // Required for delete
   },
-  // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
     bases: { type: 'json', description: 'List of accessible Airtable bases' },
     tables: { type: 'json', description: 'Table schemas with fields and views' },

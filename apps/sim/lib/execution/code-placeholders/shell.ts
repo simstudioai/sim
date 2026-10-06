@@ -2,7 +2,9 @@ import {
   applySourceEdits,
   CodePlaceholderCompileError,
   createCodePlaceholderCompilationContext,
-  isOffsetInRanges,
+  createOffsetRangeLookup,
+  occurrencesWithin,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -29,11 +31,14 @@ interface ShellScanFrame {
   kind: 'root' | 'command' | 'arithmetic' | 'backtick'
   quote: ShellQuote
   parenthesisDepth: number
+  bracketDepth?: number
   literalRoot: boolean
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
+  /** Includes nested command substitutions whose output can become an arithmetic operand. */
+  arithmetic?: boolean
   unsupported?: 'escaped sequence'
 }
 
@@ -341,11 +346,42 @@ function parseHeredocHeaders(
   return declarations
 }
 
+/**
+ * Indexes every line by its terminator-comparable text, so a heredoc's terminator is found by
+ * bisection. An unterminated header is skipped and parsing resumes on the next line, so walking
+ * forward to the end of the file per header is quadratic in a file of unterminated headers.
+ */
+function createHeredocTerminatorLookup(
+  code: string
+): (delimiter: string, stripTabs: boolean, from: number) => number | undefined {
+  const lineStartsByText = new Map<string, number[]>()
+  const lineStartsByTabStrippedText = new Map<string, number[]>()
+  const record = (index: Map<string, number[]>, text: string, lineStart: number) => {
+    const lineStarts = index.get(text)
+    if (lineStarts) lineStarts.push(lineStart)
+    else index.set(text, [lineStart])
+  }
+  for (let lineStart = 0; lineStart < code.length; ) {
+    const lineEnd = lineEndAfterNewline(code, lineStart)
+    const rawLine = code.slice(lineStart, lineEnd).replace(/\n$/, '').replace(/\r$/, '')
+    record(lineStartsByText, rawLine, lineStart)
+    record(lineStartsByTabStrippedText, rawLine.replace(/^\t+/, ''), lineStart)
+    lineStart = lineEnd
+  }
+
+  return (delimiter, stripTabs, from) => {
+    if (from >= code.length) return delimiter === '' ? from : undefined
+    const lineStarts = (stripTabs ? lineStartsByTabStrippedText : lineStartsByText).get(delimiter)
+    return lineStarts?.[partitionPoint(lineStarts, (lineStart) => lineStart < from)]
+  }
+}
+
 function collectHeredocs(code: string): HeredocDeclaration[] {
   const declarations: HeredocDeclaration[] = []
   const frames: ShellScanFrame[] = [
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot: false },
   ]
+  let findTerminator: ReturnType<typeof createHeredocTerminatorLookup> | undefined
   let cursor = 0
   while (cursor < code.length) {
     const headerEnd = logicalLineEndAfterContinuations(code, cursor)
@@ -355,33 +391,23 @@ function collectHeredocs(code: string): HeredocDeclaration[] {
       continue
     }
 
+    findTerminator ??= createHeredocTerminatorLookup(code)
     let bodyCursor = headerEnd
     let complete = true
     for (const header of headers) {
-      const bodyStart = bodyCursor
-      let found = false
-      while (bodyCursor <= code.length) {
-        const candidateEnd = lineEndAfterNewline(code, bodyCursor)
-        const rawLine = code.slice(bodyCursor, candidateEnd).replace(/\n$/, '').replace(/\r$/, '')
-        const comparable = header.stripTabs ? rawLine.replace(/^\t+/, '') : rawLine
-        if (comparable === header.delimiter) {
-          declarations.push({
-            ...header,
-            bodyStart,
-            bodyEnd: bodyCursor,
-            removalEnd: candidateEnd,
-          })
-          bodyCursor = candidateEnd
-          found = true
-          break
-        }
-        if (candidateEnd === code.length) break
-        bodyCursor = candidateEnd
-      }
-      if (!found) {
+      const terminatorStart = findTerminator(header.delimiter, header.stripTabs, bodyCursor)
+      if (terminatorStart === undefined) {
         complete = false
         break
       }
+      const removalEnd = lineEndAfterNewline(code, terminatorStart)
+      declarations.push({
+        ...header,
+        bodyStart: bodyCursor,
+        bodyEnd: terminatorStart,
+        removalEnd,
+      })
+      bodyCursor = removalEnd
     }
     cursor = complete ? bodyCursor : headerEnd
   }
@@ -422,10 +448,11 @@ function isShellAssignmentName(code: string, occurrence: CodePlaceholderOccurren
 function getUnsupportedShellPosition(
   code: string,
   occurrence: CodePlaceholderOccurrence,
-  quote: ShellQuote
+  context: ShellOccurrenceContext
 ): string | undefined {
+  if (context.arithmetic) return 'in shell arithmetic'
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
-  if (quote !== 'none') return undefined
+  if (context.quote !== 'none') return undefined
 
   const lineStart = Math.max(
     code.lastIndexOf('\n', occurrence.start - 1),
@@ -439,30 +466,53 @@ function getUnsupportedShellPosition(
   return undefined
 }
 
+function heredocBodyRanges(heredocs: HeredocDeclaration[]): Array<[number, number]> {
+  return heredocs.map((heredoc) => [heredoc.bodyStart, heredoc.removalEnd])
+}
+
+/**
+ * Jumps over `skippedRanges` (sorted heredoc bodies, which bash reads as data) so body prose
+ * cannot shift quote context; bodies that need contexts are scanned on their own with `literalRoot`.
+ */
 function collectShellOccurrenceContexts(
   code: string,
   occurrences: CodePlaceholderOccurrence[],
   start: number,
   end: number,
-  literalRoot: boolean
+  literalRoot: boolean,
+  skippedRanges: Array<[number, number]> = []
 ): Map<CodePlaceholderOccurrence, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
-    occurrences
-      .filter((occurrence) => occurrence.start >= start && occurrence.end <= end)
-      .map((occurrence) => [occurrence.start, occurrence] as const)
+    occurrencesWithin(occurrences, start, end).map(
+      (occurrence) => [occurrence.start, occurrence] as const
+    )
   )
   const contexts = new Map<CodePlaceholderOccurrence, ShellOccurrenceContext>()
   const frames: ShellScanFrame[] = [
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
   ]
+  let skippedRangeIndex = 0
+  let arithmeticDepth = 0
 
   for (let index = start; index < end; ) {
     const frame = frames.at(-1)
     if (!frame) break
 
+    while (
+      skippedRangeIndex < skippedRanges.length &&
+      skippedRanges[skippedRangeIndex][1] <= index
+    ) {
+      skippedRangeIndex += 1
+    }
+    const skippedRange = skippedRanges.at(skippedRangeIndex)
+    if (skippedRange && index >= skippedRange[0]) {
+      index = skippedRange[1]
+      continue
+    }
+
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
-      contexts.set(occurrence, { quote: frame.quote })
+      contexts.set(occurrence, { quote: frame.quote, arithmetic: arithmeticDepth > 0 })
       index = occurrence.end
       continue
     }
@@ -486,6 +536,24 @@ function collectShellOccurrenceContexts(
         if (character === "'") frame.quote = 'none'
         index += 1
       }
+      continue
+    }
+    const arithmeticExpansion =
+      character === '$' &&
+      ((code[index + 1] === '(' && code[index + 2] === '(') || code[index + 1] === '[')
+    const arithmeticCommand =
+      frame.quote === 'none' && !frame.literalRoot && shellArithmeticCommandStarts(code, index)
+    if (arithmeticExpansion || arithmeticCommand) {
+      const brackets = arithmeticExpansion && code[index + 1] === '['
+      frames.push({
+        kind: 'arithmetic',
+        quote: 'none',
+        parenthesisDepth: brackets ? 0 : 2,
+        ...(brackets ? { bracketDepth: 1 } : {}),
+        literalRoot: false,
+      })
+      arithmeticDepth += 1
+      index += arithmeticExpansion && !brackets ? 3 : 2
       continue
     }
     if (frame.quote === 'double') {
@@ -527,7 +595,7 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (!frame.literalRoot && shellCommentStarts(code, index)) {
+    if (frame.kind !== 'arithmetic' && !frame.literalRoot && shellCommentStarts(code, index)) {
       const newline = code.indexOf('\n', index)
       index = newline === -1 || newline >= end ? end : newline + 1
       continue
@@ -577,14 +645,29 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === '(') {
+    if (frame.kind === 'arithmetic' && frame.bracketDepth !== undefined) {
+      if (character === '[') frame.bracketDepth += 1
+      if (character === ']') {
+        frame.bracketDepth -= 1
+        if (frame.bracketDepth === 0) {
+          frames.pop()
+          arithmeticDepth -= 1
+        }
+      }
+      index += 1
+      continue
+    }
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === ')') {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
       frame.parenthesisDepth -= 1
-      if (frame.parenthesisDepth === 0) frames.pop()
+      if (frame.parenthesisDepth === 0) {
+        frames.pop()
+        if (frame.kind === 'arithmetic') arithmeticDepth -= 1
+      }
       index += 1
       continue
     }
@@ -635,36 +718,46 @@ function recordShellDirectEnvironmentReads(
   }
   if (matches.length === 0) return
 
-  /**
-   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands.
-   * The frame scanner below models quoting within a line, not heredoc bodies, so those are
-   * excluded up front — otherwise a `$NAME` printed verbatim would be reported as a read that
-   * never happened, and a usage trail must not claim uses that did not occur.
-   */
-  const literalHeredocBodies = collectHeredocs(code)
-    .filter((heredoc) => heredoc.quoted)
-    .map((heredoc): [number, number] => [heredoc.bodyStart, heredoc.bodyEnd])
-
-  const candidates: CodePlaceholderOccurrence[] = []
-  for (const candidate of matches) {
-    if (isOffsetInRanges(candidate.index, literalHeredocBodies)) continue
-    candidates.push({
+  const candidates = matches.map(
+    (candidate): CodePlaceholderOccurrence => ({
       start: candidate.index,
       end: candidate.index + candidate[0].length,
       raw: candidate[0],
       name: (candidate[1] ?? candidate[2]) as string,
     })
-  }
-  if (candidates.length === 0) return
+  )
 
-  const contexts = collectShellOccurrenceContexts(code, candidates, 0, code.length, false)
+  const heredocs = collectHeredocs(code)
+  const contexts = collectShellOccurrenceContexts(
+    code,
+    candidates,
+    0,
+    code.length,
+    false,
+    heredocBodyRanges(heredocs)
+  )
+  /**
+   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands
+   * and its candidates stay contextless — a usage trail must not claim uses that did not occur.
+   */
+  for (const heredoc of heredocs) {
+    if (heredoc.quoted) continue
+    const bodyContexts = collectShellOccurrenceContexts(
+      code,
+      candidates,
+      heredoc.bodyStart,
+      heredoc.bodyEnd,
+      true
+    )
+    for (const [candidate, shellContext] of bodyContexts) contexts.set(candidate, shellContext)
+  }
   for (const candidate of candidates) {
     const shellContext = contexts.get(candidate)
     /**
      * No context means the scanner never reached this offset — it skipped the region as a
-     * comment. Absence is therefore evidence the expansion does not run, not permission to
-     * record it, so this reads as an allowlist rather than a denylist. Single quotes suppress
-     * expansion outright.
+     * comment or a quoted heredoc body. Absence is therefore evidence the expansion does not
+     * run, not permission to record it, so this reads as an allowlist rather than a denylist.
+     * Single quotes suppress expansion outright.
      */
     if (!shellContext || shellContext.quote === 'single') continue
     context.recordDirectEnvironmentRead(candidate.name, candidate.start)
@@ -705,9 +798,10 @@ export async function compileShellPlaceholders(
     excludedRanges.push([heredoc.operatorStart, heredoc.operatorEnd])
     excludedRanges.push([heredoc.bodyStart, heredoc.removalEnd])
 
-    const delimiterOccurrences = shellOccurrences.filter(
-      (occurrence) =>
-        occurrence.start >= heredoc.operatorStart && occurrence.end <= heredoc.operatorEnd
+    const delimiterOccurrences = occurrencesWithin(
+      shellOccurrences,
+      heredoc.operatorStart,
+      heredoc.operatorEnd
     )
     for (const occurrence of delimiterOccurrences) {
       if (context.hasValue(occurrence.name)) {
@@ -723,9 +817,7 @@ export async function compileShellPlaceholders(
       }
     }
 
-    const bodyOccurrences = shellOccurrences.filter(
-      (occurrence) => occurrence.start >= heredoc.bodyStart && occurrence.end <= heredoc.bodyEnd
-    )
+    const bodyOccurrences = occurrencesWithin(shellOccurrences, heredoc.bodyStart, heredoc.bodyEnd)
     if (heredoc.quoted) {
       const bodyEdits: SourceEdit[] = []
       let hasResolvedPlaceholder = false
@@ -795,7 +887,7 @@ export async function compileShellPlaceholders(
       const unsupportedPosition = getUnsupportedShellPosition(
         input.code,
         occurrence,
-        occurrenceContext.quote
+        occurrenceContext
       )
       if (unsupportedPosition) {
         if (context.hasValue(occurrence.name)) {
@@ -820,15 +912,15 @@ export async function compileShellPlaceholders(
     }
   }
 
-  const rootOccurrences = shellOccurrences.filter(
-    (occurrence) => !isOffsetInRanges(occurrence.start, excludedRanges)
-  )
+  const isExcluded = createOffsetRangeLookup(excludedRanges)
+  const rootOccurrences = shellOccurrences.filter((occurrence) => !isExcluded(occurrence.start))
   const rootContexts = collectShellOccurrenceContexts(
     input.code,
     rootOccurrences,
     0,
     input.code.length,
-    false
+    false,
+    heredocBodyRanges(heredocs)
   )
   for (const occurrence of rootOccurrences) {
     const occurrenceContext = rootContexts.get(occurrence)
@@ -850,7 +942,7 @@ export async function compileShellPlaceholders(
     const unsupportedPosition = getUnsupportedShellPosition(
       input.code,
       occurrence,
-      occurrenceContext.quote
+      occurrenceContext
     )
     if (unsupportedPosition) {
       if (context.hasValue(occurrence.name)) {

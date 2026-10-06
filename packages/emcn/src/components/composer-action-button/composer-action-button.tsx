@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn'
 import { Button, type ButtonProps } from '../button/button'
 
 /** Shared circular send, stop and search appearance, including the compact chat treatment. */
-export const composerActionButtonVariants = cva('rounded-full p-0', {
+const composerActionButtonVariants = cva('rounded-full p-0', {
   variants: {
     size: {
       sm: 'size-[22px]',

@@ -67,7 +67,7 @@ export interface IAMDetachRolePolicyParams extends IAMConnectionConfig {
   policyArn: string
 }
 
-export type IAMPolicyScope = 'All' | 'AWS' | 'Local'
+type IAMPolicyScope = 'All' | 'AWS' | 'Local'
 
 export interface IAMListPoliciesParams extends IAMConnectionConfig {
   scope?: IAMPolicyScope | null
@@ -97,7 +97,7 @@ export interface IAMListAccessKeysParams extends IAMConnectionConfig {
 }
 
 /** AWS accepts `Expired` on the wire, but only `Active`/`Inactive` are settable. */
-export type IAMAccessKeyStatus = 'Active' | 'Inactive'
+type IAMAccessKeyStatus = 'Active' | 'Inactive'
 
 export interface IAMUpdateAccessKeyParams extends IAMConnectionConfig {
   accessKeyIdToUpdate: string
@@ -119,11 +119,6 @@ export interface IAMAddUserToGroupParams extends IAMConnectionConfig {
 export interface IAMRemoveUserFromGroupParams extends IAMConnectionConfig {
   userName: string
   groupName: string
-}
-
-export interface IAMBaseResponse extends ToolResponse {
-  output: { message: string }
-  error?: string
 }
 
 export interface IAMListUsersResponse extends ToolResponse {
@@ -308,7 +303,7 @@ export interface IAMListAttachedUserPoliciesParams extends IAMConnectionConfig {
   marker?: string | null
 }
 
-export type IAMContextKeyType =
+type IAMContextKeyType =
   | 'binary'
   | 'binaryList'
   | 'boolean'
@@ -351,7 +346,7 @@ export interface IAMListAttachedPoliciesResponse extends ToolResponse {
   error?: string
 }
 
-export interface IAMSimulateMatchedStatement {
+interface IAMSimulateMatchedStatement {
   sourcePolicyId: string
   sourcePolicyType: string
 }
@@ -361,7 +356,7 @@ export interface IAMSimulateMatchedStatement {
  * action regardless of how many resource ARNs were simulated, so this is the only place
  * a per-ARN decision is reported.
  */
-export interface IAMSimulateResourceSpecificResult {
+interface IAMSimulateResourceSpecificResult {
   evalResourceName: string
   evalResourceDecision: string
   matchedStatements: IAMSimulateMatchedStatement[]
@@ -369,7 +364,7 @@ export interface IAMSimulateResourceSpecificResult {
   permissionsBoundaryAllowed: boolean | null
 }
 
-export interface IAMSimulateEvaluationResult {
+interface IAMSimulateEvaluationResult {
   evalActionName: string
   /** The resource-type ARN template AWS echoes back, not a customer resource ARN. */
   evalResourceName: string

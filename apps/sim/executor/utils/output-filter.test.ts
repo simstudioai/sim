@@ -33,4 +33,28 @@ describe('output filtering', () => {
     expect(output).not.toHaveProperty('childTraceSpans')
     expect(output.answer).toBe(42)
   })
+
+  it('shares untouched nested output with the block state instead of copying it', () => {
+    const rows = [{ id: 1, data: { name: 'a' } }]
+    const nestedSpans = { childTraceSpans: [{ id: 's1' }], kept: { value: 1 } }
+    const blockOutput = { rows, nested: nestedSpans }
+
+    const output = filterOutputForLog('table', blockOutput as never)
+
+    expect(output.rows).toBe(rows)
+    expect(output.nested).not.toBe(nestedSpans)
+    expect(output.nested).not.toHaveProperty('childTraceSpans')
+    expect((output.nested as typeof nestedSpans).kept).toBe(nestedSpans.kept)
+  })
+
+  it('keeps the file size a block completed with when hydration later updates it in place', () => {
+    const file = { id: 'f1', key: 'k1', url: 'u', name: 'deck.pptx', size: 10, type: 'pptx' }
+    const blockOutput = { file, rows: [{ id: 1 }] }
+
+    const output = filterOutputForLog('function', blockOutput as never)
+    file.size = 4096
+
+    expect((output.file as typeof file).size).toBe(10)
+    expect(output.rows).toBe(blockOutput.rows)
+  })
 })

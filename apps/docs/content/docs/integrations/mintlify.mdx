@@ -618,6 +618,10 @@ Export Mintlify per-path and site-wide content view counts for a date range, spl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `totals` | object | Site-wide totals for the date range |
+|   ↳ `human` | number | Site-wide human traffic |
+|   ↳ `ai` | number | Site-wide AI bot traffic |
+|   ↳ `total` | number | Site-wide total |
 | `views` | array | Per-page content view event counts |
 |   ↳ `path` | string | The documentation page path |
 |   ↳ `human` | number | Content view events from human traffic |
@@ -644,6 +648,10 @@ Export Mintlify per-path and site-wide approximate distinct visitor counts for a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `totals` | object | Site-wide totals for the date range |
+|   ↳ `human` | number | Site-wide human traffic |
+|   ↳ `ai` | number | Site-wide AI bot traffic |
+|   ↳ `total` | number | Site-wide total |
 | `visitors` | array | Per-page unique visitor counts |
 |   ↳ `path` | string | The documentation page path |
 |   ↳ `human` | number | Unique human visitors |

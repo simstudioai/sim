@@ -1,12 +1,12 @@
 ---
 slug: mcp-security
 title: 'MCP Security: A Practical Guide to Secure MCP Server Development'
-description: MCP security covers the risks, auth flaws, and prompt-injection threats in Model Context Protocol servers; here's how to build and deploy MCP servers securely.
+description: 'MCP security covers the risks, auth flaws, and prompt-injection threats in Model Context Protocol servers; here''s how to build and deploy MCP servers securely.'
 date: 2026-07-22
-updated: 2026-07-22
+updated: 2026-10-06
 authors:
   - andrew
-readingTime: 9
+readingTime: 19
 tags: [MCP Security, MCP, Model Context Protocol, Security, Sim]
 ogImage: /library/mcp-security/cover.jpg
 ogAlt: Securing Model Context Protocol servers against tool poisoning, auth flaws, and supply-chain risk.
@@ -15,34 +15,95 @@ faq:
   - q: "What is MCP security?"
     a: "MCP security is the practice of keeping MCP servers, clients, and connections from exposing data or executing unintended actions. The main risk categories are prompt and tool injection, authentication flaws like over-scoped tokens and confused-deputy issues, and supply-chain risk from untrusted third-party servers."
   - q: "Is MCP secure by default?"
-    a: "No. The protocol standardizes how agents connect to tools, but security depends entirely on your implementation. Authorization is optional for MCP implementations, so your servers, token handling, and tool definitions determine whether a deployment is actually safe."
+    a: "MCP is not secure by default. The protocol standardizes how agents connect to tools, but security depends entirely on your implementation. Authorization is optional for MCP implementations, so your servers, token handling, and tool definitions determine whether a deployment is actually safe."
   - q: "What are the biggest MCP security risks?"
-    a: "The three to prioritize are prompt and tool injection (especially tool poisoning, where malicious instructions hide in tool metadata), over-scoped tokens and confused-deputy problems in OAuth, and untrusted third-party servers that ship hidden behavior. Tool poisoning is the most prevalent and impactful client-side vulnerability."
+    a: "MCP's three risks to prioritize are prompt and tool injection (especially tool poisoning, where malicious instructions hide in tool metadata), over-scoped tokens and confused-deputy problems in OAuth, and untrusted third-party servers that ship hidden behavior. Tool poisoning is the most prevalent and impactful client-side vulnerability."
   - q: "How do you prevent prompt injection in MCP servers?"
-    a: "Validate and sanitize the inputs and outputs the model can act on, review and version tool definitions to catch silent changes, and require human approval for destructive actions like deletes, writes, and payments. Treating tool metadata as a security boundary is important, since the model reads descriptions as instructions."
+    a: "MCP servers should validate and sanitize the inputs and outputs the model can act on, review and version tool definitions to catch silent changes, and require human approval for destructive actions like deletes, writes, and payments. Treating tool metadata as a security boundary is important, since the model reads descriptions as instructions."
   - q: "Are local or remote MCP servers safer?"
-    a: "There's no definitive answer here; each has different trade-offs. Local servers give you control but execute code on infrastructure you host, so a flaw can mean local code execution. Remote servers can live on localhost, a private URL, or a public URL and reduce local execution risk, but they share your data with a third party you must vet and trust."
+    a: "MCP local and remote servers have different trade-offs, so neither is definitively safer. Local servers give you control but execute code on infrastructure you host, so a flaw can mean local code execution. Remote servers can live on localhost, a private URL, or a public URL and reduce local execution risk, but they share your data with a third party you must vet and trust."
   - q: "How does Sim help secure MCP deployments?"
     a: "Sim provides self-hosted deployment for full data control, bring-your-own-keys, workspace and group access permissions, and approval flows. It also captures full run logs with trace spans for every execution, so MCP activity stays observable and governed as usage grows across a team."
+  - q: "Is MCP secure?"
+    a: "MCP can be deployed securely, but Model Context Protocol support alone does not make a server, tool, credential, or model-generated action trustworthy. Secure deployments require authorization, least privilege, metadata review, prompt-injection defenses, isolation, approval controls, and auditing."
+  - q: "What is the biggest security risk with MCP?"
+    a: "MCP’s biggest security risk is allowing untrusted tool metadata or tool output to influence actions that have excessive permissions. Layered controls should ensure that even a successful injection cannot access unnecessary data or execute an unauthorized action."
+  - q: "Does MCP require authentication?"
+    a: "MCP defines an authorization framework for protected remote servers, while the required controls depend on the transport and deployment. Every protected remote MCP request should authenticate the relevant identity and authorize the requested resource and action."
+  - q: "Does OAuth make an MCP server safe?"
+    a: "MCP authorization through OAuth can authorize access to an MCP server, but OAuth does not prove that the server, tool definition, tool output, or requested action is safe. MCP deployments still need server review, least privilege, runtime policy, isolation, and monitoring."
+  - q: "What is MCP tool poisoning?"
+    a: "MCP tool poisoning is the use of malicious or misleading tool names, descriptions, schemas, or definition changes to manipulate a model’s behavior. MCP clients should review, record, monitor, and reapprove security-relevant tool metadata."
+  - q: "Can MCP tools cause prompt injection?"
+    a: "MCP tools can carry prompt injection through documents, web pages, database records, API responses, and other untrusted results. MCP clients should treat those results as data and prevent them from authorizing follow-up actions."
+  - q: "How do you prevent prompt injection in MCP?"
+    a: "MCP prompt-injection defenses should isolate untrusted content, constrain available follow-up tools, validate structured output, limit permissions, and require approval for sensitive actions. Prompt filtering alone is not a sufficient security boundary."
+  - q: "How should MCP permissions be scoped?"
+    a: "MCP permissions should be limited by identity, tenant, resource, operation, duration, and environment. MCP servers and downstream systems should enforce those limits on every request rather than relying on model instructions."
+  - q: "Should MCP servers receive API keys in tool arguments?"
+    a: "MCP servers should not receive reusable secrets through model-generated tool arguments. MCP servers should resolve protected credential references at execution time and keep secret values outside prompts, logs, and tool results."
+  - q: "Is it safe to run a local MCP server?"
+    a: "MCP local servers are safe only to the extent that their code, dependencies, process permissions, filesystem access, credentials, and network access are trustworthy and constrained. A local MCP server should be reviewed like any other locally executing application."
+  - q: "Is a remote MCP server safer than a local MCP server?"
+    a: "MCP remote servers are not inherently safer than local MCP servers because the two deployments have different risks. Remote servers need strong transport, authorization, tenant isolation, and session security, while local servers need package, process, filesystem, and network isolation."
+  - q: "Should MCP tools require human approval?"
+    a: "MCP tools should require human approval before destructive, financial, external, privilege-changing, or otherwise consequential actions. MCP approval should display the final action and parameters immediately before execution."
+  - q: "What should be logged for MCP tool calls?"
+    a: "MCP audit logs should record the initiating identity, server, tool, definition version, sanitized arguments, target resource, effective permissions, policy decision, approval event, and outcome. MCP logs should never record raw secrets."
+  - q: "What is token passthrough in MCP?"
+    a: "MCP token passthrough occurs when a server accepts or forwards a token without confirming that the token was issued for the intended server or downstream resource. MCP servers should validate token audiences and obtain resource-specific credentials instead."
+  - q: "What is a confused-deputy attack in MCP?"
+    a: "MCP confused-deputy attacks trick an authorized component into using its authority for an unintended client, user, or target. MCP implementations should bind authorization, consent, redirects, tokens, and resources to the intended parties."
+  - q: "How do you test an MCP server for security vulnerabilities?"
+    a: "MCP server testing should cover broken authorization, cross-tenant access, tool-definition changes, prompt injection, input injection, secret leakage, session attacks, unsafe network access, excessive permissions, and incomplete audit records."
+  - q: "Is n8n MCP secure?"
+    a: "n8n MCP security depends on the specific server, credentials, scopes, tool definitions, deployment controls, and approval policies in use. n8n protocol support alone cannot establish that an MCP integration is secure."
+  - q: "How should teams evaluate MCP security in Sim and n8n?"
+    a: "Sim and n8n should be evaluated against the same MCP security evidence: server trust, authorization, credential handling, least privilege, metadata-change detection, prompt-injection containment, approval controls, isolation, and auditability."
+  - q: "Where can I learn what an MCP server is?"
+    a: "Sim’s What Is an MCP Server? guide explains what MCP servers do, how clients use them, and where they fit in AI agent systems."
+  - q: "Can an MCP server access my files or database?"
+    a: "MCP servers can access files or databases only when their runtime environment and credentials grant that access. MCP deployments should restrict both the server process and the downstream identity to the minimum required resources and operations."
+  - q: "Can MCP tool descriptions be trusted?"
+    a: "MCP tool descriptions should not be trusted automatically because they are supplied by servers and can change. MCP clients should review, record, and monitor descriptions and enforce sensitive-action policy outside the model."
+  - q: "Is allowlisting MCP servers enough?"
+    a: "MCP server allowlisting is useful but insufficient because an approved server or dependency can later be compromised or changed. MCP deployments also need definition monitoring, runtime restrictions, least privilege, and audit logs."
+  - q: "How often should MCP security be reviewed?"
+    a: "MCP security should be reviewed whenever a server, tool definition, permission, credential, model, transport, dependency, or downstream system changes. High-impact production deployments should also undergo recurring access reviews and adversarial testing."
 ---
+
+Model Context Protocol security requires treating every MCP server, tool definition, tool result, credential, and downstream system as a separate trust boundary. Authentication alone is not enough: secure MCP deployments also verify tool metadata, isolate untrusted content, enforce least privilege at execution time, protect secrets, and log every consequential action.
 
 You wired an agent to your internal tools in an afternoon, and it worked. That speed is exactly why MCP security deserves your attention before you ship. The same connection that lets an agent read your database, call your APIs, and run commands is a live attack surface for credential leakage, prompt injection, and unvetted third-party code.
 
-This guide is for builders who want to ship securely while enjoying the benefits offered by MCP connectivity. We'll take you through defining the risk, building a hardened server, and governing it in production. If you're new to the protocol itself, start with [what an MCP server is](/library/what-is-an-mcp-server).
+This guide is for builders who want to ship securely while enjoying the benefits offered by MCP connectivity. We'll take you through defining the risk, building a hardened server, and governing it in production. If you're new to the protocol itself, start with [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server). This guide focuses on the controls needed when MCP connects AI agents to databases, files, APIs, browsers, and business systems.
 
 ## Key Takeaways
+
+MCP security depends on layered controls because no single protocol feature can establish trust in a server, tool, or model-generated action.
 
 - **MCP security is implementation-dependent:** The protocol standardizes connections, but your servers, tokens, and tool definitions determine whether you're safe.
 - **Tool poisoning is the sharpest risk:** Malicious instructions hidden in tool metadata can turn an approved server destructive; these evade reviews that only scan user input.
 - **Auth details decide everything:** Over-scoped tokens and token passthrough create confused-deputy problems, so scope narrowly and validate the token audience.
 - **Third-party servers are executable code:** Treat unknown MCP servers like any untrusted dependency, vet, sign, and pin them for ultimate security.
 - **Security continues after deployment:** Sandboxing, secrets management, egress limits, full run logs, and RBAC keep MCP usage controlled as it scales.
+- MCP tool descriptions are security-sensitive input because models use names, descriptions, and schemas to decide when and how to invoke tools.
+- MCP tool results are untrusted input because files, web pages, databases, and APIs can contain prompt-injection instructions.
+- MCP permissions must be enforced by the server and downstream service because a prompt telling a model not to perform an action is not an authorization control.
+- MCP secrets should remain in server-side credential storage and should not be placed in prompts, tool descriptions, tool arguments, or model-visible output.
+- MCP clients should require meaningful confirmation before destructive, financial, external, or privilege-changing actions.
+- MCP deployments need audit logs that connect the user, client, server, tool, arguments, authorization decision, result, and approval event.
+- MCP support in Sim, n8n, or any other product does not remove the need to review the server, credentials, permissions, and tools connected through the protocol.
 
 ## What MCP Security Actually Means
 
-Strong MCP security practices prevent MCP servers, clients, and connections from exposing data or executing unintended actions. A good security strategy should span authentication, tool design, input validation, deployment, and ongoing monitoring.
+MCP security is the set of controls that prevents Model Context Protocol clients, servers, tools, and connected systems from giving attackers unintended access or influence. Strong MCP security practices prevent MCP servers, clients, and connections from exposing data or executing unintended actions. A good security strategy should span authentication, tool design, input validation, deployment, and ongoing monitoring.
 
 MCP connectivity is broken down into three roles. The host runs the LLM, the client speaks the protocol, and the server accesses the actual tools and data while holding the credentials. That server is where most risk concentrates, because it sits closest to your systems.
+
+The MCP client decides which servers and tools are available to the model. The server describes tools and processes calls, the model interprets tool descriptions and untrusted content, and downstream APIs, databases, and files enforce—or fail to enforce—the final permission boundary. Users may approve actions without seeing every security-relevant detail.
+
+A secure MCP design assumes that tool descriptions, arguments, results, retrieved documents, and remote servers can all be malicious or compromised. It then limits what each component can do even after another component fails.
 
 The type of threats you should anticipate depends on deployment type. Local servers run on infrastructure you control and often execute OS-level commands, so a flaw can mean code execution on your box. Remote MCP servers can live on localhost, a private URL, or a public URL and are run by others, yet they still touch your data, so you're trusting a third party with sensitive access.
 
@@ -50,59 +111,231 @@ Adoption is currently outpacing the maturity of MCP servers as a business tool, 
 
 ## The Fundamental MCP Security Risks You Need to Know
 
-These are the threats you design against. The table maps each risk to how it happens and how to shut it down.
+MCP's biggest security risks are broken authorization, tool poisoning, prompt injection, excessive permissions, secret exposure, confused-deputy attacks, token misuse, server compromise, and unsafe high-impact actions. The table maps each risk to how it happens, how to shut it down, and which evidence to retain.
 
-| Risk | How It Happens | Real Impact | Primary Mitigation |
+| MCP security risk | How the attack works | Required mitigation | Evidence to retain |
 | --- | --- | --- | --- |
-| Prompt / Tool Injection | Malicious instructions hidden in tool metadata or external content | Data exfiltration, destructive actions | Review tool definitions, validate inputs/outputs, human approval |
-| Confused Deputy / OAuth token misuse | Server forwards or accepts tokens meant for another resource | Privilege escalation across APIs | Validate token audience; use resource indicators |
-| Token Passthrough & Over-scoped Credentials | Broad tokens passed to the server or downstream | One breach exposes everything | Least-privilege scopes, per-tool credentials |
-| Supply Chain Risk | Untrusted third-party server ships hidden behavior | Backdoors, RCE | Signing, provenance, dependency scanning |
-| Local Server Misconfiguration | Unauthenticated server executing OS commands | Local code execution | Auth on every server, sandboxing |
-| Session Hijacking | Stolen or predictable session identifiers | Impersonation | Secure session binding, TLS |
-| SSRF | Server fetches attacker-controlled URLs | Internal network access | Egress limits, URL allowlists |
+| Broken authentication or authorization | An attacker reaches a remote MCP server without a valid identity, uses a token for the wrong audience, or accesses another user's resources. | Follow the MCP authorization specification for protected remote servers, validate token issuer and audience, authorize every request, and deny by default. | Authentication records, token-validation outcome, subject, audience, scopes, and authorization decision |
+| Prompt / Tool Injection | Malicious instructions hide in tool metadata or external content and influence later actions. | Review tool definitions, isolate and validate inputs and outputs, constrain follow-up tools, and require human approval. | Content source, definition version, subsequent tool calls, and approval events |
+| Confused Deputy / OAuth token misuse | A server forwards or accepts tokens meant for another resource. | Bind consent and tokens to the intended client and resource, validate redirect targets, use state and PKCE where applicable, and validate token audiences. | Client identity, redirect target, resource indicator, consent, and token audience |
+| Token Passthrough & Over-scoped Credentials | Broad tokens are passed to the server or downstream service, so one breach exposes everything. | Reject token passthrough, use audience-restricted tokens, least-privilege scopes, and per-tool credentials. | Issuer, audience, scopes, downstream resource, and exchange record |
+| Supply Chain Risk | An untrusted third-party server or dependency ships hidden behavior. | Verify provenance, pin trusted code and dependencies, scan dependencies, monitor behavior, and remove unnecessary privileges. | Build provenance, dependency versions, process permissions, and alerts |
+| Local Server Misconfiguration | An unauthenticated or overprivileged server executes OS commands. | Authenticate where appropriate, run as an unprivileged user, sandbox the process, and restrict files, subprocesses, and egress. | Process identity, permissions, network activity, and authentication records |
+| Session Hijacking | An attacker steals or predicts a session identifier and uses another user's server session. | Generate secure session identifiers, bind sessions to the authorized identity, validate every request, expire sessions, and never use a session ID as authentication. | Session creation, identity binding, expiration, and invalid-session events |
+| SSRF | A server fetches attacker-controlled URLs and reaches internal networks. | Validate destinations, use URL allowlists, and enforce network egress policy. | Requested destination, policy decision, network activity, and denied requests |
+| Excessive permission scope | A tool receives broad database, filesystem, SaaS, or cloud privileges that exceed the current task. | Use least-privilege identities, narrow scopes, resource-level authorization, read-only defaults, short-lived access, and per-user delegation where possible. | Effective identity, granted scopes, target resource, policy decision, and denied requests |
+| Secret leakage | Tokens or credentials appear in prompts, arguments, logs, error messages, tool results, or model context. | Store secrets outside model context, inject them server-side, redact logs, rotate exposed credentials, and prevent tools from returning secret material. | Secret reference rather than value, access event, redaction status, and rotation event |
+| Malicious or compromised server | A server changes behavior, exfiltrates data, or performs hidden network and filesystem operations. | Isolate the process, restrict egress and filesystem access, pin trusted code and dependencies, and monitor behavior. | Build provenance, dependency versions, network activity, process permissions, and alerts |
+| Unsafe consequential action | A model sends a message, changes permissions, deletes data, executes code, or transfers funds without informed confirmation. | Add deterministic policy checks, previews, idempotency controls, transaction limits, and human approval immediately before execution. | Proposed action, preview, approver, final parameters, execution result, and rollback status |
 
 ## Three Top MCP Security Concerns To Be Aware Of
 
+MCP teams should prioritize prompt and tool injection, authentication failures, and supply-chain compromise because each can turn a useful integration into an unauthorized execution path.
+
 ### Prompt and tool injection
 
-Tool poisoning, where malicious instructions are embedded in tool metadata, is the most prevalent and impactful client-side vulnerability. An amended tool definition can quietly instruct an agent to delete resources or redirect data while looking like ordinary configuration.
+MCP prompt and tool injection manipulates model behavior through untrusted content or security-sensitive metadata. Tool poisoning, where malicious instructions are embedded in tool metadata, is the most prevalent and impactful client-side vulnerability. An amended tool definition can quietly instruct an agent to delete resources or redirect data while looking like ordinary configuration.
 
 Two documented cases, [MCPoison (CVE-2025-54136)](https://nvd.nist.gov/vuln/detail/CVE-2025-54136) and [CurXecute (CVE-2025-54135)](https://nvd.nist.gov/vuln/detail/CVE-2025-54135), proved the same structural point in Cursor's MCP handling: a trusted configuration could be swapped for a malicious one and reach code execution. Researchers separately demonstrated a [WhatsApp MCP integration flaw](https://www.docker.com/blog/mcp-horror-stories-whatsapp-data-exfiltration-issue/) where a malicious server poisoned tool descriptions, silently redirecting a user's message history to an attacker-controlled number.
 
 ### Authentication
 
-If an MCP server accepts tokens with incorrect audiences and forwards them unmodified to downstream services, the downstream API incorrectly trusts the token. Over-scoped tokens compound this: hand a server broad credentials and one compromised path exposes everything. OAuth implementation details are where these bugs live.
+MCP authentication must bind every protected request to the intended identity, client, audience, resource, and permission. If an MCP server accepts tokens with incorrect audiences and forwards them unmodified to downstream services, the downstream API incorrectly trusts the token. Over-scoped tokens compound this: hand a server broad credentials and one compromised path exposes everything. OAuth implementation details are where these bugs live.
 
 ### Supply chain risk
 
-MCP servers are executable code, so an unvetted third-party server can carry hidden behavior. Signing, provenance checks, and dependency scanning are your defenses.
+MCP supply-chain risk begins with servers as executable code, so an unvetted third-party server can carry hidden behavior. Signing, provenance checks, and dependency scanning are your defenses.
 
 ## How to Build a Secure MCP Server
 
+MCP server development should establish least privilege, hardened authorization, trusted definitions, isolated execution, protected secrets, and useful audit evidence before production access expands.
+
 ### Design With Least Privilege
 
-Scope every token and permission to the minimum each tool needs, and avoid passing broad credentials to the server. Separate credentials per tool and data source so one compromised path doesn't open the rest. Decide local versus remote deployment based on data sensitivity and trust boundaries before you write any auth code.
+MCP least-privilege design scopes every token and permission to the minimum each tool needs and avoids passing broad credentials to the server. Separate credentials per tool and data source so one compromised path doesn't open the rest. Decide local versus remote deployment based on data sensitivity and trust boundaries before you write any auth code.
+
+A useful permission model answers five questions:
+
+| Permission dimension | Security question | Safer default |
+| --- | --- | --- |
+| Identity | Whose authority is the tool using? | A dedicated service identity or delegated end-user identity |
+| Resource | Which records, files, channels, repositories, or accounts are reachable? | An explicit allowlist or tenant-bound resource set |
+| Operation | Can the tool read, create, update, delete, execute, or administer? | Read-only access until write access is required |
+| Duration | How long does access remain valid? | Short-lived credentials with revocation support |
+| Environment | Can the tool reach production systems? | Isolated development or staging access first |
+
+Scopes are only one part of MCP authorization. The server must also check object ownership, tenant boundaries, action type, current policy, and any approval requirement. Separate high-risk tools from low-risk tools so granting access to search does not implicitly grant access to delete or administer.
 
 ### Harden Authentication and Authorization
 
-Implement [OAuth](https://oauth.net/2.1/) correctly. An MCP client acts as an OAuth 2.1 client making requests on behalf of a resource owner, and the authorization server issues access tokens for use at the MCP server.
+MCP authentication and authorization should establish a verified user and client, issue tokens for the intended resource, and enforce permission checks on every protected request. Implement [OAuth](https://oauth.net/2.1/) correctly. An MCP client acts as an OAuth 2.1 client making requests on behalf of a resource owner, and the authorization server issues access tokens for use at the MCP server.
 
 Enforce per-client consent and validate redirect URIs to close confused-deputy gaps. Critically, the MCP server must not pass through the token it received from the client, and clients must use the resource parameter defined in [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707) to specify the target resource.
 
-Never let the server act as an ambient super-user; enforce the requesting user's permissions on every call. Use the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) and [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700), the OAuth 2.0 security best practice published in January 2025, as a guide for best practice.
+Never let the server act as an ambient super-user; enforce the requesting user's permissions on every call. As of October 2026, use the current [MCP authorization specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization) and [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700), the OAuth 2.0 security best current practice published in January 2025, as implementation references.
+
+For protected remote HTTP servers:
+
+1. Authenticate the user through a trusted authorization service.
+2. Bind the authorization flow to the requesting client.
+3. Use PKCE and state protections where the authorization flow requires them.
+4. Request tokens for the intended MCP resource rather than accepting a token meant for another service.
+5. Validate the token's issuer, signature, audience, expiration, and applicable permissions.
+6. Authorize each tool or resource request against the current user, tenant, target object, and action.
+7. Reject token passthrough and arbitrary bearer tokens not issued for the MCP server.
+8. Revoke or expire access when the user, client, or integration is removed.
+
+Authorization must continue below the MCP layer. A database identity should have only the required tables, rows, and operations, while a SaaS integration should use the narrowest available scopes and preserve the initiating user's identity when practical. The official [MCP security best practices](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices) cover confused-deputy attacks, token handling, session security, and local-server risks.
 
 ### Treat Tool Definitions as Security-Critical Code
 
-Review and version tool definitions, and detect and block silent changes to tool behavior. Validate and sanitize the inputs and outputs the model can act on to shrink injection blast radius. Add guardrails or human approval for destructive actions like deletes, writes, and payments.
+MCP clients prevent tool poisoning by treating tool metadata as executable security policy rather than harmless documentation. Review and version tool definitions, and detect and block silent changes to tool behavior. Validate and sanitize the inputs and outputs the model can act on to shrink injection blast radius. Add guardrails or human approval for destructive actions like deletes, writes, and payments.
+
+A model uses a tool's name, description, and input schema to decide whether to call it. A malicious description can instruct the model to retrieve sensitive information, hide behavior from the user, or call another tool. Poisoning can also occur after initial approval if a remote server silently changes a definition.
+
+- Allow only reviewed MCP servers and record who approved each server.
+- Display the complete tool name, description, schema, server identity, and requested permissions during review.
+- Record a hash or version of each approved tool definition.
+- Alert on additions or changes to names, descriptions, schemas, annotations, and server origins.
+- Disable changed tools until a reviewer accepts the new definition.
+- Keep server instructions and tool metadata separate from higher-priority system policy.
+- Enforce sensitive-action policy outside the model so a poisoned description cannot bypass it.
+- Show users the final action and destination rather than a vague confirmation such as “Allow tool use?”
+
+A trusted MCP server can still be compromised, so allowlisting by itself is insufficient. Definition-change detection, runtime restrictions, and audit trails reduce the damage if trust later becomes invalid.
 
 ### Secure the Supply Chain
 
-Run only trusted, signed servers, and vet third-party servers before connecting. Add SAST and software composition analysis to your build pipeline to catch vulnerable dependencies. Pin versions and monitor for behavioral changes in third-party servers.
+MCP supply-chain security requires running only trusted, signed servers and vetting third-party servers before connecting. Add SAST and software composition analysis to your build pipeline to catch vulnerable dependencies. Pin versions and monitor for behavioral changes in third-party servers.
+
+## How do you prevent prompt injection through MCP tools?
+
+MCP clients prevent prompt injection by treating all retrieved content and tool output as untrusted data that cannot authorize another action. A document, support ticket, web page, database row, or API response can contain instructions aimed at the model. The model may mistake those instructions for legitimate workflow directions and then disclose data or invoke another tool.
+
+The strongest MCP mitigations are architectural:
+
+- Label tool results with their source and keep them distinct from system and developer instructions.
+- Parse structured data against a schema instead of feeding unrestricted text into later actions.
+- Do not let retrieved content choose credentials, recipients, destinations, or permission levels.
+- Constrain which tools can follow a retrieval step.
+- Apply deterministic validation to URLs, file paths, SQL operations, email recipients, and other sensitive fields.
+- Require human approval for irreversible, external, financial, or privilege-changing actions.
+- Limit the data available to the model before an injection occurs.
+- Test with direct, indirect, multilingual, encoded, and cross-tool prompt-injection payloads.
+
+Prompt-injection detection can add useful signals, but it should not be the only MCP defense. A successful injection should still encounter narrow permissions, policy checks, action previews, and approval gates.
+
+## How should MCP servers handle secrets?
+
+MCP servers should keep secrets outside model-visible context and resolve credentials only at the server-side execution boundary. API keys, refresh tokens, database passwords, signing secrets, and private keys should never be embedded in tool descriptions, prompts, resource content, or ordinary tool arguments. Use a credential manager or secret store, refer to credentials by opaque identifier, and inject the secret only when the server calls the downstream service.
+
+Secure MCP secret handling also requires:
+
+- Encrypting secrets at rest and in transit.
+- Restricting which server identity can retrieve each secret.
+- Separating development, staging, and production credentials.
+- Redacting authorization headers, cookies, tokens, and sensitive fields from logs and errors.
+- Preventing tool results from echoing credentials or raw environment variables.
+- Rotating credentials after suspected disclosure.
+- Recording secret access without recording the secret value.
+- Using short-lived credentials where the downstream system supports them.
+
+An MCP-connected model should receive the outcome of an authenticated operation, not the credential used to perform it.
+
+## How do you secure local and remote MCP servers?
+
+MCP local and remote servers require different transport controls, but both should be isolated, authenticated where appropriate, and limited to necessary resources.
+
+### How do you secure a local MCP server?
+
+MCP local servers should be treated as locally executing software with the same risk as any other process that can read files, access credentials, or make network requests.
+
+- Install only reviewed packages from verified sources.
+- Pin versions and review dependency changes.
+- Run the server as an unprivileged user.
+- Restrict filesystem paths, environment variables, subprocess execution, and outbound network access.
+- Avoid exposing a local server on all network interfaces.
+- Keep credentials out of command-line arguments and model-visible configuration.
+- Use operating-system sandboxing or containers where appropriate.
+
+MCP package names, repository ownership, release artifacts, and install commands are part of the trust decision. A convenient one-line install command should not bypass code and dependency review.
+
+### How do you secure a remote MCP server?
+
+MCP remote servers should use encrypted transport, protocol-compliant authorization, origin validation, tenant isolation, rate limits, and complete request auditing.
+
+- Use HTTPS and reject insecure transport outside tightly controlled development environments.
+- Apply the host and origin protections required by the chosen MCP HTTP transport.
+- Authenticate protected requests and validate tokens for the intended server.
+- Keep tenants and users isolated at every data-access layer.
+- Rate-limit authentication attempts, tool calls, and expensive operations.
+- Set request-size, response-size, timeout, and concurrency limits.
+- Validate all tool arguments server-side.
+- Prevent server-side request forgery with destination controls and network egress policy.
+- Expire sessions where the selected protocol revision or application layer uses them, and bind them to the authenticated identity.
+
+As of October 2026, the [MCP transport specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) and its Streamable HTTP binding contain the current protocol-specific transport requirements.
+
+## When should an MCP tool require human approval?
+
+MCP tools should require human approval when they create an external commitment, change privileges, disclose sensitive data, execute code, move money, or perform an action that is difficult to reverse. Approval is most effective when it occurs immediately before execution and shows the final parameters. The reviewer should see the action, destination, affected resources, data being disclosed, credential or identity being used, and expected consequence.
+
+MCP approval candidates include:
+
+- Sending an email, message, or public post.
+- Deleting or overwriting records.
+- Running shell commands or deploying code.
+- Changing access controls or inviting users.
+- Exporting customer or employee data.
+- Initiating purchases, refunds, transfers, or payments.
+- Modifying production infrastructure.
+- Approving legal, compliance, or procurement commitments.
+
+MCP human approval does not replace authorization. The server must still reject actions outside the approver's authority and validate that the approved parameters are identical to the executed parameters.
+
+## What should MCP audit logs contain?
+
+MCP audit logs should reconstruct who requested an action, which server and tool handled it, what authorization applied, what the tool attempted, and what happened.
+
+Record at least:
+
+- Timestamp and request or trace identifier.
+- Initiating user, tenant, client, and session where applicable.
+- MCP server identity and version.
+- Tool name and approved definition version or hash.
+- Sanitized arguments and target resources.
+- Effective downstream identity and permission scope.
+- Authorization and policy decisions.
+- Human approval, denial, or timeout.
+- Tool result status, latency, and error category.
+- Follow-up actions triggered by the result.
+
+MCP logs should redact secrets and sensitive payloads while retaining enough metadata for investigation. Access to audit logs should itself be restricted and audited, and retention should match the organization's incident-response and compliance requirements.
+
+## What should an MCP security review test?
+
+MCP security reviews should test identity, authorization, metadata integrity, prompt injection, input validation, isolation, secret handling, transport state, logging, and incident response.
+
+1. Inventory every MCP client, server, tool, resource, prompt, credential, and downstream system.
+2. Draw trust boundaries and data flows, including model-visible data.
+3. Verify authentication and token validation for remote access.
+4. Test tenant, object, and operation-level authorization.
+5. Review tool descriptions and schemas for hidden or misleading instructions.
+6. Change an approved tool definition and confirm that the change is detected.
+7. Place adversarial instructions in documents and tool results.
+8. Attempt unauthorized reads, writes, deletes, and cross-tenant access.
+9. Attempt path traversal, command injection, SQL injection, and server-side request forgery where relevant.
+10. Search prompts, logs, traces, and errors for leaked secrets.
+11. Attempt applicable transport-state theft, replay, expiration bypass, and identity swapping.
+12. Confirm that sensitive actions show accurate previews and require appropriate approval.
+13. Verify rate limits, timeouts, output limits, and failure isolation.
+14. Reconstruct the test from audit logs and practice revoking the affected credentials.
+
+MCP security reviews should be repeated after server, tool-definition, permission, model, transport, or dependency changes.
 
 ## Deploying and Governing MCP Servers in Production
 
-Shipping securely is half the job. MCP servers need ongoing governance and monitoring like any production system.
+MCP production deployments need ongoing governance and monitoring like any other system with privileged access. Shipping securely is half the job.
 
 Start with deployment controls. If you're self-hosting, isolate and sandbox servers so a compromise can't spread. You should also manage secrets outside the codebase, and limit network egress to reduce SSRF and lateral movement.
 
@@ -110,8 +343,37 @@ Observability comes next. Log every tool call and MCP interaction, trace executi
 
 Access governance keeps things controlled as teams scale. Implement RBAC, approval workflows, separate staging and production, and audit trails to keep track of activity surrounding your MCP servers.
 
-This is where a specialized platform helps. Sim is an AI workspace where teams build MCP-connected agents with enterprise controls, so security lives in the platform instead of being bolted on. You get self-hosted deployment for full data control, bring-your-own-keys, workspace and group access permissions, and full run logs with trace spans for every execution. Custom integrations connect through Sim's MCP support so your controls apply consistently. For the wider self-hosting landscape, see [open-source AI agent platforms](/library/open-source-ai-agent-platforms).
+Sim is the open-source AI workspace where teams build, deploy, and manage MCP-connected AI agents. You get self-hosted deployment for full data control, bring-your-own-keys, workspace and group access permissions, and full run logs with trace spans for every execution. Custom integrations connect through Sim's MCP support so your controls apply consistently. For the wider self-hosting landscape, see [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+## How can teams use MCP safely with AI agents?
+
+MCP teams can start with read-only, low-impact tools and expand access only after authorization, isolation, approval, and monitoring controls are proven.
+
+A practical MCP rollout has four stages:
+
+1. **Inventory and classify:** Identify every server and classify tools by data sensitivity, write capability, reversibility, and external impact.
+2. **Constrain and test:** Use non-production data, narrow credentials, restricted network access, and adversarial security tests.
+3. **Approve and observe:** Add explicit approval for consequential actions and monitor tool calls, permission denials, metadata changes, and anomalies.
+4. **Expand deliberately:** Grant additional tools or privileges only when the existing controls and audit evidence justify the change.
+
+Teams comparing implementations can review [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support). Database-focused deployments should review [How to Use a Postgres MCP Server With AI Agents: Security, Deployment, and Evaluation](https://www.sim.ai/library/postgres-mcp-server-ai-agents).
+
+## Which primary sources define MCP security best practices?
+
+MCP security guidance should begin with the official protocol documentation and the primary standards governing authorization, token use, and application security.
+
+As of October 2026, the primary references used for this guide are:
+
+- [Model Context Protocol: Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+- [Model Context Protocol: Security Best Practices](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices)
+- [Model Context Protocol: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [Model Context Protocol: Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+- [RFC 9700: Best Current Practice for OAuth 2.0 Security](https://www.rfc-editor.org/rfc/rfc9700)
+- [RFC 8707: Resource Indicators for OAuth 2.0](https://www.rfc-editor.org/rfc/rfc8707)
+- [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://www.rfc-editor.org/rfc/rfc9728)
+- [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/pubs/sp/800/207/final)
+- [OWASP: Prompt Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html)
 
 ## What To Do Next
 
-Treat your MCP server as untrusted until you've narrowed its tokens, versioned its tool definitions, and put every tool call under logs and approval gates. Pick your highest-risk server today and audit its security using the processes detailed above. If you're comparing where to run MCP-connected agents, [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) covers the field. If you're standardizing MCP across a team, [start building on Sim](https://www.sim.ai) so self-hosting, access control, and observability come built in.
+MCP teams should treat each server as untrusted until its tokens are narrow, its tool definitions are versioned, and every tool call is covered by logs and approval gates. Treat your MCP server as untrusted until you've narrowed its tokens, versioned its tool definitions, and put every tool call under logs and approval gates. Pick your highest-risk server today and audit its security using the processes detailed above. If you're comparing where to run MCP-connected agents, [the best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) covers the field. If you're standardizing MCP across a team, [start building on Sim](https://www.sim.ai) so self-hosting, access control, and observability come built in.

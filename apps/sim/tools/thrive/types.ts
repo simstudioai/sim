@@ -4,14 +4,14 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Credentials and region shared by every Thrive tool.
  * Thrive uses HTTP Basic auth (Tenant ID as username, API key as password).
  */
-export interface ThriveBaseParams {
+interface ThriveBaseParams {
   tenantId: string
   apiKey: string
   /** Region-specific API host, e.g. `public.api.learn.link`. Defaults to Production. */
   host?: string
 }
 
-export interface ThrivePagination {
+interface ThrivePagination {
   totalResults: number
   totalPages: number
   page: number

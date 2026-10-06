@@ -149,6 +149,10 @@ const AuditAction = {
   PERMISSION_ACCESS_REQUEST_CANCELLED: 'permission_access_request.cancelled',
   PERMISSION_ACCESS_REQUEST_CLOSED: 'permission_access_request.closed',
   PERMISSION_ACCESS_REQUEST_SETTINGS_CHANGED: 'permission_access_request.settings_changed',
+
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_UPDATED: 'sandbox.updated',
   SANDBOX_DELETED: 'sandbox.deleted',
@@ -238,6 +242,7 @@ const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   PERMISSION_ACCESS_REQUEST: 'permission_access_request',
+  PROJECT: 'project',
   SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',
   SCIM_CONNECTION: 'scim_connection',

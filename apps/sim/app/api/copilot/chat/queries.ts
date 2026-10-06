@@ -12,6 +12,7 @@ import {
   readLiveTurnSnapshot,
 } from '@/lib/mothership/chat/live-turn-snapshot'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -32,6 +33,7 @@ function transformChat(chat: {
   model: string | null
   messages: unknown
   config?: unknown
+  effort?: MothershipEffort | null
   conversationId?: string | null
   resources?: unknown
   createdAt: Date | null
@@ -44,6 +46,7 @@ function transformChat(chat: {
     messages: Array.isArray(chat.messages) ? chat.messages : [],
     messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
     config: chat.config || null,
+    effort: chat.effort ?? null,
     ...('conversationId' in chat ? { activeStreamId: chat.conversationId || null } : {}),
     ...('resources' in chat
       ? { resources: Array.isArray(chat.resources) ? chat.resources : [] }

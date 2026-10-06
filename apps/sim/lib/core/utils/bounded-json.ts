@@ -1,8 +1,11 @@
 const MAX_JSON_NODES = 100_000
 const MAX_JSON_DEPTH = 64
 
-/** Counts JSON escapes without allocating the escaped string. */
-function quotedStringBytes(value: string, remaining: number): number | undefined {
+/**
+ * UTF-8 byte length of `JSON.stringify(value)` for a string, counted without
+ * allocating the escaped copy. Returns `undefined` once it exceeds `remaining`.
+ */
+export function quotedStringBytes(value: string, remaining: number): number | undefined {
   let bytes = 2
   for (let index = 0; index < value.length && bytes <= remaining; index++) {
     const code = value.charCodeAt(index)

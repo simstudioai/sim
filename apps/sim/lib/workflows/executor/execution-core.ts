@@ -907,6 +907,14 @@ async function executeWorkflowCoreImpl(
         resolvedStopAfterBlockId = buildLoopSentinelEndId(stopAfterBlockId)
       } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
+      } else if (
+        !serializedWorkflow.blocks.some((block) => block.id === stopAfterBlockId && block.enabled)
+      ) {
+        // The engine stops on an exact node id and skips disabled blocks, so an absent or
+        // disabled target would run everything.
+        throw new Error(
+          `Stop block ${stopAfterBlockId} is not an enabled block in the workflow being executed`
+        )
       }
     }
 

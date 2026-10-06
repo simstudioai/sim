@@ -11,7 +11,7 @@ import { scrollFadeAttributes, scrollFadeXClass } from '../scroll-fade/scroll-fa
  * One segment in a {@link ChipSwitch}. `label` accepts a `ReactNode` so callers
  * can render colored accents (e.g. a discount badge) inline.
  */
-export interface ChipSwitchOption<T extends string = string> {
+interface ChipSwitchOption<T extends string = string> {
   /** The value associated with this option — passed to `onChange` on select. */
   value: T
   /** Visible label content; `ReactNode` allows inline badges or colored spans. */

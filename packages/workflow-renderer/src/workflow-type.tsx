@@ -83,7 +83,7 @@ const DEFAULT_WORKFLOW_TYPE_ROLE: WorkflowTypeRole = 'neutral'
 export const hasWorkflowTypeRole = (type: string): type is keyof typeof WORKFLOW_TYPE_ROLES =>
   Object.hasOwn(WORKFLOW_TYPE_ROLES, type)
 
-export const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
+const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
   WORKFLOW_TYPE_ROLES[type as keyof typeof WORKFLOW_TYPE_ROLES] ?? DEFAULT_WORKFLOW_TYPE_ROLE
 
 export const getWorkflowTypeAccent = (type: string) =>

@@ -1,9 +1,8 @@
-import { toRecord } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { type ModelSelection, ModelSelectionSchema } from '@/lib/mothership/generated/protocol'
 import {
-  MOTHERSHIP_EFFORT_OPTIONS,
   type MothershipEffort,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
@@ -12,15 +11,39 @@ interface MothershipEffortState {
   modelSelection: ModelSelection
   setModel: (model: ModelSelection['model']) => void
   setFastMode: (fastMode: boolean) => void
-  effort: MothershipEffort
-  setEffort: (effort: MothershipEffort) => void
+  /**
+   * The effort picked in a composer whose chat does not exist yet. Its first send records
+   * it on the new chat; leaving that composer unsent drops it.
+   */
+  newChatEffort: MothershipEffort | null
+  setNewChatEffort: (effort: MothershipEffort | null) => void
+  /**
+   * Picks made in existing chats this session, by chat id. They win over the chat's loaded
+   * value, so a detail refetch or a save still in flight never shows or sends an older one.
+   */
+  chatEfforts: Record<string, MothershipEffort>
+  setChatEffort: (chatId: string, effort: MothershipEffort) => void
+  /** Drops a pick whose save failed, unless a newer pick replaced it. */
+  dropChatEffort: (chatId: string, effort: MothershipEffort) => void
+  /** Moves the new-chat pick onto the chat its first send created. */
+  adoptNewChatEffort: (chatId: string, effort: MothershipEffort) => void
   reset: () => void
 }
 
-const initialState = {
-  effort: 'high',
+const initialState: Pick<
+  MothershipEffortState,
+  'modelSelection' | 'newChatEffort' | 'chatEfforts'
+> = {
   modelSelection: { model: 'gpt-6-astra', fastMode: false },
-} satisfies Pick<MothershipEffortState, 'effort' | 'modelSelection'>
+  newChatEffort: null,
+  chatEfforts: {},
+}
+
+function withModelSelection(
+  modelSelection: ModelSelection
+): Pick<MothershipEffortState, 'modelSelection'> {
+  return { modelSelection: resolveMothershipModelSettings({ modelSelection }, true).modelSelection }
+}
 
 export const useMothershipEffortStore = create<MothershipEffortState>()(
   devtools(
@@ -28,42 +51,32 @@ export const useMothershipEffortStore = create<MothershipEffortState>()(
       (set) => ({
         ...initialState,
         setFastMode: (fastMode) =>
-          set((state) =>
-            resolveMothershipModelSettings(
-              { ...state, modelSelection: { ...state.modelSelection, fastMode } },
-              true
-            )
-          ),
+          set((state) => withModelSelection({ ...state.modelSelection, fastMode })),
         setModel: (model) =>
-          set((state) =>
-            resolveMothershipModelSettings(
-              { ...state, modelSelection: { model, fastMode: state.modelSelection.fastMode } },
-              true
-            )
-          ),
-        setEffort: (effort) => set({ effort }),
+          set((state) => withModelSelection({ model, fastMode: state.modelSelection.fastMode })),
+        setNewChatEffort: (newChatEffort) => set({ newChatEffort }),
+        setChatEffort: (chatId, effort) =>
+          set((state) => ({ chatEfforts: { ...state.chatEfforts, [chatId]: effort } })),
+        dropChatEffort: (chatId, effort) =>
+          set((state) => {
+            if (state.chatEfforts[chatId] !== effort) return state
+            return { chatEfforts: omit(state.chatEfforts, [chatId]) }
+          }),
+        adoptNewChatEffort: (chatId, effort) =>
+          set((state) => ({
+            newChatEffort: null,
+            chatEfforts: { ...state.chatEfforts, [chatId]: effort },
+          })),
         reset: () => set(initialState),
       }),
       {
         name: 'mothership-effort',
-        partialize: ({ effort, modelSelection }) => ({ effort, modelSelection }),
+        partialize: ({ modelSelection }) => ({ modelSelection }),
         merge: (persistedState, currentState) => {
-          const persisted = toRecord(persistedState)
-          const selection = ModelSelectionSchema.safeParse(persisted.modelSelection)
-          const effort =
-            persisted.effort === 'none'
-              ? 'none'
-              : (MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === persisted.effort)
-                  ?.value ?? currentState.effort)
+          const selection = ModelSelectionSchema.safeParse(toRecord(persistedState).modelSelection)
           return {
             ...currentState,
-            ...resolveMothershipModelSettings(
-              {
-                effort,
-                modelSelection: selection.success ? selection.data : currentState.modelSelection,
-              },
-              true
-            ),
+            ...withModelSelection(selection.success ? selection.data : currentState.modelSelection),
           }
         },
       }

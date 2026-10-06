@@ -423,6 +423,8 @@ export interface {Service}{Action}Response extends ToolResponse {
 }
 ```
 
+Each response interface is imported by its tool's config: `ToolConfig<Params, Response>` for an external API, `InternalToolConfig<Params, Response>` for in-process work. Never add an umbrella `{Service}Response` union of them: nothing imports it.
+
 ## Index.ts Barrel Export Pattern
 
 ```typescript

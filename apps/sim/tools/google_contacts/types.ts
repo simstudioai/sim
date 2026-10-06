@@ -58,14 +58,6 @@ export interface GoogleContactsSearchParams extends BaseGoogleContactsParams {
   pageSize?: number
 }
 
-export type GoogleContactsToolParams =
-  | GoogleContactsCreateParams
-  | GoogleContactsGetParams
-  | GoogleContactsListParams
-  | GoogleContactsUpdateParams
-  | GoogleContactsDeleteParams
-  | GoogleContactsSearchParams
-
 interface ContactMetadata {
   resourceName: string
   etag: string
@@ -131,14 +123,6 @@ export interface GoogleContactsSearchResponse extends ToolResponse {
     }
   }
 }
-
-export type GoogleContactsResponse =
-  | GoogleContactsCreateResponse
-  | GoogleContactsGetResponse
-  | GoogleContactsListResponse
-  | GoogleContactsUpdateResponse
-  | GoogleContactsDeleteResponse
-  | GoogleContactsSearchResponse
 
 /** Transforms a raw Google People API person object into a ContactMetadata */
 export function transformPerson(person: Record<string, any>): ContactMetadata {

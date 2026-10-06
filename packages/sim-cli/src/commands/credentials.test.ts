@@ -112,6 +112,61 @@ describe('credential connection commands', () => {
     ).rejects.toThrow('unsupported field "extra" for zoom-service-account')
     expect(mockRequest).toHaveBeenCalledTimes(1)
   })
+
+  describe('native Claude Platform service account', () => {
+    const claude = {
+      type: 'service_account',
+      serviceId: 'claude-platform-service-account',
+      providerId: 'claude-platform-service-account',
+      available: true,
+      requiresClientGeneratedCredentialId: false,
+      fields: [{ id: 'apiToken', required: true, secret: true }],
+    }
+    const createArgs = [
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'claude-platform-service-account',
+      '--name',
+      'Code Fixes',
+      '--credentials',
+      '{"apiToken":"test-api-token"}',
+    ]
+
+    it('creates from the unfiltered catalog without requiring a client credential id', async () => {
+      mockRequest
+        .mockReset()
+        .mockResolvedValueOnce({ data: [claude], nextCursor: null })
+        .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+
+      await program().parseAsync(createArgs)
+
+      expect(mockRequest).toHaveBeenNthCalledWith(1, '/api/v2/credentials/providers', {
+        method: 'GET',
+        query: { workspaceId: 'ws_local' },
+      })
+      const [, createRequest] = mockRequest.mock.calls[1]
+      expect(createRequest.body).toEqual({
+        workspaceId: 'ws_local',
+        type: 'service_account',
+        providerId: 'claude-platform-service-account',
+        displayName: 'Code Fixes',
+        credentials: '{"apiToken":"test-api-token"}',
+      })
+    })
+
+    it('refuses before creation when workspace policy disables the provider', async () => {
+      mockRequest
+        .mockReset()
+        .mockResolvedValueOnce({ data: [{ ...claude, available: false }], nextCursor: null })
+
+      await expect(program().parseAsync(createArgs)).rejects.toThrow(
+        'Service-account provider "claude-platform-service-account" is not available.'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    })
+  })
 })
 
 describe('credentials update --name', () => {

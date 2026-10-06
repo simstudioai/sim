@@ -27,7 +27,6 @@ import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/m
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
-  GenericResourceData,
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
@@ -105,7 +104,6 @@ interface MothershipViewProps {
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
-  genericResourceData?: GenericResourceData
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
 }
@@ -126,7 +124,6 @@ export const MothershipView = memo(
       className,
       previewSession,
       isAgentResponding,
-      genericResourceData,
       onSummarize,
       onUserInteraction,
     }: MothershipViewProps,
@@ -316,7 +313,6 @@ export const MothershipView = memo(
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
-                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
                 onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
               />
@@ -348,8 +344,7 @@ function ScopedResourceContent({
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
   if (!workspaceId) {
-    if (props.resource.type === 'generic')
-      return <GenericResourceContent data={props.genericResourceData ?? { entries: [] }} />
+    if (props.resource.type === 'generic') return <GenericResourceContent />
     if (props.resource.type === 'browser')
       return (
         <BrowserSession

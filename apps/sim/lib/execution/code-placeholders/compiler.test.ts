@@ -885,6 +885,26 @@ describe('code placeholder compiler', () => {
     expect(executeShell(compiled.code, compiled.bindings)).toBe('<secret-value>\n')
   })
 
+  it('keeps shell quote context after heredoc bodies with unbalanced quotes', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'cat <<EOF',
+        "Today's report",
+        'EOF',
+        "cat <<'EOF'",
+        'a "quote',
+        'EOF',
+        'printf "<%s>\\n" "{{KEY}}"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: ' * ' },
+    })
+
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      'Today\'s report\na "quote\n< * >\n'
+    )
+  })
+
   it('tracks nested shell command substitutions and their own quote contexts', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
@@ -1017,6 +1037,64 @@ describe('code placeholder compiler', () => {
         })
       ).rejects.toThrow('is not supported')
     }
+  })
+
+  it.each([
+    'total=$(( {{KEY}} * 2 ))',
+    'printf "%s" "$(( {{KEY}} * 2 ))"',
+    'total=$(( "{{KEY}}" * 2 ))',
+    'total=$[ {{KEY}} * 2 ]',
+    'printf "%s" "$[ {{KEY}} * 2 ]"',
+    'total=$[ values[0] + {{KEY}} ]',
+    '(( total = {{KEY}} * 2 ))',
+    'for (( i = {{KEY}}; i < 2; i++ )); do :; done',
+    'total=$(( $(printf "%s" "{{KEY}}") * 2 ))',
+    'total=$(( `printf "%s" "{{KEY}}"` * 2 ))',
+    'total=$(( $(( 1 + 1 )) + {{KEY}} ))',
+    'cat <<PAYLOAD\n$(( {{KEY}} * 2 ))\nPAYLOAD',
+    'cat <<PAYLOAD\n$[ {{KEY}} * 2 ]\nPAYLOAD',
+  ])('rejects shell placeholders whose values enter arithmetic: %s', async (code) => {
+    await expect(
+      compileCodePlaceholders({
+        code,
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: 'values[$(printf injected >&2)]' },
+      })
+    ).rejects.toThrow('is not supported in shell arithmetic')
+  })
+
+  it('preserves shell literal arithmetic text and leaves completed arithmetic frames', async () => {
+    const value = 'values[$(printf injected >&2)]'
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'printf "%s\\n" "{{KEY}}"',
+        "printf '%s\\n' '$(( {{KEY}} ))'",
+        "printf '%s\\n' '$[ {{KEY}} ]'",
+        'printf "%s\\n" "$(printf %s "{{KEY}}")"',
+        'printf "%s\\n" "$(( 1 + 1 )){{KEY}}"',
+        'printf "%s\\n" "$[ values[0] + 2 ]{{KEY}}"',
+        '(( total = 2 )); printf "%s\\n" "{{KEY}}"',
+        'cat <<PAYLOAD',
+        '(( {{KEY}} ))',
+        'PAYLOAD',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: value },
+    })
+
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      `${value}\n$(( ${value} ))\n$[ ${value} ]\n${value}\n2${value}\n2${value}\n${value}\n(( ${value} ))\n`
+    )
+  })
+
+  it('discovers shell arithmetic placeholders without compiling missing values', async () => {
+    const code = 'total=$(( {{MISSING}} + {{KEY}} ))'
+    await expect(analyzeCodePlaceholders(code, CodeLanguage.Shell)).resolves.toEqual([
+      'MISSING',
+      'KEY',
+    ])
+    const compiled = await compileCodePlaceholders({ code, language: CodeLanguage.Shell })
+    expect(compiled.code).toBe(code)
   })
 
   it('renders quoted shell heredocs nested in double-quoted command substitutions', async () => {
@@ -1264,6 +1342,23 @@ describe('direct environment reads in shell', () => {
 
     expect(quoted.resolvedSecretNames).toEqual([])
     expect(unquoted.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
+  it('reports reads after heredoc bodies with unbalanced quotes', async () => {
+    for (const header of ['cat <<EOF', "cat <<'EOF'"]) {
+      const compiled = await compileCodePlaceholders({
+        code: [header, "Today's report", 'EOF', 'echo $API_KEY'].join('\n'),
+        language: CodeLanguage.Shell,
+        environmentVariables: { API_KEY: 'a-value' },
+      })
+      expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+    }
+    const inBody = await compileCodePlaceholders({
+      code: ['cat <<EOF', "it's $API_KEY", 'EOF'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+    expect(inBody.resolvedSecretNames).toEqual(['API_KEY'])
   })
 
   it('ignores a shell variable that is not a configured secret', async () => {
@@ -1572,5 +1667,19 @@ describe('compiler failure classification', () => {
     await expect(
       compileCodePlaceholders({ code, language: CodeLanguage.JavaScript, params: { a: 1 } })
     ).rejects.toBeInstanceOf(CodePlaceholderCompileError)
+  })
+})
+
+describe('python keyword lookback', () => {
+  it('terminates when the only keyword match on the line sits inside a string', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'x = """\nlambda""" + {{A}}\n',
+      language: CodeLanguage.Python,
+      params: { A: 'v' },
+    })
+
+    expect(compiled.code).toBe(
+      `x = """\nlambda""" + (${compiled.bindings[0].name} if True else None)\n`
+    )
   })
 })

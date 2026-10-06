@@ -11,6 +11,7 @@ import {
   user,
 } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { confluenceReaderGroupCondition } from '@/lib/knowledge/access/group-membership'
@@ -278,18 +279,4 @@ function storedKnowledgeAccessCondition(
  */
 export function aclOverlap(tokens: SQL): SQL {
   return sql`${document.acl} && ${tokens}`
-}
-
-/**
- * The pool uses fetch_types: false, so arrays must be constructed from scalar
- * parameters. A JSON scalar keeps large sets below PostgreSQL's bind limit.
- */
-export function textArrayLiteral(values: readonly string[]): SQL {
-  if (values.length > 1000) {
-    return sql`ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(values)}::text::jsonb))`
-  }
-  return sql`ARRAY[${sql.join(
-    values.map((value) => sql`${value}`),
-    sql`, `
-  )}]::text[]`
 }
