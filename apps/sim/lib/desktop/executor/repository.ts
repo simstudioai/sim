@@ -171,6 +171,11 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
         permissionDecision: copilotAsyncToolCalls.permissionDecision,
         claimed: sql<boolean>`${copilotAsyncToolCalls.executionOwnerToken} IS NOT NULL`,
         createdAt: copilotAsyncToolCalls.createdAt,
+        // A Date's milliseconds would tie calls written within the same millisecond.
+        persistedAtMicros:
+          sql<number>`(extract(epoch from ${copilotAsyncToolCalls.createdAt}) * 1000000)::bigint`.mapWith(
+            Number
+          ),
         chatId: copilotRuns.chatId,
         chatTitle: copilotChats.title,
         workspaceId: copilotRuns.workspaceId,
@@ -208,8 +213,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
     ),
   ])
   return [...waiting, ...cancelled].sort(
-    (a, b) =>
-      a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
+    (a, b) => a.persistedAtMicros - b.persistedAtMicros || a.toolCallId.localeCompare(b.toolCallId)
   )
 }
 
