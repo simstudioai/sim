@@ -232,17 +232,19 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/scim-next.log"
           mkdir -p "$report_dir"
+          rm -rf .next/dev
           node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
+            status=$?
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
+            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
@@ -267,6 +269,12 @@ jobs:
       # A self-hosted app: hosted billing admits a run only through a Redis usage
       # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
       # so workflow execution gets its own app rather than adding Redis to that one.
+      #
+      # Every app in this job starts from an empty Turbopack dev cache (.next/dev).
+      # Restoring the one the previous app left, built with other NEXT_PUBLIC_*
+      # values and cut off by `next dev` killing its server 100ms after SIGTERM,
+      # panicked Turbopack ("inner_of_upper_lost_follower") or wedged the first
+      # route compile in 12 of 175 CI runs.
       - name: Verify single-block workflow runs over real HTTP
         working-directory: apps/sim
         env:
@@ -283,17 +291,19 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/stop-after-next.log"
           mkdir -p "$report_dir"
+          rm -rf .next/dev
           node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
+            status=$?
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
+            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
