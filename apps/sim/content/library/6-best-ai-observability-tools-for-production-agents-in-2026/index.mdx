@@ -3,20 +3,64 @@ slug: 6-best-ai-observability-tools-for-production-agents-in-2026
 title: '6 Best AI Observability Tools for Production Agents in 2026'
 description: 'Compare the six best AI observability tools for production agents in 2026 — Braintrust, Galileo, Langfuse, Arize AX, Datadog, and PostHog — across tracing, evaluations, CI/CD checks, and developer access.'
 date: 2026-09-04
-updated: 2026-09-30
+updated: 2026-10-06
 authors:
   - andrew
-readingTime: 15
+readingTime: 23
 tags: [AI Observability, AI Agents, Evaluations, Developer Tools, Sim]
 ogImage: /library/6-best-ai-observability-tools-for-production-agents-in-2026/cover.jpg
 draft: false
 faq:
   - q: "Do AI agents need evaluations as well as traces?"
-    a: "Yes. Traces reconstruct the path an agent took, but they do not automatically determine whether the path or result was correct. Evaluations measure dimensions such as factuality, relevance, task completion, safety, and tool selection. Used together, traces explain failures and evaluations detect them at scale."
+    a: "AI agents need evaluations as well as traces. Traces reconstruct the path an agent took, but they do not automatically determine whether the path or result was correct. Evaluations measure dimensions such as factuality, relevance, task completion, safety, and tool selection. Used together, traces explain failures and evaluations detect them at scale."
   - q: "What is the best AI observability tool in 2026?"
-    a: "Braintrust is the best overall option for product and engineering teams that prioritize ease across tracing, evaluation, experimentation, CI/CD checks, and coding-agent workflows. Galileo emphasizes automated production-quality checks, Langfuse provides an open-source path, Arize AX is a strong enterprise monitoring option, Datadog fits companies that want agent telemetry inside an existing APM stack, and PostHog connects AI traces to product and user behavior."
+    a: "Langfuse is the best AI observability tool for most teams in 2026 because it combines tracing, evaluations, prompt management, cost analysis, and self-hosting in one focused product."
   - q: "Does Sim include AI observability?"
-    a: "Yes. Every Sim workflow execution generates a trace with block-level inputs, outputs, timing, errors, token use, and cost. Sim also preserves execution snapshots so teams can inspect the workflow state associated with a run. When Sim calls a managed agent hosted by another provider, its logs preserve the workflow-level request, response, timing, and metadata around that handoff. Dedicated platforms such as Braintrust add cross-application evaluation, datasets, experiments, and release checks for teams building a broader quality program."
+    a: "Sim includes native Logs. Every Sim workflow execution generates a trace with block-level inputs, outputs, timing, errors, token use, and cost. Sim also preserves execution snapshots so teams can inspect the workflow state associated with a run. When Sim calls a managed agent hosted by another provider, its logs preserve the workflow-level request, response, timing, and metadata around that handoff. Dedicated platforms such as Braintrust add cross-application evaluation, datasets, experiments, and release checks for teams building a broader quality program."
+  - q: "What is the best AI agent observability tool?"
+    a: "Langfuse is the best AI agent observability tool for broad production use, while LangSmith is strongest for LangChain applications and Datadog is strongest for teams with an established Datadog operations stack."
+  - q: "What is AI agent observability?"
+    a: "AI agent observability is the practice of tracing, measuring, evaluating, and monitoring how an agent uses models, tools, retrieval, memory, and state to reach an outcome."
+  - q: "What is the difference between AI observability and AI monitoring?"
+    a: "AI observability explains why an AI system behaved as it did, while AI monitoring detects predefined conditions such as rising latency, errors, cost, or quality degradation."
+  - q: "What is the difference between LLM observability and agent observability?"
+    a: "LLM observability focuses on model inputs, outputs, tokens, latency, and quality, while agent observability also follows tool calls, retrieval, state transitions, retries, orchestration, and multi-step outcomes."
+  - q: "Which AI observability tools can be self-hosted?"
+    a: "Langfuse, Arize Phoenix, and Helicone provide documented self-managed deployment paths, while other products may provide enterprise deployment or data-control options that are not equivalent to unrestricted self-hosting."
+  - q: "Is Langfuse better than LangSmith?"
+    a: "Langfuse is better than LangSmith for teams prioritizing self-hosting and framework-neutral observability, while LangSmith is better for teams prioritizing deep LangChain and LangGraph integration."
+  - q: "Is Arize Phoenix better than Langfuse?"
+    a: "Arize Phoenix is better than Langfuse for some OpenTelemetry-centered and retrieval-analysis workflows, while Langfuse is the stronger general recommendation for a combined tracing, evaluation, prompt, and cost workflow."
+  - q: "Is Braintrust an observability tool or an evaluation tool?"
+    a: "Braintrust is both an AI evaluation and observability tool because it connects datasets, experiments, scorers, production logs, traces, and feedback loops."
+  - q: "Is Helicone an AI gateway or an observability tool?"
+    a: "Helicone is both an AI gateway-oriented platform and an observability tool because it captures model traffic while analyzing requests, sessions, latency, tokens, errors, and cost."
+  - q: "Does Datadog support LLM and AI agent observability?"
+    a: "Datadog supports LLM and AI agent observability by collecting LLM spans and connecting them with application traces, infrastructure telemetry, monitors, notifications, and incident workflows."
+  - q: "Is n8n an AI observability platform?"
+    a: "n8n is not a dedicated AI observability platform because its execution views focus on workflows running in n8n rather than framework-neutral tracing, evaluation, and monitoring across an AI stack."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license."
+  - q: "Do AI observability tools track token costs?"
+    a: "Langfuse, LangSmith, Braintrust, Helicone, Datadog, and instrumented Phoenix deployments can track token and cost information when model, pricing, and usage metadata are available."
+  - q: "Do AI observability tools evaluate response quality?"
+    a: "Langfuse, LangSmith, Arize Phoenix, Braintrust, Helicone, and Datadog support quality evaluation workflows, although their evaluator libraries, online execution, review interfaces, and experiment features differ."
+  - q: "Can AI observability tools monitor RAG systems?"
+    a: "AI observability tools can monitor RAG systems by tracing retrieval and generation, recording retrieved documents, and evaluating relevance, groundedness, faithfulness, and answer quality."
+  - q: "Can AI observability tools monitor multi-agent systems?"
+    a: "AI observability tools can monitor multi-agent systems when instrumentation preserves parent-child relationships, handoffs, tool calls, shared state, and the identity of each participating agent."
+  - q: "Do I need an AI observability tool if I already have application logs?"
+    a: "An AI observability tool is still useful when application logs cannot reconstruct nested agent runs, connect model and tool activity, run evaluations, or attribute quality and cost to individual outcomes."
+  - q: "What data should an AI observability trace contain?"
+    a: "An AI observability trace should contain the application version, model calls, prompts, responses, tool activity, retrieval context, timing, token usage, cost, errors, scores, and final business outcome, subject to privacy controls."
+  - q: "How do AI observability platforms protect sensitive prompts and responses?"
+    a: "AI observability platforms protect sensitive prompts and responses through controls such as redaction, sampling, retention settings, access restrictions, encryption, and self-managed deployment, but buyers must test the exact controls offered by their selected product and plan."
+  - q: "What is the best open-source AI observability tool?"
+    a: "Langfuse is the strongest choice for buyers seeking an AI observability platform with permissively licensed core components and self-hosting, while buyers should inspect every repository and enterprise component rather than assuming the entire commercial service has one license."
+  - q: "How much do AI observability tools cost?"
+    a: "AI observability tools commonly combine free tiers or self-hosted software with paid plans based on seats, traces, spans, requests, retained data, or enterprise controls, so teams should model costs from their expected production volume."
+  - q: "What should I test before buying an AI observability platform?"
+    a: "An AI observability buyer should test trace completeness, debugging speed, evaluation workflows, cost attribution, alert routing, privacy controls, retention, and deployment requirements with a representative production agent."
 ---
 
 Production agents rarely fail in one clean place. A request may cross a visual workflow, a managed agent runtime, several tools, a retrieval system, and a model provider before it returns. The final response is only one clue. To debug the run, a team needs to see the decisions and handoffs that produced it.
@@ -25,18 +69,139 @@ That is why agent teams need observability at two levels. The agent builder shou
 
 At Sim, we approach the first level through native Logs. Every workflow run records block-level inputs, outputs, timing, errors, token usage, and cost. The tools in this guide address the broader quality workflow around those runs. This is a buying guide, not a primer: if you are new to the concept, start with [what AI agent observability is](https://www.sim.ai/library/ai-agent-observability), which covers traces, spans, metrics, evaluations, and what to instrument at each stage.
 
-We compared six platforms with extra weight on how easy they make the everyday work: instrumenting an agent, reading a trace, running an evaluation, adding checks to CI/CD, and giving engineers or coding agents direct access to the data. Braintrust is our top recommendation because those pieces work as one short feedback loop. The alternatives are stronger fits when a team prioritizes specialized evaluators, self-hosting, enterprise monitoring, an existing APM stack, or product analytics context.
+We compared nine platforms, retaining the original six and adding LangSmith, Arize Phoenix, and Helicone to reflect the wider 2026 market. Langfuse is our top recommendation because it balances tracing, evaluation, prompt management, cost analysis, and self-hosting. Braintrust remains the strongest evaluation-led choice, while the alternatives fit teams that prioritize specialized evaluators, framework-native workflows, enterprise monitoring, an existing APM stack, gateway visibility, or product analytics context.
 
 ## TL;DR
 
-- **[Braintrust](https://www.braintrust.dev/docs/observe):** Best overall for teams that want observability to drive evaluation and product improvement.
+**Langfuse is the best overall AI observability tool for most production-agent teams in 2026, while the retained alternatives lead for more specialized operating models.**
+
+- **[Langfuse](https://langfuse.com/docs):** Best overall for tracing, evaluations, cost analysis, prompt management, and self-hosting.
+- **[Braintrust](https://www.braintrust.dev/docs/observe):** Best for teams that want observability to drive evaluation and product improvement.
 - **[Galileo](https://docs.galileo.ai/api/experiments-api-guide):** Best for high-volume teams focused on automated output-quality and safety checks.
-- **[Langfuse](https://langfuse.com/docs):** Best for teams that want self-hosted LLM tracing with prompt management.
 - **[Arize AX](https://arize.com/docs/ax/observe/production-monitoring):** Best for enterprise teams that need production monitoring, continuous online evaluations, and alerts.
 - **[Datadog Agent Observability](https://docs.datadoghq.com/llm_observability/):** Best for organizations that already operate their production systems in Datadog.
 - **[PostHog AI Observability](https://posthog.com/docs/ai-observability):** Best for product teams that want to connect AI traces with user behavior, session replay, and product analytics.
 
+## What are the best AI observability tools for production agents in 2026?
+
+**Langfuse, LangSmith, Arize Phoenix, Braintrust, Helicone, and Datadog Agent Observability are the six best AI observability tools for the use cases evaluated here.** The original comparison also includes Galileo, Arize AX, and PostHog because each remains relevant to a distinct buyer need.
+
+1. **[Langfuse](https://langfuse.com/docs) — best overall for tracing, evaluations, costs, and self-hosting**
+2. **[LangSmith](https://docs.langchain.com/langsmith/observability-concepts) — best for applications built with LangChain and LangGraph**
+3. **[Arize Phoenix](https://arize.com/docs/phoenix/self-hosting) — best for OpenTelemetry-based, source-available observability**
+4. **[Braintrust](https://www.braintrust.dev/docs/observe) — best for evaluation-led AI development**
+5. **[Helicone](https://docs.helicone.ai/features/sessions) — best for gateway-level request and cost monitoring**
+6. **[Datadog Agent Observability](https://docs.datadoghq.com/llm_observability/) — best for unified AI and application monitoring**
+
+Galileo remains a strong specialist in automated quality and safety checks, Arize AX serves managed enterprise monitoring, and PostHog connects AI behavior to product analytics. Teams selecting an evaluation product rather than a broad observability stack can also compare the [best AI agent evaluation platforms in 2026](https://www.sim.ai/library/best-ai-agent-evaluation-platforms-2026).
+
+## Which AI observability tool is best for each use case?
+
+**Langfuse is the best default recommendation, while each alternative wins a narrower use case.** Start with deployment requirements, then decide whether tracing, evaluations, cost control, product context, or operational alerting is the primary need.
+
+| Buyer need | Best pick | Why it fits |
+| --- | --- | --- |
+| Best overall AI observability tool | [Langfuse](https://langfuse.com/docs) | Combines traces, scores, evaluations, prompt management, cost analysis, and self-hosting |
+| Best for LangChain or LangGraph | [LangSmith](https://docs.langchain.com/langsmith/observability-concepts) | Integrates tracing and evaluation with the LangChain ecosystem |
+| Best for OpenTelemetry workflows | [Arize Phoenix](https://arize.com/docs/phoenix/self-hosting) | Uses OpenTelemetry-compatible instrumentation and supports self-managed deployment |
+| Best for evaluation-led development | [Braintrust](https://www.braintrust.dev/docs/observe) | Connects datasets, experiments, scorers, production logs, and feedback loops |
+| Best for LLM gateway monitoring | [Helicone](https://docs.helicone.ai/features/sessions) | Emphasizes request, session, cost, latency, and usage visibility |
+| Best for existing Datadog customers | [Datadog Agent Observability](https://docs.datadoghq.com/llm_observability/) | Correlates LLM activity with application traces, monitors, and operational telemetry |
+| Best for automated quality checks | [Galileo](https://docs.galileo.ai/concepts/logging/configure-metrics/configure-metrics) | Applies purpose-built evaluators to production traffic |
+| Best for managed enterprise AI monitoring | [Arize AX](https://arize.com/docs/ax/observe/production-monitoring) | Combines managed tracing, continuous evaluations, monitors, and alerts |
+| Best for product analytics context | [PostHog](https://posthog.com/docs/ai-observability) | Joins AI traces to users, sessions, replay, and product events |
+
+## How do the best AI observability tools compare in October 2026?
+
+**Langfuse offers the most balanced feature set in this comparison, while Datadog provides the strongest conventional monitoring environment.** Pricing and packaging descriptions are **As of October 2026** and link to vendor-controlled sources.
+
+| Tool | Tracing and evaluations | Cost and alerting | Deployment | Pricing model as of October 2026 |
+| --- | --- | --- | --- | --- |
+| Langfuse | [Application traces](https://langfuse.com/docs/observability/overview), datasets, experiments, and production scores | [Token and model-cost analysis](https://langfuse.com/docs/observability/overview), metrics, and integrations | [Cloud or self-hosted](https://langfuse.com/self-hosting) | [Free self-hosted core plus hosted and enterprise plans](https://langfuse.com/pricing) |
+| LangSmith | [Agent, chain, tool, and model traces](https://docs.langchain.com/langsmith/observability-concepts) with offline and online evaluations | [Token and cost tracking](https://docs.langchain.com/langsmith/cost-tracking) plus [project alerts](https://docs.langchain.com/langsmith/alerts) | Cloud; [BYOC and self-hosting are Enterprise options](https://docs.langchain.com/langsmith/platform-setup) | [Developer, Plus, and Enterprise plans with seat and usage components](https://www.langchain.com/pricing) |
+| Arize Phoenix | [OpenTelemetry-compatible traces, datasets, experiments, and evaluators](https://arize.com/docs/phoenix/self-hosting) | [Token-based cost tracking](https://arize.com/docs/phoenix/tracing/how-to-tracing/cost-tracking) | [Free self-hosting without feature limits](https://arize.com/docs/phoenix/self-hosting) | Self-managed Phoenix; [Arize AX is packaged separately](https://arize.com/pricing/) |
+| Braintrust | [Production logs, spans, datasets, experiments, scorers, and online evaluation](https://www.braintrust.dev/docs/observe) | [Asynchronous production scoring](https://www.braintrust.dev/docs/evaluate/score-online) with token, latency, and cost analysis | SaaS, BYOC, or an [enterprise self-hosted data plane](https://www.braintrust.dev/docs/admin/deployment) | [Starter, Pro, and Enterprise packaging](https://www.braintrust.dev/docs/admin/billing) |
+| Helicone | [Requests, sessions, and multi-step traces](https://docs.helicone.ai/features/sessions) | [Cost analysis](https://docs.helicone.ai/guides/cookbooks/cost-tracking) with [error-rate and cost alerts](https://docs.helicone.ai/features/alerts.md) | [Cloud or self-hosted](https://docs.helicone.ai/getting-started/self-host/manual) | [Free allowance and paid usage-based plans](https://www.helicone.ai/pricing) |
+| Datadog Agent Observability | [LLM spans and quality or safety evaluations](https://docs.datadoghq.com/llm_observability/evaluations.md) beside application telemetry | [Estimated model cost](https://docs.datadoghq.com/llm_observability/investigate/cost/) plus Datadog monitoring workflows | [Datadog's hosted commercial platform](https://www.datadoghq.com/pricing/?product=llm-observability) | [Usage-based LLM span pricing](https://www.datadoghq.com/pricing/list/) |
+| Galileo | [Agent traces, experiments, evaluators, and production checks](https://docs.galileo.ai/sdk-api/overview) | [Quality and safety signals](https://docs.galileo.ai/concepts/logging/configure-metrics/configure-metrics) for production monitoring | [Cloud and enterprise deployment options](https://galileo.ai/pricing) | [Free, Pro, and Enterprise plans](https://galileo.ai/pricing) |
+| Arize AX | [OpenTelemetry and OpenInference traces with evaluations](https://arize.com/docs/ax/observe/production-monitoring) | [Dashboards, monitors, and alerts](https://arize.com/docs/ax/observe/production-monitoring) | [SaaS or Enterprise self-hosting](https://arize.com/pricing/) | [Free, Pro, and Enterprise plans](https://arize.com/pricing/) |
+| PostHog | [AI traces and online evaluations connected to product events](https://posthog.com/docs/ai-observability) | [Cost, latency, error, and quality alerts](https://posthog.com/docs/ai-observability/start-here) | [Cloud or unsupported self-hosting](https://posthog.com/docs/self-host) | [Usage-based pricing with a free AI Observability allowance](https://posthog.com/pricing) |
+
+Capabilities depend on instrumentation, plan, and deployment mode. A tool that records model calls may still need custom spans for business outcomes, tool arguments, retrieval quality, or human-review decisions.
+
+## What key facts should buyers know about each platform?
+
+**Langfuse, LangSmith, Arize Phoenix, Braintrust, Helicone, and Datadog differ materially in license, deployment model, and billing unit.** These distinctions matter when source access, data control, or predictable cost is a procurement requirement.
+
+- **Langfuse:** The [Langfuse repository license](https://github.com/langfuse/langfuse/blob/main/LICENSE) applies MIT terms to code outside listed enterprise directories, while enterprise features carry separate terms; its core can be self-hosted.
+- **LangSmith:** [LangSmith pricing](https://www.langchain.com/pricing) separates Developer, Plus, and Enterprise plans, and self-hosting is an Enterprise add-on rather than standard cloud access.
+- **Arize Phoenix:** The [Phoenix license](https://github.com/Arize-ai/phoenix/blob/main/docs/phoenix/self-hosting/license.mdx) is Elastic License 2.0, so Phoenix is source-available rather than OSI-approved open source; self-hosting is permitted without feature gates.
+- **Braintrust:** [Braintrust deployment documentation](https://www.braintrust.dev/docs/admin/deployment) distinguishes SaaS, BYOC, and self-hosted data-plane options while Braintrust continues to operate the control plane.
+- **Helicone:** The [Helicone repository](https://github.com/Helicone/helicone/blob/main/LICENSE) uses Apache 2.0, and its documentation provides a self-hosting path.
+- **Datadog Agent Observability:** [Datadog prices Agent Observability](https://www.datadoghq.com/pricing/list/) by LLM spans within its commercial monitoring service.
+
+License terms apply to code, not automatically to a vendor's hosted service, trademarks, or separately licensed enterprise extensions.
+
+## Neutral profiles of the six recommended tools
+
+**The six recommended tools differ more in operating model than in their ability to display a basic model trace.** These profiles summarize the fit and tradeoff for each without removing the original product profiles later in this guide.
+
+### Langfuse
+
+**Langfuse combines production tracing with prompt management and evaluation workflows in a framework-neutral product.** Its [observability model](https://langfuse.com/docs/observability/overview) captures prompts, responses, tools, retrieval steps, token usage, and latency, while its [evaluation features](https://langfuse.com/docs/evaluation/core-concepts) connect production scores, datasets, and experiments. It fits teams that want broad coverage and a documented self-hosting path, but operating that deployment adds infrastructure work.
+
+### LangSmith
+
+**LangSmith connects observability and evaluation closely to LangChain and LangGraph development.** It records traces as nested runs and threads, supports [OpenTelemetry tracing](https://docs.langchain.com/langsmith/trace-with-opentelemetry), and provides online evaluators and alerts. It can instrument other frameworks, but teams seeking self-hosting should account for its Enterprise packaging.
+
+### Arize Phoenix
+
+**Arize Phoenix provides a self-managed, OpenTelemetry-oriented environment for traces, datasets, experiments, and evaluations.** Its [self-hosting documentation](https://arize.com/docs/phoenix/self-hosting) lists tracing, evals, datasets, experiments, and prompt management without feature limits. The Elastic License 2.0 permits self-hosting but should not be described as an OSI-approved open-source license.
+
+### Braintrust
+
+**Braintrust organizes AI development around production logs, datasets, experiments, and scorers.** Its [online scoring](https://www.braintrust.dev/docs/evaluate/score-online) runs asynchronously against production traces, making it a strong fit when failures should become reusable evaluation cases. Its self-hosted option controls the data plane rather than turning the full service into independently operated software.
+
+### Helicone
+
+**Helicone emphasizes model-request visibility through a gateway-oriented architecture.** [Sessions](https://docs.helicone.ai/features/sessions) group related model, retrieval, and tool activity, while its [cost tooling](https://docs.helicone.ai/guides/cookbooks/cost-tracking) analyzes provider usage. Gateway visibility is useful, but application-level spans remain necessary for state changes and business outcomes outside the model layer.
+
+### Datadog Agent Observability
+
+**Datadog Agent Observability places AI telemetry inside an established application-monitoring stack.** Datadog can [monitor traces, metrics, and online evaluations](https://docs.datadoghq.com/llm_observability/monitoring.md), and its [evaluation tools](https://docs.datadoghq.com/llm_observability/evaluations.md) support managed and custom checks. It is most compelling for existing Datadog customers rather than teams seeking an independently deployed AI-specific backend.
+
+## What should an AI agent observability proof of concept measure?
+
+**An AI agent observability proof of concept should measure debugging speed, evaluation coverage, trace completeness, cost attribution, and alert routing using the same agent run in every shortlisted tool.** Use a representative run that includes:
+
+1. A model call with prompt and response metadata.
+2. A retrieval step with documents and relevance information.
+3. At least one external tool call.
+4. A retry or controlled failure.
+5. A human or automated quality score.
+6. A business outcome such as resolution, conversion, or successful task completion.
+
+Then measure whether each platform can identify the failed step, preserve the prompt and application version, attribute run cost, apply quality checks, turn the failure into a reusable evaluation case, and alert the correct owner without exposing sensitive content.
+
+## Is n8n an AI observability tool?
+
+**n8n is a workflow automation product with execution history and debugging features, not a dedicated AI observability platform comparable to the tools ranked here.** Its [execution debugger](https://docs.n8n.io/build/understand-workflows/understand-executions/debug-executions) can replay data from past workflow runs, but specialized platforms cover cross-application traces, systematic evaluations, and model-cost analysis. The [n8n Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) is source-available and is not an OSI-approved open-source license.
+
+## How does AI observability relate to building agents with Sim?
+
+**Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, while dedicated observability tools analyze cross-application traces, evaluations, costs, and quality signals.** Sim's core is Apache 2.0, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), whose production use requires an active Sim Enterprise subscription.
+
+The categories are complementary. Sim provides the environment for creating and operating agents, while a dedicated observability system can add cross-application telemetry, evaluation datasets, specialized quality analysis, or centralized operations monitoring. For the underlying concepts, read [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability).
+
+## What is the final recommendation?
+
+**Langfuse is the best overall AI observability tool for most production-agent teams in 2026.** Choose LangSmith for LangChain and LangGraph development, Arize Phoenix for OpenTelemetry-centered self-management, Braintrust for evaluation-led development, Helicone for gateway-level request and cost visibility, and Datadog when AI telemetry belongs inside an established application-monitoring and incident-response system.
+
+The final decision should come from a proof of concept using real traces and failure modes. The winning platform is the one that helps the team explain an agent's behavior, detect quality regressions, control costs, and resolve production failures without losing required deployment or data controls.
+
 ## AI observability tools compared
+
+**The original six-product comparison remains useful for buyers evaluating evaluation-led, enterprise, APM, and product-analytics operating models.**
 
 | Tool | Best for | Tracing and review | Evals and release workflow | Developer and agent access |
 | --- | --- | --- | --- | --- |
@@ -49,7 +214,7 @@ We compared six platforms with extra weight on how easy they make the everyday w
 
 ## What we looked for
 
-The best AI observability tool should make five recurring jobs straightforward:
+**This comparison favors AI observability platforms that make five recurring production jobs straightforward.**
 
 1. **Capture a useful trace without rebuilding the application.** Instrumentation should preserve prompts, model calls, tool use, retrieval, handoffs, errors, latency, and cost.
 2. **Read the trace quickly.** The interface should make a long agent run understandable as a hierarchy, timeline, session, or conversation rather than a wall of telemetry.
@@ -61,7 +226,7 @@ We also considered deployment options, alerting, and how well each platform fits
 
 ## Where Sim fits: Observability inside the agent builder
 
-An [AI agent builder](https://www.sim.ai/library/best-ai-agent-platforms-2026) should not make teams assemble a separate telemetry stack before they can understand a run. Sim records the workflow as it executes, so builders can open a run and inspect the inputs, outputs, duration, errors, token usage, and cost for each block. Because the log follows the workflow graph, the trace uses the same mental model as the system the team designed.
+**Sim gives teams native workflow-level Logs before they add a separate cross-application observability platform.** An [AI agent builder](https://www.sim.ai/library/best-ai-agent-platforms-2026) should not make teams assemble a separate telemetry stack before they can understand a run. Sim records the workflow as it executes, so builders can open a run and inspect the inputs, outputs, duration, errors, token usage, and cost for each block. Because the log follows the workflow graph, the trace uses the same mental model as the system the team designed.
 
 That is especially useful when a workflow combines deterministic blocks with AI decisions. A team can see whether the failure came from the model, a tool call, a branch, an API, or the data passed between blocks. Sim also preserves the workflow state associated with the run, which helps distinguish a model-quality problem from a workflow-version problem.
 
@@ -83,7 +248,7 @@ That workflow matters for agents because many failures are technically valid. A 
 
 Braintrust also gives teams several ways to start collecting data. SDK integrations provide application-level context, [OpenTelemetry](https://www.braintrust.dev/docs/integrations/sdk-integrations/opentelemetry) fits teams that already emit standard traces, and the [Braintrust AI gateway](https://www.braintrust.dev/docs/deploy/gateway) can provide fast visibility into model traffic. Engineers can work in code while product managers and domain experts inspect traces, annotate examples, and compare changes in the interface.
 
-Braintrust ranks first because each part of that workflow is unusually easy to operate:
+Braintrust ranks first for evaluation-led development because each part of that workflow is unusually easy to operate. Langfuse remains the best overall choice because it balances evaluation with tracing, prompt management, cost analysis, and self-hosting:
 
 - **Tracing is easy:** Teams can start through an [SDK integration, OpenTelemetry, or the AI gateway](https://www.braintrust.dev/docs/observe), then add application-level spans when they need more context.
 - **Viewing traces is easy:** The [trace viewer](https://www.braintrust.dev/docs/observe/examine-traces) presents nested work as a hierarchy, timeline, or conversation, with inputs, outputs, timing, metadata, tokens, and scores attached to the relevant span.
@@ -140,13 +305,13 @@ Galileo is strongest when continuous quality classification is the primary requi
 
 That connection between prompts and traces is useful when prompts are managed outside the application deployment cycle. Product or domain teams can update a prompt, while engineers retain visibility into the exact version used for each generation. [Langfuse also supports model-based and code-based evaluation in experiments](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk).
 
-[Langfuse is available as a cloud product and as a self-hosted open-source deployment](https://langfuse.com/docs). It is a practical fit for teams that value infrastructure control and want one system for tracing plus prompt operations.
+[Langfuse is available as a cloud product and as a self-hosted deployment](https://langfuse.com/self-hosting). Its repository applies MIT terms to core code outside separately licensed enterprise directories, making it a practical fit for teams that value infrastructure control and want one system for tracing plus prompt operations.
 
 As with any self-hosted platform, the apparent software savings should be weighed against the engineering cost of running a production data system. Teams should evaluate ingestion volume, retention, upgrades, and permissions before choosing deployment based on license alone.
 
 **Pros**
 
-- [Available](https://langfuse.com/docs) as both a managed cloud service and a self-hosted open-source platform.
+- [Available](https://langfuse.com/self-hosting) as both a managed cloud service and a self-hosted platform with MIT-licensed core components and separately licensed enterprise features.
 - [Links prompt versions](https://langfuse.com/docs) to traces, metrics, and evaluation results.
 - [Combines tracing, prompt management, datasets, and experiments](https://langfuse.com/docs) in one LLM engineering stack.
 - [Supports model-based and code-based evaluators](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk) for comparing prompt or model changes.
@@ -157,7 +322,7 @@ As with any self-hosted platform, the apparent software savings should be weighe
 - The path from a production trace to a governed regression suite may require more assembly than Braintrust's trace-to-dataset workflow.
 - Organizations should compare cloud and self-hosted feature availability before choosing a deployment model.
 
-**Best for:** Teams that want open-source LLM observability with prompt versioning and are comfortable operating the stack themselves.
+**Best for:** Teams that want self-hosted LLM observability with permissively licensed core components and are comfortable operating the stack themselves.
 
 ## 4. Arize AX: Best for enterprise production monitoring
 
@@ -236,7 +401,7 @@ PostHog is less centered on the controlled trace-to-dataset-to-CI regression loo
 
 ## How to choose an AI observability tool
 
-Choose based on the action your team needs to take after it finds a bad trace.
+**AI observability buyers should choose based on the action their team needs to take after it finds a bad trace.**
 
 - Choose **[Braintrust](https://www.braintrust.dev/docs/evaluate/run-in-ci)** when the answer is: add it to a dataset, test a fix, compare the result, and block future regressions.
 - Choose **[Galileo](https://docs.galileo.ai/api/experiments-api-guide)** when the answer is: run automated quality and safety checks across high-volume traffic.
@@ -245,10 +410,10 @@ Choose based on the action your team needs to take after it finds a bad trace.
 - Choose **[Datadog](https://docs.datadoghq.com/llm_observability/)** when the answer is: correlate it with the rest of the application's operational telemetry.
 - Choose **[PostHog](https://posthog.com/docs/ai-observability)** when the answer is: connect the trace to the user's product journey, session replay, feature usage, and errors.
 
-Braintrust is our top pick when ease across the complete workflow is the deciding factor. It makes tracing, trace review, evaluation, CI/CD checks, and coding-agent access feel like parts of one system. The other tools remain credible choices when deployment control, specialized evaluators, enterprise operations, or product context matters more.
+Braintrust is our top evaluation-led pick when ease across the improvement workflow is the deciding factor. It makes tracing, trace review, evaluation, CI/CD checks, and coding-agent access feel like parts of one system. Langfuse remains the best overall recommendation, while the other tools are credible choices when framework integration, specialized evaluators, enterprise operations, gateway visibility, or product context matters more.
 
 ## Build and observe agents in the same workspace with Sim
 
-The observability platform is only one layer of the production stack. Teams also need a place to build, deploy, and operate the agent itself. Sim brings those jobs into one workspace, with native logs that follow every workflow block, tool call, model response, and managed-agent handoff. Builders can inspect a run using the same visual structure they used to design it, without setting up a separate tracing system first.
+**Sim brings agent building, deployment, operation, and native workflow Logs into one workspace.** A dedicated observability platform is only one layer of the production stack. Sim brings those jobs into one workspace, with native logs that follow every workflow block, tool call, model response, and managed-agent handoff. Builders can inspect a run using the same visual structure they used to design it, without setting up a separate tracing system first.
 
 As the quality program grows, Sim's workflow-level record can sit alongside a dedicated platform for cross-application scoring, datasets, experiments, and release checks. That lets teams start with useful observability on the first run and add specialized evaluation infrastructure when they need it. Explore how to [create an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) and add observability in the same workspace.
