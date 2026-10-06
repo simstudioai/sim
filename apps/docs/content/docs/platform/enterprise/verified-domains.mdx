@@ -90,13 +90,17 @@ For a deployment where the operator trusts every organization owner and admin to
 SSO_SKIP_DOMAIN_VERIFICATION=true
 ```
 
-For Helm deployments, set it in your values file:
+For Helm deployments, use an application image built from a revision that includes this setting. Upgrading the chart alone does not make an older application image support the variable. Override `app.image.tag` with a compatible released image or a build you publish yourself; set `app.image.repository` as well for a custom repository:
 
 ```yaml
 app:
+  image:
+    tag: "<image-tag-with-domain-verification-bypass>"
   env:
     SSO_SKIP_DOMAIN_VERIFICATION: "true"
 ```
+
+If `app.image.digest` is set, replace it with a compatible image digest instead — it takes precedence over the tag.
 
 Add the domain under **Domains**, then click **Verify**. No TXT record or DNS access is needed. The domain is recorded as verified for SSO account linking and SCIM provisioning, and another organization still cannot claim the same domain. Existing pending domains can be verified the same way.
 
