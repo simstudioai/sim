@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
+import { toRecordOrNull } from '@sim/utils/object'
 import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import {
@@ -23,6 +24,7 @@ import {
   type ClientToolSettlementGuard,
   settleClientToolCall,
 } from '@/lib/mothership/request/tools/client-settlement.server'
+import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotDesktopToolWait')
@@ -230,7 +232,9 @@ async function readDesktopPresence(deviceId: string): Promise<boolean | null> {
  */
 async function settleOverdueDesktopToolCall(toolCallId: string): Promise<boolean> {
   const call = await getDesktopToolCallDeadlines(toolCallId)
-  if (!call) return false
+  // A VFS read of Sim's own files shares its tool name with a local read, but no desktop runs it.
+  if (!call || !isDesktopToolCall(call.toolName, toRecordOrNull(call.args) ?? undefined))
+    return false
   if (call.status === ASYNC_TOOL_STATUS.pending) {
     const present = await readDesktopPresence(call.deviceId)
     // Before its pickup window closes, a call fails early only when its device is known to be away:

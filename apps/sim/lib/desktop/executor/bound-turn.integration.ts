@@ -732,6 +732,62 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
   )
 
   it(
+    'leaves a bound run’s calls the desktop never runs to their own path',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const longAgo = new Date(Date.now() - 600_000)
+      const workflowCall = generateId()
+      const simFileRead = generateId()
+      await db.insert(copilotAsyncToolCalls).values([
+        {
+          runId: run.runId,
+          toolCallId: workflowCall,
+          toolName: 'run_workflow',
+          args: {},
+          createdAt: longAgo,
+        },
+        {
+          runId: run.runId,
+          toolCallId: simFileRead,
+          toolName: 'read',
+          args: { path: 'workspace/notes.md' },
+          createdAt: longAgo,
+        },
+      ])
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(workflowCall)).status).toBe('pending')
+      expect((await storedCall(simFileRead)).status).toBe('pending')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'keeps the pickup window of a call that was never gated when a decision is posted for it',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await desktop.pull()
+
+      const { toolCallId, answer, context } = await agentCalls(run, 'browser_click', { ref: 'e1' })
+      const offeredRow = await offered(toolCallId)
+      const decided = await post(toolPermissionPOST, '/api/copilot/tool-permission', {
+        decisions: [{ toolCallId, decision: 'allow' }],
+      })
+      expect(decided.status).toBe(200)
+
+      expect((await storedCall(toolCallId)).pickupDeadlineAt).toEqual(offeredRow.pickupDeadlineAt)
+      const { executionToken } = await desktop.claim(toolCallId)
+      await desktop.complete(toolCallId, executionToken, { clicked: true })
+      await answer
+      expect(resultOf(context, toolCallId)).toMatchObject({ success: true })
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
     'settles a call Sim never offered once its pickup window would have closed',
     async () => {
       const desktop = await signedInDesktop()

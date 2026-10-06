@@ -1738,8 +1738,9 @@ export async function recordToolPermissionDecision(
         .set({
           permissionDecision: decision,
           permissionDecidedAt: now,
-          // No pickup window runs while the user decides: an allowed call is offered afresh.
-          pickupDeadlineAt: null,
+          // No pickup window runs while the user decides: a gated call is offered afresh once
+          // allowed. A call that was never gated keeps the window it was offered with.
+          pickupDeadlineAt: sql`CASE WHEN ${copilotAsyncToolCalls.permissionRequestedAt} IS NULL THEN ${copilotAsyncToolCalls.pickupDeadlineAt} END`,
           updatedAt: now,
         })
         .where(

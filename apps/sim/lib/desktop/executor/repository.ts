@@ -336,12 +336,14 @@ export async function offerDesktopToolCall(input: {
 /**
  * A bound desktop call with the deadlines only Sim enforces, read on the database clock every CAS
  * uses: whether its pickup window closed while it is unclaimed, and whether its lease lapsed while
- * it runs. Null for a call on a run no device is bound to.
+ * it runs. Null for a call on a run no device is bound to, and for a tool the desktop never runs.
  */
 export async function getDesktopToolCallDeadlines(toolCallId: string) {
   const [row] = await db
     .select({
       toolCallId: copilotAsyncToolCalls.toolCallId,
+      toolName: copilotAsyncToolCalls.toolName,
+      args: copilotAsyncToolCalls.args,
       runId: copilotRuns.id,
       userId: copilotRuns.userId,
       deviceId: copilotRuns.desktopDeviceId,
@@ -361,7 +363,11 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
     .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
     .leftJoin(desktopDevices, eq(desktopDevices.id, copilotRuns.desktopDeviceId))
     .where(
-      and(eq(copilotAsyncToolCalls.toolCallId, toolCallId), isNotNull(copilotRuns.desktopDeviceId))
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+        isNotNull(copilotRuns.desktopDeviceId),
+        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES])
+      )
     )
     .limit(1)
   return row?.deviceId ? { ...row, deviceId: row.deviceId } : null
@@ -374,7 +380,8 @@ export type DesktopToolCallDeadlines = NonNullable<
 /**
  * Bound desktop calls a deadline passed for at least `slackMs` ago: unclaimed past their pickup
  * deadline (offered or not), or claimed by the executor with a lapsed lease. A live waiter settles
- * these within its 5 s poll, so anything this finds lost its waiter.
+ * these within its 5 s poll, so anything this finds lost its waiter. Only runs inside the inbox's
+ * horizon are scanned, oldest calls first.
  */
 export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
   const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
@@ -385,6 +392,8 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .where(
       and(
         isNotNull(copilotRuns.desktopDeviceId),
+        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
+        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
         or(
           pickupOverdueAt(overdue),
           and(
@@ -397,6 +406,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
         )
       )
     )
+    .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
 }

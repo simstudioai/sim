@@ -98,6 +98,8 @@ describe('settleAbandonedDesktopToolCalls', () => {
       .mockRejectedValueOnce(new Error('connection reset'))
       .mockResolvedValueOnce({
         toolCallId: 'overdue',
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
         runId: 'run-1',
         userId: 'user-1',
         deviceId: 'device-1',
