@@ -30,6 +30,7 @@ import {
   type ReferencedWorkspaceFileContext,
   resolveReferencedWorkspaceFileContext,
 } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { secretProvenanceContextOf } from '@/lib/workspace-files/secret-provenance-context'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
@@ -137,7 +138,7 @@ export async function extractWorkspaceFileRecordText(
       ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
           fileId: file.id,
           key: file.key,
-          context: file.storageContext ?? 'workspace',
+          context: secretProvenanceContextOf(file),
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined)

@@ -34,13 +34,24 @@ export const issueKeys = {
   detail: (workspaceId: string, key: string) => [...issueKeys.details(), workspaceId, key] as const,
 }
 
-export function useIssueList(workspaceId: string, options?: { enabled?: boolean }) {
+interface UseIssueListOptions {
+  enabled?: boolean
+  /** Refetch while any issue is in progress, so a page left open sees Sim hand work back. */
+  followProgress?: boolean
+}
+
+export function useIssueList(workspaceId: string, options?: UseIssueListOptions) {
   return useQuery({
     queryKey: issueKeys.list(workspaceId),
     queryFn: ({ signal }) =>
       requestJson(listIssuesContract, { params: { id: workspaceId }, signal }),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: ISSUE_LIST_STALE_TIME,
+    refetchInterval: (query) =>
+      options?.followProgress &&
+      query.state.data?.issues.some((issue) => issue.status === 'in_progress')
+        ? ISSUE_RUNNING_REFETCH_INTERVAL
+        : false,
     select: (data) => data.issues,
   })
 }

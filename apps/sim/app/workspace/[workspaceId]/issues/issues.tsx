@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { OverflowText } from '@sim/emcn'
 import { ListChecks, Plus } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ShimmerText } from '@/components/ui/shimmer-text'
@@ -52,7 +53,7 @@ function noteFor(issue: IssueRecord): string | null {
 
 export function Issues({ workspaceId }: IssuesProps) {
   const [creating, setCreating] = useState(false)
-  const query = useIssueList(workspaceId)
+  const query = useIssueList(workspaceId, { followProgress: true })
   const groups = groupIssues(query.data ?? [])
 
   return (
@@ -114,9 +115,11 @@ function IssueRow({ workspaceId, issue }: IssueRowProps) {
           )}
         </span>
         <span className='sr-only'>{issueStatusLabel(issue)}</span>
-        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] group-hover:underline group-hover:underline-offset-4'>
-          {issue.title}
-        </span>
+        <OverflowText
+          label={issue.title}
+          focusTarget='nearest-interactive'
+          className='flex-1 text-[var(--text-primary)] group-hover:underline group-hover:underline-offset-4'
+        />
         {note &&
           (issue.status === 'in_progress' && issue.workingChat?.running ? (
             <ShimmerText className='max-w-[280px] truncate text-caption'>{note}</ShimmerText>

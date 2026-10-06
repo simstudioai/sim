@@ -123,16 +123,20 @@ function issueListQuery(executor: DbOrTx) {
 /** Every open issue, plus the most recently closed ones. */
 export async function listWorkspaceIssues(workspaceId: string): Promise<IssueListRow[]> {
   const active = and(eq(issue.workspaceId, workspaceId), isNull(issue.deletedAt))
-  const [open, done] = await Promise.all([
-    issueListQuery(db)
-      .where(and(active, ne(issue.status, 'done')))
-      .orderBy(desc(issue.updatedAt)),
-    issueListQuery(db)
-      .where(and(active, eq(issue.status, 'done')))
-      .orderBy(desc(issue.completedAt))
-      .limit(LISTED_DONE_ISSUES),
-  ])
-  return [...open, ...done]
+  // One snapshot for both reads, so an issue closing in between is listed exactly once.
+  return db.transaction(
+    async (tx) => {
+      const open = await issueListQuery(tx)
+        .where(and(active, ne(issue.status, 'done')))
+        .orderBy(desc(issue.updatedAt))
+      const done = await issueListQuery(tx)
+        .where(and(active, eq(issue.status, 'done')))
+        .orderBy(desc(issue.completedAt))
+        .limit(LISTED_DONE_ISSUES)
+      return [...open, ...done]
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
 }
 
 export async function getIssueListRow(issueId: string): Promise<IssueListRow | null> {
@@ -144,6 +148,8 @@ export interface IssueStateGuard {
   statuses: readonly IssueStatus[]
   /** Inbox with a working chat is waiting for review; without one it is new. */
   hasWorkingChat?: boolean
+  /** The exact working chat the caller read, so a replaced chat's late request changes nothing. */
+  workingChatId?: string
   /** Fields that must still hold the values the caller read, so an edit never logs a stale "from". */
   unchanged?: { title?: string; priority?: number; ownerId?: string | null }
 }
@@ -172,6 +178,9 @@ export async function updateIssueInTx(
         eq(issue.id, issueId),
         inArray(issue.status, [...guard.statuses]),
         chatCondition,
+        guard.workingChatId === undefined
+          ? undefined
+          : eq(issue.workingChatId, guard.workingChatId),
         guard.unchanged?.title === undefined ? undefined : eq(issue.title, guard.unchanged.title),
         guard.unchanged?.priority === undefined
           ? undefined

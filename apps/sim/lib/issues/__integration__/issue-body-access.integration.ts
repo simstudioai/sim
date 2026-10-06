@@ -6,7 +6,11 @@ import path from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { copilotChats, issue, issueEvent, organization, user, workspace } from '@sim/db/schema'
-import { createSessionPrincipal, createWorkspaceApiKeyPrincipal } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -129,6 +133,12 @@ describe('issue bodies in PostgreSQL', () => {
     ).rejects.toMatchObject(notFound)
     await expect(
       readBody(filed.bodyFileId, createWorkspaceApiKeyPrincipal({ workspaceId: ids.workspaceId }))
+    ).rejects.toMatchObject(notFound)
+    await expect(
+      readBody(
+        filed.bodyFileId,
+        createExecutorPrincipal({ subjectUserId: ids.aliceId, workspaceId: ids.workspaceId })
+      )
     ).rejects.toMatchObject(notFound)
 
     flags.issues = false

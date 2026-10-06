@@ -415,7 +415,10 @@ export const requestIssueReview = defineAuthorizedWorkspaceUseCase({
       )
     await transition(
       context.issue.id,
-      { statuses: ['in_progress'] },
+      {
+        statuses: ['in_progress'],
+        ...(context.issue.workingChatId ? { workingChatId: context.issue.workingChatId } : {}),
+      },
       { status: 'inbox', reviewSummary: summary },
       (row) => [{ kind: 'review_requested', payload: { chatId: row.workingChatId, summary } }],
       principal

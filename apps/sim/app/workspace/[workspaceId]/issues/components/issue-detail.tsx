@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Chip, ChipLink, cn, pageHeadingClassName, toast } from '@sim/emcn'
+import { Chip, ChipLink, cn, OverflowText, pageHeadingClassName, toast } from '@sim/emcn'
 import { ArrowUpRight, ListChecks } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -195,7 +195,7 @@ function IssueBar({ workspaceId, issue, canEdit, visible }: IssueBarProps) {
       )}
     >
       <div className={cn(COLUMN_CLASS, 'flex h-[48px] items-center gap-3 text-small')}>
-        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>{issue.title}</span>
+        <OverflowText label={issue.title} className='flex-1 text-[var(--text-primary)]' />
         <div className='flex shrink-0 items-center gap-2'>
           <IssueActions
             workspaceId={workspaceId}

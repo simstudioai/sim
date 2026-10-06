@@ -25,13 +25,21 @@ export interface WorkspaceFileContextInput {
   issueBodyPrincipal?: Principal
 }
 
-/** Principals the issue operations admit; workspace API keys and system callers never reach a body. */
+/**
+ * Principals the issue operations admit. A delegated caller must be Sim itself: a workflow's File
+ * tool delegates as the executor, and the issue operations refuse it.
+ */
 const ISSUE_BODY_PRINCIPAL_KINDS = new Set<Principal['kind']>([
   'session',
   'personal_api_key',
   'oauth_access_token',
-  'delegated',
 ])
+
+function isIssueBodyPrincipal(principal: Principal): boolean {
+  return principal.kind === 'delegated'
+    ? principal.serviceId === 'copilot'
+    : ISSUE_BODY_PRINCIPAL_KINDS.has(principal.kind)
+}
 
 /** An issue body follows its live issue: the rollout flag, and the issue operations' principal kinds. */
 export async function assertIssueBodyAccess(
@@ -39,10 +47,7 @@ export async function assertIssueBodyAccess(
   context: ActiveWorkspaceFileContext
 ): Promise<void> {
   if (context.fileContext !== 'issue') return
-  if (
-    !ISSUE_BODY_PRINCIPAL_KINDS.has(principal.kind) ||
-    !(await hasLiveIssueForBody(context.fileId))
-  ) {
+  if (!isIssueBodyPrincipal(principal) || !(await hasLiveIssueForBody(context.fileId))) {
     throw new OrchestrationError('not_found', 'File not found')
   }
   await requireIssuesEnabled(context.workspaceOrganizationId)
