@@ -209,11 +209,14 @@ interface FinalizeOptions {
  * A send handed back to the caller instead of rendered. `userMessageId` is what
  * a retry reuses so the server deduplicates the two attempts. An `unreachable`
  * send is held in the queue until the browser is back online or the user sends
- * it: dispatching it again at once would fail the same way.
+ * it: dispatching it again at once would fail the same way. When the browser
+ * came back online while that send was failing (`networkReturned`), the release
+ * it would have waited for has already fired, so it is not held.
  */
 interface WithdrawnSendResult {
   userMessageId: string
   unreachable?: boolean
+  networkReturned?: boolean
 }
 
 /**
@@ -729,6 +732,8 @@ export function useChat(
   const pendingStopModeRef = useRef<StopGenerationMode | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
+  /** Counts `online` events, so a send can tell the network returned while it was failing. */
+  const onlineEventsRef = useRef(0)
   /** Identifies this chatless surface across mounts, for the sends it holds. */
   const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
   const onToolResultRef = useRef(options?.onToolResult)
@@ -3422,6 +3427,7 @@ export function useChat(
 
       let consumedByTranscript = false
       let sendReachedServer = false
+      const onlineEventsAtSend = onlineEventsRef.current
 
       setError(null)
       setTransportStreaming()
@@ -4019,7 +4025,11 @@ export function useChat(
               ? 'Message not sent: Sim could not be reached. It will send when you are back online.'
               : getErrorMessage(err, 'Failed to send message')
           )
-          return { userMessageId, unreachable: true }
+          return {
+            userMessageId,
+            unreachable: true,
+            ...(onlineEventsRef.current !== onlineEventsAtSend ? { networkReturned: true } : {}),
+          }
         }
 
         const activeStreamId = streamIdRef.current
@@ -4210,14 +4220,11 @@ export function useChat(
           options?.assistantSearch,
           options?.assistantSearchLevel
         ),
-        ...(result.unreachable
-          ? {
-              retryRequired: true,
-              heldUntilOnline: true,
-              ...(activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
-                ? { heldSurface: heldSendSurface }
-                : {}),
-            }
+        ...(result.unreachable && !result.networkReturned
+          ? { retryRequired: true, heldUntilOnline: true }
+          : {}),
+        ...(result.unreachable && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+          ? { heldSurface: heldSendSurface }
           : {}),
       })
     },
@@ -4825,14 +4832,12 @@ export function useChat(
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
           ...dispatched,
           ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
-          retryRequired: !retriesOnItsOwn,
-          ...(withdrawn?.unreachable
-            ? {
-                heldUntilOnline: true,
-                ...(dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
-                  ? { heldSurface: heldSendSurface }
-                  : {}),
-              }
+          retryRequired: withdrawn?.unreachable ? !withdrawn.networkReturned : !retriesOnItsOwn,
+          ...(withdrawn?.unreachable && !withdrawn.networkReturned
+            ? { heldUntilOnline: true }
+            : {}),
+          ...(withdrawn?.unreachable && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+            ? { heldSurface: heldSendSurface }
             : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
@@ -5053,12 +5058,16 @@ export function useChat(
   useEffect(() => {
     if (typeof window === 'undefined') return
     const releaseHeldSends = () => useMothershipQueueStore.getState().releaseHeldUntilOnline()
+    const handleOnline = () => {
+      onlineEventsRef.current++
+      releaseHeldSends()
+    }
     if (chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
       useMothershipQueueStore.getState().adoptHeldSends(chatKey, heldSendSurface)
     }
     if (navigator.onLine) releaseHeldSends()
-    window.addEventListener('online', releaseHeldSends)
-    return () => window.removeEventListener('online', releaseHeldSends)
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
   }, [chatKey, heldSendSurface])
 
   /** A recovered send already in history belongs to its accepted turn, even after Stop. */

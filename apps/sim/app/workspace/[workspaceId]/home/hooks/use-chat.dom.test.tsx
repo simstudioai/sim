@@ -2156,6 +2156,47 @@ describe('useChat remount send recovery', () => {
       )
     })
 
+    /**
+     * The browser can come back online while the failing POST is still pending,
+     * so the release fires before the message is held. It must not then wait
+     * for a release that already happened.
+     */
+    it('sends a message whose POST failed after the network had already returned', async () => {
+      const history = idleHistory('chat-online-mid-send')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      let failFirstPost: (() => void) | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          if (state.postBodies.length === 1) {
+            return new Promise<Response>((_, reject) => {
+              failFirstPost = () => reject(new TypeError('Failed to fetch'))
+            })
+          }
+          return emptySseResponse()
+        }
+        if (url.includes('/api/mothership/chat/stream')) {
+          return Response.json({ error: 'Stream not found' }, { status: 404 })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Sent as the network came back')
+      })
+      await waitFor(() => failFirstPost !== undefined)
+
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+        failFirstPost?.()
+      })
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1].message).toBe('Sent as the network came back')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
     /** The `online` event can fire while no surface for the chat is mounted. */
     it('sends a held message when its chat mounts after the network came back', async () => {
       const history = idleHistory('chat-held-while-away')
