@@ -9,6 +9,7 @@ vi.mock('@/blocks', () => ({
 }))
 
 import {
+  getDisplayValue,
   resolveDropdownLabel,
   resolveFallbackModelsLabel,
   resolveFolderPathLabel,
@@ -129,6 +130,26 @@ describe('resolveFolderPathLabel', () => {
   it('decodes an encoded name rather than showing the escape', () => {
     expect(resolveFolderPathLabel(folderSubBlock, '/Reports/Q3%20Results')).toBe(
       'Reports / Q3 Results'
+    )
+  })
+})
+
+describe('getDisplayValue', () => {
+  it('shows the filename of a single uploaded file rather than its keys', () => {
+    expect(
+      getDisplayValue({
+        name: 'notes.txt',
+        path: '/api/files/serve/workspace/abc/notes.txt',
+        key: 'workspace/abc/notes.txt',
+        size: 35,
+        type: 'text/plain',
+      })
+    ).toBe('notes.txt')
+  })
+
+  it('still summarizes other objects by their keys', () => {
+    expect(getDisplayValue({ name: 'a', region: 'us', zone: 'b', tier: 'c' })).toBe(
+      'name, region +2'
     )
   })
 })

@@ -163,6 +163,18 @@ const isSortConditionArray = (value: unknown): value is SortRule[] => {
 }
 
 /**
+ * A single file chosen in a `file-upload` subblock: `{ name, path, size, type, ... }`. Multi-file
+ * values are arrays and already resolve to their names; the lone object needs the same treatment
+ * so a card reads the filename instead of the object's keys.
+ */
+const isUploadedFileRecord = (value: unknown): value is { name: string } =>
+  isRecordLike(value) &&
+  typeof value.name === 'string' &&
+  value.name.trim() !== '' &&
+  typeof value.path === 'string' &&
+  typeof value.size === 'number'
+
+/**
  * Attempts to parse a JSON string, returning the parsed value or the
  * original value if parsing fails.
  */
@@ -266,6 +278,8 @@ export const getDisplayValue = (value: unknown): string => {
       .map((field) => field.name)
     return summarizeNames(names) ?? '-'
   }
+
+  if (isUploadedFileRecord(parsedValue)) return parsedValue.name
 
   if (isRecordLike(parsedValue)) {
     const entries = Object.entries(parsedValue).filter(
