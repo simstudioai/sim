@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { quotedStringBytes } from '@/lib/core/utils/bounded-json'
+import { unboxJsonPrimitive } from '@/lib/core/utils/boxed-primitives'
 
 /**
  * Byte length of `JSON.stringify(value)`, measured without building the string.
@@ -35,11 +36,7 @@ export function getJsonByteSize(value: unknown, maxBytes: number): number | unde
         ? (raw as { toJSON?: unknown }).toJSON
         : undefined
     const value = typeof toJSON === 'function' ? toJSON.call(raw, key) : raw
-    if (value instanceof Number) return Number(value)
-    if (value instanceof String) return String(value)
-    if (value instanceof Boolean) return Boolean.prototype.valueOf.call(value)
-    if (value instanceof BigInt) return BigInt.prototype.valueOf.call(value)
-    return value
+    return typeof value === 'object' && value !== null ? unboxJsonPrimitive(value) : value
   }
 
   const isOmitted = (item: unknown): boolean =>
