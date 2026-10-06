@@ -172,6 +172,36 @@ export const planeHandler: WebhookProviderHandler = {
     if (scopes.some((scope) => /^(cycle_issue|module_issue|intake_issue)\./.test(scope))) {
       throw new Error('This Plane v1 event requires manual webhook setup')
     }
+    if (
+      typeof config.externalId === 'string' &&
+      config.externalId &&
+      typeof config.webhookSecret === 'string' &&
+      config.webhookSecret
+    ) {
+      const existing = await planeWebhookRequest(
+        config,
+        'GET',
+        `${safeUrlPathSegment(config.externalId, 'webhookId')}/`
+      )
+      if (existing.ok) {
+        const payload: unknown = await existing.json()
+        if (
+          isRecordLike(payload) &&
+          payload.url === getNotificationUrl(ctx.webhook) &&
+          Array.isArray(payload.scopes) &&
+          JSON.stringify([...payload.scopes].sort()) === JSON.stringify([...scopes].sort())
+        ) {
+          return {
+            providerConfigUpdates: {
+              externalId: config.externalId,
+              webhookSecret: config.webhookSecret,
+            },
+          }
+        }
+      } else if (existing.status !== 404) {
+        throw new Error(`Plane webhook recovery failed (HTTP ${existing.status})`)
+      }
+    }
     const created = await planeWebhookRequest(config, 'POST', '', {
       name: 'Sim workflow',
       url: getNotificationUrl(ctx.webhook),
@@ -200,9 +230,6 @@ export const planeHandler: WebhookProviderHandler = {
         !secretPayload.secret_key
       )
         throw new Error('Plane did not return a webhook secret')
-      const activated = await planeWebhookRequest(config, 'PATCH', suffix, { is_active: true })
-      if (!activated.ok)
-        throw new Error(`Plane webhook activation failed (HTTP ${activated.status})`)
       return { providerConfigUpdates: { externalId, webhookSecret: secretPayload.secret_key } }
     } catch (error) {
       try {
@@ -212,6 +239,25 @@ export const planeHandler: WebhookProviderHandler = {
       }
       throw error
     }
+  },
+
+  async activateSubscription(ctx) {
+    const config = getProviderConfig(ctx.webhook)
+    if (!isProviderConfigFlagEnabled(config.autoRegister)) return
+    if (
+      typeof config.externalId !== 'string' ||
+      !config.externalId ||
+      typeof config.webhookSecret !== 'string' ||
+      !config.webhookSecret
+    )
+      throw new Error('Plane webhook ID and signing secret must be persisted before activation')
+    const activated = await planeWebhookRequest(
+      config,
+      'PATCH',
+      `${safeUrlPathSegment(config.externalId, 'webhookId')}/`,
+      { is_active: true }
+    )
+    if (!activated.ok) throw new Error(`Plane webhook activation failed (HTTP ${activated.status})`)
   },
 
   async deleteSubscription(ctx) {

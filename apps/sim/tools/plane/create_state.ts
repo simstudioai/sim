@@ -1,5 +1,5 @@
-import { PLANEV2STATES28CE24_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2States28ce24Schema } from '@/tools/plane/schemas'
+import { PLANEV2STATESD0D9CB_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2Statesd0d9cbSchema } from '@/tools/plane/schemas'
 import type { PlaneCreateStateParams, PlaneCreateStateResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -101,7 +101,7 @@ export const planeCreateStateTool: ToolConfig<PlaneCreateStateParams, PlaneCreat
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `group`, `id`, `is_default`, `is_triage`, `name`, `sequence`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `group`, `id`, `is_default`, `is_triage`, `name`, `sequence`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     is_triage: {
       type: 'boolean',
@@ -215,7 +215,7 @@ export const planeCreateStateTool: ToolConfig<PlaneCreateStateParams, PlaneCreat
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2States28ce24Schema)
-      : planeObjectResponse(response, planeV2States28ce24Schema),
-  outputs: { result: PLANEV2STATES28CE24_OUTPUT },
+      ? planeObjectResponse(response, planeV2Statesd0d9cbSchema)
+      : planeObjectResponse(response, planeV2Statesd0d9cbSchema),
+  outputs: { result: PLANEV2STATESD0D9CB_OUTPUT },
 }

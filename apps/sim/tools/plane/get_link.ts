@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMLINKS5E13ED_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemLinks5e13edSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMLINKS2ED9B8_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemLinks2ed9b8Schema } from '@/tools/plane/schemas'
 import type { PlaneGetLinkParams, PlaneGetLinkResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -49,7 +49,7 @@ export const planeGetLinkTool: ToolConfig<PlaneGetLinkParams, PlaneGetLinkRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.',
     },
     cursor: {
       type: 'string',
@@ -62,7 +62,7 @@ export const planeGetLinkTool: ToolConfig<PlaneGetLinkParams, PlaneGetLinkRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'v1 compatibility only. Comma-separated list of related fields to expand in response',
+        'v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
     per_page: {
       type: 'number',
@@ -126,7 +126,7 @@ export const planeGetLinkTool: ToolConfig<PlaneGetLinkParams, PlaneGetLinkRespon
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItemLinks5e13edSchema)
-      : planeObjectResponse(response, planeV2WorkItemLinks5e13edSchema),
-  outputs: { result: PLANEV2WORKITEMLINKS5E13ED_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItemLinks2ed9b8Schema)
+      : planeObjectResponse(response, planeV2WorkItemLinks2ed9b8Schema),
+  outputs: { result: PLANEV2WORKITEMLINKS2ED9B8_OUTPUT },
 }

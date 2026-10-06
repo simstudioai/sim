@@ -1,9 +1,6 @@
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
-import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
-import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import type { PlaneDownloadedFile } from '@/tools/plane/types'
 import type { OutputProperty } from '@/tools/types'
 import { assertNoDotPathSegments, safeUrlPathSegment } from '@/tools/url-path'
 
@@ -403,27 +400,5 @@ export async function planeListResponse<S extends z.ZodType>(
   return {
     success: true as const,
     output: { results, ...(detail === undefined ? {} : { detail }) },
-  }
-}
-
-export async function planeFileResponse(
-  response: Response
-): Promise<{ success: true; output: { file: PlaneDownloadedFile } }> {
-  const buffer = await readResponseToBufferWithLimit(response, {
-    maxBytes: MAX_FILE_SIZE,
-    label: 'Plane attachment',
-  })
-  const disposition = response.headers.get('content-disposition')
-  const name = disposition?.match(/filename="([^"\r\n]+)"/i)?.[1] || 'attachment'
-  return {
-    success: true,
-    output: {
-      file: {
-        name,
-        mimeType: response.headers.get('content-type') || 'application/octet-stream',
-        data: buffer,
-        size: buffer.length,
-      },
-    },
   }
 }

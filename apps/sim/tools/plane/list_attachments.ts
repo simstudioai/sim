@@ -1,10 +1,10 @@
 import {
   PLANEV2V2LISTATTACHMENTSRESULT_OUTPUT,
-  WORKITEMATTACHMENTC365E0_OUTPUT,
+  WORKITEMATTACHMENT28F0BA_OUTPUT,
 } from '@/tools/plane/outputs'
 import {
   planeV2V2ListAttachmentsresultSchema,
-  workItemAttachmentc365e0Schema,
+  workItemAttachment28f0baSchema,
 } from '@/tools/plane/schemas'
 import type { PlaneListAttachmentsParams, PlaneListAttachmentsResponse } from '@/tools/plane/types'
 import {
@@ -108,7 +108,7 @@ export const planeListAttachmentsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.",
+        "Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.",
     },
     cursor: {
       type: 'string',
@@ -186,7 +186,7 @@ export const planeListAttachmentsTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeListResponse(response, workItemAttachmentc365e0Schema, false, false)
+      ? planeListResponse(response, workItemAttachment28f0baSchema, false, false)
       : planeObjectResponse(response, planeV2V2ListAttachmentsresultSchema),
   outputs: {
     result: PLANEV2V2LISTATTACHMENTSRESULT_OUTPUT,
@@ -195,9 +195,9 @@ export const planeListAttachmentsTool: ToolConfig<
       optional: true,
       description: 'Returned Plane records.',
       items: {
-        type: WORKITEMATTACHMENTC365E0_OUTPUT.type,
-        description: WORKITEMATTACHMENTC365E0_OUTPUT.description,
-        properties: WORKITEMATTACHMENTC365E0_OUTPUT.properties,
+        type: WORKITEMATTACHMENT28F0BA_OUTPUT.type,
+        description: WORKITEMATTACHMENT28F0BA_OUTPUT.description,
+        properties: WORKITEMATTACHMENT28F0BA_OUTPUT.properties,
       },
     },
     detail: {

@@ -1,10 +1,10 @@
 import {
   PLANEV2V2LISTCOMMENTSRESULT_OUTPUT,
-  WORKITEMCOMMENTD35106_OUTPUT,
+  WORKITEMCOMMENTA652FE_OUTPUT,
 } from '@/tools/plane/outputs'
 import {
   planeV2V2ListCommentsresultSchema,
-  workItemCommentd35106Schema,
+  workItemCommenta652feSchema,
 } from '@/tools/plane/schemas'
 import type { PlaneListCommentsParams, PlaneListCommentsResponse } from '@/tools/plane/types'
 import {
@@ -104,7 +104,7 @@ export const planeListCommentsTool: ToolConfig<PlaneListCommentsParams, PlaneLis
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Set to `cursor` to opt into the COUNT-free keyset envelope instead of the default offset envelope. The response then carries `next_cursor` and `has_more`; send the value of `next_cursor` back as `?cursor=` to fetch the next page. See [Pagination](/api-reference/v2/pagination) for the full envelope.',
+          'Set to `cursor` to opt into the COUNT-free keyset envelope instead of the default offset envelope. The response then carries `next_cursor` and `has_more`; send the value of `next_cursor` back as `?cursor=` to fetch the next page. See [Pagination](https://developers.plane.so/api-reference/v2/pagination) for the full envelope.',
       },
       count: {
         type: 'boolean',
@@ -118,14 +118,14 @@ export const planeListCommentsTool: ToolConfig<PlaneListCommentsParams, PlaneLis
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `access`, `actor_id`, `comment_html`, `comment_stripped`, `created_at`, `created_by_id`, `edited_at`, `external_id`, `external_source`, `id`, `work_item_id`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+          'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `access`, `actor_id`, `comment_html`, `comment_stripped`, `created_at`, `created_by_id`, `edited_at`, `external_id`, `external_source`, `id`, `work_item_id`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
       },
       expand: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Comma-separated relations to embed alongside the ids: `actor` (the comment author). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).',
+          'Comma-separated relations to embed alongside the ids: `actor` (the comment author). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
       },
       cursor: {
         type: 'string',
@@ -225,7 +225,7 @@ export const planeListCommentsTool: ToolConfig<PlaneListCommentsParams, PlaneLis
     },
     transformResponse: async (response, params) =>
       planeApiVersion(params?.apiVersion, true) === 'v1'
-        ? planeListResponse(response, workItemCommentd35106Schema, true, false)
+        ? planeListResponse(response, workItemCommenta652feSchema, true, false)
         : planeObjectResponse(response, planeV2V2ListCommentsresultSchema),
     outputs: {
       result: PLANEV2V2LISTCOMMENTSRESULT_OUTPUT,
@@ -234,9 +234,9 @@ export const planeListCommentsTool: ToolConfig<PlaneListCommentsParams, PlaneLis
         optional: true,
         description: 'Returned Plane records.',
         items: {
-          type: WORKITEMCOMMENTD35106_OUTPUT.type,
-          description: WORKITEMCOMMENTD35106_OUTPUT.description,
-          properties: WORKITEMCOMMENTD35106_OUTPUT.properties,
+          type: WORKITEMCOMMENTA652FE_OUTPUT.type,
+          description: WORKITEMCOMMENTA652FE_OUTPUT.description,
+          properties: WORKITEMCOMMENTA652FE_OUTPUT.properties,
         },
       },
       detail: {

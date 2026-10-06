@@ -45,7 +45,7 @@ export const planeListWorkItemsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. Naming `custom_fields` here is a `400` — it is only available on single-object responses. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. Naming `custom_fields` here is a `400` — it is only available on single-object responses. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     state_id: {
       type: 'string',
@@ -293,14 +293,14 @@ export const planeListWorkItemsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Set to `cursor` to opt into keyset pagination. The envelope changes to `next_cursor` / `has_more` and drops `total_count`. Use it for deep or long-running traversals where offset pages would drift as rows are inserted. Follow the returned `next_cursor` as described in [Pagination](/api-reference/v2/pagination).',
+        'Set to `cursor` to opt into keyset pagination. The envelope changes to `next_cursor` / `has_more` and drops `total_count`. Use it for deep or long-running traversals where offset pages would drift as rows are inserted. Follow the returned `next_cursor` as described in [Pagination](https://developers.plane.so/api-reference/v2/pagination).',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).",
+        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.",
     },
     cursor: {
       type: 'string',

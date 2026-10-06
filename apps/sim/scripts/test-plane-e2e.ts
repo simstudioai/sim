@@ -13,6 +13,7 @@ import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.ser
 import { planeHandler } from '@/lib/webhooks/providers/plane'
 import { planeConnector } from '@/connectors/plane'
 import * as planeTools from '@/tools/plane'
+import { planeApiUrl, planeHeaders, planeRedirectPolicy } from '@/tools/plane/utils'
 import { prepareToolRequest } from '@/tools/request-transport'
 import type { ToolConfig } from '@/tools/types'
 
@@ -275,6 +276,50 @@ try {
       assert.equal(id(output.result), projectId)
       assert.equal(typeof record(output.result).name, 'string')
     })
+    await check(`${version}: project listing, update, summary and archival`, async () => {
+      assert(
+        rows(await call('plane_list_projects', version, { per_page: 100 })).some(
+          (row) => id(row) === projectId
+        )
+      )
+      await call('plane_update_project', version, {
+        pk: projectId,
+        description: 'Updated disposable description',
+      })
+      assert.equal(
+        record((await call('plane_get_project', version, { pk: projectId })).result).description,
+        'Updated disposable description'
+      )
+      assert((await call('plane_get_project_summary', version, { pk: projectId })).result)
+      await call('plane_archive_project', version, { pk: projectId })
+      await call('plane_unarchive_project', version, { pk: projectId })
+    })
+    await check(`${version}: state create, read, update and delete`, async () => {
+      const state = id(
+        (
+          await call('plane_create_state', version, {
+            ...scope,
+            name: 'Synthetic spare state',
+            color: '#3F76FF',
+            group: 'backlog',
+          })
+        ).result
+      )
+      assert.equal(
+        id((await call('plane_get_state', version, { ...scope, pk: state })).result),
+        state
+      )
+      await call('plane_update_state', version, {
+        ...scope,
+        pk: state,
+        name: 'Updated spare state',
+      })
+      assert.equal(
+        record((await call('plane_get_state', version, { ...scope, pk: state })).result).name,
+        'Updated spare state'
+      )
+      await call('plane_delete_state', version, { ...scope, pk: state })
+    })
     let stateId = ''
     await check(`${version}: list workflow states`, async () => {
       stateId = id(rows(await call('plane_list_states', version, scope))[0])
@@ -289,6 +334,24 @@ try {
             color: '#3F76FF',
           })
         ).result
+      )
+    })
+    await check(`${version}: label detail, listing and update`, async () => {
+      assert.equal(
+        id((await call('plane_get_label', version, { ...scope, pk: labelId })).result),
+        labelId
+      )
+      assert(
+        rows(await call('plane_list_labels', version, scope)).some((row) => id(row) === labelId)
+      )
+      await call('plane_update_label', version, {
+        ...scope,
+        pk: labelId,
+        name: 'Updated synthetic label',
+      })
+      assert.equal(
+        record((await call('plane_get_label', version, { ...scope, pk: labelId })).result).name,
+        'Updated synthetic label'
       )
     })
     const itemIds: string[] = []
@@ -358,6 +421,153 @@ try {
         })
         assert.notEqual(id(rows(first)[0]), id(rows(second)[0]))
       })
+    await check(`${version}: work item lookup by identifier`, async () => {
+      const detail = record(
+        (await call('plane_get_work_item', version, { ...scope, pk: itemIds[0] })).result
+      )
+      const project = record((await call('plane_get_project', version, { pk: projectId })).result)
+      const identifier = detail.identifier ?? `${project.identifier}-${detail.sequence_id}`
+      if (version === 'v2')
+        assert.equal(
+          id((await call('plane_get_work_item_by_identifier', version, { identifier })).result),
+          itemIds[0]
+        )
+      else
+        await assert.rejects(
+          call('plane_get_work_item_by_identifier', version, { identifier }),
+          /requires API v2/
+        )
+      if (version === 'v2')
+        assert(
+          rows(
+            await call('plane_list_workspace_work_items', version, { ...scope, per_page: 10 })
+          ).some((row) => id(row) === itemIds[0])
+        )
+    })
+    await check(`${version}: comments CRUD`, async () => {
+      const itemScope = { ...scope, work_item_id: itemIds[0] }
+      const commentId = id(
+        (
+          await call('plane_create_comment', version, {
+            ...itemScope,
+            comment_html: '<p>Synthetic comment</p>',
+          })
+        ).result
+      )
+      assert.equal(
+        id((await call('plane_get_comment', version, { ...itemScope, pk: commentId })).result),
+        commentId
+      )
+      assert(
+        rows(await call('plane_list_comments', version, itemScope)).some(
+          (row) => id(row) === commentId
+        )
+      )
+      await call('plane_update_comment', version, {
+        ...itemScope,
+        pk: commentId,
+        comment_html: '<p>Updated comment</p>',
+      })
+      assert(
+        record((await call('plane_get_comment', version, { ...itemScope, pk: commentId })).result)
+          .comment_html?.toString()
+          .includes('Updated comment')
+      )
+      await call('plane_delete_comment', version, { ...itemScope, pk: commentId })
+    })
+    await check(`${version}: links CRUD and metadata`, async () => {
+      const itemScope = { ...scope, work_item_id: itemIds[0] }
+      const linkId = id(
+        (
+          await call('plane_create_link', version, {
+            ...itemScope,
+            url: 'https://example.com/plane-e2e',
+            title: 'Synthetic link',
+            ...(version === 'v2' ? { metadata: { source: 'synthetic' } } : {}),
+          })
+        ).result
+      )
+      assert.equal(
+        id((await call('plane_get_link', version, { ...itemScope, pk: linkId })).result),
+        linkId
+      )
+      assert(
+        rows(await call('plane_list_links', version, itemScope)).some((row) => id(row) === linkId)
+      )
+      await call('plane_update_link', version, { ...itemScope, pk: linkId, title: 'Updated link' })
+      assert.equal(
+        record((await call('plane_get_link', version, { ...itemScope, pk: linkId })).result).title,
+        'Updated link'
+      )
+      await call('plane_delete_link', version, { ...itemScope, pk: linkId })
+    })
+    await check(
+      `${version}: attachment initialization, upload, confirmation and deletion`,
+      async () => {
+        const itemScope = { ...scope, work_item_id: itemIds[0] }
+        const content = 'Disposable Plane attachment verification'
+        const created = record(
+          (
+            await call('plane_create_attachment_upload', version, {
+              ...itemScope,
+              name: 'verification.txt',
+              size: content.length + 16 * 1024,
+              type: 'text/plain',
+            })
+          ).result
+        )
+        const attachmentId = id(created.attachment)
+        const upload = record(created.upload_data)
+        assert.equal(typeof upload.url, 'string')
+        const fields = record(upload.fields)
+        const form = new FormData()
+        for (const [name, value] of Object.entries(fields)) {
+          assert.equal(typeof value, 'string')
+          form.append(name, String(value))
+        }
+        form.append('file', new Blob([content], { type: 'text/plain' }), 'verification.txt')
+        const encodedUpload = new Request(String(upload.url), { method: 'POST', body: form })
+        const uploadContentType = encodedUpload.headers.get('content-type')
+        assert(uploadContentType, 'Multipart upload must include its boundary')
+        const stored = await secureFetchWithValidation(
+          String(upload.url),
+          {
+            method: 'POST',
+            body: Buffer.from(await encodedUpload.arrayBuffer()),
+            headers: {
+              'Content-Type': uploadContentType,
+              'User-Agent': planeHeaders(apiKey)['User-Agent'],
+            },
+            profile: 'contentFetch',
+            timeout: 30_000,
+            maxResponseBytes: 1024 * 1024,
+          },
+          'Plane signed attachment upload'
+        )
+        assert(stored.ok, `Signed storage upload returned HTTP ${stored.status}`)
+        await call('plane_confirm_attachment_upload', version, {
+          ...itemScope,
+          pk: attachmentId,
+          is_uploaded: true,
+        })
+        if (version === 'v2') {
+          const detail = record(
+            (await call('plane_get_attachment', version, { ...itemScope, pk: attachmentId })).result
+          )
+          assert.equal(detail.is_uploaded, true)
+        } else {
+          await assert.rejects(
+            call('plane_get_attachment', version, { ...itemScope, pk: attachmentId }),
+            /requires API v2/
+          )
+        }
+        const listedAttachment = rows(
+          await call('plane_list_attachments', version, itemScope)
+        ).find((row) => id(row) === attachmentId)
+        assert.equal(listedAttachment?.is_uploaded, true)
+        await call('plane_delete_attachment', version, { ...itemScope, pk: attachmentId })
+      }
+    )
     await check(`${version}: knowledge connector content and cap`, async () => {
       const config = { workspaceSlug, projectId, baseUrl }
       assert.equal((await planeConnector.validateConfig(apiKey, config)).valid, true)
@@ -505,6 +715,44 @@ try {
         id((await call('plane_get_module', version, { ...scope, pk: moduleId })).result),
         moduleId
       )
+      assert(
+        rows(await call('plane_list_cycles', version, scope)).some((row) => id(row) === cycleId)
+      )
+      assert(
+        rows(await call('plane_list_modules', version, scope)).some((row) => id(row) === moduleId)
+      )
+      const destination = id(
+        (
+          await call('plane_create_cycle', version, {
+            ...scope,
+            name: 'Destination cycle',
+            start_date: '2030-02-01',
+            end_date: '2030-02-14',
+          })
+        ).result
+      )
+      await call('plane_manage_cycle_work_items', version, {
+        ...scope,
+        pk: cycleId,
+        add: [itemIds[0]],
+      })
+      await call('plane_update_cycle', version, {
+        ...scope,
+        pk: cycleId,
+        start_date: '2020-01-01',
+        end_date: '2020-01-14',
+      })
+      await call('plane_transfer_cycle_work_items', version, {
+        ...scope,
+        pk: cycleId,
+        new_cycle_id: destination,
+      })
+      assert.equal(
+        record((await call('plane_get_cycle', 'v1', { ...scope, pk: destination })).result)
+          .total_issues,
+        1
+      )
+      await call('plane_delete_cycle', version, { ...scope, pk: destination })
       await call('plane_delete_cycle', version, { ...scope, pk: cycleId })
       await call('plane_delete_module', version, { ...scope, pk: moduleId })
     })
@@ -517,6 +765,15 @@ try {
             description_html: '<p>Page connector content</p>',
           })
         ).result
+      )
+      assert.equal(
+        id((await call('plane_get_project_page', version, { ...scope, pk: pageId })).result),
+        pageId
+      )
+      assert(
+        rows(await call('plane_list_project_pages', version, scope)).some(
+          (row) => id(row) === pageId
+        )
       )
       const config = { workspaceSlug, projectId, baseUrl, contentType: 'pages' }
       assert.equal((await planeConnector.validateConfig(apiKey, config)).valid, true)
@@ -537,9 +794,24 @@ try {
           'Updated page content'
         )
       )
-      if (version === 'v1')
-        await call('plane_archive_project_page', version, { ...scope, page_id: pageId })
-      else
+      if (version === 'v1') {
+        const archived = await secureFetchWithValidation(
+          planeApiUrl(
+            baseUrl,
+            `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/pages/${pageId}/archive/`
+          ),
+          {
+            method: 'POST',
+            headers: planeHeaders(apiKey),
+            profile: 'configuredEndpoint',
+            redirectPolicy: planeRedirectPolicy(),
+            timeout: 30_000,
+            maxResponseBytes: 1024 * 1024,
+          },
+          'Plane disposable page cleanup'
+        )
+        assert(archived.ok, `Page fixture archive returned HTTP ${archived.status}`)
+      } else
         await call('plane_update_project_page', version, {
           ...scope,
           pk: pageId,
@@ -568,6 +840,38 @@ try {
         })
         subscription = { ...initialConfig, ...created?.providerConfigUpdates }
         assert.equal(typeof subscription.webhookSecret, 'string')
+        const pending = await call('plane_get_webhook', 'v2', {
+          workspace_slug: workspaceSlug,
+          pk: subscription.externalId,
+        })
+        assert.equal(
+          toRecord(pending.result).is_active,
+          false,
+          'Subscription must remain inactive until its credentials are persisted'
+        )
+        await planeHandler.activateSubscription?.({
+          webhook: { ...webhook, providerConfig: subscription },
+          workflow: {},
+          userId: 'synthetic',
+          requestId: 'plane-e2e',
+          request: new NextRequest(`${publicCallback}/api/webhooks/trigger/${callbackPath}`),
+        })
+        const active = record(
+          (await call('plane_get_webhook', 'v2', { pk: subscription.externalId })).result
+        )
+        assert.equal(active.is_active, true)
+        const recovered = await planeHandler.createSubscription?.({
+          webhook: { ...webhook, providerConfig: subscription },
+          workflow: {},
+          userId: 'synthetic',
+          requestId: 'plane-e2e',
+          request: new NextRequest(`${publicCallback}/api/webhooks/trigger/${callbackPath}`),
+        })
+        assert.equal(
+          recovered?.providerConfigUpdates?.externalId,
+          subscription.externalId,
+          'Retry must reuse the tracked subscription'
+        )
         await call('plane_create_work_item', version, {
           ...scope,
           name: 'Synthetic signed webhook event',
@@ -587,6 +891,59 @@ try {
         })
         subscription = undefined
       })
+    if (version === 'v2')
+      await check('v2: webhook tools CRUD and secret rotation', async () => {
+        const webhookId = id(
+          (
+            await call('plane_create_webhook', version, {
+              url: 'https://example.com/plane-e2e',
+              name: 'Inactive synthetic webhook',
+              is_active: false,
+              version: 'v2',
+              scopes: ['workitem.created'],
+            })
+          ).result
+        )
+        try {
+          assert(
+            rows(await call('plane_list_webhooks', version)).some((row) => id(row) === webhookId)
+          )
+          await call('plane_update_webhook', version, {
+            pk: webhookId,
+            name: 'Updated inactive webhook',
+          })
+          assert.equal(
+            record((await call('plane_get_webhook', version, { pk: webhookId })).result).name,
+            'Updated inactive webhook'
+          )
+          const rotated = record(
+            (await call('plane_regenerate_webhook_secret', version, { pk: webhookId })).result
+          )
+          assert.equal(typeof rotated.secret_key, 'string')
+        } finally {
+          await call('plane_delete_webhook', version, { pk: webhookId })
+        }
+      })
+    if (version === 'v2')
+      await check('v2: work item archival preserves identity and relationship fields', async () => {
+        const archived = record(
+          (
+            await call('plane_archive_work_item', version, {
+              ...scope,
+              pk: itemIds[1],
+              fields: 'id,project_id,cycle_id,module_ids,archived_at',
+            })
+          ).result
+        )
+        assert.equal(id(archived), itemIds[1])
+        assert.equal(archived.project_id, projectId)
+        assert(Object.hasOwn(archived, 'cycle_id') && Object.hasOwn(archived, 'module_ids'))
+        assert.equal(typeof archived.archived_at, 'string')
+        await call('plane_unarchive_work_item', version, { ...scope, pk: itemIds[1] })
+      })
+    await check(`${version}: label deletion`, async () => {
+      await call('plane_delete_label', version, { ...scope, pk: labelId })
+    })
     await check(`${version}: work item deletion and connector missing read`, async () => {
       await call('plane_delete_work_item', version, { ...scope, pk: itemIds[1] })
       try {
@@ -627,7 +984,38 @@ try {
   if (server) await new Promise<void>((resolve) => server.close(() => resolve()))
   await writeFile(
     reportPath,
-    JSON.stringify({ checks, requests, verifiedDeliveries: deliveries.length }, null, 2)
+    JSON.stringify(
+      {
+        checks,
+        requests,
+        verifiedDeliveries: deliveries.length,
+        operations: {
+          available: tools.length,
+          successfulV2: new Set(
+            requests
+              .filter(
+                (request) =>
+                  request.version === 'v2' && request.status >= 200 && request.status < 300
+              )
+              .map((request) => request.operation)
+          ).size,
+          unverifiedV2: tools
+            .filter(
+              (tool) =>
+                !requests.some(
+                  (request) =>
+                    request.operation === tool.id &&
+                    request.version === 'v2' &&
+                    request.status >= 200 &&
+                    request.status < 300
+                )
+            )
+            .map((tool) => tool.id),
+        },
+      },
+      null,
+      2
+    )
   )
   if (process.env.PLANE_E2E_CONTRACT_PATH)
     await writeFile(process.env.PLANE_E2E_CONTRACT_PATH, JSON.stringify(contracts, null, 2), {

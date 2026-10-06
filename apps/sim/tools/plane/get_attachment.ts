@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMATTACHMENTS_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemAttachmentsSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMATTACHMENTSEE0DAD_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemAttachmentsee0dadSchema } from '@/tools/plane/schemas'
 import type { PlaneGetAttachmentParams, PlaneGetAttachmentResponse } from '@/tools/plane/types'
 import {
   PLANE_CREDENTIAL_PARAMS,
@@ -56,7 +56,7 @@ export const planeGetAttachmentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
     },
   },
   request: {
@@ -74,6 +74,6 @@ export const planeGetAttachmentTool: ToolConfig<
     retry: { enabled: true, maxRetries: 3, retryIdempotentOnly: true },
   },
   transformResponse: async (response) =>
-    planeObjectResponse(response, planeV2WorkItemAttachmentsSchema),
-  outputs: { result: PLANEV2WORKITEMATTACHMENTS_OUTPUT },
+    planeObjectResponse(response, planeV2WorkItemAttachmentsee0dadSchema),
+  outputs: { result: PLANEV2WORKITEMATTACHMENTSEE0DAD_OUTPUT },
 }

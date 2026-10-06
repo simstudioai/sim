@@ -1,5 +1,5 @@
-import { PLANEV2PROJECTPAGES0DF14E_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2ProjectPages0df14eSchema } from '@/tools/plane/schemas'
+import { PLANEV2PROJECTPAGES0BB396_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2ProjectPages0bb396Schema } from '@/tools/plane/schemas'
 import type {
   PlaneCreateProjectPageParams,
   PlaneCreateProjectPageResponse,
@@ -136,14 +136,14 @@ export const planeCreateProjectPageTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `access`, `archived_at`, `collection_id`, `color`, `created_at`, `created_by_id`, `description_html`, `description_stripped`, `external_id`, `external_source`, `id`, `is_global`, `is_locked`, `logo_props`, `name`, `owned_by_id`, `parent_id`, `sort_order`, `view_props`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `access`, `archived_at`, `collection_id`, `color`, `created_at`, `created_by_id`, `description_html`, `description_stripped`, `external_id`, `external_source`, `id`, `is_global`, `is_locked`, `logo_props`, `name`, `owned_by_id`, `parent_id`, `sort_order`, `view_props`.',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated relations to embed: `owned_by`, `parent`. Expansion is separate-key — `?expand=state` keeps `state_id` and adds a `state` object next to it. `?fields=` and `?expand=` are independent: naming a relation in `?fields=` is a `400`, and expanded objects survive field filtering. See [Expanding relations](/api-reference/v2/expanding-relations).',
+        'Comma-separated relations to embed: `owned_by`, `parent`. Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
     v1_access: {
       type: 'number',
@@ -288,7 +288,7 @@ export const planeCreateProjectPageTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2ProjectPages0df14eSchema)
-      : planeObjectResponse(response, planeV2ProjectPages0df14eSchema),
-  outputs: { result: PLANEV2PROJECTPAGES0DF14E_OUTPUT },
+      ? planeObjectResponse(response, planeV2ProjectPages0bb396Schema)
+      : planeObjectResponse(response, planeV2ProjectPages0bb396Schema),
+  outputs: { result: PLANEV2PROJECTPAGES0BB396_OUTPUT },
 }

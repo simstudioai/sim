@@ -47,12 +47,6 @@ export const planeTriggerOptions = [
   { label: 'Work Item Dependency Deleted', id: 'plane_workitem_dependency_deleted' },
   { label: 'Work Item Page Link Created', id: 'plane_workitem_page_link_created' },
   { label: 'Work Item Page Link Deleted', id: 'plane_workitem_page_link_deleted' },
-  { label: 'Cycle Membership (v1) Created', id: 'plane_cycle_issue_created' },
-  { label: 'Cycle Membership (v1) Updated', id: 'plane_cycle_issue_updated' },
-  { label: 'Cycle Membership (v1) Deleted', id: 'plane_cycle_issue_deleted' },
-  { label: 'Module Membership (v1) Created', id: 'plane_module_issue_created' },
-  { label: 'Module Membership (v1) Updated', id: 'plane_module_issue_updated' },
-  { label: 'Module Membership (v1) Deleted', id: 'plane_module_issue_deleted' },
 ]
 
 export const PLANE_TRIGGER_EVENTS: Record<string, string> = {
@@ -99,12 +93,6 @@ export const PLANE_TRIGGER_EVENTS: Record<string, string> = {
   plane_workitem_dependency_deleted: 'workitem.dependency.deleted',
   plane_workitem_page_link_created: 'workitem.page_link.created',
   plane_workitem_page_link_deleted: 'workitem.page_link.deleted',
-  plane_cycle_issue_created: 'cycle_issue.created',
-  plane_cycle_issue_updated: 'cycle_issue.updated',
-  plane_cycle_issue_deleted: 'cycle_issue.deleted',
-  plane_module_issue_created: 'module_issue.created',
-  plane_module_issue_updated: 'module_issue.updated',
-  plane_module_issue_deleted: 'module_issue.deleted',
 }
 
 /** Normalizes Community Edition v1 resource/actions to the v2 event vocabulary. */

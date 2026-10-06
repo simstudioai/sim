@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMLINKS329BC3_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemLinks329bc3Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMLINKS38DCF4_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemLinks38dcf4Schema } from '@/tools/plane/schemas'
 import type { PlaneUpdateLinkParams, PlaneUpdateLinkResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -52,10 +52,10 @@ export const planeUpdateLinkTool: ToolConfig<PlaneUpdateLinkParams, PlaneUpdateL
     },
     pk: { type: 'string', required: true, visibility: 'user-or-llm', description: 'The link id.' },
     metadata: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The metadata.',
+      description: 'JSON metadata object for the link. API v2 only.',
     },
     title: {
       type: 'string',
@@ -69,7 +69,7 @@ export const planeUpdateLinkTool: ToolConfig<PlaneUpdateLinkParams, PlaneUpdateL
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.',
     },
     issue_id: {
       type: 'string',
@@ -138,7 +138,7 @@ export const planeUpdateLinkTool: ToolConfig<PlaneUpdateLinkParams, PlaneUpdateL
         : planeVersionedValues(
             params,
             {
-              metadata: { key: 'metadata', type: 'string', required: false },
+              metadata: { key: 'metadata', type: 'object', required: false },
               title: { key: 'title', type: 'string', required: false },
               url: { key: 'url', type: 'string', required: false },
             },
@@ -147,7 +147,7 @@ export const planeUpdateLinkTool: ToolConfig<PlaneUpdateLinkParams, PlaneUpdateL
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItemLinks329bc3Schema)
-      : planeObjectResponse(response, planeV2WorkItemLinks329bc3Schema),
-  outputs: { result: PLANEV2WORKITEMLINKS329BC3_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItemLinks38dcf4Schema)
+      : planeObjectResponse(response, planeV2WorkItemLinks38dcf4Schema),
+  outputs: { result: PLANEV2WORKITEMLINKS38DCF4_OUTPUT },
 }

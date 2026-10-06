@@ -1,5 +1,5 @@
-import { PLANEV2LABELS8A1AE6_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2Labels8a1ae6Schema } from '@/tools/plane/schemas'
+import { PLANEV2LABELSEEF21E_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2Labelseef21eSchema } from '@/tools/plane/schemas'
 import type { PlaneCreateLabelParams, PlaneCreateLabelResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -94,7 +94,7 @@ export const planeCreateLabelTool: ToolConfig<PlaneCreateLabelParams, PlaneCreat
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `name`, `parent_id`, `sort_order`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `name`, `parent_id`, `sort_order`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
   },
   request: {
@@ -187,7 +187,7 @@ export const planeCreateLabelTool: ToolConfig<PlaneCreateLabelParams, PlaneCreat
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2Labels8a1ae6Schema)
-      : planeObjectResponse(response, planeV2Labels8a1ae6Schema),
-  outputs: { result: PLANEV2LABELS8A1AE6_OUTPUT },
+      ? planeObjectResponse(response, planeV2Labelseef21eSchema)
+      : planeObjectResponse(response, planeV2Labelseef21eSchema),
+  outputs: { result: PLANEV2LABELSEEF21E_OUTPUT },
 }

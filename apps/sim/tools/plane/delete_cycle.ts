@@ -7,7 +7,6 @@ import {
   planeApiVersion,
   planeHeaders,
   planeRedirectPolicy,
-  planeVersionedValues,
 } from '@/tools/plane/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -38,20 +37,6 @@ export const planeDeleteCycleTool: ToolConfig<PlaneDeleteCycleParams, PlaneDelet
       visibility: 'user-or-llm',
       description: 'The cycle to delete.',
     },
-    fields: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `created_at`, `created_by_id`, `description`, `end_date`, `external_id`, `external_source`, `id`, `logo_props`, `name`, `owned_by_id`, `sort_order`, `start_date`, `timezone`. See [Sparse fields](/api-reference/v2/sparse-fields).',
-    },
-    expand: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Comma-separated relations to embed alongside the ids: `owned_by` (the cycle owner). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).',
-    },
   },
   request: {
     url: (params) => {
@@ -60,8 +45,8 @@ export const planeDeleteCycleTool: ToolConfig<PlaneDeleteCycleParams, PlaneDelet
         params,
         version === 'v1'
           ? ['pk', 'project_id', 'workspace_slug']
-          : ['workspace_slug', 'project_id', 'pk', 'fields', 'expand'],
-        ['workspace_slug', 'project_id', 'pk', 'fields', 'expand'],
+          : ['workspace_slug', 'project_id', 'pk'],
+        ['workspace_slug', 'project_id', 'pk'],
         version
       )
       return version === 'v1'
@@ -71,11 +56,7 @@ export const planeDeleteCycleTool: ToolConfig<PlaneDeleteCycleParams, PlaneDelet
           )
         : planeApiUrl(
             params.baseUrl,
-            `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/projects/${safeUrlPathSegment(params.project_id, 'project_id')}/cycles/${safeUrlPathSegment(params.pk, 'pk')}/`,
-            planeVersionedValues(params, {
-              fields: { key: 'fields', type: 'string', required: false },
-              expand: { key: 'expand', type: 'string', required: false },
-            })
+            `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/projects/${safeUrlPathSegment(params.project_id, 'project_id')}/cycles/${safeUrlPathSegment(params.pk, 'pk')}/`
           )
     },
     method: 'DELETE',

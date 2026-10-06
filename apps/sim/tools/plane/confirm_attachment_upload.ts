@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMATTACHMENTS_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemAttachmentsSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMATTACHMENTSEE0DAD_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemAttachmentsee0dadSchema } from '@/tools/plane/schemas'
 import type {
   PlaneConfirmAttachmentUploadParams,
   PlaneConfirmAttachmentUploadResponse,
@@ -73,7 +73,7 @@ export const planeConfirmAttachmentUploadTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
     },
   },
   request: {
@@ -119,9 +119,9 @@ export const planeConfirmAttachmentUploadTool: ToolConfig<
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
       ? { success: true, output: { success: true } }
-      : planeObjectResponse(response, planeV2WorkItemAttachmentsSchema),
+      : planeObjectResponse(response, planeV2WorkItemAttachmentsee0dadSchema),
   outputs: {
-    result: PLANEV2WORKITEMATTACHMENTS_OUTPUT,
+    result: PLANEV2WORKITEMATTACHMENTSEE0DAD_OUTPUT,
     success: { type: 'boolean', description: 'Operation completed successfully.' },
   },
 }

@@ -6,7 +6,6 @@ import {
   planeApiVersion,
   planeHeaders,
   planeRedirectPolicy,
-  planeVersionedValues,
 } from '@/tools/plane/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -34,21 +33,13 @@ export const planeDeleteWebhookTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The webhook id.',
     },
-    fields: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `content_type`, `created_at`, `created_by_id`, `id`, `is_active`, `name`, `scopes`, `url`, `version`.',
-    },
   },
   request: {
     url: (params) => {
       planeApiVersion(params.apiVersion, false)
       return planeApiUrl(
         params.baseUrl,
-        `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/webhooks/${safeUrlPathSegment(params.pk, 'pk')}/`,
-        planeVersionedValues(params, { fields: { key: 'fields', type: 'string', required: false } })
+        `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/webhooks/${safeUrlPathSegment(params.pk, 'pk')}/`
       )
     },
     method: 'DELETE',

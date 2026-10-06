@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMS0209D1_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems0209d1Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMS50747F_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItems50747fSchema } from '@/tools/plane/schemas'
 import type { PlaneArchiveWorkItemParams, PlaneArchiveWorkItemResponse } from '@/tools/plane/types'
 import {
   PLANE_CREDENTIAL_PARAMS,
@@ -49,14 +49,14 @@ export const planeArchiveWorkItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `custom_fields`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `custom_fields`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).",
+        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.",
     },
   },
   request: {
@@ -76,6 +76,6 @@ export const planeArchiveWorkItemTool: ToolConfig<
     redirectPolicy: planeRedirectPolicy,
   },
   transformResponse: async (response) =>
-    planeObjectResponse(response, planeV2WorkItems0209d1Schema),
-  outputs: { result: PLANEV2WORKITEMS0209D1_OUTPUT },
+    planeObjectResponse(response, planeV2WorkItems50747fSchema),
+  outputs: { result: PLANEV2WORKITEMS50747F_OUTPUT },
 }

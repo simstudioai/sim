@@ -1,5 +1,5 @@
-import { PLANEV2WEBHOOKS_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WebhooksSchema } from '@/tools/plane/schemas'
+import { PLANEV2WEBHOOKSBFEBF2_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2Webhooksbfebf2Schema } from '@/tools/plane/schemas'
 import type { PlaneCreateWebhookParams, PlaneCreateWebhookResponse } from '@/tools/plane/types'
 import {
   PLANE_CREDENTIAL_PARAMS,
@@ -75,7 +75,7 @@ export const planeCreateWebhookTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `content_type`, `created_at`, `created_by_id`, `id`, `is_active`, `name`, `scopes`, `url`, `version`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `content_type`, `created_at`, `created_by_id`, `id`, `is_active`, `name`, `scopes`, `url`, `version`.',
     },
   },
   request: {
@@ -104,6 +104,6 @@ export const planeCreateWebhookTool: ToolConfig<
         params.bodyOverrides
       ),
   },
-  transformResponse: async (response) => planeObjectResponse(response, planeV2WebhooksSchema),
-  outputs: { result: PLANEV2WEBHOOKS_OUTPUT },
+  transformResponse: async (response) => planeObjectResponse(response, planeV2Webhooksbfebf2Schema),
+  outputs: { result: PLANEV2WEBHOOKSBFEBF2_OUTPUT },
 }

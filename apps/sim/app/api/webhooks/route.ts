@@ -27,6 +27,7 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
+  activateExternalWebhookSubscription,
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
@@ -500,8 +501,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    const cleanupBeforeCreate = Boolean(
+      existingWebhook &&
+        shouldRecreateSubscription &&
+        (getProviderHandler(provider).activateSubscription ||
+          getProviderHandler(existingWebhook.provider).activateSubscription)
+    )
     if (!existingWebhook || shouldRecreateSubscription) {
       try {
+        if (cleanupBeforeCreate) {
+          await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId, {
+            throwOnError: true,
+          })
+        }
         const result = await createExternalWebhookSubscription(
           request,
           createTempWebhookData(),
@@ -597,7 +609,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw dbError
     }
 
-    if (existingWebhook && shouldRecreateSubscription) {
+    if (savedWebhook) {
+      await activateExternalWebhookSubscription(
+        request,
+        savedWebhook,
+        workflowRecord,
+        userId,
+        requestId
+      )
+    }
+
+    if (existingWebhook && shouldRecreateSubscription && !cleanupBeforeCreate) {
       try {
         await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
       } catch (cleanupError) {

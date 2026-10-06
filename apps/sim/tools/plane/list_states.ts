@@ -76,7 +76,7 @@ export const planeListStatesTool: ToolConfig<PlaneListStatesParams, PlaneListSta
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `group`, `id`, `is_default`, `is_triage`, `name`, `sequence`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `group`, `id`, `is_default`, `is_triage`, `name`, `sequence`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     group__in: {
       type: 'string',
@@ -132,7 +132,7 @@ export const planeListStatesTool: ToolConfig<PlaneListStatesParams, PlaneListSta
       required: false,
       visibility: 'user-or-llm',
       description:
-        'v1 compatibility only. Comma-separated list of related fields to expand in response',
+        'v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
   },
   request: {

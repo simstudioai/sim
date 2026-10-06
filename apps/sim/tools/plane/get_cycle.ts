@@ -1,5 +1,5 @@
-import { PLANEV2CYCLES6D6772_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2Cycles6d6772Schema } from '@/tools/plane/schemas'
+import { PLANEV2CYCLES2E33F2_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2Cycles2e33f2Schema } from '@/tools/plane/schemas'
 import type { PlaneGetCycleParams, PlaneGetCycleResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -47,14 +47,14 @@ export const planeGetCycleTool: ToolConfig<PlaneGetCycleParams, PlaneGetCycleRes
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `created_at`, `created_by_id`, `description`, `end_date`, `external_id`, `external_source`, `id`, `logo_props`, `name`, `owned_by_id`, `sort_order`, `start_date`, `timezone`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `created_at`, `created_by_id`, `description`, `end_date`, `external_id`, `external_source`, `id`, `logo_props`, `name`, `owned_by_id`, `sort_order`, `start_date`, `timezone`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated relations to embed alongside the ids: `owned_by` (the cycle owner). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).',
+        'Comma-separated relations to embed alongside the ids: `owned_by` (the cycle owner). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
   },
   request: {
@@ -89,7 +89,7 @@ export const planeGetCycleTool: ToolConfig<PlaneGetCycleParams, PlaneGetCycleRes
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2Cycles6d6772Schema)
-      : planeObjectResponse(response, planeV2Cycles6d6772Schema),
-  outputs: { result: PLANEV2CYCLES6D6772_OUTPUT },
+      ? planeObjectResponse(response, planeV2Cycles2e33f2Schema)
+      : planeObjectResponse(response, planeV2Cycles2e33f2Schema),
+  outputs: { result: PLANEV2CYCLES2E33F2_OUTPUT },
 }

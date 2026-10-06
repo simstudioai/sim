@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMATTACHMENTSE3FE99_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemAttachmentse3fe99Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMATTACHMENTS95C9D1_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemAttachments95c9d1Schema } from '@/tools/plane/schemas'
 import type {
   PlaneCreateAttachmentUploadParams,
   PlaneCreateAttachmentUploadResponse,
@@ -62,7 +62,13 @@ export const planeCreateAttachmentUploadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Display name.',
     },
-    size: { type: 'number', required: true, visibility: 'user-or-llm', description: 'The size.' },
+    size: {
+      type: 'number',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Attachment size in bytes. For signed form uploads, allow room for multipart overhead in the storage policy.',
+    },
     external_id: {
       type: 'string',
       required: false,
@@ -82,7 +88,7 @@ export const planeCreateAttachmentUploadTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`.',
     },
   },
   request: {
@@ -168,7 +174,7 @@ export const planeCreateAttachmentUploadTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItemAttachmentse3fe99Schema)
-      : planeObjectResponse(response, planeV2WorkItemAttachmentse3fe99Schema),
-  outputs: { result: PLANEV2WORKITEMATTACHMENTSE3FE99_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItemAttachments95c9d1Schema)
+      : planeObjectResponse(response, planeV2WorkItemAttachments95c9d1Schema),
+  outputs: { result: PLANEV2WORKITEMATTACHMENTS95C9D1_OUTPUT },
 }

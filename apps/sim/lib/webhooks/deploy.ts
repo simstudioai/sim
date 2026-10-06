@@ -16,6 +16,7 @@ import {
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
+  activateExternalWebhookSubscription,
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   hasWebhookConfigChanged,
@@ -979,7 +980,25 @@ export async function saveTriggerWebhooksForDeploy({
           logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
         }
       }
-      // else: config unchanged and not forcing recreation, keep existing webhook
+      if (!needsRecreation) {
+        try {
+          await activateExternalWebhookSubscription(
+            request,
+            existingWh,
+            workflow,
+            userId,
+            requestId
+          )
+        } catch (error) {
+          return {
+            success: false,
+            error: {
+              message: getErrorMessage(error, 'Failed to activate webhook subscription'),
+              status: 500,
+            },
+          }
+        }
+      }
     }
   }
 
@@ -1118,6 +1137,7 @@ export async function saveTriggerWebhooksForDeploy({
   }
 
   // Phase 2: Insert all DB records in a transaction
+  let recordsCommitted = false
   try {
     await db.transaction(async (tx) => {
       for (const sub of createdSubscriptions) {
@@ -1137,9 +1157,22 @@ export async function saveTriggerWebhooksForDeploy({
       }
     })
 
+    recordsCommitted = true
     await pendingVerificationTracker.clearAll()
 
     for (const sub of createdSubscriptions) {
+      await activateExternalWebhookSubscription(
+        request,
+        {
+          id: sub.webhookId,
+          path: sub.triggerPath,
+          provider: sub.provider,
+          providerConfig: sub.updatedProviderConfig,
+        },
+        workflow,
+        userId,
+        requestId
+      )
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
@@ -1190,7 +1223,7 @@ export async function saveTriggerWebhooksForDeploy({
     }
   } catch (error: unknown) {
     await pendingVerificationTracker.clearAll()
-    logger.error(`[${requestId}] Failed to insert webhook records`, error)
+    logger.error(`[${requestId}] Failed to save or activate webhook records`, error)
     let cleanupFailure: unknown
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {
@@ -1204,21 +1237,29 @@ export async function saveTriggerWebhooksForDeploy({
             },
             workflow,
             requestId,
-            { throwOnError: strictExternalCleanup }
+            {
+              throwOnError:
+                strictExternalCleanup ||
+                Boolean(getProviderHandler(sub.provider).activateSubscription),
+            }
           )
+          if (recordsCommitted) await db.delete(webhook).where(eq(webhook.id, sub.webhookId))
         } catch (cleanupError) {
           cleanupFailure = cleanupError
           logger.warn(
             `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
             cleanupError
           )
-          await persistCreatedWebhookRecordAfterCleanupFailure({
-            workflowId,
-            deploymentVersionId,
-            sub,
-            requestId,
-          })
+          if (!recordsCommitted)
+            await persistCreatedWebhookRecordAfterCleanupFailure({
+              workflowId,
+              deploymentVersionId,
+              sub,
+              requestId,
+            })
         }
+      } else if (recordsCommitted) {
+        await db.delete(webhook).where(eq(webhook.id, sub.webhookId))
       }
     }
     return {

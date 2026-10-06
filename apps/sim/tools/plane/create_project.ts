@@ -1,5 +1,5 @@
-import { PLANEV2PROJECTS80208C_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2Projects80208cSchema } from '@/tools/plane/schemas'
+import { PLANEV2PROJECTSFAC84F_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2Projectsfac84fSchema } from '@/tools/plane/schemas'
 import type { PlaneCreateProjectParams, PlaneCreateProjectResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -225,14 +225,14 @@ export const planeCreateProjectTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `archive_in`, `archived_at`, `close_in`, `cover_image`, `cover_image_url`, `created_at`, `created_by_id`, `cycle_view`, `default_assignee_id`, `default_state_id`, `description`, `emoji`, `estimate_id`, `external_id`, `external_source`, `guest_view_all_features`, `icon_prop`, `id`, `identifier`, `intake_view`, `is_issue_type_enabled`, `is_time_tracking_enabled`, `issue_views_view`, `logo_props`, `module_view`, `name`, `network`, `page_view`, `priority`, `project_lead_id`, `start_date`, `state_id`, `target_date`, `timezone`.',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `archive_in`, `archived_at`, `close_in`, `cover_image`, `cover_image_url`, `created_at`, `created_by_id`, `cycle_view`, `default_assignee_id`, `default_state_id`, `description`, `emoji`, `estimate_id`, `external_id`, `external_source`, `guest_view_all_features`, `icon_prop`, `id`, `identifier`, `intake_view`, `is_issue_type_enabled`, `is_time_tracking_enabled`, `issue_views_view`, `logo_props`, `module_view`, `name`, `network`, `page_view`, `priority`, `project_lead_id`, `start_date`, `state_id`, `target_date`, `timezone`.',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated relations to embed: `default_assignee`, `project_lead`. Expansion is separate-key — `?expand=state` keeps `state_id` and adds a `state` object next to it. `?fields=` and `?expand=` are independent: naming a relation in `?fields=` is a `400`, and expanded objects survive field filtering. See [Expanding relations](/api-reference/v2/expanding-relations).',
+        'Comma-separated relations to embed: `default_assignee`, `project_lead`. Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
     v1_icon_prop: {
       type: 'json',
@@ -450,7 +450,7 @@ export const planeCreateProjectTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2Projects80208cSchema)
-      : planeObjectResponse(response, planeV2Projects80208cSchema),
-  outputs: { result: PLANEV2PROJECTS80208C_OUTPUT },
+      ? planeObjectResponse(response, planeV2Projectsfac84fSchema)
+      : planeObjectResponse(response, planeV2Projectsfac84fSchema),
+  outputs: { result: PLANEV2PROJECTSFAC84F_OUTPUT },
 }

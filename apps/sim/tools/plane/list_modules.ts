@@ -110,7 +110,7 @@ export const planeListModulesTool: ToolConfig<PlaneListModulesParams, PlaneListM
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `lead_id`, `logo_props`, `member_ids`, `name`, `sort_order`, `start_date`, `status`, `target_date`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `lead_id`, `logo_props`, `member_ids`, `name`, `sort_order`, `start_date`, `status`, `target_date`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     status__in: {
       type: 'string',
@@ -124,7 +124,7 @@ export const planeListModulesTool: ToolConfig<PlaneListModulesParams, PlaneListM
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated relations to embed alongside the ids: `lead` (the module lead), `members` (the module members). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).',
+        'Comma-separated relations to embed alongside the ids: `lead` (the module lead), `members` (the module members). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
     cursor: {
       type: 'string',

@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMCOMMENTS0C5466_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemComments0c5466Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMCOMMENTS5AF051_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemComments5af051Schema } from '@/tools/plane/schemas'
 import type { PlaneCreateCommentParams, PlaneCreateCommentResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -55,8 +55,7 @@ export const planeCreateCommentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'The comment body, as HTML — for example `Deployed the fix to staging.`. Plane derives the plain-text `comment_stripped` from it server-side, which is what search matches.',
+      description: 'HTML comment content. Required with API v2; API v1 also supports comment_json.',
     },
     access: {
       type: 'string',
@@ -84,14 +83,14 @@ export const planeCreateCommentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `access`, `actor_id`, `comment_html`, `comment_stripped`, `created_at`, `created_by_id`, `edited_at`, `external_id`, `external_source`, `id`, `work_item_id`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `access`, `actor_id`, `comment_html`, `comment_stripped`, `created_at`, `created_by_id`, `edited_at`, `external_id`, `external_source`, `id`, `work_item_id`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated relations to embed alongside the ids: `actor` (the comment author). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).',
+        'Comma-separated relations to embed alongside the ids: `actor` (the comment author). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
     comment_json: {
       type: 'json',
@@ -202,7 +201,7 @@ export const planeCreateCommentTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItemComments0c5466Schema)
-      : planeObjectResponse(response, planeV2WorkItemComments0c5466Schema),
-  outputs: { result: PLANEV2WORKITEMCOMMENTS0C5466_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItemComments5af051Schema)
+      : planeObjectResponse(response, planeV2WorkItemComments5af051Schema),
+  outputs: { result: PLANEV2WORKITEMCOMMENTS5AF051_OUTPUT },
 }

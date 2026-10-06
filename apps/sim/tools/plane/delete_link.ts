@@ -7,7 +7,6 @@ import {
   planeApiVersion,
   planeHeaders,
   planeRedirectPolicy,
-  planeVersionedValues,
 } from '@/tools/plane/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -41,13 +40,6 @@ export const planeDeleteLinkTool: ToolConfig<PlaneDeleteLinkParams, PlaneDeleteL
         'The work item the resource hangs off. Accepts the work item UUID or its `PROJ-123` identifier.',
     },
     pk: { type: 'string', required: true, visibility: 'user-or-llm', description: 'The link id.' },
-    fields: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.',
-    },
   },
   request: {
     url: (params) => {
@@ -56,8 +48,8 @@ export const planeDeleteLinkTool: ToolConfig<PlaneDeleteLinkParams, PlaneDeleteL
         params,
         version === 'v1'
           ? ['work_item_id', 'pk', 'project_id', 'workspace_slug']
-          : ['workspace_slug', 'project_id', 'work_item_id', 'pk', 'fields'],
-        ['workspace_slug', 'project_id', 'work_item_id', 'pk', 'fields'],
+          : ['workspace_slug', 'project_id', 'work_item_id', 'pk'],
+        ['workspace_slug', 'project_id', 'work_item_id', 'pk'],
         version
       )
       return version === 'v1'
@@ -67,10 +59,7 @@ export const planeDeleteLinkTool: ToolConfig<PlaneDeleteLinkParams, PlaneDeleteL
           )
         : planeApiUrl(
             params.baseUrl,
-            `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/projects/${safeUrlPathSegment(params.project_id, 'project_id')}/work-items/${safeUrlPathSegment(params.work_item_id, 'work_item_id')}/links/${safeUrlPathSegment(params.pk, 'pk')}/`,
-            planeVersionedValues(params, {
-              fields: { key: 'fields', type: 'string', required: false },
-            })
+            `/api/v2/workspaces/${safeUrlPathSegment(params.workspace_slug, 'workspace_slug')}/projects/${safeUrlPathSegment(params.project_id, 'project_id')}/work-items/${safeUrlPathSegment(params.work_item_id, 'work_item_id')}/links/${safeUrlPathSegment(params.pk, 'pk')}/`
           )
     },
     method: 'DELETE',

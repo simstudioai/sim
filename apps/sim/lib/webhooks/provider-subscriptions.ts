@@ -219,6 +219,40 @@ export async function createExternalWebhookSubscription(
   }
 }
 
+/** Activates provider state after the authorized caller has durably stored its external ID and credentials. */
+export async function activateExternalWebhookSubscription(
+  request: NextRequest,
+  webhookData: Record<string, unknown>,
+  workflow: Record<string, unknown>,
+  userId: string,
+  requestId: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<void> {
+  const handler = getProviderHandler(String(webhookData.provider))
+  const activateSubscription = handler.activateSubscription
+  if (!activateSubscription) return
+  const workspaceId = typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
+  const secrets = new Map<string, string>()
+  const providerConfig = await resolveWebhookProviderConfig(
+    toRecord(webhookData.providerConfig),
+    userId,
+    workspaceId,
+    { onResolved: (name, value) => secrets.set(name, value) }
+  )
+  await withResourceOutboundScope({ workspaceId }, () => {
+    options.signal?.throwIfAborted()
+    return activateSubscription({
+      request,
+      webhook: { ...webhookData, providerConfig },
+      workflow,
+      userId,
+      requestId,
+    })
+  }).catch((error: unknown) => {
+    throw projectProviderFailure(error, secrets, providerConfig)
+  })
+}
+
 /**
  * Clean up external webhook subscriptions for a webhook.
  *

@@ -1,5 +1,5 @@
-import { PLANEV2V2LISTLINKSRESULT_OUTPUT, WORKITEMLINKBD3AA8_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2V2ListLinksresultSchema, workItemLinkbd3aa8Schema } from '@/tools/plane/schemas'
+import { PLANEV2V2LISTLINKSRESULT_OUTPUT, WORKITEMLINK43E0B0_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2V2ListLinksresultSchema, workItemLink43e0b0Schema } from '@/tools/plane/schemas'
 import type { PlaneListLinksParams, PlaneListLinksResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -100,7 +100,7 @@ export const planeListLinksTool: ToolConfig<PlaneListLinksParams, PlaneListLinks
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See [Sparse fields](/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.",
+        "Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `created_at`, `created_by_id`, `id`, `metadata`, `title`, `url`, `work_item_id`.",
     },
     cursor: {
       type: 'string',
@@ -114,7 +114,7 @@ export const planeListLinksTool: ToolConfig<PlaneListLinksParams, PlaneListLinks
       required: false,
       visibility: 'user-or-llm',
       description:
-        'v1 compatibility only. Comma-separated list of related fields to expand in response',
+        'v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
   },
   request: {
@@ -202,7 +202,7 @@ export const planeListLinksTool: ToolConfig<PlaneListLinksParams, PlaneListLinks
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeListResponse(response, workItemLinkbd3aa8Schema, true, false)
+      ? planeListResponse(response, workItemLink43e0b0Schema, true, false)
       : planeObjectResponse(response, planeV2V2ListLinksresultSchema),
   outputs: {
     result: PLANEV2V2LISTLINKSRESULT_OUTPUT,
@@ -211,9 +211,9 @@ export const planeListLinksTool: ToolConfig<PlaneListLinksParams, PlaneListLinks
       optional: true,
       description: 'Returned Plane records.',
       items: {
-        type: WORKITEMLINKBD3AA8_OUTPUT.type,
-        description: WORKITEMLINKBD3AA8_OUTPUT.description,
-        properties: WORKITEMLINKBD3AA8_OUTPUT.properties,
+        type: WORKITEMLINK43E0B0_OUTPUT.type,
+        description: WORKITEMLINK43E0B0_OUTPUT.description,
+        properties: WORKITEMLINK43E0B0_OUTPUT.properties,
       },
     },
     detail: {

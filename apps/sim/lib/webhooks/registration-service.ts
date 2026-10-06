@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
+  activateExternalWebhookSubscription,
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
@@ -42,6 +43,7 @@ export interface StableWebhookRegistrationDependencies {
   listRetired: typeof listRetiredWebhookRegistrationsForCleanup
   getCleanupSnapshot: typeof getWebhookCleanupSnapshotIfCurrent
   deleteAfterCleanup: typeof deleteWebhookRegistrationAfterCleanup
+  activateExternal: typeof activateExternalWebhookSubscription
   createExternal: typeof createExternalWebhookSubscription
   cleanupExternal: typeof cleanupExternalWebhook
 }
@@ -52,6 +54,7 @@ const DEFAULT_DEPENDENCIES: StableWebhookRegistrationDependencies = {
   listRetired: listRetiredWebhookRegistrationsForCleanup,
   getCleanupSnapshot: getWebhookCleanupSnapshotIfCurrent,
   deleteAfterCleanup: deleteWebhookRegistrationAfterCleanup,
+  activateExternal: activateExternalWebhookSubscription,
   createExternal: createExternalWebhookSubscription,
   cleanupExternal: cleanupExternalWebhook,
 }
@@ -157,6 +160,15 @@ async function createCandidateProviderState(
       prepared: false,
     })
   }
+
+  await dependencies.activateExternal(
+    input.request,
+    { ...webhookData, providerConfig },
+    input.workflow,
+    input.userId,
+    input.requestId,
+    { signal: input.signal }
+  )
 
   if (handler.configurePolling) {
     let persistedProviderConfig: Record<string, unknown> | undefined

@@ -1,5 +1,5 @@
-import { PLANEV2V2GETPROJECTSUMMARYRESULT4F96BD_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2V2GetProjectSummaryresult4f96bdSchema } from '@/tools/plane/schemas'
+import { PLANEV2V2GETPROJECTSUMMARYRESULT_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2V2GetProjectSummaryresultSchema } from '@/tools/plane/schemas'
 import type {
   PlaneGetProjectSummaryParams,
   PlaneGetProjectSummaryResponse,
@@ -87,7 +87,7 @@ export const planeGetProjectSummaryTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2V2GetProjectSummaryresult4f96bdSchema)
-      : planeObjectResponse(response, planeV2V2GetProjectSummaryresult4f96bdSchema),
-  outputs: { result: PLANEV2V2GETPROJECTSUMMARYRESULT4F96BD_OUTPUT },
+      ? planeObjectResponse(response, planeV2V2GetProjectSummaryresultSchema)
+      : planeObjectResponse(response, planeV2V2GetProjectSummaryresultSchema),
+  outputs: { result: PLANEV2V2GETPROJECTSUMMARYRESULT_OUTPUT },
 }

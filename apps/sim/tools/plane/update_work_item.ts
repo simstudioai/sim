@@ -1,6 +1,6 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { PLANEV2WORKITEMS90FFDA_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems90ffdaSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMS70DCEE_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItems70dceeSchema } from '@/tools/plane/schemas'
 import type { PlaneUpdateWorkItemParams, PlaneUpdateWorkItemResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -197,7 +197,7 @@ export const planeUpdateWorkItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Your system's identifier for this work item. Maximum 255 characters. Filterable on [List work items](/api-reference/v2/work-items/list-work-items), but not returned on reads.",
+        "Your system's identifier for this work item. Maximum 255 characters. Filterable on [List work items](https://developers.plane.so/api-reference/v2/work-items/list-work-items), but not returned on reads.",
     },
     external_source: {
       type: 'string',
@@ -211,14 +211,14 @@ export const planeUpdateWorkItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `custom_fields`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. See [Sparse fields](/api-reference/v2/sparse-fields).',
+        'Comma-separated list of fields to return. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can\'t silently cost you the saving. Requestable here: `archived_at`, `assignee_ids`, `created_at`, `created_by_id`, `custom_fields`, `cycle_id`, `id`, `identifier`, `is_draft`, `label_ids`, `module_ids`, `name`, `parent_id`, `priority`, `project_id`, `sequence_id`, `start_date`, `state_id`, `target_date`, `type_id`. See [Sparse fields](https://developers.plane.so/api-reference/v2/sparse-fields).',
     },
     expand: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expansion is separate-key: `?expand=state` keeps `state_id` and adds a `state` object next to it, so an id is never replaced by an object. An unknown value is a `400`. `?fields=` and `?expand=` are independent namespaces. Relation names are not valid `?fields=` tokens (and vice versa), and an expanded object survives field filtering — `?fields=id,name&expand=state` returns `id`, `name` and `state`. See [Expanding relations](/api-reference/v2/expanding-relations).",
+        "Comma-separated relations to embed alongside the ids: `assignees` (the assigned users), `cycle` (the cycle it belongs to), `labels` (the applied labels), `modules` (the modules it belongs to), `parent` (its parent work item), `state` (the work item's state object), `type` (its work item type). Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.",
     },
     deleted_at: {
       type: 'string',
@@ -261,6 +261,24 @@ export const planeUpdateWorkItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'v1 compatibility only. Created by.',
+    },
+    custom_fields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON custom field values. API v2 only.',
+    },
+    cycle_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cycle ID. API v2 only.',
+    },
+    module_ids: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Module IDs. API v2 only.',
     },
   },
   request: {
@@ -320,6 +338,9 @@ export const planeUpdateWorkItemTool: ToolConfig<
               'external_source',
               'fields',
               'expand',
+              'custom_fields',
+              'cycle_id',
+              'module_ids',
             ],
         [
           'workspace_slug',
@@ -353,6 +374,9 @@ export const planeUpdateWorkItemTool: ToolConfig<
           'archived_at',
           'is_draft',
           'created_by',
+          'custom_fields',
+          'cycle_id',
+          'module_ids',
         ],
         version
       )
@@ -429,14 +453,17 @@ export const planeUpdateWorkItemTool: ToolConfig<
               target_date: { key: 'target_date', type: 'string', required: false },
               external_id: { key: 'external_id', type: 'string', required: false },
               external_source: { key: 'external_source', type: 'string', required: false },
+              custom_fields: { key: 'custom_fields', type: 'object', required: false },
+              cycle_id: { key: 'cycle_id', type: 'string', required: false },
+              module_ids: { key: 'module_ids', type: 'array', required: false },
             },
             params.bodyOverrides
           ),
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItems90ffdaSchema)
-      : planeObjectResponse(response, planeV2WorkItems90ffdaSchema),
+      ? planeObjectResponse(response, planeV2WorkItems70dceeSchema)
+      : planeObjectResponse(response, planeV2WorkItems70dceeSchema),
   postProcess: async (result, params, executeTool) => {
     if (planeApiVersion(params.apiVersion, true) !== 'v2') return result
     const clears = requestedRelationClears(params)
@@ -497,7 +524,7 @@ export const planeUpdateWorkItemTool: ToolConfig<
         if (Object.hasOwn(unapplied, canonical) && Object.hasOwn(verified, expanded))
           verified[expanded] = []
       }
-      return { ...result, output: { result: planeV2WorkItems90ffdaSchema.parse(verified) } }
+      return { ...result, output: { result: planeV2WorkItems70dceeSchema.parse(verified) } }
     } catch {
       return {
         ...result,
@@ -507,5 +534,5 @@ export const planeUpdateWorkItemTool: ToolConfig<
       }
     }
   },
-  outputs: { result: PLANEV2WORKITEMS90FFDA_OUTPUT },
+  outputs: { result: PLANEV2WORKITEMS70DCEE_OUTPUT },
 }
