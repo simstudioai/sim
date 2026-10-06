@@ -63,6 +63,13 @@ describe('isSameMcpServerDestination', () => {
     expect(isSameMcpServerDestination(url, 'https://mcp.example.com/MCP')).toBe(false)
     expect(isSameMcpServerDestination(url, `${url}/`)).toBe(false)
   })
+
+  it('treats different embedded credentials as a new destination', () => {
+    const url = 'https://user:pass@mcp.example.com/mcp'
+    expect(isSameMcpServerDestination(url, 'https://mcp.example.com/mcp')).toBe(false)
+    expect(isSameMcpServerDestination(url, 'https://other:pass@mcp.example.com/mcp')).toBe(false)
+    expect(isSameMcpServerDestination(url, 'https://user:other@mcp.example.com/mcp')).toBe(false)
+  })
 })
 
 describe('categorizeError', () => {

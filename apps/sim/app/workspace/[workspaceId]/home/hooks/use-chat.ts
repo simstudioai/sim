@@ -3411,7 +3411,7 @@ export function useChat(
         options?.requestMode === 'assistant'
           ? undefined
           : requestChatId
-            ? (effortStore.chatEfforts[requestChatId] ??
+            ? (effortStore.chatEfforts[requestChatId]?.effort ??
               queryClient.getQueryData<MothershipChatHistory>(
                 mothershipChatKeys.detail(requestChatId)
               )?.effort)

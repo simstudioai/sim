@@ -69,7 +69,7 @@ The design uses PostgreSQL's documented [TOAST behavior](https://www.postgresql.
 
 ### File owner expansion
 
-Migration `0401_file_search_owner_scope.sql` adds canonical workspace/Project ownership to the existing build, revision, and chunk pipeline. Legacy workspace inserts are translated by triggers, and the existing workspace trigram index remains usable. Project rows use a separate owner-scoped trigram index on the same chunk table. Organizations and personal users are not enabled search owners.
+Migration `0402_file_search_owner_scope.sql` adds canonical workspace/Project ownership to the existing build, revision, and chunk pipeline. Legacy workspace inserts are translated by triggers, and the existing workspace trigram index remains usable. Project rows use a separate owner-scoped trigram index on the same chunk table. Organizations and personal users are not enabled search owners.
 
 The new `file_search_dispatch_queue` replaces the workspace-keyed scheduler because older workers cannot decode a Project without a workspace. During expansion, workspace mutations enqueue both queues, while the new dispatcher reads the owner queue. Both deployments share the dispatcher lock, revision claim token, build lease, and publication fence. Drain old app dispatchers and Trigger workers/retries before enabling Project dispatch. Retire the legacy queue and its dual enqueue in a later contract deploy; they are not a second indexing pipeline. The `file-search-owners-v3` cursor performs bounded owner/file keyset backfill and hourly reconciliation without rewriting extracted text in the migration.
 

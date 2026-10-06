@@ -1094,6 +1094,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'error',
     'permissionDecision',
     'permissionDecidedAt',
+    'permissionRequestedAt',
     'claimedAt',
     'claimedBy',
     'browserDownloadStartedAt',

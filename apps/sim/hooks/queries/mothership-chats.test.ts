@@ -1,6 +1,7 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { sleep } from '@sim/utils/helpers'
+import type { MutationObserverOptions } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
@@ -23,7 +24,12 @@ vi.mock('@/lib/terminal/transport', () => ({
   suspendTerminalScope,
 }))
 
-import { useDeleteMothershipChats } from '@/hooks/queries/mothership-chats'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
+import {
+  useDeleteMothershipChats,
+  useSetMothershipChatEffort,
+} from '@/hooks/queries/mothership-chats'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const queryClient = reactQueryMockFns.mockQueryClient
 
@@ -92,5 +98,41 @@ describe('tasks query boundary parsing', () => {
     expect(queryClient.removeQueries).not.toHaveBeenCalledWith({
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
+  })
+
+  it('keeps the latest effort pick when an earlier queued save of the same value fails', async () => {
+    const tanstack =
+      await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+    const client = new tanstack.QueryClient()
+    const observer = new tanstack.MutationObserver(
+      client,
+      useSetMothershipChatEffort('chat-1') as unknown as MutationObserverOptions<
+        void,
+        Error,
+        MothershipEffort,
+        { pick: number }
+      >
+    )
+    const saves = [
+      Promise.withResolvers<Response>(),
+      Promise.withResolvers<Response>(),
+      Promise.withResolvers<Response>(),
+    ]
+    for (const save of saves) vi.mocked(fetch).mockReturnValueOnce(save.promise)
+    useMothershipEffortStore.getState().reset()
+    const outcomes = (['low', 'high', 'low'] as const).map((effort) =>
+      observer.mutate(effort).catch(() => undefined)
+    )
+    await sleep(1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    saves[0].resolve(new Response('save failed', { status: 500 }))
+    await outcomes[0]
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
+
+    saves[1].resolve(jsonResponse({ success: true }))
+    saves[2].resolve(jsonResponse({ success: true }))
+    await Promise.all(outcomes)
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
   })
 })

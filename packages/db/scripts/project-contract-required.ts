@@ -4,7 +4,7 @@ import postgres from 'postgres'
 
 const logger = createLogger('ProjectContractPreflight')
 const migration = journal.entries.find(
-  (entry) => entry.tag === '0395_project_membership_enforcement'
+  (entry) => entry.tag === '0396_project_membership_enforcement'
 )
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!migration || !url)
