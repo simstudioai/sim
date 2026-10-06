@@ -3013,10 +3013,13 @@ export function useChat(
         /* The chat no longer lists a running turn, but this surface is still showing
            one: it ended while nothing here was listening (its reader went silent, or a
            recovery it superseded was attached). Resolve that stream instead of
-           leaving it running: its terminal state replays the rest and finalizes. */
-        const locallyRunningStreamId = sendingRef.current
-          ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId)
-          : undefined
+           leaving it running: its terminal state replays the rest and finalizes. A
+           send still waiting for its POST to be admitted is not such a stream: the
+           chat cannot list it yet, and recovering it would abort that POST. */
+        const locallyRunningStreamId =
+          sendingRef.current && !pendingChatAdmissionRef.current
+            ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId)
+            : undefined
         const streamId = loadedStream.loaded
           ? (loadedStream.streamId ?? locallyRunningStreamId)
           : fallbackStreamId

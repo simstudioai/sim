@@ -1284,6 +1284,44 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies).toHaveLength(1)
   })
 
+  /**
+   * Before its POST is admitted a send shows as running, but the chat cannot list
+   * it yet. A return event in that window must leave the POST alone.
+   */
+  it('does not abort a send still waiting for admission when the user returns', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-pending-admission',
+      mode: 'agent',
+      title: 'Pending admission',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    let postSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        postSignal = init.signal ?? undefined
+        return new Promise<Response>(() => {})
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await act(async () => {
+      void getResult().sendMessage('Still being admitted')
+    })
+    await waitFor(() => postSignal !== undefined)
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+      await sleep(200)
+    })
+
+    expect(postSignal?.aborted).toBe(false)
+    expect(getResult().isSending).toBe(true)
+  })
+
   it('keeps re-attaching a long turn whose tails deliver events between separate network failures', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
