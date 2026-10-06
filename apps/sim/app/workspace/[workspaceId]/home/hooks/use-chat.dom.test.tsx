@@ -1997,6 +1997,26 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('saves the latest new-chat effort to the chat a deduplicated send names', async () => {
+    mockRequestJson.mockClear()
+    useMothershipEffortStore.getState().reset()
+    useMothershipEffortStore.getState().setNewChatEffort('high')
+    state.postBehavior = 'deduped'
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('Retry of an admitted send')
+    })
+    await waitFor(() => state.postBodies.length === 1 && !getResult().isSending)
+
+    expect(useMothershipEffortStore.getState().chatEfforts[DEDUPED_CHAT_ID]?.effort).toBe('high')
+    const saves = mockRequestJson.mock.calls.filter(
+      ([contract]) => contract.path === '/api/mothership/chats/[chatId]/effort'
+    )
+    expect(saves.map(([, input]) => input)).toEqual([
+      { params: { chatId: DEDUPED_CHAT_ID }, body: { effort: 'high' } },
+    ])
+  })
+
   it('loads the saved transcript once when its own stream completes', async () => {
     const chatId = 'chat-own-completion'
     const history: MothershipChatHistory = {

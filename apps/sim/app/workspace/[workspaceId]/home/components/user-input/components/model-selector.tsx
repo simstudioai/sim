@@ -39,7 +39,7 @@ export function ModelSelector() {
   )
   const newChatEffort = useMothershipEffortStore((state) => state.newChatEffort)
   const setNewChatEffort = useMothershipEffortStore((state) => state.setNewChatEffort)
-  const { mutate: saveChatEffort } = useSetMothershipChatEffort()
+  const { mutate: saveChatEffort } = useSetMothershipChatEffort(chatId)
   const effortChoice = chatId ? (chatPick ?? chatHistory?.effort) : newChatEffort
   const { effort, modelSelection } = resolveMothershipModelSettings(
     { effort: effortChoice ?? undefined, modelSelection: selection },
@@ -49,7 +49,7 @@ export function ModelSelector() {
     ? mothershipEffortOptions(modelSelection.model)
     : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {
-    if (chatId) saveChatEffort({ chatId, effort: choice })
+    if (chatId) saveChatEffort(choice)
     else setNewChatEffort(choice)
   }
 
