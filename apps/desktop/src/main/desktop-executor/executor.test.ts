@@ -488,6 +488,34 @@ describe('keeping the machine awake', () => {
     expect(sim.completions).toHaveLength(1)
   })
 
+  it('goes idle at sign-out and stays silent when a recovered delivery settles afterwards', async () => {
+    const { sim, journal, executor, busy } = setup()
+    const answer = deferred<void>()
+    const complete = sim.client.complete
+    let sending = false
+    sim.client.complete = async (request) => {
+      sending = true
+      await answer.promise
+      return complete(request)
+    }
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: DONE,
+    })
+    await executor.recover()
+    await vi.waitFor(() => expect(sending).toBe(true))
+    expect(busy).toEqual([true])
+
+    await executor.dispose()
+    expect(busy).toEqual([true, false])
+    answer.resolve()
+    await sleep(40)
+
+    expect(busy).toEqual([true, false])
+  })
+
   it('stays busy while a result a previous run left is still on its way to Sim', async () => {
     const { sim, journal, executor, busy } = setup()
     sim.completeErrors = [new DeviceRequestError(503, 'deploying')]

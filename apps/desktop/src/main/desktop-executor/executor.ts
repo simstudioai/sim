@@ -188,6 +188,7 @@ export class DesktopExecutor {
     // cleared only after it, so its `claiming` record does not outlive the session.
     await this.reconciling?.catch(() => {})
     await Promise.all([stopping, this.dropHeld()])
+    this.updateBusy()
     await this.options.journal.clear()
   }
 
@@ -441,7 +442,9 @@ export class DesktopExecutor {
   }
 
   private updateBusy(): void {
-    const busy = this.held.size > 0 || this.recoveredInFlight > 0
+    // A disposed executor reports idle once, at dispose; a delivery that settles later must not
+    // speak for the executor that replaced it.
+    const busy = !this.disposed && (this.held.size > 0 || this.recoveredInFlight > 0)
     if (busy === this.busy) return
     this.busy = busy
     this.options.onBusyChange?.(busy)
