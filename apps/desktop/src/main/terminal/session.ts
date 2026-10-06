@@ -316,6 +316,12 @@ export class TerminalSession {
   private altScreen = false
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
+  /**
+   * The agent tool call whose command is still running, until that command really ends. Unlike
+   * {@link runningToolCallId} it survives an interactive command detaching from the tool call:
+   * the command is still the agent's, so Stop and sign-out can still end it.
+   */
+  private agentToolCallId: string | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
@@ -437,6 +443,11 @@ export class TerminalSession {
   /** The agent tool call whose command holds the foreground, if one does. */
   get runningToolCallId(): string | null {
     return this.foregroundToolCallId
+  }
+
+  /** The agent tool call whose command is still running in this shell, if one is. */
+  get agentCommandToolCallId(): string | null {
+    return this.agentToolCallId
   }
 
   /**
@@ -604,6 +615,7 @@ export class TerminalSession {
       }
       this.foregroundCommand = command
       this.foregroundToolCallId = toolCallId
+      this.agentToolCallId = toolCallId
       this.emitState()
       this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
@@ -983,6 +995,7 @@ export class TerminalSession {
 
     this.foregroundCommand = null
     this.foregroundToolCallId = null
+    this.agentToolCallId = null
     this.announcedCommand = null
     this.altScreen = false
     this.emitState()

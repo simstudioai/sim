@@ -137,6 +137,9 @@ describe('TerminalSession command lifecycle', () => {
       const resultPromise = session.runCommand('vim', 'tool-call-1', 10_000)
       ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007\u001b[?1049h')
       expect(await resultPromise).toMatchObject({ status: 'interactive' })
+      // Detached from the tool call, the command is still the agent's until it exits.
+      expect(session.runningToolCallId).toBeNull()
+      expect(session.agentCommandToolCallId).toBe('tool-call-1')
 
       expect(commandEvents.at(-1)).toMatchObject({
         terminalId: 'terminal-1',
@@ -153,6 +156,7 @@ describe('TerminalSession command lifecycle', () => {
         command: 'vim',
         exitCode: 0,
       })
+      expect(session.agentCommandToolCallId).toBeNull()
       expect(commandEvents.at(-1)?.toolCallId).toBeUndefined()
     } finally {
       session.dispose()

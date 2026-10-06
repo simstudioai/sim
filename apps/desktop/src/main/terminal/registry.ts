@@ -369,6 +369,13 @@ export class TerminalRegistry {
     return true
   }
 
+  /** Stops every command the agent started in any chat's terminals; the user's own are untouched. */
+  async stopAgentCommands(): Promise<void> {
+    await Promise.allSettled(
+      [...this.entries.values()].map((entry) => entry.service.stopAgentCommands())
+    )
+  }
+
   /** Tears down every shell owned by every chat scope. */
   dispose(): void {
     const entries = [...this.entries.values()]

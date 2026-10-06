@@ -858,6 +858,31 @@ export class TerminalService {
     return true
   }
 
+  /** Ctrl-C in the run's own window, then closing the window hangs up anything that ignored it. */
+  private async interruptTmuxRun(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
+    await sendKey(handle.window, 'C-c', env)
+    const deadline = Date.now() + STOP_ESCALATION_MS
+    while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
+    if (!isRunComplete(handle)) await closeRunWindow(handle, env)
+  }
+
+  /**
+   * Stops every command the agent started that is still running, for sign-out: a plain shell's
+   * agent command by its own process group, as Stop does, and every tmux run window still going.
+   * A command the user started is not the agent's and is left alone.
+   */
+  async stopAgentCommands(): Promise<void> {
+    const stops: Promise<void>[] = []
+    for (const session of this.sessions.values()) {
+      const toolCallId = session.agentCommandToolCallId
+      if (toolCallId) stops.push(this.stopCommand(session, toolCallId))
+      for (const handle of this.pendingRuns.get(session.terminalId) ?? []) {
+        if (!isRunComplete(handle)) stops.push(this.interruptTmuxRun(handle, session.env))
+      }
+    }
+    await Promise.allSettled(stops)
+  }
+
   /** Waits for the command a run started to end, up to `ms`. */
   private async commandEnds(
     session: TerminalSession,
@@ -865,8 +890,10 @@ export class TerminalService {
     ms: number
   ): Promise<boolean> {
     const deadline = Date.now() + ms
-    while (session.runningToolCallId === toolCallId) {
-      if (Date.now() >= deadline || !session.alive) return session.runningToolCallId !== toolCallId
+    while (session.agentCommandToolCallId === toolCallId) {
+      if (Date.now() >= deadline || !session.alive) {
+        return session.agentCommandToolCallId !== toolCallId
+      }
       await sleep(50)
     }
     return true
@@ -878,15 +905,15 @@ export class TerminalService {
    * call and the same group still hold it, so a command the user starts meanwhile is never hit.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
-    if (session.runningToolCallId !== toolCallId) return
+    if (session.agentCommandToolCallId !== toolCallId) return
     const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
     const pgid = await groups.foreground(session.pid)
-    if (session.runningToolCallId !== toolCallId) return
+    if (session.agentCommandToolCallId !== toolCallId) return
     session.kill('SIGINT')
     for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
       if (pgid === null || (await groups.foreground(session.pid)) !== pgid) return
-      if (session.runningToolCallId !== toolCallId) return
+      if (session.agentCommandToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {
         toolCallId,
         signal: escalation,
@@ -1234,10 +1261,7 @@ export class TerminalService {
       endWait = resolve
     })
     latch.stopRunning = async () => {
-      await sendKey(handle.window, 'C-c', terminal.env)
-      const deadline = Date.now() + STOP_ESCALATION_MS
-      while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
-      if (!isRunComplete(handle)) await closeRunWindow(handle, terminal.env)
+      await this.interruptTmuxRun(handle, terminal.env)
       endWait()
     }
     // A Stop that landed while the run window opened applies now.

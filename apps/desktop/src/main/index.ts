@@ -331,7 +331,15 @@ function main(): void {
               await desktopExecutor.signOut()
             },
           },
-          { label: 'terminal sessions', clear: () => terminal.dispose() },
+          {
+            label: 'terminal sessions',
+            // Agent commands are stopped by their own process groups first: closing a shell only
+            // hangs up its foreground, and a tmux run outlives the Sim terminal entirely.
+            clear: async () => {
+              await terminal.stopAgentCommands()
+              terminal.dispose()
+            },
+          },
           { label: 'task resource state', clear: clearDesktopChatSessions },
           { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
         ]
@@ -746,7 +754,13 @@ function main(): void {
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
               { label: 'background executor', clear: () => desktopExecutor.signOut() },
-              { label: 'terminal sessions', clear: () => terminal.dispose() },
+              {
+                label: 'terminal sessions',
+                clear: async () => {
+                  await terminal.stopAgentCommands()
+                  terminal.dispose()
+                },
+              },
               { label: 'task resource state', clear: clearDesktopChatSessions },
               {
                 label: 'app session storage',

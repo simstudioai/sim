@@ -74,6 +74,9 @@ vi.mock('@/main/terminal/session', async () => {
           get runningToolCallId() {
             return state.toolCallId
           },
+          get agentCommandToolCallId() {
+            return state.toolCallId
+          },
           kill: vi.fn((signal: string) => {
             if (signal === 'SIGINT' && state.interruptible) finishRun(130)
           }),
@@ -464,6 +467,26 @@ describe('stopping a tool call', () => {
     await expect(killing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
     await expect(typing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
     expect(session.kill).not.toHaveBeenCalled()
+  })
+
+  it("stops the agent's running command at sign-out", async () => {
+    const { terminal, session } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-left-running')
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+  })
+
+  it('leaves a command the user started alone at sign-out', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setBusy(true)
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(processGroups.signal).not.toHaveBeenCalled()
   })
 
   it('leaves the terminal alone for a call it is not running', async () => {
