@@ -1087,6 +1087,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'permissionDecidedAt',
     'permissionRequestedAt',
     'pickupDeadlineAt',
+    'persistSeq',
     'claimedAt',
     'claimedBy',
     'browserDownloadStartedAt',

@@ -732,6 +732,138 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
   )
 
   it(
+    'leaves a bound run’s calls the desktop never runs to their own path',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const longAgo = new Date(Date.now() - 600_000)
+      const workflowCall = generateId()
+      const simFileRead = generateId()
+      await db.insert(copilotAsyncToolCalls).values([
+        {
+          runId: run.runId,
+          toolCallId: workflowCall,
+          toolName: 'run_workflow',
+          args: {},
+          createdAt: longAgo,
+        },
+        {
+          runId: run.runId,
+          toolCallId: simFileRead,
+          toolName: 'read',
+          args: { path: 'workspace/notes.md' },
+          createdAt: longAgo,
+        },
+      ])
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(workflowCall)).status).toBe('pending')
+      expect((await storedCall(simFileRead)).status).toBe('pending')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'reaches an abandoned desktop call however many older Sim-file reads the run left pending',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await db.insert(copilotAsyncToolCalls).values(
+        Array.from({ length: 201 }, () => ({
+          runId: run.runId,
+          toolCallId: generateId(),
+          toolName: 'read',
+          args: { path: 'workspace/notes.md' },
+          createdAt: new Date(Date.now() - 900_000),
+        }))
+      )
+      const abandoned = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId: abandoned,
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
+        createdAt: new Date(Date.now() - 600_000),
+      })
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(abandoned)).status).toBe('failed')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'still settles a call that stayed overdue for days, however long the backstop missed it',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId,
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
+        createdAt: new Date(Date.now() - 2 * 24 * 3_600_000),
+      })
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(toolCallId)).status).toBe('failed')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'settles a call whose window lapsed recently on a run that started long ago',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await db
+        .update(copilotRuns)
+        .set({ startedAt: new Date(Date.now() - 2 * 24 * 3_600_000) })
+        .where(eq(copilotRuns.id, run.runId))
+      const toolCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId,
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
+        createdAt: new Date(Date.now() - 600_000),
+      })
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(toolCallId)).status).toBe('failed')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'keeps the pickup window of a call that was never gated when a decision is posted for it',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await desktop.pull()
+
+      const { toolCallId, answer, context } = await agentCalls(run, 'browser_click', { ref: 'e1' })
+      const offeredRow = await offered(toolCallId)
+      const decided = await post(toolPermissionPOST, '/api/copilot/tool-permission', {
+        decisions: [{ toolCallId, decision: 'allow' }],
+      })
+      expect(decided.status).toBe(200)
+
+      expect((await storedCall(toolCallId)).pickupDeadlineAt).toEqual(offeredRow.pickupDeadlineAt)
+      const { executionToken } = await desktop.claim(toolCallId)
+      await desktop.complete(toolCallId, executionToken, { clicked: true })
+      await answer
+      expect(resultOf(context, toolCallId)).toMatchObject({ success: true })
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
     'settles a call Sim never offered once its pickup window would have closed',
     async () => {
       const desktop = await signedInDesktop()
