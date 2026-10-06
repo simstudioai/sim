@@ -195,6 +195,7 @@ export const planeListLabelsTool: ToolConfig<PlaneListLabelsParams, PlaneListLab
               count: { key: 'count', type: 'boolean', required: false },
               fields: { key: 'fields', type: 'string', required: false },
               cursor: { key: 'cursor', type: 'string', required: false },
+              parent_id__isnull: { key: 'parent_id__isnull', type: 'boolean', required: false },
             })
           )
     },

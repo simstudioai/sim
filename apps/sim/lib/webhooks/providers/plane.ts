@@ -75,39 +75,67 @@ async function deletePlaneWebhook(
     throw new Error(`Plane webhook deletion failed (HTTP ${response.status})`)
 }
 
+function previousPlaneDeliveryConfig(
+  providerConfig: Record<string, unknown>,
+  payload: unknown
+): Record<string, unknown> | undefined {
+  const previous = toRecord(providerConfig.previousSubscription)
+  const config = toRecord(previous.providerConfig)
+  return previous.provider === 'plane' &&
+    typeof config.externalId === 'string' &&
+    toRecord(payload).webhook_id === config.externalId
+    ? config
+    : undefined
+}
+
+const verifyPlaneSignature = createHmacVerifier({
+  configKey: 'webhookSecret',
+  headerName: 'X-Plane-Signature',
+  providerLabel: 'Plane',
+  requireSecret: true,
+  validateFn: (secret, signature, rawBody) =>
+    typeof secret === 'string' &&
+    secret.length > 0 &&
+    /^[a-f0-9]{64}$/.test(signature) &&
+    safeCompare(hmacSha256Hex(rawBody, secret), signature),
+})
+
 export const planeHandler: WebhookProviderHandler = {
-  verifyAuth: createHmacVerifier({
-    configKey: 'webhookSecret',
-    headerName: 'X-Plane-Signature',
-    providerLabel: 'Plane',
-    requireSecret: true,
-    validateFn: (secret, signature, rawBody) =>
-      typeof secret === 'string' &&
-      secret.length > 0 &&
-      /^[a-f0-9]{64}$/.test(signature) &&
-      safeCompare(hmacSha256Hex(rawBody, secret), signature),
-  }),
+  verifyAuth(ctx) {
+    let providerConfig = ctx.providerConfig
+    if (providerConfig.previousSubscription) {
+      try {
+        const payload: unknown = JSON.parse(ctx.rawBody)
+        providerConfig = previousPlaneDeliveryConfig(providerConfig, payload) ?? providerConfig
+      } catch {}
+    }
+    return verifyPlaneSignature({ ...ctx, providerConfig })
+  },
 
   async matchEvent({ body, providerConfig }) {
     const { planeEventName, PLANE_TRIGGER_EVENTS } = await import('@/triggers/plane/utils')
     const payload = toRecord(body)
+    const matchConfig =
+      (providerConfig.subscriptionActivationPending === true
+        ? previousPlaneDeliveryConfig(providerConfig, payload)
+        : undefined) ?? providerConfig
     const eventName = planeEventName(body)
     if (!eventName) return false
-    const triggerId = providerConfig.triggerId
+    const triggerId = matchConfig.triggerId
     if (
       typeof triggerId === 'string' &&
       triggerId !== 'plane_webhook' &&
       PLANE_TRIGGER_EVENTS[triggerId] !== eventName
     )
       return false
-    const workspaceId = providerConfig.workspaceId
+    const workspaceId = matchConfig.workspaceId
     if (
       typeof workspaceId === 'string' &&
       workspaceId.trim() &&
       workspaceId.trim() !== payload.workspace_id
     )
       return false
-    const projectId = providerConfig.projectId
+    const projectId = matchConfig.projectId
     if (typeof projectId === 'string' && projectId.trim()) {
       const records = Array.isArray(payload.data)
         ? payload.data

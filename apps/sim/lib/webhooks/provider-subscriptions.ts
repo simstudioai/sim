@@ -282,8 +282,9 @@ export async function cleanupExternalWebhook(
 ): Promise<void> {
   const provider = webhook.provider as string
   const handler = getProviderHandler(provider)
+  const previousSubscription = toRecord(toRecord(webhook.providerConfig).previousSubscription)
 
-  if (!handler.deleteSubscription) {
+  if (!handler.deleteSubscription && typeof previousSubscription.provider !== 'string') {
     return
   }
 
@@ -303,7 +304,6 @@ export async function cleanupExternalWebhook(
       { envVars, onResolved: (name, value) => secrets.set(name, value) }
     )
     resolvedProviderConfig = resolvedWebhook.providerConfig
-    const previousSubscription = toRecord(resolvedProviderConfig.previousSubscription)
     if (typeof previousSubscription.provider === 'string') {
       await cleanupExternalWebhook(
         {
@@ -316,6 +316,8 @@ export async function cleanupExternalWebhook(
         options
       )
     }
+
+    if (!handler.deleteSubscription) return
 
     /** Workspace archival precedes provider cleanup; routing still uses its canonical owner. */
     await withResourceOutboundScope(

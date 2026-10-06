@@ -208,6 +208,11 @@ async function receiveDelivery(request: Request): Promise<Response> {
 }
 const server = publicCallback
   ? createServer(async (incoming, outgoing) => {
+      if (incoming.method !== 'POST') {
+        outgoing.writeHead(405, { Allow: 'POST' })
+        outgoing.end()
+        return
+      }
       try {
         const chunks: Buffer[] = []
         let size = 0
@@ -243,6 +248,19 @@ const server = publicCallback
     })
   : undefined
 server?.listen(Number(process.env.PLANE_E2E_LISTENER_PORT || 49187), '127.0.0.1')
+if (server) {
+  await check('webhook ingress rejects method probes safely', async () => {
+    for (const method of ['GET', 'HEAD']) {
+      // boundary-raw-fetch: Exercise the local webhook ingress protocol over real HTTP.
+      const response = await fetch(
+        `http://127.0.0.1:${process.env.PLANE_E2E_LISTENER_PORT || 49187}/${callbackPath}`,
+        { method }
+      )
+      assert.equal(response.status, 405)
+    }
+    assert.equal(deliveryErrors.length, 0)
+  })
+}
 
 try {
   for (const version of ['v2', 'v1'] as const) {

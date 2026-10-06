@@ -589,7 +589,7 @@ describe('POST /api/webhooks subscription replacement recovery', () => {
       }
       queueCurrentRows()
       expect((await POST(replacementRequest())).status).toBe(500)
-      expect(external.size).toBe(priorCleanupFails ? 2 : 1)
+      expect(external.size).toBe(2)
       const retainedConfig = toRecord(persisted.providerConfig)
       if (priorCleanupFails) {
         expect(retainedConfig.projectId).toBe('next')
@@ -600,11 +600,11 @@ describe('POST /api/webhooks subscription replacement recovery', () => {
           webhookSecret: 'old-secret',
         })
         expect(external.get('external-old')?.active).toBe(true)
-        expect(external.get(String(retainedConfig.externalId))?.active).toBe(false)
+        expect(external.get(String(retainedConfig.externalId))?.active).toBe(true)
       } else {
         expect(retainedConfig.projectId).toBe('next')
         expect(retainedConfig.webhookSecret).toBe('new-secret')
-        expect(external.has('external-old')).toBe(false)
+        expect(external.get('external-old')?.active).toBe(true)
         expect(external.get(String(retainedConfig.externalId))?.active).toBe(false)
       }
       cleanupUnavailable = false

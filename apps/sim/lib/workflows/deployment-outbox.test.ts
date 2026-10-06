@@ -633,6 +633,21 @@ describe('versioned deployment preparation outbox', () => {
     )
   })
 
+  it('retires obsolete subscriptions even when new activation fails', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    const external = new Set(['retired-subscription'])
+    mockActivatePendingWebhookSubscriptions.mockRejectedValue(new Error('activation unavailable'))
+    mockCleanupRetiredWebhookRegistrations.mockImplementation(async () => {
+      external.delete('retired-subscription')
+    })
+    await expect(handler()(payload(), context())).rejects.toThrow('activation unavailable')
+    expect(external.size).toBe(0)
+  })
+
   it('continues through the outbox while stale webhooks remain, then checkpoints the cleanup', async () => {
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))

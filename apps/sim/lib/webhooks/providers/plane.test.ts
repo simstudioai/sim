@@ -69,6 +69,48 @@ describe('Plane signed webhook delivery', () => {
     ).toBe(401)
   })
 
+  it.each(['webhook-a', 'untracked-webhook'])(
+    'accepts the tracked previous secret only for its subscription: %s',
+    async (webhookId) => {
+      const raw = JSON.stringify({ ...V2, webhook_id: webhookId })
+      const signature = createHmac('sha256', SECRET).update(raw).digest('hex')
+      const ctx = authContext(raw, signature, 'replacement-secret')
+      ctx.providerConfig.previousSubscription = {
+        provider: 'plane',
+        providerConfig: { externalId: 'webhook-a', webhookSecret: SECRET },
+      }
+      if (!planeHandler.verifyAuth) throw new Error('Plane authentication is missing')
+      const response = await planeHandler.verifyAuth(ctx)
+      expect(response?.status ?? 200).toBe(webhookId === 'webhook-a' ? 200 : 401)
+    }
+  )
+
+  it('keeps the previous event scope until replacement activation succeeds', async () => {
+    if (!planeHandler.matchEvent) throw new Error('Plane event filtering is missing')
+    const config = {
+      triggerId: 'plane_workitem_created',
+      projectId: 'project-b',
+      subscriptionActivationPending: true,
+      previousSubscription: {
+        provider: 'plane',
+        providerConfig: {
+          externalId: 'webhook-a',
+          triggerId: 'plane_workitem_updated',
+          projectId: 'project-a',
+        },
+      },
+    }
+    expect(await planeHandler.matchEvent(matchContext(V1, config))).toBe(true)
+    expect(
+      await planeHandler.matchEvent(
+        matchContext(V1, { ...config, subscriptionActivationPending: false })
+      )
+    ).toBe(false)
+    expect(
+      await planeHandler.matchEvent(matchContext({ ...V1, webhook_id: 'replacement' }, config))
+    ).toBe(false)
+  })
+
   it('deduplicates v2 retries by event ID while separating distinct events', () => {
     if (!planeHandler.extractIdempotencyId) throw new Error('Plane deduplication is missing')
     const original = planeHandler.extractIdempotencyId(V2)

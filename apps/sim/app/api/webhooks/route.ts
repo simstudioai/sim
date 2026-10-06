@@ -512,6 +512,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (existingWebhook && shouldRecreateSubscription) {
       const pendingPrevious = toRecord(existingWebhook.providerConfig?.previousSubscription)
       if (typeof pendingPrevious.provider === 'string') {
+        if (existingWebhook.providerConfig?.subscriptionActivationPending === true) {
+          await activateExternalWebhookSubscription(
+            request,
+            existingWebhook,
+            workflowRecord,
+            userId,
+            requestId
+          )
+          existingWebhook.providerConfig.subscriptionActivationPending = false
+          await db
+            .update(webhook)
+            .set({ providerConfig: existingWebhook.providerConfig })
+            .where(eq(webhook.id, existingWebhook.id))
+        }
         await cleanupExternalWebhook(
           {
             ...existingWebhook,
@@ -643,25 +657,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (savedWebhook) {
-      const previousSubscription = toRecord(configToSave.previousSubscription)
-      if (typeof previousSubscription.provider === 'string') {
-        await cleanupExternalWebhook(
-          {
-            ...savedWebhook,
-            provider: previousSubscription.provider,
-            providerConfig: previousSubscription.providerConfig,
-          },
-          workflowRecord,
-          requestId,
-          { throwOnError: true }
-        )
-        configToSave.previousSubscription = undefined
-        await db
-          .update(webhook)
-          .set({ providerConfig: configToSave })
-          .where(eq(webhook.id, savedWebhook.id))
-        savedWebhook.providerConfig = configToSave
-      }
       if (
         !existingWebhook ||
         shouldRecreateSubscription ||
@@ -682,6 +677,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             .where(eq(webhook.id, savedWebhook.id))
           savedWebhook.providerConfig = configToSave
         }
+      }
+      const previousSubscription = toRecord(configToSave.previousSubscription)
+      if (typeof previousSubscription.provider === 'string') {
+        await cleanupExternalWebhook(
+          {
+            ...savedWebhook,
+            provider: previousSubscription.provider,
+            providerConfig: previousSubscription.providerConfig,
+          },
+          workflowRecord,
+          requestId,
+          { throwOnError: true }
+        )
+        configToSave.previousSubscription = undefined
+        await db
+          .update(webhook)
+          .set({ providerConfig: configToSave })
+          .where(eq(webhook.id, savedWebhook.id))
+        savedWebhook.providerConfig = configToSave
       }
     }
 
