@@ -182,6 +182,7 @@ BEGIN
     IF NEW.status = 'in_progress' THEN
       NEW.status := 'inbox';
     END IF;
+    NEW.updated_at := now();
     INSERT INTO issue_event (id, issue_id, kind, payload)
     VALUES (gen_random_uuid()::text, NEW.id, 'chat_detached', jsonb_build_object('chatId', OLD.working_chat_id));
   END IF;

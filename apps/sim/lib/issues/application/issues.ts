@@ -325,7 +325,18 @@ export const updateIssue = defineAuthorizedWorkspaceUseCase({
       events.push({ kind: 'owner_changed', payload: { from: current.ownerId, to: input.ownerId } })
     }
     if (events.length > 0) {
-      await transition(current.id, { statuses: ISSUE_STATUSES }, values, () => events, principal)
+      const unchanged = {
+        ...(values.title === undefined ? {} : { title: current.title }),
+        ...(values.priority === undefined ? {} : { priority: current.priority }),
+        ...(values.ownerId === undefined ? {} : { ownerId: current.ownerId }),
+      }
+      await transition(
+        current.id,
+        { statuses: ISSUE_STATUSES, unchanged },
+        values,
+        () => events,
+        principal
+      )
     }
     return { issue: await presentIssue(current.id) }
   },

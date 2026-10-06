@@ -153,6 +153,22 @@ describe('issue state in PostgreSQL', () => {
     expect(await db.transaction((tx) => allocateIssueNumber(tx, 'org-b'))).toBe(1)
   })
 
+  it('refuses an edit when a field it changes no longer holds the value that was read', async () => {
+    const db = testDb()
+    const id = await insertIssue({ number: 11 })
+    const rename = (from: string) =>
+      db.transaction((tx) =>
+        updateIssueInTx(
+          tx,
+          id,
+          { statuses: ['inbox'], unchanged: { title: from } },
+          { title: 'Renamed' }
+        )
+      )
+    expect(await rename('Stale title')).toBeNull()
+    expect((await rename('Title'))?.title).toBe('Renamed')
+  })
+
   it('lets only one of two transitions from the same state win', async () => {
     const db = testDb()
     const chatA = await newChat()

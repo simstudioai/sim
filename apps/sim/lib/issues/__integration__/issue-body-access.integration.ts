@@ -171,12 +171,21 @@ describe('issue bodies in PostgreSQL', () => {
       .where(eq(copilotChats.id, chatId))
     expect(chat.issueId).toBe(working[0].id)
 
-    await db.transaction((tx) => detachChatFromIssuesInTx(tx, chatId))
-    const [released] = await db
-      .select({ status: issue.status, workingChatId: issue.workingChatId })
+    const [before] = await db
+      .select({ updatedAt: issue.updatedAt })
       .from(issue)
       .where(eq(issue.id, working[0].id))
-    expect(released).toEqual({ status: 'inbox', workingChatId: null })
+    await db.transaction((tx) => detachChatFromIssuesInTx(tx, chatId))
+    const [released] = await db
+      .select({
+        status: issue.status,
+        workingChatId: issue.workingChatId,
+        updatedAt: issue.updatedAt,
+      })
+      .from(issue)
+      .where(eq(issue.id, working[0].id))
+    expect(released).toMatchObject({ status: 'inbox', workingChatId: null })
+    expect(released.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime())
     const detached = await db
       .select({ kind: issueEvent.kind })
       .from(issueEvent)

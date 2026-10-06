@@ -144,6 +144,8 @@ export interface IssueStateGuard {
   statuses: readonly IssueStatus[]
   /** Inbox with a working chat is waiting for review; without one it is new. */
   hasWorkingChat?: boolean
+  /** Fields that must still hold the values the caller read, so an edit never logs a stale "from". */
+  unchanged?: { title?: string; priority?: number; ownerId?: string | null }
 }
 
 /**
@@ -170,6 +172,15 @@ export async function updateIssueInTx(
         eq(issue.id, issueId),
         inArray(issue.status, [...guard.statuses]),
         chatCondition,
+        guard.unchanged?.title === undefined ? undefined : eq(issue.title, guard.unchanged.title),
+        guard.unchanged?.priority === undefined
+          ? undefined
+          : eq(issue.priority, guard.unchanged.priority),
+        guard.unchanged?.ownerId === undefined
+          ? undefined
+          : guard.unchanged.ownerId === null
+            ? isNull(issue.ownerId)
+            : eq(issue.ownerId, guard.unchanged.ownerId),
         isNull(issue.deletedAt)
       )
     )
