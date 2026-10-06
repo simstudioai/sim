@@ -816,7 +816,7 @@ describe('handleUnifiedChatPost', () => {
     ['low', 'low'],
     ['none', 'high'],
   ])(
-    'enforces the default model and effort range on submitted %s effort',
+    'leaves the model to the worker and enforces the effort range on submitted %s effort',
     async (effort, expected) => {
       flags.models.mockResolvedValue(false)
       const response = await handleUnifiedChatPost(
@@ -831,11 +831,11 @@ describe('handleUnifiedChatPost', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({
-          effort: expected,
-          modelSelection: { model: 'gpt-6-astra', fastMode: false },
-        })
+      const params = buildCopilotRequestPayload.mock.lastCall?.[0] as Record<string, unknown>
+      expect(params?.effort).toBe(expected)
+      expect(params?.modelSelection).toBeUndefined()
+      expect(startCopilotOtelRoot.mock.results.at(-1)?.value.setRequestShape).toHaveBeenCalledWith(
+        expect.objectContaining({ model: undefined })
       )
     }
   )
