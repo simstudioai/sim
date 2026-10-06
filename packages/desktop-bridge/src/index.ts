@@ -1103,6 +1103,12 @@ export interface SimDesktopApi {
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Optional so older installed shells do not advertise the new native tools. */
   localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
+  /**
+   * Present on shells that claim each local read (`read_local_file`, user-local VFS reads) through
+   * the server's tool authorization before reading, as they already do for imports. A turn started
+   * from such a shell persists those calls pending, so a read nobody picks up fails fast.
+   */
+  localReadClaims?: true
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void
   windowState: SimDesktopWindowStateApi

@@ -17,7 +17,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
 
-const claimToolExecution = mothershipAsyncRunsMockFns.mockClaimToolExecution
+const claimDesktopToolCall = mothershipAsyncRunsMockFns.mockClaimDesktopToolCall
 const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
 const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
@@ -50,7 +50,7 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'active',
     })
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimDesktopToolCall.mockResolvedValue({ outcome: 'claimed' })
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -193,7 +193,7 @@ describe('desktop tool authorization', () => {
       new OrchestrationError('not_found', 'Workspace not found')
     )
     expect((await POST(request('import-1', true))).status).toBe(404)
-    claimToolExecution.mockResolvedValueOnce({ outcome: 'existing' })
+    claimDesktopToolCall.mockResolvedValueOnce({ outcome: 'existing' })
     expect((await POST(request('import-1', true))).status).toBe(409)
   })
 

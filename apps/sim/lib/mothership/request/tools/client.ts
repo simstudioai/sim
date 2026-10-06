@@ -4,6 +4,7 @@ import { filterUndefined, isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncTerminalCompletionSnapshot,
+  getTerminalConfirmationStatus,
   isAsyncTerminalConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { replaceTerminalAsyncToolCallResult } from '@/lib/mothership/async-runs/repository'
@@ -23,7 +24,6 @@ import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
-  getWorkflowToolConfirmationStatus,
   getWorkflowToolLaunchError,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
@@ -314,7 +314,7 @@ export async function waitForWorkflowToolCompletion({
     if (!trustedExecution.contentAvailable) {
       toolRegistry?.markIncomplete('client-tool-content-unavailable')
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -330,7 +330,7 @@ export async function waitForWorkflowToolCompletion({
           origin: 'copilotToolClient.workflowExecution',
         })
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -370,7 +370,7 @@ export async function waitForWorkflowToolCompletion({
   if (!completion || !trustedExecution || !workflowId) return completion
 
   const executionId = trustedExecution.executionId
-  const status = getWorkflowToolConfirmationStatus(trustedExecution.status)
+  const status = getTerminalConfirmationStatus(trustedExecution.status)
   const genericMessage = getWorkflowToolCompletionMessage(status)
   const error =
     status !== MothershipStreamV1ToolOutcome.success

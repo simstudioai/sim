@@ -578,10 +578,13 @@ async function authorizeLocalFilesystemTool(
   request: unknown
 ): Promise<boolean> {
   if (typeof request !== 'object' || request === null) return false
+  // Claimed like an import: the server sees the read picked up, and refuses one it already
+  // failed as never started.
   const authorization = await fetchDesktopToolAuthorization(
     event,
     deps,
-    (request as { requestId?: unknown }).requestId
+    (request as { requestId?: unknown }).requestId,
+    true
   )
   return authorization
     ? deps.localFilesystem.isAuthorizedClientToolRequest(request, authorization)
@@ -2113,7 +2116,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             event,
             deps,
             request.toolCallId,
-            request.operation === 'manifest',
+            request.operation === 'manifest' || request.operation === 'read',
             (status) => {
               failureStatus = status
             }

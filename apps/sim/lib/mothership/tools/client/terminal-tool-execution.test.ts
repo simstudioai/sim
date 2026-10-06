@@ -52,4 +52,23 @@ describe('terminal client execution', () => {
     window.dispatchEvent(new Event('pagehide'))
     expect(beacon).toHaveBeenCalledOnce()
   })
+
+  it('reports a call delivered too late as never started instead of dropping it', async () => {
+    const emittedAt = new Date(Date.now() - 5 * 60_000).toISOString()
+
+    executeTerminalToolOnClient(
+      'terminal-stale',
+      { operation: 'run', args: { command: 'bun run test' } },
+      'chat-1',
+      emittedAt
+    )
+    await sleep(0)
+
+    expect(reportClientToolCompletion).toHaveBeenCalledWith(
+      'terminal-stale',
+      'error',
+      expect.stringContaining('safe to retry'),
+      expect.objectContaining({ notStarted: true })
+    )
+  })
 })

@@ -2,18 +2,22 @@ import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
 } from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipClientToolWaiterMock,
+  mothershipClientToolWaiterMockFns,
+} from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { waitForWorkflowToolCompletion, recordDegraded } = vi.hoisted(() => ({
-  waitForWorkflowToolCompletion: vi.fn(),
+const { recordDegraded } = vi.hoisted(() => ({
   recordDegraded: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/metrics', () => ({ recordDegraded }))
 
-vi.mock('@/lib/mothership/request/tools/client', () => ({
-  waitForWorkflowToolCompletion,
-}))
+vi.mock('@/lib/mothership/request/tools/client', () => mothershipClientToolWaiterMock)
+
+const waitForWorkflowToolCompletion =
+  mothershipClientToolWaiterMockFns.mockWaitForWorkflowToolCompletion
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 

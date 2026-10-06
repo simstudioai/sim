@@ -31,7 +31,7 @@ import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
-  claimToolExecution,
+  claimDesktopToolCall,
   closeStreamToolAdmission,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
@@ -326,7 +326,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     await closeStreamToolAdmission(streamId, userId)
 
     expect(
-      await claimToolExecution({ toolCallId, runId, userId, claimedBy: 'desktop-terminal' })
+      await claimDesktopToolCall({ toolCallId, runId, userId, claimedBy: 'desktop-terminal' })
     ).toEqual({ outcome: 'closed' })
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
   })

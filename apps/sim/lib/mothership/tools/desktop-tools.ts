@@ -1,4 +1,8 @@
-import { CURRENT_BROWSER_TOOL_NAMES, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import {
+  CURRENT_BROWSER_TOOL_NAMES,
+  isBrowserToolName,
+  isCurrentBrowserToolName,
+} from '@sim/browser-protocol'
 import { isTerminalToolName, TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
@@ -32,6 +36,36 @@ export function getDesktopToolClaimOwner(toolName: string): DesktopToolClaimOwne
   if (isTerminalToolName(toolName)) return DESKTOP_TOOL_CLAIM_OWNER.terminal
   if (toolName === 'import_local_files') return DESKTOP_TOOL_CLAIM_OWNER.files
   return undefined
+}
+
+/**
+ * Whether a call's result is accepted only under the desktop's native claim rules: the claimed
+ * desktop tools, plus browser tools retired from the catalog whose calls remain in history.
+ */
+export function isNativeDesktopTool(toolName: string): boolean {
+  return getDesktopToolClaimOwner(toolName) !== undefined || isBrowserToolName(toolName)
+}
+
+/** A read of the user's machine: `read_local_file`, or a VFS read of a granted local folder. */
+export function isLocalReadToolCall(toolName: string, args: Record<string, unknown> | undefined) {
+  return toolName === 'read_local_file' || isUserLocalVfsToolCall(toolName, args)
+}
+
+/**
+ * Whether the server sees this call's pickup: the desktop claims it, pending, through
+ * `/api/desktop/tool/authorize` before acting, so a call still pending has provably not started.
+ * Browser, terminal and import calls are always claimed; a local read only by a desktop that
+ * declared for the turn that it claims local reads.
+ */
+export function isClaimedOnPickup(
+  toolName: string,
+  args: Record<string, unknown> | undefined,
+  desktopClaimsLocalReads: boolean
+): boolean {
+  return (
+    getDesktopToolClaimOwner(toolName) !== undefined ||
+    (desktopClaimsLocalReads && isLocalReadToolCall(toolName, args))
+  )
 }
 
 /** What the model learns about a desktop call that Stop cancelled before the desktop picked it up. */

@@ -156,6 +156,7 @@ export interface DesktopChatCapabilities {
   desktopCapabilities?: {
     localFiles?: true
     localFilesystem?: true
+    localReadClaims?: true
     browser?: true
     terminal?: true
     browserSessions?: BrowserKnownSession[]
@@ -217,6 +218,7 @@ export async function getDesktopChatCapabilities(
       ? {
           desktopCapabilities: {
             ...(localFiles ? { localFiles: true as const } : {}),
+            ...(bridge?.localReadClaims === true ? { localReadClaims: true as const } : {}),
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),

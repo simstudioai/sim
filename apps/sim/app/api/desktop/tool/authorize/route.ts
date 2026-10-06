@@ -1,5 +1,3 @@
-import { isCurrentBrowserToolName } from '@sim/browser-protocol'
-import { isTerminalToolName } from '@sim/terminal-protocol'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeDesktopToolContract } from '@/lib/api/contracts/desktop-tool-authorization'
@@ -9,17 +7,21 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
 import {
-  claimToolExecution,
+  claimDesktopToolCall,
+  type DesktopToolCallClaim,
   getAsyncToolCall,
   getRunSegment,
-  type ToolExecutionClaim,
 } from '@/lib/mothership/async-runs/repository'
 import {
   authenticateCopilotRequestSessionOnly,
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import {
+  getDesktopToolClaimOwner,
+  isDesktopToolCall,
+  isLocalReadToolCall,
+} from '@/lib/mothership/tools/desktop-tools'
 
 const admissionClosedResponse = () =>
   NextResponse.json(
@@ -29,7 +31,7 @@ const admissionClosedResponse = () =>
 
 /** A refused claim answers the same way for every tool, except how each reports a lost race. */
 function refusedClaimResponse(
-  claim: Exclude<ToolExecutionClaim['outcome'], 'claimed'>,
+  claim: Exclude<DesktopToolCallClaim['outcome'], 'claimed'>,
   notPending: () => NextResponse
 ): NextResponse {
   if (claim === 'closed') return admissionClosedResponse()
@@ -74,16 +76,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
-  const isBrowserTool = isCurrentBrowserToolName(toolCall.toolName)
-  const isTerminalTool = isTerminalToolName(toolCall.toolName)
-  const isLocalFileTool =
-    toolCall.toolName === 'read_local_file' || toolCall.toolName === 'import_local_files'
-  const authorized =
-    isBrowserTool ||
-    isTerminalTool ||
-    isLocalFileTool ||
-    isUserLocalVfsToolCall(toolCall.toolName, args)
-  if (!authorized) {
+  if (!isDesktopToolCall(toolCall.toolName, args)) {
     return NextResponse.json(
       { error: 'Tool call is not authorized for desktop execution' },
       { status: 403 }
@@ -115,7 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 409 }
         )
       if (toolCall.status !== 'pending') return alreadyStarted()
-      const { outcome } = await claimToolExecution({
+      const { outcome } = await claimDesktopToolCall({
         toolCallId: toolCall.toolCallId,
         runId: toolCall.runId,
         userId,
@@ -129,20 +122,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createNotFoundResponse('The import must be started before reading file bytes')
   }
 
+  // A desktop that claims local reads claims each one before its first read; its later reads of
+  // the same call ride on that claim. A call persisted running (an older desktop's turn) is read
+  // as before.
+  if (parsed.data.body.claim && isLocalReadToolCall(toolCall.toolName, args)) {
+    const notPending = () => createNotFoundResponse('Pending client tool call not found')
+    if (toolCall.status === 'pending') {
+      const { outcome } = await claimDesktopToolCall({
+        toolCallId: toolCall.toolCallId,
+        runId: toolCall.runId,
+        userId,
+        claimedBy: DESKTOP_TOOL_CLAIM_OWNER.files,
+      })
+      if (outcome !== 'claimed') return refusedClaimResponse(outcome, notPending)
+    } else if (toolCall.claimedBy !== null && toolCall.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.files)
+      return notPending()
+  }
+
   // Browser and terminal actions are one-shot side effects on the user's own
   // machine, so the pending call is claimed here, atomically, before crossing
   // the Electron boundary — a replayed renderer event must not run a command
   // or click a button twice.
-  if (isBrowserTool || isTerminalTool) {
+  const actionClaimOwner = getDesktopToolClaimOwner(toolCall.toolName)
+  if (
+    actionClaimOwner === DESKTOP_TOOL_CLAIM_OWNER.browser ||
+    actionClaimOwner === DESKTOP_TOOL_CLAIM_OWNER.terminal
+  ) {
     const notPending = () => createNotFoundResponse('Pending client tool call not found')
     if (toolCall.status !== 'pending') return notPending()
-    const { outcome } = await claimToolExecution({
+    const { outcome } = await claimDesktopToolCall({
       toolCallId: toolCall.toolCallId,
       runId: toolCall.runId,
       userId,
-      claimedBy: isBrowserTool
-        ? DESKTOP_TOOL_CLAIM_OWNER.browser
-        : DESKTOP_TOOL_CLAIM_OWNER.terminal,
+      claimedBy: actionClaimOwner,
     })
     if (outcome !== 'claimed') return refusedClaimResponse(outcome, notPending)
   }
