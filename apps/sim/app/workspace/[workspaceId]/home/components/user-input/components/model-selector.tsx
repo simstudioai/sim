@@ -35,7 +35,7 @@ export function ModelSelector() {
   const { chatId } = useChatSurface()
   const { data: chatHistory } = useMothershipChatHistory(chatId)
   const chatPick = useMothershipEffortStore((state) =>
-    chatId ? state.chatEfforts[chatId] : undefined
+    chatId ? state.chatEfforts[chatId]?.effort : undefined
   )
   const newChatEffort = useMothershipEffortStore((state) => state.newChatEffort)
   const setNewChatEffort = useMothershipEffortStore((state) => state.setNewChatEffort)
