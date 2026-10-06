@@ -24,6 +24,7 @@
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
     "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
+    "test:desktop-inbox:e2e": "bun --no-env-file scripts/test-desktop-inbox-e2e.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",

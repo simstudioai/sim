@@ -106,7 +106,11 @@ mothershipOtelMockFns.mockGetCopilotTracer.mockImplementation(() => trace.getTra
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { SimToolExecutionLeaseLostError } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncConfirmationState } from '@/lib/mothership/async-runs/lifecycle'
-import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
+  TOOL_WATCHDOG_DEFAULT_MS,
+  TOOL_WATCHDOG_LONG_RUNNING_MS,
+} from '@/lib/mothership/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolOutcome,
@@ -266,6 +270,15 @@ describe('pendingToolWaitBudgetMs', () => {
         params: { operation: 'read', args: {} },
       })
     ).toBe(TOOL_WATCHDOG_DEFAULT_MS)
+  })
+
+  it('leaves a bound desktop call to its own deadlines, and only a desktop call', () => {
+    const run = { name: 'terminal', status: 'executing' as const, params: { operation: 'run' } }
+    expect(pendingToolWaitBudgetMs(run, 'device-1')).toBe(CLIENT_TOOL_RESULT_TIMEOUT_MS)
+    expect(pendingToolWaitBudgetMs(run, null)).toBeLessThan(CLIENT_TOOL_RESULT_TIMEOUT_MS)
+    expect(pendingToolWaitBudgetMs({ name: 'run_code', status: 'executing' }, 'device-1')).toBe(
+      TOOL_WATCHDOG_LONG_RUNNING_MS
+    )
   })
 
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
@@ -919,7 +932,29 @@ describe('watchdog completion provenance', () => {
 
     expect(toolCall.result).toEqual({
       success: false,
-      output: { error: expect.stringContaining('never started'), notStarted: true },
+      output: {
+        error: expect.stringContaining('never started'),
+        notStarted: true,
+        reason: 'chat_not_open',
+      },
+    })
+  })
+
+  it("tells the model a bound desktop's call it never picked up did not start", async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    context.desktopDeviceId = 'device-1'
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('did not pick it up in time'),
+        notStarted: true,
+        reason: 'not_responding',
+      },
     })
   })
 

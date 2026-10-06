@@ -68,6 +68,30 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
   return device
 }
 
+/**
+ * The device a new turn binds to: the composer's own, but only while the executor is on for this
+ * user and the device is registered to this very session as an executor. Anything else leaves
+ * the turn to the chat view, as before the executor existed.
+ */
+export async function resolveTurnDesktopDevice(
+  principal: SessionPrincipal,
+  deviceId: string
+): Promise<string | null> {
+  if (!(await isDesktopBackgroundExecutorEnabled(principal.userId))) return null
+  const device = await getBoundDesktopDevice(
+    { deviceId, userId: principal.userId, sessionId: principal.sessionId },
+    { executor: true }
+  )
+  if (!device) {
+    logger.warn('Turn not bound: its desktop is not registered to this session', {
+      userId: principal.userId,
+      deviceId,
+    })
+    return null
+  }
+  return device.id
+}
+
 interface RegisterDesktopDeviceInput extends DeviceInput {
   name: string
   appVersion: string
@@ -107,7 +131,7 @@ export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
       if (!registered)
         throw new OrchestrationError(
           'conflict',
-          'This device ID belongs to another account. Generate a new device ID and register again.'
+          'This device ID belongs to another account or was revoked. Generate a new device ID and register again.'
         )
       logger.info('Desktop device registered', {
         userId: principal.userId,

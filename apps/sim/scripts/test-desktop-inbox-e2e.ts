@@ -199,7 +199,8 @@ async function boundChat(desktop: Desktop, title: string) {
 
 /**
  * What the run loop does when the model calls a desktop tool on a bound run: persist the call
- * pending (held for approval when `gated`) and, unless `silent`, ring the device's doorbell.
+ * pending and offer it (or hold it for approval when `gated`) and, unless `silent`, ring the
+ * device's doorbell.
  */
 async function issueCall(
   desktop: Desktop,
@@ -209,9 +210,11 @@ async function issueCall(
   options: { gated?: boolean; silent?: boolean } = {}
 ) {
   const toolCallId = generateId()
-  await sql`insert into copilot_async_tool_calls (run_id, tool_call_id, tool_name, args, status, permission_requested_at)
+  await sql`insert into copilot_async_tool_calls (run_id, tool_call_id, tool_name, args, status,
+      permission_requested_at, pickup_deadline_at)
     values (${runId}, ${toolCallId}, ${toolName}, ${JSON.stringify(args)}::jsonb, 'pending',
-      ${options.gated ? sql`now()` : null})`
+      ${options.gated ? sql`now()` : null},
+      ${options.gated ? null : sql`now() + ${PICKUP_GRACE_SECONDS} * interval '1 second'`})`
   if (!options.silent)
     await redis.publish(
       'desktop:inbox',
@@ -507,7 +510,7 @@ async function run() {
         desktop,
         chat.runId,
         'terminal',
-        { operation: 'run', command: 'npm run deploy' },
+        { operation: 'run', args: { command: 'npm run deploy' } },
         { gated: true }
       )
       const inbox = await pullInbox(desktop)

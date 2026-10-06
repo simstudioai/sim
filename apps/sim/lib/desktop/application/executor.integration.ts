@@ -153,14 +153,15 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
   }
 
   /**
-   * A desktop call the run persisted before forwarding its frame. `awaitingApproval` marks it held
-   * for the user's decision, as pre-persist does for a gated call.
+   * A desktop call the run persisted before forwarding its frame and offered to the device, as the
+   * run's wait does. `awaitingApproval` instead holds it for the user's decision, as pre-persist
+   * does for a gated call; `unoffered` leaves it as a run that died before offering it would.
    */
   async function pendingCall(
     runId: string,
     toolName = 'browser_click',
     args: Record<string, unknown> = { ref: 'e1' },
-    options: { awaitingApproval?: boolean } = {}
+    options: { awaitingApproval?: boolean; unoffered?: boolean } = {}
   ) {
     const toolCallId = generateId()
     await db.insert(copilotAsyncToolCalls).values({
@@ -169,6 +170,9 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       toolName,
       args,
       ...(options.awaitingApproval ? { permissionRequestedAt: new Date() } : {}),
+      ...(options.awaitingApproval || options.unoffered
+        ? {}
+        : { pickupDeadlineAt: sql`now() + interval '1 minute'` }),
     })
     return toolCallId
   }
@@ -240,8 +244,10 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
 
   afterAll(async () => {
     if (chatIds.length) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
-    if (deviceIds.length)
+    if (deviceIds.length) {
+      await db.delete(auditLog).where(inArray(auditLog.resourceId, deviceIds))
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
+    }
     const workspaces = [...workspaceIds.values()]
     if (workspaces.length) await db.delete(workspace).where(inArray(workspace.id, workspaces))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
@@ -281,6 +287,28 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         .from(desktopDevices)
         .where(eq(desktopDevices.id, owner.deviceId))
       expect(stored).toEqual({ userId: owner.userId, sessionId: owner.sessionId })
+    })
+
+    it('keeps a revoked install id revoked when the device registers it again', async () => {
+      const desktop = await signedInDesktop()
+      await db
+        .update(desktopDevices)
+        .set({ revokedAt: new Date() })
+        .where(eq(desktopDevices.id, desktop.deviceId))
+
+      await expect(
+        registerDesktopDevice.execute({
+          principal: desktop.principal,
+          input: {
+            deviceId: desktop.deviceId,
+            name: 'Fixture Mac',
+            appVersion: '0.9.1',
+            platform: 'darwin-arm64',
+            capabilities: CAPABILITIES,
+          },
+        })
+      ).rejects.toThrow('was revoked')
+      await expect(inbox(desktop)).rejects.toBeInstanceOf(DesktopDeviceUnrecognizedError)
     })
 
     it('rebinds the device to its newest session and locks out the older one', async () => {
@@ -345,7 +373,8 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       expect(stored.status).toBe('running')
       expect(stored.claimedBy).toBe('desktop-browser')
       expect(stored.executionOwnerToken).toBe(granted?.executionToken)
-      expect(stored.executionStartedAt).not.toBeNull()
+      /** The device runs it, not a Sim handler, so no Sim execution is marked as started. */
+      expect(stored.executionStartedAt).toBeNull()
       expect(stored.executionLeaseExpiresAt?.getTime()).toBeGreaterThan(Date.now() + 50_000)
     })
 
@@ -412,11 +441,28 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           executor: { deviceId, ownerToken: generateId() },
         })
 
-      await expect(executorClaim(sameUserOtherMac.deviceId)).rejects.toThrow(
-        'Tool execution ownership is unavailable'
-      )
+      await expect(executorClaim(sameUserOtherMac.deviceId)).resolves.toEqual({
+        outcome: 'existing',
+      })
       expect((await row(toolCallId)).status).toBe('pending')
       await expect(executorClaim(desktop.deviceId)).resolves.toEqual({ outcome: 'claimed' })
+    })
+
+    it('never hands over a call Sim did not offer, nor list it', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = await pendingCall(
+        run.runId,
+        'browser_click',
+        { ref: 'e1' },
+        { unoffered: true }
+      )
+
+      expect((await inbox(desktop)).items).toEqual([])
+      await expect(claim(desktop.principal, desktop.deviceId, toolCallId)).rejects.toThrow(
+        'no longer waiting'
+      )
+      expect((await row(toolCallId)).status).toBe('pending')
     })
 
     it('ignores runs that were never bound to a device', async () => {
@@ -437,7 +483,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const toolCallId = await pendingCall(
         run.runId,
         'terminal',
-        { operation: 'run', command: 'npm test' },
+        { operation: 'run', args: { command: 'npm test' } },
         { awaitingApproval: true }
       )
       expect((await inbox(desktop)).items).toEqual([
@@ -456,14 +502,19 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         message: expect.stringContaining('not approved'),
       })
 
+      /** The user allows it, and the run's wait offers it to the device. */
       await db
         .update(copilotAsyncToolCalls)
-        .set({ permissionDecision: 'allow', permissionDecidedAt: new Date() })
+        .set({
+          permissionDecision: 'allow',
+          permissionDecidedAt: new Date(),
+          pickupDeadlineAt: sql`now() + interval '1 minute'`,
+        })
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
       expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])
       await expect(claim(desktop.principal, desktop.deviceId, toolCallId)).resolves.toMatchObject({
         toolName: 'terminal',
-        args: { operation: 'run', command: 'npm test' },
+        args: { operation: 'run', args: { command: 'npm test' } },
       })
     })
 
@@ -472,7 +523,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const run = await boundRun(desktop)
       const toolCallId = await pendingCall(run.runId, 'terminal', {
         operation: 'run',
-        command: 'ls',
+        args: { command: 'ls' },
       })
       expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])
     })
@@ -483,7 +534,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const toolCallId = await pendingCall(
         run.runId,
         'terminal',
-        { operation: 'run', command: 'rm -rf build' },
+        { operation: 'run', args: { command: 'rm -rf build' } },
         { awaitingApproval: true }
       )
       await db
@@ -632,7 +683,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           })
           .from(auditLog)
           .where(eq(auditLog.resourceId, desktop.deviceId))
-          .orderBy(auditLog.createdAt)
       await expect.poll(async () => (await audited()).length).toBe(2)
       const entry = (action: string) => ({
         action,
@@ -646,10 +696,13 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           chatId: run.chatId,
         }),
       })
-      expect(await audited()).toEqual([
-        entry('desktop_tool_call.claimed'),
-        entry('desktop_tool_call.completed'),
-      ])
+      /** Audit writes are not awaited, so their insertion order is not the call order. */
+      expect(await audited()).toEqual(
+        expect.arrayContaining([
+          entry('desktop_tool_call.claimed'),
+          entry('desktop_tool_call.completed'),
+        ])
+      )
       expect(JSON.stringify(await audited())).not.toContain('Clicked Save')
     })
 
@@ -748,6 +801,70 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
   })
 
   describe('presence and the inbox', () => {
+    it('still serves pulls and renewals when presence cannot be written', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = await pendingCall(run.runId)
+      const redis = getRedisClient()
+      if (!redis) throw new Error('Redis is required')
+      const writes = vi.spyOn(redis, 'set').mockRejectedValue(new Error('Redis unavailable'))
+      try {
+        expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])
+        const { executionToken } = await claim(desktop.principal, desktop.deviceId, toolCallId)
+        await expect(
+          renewDesktopToolLease.execute({
+            principal: desktop.principal,
+            input: { deviceId: desktop.deviceId, toolCallId, executionToken },
+          })
+        ).resolves.toEqual({ renewed: true })
+      } finally {
+        writes.mockRestore()
+      }
+    })
+
+    it('lists new work however many calls the device is already running', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await db.insert(copilotAsyncToolCalls).values(
+        Array.from({ length: 501 }, () => ({
+          runId: run.runId,
+          toolCallId: generateId(),
+          toolName: 'browser_click',
+          args: { ref: 'e1' },
+          status: 'running' as const,
+          claimedBy: 'desktop-browser',
+          executionOwnerToken: generateId(),
+          executionLeaseExpiresAt: sql`now() + interval '1 minute'`,
+          createdAt: new Date(Date.now() - 60_000),
+        }))
+      )
+      /** A call Sim settled without the device's result, still to be acknowledged. */
+      const stopped = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId: stopped,
+        toolName: 'browser_click',
+        args: { ref: 'e2' },
+        status: 'cancelled',
+        executionOwnerToken: generateId(),
+        executionRevokedAt: new Date(),
+        createdAt: new Date(Date.now() - 30_000),
+      })
+      const offered = await pendingCall(run.runId)
+      const gated = await pendingCall(
+        run.runId,
+        'terminal',
+        { operation: 'run', args: { command: 'make' } },
+        { awaitingApproval: true }
+      )
+
+      expect((await inbox(desktop)).items).toMatchObject([
+        { kind: 'cancel', toolCallId: stopped },
+        { kind: 'call', toolCallId: offered },
+        { kind: 'approval_needed', toolCallId: gated },
+      ])
+    })
+
     it('lists pending calls in persistence order even when their doorbell was never heard', async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)

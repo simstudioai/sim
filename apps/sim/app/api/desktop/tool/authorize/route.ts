@@ -74,6 +74,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (run.status === 'complete' || run.status === 'error' || run.status === 'cancelled') {
     return createNotFoundResponse('Pending client tool call not found')
   }
+  // The device's background executor claims a bound run's calls through its own fenced route.
+  if (run.desktopDeviceId)
+    return NextResponse.json(
+      { error: "This chat's desktop actions run in the desktop app's background executor" },
+      { status: 409 }
+    )
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
   if (!isDesktopToolCall(toolCall.toolName, args)) {

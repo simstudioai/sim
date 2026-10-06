@@ -31,6 +31,7 @@ import {
   type StaleSweepableExecutionStatus,
 } from '@/lib/logs/types'
 import { sweepOrphanedRuns } from '@/lib/mothership/async-runs/orphaned-runs'
+import { settleAbandonedDesktopToolCalls } from '@/lib/mothership/request/tools/desktop-wait'
 import { cancelStaleDispatches } from '@/lib/table/dispatcher'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
@@ -743,6 +744,19 @@ export async function runCleanupStaleExecutions() {
     })
   }
 
+  /**
+   * Settle desktop calls on device-bound runs whose waiter died with its process: an offered call
+   * nobody claimed, or a claimed one whose device stopped renewing its lease.
+   */
+  let abandonedDesktopCallsSettled = 0
+  try {
+    abandonedDesktopCallsSettled = await settleAbandonedDesktopToolCalls()
+  } catch (error) {
+    logger.error('Failed to settle abandoned desktop tool calls:', {
+      error: toError(error).message,
+    })
+  }
+
   return {
     executions: {
       found: staleExecutionsFound,
@@ -774,6 +788,7 @@ export async function runCleanupStaleExecutions() {
     },
     chatRuns: {
       orphanedSettled: orphanedRunsSettled,
+      abandonedDesktopCallsSettled,
     },
   }
 }

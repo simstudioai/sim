@@ -128,6 +128,8 @@ export interface CreateRunSegmentInput {
   provider?: string | null
   requestContext?: Record<string, unknown>
   status?: CopilotRunStatus
+  /** The desktop whose background executor runs this turn's desktop tools. */
+  desktopDeviceId?: string | null
 }
 
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -343,6 +345,7 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       model: input.model ?? null,
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
+      desktopDeviceId: input.desktopDeviceId ?? null,
       status: stop ? 'cancelled' : (input.status ?? 'active'),
       ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
     })
@@ -466,6 +469,8 @@ export async function getRunSegment(runId: string) {
           organizationId: copilotRuns.organizationId,
           // Stop, a newer turn, or completion close admission; nothing may start after that.
           toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+          // A bound run's desktop calls belong to its device's background executor alone.
+          desktopDeviceId: copilotRuns.desktopDeviceId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
@@ -565,12 +570,13 @@ export async function getAsyncToolCall(toolCallId: string) {
 
 /**
  * The execution owner a status change must still belong to, and what its lease must be: `live`
- * (the default) for the owner's own result, and `any` where a late but real result beats the
- * outcome-unknown settlement nobody has written yet.
+ * (the default) for the owner's own result, `any` where a late but real result beats the
+ * outcome-unknown settlement nobody has written yet, and `lapsed` for that settlement itself, so
+ * it loses to a renewal.
  */
 interface ExecutionOwnerFence {
   token: string
-  lease?: 'live' | 'any'
+  lease?: 'live' | 'any' | 'lapsed'
 }
 
 async function markAsyncToolStatus(
@@ -583,6 +589,7 @@ async function markAsyncToolStatus(
     error?: string | null
     completedAt?: Date | null
     executionSettledAt?: Date
+    executionRevokedAt?: Date
   } = {},
   expectedStatuses?: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
@@ -618,6 +625,7 @@ async function markAsyncToolStatus(
           error: updates.error,
           completedAt: updates.completedAt,
           executionSettledAt: updates.executionSettledAt,
+          executionRevokedAt: updates.executionRevokedAt,
           updatedAt: new Date(),
         })
         .where(
@@ -631,7 +639,9 @@ async function markAsyncToolStatus(
                   isNull(copilotAsyncToolCalls.executionRevokedAt),
                   expectedOwner.lease === 'any'
                     ? undefined
-                    : sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+                    : expectedOwner.lease === 'lapsed'
+                      ? sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+                      : sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
                 )
               : undefined
           )
@@ -656,7 +666,7 @@ async function claimUnderRunAdmission<T>(
   claimedBy: string,
   requireCurrentVersion: boolean,
   claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>
-): Promise<T | { outcome: 'closed' }> {
+): Promise<T | { outcome: 'closed' } | { outcome: 'existing' }> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -667,41 +677,46 @@ async function claimUnderRunAdmission<T>(
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
     () =>
-      traceMothershipTransaction<T | { outcome: 'closed' }>('claim_tool', async (tx) => {
-        const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
-          tx
-            .select({
-              toolExecutionVersion: copilotRuns.toolExecutionVersion,
-              toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
-              status: copilotRuns.status,
-            })
-            .from(copilotRuns)
-            .where(
-              and(
-                eq(copilotRuns.id, call.runId),
-                eq(copilotRuns.userId, call.userId),
-                call.desktopDeviceId
-                  ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
-                  : undefined
+      traceMothershipTransaction<T | { outcome: 'closed' } | { outcome: 'existing' }>(
+        'claim_tool',
+        async (tx) => {
+          const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
+            tx
+              .select({
+                toolExecutionVersion: copilotRuns.toolExecutionVersion,
+                toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+                status: copilotRuns.status,
+              })
+              .from(copilotRuns)
+              .where(
+                and(
+                  eq(copilotRuns.id, call.runId),
+                  eq(copilotRuns.userId, call.userId),
+                  call.desktopDeviceId
+                    ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
+                    : undefined
+                )
               )
-            )
-            .for('update')
-        )
-        if (
-          !run ||
-          (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
-        )
-          throw new Error('Tool execution ownership is unavailable for this run')
-        if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
-          return { outcome: 'closed' }
-        return claim(
-          tx,
-          and(
-            eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
-            eq(copilotAsyncToolCalls.runId, call.runId)
+              .for('update')
           )
-        )
-      })
+          // The run is not bound to the claiming device: the call is not this device's to take.
+          if (!run && call.desktopDeviceId) return { outcome: 'existing' }
+          if (
+            !run ||
+            (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
+          )
+            throw new Error('Tool execution ownership is unavailable for this run')
+          if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
+            return { outcome: 'closed' }
+          return claim(
+            tx,
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
+              eq(copilotAsyncToolCalls.runId, call.runId)
+            )
+          )
+        }
+      )
   )
 }
 
@@ -758,8 +773,10 @@ export interface DesktopToolCallClaimant {
   userId: string
   claimedBy: DesktopToolClaimOwner
   /**
-   * Set when the desktop's background executor claims a call on a run bound to `deviceId`: the
-   * claim then also takes the execution lease under `ownerToken`, like Sim's own.
+   * Set when the desktop's background executor claims a call Sim offered it on a run bound to
+   * `deviceId`: the claim then also takes the execution lease under `ownerToken`. It does not mark
+   * a Sim execution as started: no Sim handler runs, so the call never holds up Stop's
+   * settlement or the next turn's workbench, whatever the device does after.
    */
   executor?: { deviceId: string; ownerToken: string }
 }
@@ -795,7 +812,6 @@ export async function claimDesktopToolCall(
             updatedAt: claimedAt,
             ...(executor
               ? {
-                  executionStartedAt: claimedAt,
                   executionOwnerToken: executor.ownerToken,
                   executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
                 }
@@ -805,6 +821,14 @@ export async function claimDesktopToolCall(
             and(
               thisCall,
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              // The executor takes only a call Sim offered it, inside its pickup window; once the
+              // window closed the call belongs to its not-started settlement.
+              executor
+                ? sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+                : or(
+                    isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+                    sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+                  ),
               or(
                 and(
                   isNull(copilotAsyncToolCalls.permissionRequestedAt),
@@ -893,6 +917,12 @@ async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) 
         isNull(copilotAsyncToolCalls.executionSettledAt),
         isNull(copilotAsyncToolCalls.executionRevokedAt),
         isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+        // A desktop executor's lapsed lease is settled by its own wait and the stale-execution cron,
+        // with a result that warns the action may already have taken effect.
+        or(
+          isNull(copilotAsyncToolCalls.claimedBy),
+          notInArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER))
+        ),
         sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
       )
     )
@@ -1529,7 +1559,7 @@ async function completeAsyncToolCallFromStatuses(
   input: CompleteAsyncToolCallInput,
   expectedStatuses: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
-  expectedOwner?: ExecutionOwnerFence & { settles?: 'execution' }
+  expectedOwner?: ExecutionOwnerFence & { settles?: 'execution' | 'revocation' }
 ) {
   const completedAt = new Date()
   return await markAsyncToolStatus(
@@ -1542,6 +1572,7 @@ async function completeAsyncToolCallFromStatuses(
       error: input.error ?? null,
       completedAt,
       ...(expectedOwner?.settles === 'execution' ? { executionSettledAt: completedAt } : {}),
+      ...(expectedOwner?.settles === 'revocation' ? { executionRevokedAt: completedAt } : {}),
     },
     expectedStatuses,
     expectedClaimedBy,
@@ -1584,6 +1615,21 @@ export async function completeOwnedDesktopToolCall(
     token: ownerToken,
     lease: 'any',
     settles: 'execution',
+  })
+}
+
+/**
+ * Settles a desktop executor's call whose lease lapsed with this token still on it, revoking the
+ * token so the device's late result is answered as superseded. A renewal wins over it.
+ */
+export async function completeLapsedDesktopToolCall(
+  input: CompleteAsyncToolCallInput,
+  ownerToken: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], undefined, {
+    token: ownerToken,
+    lease: 'lapsed',
+    settles: 'revocation',
   })
 }
 
@@ -1692,6 +1738,8 @@ export async function recordToolPermissionDecision(
         .set({
           permissionDecision: decision,
           permissionDecidedAt: now,
+          // No pickup window runs while the user decides: an allowed call is offered afresh.
+          pickupDeadlineAt: null,
           updatedAt: now,
         })
         .where(

@@ -131,6 +131,26 @@ describe('Copilot Confirm API Route', () => {
     expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('resolved-secret')
   })
 
+  it("refuses a chat view's report for a call a desktop's background executor owns", async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_click',
+      status: 'pending',
+      claimedBy: null,
+    })
+    getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', desktopDeviceId: 'device-1' })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop refused this claim',
+      })
+    )
+
+    expect(response.status).toBe(409)
+  })
+
   it('atomically detaches a live background confirmation', async () => {
     const response = await POST(
       createMockPostRequest({

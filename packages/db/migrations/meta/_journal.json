@@ -2780,6 +2780,13 @@
       "when": 1791260527198,
       "tag": "0397_desktop_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1791260662287,
+      "tag": "0398_desktop_tool_pickup_deadline",
+      "breakpoints": true
     }
   ]
 }

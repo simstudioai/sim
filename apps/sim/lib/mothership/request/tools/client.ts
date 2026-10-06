@@ -43,7 +43,8 @@ const logger = createLogger('CopilotClientToolWaiter')
 export async function waitForToolCompletion(
   toolCallId: string,
   timeoutMs: number | null,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  settleOverdue?: () => Promise<unknown>
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
     acceptStatus: (status) =>
@@ -51,6 +52,7 @@ export async function waitForToolCompletion(
       status === MothershipStreamV1ToolOutcome.error ||
       status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
       status === MothershipStreamV1ToolOutcome.cancelled,
+    ...(settleOverdue ? { settleOverdue } : {}),
   })
   if (decision && isAsyncTerminalConfirmationStatus(decision.status)) {
     return { ...decision, status: decision.status }
@@ -66,6 +68,8 @@ interface WaitForClientToolCompletionOptions {
   timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
+  /** See `waitForToolConfirmation`: enforces the call's server-side deadlines while it waits. */
+  settleOverdue?: () => Promise<unknown>
 }
 
 function getGenericCompletionMessage(status: AsyncTerminalCompletionSnapshot['status']): string {
@@ -86,8 +90,9 @@ export async function waitForClientToolCompletion({
   timeoutMs,
   abortSignal,
   registry,
+  settleOverdue,
 }: WaitForClientToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
+  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal, settleOverdue)
   if (!completion) return null
 
   const toolRegistry = registry?.forkForInputPaths([])

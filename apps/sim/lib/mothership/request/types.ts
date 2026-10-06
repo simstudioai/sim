@@ -164,6 +164,11 @@ export interface StreamingContext {
   requestId?: string
   executionId?: string
   runId?: string
+  /**
+   * The device whose background executor runs this run's desktop tools, null when the chat view
+   * runs them. Read from the run on the first desktop call; undefined until then.
+   */
+  desktopDeviceId?: string | null
   messageId: string
   /**
    * Shared by all live resume legs. Reconnects replay events without resuming Go; any future

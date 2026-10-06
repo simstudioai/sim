@@ -1,3 +1,4 @@
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
 import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
@@ -8,10 +9,21 @@ import {
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const desktopRepository = vi.hoisted(() => ({
+  listOverdueDesktopToolCalls: vi.fn(),
+  getDesktopToolCallDeadlines: vi.fn(),
+  offerDesktopToolCall: vi.fn(),
+}))
+
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/tools/client', () => mothershipClientToolWaiterMock)
+vi.mock('@/lib/desktop/executor/repository', () => desktopRepository)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
+import {
+  settleAbandonedDesktopToolCalls,
+  waitForDesktopToolCall,
+} from '@/lib/mothership/request/tools/desktop-wait'
 
 const waitForClientToolCompletion =
   mothershipClientToolWaiterMockFns.mockWaitForClientToolCompletion
@@ -59,5 +71,44 @@ describe('waitForDesktopToolCall', () => {
     const answer = await waitForDesktopToolCall({ ...params, timeoutMs: 1_000 })
 
     expect(answer).toMatchObject({ status: 'error', data: { notStarted: true } })
+  })
+
+  it("settles a bound device's unclaimed call as never started when the turn's budget ends first", async () => {
+    desktopRepository.offerDesktopToolCall.mockResolvedValueOnce(true)
+    waitForClientToolCompletion.mockResolvedValueOnce(null)
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    const answer = await waitForDesktopToolCall({
+      ...params,
+      timeoutMs: 1_000,
+      desktopDeviceId: 'device-1',
+    })
+
+    expect(answer).toMatchObject({
+      status: 'error',
+      data: { notStarted: true, reason: 'not_responding' },
+    })
+  })
+})
+
+describe('settleAbandonedDesktopToolCalls', () => {
+  it('keeps sweeping past a call it could not settle', async () => {
+    desktopRepository.listOverdueDesktopToolCalls.mockResolvedValueOnce(['lost', 'overdue'])
+    desktopRepository.getDesktopToolCallDeadlines
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce({
+        toolCallId: 'overdue',
+        runId: 'run-1',
+        userId: 'user-1',
+        deviceId: 'device-1',
+        status: 'pending',
+        ownerToken: null,
+        result: null,
+        pickupOverdue: true,
+        leaseLapsed: false,
+      })
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    await expect(settleAbandonedDesktopToolCalls(0)).resolves.toBe(1)
   })
 })
