@@ -1252,7 +1252,16 @@ async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unkn
         'read',
         socket.id
       )
-      if (!permission || socketToRoomName.get(socket.id) !== name) return
+      if (socketToRoomName.get(socket.id) !== name) return
+      if (permission === null) {
+        evictSocketFromRoom(
+          socket,
+          fileDocRoom(room.fileId, room.projectId),
+          'Your access to this document has been revoked',
+          io
+        )
+        return
+      }
       if (messageType === FILE_DOC_MESSAGE_TYPE.SYNC) {
         const peek = decoding.createDecoder(bytes)
         decoding.readVarUint(peek)

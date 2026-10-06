@@ -30,6 +30,7 @@ vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
+import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { authorizeProject } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
@@ -234,7 +235,7 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
   )
 
   check(
-    'workspace archive purge waits on current Project authority before locking file/version rows or billing',
+    'workspace archive purge waits on Project authority and charges the payer that a preceding transfer selected',
     async () => {
       const f = await fixture()
       const expired = await seedFile(f, 40 * 24, true, 'workspace')
@@ -257,6 +258,12 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
         const result = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
         acquired.resolve(result[0].pid)
         await release.promise
+        await changeWorkspaceStoragePayerInTx(tx, {
+          workspaceId: f.workspaceId,
+          billedAccountUserId: f.creatorId,
+          organizationId: null,
+          expectedCurrentPayer: { billedAccountUserId: f.ownerId, organizationId: null },
+        })
       })
       const authPid = await Promise.race([
         acquired.promise,
@@ -305,6 +312,16 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
         .from(userStats)
         .where(eq(userStats.userId, f.ownerId))
       expect(usage.bytes).toBe(10)
+      const [destination] = await db
+        .select({ bytes: userStats.storageUsedBytes })
+        .from(userStats)
+        .where(eq(userStats.userId, f.creatorId))
+      expect(destination.bytes).toBe(0)
+      const [environment] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+      expect(environment.bytes).toBe(0)
     }
   )
 

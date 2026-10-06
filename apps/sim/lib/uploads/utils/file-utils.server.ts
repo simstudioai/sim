@@ -496,6 +496,7 @@ export async function downloadServableFileFromStorage(
   const resolved = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: userFile.name,
+    sourceMime: userFile.type,
     workspaceId,
     filePrincipal: options.filePrincipal,
     ownerKey: options.ownerKey,

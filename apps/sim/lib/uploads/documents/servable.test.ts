@@ -72,6 +72,40 @@ describe('resolveServableDocBytes', () => {
     mockLoadPublishedCompiledDoc.mockResolvedValue(null)
   })
 
+  it.each(['authenticated', 'public', 'compile'] as const)(
+    'serves a retained JavaScript PDF through %s resolution using its source MIME',
+    async (surface) => {
+      const source = "const note = `It's fine`;\n// getFileBase64('example-only')\npdf.addPage();"
+      const artifact = Buffer.from('%PDF-retained-javascript')
+      mockLoadCompiledDoc.mockResolvedValue(artifact)
+
+      const resolved =
+        surface === 'public'
+          ? await resolveServableDoc(WORKSPACE_ID, Buffer.from(source), 'retained.pdf', {
+              sourceMime: 'text/x-pdflibjs',
+            })
+          : surface === 'compile'
+            ? await compileDoc({
+                source,
+                fileName: 'retained.pdf',
+                workspaceId: WORKSPACE_ID,
+                filePrincipal: FILE_PRINCIPAL,
+                sourceMime: 'text/x-pdflibjs',
+              })
+            : await resolveServableDocBytes({
+                rawBuffer: Buffer.from(source),
+                fileName: 'retained.pdf',
+                workspaceId: WORKSPACE_ID,
+                filePrincipal: FILE_PRINCIPAL,
+                sourceMime: 'text/x-pdflibjs',
+              })
+
+      expect(resolved).toMatchObject({ buffer: artifact, contentType: 'application/pdf' })
+      if ('dependsOnReferencedFiles' in resolved)
+        expect(resolved.dependsOnReferencedFiles).toBe(false)
+    }
+  )
+
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
     const artifact = Buffer.from('%PDF-compiled-binary')
     mockLoadCompiledDoc.mockResolvedValue(artifact)

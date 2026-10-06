@@ -189,6 +189,7 @@ async function resolveTransformedBytes(params: {
   const doc = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
+    sourceMime: fileType,
     workspaceId,
     filePrincipal,
     ownerKey,

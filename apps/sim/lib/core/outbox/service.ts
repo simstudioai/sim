@@ -86,8 +86,8 @@ export interface DeferredOutboxHandlerResult {
    * outbox row independently reaches completed or dead-letter, and for
    * bounded continuation after durable progress (`continueOutboxHandler`),
    * external polling with a separately persisted, finite poll allowance, or a
-   * retained storage tombstone whose successful bounded sweeps must recur because
-   * an empty listing cannot prove that in-flight provider writes have finished.
+   * periodic bounded storage inventory that discovers objects arriving after
+   * the finite retirement cleanup has completed.
    */
   consumeAttempt?: boolean
   /** Reset consecutive failures only after a complete successful recurring sweep. */

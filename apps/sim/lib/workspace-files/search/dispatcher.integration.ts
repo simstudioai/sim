@@ -31,6 +31,7 @@ import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_DISPATCH_HANDOFF_MS,
+  FILE_SEARCH_INDEX_DISPATCH_WORKSPACES,
   FILE_SEARCH_INDEX_STALE_DISPATCH_MS,
 } from '@/lib/workspace-files/search/constants'
 import {
@@ -56,6 +57,40 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       },
     })
   )
+  const migration = readFileSync(
+    resolve(process.cwd(), '../../packages/db/migrations/0403_file_search_owner_scope.sql'),
+    'utf8'
+  ).replaceAll('"public".', `"${schemaName}".`)
+  const ownerIndexes = [
+    ['file_search_chunk_owner_content_idx', 'workspace_file_search_chunk'],
+    ['file_search_revision_owner_pending_idx', 'workspace_file_search_revision'],
+    ['file_search_revision_owner_status_idx', 'workspace_file_search_revision'],
+    ['workspace_files_search_owner_keyset_idx', 'workspace_files'],
+  ] as const
+
+  async function migrateOwnerSearch() {
+    const session = await connection.reserve()
+    try {
+      await session`BEGIN`
+      for (const statement of migration.split('--> statement-breakpoint'))
+        if (statement.trim()) await session.unsafe(statement)
+      await session`COMMIT`
+    } finally {
+      await session`ROLLBACK`
+      await session`RESET lock_timeout`
+      session.release()
+    }
+  }
+
+  async function readOwnerIndexes() {
+    return connection`SELECT c.relname, i.indisvalid, i.indisready,
+      pg_get_indexdef(i.indexrelid) AS definition, i.indexrelid::int AS oid
+      FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = ${schemaName}
+        AND c.relname IN ${connection(ownerIndexes.map(([name]) => name))}
+      ORDER BY c.relname`
+  }
 
   beforeAll(async () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
@@ -99,28 +134,14 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       VALUES ('file-search-owners-v3', '2026-09-16 00:00:00')`
     await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, workspace_id text NOT NULL, file_id text NOT NULL, expires_at timestamp)`
     await connection`CREATE TABLE workspace_file_search_chunk (build_id text NOT NULL, workspace_id text NOT NULL, content text NOT NULL, ordinal integer NOT NULL, PRIMARY KEY(build_id, ordinal))`
-    const migration = readFileSync(
-      resolve(process.cwd(), '../../packages/db/migrations/0403_file_search_owner_scope.sql'),
-      'utf8'
-    ).replaceAll('"public".', `"${schemaName}".`)
-    const session = await connection.reserve()
-    try {
-      await session`BEGIN`
-      for (const statement of migration.split('--> statement-breakpoint'))
-        if (statement.trim()) await session.unsafe(statement)
-      await session`COMMIT`
-    } finally {
-      await session`ROLLBACK`
-      await session`RESET lock_timeout`
-      session.release()
-    }
+    await migrateOwnerSearch()
     database.current = drizzle(connection)
   })
 
   beforeEach(async () => {
     mocks.batchTrigger.mockReset()
     await connection`DROP TRIGGER IF EXISTS slow_backfill ON workspace_file_search_backfill`
-    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue, file_search_dispatch_queue`
+    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue, file_search_dispatch_queue, workspace_file_search_build, workspace_file_search_chunk CASCADE`
     await connection`UPDATE workspace_file_search_backfill
       SET updated_at = '2026-09-16 00:00:00', completed_at = NULL,
         after_workspace_id = NULL, after_entity_type = NULL, after_entity_id = NULL, after_file_id = NULL`
@@ -163,6 +184,80 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`INSERT INTO file_search_dispatch_queue
       (entity_type, entity_id, enqueued_at, updated_at) VALUES (${entityType}, ${workspaceId}, now(), now())`
   }
+
+  it.each(['original', 'recovery'] as const)(
+    'rebuilds interrupted owner search indexes left under their %s names',
+    async (location) => {
+      await seedQueue('migration-replay', 2)
+      await connection`INSERT INTO workspace_file_search_build (id, workspace_id, file_id)
+        SELECT 'build-' || id, workspace_id, id FROM workspace_files`
+      await connection`INSERT INTO workspace_file_search_chunk (build_id, workspace_id, content, ordinal)
+        SELECT id, workspace_id, 'searchable', 0 FROM workspace_file_search_build`
+      const expected = (await readOwnerIndexes()).map(({ oid: _oid, ...index }) => index)
+
+      for (const [name, table] of ownerIndexes) {
+        await connection`DROP INDEX CONCURRENTLY ${connection(name)}`
+        await expect(
+          connection`CREATE UNIQUE INDEX CONCURRENTLY ${connection(name)} ON ${connection(table)} ((1))`
+        ).rejects.toMatchObject({ code: '23505' })
+        if (location === 'recovery')
+          await connection`ALTER INDEX ${connection(name)} RENAME TO ${connection(`${name}_failed_0403`)}`
+      }
+      const invalid = await connection`SELECT count(*)::int AS count FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = ${schemaName} AND NOT i.indisvalid`
+      expect(invalid[0].count).toBe(ownerIndexes.length)
+
+      await migrateOwnerSearch()
+
+      expect((await readOwnerIndexes()).map(({ oid: _oid, ...index }) => index)).toEqual(expected)
+      const remaining = await connection`SELECT count(*)::int AS count FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = ${schemaName} AND NOT i.indisvalid`
+      expect(remaining[0].count).toBe(0)
+    }
+  )
+
+  it('preserves healthy owner search indexes when replaying the migration', async () => {
+    const before = await readOwnerIndexes()
+    await migrateOwnerSearch()
+    expect(await readOwnerIndexes()).toEqual(before)
+  })
+
+  it('rotates a full batch of busy Projects so a later owner can dispatch', async () => {
+    const projects = Array.from(
+      { length: FILE_SEARCH_INDEX_DISPATCH_WORKSPACES },
+      (_, index) => `busy-${String(index).padStart(3, '0')}`
+    )
+    for (const id of projects) await seedQueue(id, 1, 0, 'project')
+    await seedQueue('later-workspace', 1)
+    const holder = await connection.reserve()
+    try {
+      await holder`BEGIN`
+      for (const id of projects)
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`project:${id}`}, 0))`
+
+      const first = await prepareWorkspaceFileSearchDispatch()
+      const second = await prepareWorkspaceFileSearchDispatch()
+      expect([...first.payloads, ...second.payloads].map((payload) => payload.owner)).toEqual([
+        { entityType: 'workspace', entityId: 'later-workspace' },
+      ])
+      const [queued] =
+        await connection`SELECT count(*)::int AS count FROM file_search_dispatch_queue
+        WHERE entity_type = 'project'`
+      expect(queued.count).toBe(projects.length)
+
+      await holder`COMMIT`
+      const resumed = await prepareWorkspaceFileSearchDispatch()
+      expect(resumed.payloads.length).toBeGreaterThan(0)
+      expect(resumed.payloads.every((payload) => payload.owner?.entityType === 'project')).toBe(
+        true
+      )
+    } finally {
+      await holder`ROLLBACK`
+      holder.release()
+    }
+  })
 
   it('leaves a busy Project queued without blocking unrelated workspace dispatch', async () => {
     await seedQueue('busy-project', 1, 0, 'project')

@@ -21,7 +21,7 @@ LANGUAGE sql IMMUTABLE AS $$
     WHEN file_project_id IS NOT NULL AND file_workspace_id IS NULL AND file_organization_id IS NULL
       AND file_context = 'project' THEN 'project'
     WHEN file_project_id IS NULL AND file_organization_id IS NULL AND file_workspace_id IS NOT NULL
-      AND file_context IN ('workspace', 'mothership', 'execution', 'workspace-logos', 'knowledge-base')
+      AND file_context IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos', 'knowledge-base')
       THEN 'workspace'
     WHEN file_project_id IS NULL AND file_workspace_id IS NULL AND file_organization_id IS NOT NULL
       AND file_context = 'knowledge-base' THEN 'organization'
@@ -32,7 +32,7 @@ LANGUAGE sql IMMUTABLE AS $$
     WHEN file_project_id IS NOT NULL AND file_workspace_id IS NULL AND file_organization_id IS NULL
       AND file_context = 'project' THEN file_project_id
     WHEN file_project_id IS NULL AND file_organization_id IS NULL AND file_workspace_id IS NOT NULL
-      AND file_context IN ('workspace', 'mothership', 'execution', 'workspace-logos', 'knowledge-base')
+      AND file_context IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos', 'knowledge-base')
       THEN file_workspace_id
     WHEN file_project_id IS NULL AND file_workspace_id IS NULL AND file_organization_id IS NOT NULL
       AND file_context = 'knowledge-base' THEN file_organization_id

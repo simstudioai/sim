@@ -37,7 +37,6 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
-import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   reassignBilledAccountForUser,
   reassignOwnedWorkspacesForUser,
@@ -693,11 +692,9 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
-  let projectStorageCleanupEventIds: string[] = []
 
   await db.transaction(async (tx) => {
-    const projectCleanup = await prepareProjectsForAccountDeletion(tx, userId, doomedWorkspaceIds)
-    projectStorageCleanupEventIds = projectCleanup.storageCleanupEventIds
+    await prepareProjectsForAccountDeletion(tx, userId, doomedWorkspaceIds)
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -841,11 +838,6 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   })
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
-
-  await processWorkspaceFileStorageCleanupsNow(projectStorageCleanupEventIds, {
-    userId,
-    reason: 'account deletion',
-  })
 
   await purgeStorageObjects(userId, storageKeys)
 

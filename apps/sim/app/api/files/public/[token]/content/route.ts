@@ -81,7 +81,9 @@ export const GET = withRouteHandler(
       })
 
       const servable = file.workspaceId
-        ? await resolveServableDoc(file.workspaceId, raw, file.originalName)
+        ? await resolveServableDoc(file.workspaceId, raw, file.originalName, {
+            sourceMime: file.contentType,
+          })
         : ({ kind: 'passthrough' } as const)
 
       if (servable.kind === 'unavailable') {

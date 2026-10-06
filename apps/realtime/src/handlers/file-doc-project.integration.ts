@@ -2,7 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server as HttpServer } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import {
+  ROOM_ACCESS_REVOKED_EVENT,
+  type RoomAccessRevokedBroadcast,
+} from '@sim/realtime-protocol/events'
+import {
   FILE_DOC_EVENTS,
+  FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
   type JoinFileDocError,
@@ -12,9 +17,11 @@ import {
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import * as encoding from 'lib0/encoding'
 import { Server } from 'socket.io'
 import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { startAccessRevalidationSweep } from '@/access-revalidation'
 import { env } from '@/env'
@@ -446,6 +453,94 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       }
     }
   )
+
+  for (const status of [403, 404, 503]) {
+    check(`a reader frame resolves ${status} without waiting for an access sweep`, async () => {
+      const actor = `message-reader-${generateId()}`
+      const writerActor = `message-writer-${generateId()}`
+      actors.set(actor, 'read')
+      actors.set(writerActor, 'write')
+      const reader = await join(actor)
+      const writer = await join(writerActor)
+      const server = io.sockets.sockets.get(reader.socket.id ?? '')
+      if (!server) throw new Error('Admitted reader socket missing')
+      const originalMessage = server.listeners(FILE_DOC_EVENTS.MESSAGE)[0]
+      if (!originalMessage) throw new Error('Document message handler missing')
+      const handled = createDeferred<void>()
+      const observeMessage = async (payload: unknown) => {
+        try {
+          await originalMessage.call(server, payload)
+        } finally {
+          handled.resolve()
+        }
+      }
+      server.off(FILE_DOC_EVENTS.MESSAGE, originalMessage)
+      server.on(FILE_DOC_EVENTS.MESSAGE, observeMessage)
+      const drainReader = async () => {
+        const drained = new Promise<void>((resolve) =>
+          reader.socket.once('fixture-drained', resolve)
+        )
+        server.emit('fixture-drained')
+        await drained
+      }
+      await drainReader()
+      const frames: string[] = []
+      const revocations: RoomAccessRevokedBroadcast[] = []
+      reader.socket.on(FILE_DOC_EVENTS.MESSAGE, () => frames.push('document'))
+      reader.socket.on(FILE_DOC_EVENTS.PRESENCE, () => frames.push('presence'))
+      reader.socket.on(ROOM_ACCESS_REVOKED_EVENT, (payload) => revocations.push(payload))
+      const gate = {
+        requests: 1,
+        entered: createDeferred<void>(),
+        release: createDeferred<void>(),
+        status,
+      }
+      gate.release.resolve()
+      accessGates.set(actor, gate)
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now + ROLE_REVALIDATION_TTL_MS + 1)
+      const edit = new Y.Doc()
+      try {
+        const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+        syncProtocol.writeSyncStep1(encoder, document)
+        reader.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+        await handled.promise
+        await drainReader()
+        const denied = status !== 503
+        expect(server.rooms.has(`project-file-doc:${projectId}/${fileId}`)).toBe(!denied)
+        expect(revocations).toHaveLength(denied ? 1 : 0)
+        if (denied)
+          expect(revocations[0].room).toEqual({
+            type: 'project-file-doc',
+            id: `${projectId}/${fileId}`,
+          })
+        Y.applyUpdate(edit, Buffer.from(seed, 'base64'))
+        edit.getText('body').insert(0, `after-message-${status}`)
+        expect(
+          await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+            fileId,
+            projectId,
+            docId,
+            updateId: generateId(),
+            update: Y.encodeStateAsUpdate(edit),
+          })
+        ).toMatchObject({ status: 'accepted' })
+        await join('reader')
+        await drainReader()
+        if (denied) expect(frames).toEqual([])
+        else expect(frames).toEqual(expect.arrayContaining(['document', 'presence']))
+      } finally {
+        clock.mockRestore()
+        accessGates.delete(actor)
+        server.off(FILE_DOC_EVENTS.MESSAGE, observeMessage)
+        server.on(FILE_DOC_EVENTS.MESSAGE, originalMessage)
+        reader.socket.disconnect()
+        writer.socket.disconnect()
+        edit.destroy()
+      }
+    })
+  }
 
   check('a downgraded writer remains a reader but cannot submit another update', async () => {
     const writer = await join('writer')

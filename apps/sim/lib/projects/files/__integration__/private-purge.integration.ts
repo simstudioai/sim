@@ -1,5 +1,5 @@
 import { mkdtempSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
@@ -360,7 +360,7 @@ describe('Private Project teardown and durable object cleanup', () => {
   })
 
   check(
-    'account deletion commits despite an object-store failure and its durable cleanup retries successfully',
+    'account deletion leaves object deletion to durable cleanup and a failed worker can retry',
     async () => {
       const f = await fixture()
       const obstructed = join(storageRoot, f.keys[0])
@@ -371,8 +371,14 @@ describe('Private Project teardown and durable object cleanup', () => {
       expect(await db.select().from(project).where(eq(project.id, f.projectId))).toEqual([])
       const events = await cleanupEvents(f.projectId)
       const failed = events.find((event) => (event.payload as { key?: string }).key === f.keys[0])
-      expect(failed).toMatchObject({ status: 'pending', attempts: 1 })
+      expect(events).toHaveLength(3)
+      expect(events.every((event) => event.status === 'pending' && event.attempts === 0)).toBe(true)
       if (!failed) throw new Error('Retryable cleanup missing')
+      expect(
+        await processOutboxEventById(failed.id, workspaceFileStorageCleanupOutboxHandlers)
+      ).toBe('pending')
+      const [attempted] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, failed.id))
+      expect(attempted).toMatchObject({ status: 'pending', attempts: 1 })
       await rm(obstructed, { recursive: true })
       await writeFile(obstructed, 'new')
       await db
@@ -442,25 +448,34 @@ describe('Private Project teardown and durable object cleanup', () => {
         .set({ availableAt: new Date(0) })
         .where(eq(outboxEvent.id, final.id))
       expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
-        'pending'
+        'completed'
       )
       await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
         code: 'ENOENT',
       })
+      await expect(readdir(join(storageRoot, `project/${f.projectId}`))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
+      await mkdir(dirname(join(storageRoot, upload.finalKey)), { recursive: true })
       await writeFile(join(storageRoot, upload.finalKey), 'finished-after-empty-sweep')
+      const reconciliationId = 'project-file.storage.reconcile'
       await db
         .update(outboxEvent)
         .set({ availableAt: new Date(0), attempts: 4 })
-        .where(eq(outboxEvent.id, final.id))
-      expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
-        'pending'
-      )
+        .where(eq(outboxEvent.id, reconciliationId))
+      expect(
+        await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
+      ).toBe('pending')
       await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
         code: 'ENOENT',
       })
-      const [retained] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, final.id))
-      expect(retained.attempts).toBe(0)
-      expect(retained.availableAt.getTime()).toBeGreaterThan(Date.now())
+      expect(await readFile(join(storageRoot, live.keys[0]), 'utf8')).toBe('new')
+      const [reconciled] = await db
+        .select()
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, reconciliationId))
+      expect(reconciled.attempts).toBe(0)
+      expect(reconciled.availableAt.getTime()).toBeGreaterThan(Date.now())
       const unsafe = generateId()
       await db.insert(outboxEvent).values({
         id: unsafe,
@@ -528,6 +543,214 @@ describe('Private Project teardown and durable object cleanup', () => {
     }
   )
 
+  check('retirement batches finish while sharing one inventory reconciliation event', async () => {
+    const f = await fixture()
+    await Promise.all(
+      Array.from({ length: 501 }, (_, index) => seedUpload(f, `batch-${index}.bin`))
+    )
+    await erasePrivateProject(f)
+    const empty = await fixture()
+    await erasePrivateProject(empty)
+    const events = await db
+      .select()
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, 'project-file.storage.prefix-cleanup'),
+          inArray(sql`${outboxEvent.payload}->>'projectId'`, [f.projectId, empty.projectId])
+        )
+      )
+    expect(events).toHaveLength(6)
+    const { projectFilePrefixCleanupOutboxHandlers } = await import(
+      '@/lib/projects/files/prefix-cleanup'
+    )
+    for (const event of events) {
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: new Date(0) })
+        .where(eq(outboxEvent.id, event.id))
+      expect(await processOutboxEventById(event.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
+        'completed'
+      )
+    }
+    const remaining = await db
+      .select()
+      .from(outboxEvent)
+      .where(
+        inArray(
+          outboxEvent.id,
+          events.map((event) => event.id)
+        )
+      )
+    expect(remaining.every((event) => event.status === 'completed')).toBe(true)
+    const reconciliations = await db
+      .select()
+      .from(outboxEvent)
+      .where(eq(outboxEvent.eventType, 'project-file.storage.reconcile'))
+    expect(reconciliations).toHaveLength(1)
+  })
+
+  check(
+    'retirement revives terminal reconciliation without replacing active progress',
+    async () => {
+      const initial = await fixture()
+      await erasePrivateProject(initial)
+      const reconciliationId = 'project-file.storage.reconcile'
+      for (const status of ['completed', 'dead_letter', 'pending', 'processing']) {
+        const f = await fixture()
+        const lockedAt = new Date()
+        await db
+          .update(outboxEvent)
+          .set({ status, attempts: 4, payload: { cursor: 'saved-progress' }, lockedAt })
+          .where(eq(outboxEvent.id, reconciliationId))
+        await erasePrivateProject(f)
+        const [event] = await db
+          .select()
+          .from(outboxEvent)
+          .where(eq(outboxEvent.id, reconciliationId))
+        if (status === 'completed' || status === 'dead_letter') {
+          expect(event).toMatchObject({
+            status: 'pending',
+            attempts: 0,
+            payload: {},
+            lockedAt: null,
+          })
+        } else {
+          expect(event).toMatchObject({
+            status,
+            attempts: 4,
+            payload: { cursor: 'saved-progress' },
+            lockedAt,
+          })
+        }
+      }
+      await db
+        .update(outboxEvent)
+        .set({ status: 'pending', attempts: 0, payload: {}, lockedAt: null })
+        .where(eq(outboxEvent.id, reconciliationId))
+    }
+  )
+
+  check(
+    'inventory reconciliation isolates a failed prefix and retries it next cycle while preserving live owners',
+    async () => {
+      const retired = await fixture()
+      await erasePrivateProject(retired)
+      const live = await fixture()
+      const reconciliationId = 'project-file.storage.reconcile'
+      const orphanIds = Array.from({ length: 505 }, () => generateId()).sort()
+      const obstructed = join(storageRoot, `project/${orphanIds[0]}`)
+      for (const id of orphanIds) {
+        const prefix = join(storageRoot, `project/${id}`)
+        await mkdir(prefix, { recursive: true })
+        await writeFile(join(prefix, 'late.bin'), 'late')
+      }
+      await chmod(obstructed, 0o000)
+      const { projectFilePrefixCleanupOutboxHandlers } = await import(
+        '@/lib/projects/files/prefix-cleanup'
+      )
+      try {
+        await db
+          .update(outboxEvent)
+          .set({ availableAt: new Date(0), payload: {}, attempts: 3 })
+          .where(eq(outboxEvent.id, reconciliationId))
+        expect(
+          await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
+        ).toBe('pending')
+        const [failed] = await db
+          .select()
+          .from(outboxEvent)
+          .where(eq(outboxEvent.id, reconciliationId))
+        expect(failed.attempts).toBe(3)
+        expect(failed.payload).toMatchObject({ failedPrefixes: 1, cursor: expect.any(String) })
+        let completedCycle = false
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await db
+            .update(outboxEvent)
+            .set({ availableAt: new Date(0) })
+            .where(eq(outboxEvent.id, reconciliationId))
+          expect(
+            await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
+          ).toBe('pending')
+          const [continued] = await db
+            .select()
+            .from(outboxEvent)
+            .where(eq(outboxEvent.id, reconciliationId))
+          if (continued.availableAt.getTime() > Date.now() + 60 * 60 * 1000) {
+            expect(continued.attempts).toBe(3)
+            completedCycle = true
+            break
+          }
+          expect(continued.payload).toMatchObject({ cursor: expect.any(String) })
+        }
+        expect(completedCycle).toBe(true)
+        for (const id of orphanIds.slice(1))
+          await expect(readdir(join(storageRoot, `project/${id}`))).rejects.toMatchObject({
+            code: 'ENOENT',
+          })
+        expect(await readFile(join(storageRoot, live.keys[0]), 'utf8')).toBe('new')
+      } finally {
+        await chmod(obstructed, 0o755)
+      }
+      expect(await readFile(join(obstructed, 'late.bin'), 'utf8')).toBe('late')
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: new Date(0) })
+        .where(eq(outboxEvent.id, reconciliationId))
+      expect(
+        await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
+      ).toBe('pending')
+      await expect(readdir(obstructed)).rejects.toMatchObject({ code: 'ENOENT' })
+      const [recovered] = await db
+        .select()
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, reconciliationId))
+      expect(recovered.attempts).toBe(0)
+    }
+  )
+
+  check(
+    'periodic reconciliation recovery respects cooldown and active leases while preserving progress',
+    async () => {
+      const f = await fixture()
+      await erasePrivateProject(f)
+      const reconciliationId = 'project-file.storage.reconcile'
+      const { recoverProjectStorageReconciliation } = await import(
+        '@/lib/projects/files/prefix-cleanup'
+      )
+      const now = new Date()
+      const checkpoint = { cursor: 'provider-page', page: [f.projectId], index: 0 }
+      const old = new Date(now.getTime() - 25 * 60 * 60 * 1000)
+      for (const status of ['pending', 'processing', 'dead_letter']) {
+        await db
+          .update(outboxEvent)
+          .set({ status, attempts: 10, payload: checkpoint, processedAt: old, lockedAt: now })
+          .where(eq(outboxEvent.id, reconciliationId))
+        await recoverProjectStorageReconciliation(now)
+        const [event] = await db
+          .select()
+          .from(outboxEvent)
+          .where(eq(outboxEvent.id, reconciliationId))
+        expect(event.payload).toEqual(checkpoint)
+        expect(event).toMatchObject(
+          status === 'dead_letter'
+            ? { status: 'pending', attempts: 0, lockedAt: null, processedAt: null }
+            : { status, attempts: 10, lockedAt: now, processedAt: old }
+        )
+      }
+      await db
+        .update(outboxEvent)
+        .set({ status: 'dead_letter', attempts: 10, processedAt: now })
+        .where(eq(outboxEvent.id, reconciliationId))
+      await recoverProjectStorageReconciliation(now)
+      const [cooling] = await db
+        .select()
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, reconciliationId))
+      expect(cooling).toMatchObject({ status: 'dead_letter', attempts: 10, payload: checkpoint })
+    }
+  )
+
   check('prefix sweeps continue bounded batches without consuming failure retries', async () => {
     const f = await fixture()
     const prefix = join(storageRoot, `project/${f.projectId}`)
@@ -585,6 +808,7 @@ afterAll(async () => {
           )
         )
     }
+    await db.delete(outboxEvent).where(eq(outboxEvent.id, 'project-file.storage.reconcile'))
     await rm(storageRoot, { recursive: true, force: true })
   } finally {
     const reportPath = process.env.PROJECT_PURGE_REPORT_PATH
