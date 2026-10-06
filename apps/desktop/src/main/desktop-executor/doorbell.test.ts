@@ -27,8 +27,14 @@ function controllableStream(signal: AbortSignal) {
 function harness(options: { staleAfterMs?: number; retryBaseMs?: number } = {}) {
   const connections: ReturnType<typeof controllableStream>[] = []
   const failures: DeviceRequestError[] = []
-  const onRing = vi.fn()
-  const onUnregistered = vi.fn()
+  /** How many times the doorbell rang, and asked to register again. */
+  const counts = { rings: 0, unregistered: 0 }
+  const onRing = () => {
+    counts.rings += 1
+  }
+  const onUnregistered = () => {
+    counts.unregistered += 1
+  }
   const doorbell = new InboxDoorbell({
     client: {
       openInboxStream: async (signal) => {
@@ -44,7 +50,7 @@ function harness(options: { staleAfterMs?: number; retryBaseMs?: number } = {}) 
     retryBaseMs: 5,
     ...options,
   })
-  return { doorbell, connections, failures, onRing, onUnregistered }
+  return { doorbell, connections, failures, counts }
 }
 
 describe('parseServerSentEvents', () => {
@@ -59,12 +65,12 @@ describe('parseServerSentEvents', () => {
 
 describe('InboxDoorbell', () => {
   it('rings on connect and on every inbox change', async () => {
-    const { doorbell, connections, onRing } = harness()
+    const { doorbell, connections, counts } = harness()
     doorbell.start()
-    await vi.waitFor(() => expect(onRing).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(counts.rings).toBe(1))
 
     connections[0]?.write('event: inbox_changed\ndata: {"reason":"call"}\n\n')
-    await vi.waitFor(() => expect(onRing).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(counts.rings).toBe(2))
     doorbell.stop()
   })
 
@@ -79,14 +85,14 @@ describe('InboxDoorbell', () => {
   })
 
   it('reconnects after the server drops the stream or refuses a connection', async () => {
-    const { doorbell, connections, failures, onRing } = harness()
+    const { doorbell, connections, failures, counts } = harness()
     failures.push(new DeviceRequestError(0, 'offline'), new DeviceRequestError(502, 'deploy'))
     doorbell.start()
     await vi.waitFor(() => expect(connections).toHaveLength(1))
 
     connections[0]?.end()
     await vi.waitFor(() => expect(connections).toHaveLength(2))
-    expect(onRing).toHaveBeenCalledTimes(2)
+    expect(counts.rings).toBe(2)
     doorbell.stop()
   })
 
@@ -100,8 +106,8 @@ describe('InboxDoorbell', () => {
           return new ReadableStream<Uint8Array>({ start: (controller) => controller.close() })
         },
       },
-      onRing: vi.fn(),
-      onUnregistered: vi.fn(),
+      onRing: () => {},
+      onUnregistered: () => {},
       retryBaseMs: 5,
     })
     try {
@@ -126,23 +132,23 @@ describe('InboxDoorbell', () => {
   })
 
   it('reports a device Sim no longer recognizes', async () => {
-    const { doorbell, failures, onUnregistered } = harness()
+    const { doorbell, failures, counts } = harness()
     failures.push(new DeviceRequestError(401, 'unregistered'))
     doorbell.start()
 
-    await vi.waitFor(() => expect(onUnregistered).toHaveBeenCalled())
+    await vi.waitFor(() => expect(counts.unregistered).toBeGreaterThan(0))
     doorbell.stop()
   })
 
   it('reconnects at once on wake, without waiting out a backoff', async () => {
-    const { doorbell, connections, onRing } = harness({ retryBaseMs: 60_000 })
+    const { doorbell, connections, counts } = harness({ retryBaseMs: 60_000 })
     doorbell.start()
     await vi.waitFor(() => expect(connections).toHaveLength(1))
 
     doorbell.wake()
 
     await vi.waitFor(() => expect(connections).toHaveLength(2))
-    await vi.waitFor(() => expect(onRing).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(counts.rings).toBe(2))
     doorbell.stop()
   })
 

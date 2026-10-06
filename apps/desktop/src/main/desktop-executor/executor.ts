@@ -14,7 +14,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { type DesktopExecutorClient, DeviceRequestError } from '@/main/desktop-executor/client'
+import {
+  type DesktopExecutorClient,
+  DeviceRequestError,
+  UnsendableRequestError,
+} from '@/main/desktop-executor/client'
 import type { ExecutorJournal, JournalEntry } from '@/main/desktop-executor/journal'
 import type { ClaimedDesktopCall, DesktopInboxItem } from '@/main/desktop-executor/protocol'
 
@@ -33,6 +37,8 @@ const STOPPED_BEFORE_START = 'Stopped before the Sim desktop app started this ac
 const STOPPED_WHILE_RUNNING = 'Stopped while the Sim desktop app was running this action.'
 const NOT_RECORDED =
   'Not run: this action never started, because the Sim desktop app could not record it on the user’s computer first. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user, who can ask again later.'
+const RESULT_UNSENDABLE =
+  'The action finished, but its result could not be encoded to send back. It may have taken effect: inspect the current state before repeating it, and do not retry it automatically.'
 const RESULT_TOO_LARGE =
   'The action finished, but its result was too large to send back. Do not repeat a side-effecting action; inspect the current state instead.'
 
@@ -225,6 +231,8 @@ export class DesktopExecutor {
       this.noteRequestFailure('Could not read the desktop inbox', error)
       return
     }
+    // Signed out while the read was in flight: its approvals and calls belong to the old account.
+    if (this.disposed) return
     for (const item of items) {
       if (item.kind === 'cancel') void this.stop(item.toolCallId, 'Stopped by the user.')
     }
@@ -362,7 +370,22 @@ export class DesktopExecutor {
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
         break
       } catch (error) {
-        if (!(error instanceof DeviceRequestError)) throw error
+        // Encoding failed on this machine, so nothing was sent; the same data would fail again.
+        if (error instanceof UnsendableRequestError && pending.data !== undefined) {
+          pending = {
+            status: 'error',
+            message: RESULT_UNSENDABLE,
+            data: { error: RESULT_UNSENDABLE, outcomeUnknown: true, doNotRetry: true },
+          }
+          continue
+        }
+        if (!(error instanceof DeviceRequestError)) {
+          logger.error('Could not send a desktop call result; dropping it', {
+            toolCallId,
+            error: getErrorMessage(error),
+          })
+          break
+        }
         if (error.unregistered) {
           // Retrying cannot help until the device registers again; the journal keeps the result.
           this.parked.set(toolCallId, { executionToken, completion: pending })

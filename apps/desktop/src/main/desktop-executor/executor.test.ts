@@ -1,8 +1,16 @@
 import type { DesktopToolCompletion } from '@sim/desktop-bridge/tool-results'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
-import { type DesktopExecutorClient, DeviceRequestError } from '@/main/desktop-executor/client'
-import { DesktopExecutor, type DesktopToolRunner } from '@/main/desktop-executor/executor'
+import {
+  type DesktopExecutorClient,
+  DeviceRequestError,
+  UnsendableRequestError,
+} from '@/main/desktop-executor/client'
+import {
+  type DesktopApprovalItem,
+  DesktopExecutor,
+  type DesktopToolRunner,
+} from '@/main/desktop-executor/executor'
 import type { ExecutorJournal, JournalEntry } from '@/main/desktop-executor/journal'
 import type {
   ClaimedDesktopCall,
@@ -148,6 +156,8 @@ class FakeRunner implements DesktopToolRunner {
 }
 
 function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
+  /** Approval items the executor handed to the notifier, one array per inbox read. */
+  const approvals: DesktopApprovalItem[][] = []
   const sim = new FakeSim()
   const journal = new MemoryJournal()
   const runner = new FakeRunner()
@@ -161,9 +171,10 @@ function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
     retryBaseMs: 5,
     onUnregistered,
     onBusyChange: (value) => busy.push(value),
+    onApprovals: (items) => approvals.push(items),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered, busy }
+  return { sim, journal, runner, executor, onUnregistered, busy, approvals }
 }
 
 describe('claiming', () => {
@@ -449,6 +460,34 @@ describe('delivery', () => {
     await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
   })
 
+  it('reports a result it cannot encode as outcome unknown, once, instead of retrying it', async () => {
+    const { sim, journal, executor } = setup()
+    const complete = sim.client.complete
+    let attempts = 0
+    sim.client.complete = async (request) => {
+      attempts += 1
+      if (request.completion.data && 'cyclic' in request.completion.data) {
+        throw new UnsendableRequestError('Converting circular structure to JSON')
+      }
+      return complete(request)
+    }
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: { status: 'success', message: 'done', data: { cyclic: true } },
+    })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    expect(attempts).toBe(2)
+    expect(sim.completions[0]?.completion).toMatchObject({
+      status: 'error',
+      data: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
   it('holds a result Sim refuses as unregistered until the device registers again', async () => {
     const { sim, journal, executor, onUnregistered } = setup()
     sim.completeErrors = [new DeviceRequestError(401, 'unregistered')]
@@ -607,6 +646,34 @@ describe('registration', () => {
     expect(runner.started).toEqual(['call-1'])
     expect(executor.heldCallCount()).toBe(0)
     expect(journal.entries.size).toBe(0)
+  })
+
+  it('raises no approval from an inbox read that Sim answers after sign-out', async () => {
+    const { sim, executor, approvals } = setup()
+    const answer = deferred<void>()
+    const listInbox = sim.client.listInbox
+    sim.client.listInbox = async () => {
+      await answer.promise
+      return listInbox()
+    }
+    sim.inbox = [
+      {
+        kind: 'approval_needed',
+        toolCallId: 'gated-1',
+        toolName: 'terminal',
+        chatId: 'chat-a',
+        chatTitle: 'Fix CI',
+        workspaceId: 'ws-1',
+        summary: 'npm publish',
+      },
+    ]
+    const reading = executor.reconcile()
+
+    const signingOut = executor.dispose()
+    answer.resolve()
+    await Promise.all([reading, signingOut])
+
+    expect(approvals).toEqual([])
   })
 
   it('does not keep a claim that Sim answers after sign-out', async () => {

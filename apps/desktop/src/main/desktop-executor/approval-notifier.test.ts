@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
 import type { DesktopApprovalItem } from '@/main/desktop-executor/executor'
 
@@ -15,13 +15,14 @@ function approval(toolCallId: string, chatId = 'chat-b'): DesktopApprovalItem {
 }
 
 function harness(options: { enabled?: boolean; focusedChatId?: string | null } = {}) {
+  /** Each OS notification the notifier made, and what the user would see of it now. */
   const notifications: Array<{
     options: { title: string; body: string; silent: boolean }
-    show: ReturnType<typeof vi.fn>
-    close: ReturnType<typeof vi.fn>
+    state: 'created' | 'shown' | 'closed'
     click: () => void
   }> = []
-  const openRoute = vi.fn()
+  /** Routes the app was asked to open. */
+  const opened: Array<string | undefined> = []
   let focusedChatId = options.focusedChatId ?? null
   const notifier = createApprovalNotifier({
     preferences: () => ({
@@ -29,21 +30,26 @@ function harness(options: { enabled?: boolean; focusedChatId?: string | null } =
       notificationSounds: true,
     }),
     focusedChatId: () => focusedChatId,
-    openRoute,
+    openRoute: (route) => {
+      opened.push(route)
+    },
     createNotification: (notificationOptions) => {
       let click = () => {}
       const notification = {
         options: notificationOptions,
-        show: vi.fn(),
-        close: vi.fn(),
+        state: 'created' as 'created' | 'shown' | 'closed',
         get click() {
           return click
         },
       }
       notifications.push(notification)
       return {
-        show: notification.show,
-        close: notification.close,
+        show: () => {
+          notification.state = 'shown'
+        },
+        close: () => {
+          notification.state = 'closed'
+        },
         on: (_event, listener) => {
           click = listener
         },
@@ -53,7 +59,7 @@ function harness(options: { enabled?: boolean; focusedChatId?: string | null } =
   return {
     notifier,
     notifications,
-    openRoute,
+    opened,
     focus: (chatId: string | null) => {
       focusedChatId = chatId
     },
@@ -62,17 +68,17 @@ function harness(options: { enabled?: boolean; focusedChatId?: string | null } =
 
 describe('approval notifications', () => {
   it('notifies once per waiting call and opens its chat, naming neither chat nor command', () => {
-    const { notifier, notifications, openRoute } = harness()
+    const { notifier, notifications, opened } = harness()
 
     notifier.update([approval('call-1')])
     notifier.update([approval('call-1')])
 
     expect(notifications).toHaveLength(1)
-    expect(notifications[0]?.show).toHaveBeenCalledOnce()
+    expect(notifications[0]?.state).toBe('shown')
     expect(notifications[0]?.options.body).not.toContain('rm -rf')
     expect(notifications[0]?.options.body).not.toContain('Fix CI')
     notifications[0]?.click()
-    expect(openRoute).toHaveBeenCalledWith('/workspace/ws-1/chat/chat-b')
+    expect(opened).toEqual(['/workspace/ws-1/chat/chat-b'])
   })
 
   it('closes the notification once the call is decided', () => {
@@ -81,7 +87,7 @@ describe('approval notifications', () => {
 
     notifier.update([])
 
-    expect(notifications[0]?.close).toHaveBeenCalledOnce()
+    expect(notifications[0]?.state).toBe('closed')
   })
 
   it('stays quiet for the chat the user is looking at, even after they leave it', () => {

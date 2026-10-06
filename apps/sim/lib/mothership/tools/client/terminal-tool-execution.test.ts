@@ -71,4 +71,22 @@ describe('terminal client execution', () => {
       expect.objectContaining({ notStarted: true })
     )
   })
+
+  it('tells the model the code of a generic terminal failure', async () => {
+    const reported: Array<{ status: string; data: unknown }> = []
+    reportClientToolCompletion.mockImplementation(
+      async (_id: string, status: string, _message: string, data: unknown) => {
+        reported.push({ status, data })
+      }
+    )
+    executeTerminalTool.mockRejectedValue(new Error('The terminal went away'))
+
+    executeTerminalToolOnClient('terminal-generic', { operation: 'read', args: {} }, 'chat-1')
+
+    await vi.waitFor(() => expect(reported).toHaveLength(1))
+    expect(reported[0]).toEqual({
+      status: 'error',
+      data: { error: 'The terminal went away', code: 'Error' },
+    })
+  })
 })

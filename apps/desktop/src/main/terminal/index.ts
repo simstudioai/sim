@@ -43,8 +43,9 @@ import {
   activePane,
   awaitRun,
   capturePane,
-  closeRunWindow,
+  closeRunPane,
   isRunComplete,
+  isRunPaneOurs,
   isTmuxUnavailable,
   killPane,
   listPanes,
@@ -53,6 +54,7 @@ import {
   sendKey,
   sendText,
   startRun,
+  stopRun,
   TMUX_KEY_NAMES,
   type TmuxAttachment,
   type TmuxRunHandle,
@@ -471,23 +473,23 @@ export class TerminalService {
   }
 
   /**
-   * Removes the temp directories of tracked runs that have since finished.
+   * Removes the temp directories of tracked runs that have since finished, or whose pane is gone
+   * (the user closed it, or tmux restarted): nothing will ever write their status, and their ids
+   * may already belong to the user's own panes.
    *
    * Called when a new run starts on the same terminal, which is the one moment
    * the service is already doing run bookkeeping — a dedicated reaper timer
    * would be a subsystem to own for something this cheap. A run still going is
    * left alone: its `tee` is still appending to that directory.
    */
-  private reapFinishedRuns(terminalId: string): void {
-    const pending = this.pendingRuns.get(terminalId)
-    if (!pending) return
-    const stillRunning: TmuxRunHandle[] = []
-    for (const handle of pending) {
-      if (isRunComplete(handle) && !this.awaitedRuns.has(handle)) handle.dispose()
-      else stillRunning.push(handle)
+  private async reapFinishedRuns(terminalId: string, env: NodeJS.ProcessEnv): Promise<void> {
+    for (const handle of this.pendingRuns.get(terminalId) ?? []) {
+      if (this.awaitedRuns.has(handle)) continue
+      if (isRunComplete(handle) || !(await isRunPaneOurs(handle, env))) {
+        this.untrackRun(terminalId, handle)
+        handle.dispose()
+      }
     }
-    if (stillRunning.length === 0) this.pendingRuns.delete(terminalId)
-    else this.pendingRuns.set(terminalId, stillRunning)
   }
 
   /** Removes a run's files now, or once the call still reading them is done with them. */
@@ -874,14 +876,6 @@ export class TerminalService {
     return true
   }
 
-  /** Ctrl-C in the run's own window, then closing the window hangs up anything that ignored it. */
-  private async interruptTmuxRun(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
-    await sendKey(handle.window, 'C-c', env)
-    const deadline = Date.now() + STOP_ESCALATION_MS
-    while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
-    if (!isRunComplete(handle)) await closeRunWindow(handle, env)
-  }
-
   /**
    * Stops every command the agent started that is still running, for sign-out: a plain shell's
    * agent command by its own process group, as Stop does, and every tmux run window still going.
@@ -893,7 +887,7 @@ export class TerminalService {
       const toolCallId = session.agentCommandToolCallId
       if (toolCallId) stops.push(this.stopCommand(session, toolCallId))
       for (const handle of this.pendingRuns.get(session.terminalId) ?? []) {
-        if (!isRunComplete(handle)) stops.push(this.interruptTmuxRun(handle, session.env))
+        if (!isRunComplete(handle)) stops.push(stopRun(handle, session.env, STOP_ESCALATION_MS))
       }
     }
     await Promise.allSettled(stops)
@@ -1264,7 +1258,7 @@ export class TerminalService {
     if (latch.signal.aborted) throw stoppedBeforeStart()
 
     const started = Date.now()
-    this.reapFinishedRuns(terminal.terminalId)
+    await this.reapFinishedRuns(terminal.terminalId, terminal.env)
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
     // Tracked from the moment its window exists, so sign-out can stop it even mid-wait.
@@ -1282,7 +1276,7 @@ export class TerminalService {
       endWait = resolve
     })
     latch.stopRunning = async () => {
-      await this.interruptTmuxRun(handle, terminal.env)
+      await stopRun(handle, terminal.env, STOP_ESCALATION_MS)
       endWait()
     }
     // A Stop that landed while the run window opened applies now.
@@ -1295,7 +1289,7 @@ export class TerminalService {
       if (this.releasedAwaitedRuns.delete(handle)) handle.dispose()
     })
     if (outcome.done) {
-      await closeRunWindow(handle, terminal.env)
+      await closeRunPane(handle, terminal.env)
       this.untrackRun(terminal.terminalId, handle)
       handle.dispose()
     }
@@ -1311,7 +1305,7 @@ export class TerminalService {
       durationMs: Date.now() - started,
       cwd: terminal.currentCwd,
       terminalId: terminal.terminalId,
-      pane: handle.window,
+      pane: handle.pane,
       truncated,
     }
   }

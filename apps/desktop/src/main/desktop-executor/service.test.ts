@@ -1,8 +1,7 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
-import type { Session } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -12,12 +11,17 @@ import { createDesktopExecutorService, deviceName } from '@/main/desktop-executo
 /** Sim's device routes, with registration answers held until the test releases them. */
 function fakeSim(protocolVersion = 1) {
   const requests: string[] = []
-  const registrations: Array<(enabled: boolean) => void> = []
+  /** Answers to pending registrations: enabled or not, or an HTTP status Sim fails with. */
+  const registrations: Array<(answer: boolean | number) => void> = []
   const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
     const path = new URL(url).pathname
     requests.push(`${init.method} ${path}`)
     if (path === '/api/desktop/devices') {
-      const enabled = await new Promise<boolean>((resolve) => registrations.push(resolve))
+      const answer = await new Promise<boolean | number>((resolve) => registrations.push(resolve))
+      if (typeof answer === 'number') {
+        return Response.json({ error: 'Not found' }, { status: answer })
+      }
+      const enabled = answer
       return Response.json({
         enabled,
         protocolVersion,
@@ -34,12 +38,12 @@ function fakeSim(protocolVersion = 1) {
   return { fetch, requests, registrations }
 }
 
-async function service(protocolVersion = 1) {
+async function service(protocolVersion = 1, userDataPath?: string) {
   const sim = fakeSim(protocolVersion)
   const desktopExecutor = createDesktopExecutorService({
-    userDataPath: await mkdtemp(join(tmpdir(), 'sim-executor-service-')),
+    userDataPath: userDataPath ?? (await mkdtemp(join(tmpdir(), 'sim-executor-service-'))),
     origin: () => 'https://sim.test',
-    appSession: () => ({ fetch: sim.fetch }) as unknown as Session,
+    appSession: () => ({ fetch: sim.fetch }),
     preferences: () => ({ browserEnabled: true, terminalEnabled: true }),
     accountDataAvailable: () => true,
     runner: { run: vi.fn(), cancel: vi.fn() },
@@ -79,9 +83,46 @@ describe('desktop executor registration', () => {
     await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
 
     sim.registrations[0]?.(true)
-    await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
+    await sleep(100)
 
     expect(desktopExecutor.getDevice()).toBeNull()
+    expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
+  })
+
+  it('stays dormant while Sim has the executor off: no inbox and no doorbell', async () => {
+    const { sim, desktopExecutor } = await service()
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+    sim.registrations[0]?.(false)
+    await sleep(100)
+
+    expect(desktopExecutor.getDevice()).toBeNull()
+    expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
+  })
+
+  it('stays dormant against a Sim without the executor routes, without retrying', async () => {
+    const { sim, desktopExecutor } = await service()
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+    sim.registrations[0]?.(404)
+    await sleep(2_500)
+
+    expect(sim.registrations).toHaveLength(1)
+    expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
+  })
+
+  it('keeps its install id through a read failure instead of minting a new one', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+    // A path that exists but cannot be read as a file: not "no id yet".
+    await mkdir(join(userData, 'desktop-executor-device.json'))
+    const { sim, desktopExecutor } = await service(1, userData)
+
+    desktopExecutor.start()
+    await sleep(200)
+
+    expect(sim.requests.filter((request) => request.includes('/api/desktop/devices'))).toEqual([])
   })
 })
 

@@ -44,6 +44,25 @@ export class DeviceRequestError extends Error {
   }
 }
 
+/**
+ * A request this device could not even encode (a result holding a cycle or a BigInt). Nothing was
+ * sent, and sending it again cannot help.
+ */
+export class UnsendableRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnsendableRequestError'
+  }
+}
+
+function encode(body: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(body)
+  } catch (error) {
+    throw new UnsendableRequestError(getErrorMessage(error))
+  }
+}
+
 type DeviceFetch = (url: string, init: RequestInit) => Promise<Response>
 
 export interface DesktopExecutorClient {
@@ -83,6 +102,7 @@ export function createDesktopExecutorClient(
     body?: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<Response> {
+    const encoded = body ? encode(body) : undefined
     const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     let response: Response
     try {
@@ -93,7 +113,7 @@ export function createDesktopExecutorClient(
           Accept: 'application/json',
           ...(body ? { 'Content-Type': 'application/json' } : {}),
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(encoded !== undefined ? { body: encoded } : {}),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       })
     } catch (error) {

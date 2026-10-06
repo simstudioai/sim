@@ -198,10 +198,8 @@ async function doExecuteTerminalTool(
   } catch (err) {
     const error = toError(err)
     logger.warn('Terminal operation failed', { toolCallId, operation, error: error.message })
-    const completion = terminalToolFailure(
-      error.message,
-      error.name !== 'Error' ? error.name : undefined
-    )
+    // The error's name goes to the model as its code, `Error` included, as it always has.
+    const completion = terminalToolFailure(error.message, error.name || undefined)
     await reportClientToolCompletion(
       toolCallId,
       completion.status,

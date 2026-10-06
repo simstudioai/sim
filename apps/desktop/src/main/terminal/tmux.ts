@@ -23,6 +23,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { TerminalPaneState } from '@sim/terminal-protocol'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 
 const logger = createLogger('DesktopTmux')
 
@@ -300,10 +301,20 @@ export const TMUX_KEY_NAMES: Record<string, string> = {
  */
 export interface TmuxRunHandle {
   window: string
+  /** The run's own pane: input and stops go here, never to whatever pane is active. */
+  pane: string
+  /**
+   * Tagged on the pane as the `@sim-run-id` user option. Window and pane ids restart from zero
+   * with the tmux server, so only the tag proves a pane is still this run's.
+   */
+  runId: string
   outPath: string
   statusPath: string
   dispose(): void
 }
+
+/** The tmux user option that marks a pane as one run's own. */
+const RUN_ID_OPTION = '@sim-run-id'
 
 /**
  * Starts a command in a dedicated tmux window.
@@ -346,7 +357,17 @@ export async function startRun(
   const script = `${command}\nprintf %s "\${PIPESTATUS[0]}" > ${JSON.stringify(statusPath)} 2>/dev/null`
   const wrapper = `bash -lc ${JSON.stringify(`{ ${script}; } 2>&1 | tee ${JSON.stringify(outPath)}`)}`
 
-  const args = ['new-window', '-d', '-P', '-F', '#{window_id}', '-t', session, '-n', 'sim-run']
+  const args = [
+    'new-window',
+    '-d',
+    '-P',
+    '-F',
+    '#{window_id} #{pane_id}',
+    '-t',
+    session,
+    '-n',
+    'sim-run',
+  ]
   if (cwd) args.push('-c', cwd)
   args.push(wrapper)
 
@@ -355,8 +376,51 @@ export async function startRun(
     dispose()
     return { error: created.stderr.trim() || 'tmux could not open a window for the command.' }
   }
+  const [window = '', pane = ''] = created.stdout.trim().split(' ')
+  const runId = generateId()
+  // An untagged pane is never treated as the run's: without the tag a stop could not tell it from
+  // a pane the user opened later under the same id, so it sends nothing at all.
+  const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, runId], env)
+  if (!tagged.ok) {
+    logger.warn('Could not tag the tmux run pane; it will not be stopped from Sim', {
+      error: tagged.stderr.trim(),
+    })
+  }
 
-  return { window: created.stdout.trim(), outPath, statusPath, dispose }
+  return { window, pane, runId, outPath, statusPath, dispose }
+}
+
+/**
+ * Whether the run's pane is still there and still the run's. A pane the user closed, or an id
+ * a restarted tmux server handed to one of the user's own panes, is not.
+ */
+export async function isRunPaneOurs(
+  handle: TmuxRunHandle,
+  env: NodeJS.ProcessEnv
+): Promise<boolean> {
+  if (!handle.pane) return false
+  const shown = await runTmux(
+    ['display-message', '-p', '-t', handle.pane, `#{${RUN_ID_OPTION}}`],
+    env
+  )
+  return shown.ok && shown.stdout.trim() === handle.runId
+}
+
+/**
+ * Stops a run: Ctrl-C in its own pane, then closing that pane if the command ignored it. Every
+ * step first checks the pane is still the run's, and only that pane is ever closed, so a pane the
+ * user split off beside it, or a window that reused its ids, is never touched.
+ */
+export async function stopRun(
+  handle: TmuxRunHandle,
+  env: NodeJS.ProcessEnv,
+  graceMs: number
+): Promise<void> {
+  if (!(await isRunPaneOurs(handle, env))) return
+  await sendKey(handle.pane, 'C-c', env)
+  const deadline = Date.now() + graceMs
+  while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
+  if (!isRunComplete(handle)) await closeRunPane(handle, env)
 }
 
 function readIfPresent(path: string): string | null {
@@ -419,11 +483,14 @@ export async function killPane(target: string, env: NodeJS.ProcessEnv): Promise<
   return runTmux(['kill-pane', '-t', target], env)
 }
 
-/** Closes a window opened by {@link startRun}. */
-export async function closeRunWindow(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
-  if (!handle.window) return
-  const killed = await runTmux(['kill-window', '-t', handle.window], env)
+/**
+ * Closes the pane opened by {@link startRun}, and with it the window once that pane is the last
+ * one in it. Only the run's own pane, and only while it is still the run's.
+ */
+export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
+  if (!(await isRunPaneOurs(handle, env))) return
+  const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
   if (!killed.ok) {
-    logger.warn('Could not close the tmux run window', { error: killed.stderr.trim() })
+    logger.warn('Could not close the tmux run pane', { error: killed.stderr.trim() })
   }
 }

@@ -48,7 +48,7 @@ const RECONCILE_JITTER = 0.2
 export interface DesktopExecutorServiceDeps {
   userDataPath: string
   origin: () => string
-  appSession: () => Session
+  appSession: () => Pick<Session, 'fetch'>
   preferences: () => { browserEnabled: boolean; terminalEnabled: boolean }
   accountDataAvailable: () => boolean
   runner: DesktopToolRunner
@@ -66,12 +66,20 @@ export interface DesktopExecutorService {
 
 /** The install id, kept in userData; a new one is minted after sign-out or a conflict. */
 async function readInstallId(filePath: string): Promise<string | null> {
+  let raw: string
   try {
-    const parsed = JSON.parse(
-      (await readFileWithinLimit(filePath, 4096)).toString('utf8')
-    ) as unknown
+    raw = (await readFileWithinLimit(filePath, 4096)).toString('utf8')
+  } catch (error) {
+    // Only a missing file means no id yet. Any other failure could be passing, and minting a new
+    // id over it would orphan the calls bound to this one, so it is left to the next attempt.
+    if (isRecordLike(error) && error.code === 'ENOENT') return null
+    throw error
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
     return isRecordLike(parsed) && typeof parsed.deviceId === 'string' ? parsed.deviceId : null
   } catch {
+    // Unreadable contents can never yield the id; a fresh one replaces them.
     return null
   }
 }
@@ -208,7 +216,20 @@ export function createDesktopExecutorService(
   async function register(): Promise<void> {
     if (!deps.accountDataAvailable()) return
     const registrationGeneration = generation
-    const id = await installId()
+    let id: string
+    try {
+      id = await installId()
+    } catch (error) {
+      registrationAttempt += 1
+      logger.warn('Could not read the desktop install id', { error: getErrorMessage(error) })
+      scheduleRegistration(
+        backoffWithJitter(registrationAttempt, null, {
+          baseMs: 2_000,
+          maxMs: REGISTRATION_RETRY_MAX_MS,
+        })
+      )
+      return
+    }
     const preferences = deps.preferences()
     const registrationClient = createDesktopExecutorClient({
       origin: deps.origin,
@@ -236,8 +257,15 @@ export function createDesktopExecutorService(
           ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
           : null
       logger.info('Desktop executor registered', { enabled: nextTiming.enabled })
-      // Off for this user: a turn already bound to this device still finishes here, so the
-      // executor keeps serving the inbox; no new turn binds while `device` is null.
+      // Off for this user, and nothing here to finish: stay dormant. No inbox, no doorbell; only
+      // a slow recheck, so switching the executor on in Sim reaches this device without a relaunch.
+      if (!device && !executor && (await journal.load()).length === 0) {
+        if (registrationGeneration !== generation) return
+        scheduleRegistration(DORMANT_RECHECK_MS)
+        return
+      }
+      // Off for this user mid-session, or results from a previous run to deliver: a turn already
+      // bound here still finishes, so the executor serves the inbox; no new turn binds.
       await startExecutor(id, nextTiming, registrationGeneration)
     } catch (error) {
       if (registrationGeneration !== generation) return
@@ -253,6 +281,13 @@ export function createDesktopExecutorService(
       if (error instanceof DeviceRequestError && error.unregistered) {
         // Signed out: the next sign-in's session change registers again.
         stopLoops()
+        return
+      }
+      if (error instanceof DeviceRequestError && (error.status === 404 || error.status === 405)) {
+        // A Sim without the executor routes (older, or self-hosted): nothing to retry against. The
+        // next launch, session change or settings toggle asks again.
+        stopLoops()
+        logger.info('Sim does not offer the desktop background executor; staying dormant')
         return
       }
       registrationAttempt += 1

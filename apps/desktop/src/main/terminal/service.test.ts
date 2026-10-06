@@ -1,24 +1,28 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
 /**
- * A tmux attachment the service sees only when a test turns it on: run windows get real status
- * files, and Ctrl-C in a run's window ends its command the way tmux would.
+ * A tmux attachment the service sees only when a test turns it on. Runs get real status files;
+ * stopping a run ends its command the way Ctrl-C in its pane would. Which panes tmux still holds
+ * as the run's, and the identity checks behind that, are covered against a fake tmux binary in
+ * `tmux.test.ts`; here the service's bookkeeping is what is under test.
  */
 const tmuxFake = vi.hoisted(() => ({
   on: false,
-  keys: [] as Array<{ target: string; key: string }>,
-  closed: [] as string[],
+  /** Panes a run was stopped in, in order. */
+  stopped: [] as string[],
+  /** Panes no longer the run's (closed by the user, or reused after a tmux restart). */
+  gone: new Set<string>(),
   statusPaths: new Map<string, string>(),
 }))
 
 vi.mock('@/main/terminal/tmux', async () => {
   const actual =
     await vi.importActual<typeof import('@/main/terminal/tmux')>('@/main/terminal/tmux')
-  let nextWindow = 1
+  let nextPane = 1
   return {
     ...actual,
     isTmuxUnavailable: () => (tmuxFake.on ? false : actual.isTmuxUnavailable()),
@@ -29,28 +33,32 @@ vi.mock('@/main/terminal/tmux', async () => {
     startRun: async (...args: Parameters<typeof actual.startRun>) => {
       if (!tmuxFake.on) return actual.startRun(...args)
       const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
-      const window = `@${nextWindow++}`
+      const pane = `%${nextPane++}`
       const statusPath = join(dir, 'status')
       writeFileSync(join(dir, 'out'), 'partial output')
-      tmuxFake.statusPaths.set(window, statusPath)
+      tmuxFake.statusPaths.set(pane, statusPath)
       return {
-        window,
+        window: `@${pane.slice(1)}`,
+        pane,
+        runId: `run-${pane}`,
         outPath: join(dir, 'out'),
         statusPath,
         dispose: () => rmSync(dir, { recursive: true, force: true }),
       }
     },
-    sendKey: async (target: string, key: string, env: NodeJS.ProcessEnv) => {
-      if (!tmuxFake.on) return actual.sendKey(target, key, env)
-      tmuxFake.keys.push({ target, key })
-      const statusPath = tmuxFake.statusPaths.get(target)
-      if (key === 'C-c' && statusPath) writeFileSync(statusPath, '130')
-      return { ok: true, stdout: '', stderr: '' }
+    isRunPaneOurs: async (...args: Parameters<typeof actual.isRunPaneOurs>) => {
+      if (!tmuxFake.on) return actual.isRunPaneOurs(...args)
+      return !tmuxFake.gone.has(args[0].pane)
     },
-    closeRunWindow: async (...args: Parameters<typeof actual.closeRunWindow>) => {
+    stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
+      if (!tmuxFake.on) return actual.stopRun(...args)
       const [handle] = args
-      if (!tmuxFake.on) return actual.closeRunWindow(...args)
-      tmuxFake.closed.push(handle.window)
+      if (tmuxFake.gone.has(handle.pane)) return
+      tmuxFake.stopped.push(handle.pane)
+      writeFileSync(handle.statusPath, '130')
+    },
+    closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
+      if (!tmuxFake.on) return actual.closeRunPane(...args)
     },
   }
 })
@@ -569,7 +577,7 @@ describe('agent commands in tmux', () => {
 
       await terminal.stopAgentCommands()
 
-      expect(tmuxFake.keys).toEqual([{ target: '@1', key: 'C-c' }])
+      expect(tmuxFake.stopped).toEqual(['%1'])
       await expect(running).resolves.toMatchObject({
         ok: true,
         result: { status: 'completed', exitCode: 130 },
@@ -599,6 +607,35 @@ describe('agent commands in tmux', () => {
       })
     } finally {
       tmuxFake.on = false
+    }
+  })
+
+  it('releases a run whose pane is gone instead of ever stopping it', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-first', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      const [pane, statusPath] = [...tmuxFake.statusPaths][0] ?? []
+      tmuxFake.gone.add(pane ?? '')
+
+      await terminal.stopAgentCommands()
+      expect(tmuxFake.stopped).toEqual([])
+
+      // The next run's bookkeeping drops it for good.
+      void terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+      await vi.waitFor(() => expect(existsSync(statusPath ?? '')).toBe(false))
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(2))
+      expect(existsSync(join(statusPath ?? '', '..'))).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.gone.clear()
     }
   })
 })
