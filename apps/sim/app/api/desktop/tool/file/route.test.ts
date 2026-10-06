@@ -98,15 +98,4 @@ describe('/api/desktop/tool/file', () => {
     expect(res.status).toBe(400)
     expect(mockSave).not.toHaveBeenCalled()
   })
-
-  it('refuses a download that does not declare its length', async () => {
-    const request = new NextRequest(`${URL_BASE}?toolCallId=call-3&name=a.csv`, {
-      method: 'PUT',
-      body: new ReadableStream({ start: (controller) => controller.close() }),
-      duplex: 'half',
-    })
-
-    expect((await PUT(request)).status).toBe(411)
-    expect(mockSave).not.toHaveBeenCalled()
-  })
 })

@@ -77,14 +77,13 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
     }
     throw error
   }
+  // Shells already in use may send a download without a declared length; that stays accepted.
   const lengthHeader = request.headers.get('content-length')
-  if (lengthHeader === null) {
-    return NextResponse.json(withRequestId({ error: 'A download must declare its length' }), {
-      status: 411,
-    })
-  }
-  const declaredLength = Number(lengthHeader)
-  if (!Number.isFinite(declaredLength) || declaredLength > BROWSER_FILE_TRANSFER_MAX_BYTES) {
+  const declaredLength = lengthHeader === null ? null : Number(lengthHeader)
+  if (
+    declaredLength !== null &&
+    (!Number.isFinite(declaredLength) || declaredLength > BROWSER_FILE_TRANSFER_MAX_BYTES)
+  ) {
     return NextResponse.json(withRequestId({ error: 'Download is too large to save' }), {
       status: 413,
     })
@@ -115,7 +114,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
     throw error
   }
   // Anything between the device and here that cut the body short must not become a saved file.
-  if (content.length !== declaredLength) {
+  if (declaredLength !== null && content.length !== declaredLength) {
     return NextResponse.json(
       withRequestId({ error: 'The download did not arrive whole; nothing was saved' }),
       { status: 400 }

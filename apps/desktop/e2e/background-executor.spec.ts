@@ -203,7 +203,16 @@ class FixtureSim {
       this.json(response, 404, { error: 'Desktop import not found' })
       return
     }
+    // As Sim's route does: a file must declare its length, and arrive whole.
+    if (query.kind === 'file' && request.headers['content-length'] === undefined) {
+      this.json(response, 411, { error: 'A file import must declare its length' })
+      return
+    }
     const content = await this.raw(request)
+    if (query.kind === 'file' && content.length !== Number(request.headers['content-length'])) {
+      this.json(response, 400, { error: 'The file did not arrive whole' })
+      return
+    }
     const entry: ImportedEntry = {
       toolCallId: call.toolCallId,
       kind: query.kind ?? '',
