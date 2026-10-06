@@ -56,7 +56,8 @@ const SHARE_QUERY_ADAPTERS: FileOwnerAdapters<FileShareQueryAdapter> = {
     store: (client, id, fileId, share) => {
       client.setQueryData(shareKeys.workspace(id, fileId), share)
     },
-    invalidate: (client, id) => {
+    invalidate: (client, id, fileId) => {
+      void client.invalidateQueries({ queryKey: shareKeys.workspace(id, fileId) })
       void client.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(id) })
     },
   },

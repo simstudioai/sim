@@ -966,8 +966,8 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         while (Date.now() < deadline) {
           const [blocked] = await tx.execute<{
             event: string
-          }>(sql`SELECT wait_event AS event FROM pg_stat_activity
-            WHERE ${backend.pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`)
+          }>(sql`SELECT locktype AS event FROM pg_locks
+            WHERE NOT granted AND ${backend.pid} = ANY(pg_blocking_pids(pid))`)
           if (blocked) {
             event = blocked.event
             break

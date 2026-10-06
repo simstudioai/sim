@@ -46,6 +46,7 @@ import {
   EmbeddedProjectFile,
   ProjectFileActions,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/project-file'
+import { EmbeddedProjectFileFolder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/project-file-folder'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -304,6 +305,15 @@ export const ResourceContent = memo(function ResourceContent({
     )
   }
 
+  if (resource.type === 'filefolder' && resource.owner?.entityType === 'project') {
+    return (
+      <EmbeddedProjectFileFolder
+        key={`${resource.owner.entityId}/${resource.id}`}
+        owner={{ entityType: 'project', entityId: resource.owner.entityId }}
+        folderId={resource.id}
+      />
+    )
+  }
   if (resource.type === 'file' && resource.owner?.entityType === 'project') {
     return (
       <EmbeddedProjectFile

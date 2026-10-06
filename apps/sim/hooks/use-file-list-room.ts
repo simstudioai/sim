@@ -33,6 +33,9 @@ const FILE_LIST_ROOMS = {
     dedupeKey: WORKSPACE_FILE_BROWSER_INVALIDATION_KEY,
     invalidate(queryClient, workspaceId) {
       invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
+      void queryClient.invalidateQueries({
+        queryKey: fileCopyKeys.destination({ entityType: 'workspace', entityId: workspaceId }),
+      })
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.workspace(workspaceId) })
     },
   },

@@ -363,7 +363,10 @@ function ScopedResourceContent({
 }) {
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
-  if (props.resource.type === 'file' && props.resource.owner?.entityType === 'project')
+  if (
+    (props.resource.type === 'file' || props.resource.type === 'filefolder') &&
+    props.resource.owner?.entityType === 'project'
+  )
     return <ResourceContent {...props} />
   if (!workspaceId) {
     if (props.resource.type === 'generic') return <GenericResourceContent />
