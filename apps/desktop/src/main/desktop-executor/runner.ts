@@ -36,6 +36,7 @@ import {
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { DesktopToolRunner } from '@/main/desktop-executor/executor'
 import type { ClaimedDesktopCall } from '@/main/desktop-executor/protocol'
@@ -101,14 +102,15 @@ async function withDeadline<T>(
   onTimeout: () => T
 ): Promise<T> {
   if (timeoutMs === null) return work
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<T>((resolve) => {
-    timer = setTimeout(() => resolve(onTimeout()), timeoutMs)
-  })
+  // Aborted once the race settles, which cancels the sleep; a cancelled sleep never times out.
+  const settled = new AbortController()
+  const timeout = interruptibleSleep(timeoutMs, settled.signal).then(() =>
+    settled.signal.aborted ? new Promise<T>(() => {}) : onTimeout()
+  )
   try {
     return await Promise.race([work, timeout])
   } finally {
-    clearTimeout(timer)
+    settled.abort()
   }
 }
 

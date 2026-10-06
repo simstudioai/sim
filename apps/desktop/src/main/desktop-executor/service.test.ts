@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { createDesktopExecutorService } from '@/main/desktop-executor/service'
+import { createDesktopExecutorService, deviceName } from '@/main/desktop-executor/service'
 
 /** Sim's device routes, with registration answers held until the test releases them. */
 function fakeSim(protocolVersion = 1) {
@@ -82,5 +82,12 @@ describe('desktop executor registration', () => {
     await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
 
     expect(desktopExecutor.getDevice()).toBeNull()
+  })
+})
+
+describe('device name', () => {
+  it('fits a long hostname within what Sim accepts at registration', () => {
+    expect(deviceName(`${'studio-'.repeat(40)}.local`).length).toBeLessThanOrEqual(128)
+    expect(deviceName('Studio-Mac.local')).toBe('Studio-Mac')
   })
 })

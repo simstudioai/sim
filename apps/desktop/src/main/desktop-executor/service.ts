@@ -13,6 +13,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
 import type { Session } from 'electron'
 import { app, net, powerMonitor } from 'electron'
 import { readFileWithinLimit, writeJsonFileAtomically } from '@/main/atomic-json-file'
@@ -75,12 +76,13 @@ async function readInstallId(filePath: string): Promise<string | null> {
   }
 }
 
-function deviceName(): string {
-  return (
-    hostname()
-      .replace(/\.local$/, '')
-      .trim() || 'Sim desktop'
-  )
+/** Sim refuses a longer device name at registration. */
+const DEVICE_NAME_MAX_CHARS = 128
+
+/** The machine's name as the user knows it, within what Sim accepts. */
+export function deviceName(host = hostname()): string {
+  const name = host.replace(/\.local$/, '').trim() || 'Sim desktop'
+  return truncate(name, DEVICE_NAME_MAX_CHARS - 3)
 }
 
 export function createDesktopExecutorService(

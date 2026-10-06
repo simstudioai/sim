@@ -537,7 +537,8 @@ function main(): void {
       desktopExecutor.refreshRegistration()
     },
     setTerminalEnabled: (enabled) => {
-      if (!enabled) terminal.dispose()
+      // Agent commands are stopped by their process groups first; a tmux run outlives its shell.
+      if (!enabled) void terminal.stopAgentCommands().then(() => terminal.dispose())
       desktopExecutor.refreshRegistration()
     },
     setBrowserTheme: setAgentBrowserTheme,

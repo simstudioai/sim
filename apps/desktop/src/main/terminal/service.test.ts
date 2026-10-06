@@ -1,5 +1,54 @@
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
+
+/**
+ * A tmux attachment the service sees only when a test turns it on: run windows get real status
+ * files, and Ctrl-C in a run's window ends its command the way tmux would.
+ */
+const tmuxFake = vi.hoisted(() => ({
+  on: false,
+  keys: [] as Array<{ target: string; key: string }>,
+  closed: [] as string[],
+  statusPaths: new Map<string, string>(),
+}))
+
+vi.mock('@/main/terminal/tmux', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/main/terminal/tmux')>('@/main/terminal/tmux')
+  let nextWindow = 1
+  return {
+    ...actual,
+    isTmuxUnavailable: () => (tmuxFake.on ? false : actual.isTmuxUnavailable()),
+    resolveAttachment: async (pid: number, env: NodeJS.ProcessEnv) =>
+      tmuxFake.on
+        ? { session: 'agent', clientTty: '/dev/ttys001' }
+        : actual.resolveAttachment(pid, env),
+    startRun: async (...args: Parameters<typeof actual.startRun>) => {
+      if (!tmuxFake.on) return actual.startRun(...args)
+      const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
+      const window = `@${nextWindow++}`
+      const statusPath = join(dir, 'status')
+      writeFileSync(join(dir, 'out'), '')
+      tmuxFake.statusPaths.set(window, statusPath)
+      return { window, outPath: join(dir, 'out'), statusPath, dispose: () => {} }
+    },
+    sendKey: async (target: string, key: string, env: NodeJS.ProcessEnv) => {
+      if (!tmuxFake.on) return actual.sendKey(target, key, env)
+      tmuxFake.keys.push({ target, key })
+      const statusPath = tmuxFake.statusPaths.get(target)
+      if (key === 'C-c' && statusPath) writeFileSync(statusPath, '130')
+      return { ok: true, stdout: '', stderr: '' }
+    },
+    closeRunWindow: async (...args: Parameters<typeof actual.closeRunWindow>) => {
+      const [handle] = args
+      if (!tmuxFake.on) return actual.closeRunWindow(...args)
+      tmuxFake.closed.push(handle.window)
+    },
+  }
+})
 
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
@@ -498,5 +547,30 @@ describe('stopping a tool call', () => {
     expect(processGroups.signal).not.toHaveBeenCalled()
     session.finishRun(0)
     await running
+  })
+})
+
+describe('agent commands in tmux', () => {
+  it('stops a tmux run at sign-out while its call still waits on it', async () => {
+    tmuxFake.on = true
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 60,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.keys).toEqual([{ target: '@1', key: 'C-c' }])
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'completed', exitCode: 130 },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
   })
 })

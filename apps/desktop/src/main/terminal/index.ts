@@ -246,6 +246,8 @@ export class TerminalService {
    * Held here so the terminal's own lifecycle can reclaim them.
    */
   private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
+  /** Runs a `run` call is still waiting on; their files are read when the wait ends. */
+  private readonly awaitedRuns = new Set<TmuxRunHandle>()
   /** How to stop each tool call still in flight, so Stop interrupts exactly what it started. */
   private readonly toolStops = new Map<string, () => Promise<void>>()
 
@@ -479,11 +481,17 @@ export class TerminalService {
     if (!pending) return
     const stillRunning: TmuxRunHandle[] = []
     for (const handle of pending) {
-      if (isRunComplete(handle)) handle.dispose()
+      if (isRunComplete(handle) && !this.awaitedRuns.has(handle)) handle.dispose()
       else stillRunning.push(handle)
     }
     if (stillRunning.length === 0) this.pendingRuns.delete(terminalId)
     else this.pendingRuns.set(terminalId, stillRunning)
+  }
+
+  private untrackRun(terminalId: string, handle: TmuxRunHandle): void {
+    const remaining = (this.pendingRuns.get(terminalId) ?? []).filter((entry) => entry !== handle)
+    if (remaining.length === 0) this.pendingRuns.delete(terminalId)
+    else this.pendingRuns.set(terminalId, remaining)
   }
 
   /**
@@ -1251,6 +1259,11 @@ export class TerminalService {
     this.reapFinishedRuns(terminal.terminalId)
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
+    // Tracked from the moment its window exists, so sign-out can stop it even mid-wait.
+    const pending = this.pendingRuns.get(terminal.terminalId)
+    if (pending) pending.push(handle)
+    else this.pendingRuns.set(terminal.terminalId, [handle])
+    this.awaitedRuns.add(handle)
 
     const waitMs = resolveRunWaitMs(args.waitSeconds)
     // Inside tmux a stop arrives as Ctrl-C in the run's own window; closing that window hangs up
@@ -1269,17 +1282,14 @@ export class TerminalService {
     const outcome = await Promise.race([
       awaitRun(handle, waitMs),
       stopped.then(() => ({ ...pollRun(handle), done: true })),
-    ])
+    ]).finally(() => this.awaitedRuns.delete(handle))
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
+      this.untrackRun(terminal.terminalId, handle)
       handle.dispose()
-    } else {
-      // Still going, and nothing polls the status file again — `read` captures
-      // the pane instead.
-      const pending = this.pendingRuns.get(terminal.terminalId)
-      if (pending) pending.push(handle)
-      else this.pendingRuns.set(terminal.terminalId, [handle])
     }
+    // Still going, it stays tracked, and nothing polls the status file again: `read` captures
+    // the pane instead.
 
     const { text, truncated } = elideOutput(outcome.output)
     return {
