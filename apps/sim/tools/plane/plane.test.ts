@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { planeAddWorkItemsToCycleTool } from '@/tools/plane/add_work_items_to_cycle'
 import { planeCreateCommentTool } from '@/tools/plane/create_comment'
@@ -27,13 +28,6 @@ const SCOPE = { ...CONNECTION, projectId: 'project-1', workItemId: 'item-1' }
 function resolveUrl<P>(tool: ToolConfig<P>, params: P): string {
   const { url } = tool.request
   return typeof url === 'function' ? url(params) : url
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
 }
 
 const WORK_ITEM = {
@@ -127,7 +121,7 @@ describe('Plane work item tools', () => {
   })
 
   it('maps a work item response', async () => {
-    const result = await planeCreateWorkItemTool.transformResponse?.(json(WORK_ITEM, 201))
+    const result = await planeCreateWorkItemTool.transformResponse?.(jsonResponse(WORK_ITEM, 201))
     expect(result?.output.workItem).toMatchObject({
       id: 'item-1',
       name: 'Fix login',
@@ -185,7 +179,7 @@ describe('Plane work item tools', () => {
     )
 
     const result = await planeListWorkItemsTool.transformResponse?.(
-      json({
+      jsonResponse({
         grouped_by: null,
         sub_grouped_by: null,
         total_count: 2,
@@ -224,7 +218,7 @@ describe('Plane work item tools', () => {
       'https://api.plane.so/api/v1/workspaces/acme/work-items/search/?search=login+bug&project_id=project-1&limit=5'
     )
     const result = await planeSearchWorkItemsTool.transformResponse?.(
-      json({
+      jsonResponse({
         issues: [
           {
             name: 'Fix login',
@@ -264,7 +258,7 @@ describe('Plane collaboration and planning tools', () => {
 
   it('treats the unpaginated current-cycle response as a single page', async () => {
     const result = await planeListCyclesTool.transformResponse?.(
-      json([{ id: 'cycle-1', name: 'Sprint 1', total_issues: 3, completed_issues: 1 }])
+      jsonResponse([{ id: 'cycle-1', name: 'Sprint 1', total_issues: 3, completed_issues: 1 }])
     )
     expect(result?.output).toMatchObject({
       cycles: [{ id: 'cycle-1', name: 'Sprint 1', totalIssues: 3, completedIssues: 1 }],
@@ -288,7 +282,7 @@ describe('Plane collaboration and planning tools', () => {
       issues: ['item-1', 'item-2'],
     })
     const result = await planeAddWorkItemsToCycleTool.transformResponse?.(
-      json([
+      jsonResponse([
         { id: 'ci-1', issue: 'item-1', cycle: 'cycle-1' },
         { id: 'ci-2', issue: 'item-2', cycle: 'cycle-1' },
         { id: 'ci-3', issue: 'item-0', cycle: 'cycle-1' },
@@ -299,7 +293,9 @@ describe('Plane collaboration and planning tools', () => {
 
   it('reads project members as user objects', async () => {
     const result = await planeListProjectMembersTool.transformResponse?.(
-      json([{ id: 'user-1', display_name: 'ada', email: 'ada@example.com', first_name: 'Ada' }])
+      jsonResponse([
+        { id: 'user-1', display_name: 'ada', email: 'ada@example.com', first_name: 'Ada' },
+      ])
     )
     expect(result?.output.members).toEqual([
       {

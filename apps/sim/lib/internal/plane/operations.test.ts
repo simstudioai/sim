@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   fileUtilsServerMock,
   fileUtilsServerMockFns,
@@ -46,21 +48,6 @@ const INPUT = {
 const ATTACHMENT_URL =
   'https://plane.example.com/api/v1/workspaces/acme/projects/project-1/work-items/item-1/attachments/'
 
-function jsonResponse(status: number, body?: unknown) {
-  const text = body === undefined ? '' : JSON.stringify(body)
-  const stream = new Response(text).body
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    headers: new Headers({ 'content-type': 'application/json' }),
-    body: stream,
-    text: async () => text,
-    json: async () => JSON.parse(text),
-    arrayBuffer: async () => new TextEncoder().encode(text).buffer,
-  }
-}
-
 function ticket(size: number, url = 'https://plane-uploads.s3.amazonaws.com/') {
   return {
     upload_data: { url, fields: { key: 'ws/abc-notes.txt', 'Content-Type': 'text/plain' } },
@@ -82,7 +69,6 @@ function ticket(size: number, url = 'https://plane-uploads.s3.amazonaws.com/') {
 
 describe('executePlaneUploadAttachment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertToolFileAccess.mockResolvedValue(null)
     mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('hello'),
@@ -92,9 +78,9 @@ describe('executePlaneUploadAttachment', () => {
 
   it('requests a signed upload, posts the bytes, and confirms the attachment', async () => {
     mockSecureFetchWithValidation
-      .mockResolvedValueOnce(jsonResponse(200, ticket(5)))
-      .mockResolvedValueOnce(jsonResponse(204))
-      .mockResolvedValueOnce(jsonResponse(204))
+      .mockResolvedValueOnce(jsonResponse(ticket(5)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
 
     const response = await executePlaneUploadAttachment(INPUT, {
       userId: 'sim-user',
@@ -138,9 +124,9 @@ describe('executePlaneUploadAttachment', () => {
 
   it('treats a storage URL on the configured Plane origin as a configured endpoint', async () => {
     mockSecureFetchWithValidation
-      .mockResolvedValueOnce(jsonResponse(200, ticket(5, 'https://plane.example.com/uploads')))
-      .mockResolvedValueOnce(jsonResponse(204))
-      .mockResolvedValueOnce(jsonResponse(204))
+      .mockResolvedValueOnce(jsonResponse(ticket(5, 'https://plane.example.com/uploads')))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
 
     await executePlaneUploadAttachment(INPUT, { userId: 'sim-user', requestId: 'request-1' })
 
@@ -149,8 +135,8 @@ describe('executePlaneUploadAttachment', () => {
 
   it('discards the pending attachment when the file exceeds the instance limit', async () => {
     mockSecureFetchWithValidation
-      .mockResolvedValueOnce(jsonResponse(200, ticket(3)))
-      .mockResolvedValueOnce(jsonResponse(204))
+      .mockResolvedValueOnce(jsonResponse(ticket(3)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
 
     const response = await executePlaneUploadAttachment(INPUT, {
       userId: 'sim-user',
@@ -169,7 +155,7 @@ describe('executePlaneUploadAttachment', () => {
 
   it('surfaces a rejected file type with the MIME type it sent', async () => {
     mockSecureFetchWithValidation.mockResolvedValueOnce(
-      jsonResponse(400, { error: 'Invalid file type.', status: false })
+      jsonResponse({ error: 'Invalid file type.', status: false }, 400)
     )
 
     const response = await executePlaneUploadAttachment(INPUT, {
