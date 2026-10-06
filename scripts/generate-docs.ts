@@ -4309,6 +4309,7 @@ export async function getToolInfo(
         isFactoryToolDeclaration(toolName, toolFileContent) ||
         toolPrefix === 'sailpoint' ||
         toolPrefix === 'otter' ||
+        toolPrefix === 'plane' ||
         toolName === 'file_edit' ||
         hasWrappedToolBase(toolName, toolFileContent)
           ? (generatedOutputs ?? sourceInfo?.outputs ?? {})

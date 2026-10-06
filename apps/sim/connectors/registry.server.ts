@@ -46,6 +46,7 @@ import { onedriveConnector } from '@/connectors/onedrive'
 import { otterConnector } from '@/connectors/otter'
 import { outlookConnector } from '@/connectors/outlook'
 import { pagerdutyConnector } from '@/connectors/pagerduty'
+import { planeConnector } from '@/connectors/plane'
 import { redditConnector } from '@/connectors/reddit'
 import { rootlyConnector } from '@/connectors/rootly'
 import { s3Connector } from '@/connectors/s3'
@@ -123,6 +124,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   otter: otterConnector,
   outlook: outlookConnector,
   pagerduty: pagerdutyConnector,
+  plane: planeConnector,
   reddit: redditConnector,
   rootly: rootlyConnector,
   s3: s3Connector,

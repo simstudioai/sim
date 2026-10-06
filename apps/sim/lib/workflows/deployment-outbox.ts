@@ -33,7 +33,10 @@ import {
   prepareStableTriggerWebhooksForDeploy,
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
-import { cleanupRetiredWebhookRegistrationsAfterActivation } from '@/lib/webhooks/registration-service'
+import {
+  activatePendingWebhookSubscriptionsAfterActivation,
+  cleanupRetiredWebhookRegistrationsAfterActivation,
+} from '@/lib/webhooks/registration-service'
 import { activateWebhookRegistrations } from '@/lib/webhooks/registration-store'
 import {
   DEPLOYMENT_ERROR_CODES,
@@ -593,6 +596,23 @@ async function runPostActivationWork(params: {
   context: OutboxEventContext
 }): Promise<DeferredOutboxHandlerResult | undefined> {
   await emitPostActivationSideEffects(params)
+  let activationFailure: Error | undefined
+  const activationHasMore = await activatePendingWebhookSubscriptionsAfterActivation({
+    request: new NextRequest(new URL('/api/webhooks', getBaseUrl())),
+    fence: {
+      workflowId: params.payload.workflowId,
+      deploymentVersionId: params.payload.deploymentVersionId,
+      operationId: params.payload.operationId,
+      generation: params.payload.generation,
+    },
+    workflow: params.workflow,
+    userId: params.payload.userId,
+    requestId: params.payload.requestId,
+    signal: params.context.signal,
+  }).catch((error: unknown) => {
+    activationFailure = toError(error)
+    return false
+  })
   await cleanupRetiredWebhooksForOperation({
     payload: params.payload,
     workflow: params.workflow,
@@ -605,7 +625,9 @@ async function runPostActivationWork(params: {
     checkpoint: params.checkpoint,
     context: params.context,
   })
-  return cleanupComplete ? undefined : continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
+  if (!cleanupComplete) return continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
+  if (activationFailure) throw activationFailure
+  return activationHasMore ? continueOutboxHandler('webhook_activation_pending') : undefined
 }
 
 async function prepareReadinessComponent(params: {

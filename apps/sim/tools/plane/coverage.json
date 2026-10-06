@@ -1,0 +1,806 @@
+{
+  "cloudBaseUrl": "https://api.plane.so",
+  "selfHosted": "HTTP(S) instance origin with optional reverse-proxy path prefix",
+  "planeSource": "https://github.com/makeplane/plane/tree/7466675e471efe1c96b122615f7a0d30c9b2eb05",
+  "planeSdk": "https://github.com/makeplane/plane-python-sdk/tree/721061d6f0d0047e431dd5fed66920d31296ba2b",
+  "operationCount": 67,
+  "currentV2Operations": 67,
+  "v1OnlyOperations": 0,
+  "v1CompatibilityVariants": 56,
+  "apiVersions": ["v1", "v2"],
+  "operations": [
+    {
+      "id": "plane_get_current_user",
+      "method": "GET",
+      "path": "/api/v2/users/me/",
+      "reference": "https://developers.plane.so/api-reference/v2/authentication",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/users/me/",
+        "reference": "https://developers.plane.so/api-reference/user/get-current-user"
+      }
+    },
+    {
+      "id": "plane_create_cycle",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/create-cycle",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/",
+        "reference": "https://developers.plane.so/api-reference/cycle/add-cycle"
+      }
+    },
+    {
+      "id": "plane_delete_cycle",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/delete-cycle",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/cycle/delete-cycle"
+      }
+    },
+    {
+      "id": "plane_get_cycle",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/get-cycle",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/cycle/get-cycle-detail"
+      }
+    },
+    {
+      "id": "plane_list_cycles",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/list-cycles",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/",
+        "reference": "https://developers.plane.so/api-reference/cycle/list-cycles"
+      }
+    },
+    {
+      "id": "plane_manage_cycle_work_items",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/{pk}/work-items/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/manage-cycle-work-items",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/{cycle_id}/cycle-issues/",
+        "reference": "https://developers.plane.so/api-reference/cycle/add-cycle-work-items"
+      }
+    },
+    {
+      "id": "plane_transfer_cycle_work_items",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/{pk}/transfer/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/transfer-cycle-work-items",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/{cycle_id}/transfer-issues/",
+        "reference": "https://developers.plane.so/api-reference/cycle/transfer-cycle-work-items"
+      }
+    },
+    {
+      "id": "plane_update_cycle",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/cycles/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/cycles/update-cycle",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/cycles/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/cycle/update-cycle-detail"
+      }
+    },
+    {
+      "id": "plane_create_label",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/labels/",
+      "reference": "https://developers.plane.so/api-reference/v2/labels/create-label",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/",
+        "reference": "https://developers.plane.so/api-reference/label/add-label"
+      }
+    },
+    {
+      "id": "plane_delete_label",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/labels/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/labels/delete-label",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/{label_id}/",
+        "reference": "https://developers.plane.so/api-reference/label/delete-label"
+      }
+    },
+    {
+      "id": "plane_get_label",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/labels/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/labels/get-label",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/{label_id}/",
+        "reference": "https://developers.plane.so/api-reference/label/get-label-detail"
+      }
+    },
+    {
+      "id": "plane_list_labels",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/labels/",
+      "reference": "https://developers.plane.so/api-reference/v2/labels/list-labels",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/",
+        "reference": "https://developers.plane.so/api-reference/label/list-labels"
+      }
+    },
+    {
+      "id": "plane_update_label",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/labels/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/labels/update-label",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/{label_id}/",
+        "reference": "https://developers.plane.so/api-reference/label/update-label-detail"
+      }
+    },
+    {
+      "id": "plane_create_module",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/create-module",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/",
+        "reference": "https://developers.plane.so/api-reference/module/add-module"
+      }
+    },
+    {
+      "id": "plane_delete_module",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/delete-module",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/module/delete-module"
+      }
+    },
+    {
+      "id": "plane_get_module",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/get-module",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/module/get-module-detail"
+      }
+    },
+    {
+      "id": "plane_list_modules",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/list-modules",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/",
+        "reference": "https://developers.plane.so/api-reference/module/list-modules"
+      }
+    },
+    {
+      "id": "plane_manage_module_work_items",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/{pk}/work-items/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/manage-module-work-items",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/{module_id}/module-issues/",
+        "reference": "https://developers.plane.so/api-reference/module/add-module-work-items"
+      }
+    },
+    {
+      "id": "plane_update_module",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/modules/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/modules/update-module",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/modules/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/module/update-module-detail"
+      }
+    },
+    {
+      "id": "plane_create_project_page",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/pages/",
+      "reference": "https://developers.plane.so/api-reference/v2/project-pages/create-project-page",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/",
+        "reference": "https://developers.plane.so/api-reference/page/add-project-page"
+      }
+    },
+    {
+      "id": "plane_delete_project_page",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/pages/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/project-pages/delete-project-page",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/{page_id}/",
+        "reference": "https://developers.plane.so/api-reference/page/delete-project-page"
+      }
+    },
+    {
+      "id": "plane_get_project_page",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/pages/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/project-pages/get-project-page",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/{page_id}/",
+        "reference": "https://developers.plane.so/api-reference/page/get-project-page"
+      }
+    },
+    {
+      "id": "plane_list_project_pages",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/pages/",
+      "reference": "https://developers.plane.so/api-reference/v2/project-pages/list-project-pages",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/",
+        "reference": "https://developers.plane.so/api-reference/page/list-project-pages"
+      }
+    },
+    {
+      "id": "plane_update_project_page",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/pages/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/project-pages/update-project-page",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PUT",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/{page_id}/",
+        "reference": "https://developers.plane.so/api-reference/page/update-project-page"
+      }
+    },
+    {
+      "id": "plane_archive_project",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/archive/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/archive-project",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/archive/",
+        "reference": "https://developers.plane.so/api-reference/project/archive-project"
+      }
+    },
+    {
+      "id": "plane_create_project",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/create-project",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/",
+        "reference": "https://developers.plane.so/api-reference/project/add-project"
+      }
+    },
+    {
+      "id": "plane_delete_project",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/delete-project",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/project/delete-project"
+      }
+    },
+    {
+      "id": "plane_get_project_summary",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/summary/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/get-project-summary",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/summary/",
+        "reference": "https://developers.plane.so/api-reference/source/get_project_summary"
+      }
+    },
+    {
+      "id": "plane_get_project",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/get-project",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/project/get-project-detail"
+      }
+    },
+    {
+      "id": "plane_list_projects",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/list-projects",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/",
+        "reference": "https://developers.plane.so/api-reference/project/list-projects"
+      }
+    },
+    {
+      "id": "plane_unarchive_project",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/unarchive/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/unarchive-project",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/archive/",
+        "reference": "https://developers.plane.so/api-reference/project/unarchive-project"
+      }
+    },
+    {
+      "id": "plane_update_project",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/projects/update-project",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/project/update-project-detail"
+      }
+    },
+    {
+      "id": "plane_create_state",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/states/",
+      "reference": "https://developers.plane.so/api-reference/v2/states/create-state",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/",
+        "reference": "https://developers.plane.so/api-reference/state/add-state"
+      }
+    },
+    {
+      "id": "plane_delete_state",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/states/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/states/delete-state",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/{state_id}/",
+        "reference": "https://developers.plane.so/api-reference/state/delete-state"
+      }
+    },
+    {
+      "id": "plane_get_state",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/states/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/states/get-state",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/{state_id}/",
+        "reference": "https://developers.plane.so/api-reference/state/get-state-detail"
+      }
+    },
+    {
+      "id": "plane_list_states",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/states/",
+      "reference": "https://developers.plane.so/api-reference/v2/states/list-states",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/",
+        "reference": "https://developers.plane.so/api-reference/state/list-states"
+      }
+    },
+    {
+      "id": "plane_update_state",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/states/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/states/update-state",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/{state_id}/",
+        "reference": "https://developers.plane.so/api-reference/state/update-state-detail"
+      }
+    },
+    {
+      "id": "plane_create_webhook",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/webhooks/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/create-webhook",
+      "response": "object"
+    },
+    {
+      "id": "plane_delete_webhook",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/webhooks/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/delete-webhook",
+      "response": "empty"
+    },
+    {
+      "id": "plane_get_webhook",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/webhooks/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/get-webhook",
+      "response": "object"
+    },
+    {
+      "id": "plane_list_webhooks",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/webhooks/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/list-webhooks",
+      "response": "object"
+    },
+    {
+      "id": "plane_regenerate_webhook_secret",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/webhooks/{pk}/regenerate/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/regenerate-webhook-secret",
+      "response": "object"
+    },
+    {
+      "id": "plane_update_webhook",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/webhooks/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/webhooks/update-webhook",
+      "response": "object"
+    },
+    {
+      "id": "plane_confirm_attachment_upload",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/attachments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-attachments/confirm-attachment-upload",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/attachments/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue-attachments/complete-upload"
+      }
+    },
+    {
+      "id": "plane_create_attachment_upload",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/attachments/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-attachments/create-attachment-upload",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/attachments/",
+        "reference": "https://developers.plane.so/api-reference/issue-attachments/get-upload-credentials"
+      }
+    },
+    {
+      "id": "plane_delete_attachment",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/attachments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-attachments/delete-attachment",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/attachments/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue-attachments/delete-attachment"
+      }
+    },
+    {
+      "id": "plane_get_attachment",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/attachments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-attachments/get-attachment",
+      "response": "object"
+    },
+    {
+      "id": "plane_list_attachments",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/attachments/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-attachments/list-attachments",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/attachments/",
+        "reference": "https://developers.plane.so/api-reference/issue-attachments/get-attachments"
+      }
+    },
+    {
+      "id": "plane_create_comment",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/comments/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-comments/create-comment",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/",
+        "reference": "https://developers.plane.so/api-reference/issue-comment/add-issue-comment"
+      }
+    },
+    {
+      "id": "plane_delete_comment",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/comments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-comments/delete-comment",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue-comment/delete-issue-comment"
+      }
+    },
+    {
+      "id": "plane_get_comment",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/comments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-comments/get-comment",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue-comment/get-issue-comment-detail"
+      }
+    },
+    {
+      "id": "plane_list_comments",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/comments/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-comments/list-comments",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/",
+        "reference": "https://developers.plane.so/api-reference/issue-comment/list-issue-comments"
+      }
+    },
+    {
+      "id": "plane_update_comment",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/comments/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-comments/update-comment",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue-comment/update-issue-comment-detail"
+      }
+    },
+    {
+      "id": "plane_create_link",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/links/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-links/create-link",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/links/",
+        "reference": "https://developers.plane.so/api-reference/link/add-link"
+      }
+    },
+    {
+      "id": "plane_delete_link",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/links/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-links/delete-link",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/links/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/link/delete-link"
+      }
+    },
+    {
+      "id": "plane_get_link",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/links/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-links/get-link",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/links/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/link/get-link-detail"
+      }
+    },
+    {
+      "id": "plane_list_links",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/links/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-links/list-links",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/links/",
+        "reference": "https://developers.plane.so/api-reference/link/list-links"
+      }
+    },
+    {
+      "id": "plane_update_link",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/links/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-item-links/update-link",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/links/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/link/update-link-detail"
+      }
+    },
+    {
+      "id": "plane_archive_work_item",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{pk}/archive/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/archive-work-item",
+      "response": "object"
+    },
+    {
+      "id": "plane_create_work_item",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/create-work-item",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "POST",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/",
+        "reference": "https://developers.plane.so/api-reference/issue/add-issue"
+      }
+    },
+    {
+      "id": "plane_delete_work_item",
+      "method": "DELETE",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/delete-work-item",
+      "response": "empty",
+      "v1Compatibility": {
+        "method": "DELETE",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue/delete-issue"
+      }
+    },
+    {
+      "id": "plane_get_work_item_by_identifier",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/work-items/{identifier}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/get-work-item-by-identifier",
+      "response": "object"
+    },
+    {
+      "id": "plane_get_work_item",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/get-work-item",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue/get-issue-detail"
+      }
+    },
+    {
+      "id": "plane_list_work_items",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/list-work-items",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/",
+        "reference": "https://developers.plane.so/api-reference/issue/list-issues"
+      }
+    },
+    {
+      "id": "plane_list_workspace_work_items",
+      "method": "GET",
+      "path": "/api/v2/workspaces/{slug}/work-items/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/list-workspace-work-items",
+      "response": "object"
+    },
+    {
+      "id": "plane_unarchive_work_item",
+      "method": "POST",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{pk}/unarchive/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/unarchive-work-item",
+      "response": "object"
+    },
+    {
+      "id": "plane_update_work_item",
+      "method": "PATCH",
+      "path": "/api/v2/workspaces/{slug}/projects/{project_id}/work-items/{pk}/",
+      "reference": "https://developers.plane.so/api-reference/v2/work-items/update-work-item",
+      "response": "object",
+      "v1Compatibility": {
+        "method": "PATCH",
+        "path": "/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/",
+        "reference": "https://developers.plane.so/api-reference/issue/update-issue-detail"
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "reason": "Advanced administration, bulk/upsert operations and all v1-only action entries are outside the selected core workflow scope."
+    },
+    {
+      "reason": "Deletion response-shaping options are omitted because these operations return no resource."
+    },
+    {
+      "reason": "Signed storage form transfer is performed using the returned upload URL and form fields."
+    }
+  ],
+  "validation": {
+    "requestContracts": {
+      "checked": 123,
+      "failures": 0
+    },
+    "documentedResponses": {
+      "checked": 102,
+      "failures": 0
+    },
+    "liveVerification": "Disposable-project HTTP checks exercise v2 and v1 compatibility on Plane Cloud. A real signed webhook delivery exercises registration, signature verification, filtering and cleanup. Community Edition is source-audited; no separate self-hosted server was live-tested.",
+    "liveResponses": {
+      "checked": 145,
+      "failures": 0
+    },
+    "liveChecks": {
+      "passed": 46,
+      "failed": 0,
+      "requests": 178,
+      "successfulV2Operations": 67,
+      "successfulV1CompatibilityVariants": 56,
+      "verifiedSignedDeliveries": 1
+    }
+  },
+  "documentedLimitations": [
+    "API availability depends on the Plane edition and version. Community Edition compatibility uses v1.",
+    "Signed object-storage transfers are performed with the returned upload URL and form fields; asset initialization and confirmation are exposed as Plane actions.",
+    "Expanded v2 objects without a published nested schema are preserved as JSON rather than assigning guessed fields.",
+    "The knowledge connector uses v1 to access description content, which v2 work-item reads omit. Offset listings disable automatic deletion reconciliation.",
+    "Project-filtered v1 deletions without project information are skipped.",
+    "Plane v2 can retain deleted label and assignee IDs in read responses. The update action clears through v1 when necessary, verifies that state, and returns the verified cleared relationships. Use v1 for active relationship reads after clearing.",
+    "v1 membership removals are sequential and can partially commit if a later request fails; the action reports failure with the completed removal count."
+  ],
+  "scope": "Core project and work-item workflows; advanced administration, bulk/upsert and v1-only actions are intentionally omitted."
+}

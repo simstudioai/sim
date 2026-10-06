@@ -146,6 +146,34 @@ describe('cleanupExternalWebhook', () => {
     }
   )
 
+  it('cleans the tracked prior subscription when the replacement has no deletion handler', async () => {
+    const external = new Set(['previous-registration'])
+    mockGetProviderHandler.mockImplementation((provider: string) =>
+      provider === 'plane'
+        ? {
+            deleteSubscription: async () => {
+              external.delete('previous-registration')
+            },
+          }
+        : {}
+    )
+    await cleanupExternalWebhook(
+      {
+        provider: 'webhook',
+        providerConfig: {
+          previousSubscription: {
+            provider: 'plane',
+            providerConfig: { externalId: 'previous-registration' },
+          },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' },
+      'request-1',
+      { throwOnError: true }
+    )
+    expect(external.size).toBe(0)
+  })
+
   it('resolves {{ENV_VAR}} references before deleting the provider subscription', async () => {
     const deleteSubscription = vi.fn().mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({ deleteSubscription })
