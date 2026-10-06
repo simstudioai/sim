@@ -507,7 +507,7 @@ describe('useChat remount send recovery', () => {
     state.stopBodies = []
     state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
-    useMothershipQueueStore.setState({ queues: {}, editing: {} })
+    useMothershipQueueStore.setState({ queues: {}, editing: {}, cleared: {} })
     useExecutionStore.setState({ workflowExecutions: new Map() })
     window.sessionStorage.clear()
     window.localStorage.clear()
@@ -2231,6 +2231,41 @@ describe('useChat remount send recovery', () => {
       const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
       expect(queued.map((message) => message.content)).toEqual(['Sent as I switched chats'])
       expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
+    /** A chat deleted while its queued send was failing must not get that send back. */
+    it('does not recreate the queue of a chat deleted while its queued send was failing', async () => {
+      const history = idleHistory('chat-deleted-mid-dispatch')
+      const other = idleHistory('chat-open-after-delete')
+      mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
+        Promise.resolve({
+          chat: JSON.stringify(input).includes(other.id) ? other : history,
+        })
+      )
+      let failPost: (() => void) | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          return new Promise<Response>((_, reject) => {
+            failPost = () => reject(new TypeError('Failed to fetch'))
+          })
+        }
+        return fetchStub(input, init)
+      })
+      useMothershipQueueStore
+        .getState()
+        .enqueue(history.id, { id: 'queued-then-deleted', content: 'In a chat I deleted' })
+      const { navigate } = renderUseChatInChat(history.id, history)
+      await waitFor(() => failPost !== undefined)
+
+      navigate(other.id, other)
+      useMothershipQueueStore.getState().clearChat(history.id)
+      await act(async () => {
+        failPost?.()
+        await sleep(100)
+      })
+
+      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
     })
 
     /** The `online` event can fire while no surface for the chat is mounted. */

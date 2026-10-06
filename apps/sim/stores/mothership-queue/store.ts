@@ -44,6 +44,7 @@ const sessionStorageAdapter = {
 const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
+  cleared: {} as Record<string, true>,
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -67,6 +68,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
         enqueue: (chatKey, message) =>
           set((state) => ({
+            cleared: omitKey(state.cleared, chatKey),
             queues: setQueueForChat(state.queues, chatKey, [
               ...(state.queues[chatKey] ?? []),
               message,
@@ -75,6 +77,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
         insertAt: (chatKey, index, message) =>
           set((state) => {
+            /** A restore that lands after its chat was cleared (deleted) must not recreate it. */
+            if (state.cleared[chatKey]) return state
             const current = state.queues[chatKey] ?? []
             if (current.some((m) => m.id === message.id)) return state
             const next = [...current]
@@ -197,6 +201,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
             editing: omitKey(state.editing, chatKey),
+            cleared: { ...state.cleared, [chatKey]: true },
           })),
 
         reset: () => set(initialState),

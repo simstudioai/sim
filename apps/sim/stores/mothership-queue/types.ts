@@ -48,6 +48,11 @@ export type QueuedMessageEditPatch = Pick<
 export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>
   editing: Record<string, string>
+  /**
+   * Chats cleared this session (deleted). A late restore of a send dispatched
+   * before the clear does not recreate their queue; a new enqueue lifts it.
+   */
+  cleared: Record<string, true>
 
   enqueue: (chatKey: string, message: QueuedMothershipMessage) => void
   insertAt: (chatKey: string, index: number, message: QueuedMothershipMessage) => void
