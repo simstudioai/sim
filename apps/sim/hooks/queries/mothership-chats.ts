@@ -2,6 +2,9 @@ import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  MutationObserver,
+  mutationOptions,
+  type QueryClient,
   queryOptions,
   skipToken,
   useMutation,
@@ -604,7 +607,28 @@ async function setChatEffort({
  */
 export function useSetMothershipChatEffort(chatId: string | undefined) {
   const queryClient = useQueryClient()
-  return useMutation({
+  return useMutation(chatEffortMutationOptions(queryClient, chatId))
+}
+
+/**
+ * Saves a pick for a chat learned outside render, such as the chat a send just opened. It
+ * shares the hook's per-chat scope, so it lands in order with picks made in the composer.
+ */
+export function saveMothershipChatEffort(
+  queryClient: QueryClient,
+  chatId: string,
+  effort: MothershipEffort
+): void {
+  const observer = new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  // Detaching once the save settles lets the mutation cache collect it.
+  observer
+    .mutate(effort)
+    .catch(() => undefined)
+    .finally(() => observer.reset())
+}
+
+function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | undefined) {
+  return mutationOptions({
     mutationFn: (effort: MothershipEffort) => {
       if (!chatId) throw new Error('A chat effort needs a chat')
       return setChatEffort({ chatId, effort })
