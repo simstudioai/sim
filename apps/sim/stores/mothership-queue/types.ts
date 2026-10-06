@@ -14,6 +14,11 @@ export type QueuedMothershipMessage = QueuedMessage & {
   /** A failed dispatch remains queued until the user retries or edits it. */
   retryRequired?: boolean
   /**
+   * The failed dispatch never reached the server, so the browser coming back
+   * online releases it for dispatch too.
+   */
+  heldUntilOnline?: boolean
+  /**
    * Message id of a prior attempt at this send that an unmount cleanup
    * withdrew. Reused when the entry is dispatched so the server deduplicates
    * against that attempt — it never sees the client's abort, so a request it
@@ -44,6 +49,8 @@ export interface MothershipQueueState {
   remove: (chatKey: string, id: string) => void
   setEditing: (chatKey: string, id: string | null) => void
   migrate: (fromKey: string, toKey: string) => void
+  /** Releases the chat's sends held for the network for dispatch. */
+  releaseHeldUntilOnline: (chatKey: string) => void
   clearChat: (chatKey: string) => void
   reset: () => void
 }

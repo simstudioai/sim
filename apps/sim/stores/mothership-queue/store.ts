@@ -93,6 +93,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
               retryRequired: _retry,
+              heldUntilOnline: _held,
               ...rest
             } = next[index]
             next[index] = {
@@ -149,6 +150,18 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               editing[toKey] = fromEditing
             }
             return { queues, editing }
+          }),
+
+        releaseHeldUntilOnline: (chatKey) =>
+          set((state) => {
+            const current = state.queues[chatKey] ?? []
+            if (!current.some((m) => m.heldUntilOnline)) return state
+            const next = current.map((message) => {
+              if (!message.heldUntilOnline) return message
+              const { retryRequired: _retry, heldUntilOnline: _held, ...rest } = message
+              return rest
+            })
+            return { queues: setQueueForChat(state.queues, chatKey, next) }
           }),
 
         clearChat: (chatKey) =>

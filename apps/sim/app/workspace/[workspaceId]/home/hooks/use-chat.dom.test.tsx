@@ -1921,6 +1921,118 @@ describe('useChat remount send recovery', () => {
     })
   })
 
+  describe('a send the server never admitted', () => {
+    const idleHistory = (id: string): MothershipChatHistory => ({
+      id,
+      mode: 'agent',
+      title: 'Not admitted',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    })
+
+    /**
+     * The POST fails at the network layer until the network is back, and the
+     * stream it would have opened does not exist.
+     */
+    const network = { online: false }
+    function stubUnreachableSend() {
+      network.online = false
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          if (network.online) return emptySseResponse()
+          throw new TypeError('Failed to fetch')
+        }
+        if (url.includes('/api/mothership/chat/stream')) {
+          return Response.json({ error: 'Stream not found' }, { status: 404 })
+        }
+        return fetchStub(input, init)
+      })
+    }
+
+    it('holds a message sent while offline and sends it under the same id once back online', async () => {
+      const history = idleHistory('chat-offline-send')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend()
+      const { getResult } = renderUseChatInChat(history.id, history)
+
+      await act(async () => {
+        await getResult().sendMessage('Written while offline')
+      })
+      await waitFor(() => !getResult().isSending)
+
+      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
+      expect(queued.map((message) => message.content)).toEqual(['Written while offline'])
+      expect(queued[0].retryRequired).toBe(true)
+      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+      expect(getResult().error).not.toBeNull()
+      expect(state.postBodies).toHaveLength(1)
+
+      network.online = true
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1].message).toBe('Written while offline')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
+    it('keeps a queued follow-up whose dispatch could not reach the server', async () => {
+      const history = idleHistory('chat-offline-queue')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend()
+      useMothershipQueueStore
+        .getState()
+        .enqueue(history.id, { id: 'queued-follow-up', content: 'Queued before the drop' })
+      renderUseChatInChat(history.id, history)
+
+      await waitFor(() => state.postBodies.length === 1)
+      await waitFor(
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.retryRequired === true
+      )
+
+      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
+      expect(queued.map((message) => message.content)).toEqual(['Queued before the drop'])
+      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+      expect(state.postBodies).toHaveLength(1)
+    })
+
+    /**
+     * Another tab's turn holds the chat (this one missed its start). The server
+     * refuses the send naming that turn; the message must wait for it rather than
+     * render that turn's answer under itself and then vanish.
+     */
+    it('sends a message again after the turn that held the chat ends', async () => {
+      const history = idleHistory('chat-busy-elsewhere')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          if (state.postBodies.length === 1) {
+            return Response.json(
+              { error: 'A response is already running', activeStreamId: 'turn-from-another-tab' },
+              { status: 409 }
+            )
+          }
+          return emptySseResponse()
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+
+      await act(async () => {
+        await getResult().sendMessage('Sent from the second tab')
+      })
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1].message).toBe('Sent from the second tab')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+  })
+
   /**
    * A withdrawn send belongs to the chat it was sent to. The cross-surface
    * lanes deliver to whatever chat is mounted next, so routing a chat-bound
