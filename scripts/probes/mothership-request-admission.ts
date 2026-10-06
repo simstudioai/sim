@@ -124,7 +124,7 @@ try {
       await repo.upsertAsyncToolCall({ runId: run.id, toolCallId, toolName: 'run_code' })
       await repo.updateRunStatus(run.id, status, { completedAt: new Date() })
       assert.equal(
-        (await repo.claimSimToolExecution({ runId: run.id, toolCallId, userId: 'user-1' })).outcome,
+        (await repo.claimToolExecution({ runId: run.id, toolCallId, userId: 'user-1' })).outcome,
         'closed'
       )
       await repo.updateRunStatus(run.id, 'paused_waiting_for_tool')
@@ -142,7 +142,7 @@ try {
       toolCallId: ownerTool.toolCallId,
       toolName: 'run_code',
     })
-    assert.equal((await repo.claimSimToolExecution(ownerTool)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(ownerTool)).outcome, 'claimed')
     const commandIdentity = {
       id: generateId(),
       sandboxId: 'recorded-sandbox',
@@ -180,7 +180,7 @@ try {
         toolName: 'run_code',
       })
       const [claim] = await Promise.all([
-        repo.claimSimToolExecution(tool),
+        repo.claimToolExecution(tool),
         repo.updateRunStatus(run.id, 'complete'),
       ])
       assert.equal(
@@ -207,12 +207,12 @@ try {
     const workbenchChatId = await createWorkbenchChat()
     const sessionKey = `mothership-chat:${workbenchChatId}`
     const prior = await createWorkbenchTool(workbenchChatId, 'workbench-prior')
-    assert.equal((await repo.claimSimToolExecution(prior)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(prior)).outcome, 'claimed')
     const priorCommand = { id: generateId(), sandboxId: 'workbench-vm', sessionKey }
     await repo.recordSimSandboxProcess({ ...prior, process: priorCommand })
     await repo.updateRunStatus(prior.runId, 'complete')
     const current = await createWorkbenchTool(workbenchChatId, 'workbench-current')
-    assert.equal((await repo.claimSimToolExecution(current)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(current)).outcome, 'claimed')
     const access = { ...current, sessionKey }
     assert.deepEqual(await repo.prepareWorkbenchAccess(access), {
       handlersPending: true,
@@ -229,7 +229,7 @@ try {
     await assert.rejects(repo.prepareWorkbenchAccess({ ...prior, sessionKey }))
     const sibling = { ...current, toolCallId: 'workbench-sibling' }
     await repo.upsertAsyncToolCall({ ...sibling, toolName: 'run_code' })
-    assert.equal((await repo.claimSimToolExecution(sibling)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(sibling)).outcome, 'claimed')
     const siblingCommand = { ...priorCommand, id: generateId() }
     await repo.recordSimSandboxProcess({ ...sibling, process: siblingCommand })
     assert.deepEqual(await repo.prepareWorkbenchAccess(access), ready)
@@ -252,7 +252,7 @@ try {
     await repo.settleSimToolExecution(sibling.toolCallId)
     const nextTool = { runId: emptyNext.id, userId: 'user-1', toolCallId: 'workbench-next-tool' }
     await repo.upsertAsyncToolCall({ ...nextTool, toolName: 'run_code' })
-    assert.equal((await repo.claimSimToolExecution(nextTool)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(nextTool)).outcome, 'claimed')
     assert.deepEqual(await repo.prepareWorkbenchAccess({ ...nextTool, sessionKey }), {
       handlersPending: false,
       processes: [{ ...siblingCommand, toolCallId: sibling.toolCallId }],
@@ -266,14 +266,14 @@ try {
       const raceChatId = await createWorkbenchChat()
       const older = await createWorkbenchTool(raceChatId, `workbench-race-old-${i}`)
       const newer = await createWorkbenchTool(raceChatId, `workbench-race-new-${i}`)
-      assert.equal((await repo.claimSimToolExecution(newer)).outcome, 'claimed')
+      assert.equal((await repo.claimToolExecution(newer)).outcome, 'claimed')
       const [claim, state] = await Promise.all([
-        repo.claimSimToolExecution(older),
+        repo.claimToolExecution(older),
         repo.prepareWorkbenchAccess({ ...newer, sessionKey: `mothership-chat:${raceChatId}` }),
       ])
       assert.deepEqual(state, { handlersPending: claim.outcome === 'claimed', processes: [] })
       assert.equal(
-        (await repo.claimSimToolExecution({ ...older, toolCallId: 'late' })).outcome,
+        (await repo.claimToolExecution({ ...older, toolCallId: 'late' })).outcome,
         'closed'
       )
       await assert.rejects(
@@ -283,11 +283,11 @@ try {
     logger.info('PASS thirty predecessor-claim/workbench-takeover races without false readiness')
     const corruptChatId = await createWorkbenchChat()
     const corruptOwner = await createWorkbenchTool(corruptChatId, 'workbench-corrupt-owner')
-    assert.equal((await repo.claimSimToolExecution(corruptOwner)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(corruptOwner)).outcome, 'claimed')
     const corruptCommand = { id: generateId(), sandboxId: 'foreign', sessionKey: 'another-chat' }
     await repo.recordSimSandboxProcess({ ...corruptOwner, process: corruptCommand })
     const successor = await createWorkbenchTool(corruptChatId, 'workbench-corrupt-successor')
-    assert.equal((await repo.claimSimToolExecution(successor)).outcome, 'claimed')
+    assert.equal((await repo.claimToolExecution(successor)).outcome, 'claimed')
     const successorAccess = { ...successor, sessionKey: `mothership-chat:${corruptChatId}` }
     await assert.rejects(repo.prepareWorkbenchAccess(successorAccess), /does not match this chat/)
     assert.equal(
@@ -334,7 +334,7 @@ try {
     })
     assert.equal(
       (
-        await repo.claimSimToolExecution({
+        await repo.claimToolExecution({
           runId: delayed.id,
           toolCallId: 'late-tool',
           userId: 'user-1',

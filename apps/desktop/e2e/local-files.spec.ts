@@ -16,7 +16,8 @@ test('native file tools read and import through the installed preload without Si
   const png =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII='
   writeFileSync(join(source, 'image.png'), Buffer.from(png, 'base64'))
-  let claimed = false
+  /** Calls the server saw claimed; like the server, only an import refuses a second claim. */
+  const claimed = new Set<string>()
   const calls: Record<string, { toolName: string; args: Record<string, unknown> }> = {
     text: { toolName: 'read_local_file', args: { path: join(source, 'report.txt') } },
     image: { toolName: 'read_local_file', args: { path: join(source, 'image.png') } },
@@ -44,11 +45,14 @@ test('native file tools read and import through the installed preload without Si
         for await (const chunk of request) body += chunk.toString()
         const input = JSON.parse(body)
         const call = calls[input.toolCallId]
-        if (!call || (input.claim && claimed)) {
+        if (
+          !call ||
+          (input.claim && call.toolName === 'import_local_files' && claimed.has(input.toolCallId))
+        ) {
           response.writeHead(call ? 409 : 403, { 'Content-Type': 'application/json' }).end('{}')
           return
         }
-        if (input.claim) claimed = true
+        if (input.claim) claimed.add(input.toolCallId)
         response
           .writeHead(200, { 'Content-Type': 'application/json' })
           .end(JSON.stringify({ ...call, chatId: 'org-chat' }))
@@ -92,6 +96,7 @@ test('native file tools read and import through the installed preload without Si
       ok: true,
       data: { observations: [{ mediaType: 'image/png', data: png }] },
     })
+    expect([...claimed]).toEqual(['text', 'image'])
     const result = await invoke({ operation: 'manifest', toolCallId: 'import' })
     if (!result.ok || result.data.kind !== 'manifest') throw new Error(JSON.stringify(result))
     expect(result.data.targetWorkspaceId).toBe('target-workspace')

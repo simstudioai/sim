@@ -45,11 +45,19 @@ describe('waitForDesktopToolCall', () => {
           abortSignal.addEventListener('abort', () => resolve(desktopResult), { once: true })
         })
     )
-    completePendingAsyncToolCall.mockResolvedValueOnce(null)
 
     const answer = waitForDesktopToolCall(params)
     await vi.advanceTimersByTimeAsync(GRACE_MS)
 
     expect(await answer).toEqual(desktopResult)
+  })
+
+  it('settles an unclaimed call as never started when its wait ends before the grace', async () => {
+    waitForClientToolCompletion.mockResolvedValueOnce(null)
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    const answer = await waitForDesktopToolCall({ ...params, timeoutMs: 1_000 })
+
+    expect(answer).toMatchObject({ status: 'error', data: { notStarted: true } })
   })
 })

@@ -62,7 +62,7 @@ export async function waitForDesktopToolCall(
     })),
   ])
   graceOver.abort()
-  if (first.kind === 'reported') return first.completion
+  if (first.kind === 'reported' && first.completion) return first.completion
   if (abortSignal?.aborted) return pickupWait
 
   // A result that landed as the grace ran out is already being restored: it is the answer.
