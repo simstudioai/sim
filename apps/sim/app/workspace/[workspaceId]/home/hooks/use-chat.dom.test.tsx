@@ -28,8 +28,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson, mockExecuteWorkflow, mockExecuteBrowserToolOnClient } = vi.hoisted(() => ({
+const {
+  mockRequestJson,
+  mockExecuteWorkflow,
+  mockExecuteBrowserToolOnClient,
+  mockExecuteLocalFilesystemTool,
+} = vi.hoisted(() => ({
   mockExecuteBrowserToolOnClient: vi.fn(),
+  mockExecuteLocalFilesystemTool: vi.fn(),
   mockRequestJson: vi.fn(),
   mockExecuteWorkflow:
     vi.fn<
@@ -47,6 +53,9 @@ vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => 
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
+vi.mock('@/lib/mothership/tools/client/local-filesystem', () => ({
+  executeLocalFilesystemTool: mockExecuteLocalFilesystemTool,
+}))
 vi.mock('@/lib/mothership/tools/client/browser-tool-execution', () => ({
   executeBrowserToolOnClient: mockExecuteBrowserToolOnClient,
 }))
@@ -2129,8 +2138,21 @@ describe('useChat remount send recovery', () => {
         ?.messages.map((message) => message.id)
     ).toEqual(['saved-user', 'saved-assistant'])
   })
-  describe('a desktop browser action in flight', () => {
-    const chatId = 'chat-browser-action'
+  describe.each([
+    {
+      kind: 'browser action',
+      toolName: 'browser_list_tabs',
+      arguments: {},
+      lifetimeOf: () => mockExecuteBrowserToolOnClient.mock.calls[0]?.[5],
+    },
+    {
+      kind: 'local file read',
+      toolName: 'read_local_file',
+      arguments: { path: '/Users/me/notes.txt' },
+      lifetimeOf: () => mockExecuteLocalFilesystemTool.mock.calls[0]?.[3]?.signal,
+    },
+  ])('a desktop $kind in flight', ({ toolName, arguments: toolArguments, lifetimeOf }) => {
+    const chatId = 'chat-desktop-action'
     const history: MothershipChatHistory = {
       id: chatId,
       mode: 'agent',
@@ -2140,8 +2162,8 @@ describe('useChat remount send recovery', () => {
       resources: [],
     }
 
-    /** Opens a turn whose stream delivers one desktop browser call and stays open. */
-    async function startBrowserAction() {
+    /** Opens a turn whose stream delivers one desktop tool call and stays open. */
+    async function startDesktopAction() {
       let streamId: string | undefined
       const replays: string[] = []
       mockRequestJson.mockImplementation((contract: AnyApiRouteContract) =>
@@ -2168,9 +2190,9 @@ describe('useChat remount send recovery', () => {
             phase: 'call',
             executor: 'client',
             mode: 'async',
-            toolName: 'browser_list_tabs',
-            toolCallId: 'browser-call',
-            arguments: {},
+            toolName,
+            toolCallId: 'desktop-call',
+            arguments: toolArguments,
           },
         }
         return new Response(
@@ -2186,10 +2208,10 @@ describe('useChat remount send recovery', () => {
       await act(async () => {
         void chat.getResult().sendMessage('List my tabs')
       })
-      await waitFor(() => mockExecuteBrowserToolOnClient.mock.calls.length === 1)
-      const toolSignal = mockExecuteBrowserToolOnClient.mock.calls[0]?.[5]
+      await waitFor(() => lifetimeOf() !== undefined)
+      const toolSignal = lifetimeOf()
       if (!(toolSignal instanceof AbortSignal))
-        throw new Error('The browser action has no lifetime')
+        throw new Error('The desktop action has no lifetime')
       return { ...chat, toolSignal, replays }
     }
 
@@ -2202,7 +2224,7 @@ describe('useChat remount send recovery', () => {
     })
 
     it('keeps running when the window returns to view and the stream is recovered', async () => {
-      const { toolSignal, replays } = await startBrowserAction()
+      const { toolSignal, replays } = await startDesktopAction()
 
       Object.defineProperty(document, 'visibilityState', {
         configurable: true,
@@ -2217,7 +2239,7 @@ describe('useChat remount send recovery', () => {
     })
 
     it('keeps running when the chat view unmounts, so it finishes and reports its result', async () => {
-      const { toolSignal, unmount } = await startBrowserAction()
+      const { toolSignal, unmount } = await startDesktopAction()
 
       unmount()
 
@@ -2225,7 +2247,7 @@ describe('useChat remount send recovery', () => {
     })
 
     it('is cancelled when the user stops the chat', async () => {
-      const { toolSignal, getResult } = await startBrowserAction()
+      const { toolSignal, getResult } = await startDesktopAction()
 
       await act(async () => {
         await getResult().stopGeneration()

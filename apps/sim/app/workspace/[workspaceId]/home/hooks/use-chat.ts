@@ -457,11 +457,12 @@ export async function waitForDetachedChatResolution(
 const USER_STOP_ABORT_REASON = 'user_stop:client_stopGeneration'
 
 /**
- * The lifetime a browser action started from one stream observes: only the user's Stop cancels
- * it. Replacing the stream reader (the window returning to view, a history reconnect) or leaving
- * the chat view leaves it running, so it finishes and reports its own result.
+ * The lifetime a desktop tool (a browser action, a local file read or import) started from one
+ * stream observes: only the user's Stop cancels it. Replacing the stream reader (the window
+ * returning to view, a history reconnect) or leaving the chat view leaves it running, so it
+ * finishes and reports its own result.
  */
-function browserToolLifetime(streamSignal: AbortSignal | undefined): AbortSignal | undefined {
+function desktopToolLifetime(streamSignal: AbortSignal | undefined): AbortSignal | undefined {
   if (!streamSignal) return undefined
   const lifetime = new AbortController()
   const followStop = () => {
@@ -1595,7 +1596,7 @@ export function useChat(
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
-        signal: abortControllerRef.current?.signal,
+        signal: desktopToolLifetime(abortControllerRef.current?.signal),
       }
       /**
        * Dynamic on purpose: the local-filesystem executor only runs for desktop-local
@@ -2171,7 +2172,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const browserToolSignal = browserToolLifetime(abortControllerRef.current?.signal)
+      const browserToolSignal = desktopToolLifetime(abortControllerRef.current?.signal)
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId

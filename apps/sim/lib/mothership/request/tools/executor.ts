@@ -86,7 +86,7 @@ import {
   type ToolCallState,
 } from '@/lib/mothership/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
-import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
+import { isDesktopToolCall, isLocalReadToolCall } from '@/lib/mothership/tools/desktop-tools'
 import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
 
@@ -414,6 +414,12 @@ const TOOL_RESULT_LOST_MESSAGE =
   'This tool started, but its result never came back, so it was abandoned to let the conversation continue. Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it, and do not retry it automatically.'
 const DESKTOP_TOOL_RESULT_LOST_MESSAGE =
   'The Sim desktop app started this action, but its result never came back (the chat view closed or the app stopped responding). Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it, and do not retry it automatically.'
+/**
+ * A local read the server cannot see picked up (one an older desktop reads without claiming) may
+ * never have started; either way, reading changed nothing.
+ */
+const DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE =
+  'No result came back from the Sim desktop app for this read: it may never have started (this chat may not be open there), or its result was lost. Reading changes nothing on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
   'The tool result could not be restored before the conversation resumed. Its outcome is unknown; do not retry it automatically.'
 
@@ -423,8 +429,8 @@ const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
  * Execution ownership remains held while retained work cleans up.
  *
  * Without an explicit `failureMessage` the model learns which of two things happened: a desktop
- * call nothing claimed never started (`notStarted`, safe to retry), and anything else started and
- * lost its result (`outcomeUnknown`, `doNotRetry`).
+ * call nothing claimed never started (`notStarted`), and anything else started (or could not be
+ * seen starting) and lost its result (`outcomeUnknown`, `doNotRetry`).
  */
 export async function failPendingToolCall(
   toolCallId: string,
@@ -444,7 +450,12 @@ export async function failPendingToolCall(
     if (settled) return
   }
   const message =
-    failureMessage ?? (desktopCall ? DESKTOP_TOOL_RESULT_LOST_MESSAGE : TOOL_RESULT_LOST_MESSAGE)
+    failureMessage ??
+    (!desktopCall
+      ? TOOL_RESULT_LOST_MESSAGE
+      : isLocalReadToolCall(toolCall.execName ?? toolCall.name, toolCall.params)
+        ? DESKTOP_LOCAL_READ_RESULT_MISSING_MESSAGE
+        : DESKTOP_TOOL_RESULT_LOST_MESSAGE)
   await settleAbandonedToolCall(toolCall, context, execContext, {
     message,
     data: { error: message, outcomeUnknown: true, doNotRetry: true },

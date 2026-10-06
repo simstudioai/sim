@@ -191,7 +191,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
       expect(Date.now() - startedAt).toBeLessThan(TURN_WAIT_MS - 5_000)
       expect(completion).toMatchObject({
         status: 'error',
-        data: { notStarted: true, error: expect.stringContaining('safe to retry') },
+        data: { notStarted: true, error: expect.stringContaining('never started') },
       })
       const [row] = await db
         .select({ status: copilotAsyncToolCalls.status })
@@ -245,7 +245,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
         data: { output: 'tests passed' },
       })
 
-      expect(staleReport.ok).toBe(false)
+      expect(staleReport.status).toBe(409)
       expect(realResult.status).toBe(200)
       expect(await answer).toMatchObject({ status: 'success' })
     },

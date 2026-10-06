@@ -17,9 +17,9 @@ import {
 } from '@/lib/mothership/resources/extraction'
 import {
   isClientExecutedToolCall,
-  isDesktopExecutedToolCall,
   isWorkflowToolName,
 } from '@/lib/mothership/tools/client-executed-tools'
+import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
@@ -197,7 +197,7 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   // tools to it: its answer could only be an error, and that error would beat the real result.
   const shouldStartClientTool =
     isClientExecutedToolCall(name, args) &&
-    (isDesktopApp() || !isDesktopExecutedToolCall(name, args)) &&
+    (isDesktopApp() || !isDesktopToolCall(name, args)) &&
     !isPartial &&
     !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
     node?.kind === 'tool' &&

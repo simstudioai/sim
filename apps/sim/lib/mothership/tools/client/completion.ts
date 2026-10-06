@@ -72,6 +72,13 @@ export async function reportClientToolCompletion(
     try {
       const response = await send(body)
       if (response.ok) return
+      if (response.status === 409) {
+        // The desktop app holds this call; its own result settles it, so retrying cannot help.
+        logger.info('Client tool completion was not needed: another reporter holds the call', {
+          toolCallId,
+        })
+        return
+      }
 
       if (isRecordLike(data) && bodySize > largePayloadThreshold) {
         const { logs: _logs, ...dataWithoutLogs } = data

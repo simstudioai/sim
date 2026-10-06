@@ -26,7 +26,7 @@ const logger = createLogger('CopilotTerminalToolExecution')
 /** Tool events older than this are replays, not live instructions. */
 const MAX_EVENT_AGE_MS = 120_000
 const STALE_EVENT_MESSAGE =
-  'Not run: this terminal call reached the Sim desktop app too late to start safely, so nothing ran on the user’s computer. It is safe to retry.'
+  'Not run: this terminal command never started, because it reached the Sim desktop app too late to start safely. Nothing ran on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:terminal-tool-executed:'
 
 /**

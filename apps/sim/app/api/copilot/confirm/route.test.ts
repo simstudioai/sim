@@ -165,7 +165,7 @@ describe('Copilot Confirm API Route', () => {
       })
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(409)
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
     expect(detachAsyncToolCall).not.toHaveBeenCalled()
     expect(encryptSecret).not.toHaveBeenCalled()
@@ -233,8 +233,10 @@ describe('Copilot Confirm API Route', () => {
         })
       )
 
-      expect(response.status).toBe(404)
-      expect(await response.json()).toEqual({ error: 'Pending client tool call not found' })
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: 'The desktop app holds this tool call; only its own result settles it',
+      })
       expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
       expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
       expect(completeAsyncToolCall).not.toHaveBeenCalled()
@@ -300,7 +302,7 @@ describe('Copilot Confirm API Route', () => {
       })
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(409)
     expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(expect.any(Object), 'desktop-browser')
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
