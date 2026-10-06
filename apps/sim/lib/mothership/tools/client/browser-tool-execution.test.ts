@@ -1470,7 +1470,7 @@ describe('pre-dispatch drops still resolve the waiter', () => {
     expect(mockReportCompletion).toHaveBeenCalledWith(
       'stale-call-1',
       'error',
-      expect.stringContaining('not run this time'),
+      expect.stringContaining('too late to run safely'),
       expect.objectContaining({ staleEvent: true })
     )
     const [, , message] = mockReportCompletion.mock.calls[0] ?? []

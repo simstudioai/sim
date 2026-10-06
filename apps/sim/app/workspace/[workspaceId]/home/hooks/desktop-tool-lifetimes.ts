@@ -17,7 +17,7 @@ const runningTurns = new Map<string, RunningTurnTools>()
 
 /** A running desktop tool's hold on its turn. */
 interface DesktopToolLease {
-  /** Aborted only by the user's Stop of the turn. */
+  /** Aborted only by the user's Stop of the turn, or by signing out. */
   signal: AbortSignal
   /** Called once when the tool settles. */
   release(): void
@@ -25,8 +25,9 @@ interface DesktopToolLease {
 
 /**
  * Starts a desktop tool (a browser action, a local file read or import) for a turn. Only the
- * user's Stop of that turn cancels it: replacing the stream reader, leaving the chat view, or
- * stopping another chat's turn leaves it running to finish and report its own result.
+ * user's Stop of that turn, or signing out (`stopAllDesktopTools`), cancels it: replacing the
+ * stream reader, leaving the chat view, or stopping another chat's turn leaves it running to
+ * finish and report its own result.
  */
 export function leaseDesktopTool(streamId: string): DesktopToolLease {
   let turn = runningTurns.get(streamId)
