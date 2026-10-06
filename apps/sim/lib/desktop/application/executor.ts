@@ -26,7 +26,6 @@ import { classifyDesktopInbox, type DesktopInboxEntry } from '@/lib/desktop/exec
 import { markDesktopPresent } from '@/lib/desktop/executor/presence'
 import {
   acknowledgeDesktopCallResult,
-  getBindableDesktopDevice,
   getBoundDesktopCall,
   getBoundDesktopDevice,
   listDesktopInboxRows,
@@ -79,11 +78,10 @@ export async function resolveTurnDesktopDevice(
   deviceId: string
 ): Promise<string | null> {
   if (!(await isDesktopBackgroundExecutorEnabled(principal.userId))) return null
-  const device = await getBindableDesktopDevice({
-    deviceId,
-    userId: principal.userId,
-    sessionId: principal.sessionId,
-  })
+  const device = await getBoundDesktopDevice(
+    { deviceId, userId: principal.userId, sessionId: principal.sessionId },
+    { executor: true }
+  )
   if (!device) {
     logger.warn('Turn not bound: its desktop is not registered to this session', {
       userId: principal.userId,
@@ -133,7 +131,7 @@ export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
       if (!registered)
         throw new OrchestrationError(
           'conflict',
-          'This device ID belongs to another account. Generate a new device ID and register again.'
+          'This device ID belongs to another account or was revoked. Generate a new device ID and register again.'
         )
       logger.info('Desktop device registered', {
         userId: principal.userId,

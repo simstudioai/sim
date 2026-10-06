@@ -123,7 +123,8 @@ jobs:
   http-e2e:
     name: End-to-end over real HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    # Four suites, each starting its own dev app, run in sequence.
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -135,6 +136,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Only the desktop executor's app is given REDIS_URL: its doorbell and presence live there.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -297,6 +308,54 @@ jobs:
           STOP_AFTER_E2E_DATABASE_URL="$DATABASE_URL" \
           STOP_AFTER_E2E_REPORT_PATH="$report_dir/stop-after-http-report.json" \
             bun run test:workflow-stop-after:e2e
+
+      # The desktop background executor's protocol: device registration, the SSE doorbell over
+      # Redis pub/sub, presence, leased claims, Stop and isolation, against its own app with Redis.
+      - name: Verify the desktop background executor's inbox over real HTTP
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3019
+          BETTER_AUTH_URL: http://127.0.0.1:3019
+          REDIS_URL: redis://127.0.0.1:6379
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          MSHIP_DESKTOP_BACKGROUND_EXECUTOR: 'true'
+          COPILOT_TOOL_PERMISSIONS_ENABLED: 'true'
+          INTERNAL_API_SECRET: desktop-inbox-http-ci-local-secret-at-least-32-characters
+          DB_TX_TRIPWIRE: throw
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          server_log="$report_dir/desktop-inbox-next.log"
+          mkdir -p "$report_dir"
+          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
+          server_pid=$!
+          finish() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
+          }
+          trap finish EXIT
+          fail_startup() {
+            echo "::error::$1"
+            tail -n 200 "$server_log"
+            exit 1
+          }
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3019/api/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || fail_startup 'Local desktop executor app exited during startup.'
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] ||
+              fail_startup "Local desktop executor app did not become ready within $READY_TIMEOUT_SECONDS seconds."
+            sleep 2
+          done
+          echo "Local desktop executor app ready after $((SECONDS - started))s"
+          DESKTOP_INBOX_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          DESKTOP_INBOX_E2E_DATABASE_URL="$DATABASE_URL" \
+          DESKTOP_INBOX_E2E_REDIS_URL="$REDIS_URL" \
+          DESKTOP_INBOX_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+          DESKTOP_INBOX_E2E_REPORT_PATH="$report_dir/desktop-inbox-http-report.json" \
+            bun run test:desktop-inbox:e2e
 
       - name: Upload end-to-end reports and server logs
         if: failure()

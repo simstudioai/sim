@@ -110,6 +110,25 @@ describe('abort authorization before service signaling', () => {
     expect(mocks.ring).toHaveBeenCalledWith('device-1', 'cancel')
   })
 
+  it('rings no desktop for a stopped run that turns out to belong to another chat', async () => {
+    queueTableRows(schemaMock.copilotChats, [ownedChat])
+    queueTableRows(schemaMock.copilotChats, [ownedChat])
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.stop.mockResolvedValue({
+      chatId: 'newer-chat',
+      workspaceId: null,
+      organizationId: 'organization',
+      desktopDeviceId: 'device-1',
+    })
+
+    await expect(abortRun.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+
+    expect(mocks.ring).not.toHaveBeenCalled()
+    expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
   it('rejects a removed member before persisting or forwarding Stop', async () => {
     queueTableRows(schemaMock.copilotChats, [ownedChat])
     queueTableRows(schemaMock.member, [])

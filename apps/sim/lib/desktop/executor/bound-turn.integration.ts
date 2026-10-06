@@ -40,7 +40,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { closeRedisConnection } from '@/lib/core/config/redis'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
   claimDesktopTool,
   completeDesktopTool,
@@ -56,6 +56,9 @@ import {
 import { DesktopCallRevokedError } from '@/lib/desktop/executor/errors'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
+  areStreamToolExecutionsSettled,
+  claimToolExecution,
+  prepareWorkbenchAccess,
   requestRunStop,
   revokeExpiredSimToolExecutions,
 } from '@/lib/mothership/async-runs/repository'
@@ -63,6 +66,7 @@ import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothershi
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
 import { runCleanupStaleExecutions } from '@/background/cleanup-stale-executions'
@@ -185,20 +189,22 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
 
   type Desktop = Awaited<ReturnType<typeof signedInDesktop>>
 
-  /** A run admitted with its desktop calls bound to `desktop`. */
-  async function boundRun(desktop: Desktop) {
-    const chatId = generateId()
-    chatIds.push(chatId)
+  /** A run admitted with its desktop calls bound to `desktop`, in a new chat or in `chatId`. */
+  async function boundRun(desktop: Desktop, existingChatId?: string) {
+    const chatId = existingChatId ?? generateId()
     const runId = generateId()
     const streamId = generateId()
-    await db.insert(copilotChats).values({
-      id: chatId,
-      userId,
-      workspaceId,
-      type: 'mothership',
-      title: 'Bound turn',
-      conversationId: streamId,
-    })
+    if (!existingChatId) {
+      chatIds.push(chatId)
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId,
+        workspaceId,
+        type: 'mothership',
+        title: 'Bound turn',
+        conversationId: streamId,
+      })
+    }
     await db.insert(copilotRuns).values({
       id: runId,
       executionId: generateId(),
@@ -555,10 +561,85 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
         output: { outcomeUnknown: true },
       })
       expect((await storedCall(toolCallId)).status).toBe('cancelled')
+      /**
+       * The device never acknowledges (it is asleep, offline or signed out), yet the stopped turn
+       * has no Sim execution left running, and the chat's next turn gets its workbench.
+       */
+      expect(await areStreamToolExecutionsSettled(run.streamId, userId)).toBe(true)
+      const nextTurn = await boundRun(desktop, run.chatId)
+      const simCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: nextTurn.runId,
+        toolCallId: simCallId,
+        toolName: 'run_code',
+        args: {},
+      })
+      const owner = {
+        toolCallId: simCallId,
+        runId: nextTurn.runId,
+        userId,
+        ownerToken: generateId(),
+      }
+      expect(await claimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      await expect(
+        prepareWorkbenchAccess({ ...owner, sessionKey: chatSandboxSessionKey(run.chatId) })
+      ).resolves.toMatchObject({ handlersPending: false })
+
       await expect(desktop.renew(toolCallId, executionToken)).rejects.toBeInstanceOf(
         DesktopCallRevokedError
       )
       expect((await desktop.pull()).items).toEqual([{ kind: 'cancel', toolCallId }])
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'enforces the pickup window when presence cannot be read, without failing a call early',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const redis = getRedisClient()
+      if (!redis) throw new Error('Redis is required')
+      const reads = vi.spyOn(redis, 'exists').mockRejectedValue(new Error('Redis unavailable'))
+      try {
+        const { toolCallId, answer, context } = await agentCalls(run, 'browser_click', {
+          ref: 'e1',
+        })
+        await offered(toolCallId)
+        await sleep(POLL_SETTLES_MS)
+        expect((await storedCall(toolCallId)).status).toBe('pending')
+
+        await lapse(toolCallId, 'pickup')
+        await answer
+        expect(reads).toHaveBeenCalled()
+        expect(resultOf(context, toolCallId)).toMatchObject({
+          success: false,
+          output: { notStarted: true, reason: 'not_responding' },
+        })
+      } finally {
+        reads.mockRestore()
+      }
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'settles a call Sim never offered once its pickup window would have closed',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId,
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
+        createdAt: new Date(Date.now() - 600_000),
+      })
+
+      await runCleanupStaleExecutions()
+
+      expect(await storedCall(toolCallId)).toMatchObject({ status: 'failed' })
     },
     TURN_WAIT_MS
   )

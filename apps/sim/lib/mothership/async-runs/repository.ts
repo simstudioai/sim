@@ -666,7 +666,7 @@ async function claimUnderRunAdmission<T>(
   claimedBy: string,
   requireCurrentVersion: boolean,
   claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>
-): Promise<T | { outcome: 'closed' }> {
+): Promise<T | { outcome: 'closed' } | { outcome: 'existing' }> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
@@ -677,41 +677,46 @@ async function claimUnderRunAdmission<T>(
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
     () =>
-      traceMothershipTransaction<T | { outcome: 'closed' }>('claim_tool', async (tx) => {
-        const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
-          tx
-            .select({
-              toolExecutionVersion: copilotRuns.toolExecutionVersion,
-              toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
-              status: copilotRuns.status,
-            })
-            .from(copilotRuns)
-            .where(
-              and(
-                eq(copilotRuns.id, call.runId),
-                eq(copilotRuns.userId, call.userId),
-                call.desktopDeviceId
-                  ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
-                  : undefined
+      traceMothershipTransaction<T | { outcome: 'closed' } | { outcome: 'existing' }>(
+        'claim_tool',
+        async (tx) => {
+          const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
+            tx
+              .select({
+                toolExecutionVersion: copilotRuns.toolExecutionVersion,
+                toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+                status: copilotRuns.status,
+              })
+              .from(copilotRuns)
+              .where(
+                and(
+                  eq(copilotRuns.id, call.runId),
+                  eq(copilotRuns.userId, call.userId),
+                  call.desktopDeviceId
+                    ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
+                    : undefined
+                )
               )
-            )
-            .for('update')
-        )
-        if (
-          !run ||
-          (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
-        )
-          throw new Error('Tool execution ownership is unavailable for this run')
-        if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
-          return { outcome: 'closed' }
-        return claim(
-          tx,
-          and(
-            eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
-            eq(copilotAsyncToolCalls.runId, call.runId)
+              .for('update')
           )
-        )
-      })
+          // The run is not bound to the claiming device: the call is not this device's to take.
+          if (!run && call.desktopDeviceId) return { outcome: 'existing' }
+          if (
+            !run ||
+            (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
+          )
+            throw new Error('Tool execution ownership is unavailable for this run')
+          if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
+            return { outcome: 'closed' }
+          return claim(
+            tx,
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
+              eq(copilotAsyncToolCalls.runId, call.runId)
+            )
+          )
+        }
+      )
   )
 }
 
@@ -768,8 +773,10 @@ export interface DesktopToolCallClaimant {
   userId: string
   claimedBy: DesktopToolClaimOwner
   /**
-   * Set when the desktop's background executor claims a call on a run bound to `deviceId`: the
-   * claim then also takes the execution lease under `ownerToken`, like Sim's own.
+   * Set when the desktop's background executor claims a call Sim offered it on a run bound to
+   * `deviceId`: the claim then also takes the execution lease under `ownerToken`. It does not mark
+   * a Sim execution as started: no Sim handler runs, so the call never holds up Stop's
+   * settlement or the next turn's workbench, whatever the device does after.
    */
   executor?: { deviceId: string; ownerToken: string }
 }
@@ -805,7 +812,6 @@ export async function claimDesktopToolCall(
             updatedAt: claimedAt,
             ...(executor
               ? {
-                  executionStartedAt: claimedAt,
                   executionOwnerToken: executor.ownerToken,
                   executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
                 }
@@ -815,11 +821,14 @@ export async function claimDesktopToolCall(
             and(
               thisCall,
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-              // An offered call whose pickup window closed belongs to its not-started settlement.
-              or(
-                isNull(copilotAsyncToolCalls.pickupDeadlineAt),
-                sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
-              ),
+              // The executor takes only a call Sim offered it, inside its pickup window; once the
+              // window closed the call belongs to its not-started settlement.
+              executor
+                ? sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+                : or(
+                    isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+                    sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+                  ),
               or(
                 and(
                   isNull(copilotAsyncToolCalls.permissionRequestedAt),

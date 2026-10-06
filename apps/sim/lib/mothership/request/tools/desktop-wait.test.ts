@@ -8,10 +8,20 @@ import {
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const desktopRepository = vi.hoisted(() => ({
+  listOverdueDesktopToolCalls: vi.fn(),
+  getDesktopToolCallDeadlines: vi.fn(),
+  offerDesktopToolCall: vi.fn(),
+}))
+
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/tools/client', () => mothershipClientToolWaiterMock)
+vi.mock('@/lib/desktop/executor/repository', () => desktopRepository)
 
-import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
+import {
+  settleAbandonedDesktopToolCalls,
+  waitForDesktopToolCall,
+} from '@/lib/mothership/request/tools/desktop-wait'
 
 const waitForClientToolCompletion =
   mothershipClientToolWaiterMockFns.mockWaitForClientToolCompletion
@@ -59,5 +69,19 @@ describe('waitForDesktopToolCall', () => {
     const answer = await waitForDesktopToolCall({ ...params, timeoutMs: 1_000 })
 
     expect(answer).toMatchObject({ status: 'error', data: { notStarted: true } })
+  })
+})
+
+describe('settleAbandonedDesktopToolCalls', () => {
+  it('keeps sweeping past a call it could not settle', async () => {
+    desktopRepository.listOverdueDesktopToolCalls.mockResolvedValueOnce(['a', 'b', 'c'])
+    desktopRepository.getDesktopToolCallDeadlines
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('connection reset'))
+
+    await expect(settleAbandonedDesktopToolCalls(0)).resolves.toBe(0)
+
+    expect(desktopRepository.getDesktopToolCallDeadlines.mock.calls).toEqual([['a'], ['b'], ['c']])
   })
 })

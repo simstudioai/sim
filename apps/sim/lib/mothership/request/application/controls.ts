@@ -153,14 +153,14 @@ export const abortRun = defineAuthorizedChatUseCase({
       ...(input.chatId ? { chatId: input.chatId } : {}),
     })
     if (!run) return { aborted: true, settled: true }
-    /** Admission is closed: the device re-reads its inbox and cancels what it is running. */
-    if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'cancel')
     /** Admission can win after context lookup; bind its canonical chat before signalling anything. */
     const { chatId } = await resolveAdmittedRunContext(
       principal,
       { ...input, workspaceId, organizationId },
       run
     )
+    /** Admission is closed: the device re-reads its inbox and cancels what it is running. */
+    if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'cancel')
     /** Push delivers promptly; the worker also reconciles Sim's durable intent after an outage. */
     const workerStop = requestExplicitStreamAbort({
       streamId,

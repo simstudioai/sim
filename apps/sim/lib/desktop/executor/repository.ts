@@ -6,16 +6,56 @@ import {
   copilotRuns,
   desktopDevices,
 } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { DESKTOP_INBOX_HORIZON_HOURS } from '@/lib/desktop/executor/constants'
 import {
   ASYNC_TOOL_STATUS,
   DESKTOP_TOOL_CLAIM_OWNER,
+  EXECUTABLE_TOOL_PERMISSION_DECISIONS,
   isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
+import { DESKTOP_TOOL_PICKUP_GRACE_MS } from '@/lib/mothership/constants'
 import { DESKTOP_TOOL_CALL_NAMES } from '@/lib/mothership/tools/desktop-tools'
 
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
+
+/** A call held for the user's decision: asked about (or answered) and not allowed. */
+const awaitingPermission = and(
+  or(
+    isNotNull(copilotAsyncToolCalls.permissionRequestedAt),
+    isNotNull(copilotAsyncToolCalls.permissionDecision)
+  ),
+  or(
+    isNull(copilotAsyncToolCalls.permissionDecision),
+    notInArray(copilotAsyncToolCalls.permissionDecision, [...EXECUTABLE_TOOL_PERMISSION_DECISIONS])
+  )
+)
+
+/**
+ * When an unclaimed call on a bound run must be picked up by: its offer's deadline, or, for a call
+ * Sim never got to offer (its process died first), one pickup window after it could first run.
+ */
+const pickupDeadline = sql`coalesce(${copilotAsyncToolCalls.pickupDeadlineAt}, coalesce(${copilotAsyncToolCalls.permissionDecidedAt}, ${copilotAsyncToolCalls.createdAt}) + ${DESKTOP_TOOL_PICKUP_GRACE_MS} * interval '1 millisecond')`
+
+/** An unclaimed call that may run and whose pickup deadline passed `at`. */
+function pickupOverdueAt(at: SQL) {
+  return and(
+    eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+    sql`NOT (${awaitingPermission})`,
+    sql`${pickupDeadline} <= ${at}`
+  )
+}
 const INBOX_ROW_LIMIT = 500
 
 export interface DesktopDeviceRegistration {
@@ -29,8 +69,9 @@ export interface DesktopDeviceRegistration {
 }
 
 /**
- * Registers the device under this session, replacing an older session of the same user and
- * clearing a revocation. Returns false when the install id already belongs to another user.
+ * Registers the device under this session, replacing an older session of the same user. Returns
+ * false when the install id belongs to another user or was revoked: a revoked id is retired, so
+ * registering it again cannot undo the revocation, and the device starts over with a new id.
  */
 export async function upsertDesktopDevice(input: DesktopDeviceRegistration): Promise<boolean> {
   const [row] = await db
@@ -52,11 +93,10 @@ export async function upsertDesktopDevice(input: DesktopDeviceRegistration): Pro
         appVersion: input.appVersion,
         platform: input.platform,
         capabilities: input.capabilities,
-        revokedAt: null,
         lastSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       },
-      setWhere: eq(desktopDevices.userId, input.userId),
+      setWhere: and(eq(desktopDevices.userId, input.userId), isNull(desktopDevices.revokedAt)),
     })
     .returning({ id: desktopDevices.id })
   return Boolean(row)
@@ -68,8 +108,14 @@ export interface DesktopDeviceIdentity {
   sessionId: string
 }
 
-/** The device row only while it is bound to exactly this user and session and not revoked. */
-export async function getBoundDesktopDevice(identity: DesktopDeviceIdentity) {
+/**
+ * The device row only while it is bound to exactly this user and session and not revoked. With
+ * `executor`, only a device that registered a background executor a turn can be bound to.
+ */
+export async function getBoundDesktopDevice(
+  identity: DesktopDeviceIdentity,
+  options: { executor?: boolean } = {}
+) {
   const [row] = await db
     .select({ id: desktopDevices.id })
     .from(desktopDevices)
@@ -78,7 +124,10 @@ export async function getBoundDesktopDevice(identity: DesktopDeviceIdentity) {
         eq(desktopDevices.id, identity.deviceId),
         eq(desktopDevices.userId, identity.userId),
         eq(desktopDevices.sessionId, identity.sessionId),
-        isNull(desktopDevices.revokedAt)
+        isNull(desktopDevices.revokedAt),
+        options.executor
+          ? sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
+          : undefined
       )
     )
     .limit(1)
@@ -133,8 +182,8 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
             eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
             isNull(copilotAsyncToolCalls.executionOwnerToken),
             or(
-              isNull(copilotAsyncToolCalls.pickupDeadlineAt),
-              sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+              sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`,
+              awaitingPermission
             ),
             inArray(copilotRuns.status, LIVE_RUN_STATUSES),
             isNull(copilotRuns.toolAdmissionClosedAt)
@@ -230,24 +279,6 @@ export async function acknowledgeDesktopCallResult(input: {
   })
 }
 
-/** A device the caller may bind a new turn to: theirs, on this session, and able to execute. */
-export async function getBindableDesktopDevice(identity: DesktopDeviceIdentity) {
-  const [row] = await db
-    .select({ id: desktopDevices.id })
-    .from(desktopDevices)
-    .where(
-      and(
-        eq(desktopDevices.id, identity.deviceId),
-        eq(desktopDevices.userId, identity.userId),
-        eq(desktopDevices.sessionId, identity.sessionId),
-        isNull(desktopDevices.revokedAt),
-        sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
-      )
-    )
-    .limit(1)
-  return row ?? null
-}
-
 /** The device a run's desktop calls are bound to, or null for a run the chat view serves. */
 export async function getRunDesktopDeviceId(runId: string): Promise<string | null> {
   const [row] = await db
@@ -300,7 +331,7 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
       status: copilotAsyncToolCalls.status,
       ownerToken: copilotAsyncToolCalls.executionOwnerToken,
       result: copilotAsyncToolCalls.result,
-      pickupOverdue: sql<boolean>`coalesce(${copilotAsyncToolCalls.pickupDeadlineAt} <= clock_timestamp(), false)`,
+      pickupOverdue: sql<boolean>`coalesce(${pickupOverdueAt(sql`clock_timestamp()`)}, false)`,
       leaseLapsed: sql<boolean>`coalesce(${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp(), false)`,
     })
     .from(copilotAsyncToolCalls)
@@ -317,9 +348,9 @@ export type DesktopToolCallDeadlines = NonNullable<
 >
 
 /**
- * Bound desktop calls a deadline passed for at least `slackMs` ago: offered and still unclaimed,
- * or claimed by the executor with a lapsed lease. A live waiter settles these within its 5 s
- * poll, so anything this finds lost its waiter.
+ * Bound desktop calls a deadline passed for at least `slackMs` ago: unclaimed past their pickup
+ * deadline (offered or not), or claimed by the executor with a lapsed lease. A live waiter settles
+ * these within its 5 s poll, so anything this finds lost its waiter.
  */
 export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
   const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
@@ -331,10 +362,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
       and(
         isNotNull(copilotRuns.desktopDeviceId),
         or(
-          and(
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-            sql`${copilotAsyncToolCalls.pickupDeadlineAt} < ${overdue}`
-          ),
+          pickupOverdueAt(overdue),
           and(
             eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
             inArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER)),

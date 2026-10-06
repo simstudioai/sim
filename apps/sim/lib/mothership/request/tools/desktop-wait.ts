@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
@@ -191,6 +192,19 @@ async function settleBoundDesktopToolCall(
   })
 }
 
+/** Whether the device is present, or null when presence cannot be read right now. */
+async function readDesktopPresence(deviceId: string): Promise<boolean | null> {
+  try {
+    return await isDesktopPresent(deviceId)
+  } catch (error) {
+    logger.warn('Could not read desktop presence; enforcing the pickup window alone', {
+      deviceId,
+      error: toError(error).message,
+    })
+    return null
+  }
+}
+
 /**
  * Settles a bound desktop call that can no longer finish on its own, sealed like the device's own
  * result so whoever waits on it restores it. A pending call fails as never started once its device
@@ -202,9 +216,10 @@ async function settleOverdueDesktopToolCall(toolCallId: string): Promise<boolean
   const call = await getDesktopToolCallDeadlines(toolCallId)
   if (!call) return false
   if (call.status === ASYNC_TOOL_STATUS.pending) {
-    const present = await isDesktopPresent(call.deviceId)
-    if (present && !call.pickupOverdue) return false
-    const reason = present ? 'not_responding' : 'offline'
+    const present = await readDesktopPresence(call.deviceId)
+    // Before its pickup window closes, a call fails early only when its device is known to be away.
+    if (!call.pickupOverdue && present !== false) return false
+    const reason = present === false ? 'offline' : 'not_responding'
     const outcome = await settleBoundDesktopToolCall(call, desktopToolNotStarted(reason), {
       kind: 'pending',
     })
@@ -252,7 +267,14 @@ export async function settleAbandonedDesktopToolCalls(
   })
   let settled = 0
   for (const toolCallId of toolCallIds) {
-    if (await settleOverdueDesktopToolCall(toolCallId)) settled++
+    try {
+      if (await settleOverdueDesktopToolCall(toolCallId)) settled++
+    } catch (error) {
+      logger.warn('Could not settle an abandoned desktop tool call; the next sweep retries it', {
+        toolCallId,
+        error: toError(error).message,
+      })
+    }
   }
   return settled
 }
