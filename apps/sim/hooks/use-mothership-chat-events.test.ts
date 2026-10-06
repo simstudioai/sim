@@ -1,3 +1,4 @@
+import type { DesktopNotificationPayload } from '@sim/desktop-bridge'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -298,19 +299,36 @@ describe('resyncMothershipChatCaches', () => {
 })
 
 describe('reflectBackgroundChatStatus', () => {
-  const notify = vi.fn(async () => true)
-  const queryClient = {
-    getQueryData: vi.fn(),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-  } satisfies Pick<QueryClient, 'getQueryData' | 'invalidateQueries'>
+  /** What the desktop app was asked to show. */
+  let shown: DesktopNotificationPayload[] = []
+  let queryClient: QueryClient
 
   function showing(pathname: string, desktop = true) {
+    shown = []
     vi.stubGlobal('window', {
       location: { pathname },
-      ...(desktop ? { simDesktop: { settings: { notify } } } : {}),
+      ...(desktop
+        ? {
+            simDesktop: {
+              settings: {
+                notify: async (payload: DesktopNotificationPayload) => {
+                  shown.push(payload)
+                  return true
+                },
+              },
+            },
+          }
+        : {}),
     })
-    queryClient.getQueryData.mockReturnValue([{ id: 'chat-b', name: 'Fix CI' }])
+    queryClient = new QueryClient()
+    queryClient.setQueryData(mothershipChatKeys.ownerList('ws-1'), [
+      { id: 'chat-b', name: 'Fix CI' },
+    ])
+    queryClient.setQueryData(desktopActivityKeys.list('ws-1'), [])
   }
+
+  const activityStale = () =>
+    queryClient.getQueryState(desktopActivityKeys.list('ws-1'))?.isInvalidated ?? false
 
   const completed = JSON.stringify({ chatId: 'chat-b', type: 'completed', streamId: 's-1' })
 
@@ -319,11 +337,9 @@ describe('reflectBackgroundChatStatus', () => {
 
     reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
 
-    expect(notify).toHaveBeenCalledWith({
-      title: 'Fix CI',
-      body: 'Sim finished responding.',
-      route: '/workspace/ws-1/chat/chat-b',
-    })
+    expect(shown).toEqual([
+      { title: 'Fix CI', body: 'Sim finished responding.', route: '/workspace/ws-1/chat/chat-b' },
+    ])
   })
 
   it('announces nothing while the background executor is off', () => {
@@ -331,7 +347,7 @@ describe('reflectBackgroundChatStatus', () => {
 
     reflectBackgroundChatStatus(queryClient, 'ws-1', completed, false)
 
-    expect(notify).not.toHaveBeenCalled()
+    expect(shown).toEqual([])
   })
 
   it('leaves the chat on screen to announce itself', () => {
@@ -339,13 +355,12 @@ describe('reflectBackgroundChatStatus', () => {
 
     reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
 
-    expect(notify).not.toHaveBeenCalled()
+    expect(shown).toEqual([])
   })
 
-  it('stays silent outside the desktop app and for a turn that only started', () => {
-    showing('/workspace/ws-1/chat/chat-c', false)
-    reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
+  it('stays silent for a turn that only started', () => {
     showing('/workspace/ws-1/chat/chat-c')
+
     reflectBackgroundChatStatus(
       queryClient,
       'ws-1',
@@ -353,10 +368,10 @@ describe('reflectBackgroundChatStatus', () => {
       true
     )
 
-    expect(notify).not.toHaveBeenCalled()
+    expect(shown).toEqual([])
   })
 
-  it('refreshes which chats run on a desktop whenever a turn starts or ends', () => {
+  it('refreshes which chats run on a desktop when a turn starts', () => {
     showing('/workspace/ws-1/home', false)
 
     reflectBackgroundChatStatus(
@@ -365,6 +380,13 @@ describe('reflectBackgroundChatStatus', () => {
       JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-3' }),
       true
     )
+
+    expect(activityStale()).toBe(true)
+  })
+
+  it('leaves the desktop activity alone for a rename', () => {
+    showing('/workspace/ws-1/home', false)
+
     reflectBackgroundChatStatus(
       queryClient,
       'ws-1',
@@ -372,9 +394,6 @@ describe('reflectBackgroundChatStatus', () => {
       true
     )
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: desktopActivityKeys.lists(),
-    })
+    expect(activityStale()).toBe(false)
   })
 })

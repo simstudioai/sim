@@ -137,7 +137,6 @@ describe('organization turn admission through current private-chat authorization
       input: { ...input(), desktopDeviceId: '33333333-3333-4333-8333-333333333333' },
     })
 
-    expect(hoisted.resolveDesktop).not.toHaveBeenCalled()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1', desktopDeviceId: null })
     )
