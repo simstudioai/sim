@@ -240,58 +240,62 @@ describe('LocalFilesystemService', () => {
     ).toBe(false)
   })
 
-  it.skipIf(NO_SYMLINKS)(
-    'rejects unknown mounts and symlinks that escape the selected directory',
-    async () => {
-      const granted = await mount(service)
-      const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
-      await writeFile(join(outside, 'secret.txt'), 'secret')
-      await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
+  it('rejects unknown mounts', async () => {
+    await mount(service)
 
-      const missingMount = await service.handle({
-        operation: 'read',
-        uri: 'localfs://not-granted/file.txt',
-      })
-      expect(missingMount).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+    const missingMount = await service.handle({
+      operation: 'read',
+      uri: 'localfs://not-granted/file.txt',
+    })
+    expect(missingMount).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+  })
 
-      const escaped = await service.handle({
-        operation: 'read',
-        uri: `${granted.uri}secret-link.txt`,
-      })
-      expect(escaped).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
+  it.skipIf(NO_SYMLINKS)('rejects symlinks that escape the selected directory', async () => {
+    const granted = await mount(service)
+    const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+    await writeFile(join(outside, 'secret.txt'), 'secret')
+    await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
+
+    const escaped = await service.handle({
+      operation: 'read',
+      uri: `${granted.uri}secret-link.txt`,
+    })
+    expect(escaped).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
+  })
+
+  it('resolves a granted file for upload and refuses directories, oversize files, and unknown mounts', async () => {
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+
+    const file = await service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)
+    try {
+      expect(file).toMatchObject({ name: 'README.md', size: 24 })
+      await expect(file.handle.readFile('utf8')).resolves.toBe('hello world\nsecond line\n')
+    } finally {
+      await file.handle.close()
     }
-  )
+    await expect(service.resolveGrantedFile(`${vfsRoot}/src`, 1024)).rejects.toMatchObject({
+      code: 'NOT_A_FILE',
+    })
+    await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 4)).rejects.toMatchObject({
+      code: 'FILE_TOO_LARGE',
+    })
+    await expect(
+      service.resolveGrantedFile('user-local/Other--missing/README.md', 1024)
+    ).rejects.toMatchObject({ code: 'MOUNT_NOT_FOUND' })
+  })
 
-  it.skipIf(NO_SYMLINKS)(
-    'resolves a granted file for upload and refuses escapes, directories, and oversize files',
-    async () => {
-      const granted = await mount(service)
-      const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
-      const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
-      await writeFile(join(outside, 'secret.txt'), 'secret')
-      await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
+  it.skipIf(NO_SYMLINKS)('refuses an upload through a symlink that escapes the grant', async () => {
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+    const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+    await writeFile(join(outside, 'secret.txt'), 'secret')
+    await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
 
-      const file = await service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)
-      try {
-        expect(file).toMatchObject({ name: 'README.md', size: 24 })
-        await expect(file.handle.readFile('utf8')).resolves.toBe('hello world\nsecond line\n')
-      } finally {
-        await file.handle.close()
-      }
-      await expect(
-        service.resolveGrantedFile(`${vfsRoot}/secret-link.txt`, 1024)
-      ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
-      await expect(service.resolveGrantedFile(`${vfsRoot}/src`, 1024)).rejects.toMatchObject({
-        code: 'NOT_A_FILE',
-      })
-      await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 4)).rejects.toMatchObject({
-        code: 'FILE_TOO_LARGE',
-      })
-      await expect(
-        service.resolveGrantedFile('user-local/Other--missing/README.md', 1024)
-      ).rejects.toMatchObject({ code: 'MOUNT_NOT_FOUND' })
-    }
-  )
+    await expect(
+      service.resolveGrantedFile(`${vfsRoot}/secret-link.txt`, 1024)
+    ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
+  })
 
   it.each(['..', '%2e%2e', 'src%2F..%2FREADME.md', 'README.md%00'])(
     'rejects unsafe upload path segment %s',

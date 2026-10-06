@@ -16,24 +16,24 @@ afterEach(async () => {
 // test runner cannot assume.
 const NO_SYMLINKS = process.platform === 'win32'
 
-it.skipIf(NO_SYMLINKS)(
-  'rejects missing paths and directory cycles with explicit errors before uploading',
-  async () => {
-    expect(
-      await executeLocalFileRequest(
-        { operation: 'read' },
-        { toolName: 'read_local_file', args: { path: join(root, 'missing') } }
-      )
-    ).toMatchObject({ ok: false })
-    await symlink(root, join(root, 'cycle'))
-    expect(
-      await executeLocalFileRequest(
-        { operation: 'manifest' },
-        { toolName: 'import_local_files', args: { path: root, targetWorkspaceId: 'target' } }
-      )
-    ).toMatchObject({ ok: false, error: expect.stringContaining('cycle') })
-  }
-)
+it('rejects a missing path with an explicit error before uploading', async () => {
+  expect(
+    await executeLocalFileRequest(
+      { operation: 'read' },
+      { toolName: 'read_local_file', args: { path: join(root, 'missing') } }
+    )
+  ).toMatchObject({ ok: false })
+})
+
+it.skipIf(NO_SYMLINKS)('rejects a directory cycle with an explicit error', async () => {
+  await symlink(root, join(root, 'cycle'))
+  expect(
+    await executeLocalFileRequest(
+      { operation: 'manifest' },
+      { toolName: 'import_local_files', args: { path: root, targetWorkspaceId: 'target' } }
+    )
+  ).toMatchObject({ ok: false, error: expect.stringContaining('cycle') })
+})
 
 it('refuses oversized import files before any workspace mutation or bulk allocation', async () => {
   const path = join(root, 'large.bin')

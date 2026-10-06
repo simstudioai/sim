@@ -100,27 +100,31 @@ describe('DesktopChatSessionStore', () => {
     expect(restarted.getTerminal(ORIGIN, 'chat-a')).toEqual(TERMINAL)
   })
 
+  it('encrypts the complete descriptor payload', () => {
+    const provider = encryption()
+    const store = open(provider)
+    store.setBrowser(ORIGIN, 'chat-secret', BROWSER)
+    store.setTerminal(ORIGIN, 'chat-secret', TERMINAL)
+
+    expect(store.flush()).toBe(true)
+
+    const onDisk = readFileSync(filePath, 'utf8')
+    expect(onDisk).not.toContain('chat-secret')
+    expect(onDisk).not.toContain('example.com')
+    expect(onDisk).not.toContain('/Users/ada/code')
+    expect(onDisk).not.toContain('report.csv')
+    expect(JSON.parse(onDisk)).toEqual({ v: 1, ciphertext: expect.any(String) })
+    expect(provider.encryptString).toHaveBeenCalledOnce()
+  })
+
   // Windows has no POSIX mode bits to assert on.
-  it.skipIf(process.platform === 'win32')(
-    'encrypts the complete descriptor payload and writes it owner-only',
-    () => {
-      const provider = encryption()
-      const store = open(provider)
-      store.setBrowser(ORIGIN, 'chat-secret', BROWSER)
-      store.setTerminal(ORIGIN, 'chat-secret', TERMINAL)
+  it.skipIf(process.platform === 'win32')('writes the store file owner-only', () => {
+    const store = open(encryption())
+    store.setBrowser(ORIGIN, 'chat-secret', BROWSER)
 
-      expect(store.flush()).toBe(true)
-
-      const onDisk = readFileSync(filePath, 'utf8')
-      expect(onDisk).not.toContain('chat-secret')
-      expect(onDisk).not.toContain('example.com')
-      expect(onDisk).not.toContain('/Users/ada/code')
-      expect(onDisk).not.toContain('report.csv')
-      expect(JSON.parse(onDisk)).toEqual({ v: 1, ciphertext: expect.any(String) })
-      expect(provider.encryptString).toHaveBeenCalledOnce()
-      expect(statSync(filePath).mode & 0o077).toBe(0)
-    }
-  )
+    expect(store.flush()).toBe(true)
+    expect(statSync(filePath).mode & 0o077).toBe(0)
+  })
 
   it('does not replace the durable store with an oversized encrypted envelope', () => {
     const provider = encryption()
