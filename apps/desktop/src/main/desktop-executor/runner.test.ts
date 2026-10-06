@@ -53,7 +53,9 @@ describe('background terminal calls', () => {
 
     const first = runner.run(terminalCall('wedged', 'input'), new AbortController().signal)
     await vi.advanceTimersByTimeAsync(15_000)
-    expect((await first).status).toBe('error')
+    const timedOut = await first
+    expect(timedOut.status).toBe('error')
+    expect(timedOut.data).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
 
     const second = runner.run(terminalCall('next', 'read'), new AbortController().signal)
     await vi.advanceTimersByTimeAsync(0)

@@ -86,6 +86,8 @@ export class DesktopExecutor {
   private paused = false
   private disposed = false
   private busy = false
+  /** The journal walk after a restart; sign-out waits for it before clearing the journal. */
+  private recovering: Promise<void> | null = null
   /** Results a previous app run left, still on their way to Sim. */
   private recoveredInFlight = 0
   /** Results Sim refused because it no longer recognized this device; sent once it registers again. */
@@ -107,8 +109,15 @@ export class DesktopExecutor {
 
   /** Reports every call the journal says a previous run of the app left unfinished. */
   async recover(): Promise<void> {
+    this.recovering = this.recoverEntries()
+    await this.recovering
+  }
+
+  private async recoverEntries(): Promise<void> {
     const entries = await this.options.journal.load()
     for (const entry of entries) {
+      // Signed out mid-recovery: the previous session's results stay unsent and are cleared.
+      if (this.disposed) return
       if (entry.state === 'claiming') {
         // Unknown whether the claim landed. If it did not, the inbox offers the call again. If it
         // did, its token never reached this device, so nothing here can report it; Sim settles it
@@ -188,6 +197,7 @@ export class DesktopExecutor {
     // cleared only after it, so its `claiming` record does not outlive the session.
     await this.reconciling?.catch(() => {})
     await Promise.all([stopping, this.dropHeld()])
+    await this.recovering?.catch(() => {})
     this.updateBusy()
     await this.options.journal.clear()
   }
@@ -338,6 +348,7 @@ export class DesktopExecutor {
     executionToken: string,
     completion: DesktopToolCompletion
   ): Promise<void> {
+    if (this.disposed) return
     let pending = completion
     // Best effort: unrecorded, a crash reports the call from its `started` entry as outcome unknown.
     await this.record({ toolCallId, state: 'result', executionToken, completion })

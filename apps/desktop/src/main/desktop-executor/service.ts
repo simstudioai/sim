@@ -128,7 +128,8 @@ export function createDesktopExecutorService(
 
   function scheduleReconcile(): void {
     if (reconcileTimer) clearTimeout(reconcileTimer)
-    if (!timing || !executor) return
+    // Stopped loops (a dormant or unrecognized device) stay stopped until registration restarts them.
+    if (!timing || !executor || !doorbell) return
     const delay = timing.reconcileMs * (1 - RECONCILE_JITTER + randomFloat() * RECONCILE_JITTER)
     reconcileTimer = setTimeout(() => {
       reconcileTimer = null

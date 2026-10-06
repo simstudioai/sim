@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -31,9 +31,14 @@ vi.mock('@/main/terminal/tmux', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
       const window = `@${nextWindow++}`
       const statusPath = join(dir, 'status')
-      writeFileSync(join(dir, 'out'), '')
+      writeFileSync(join(dir, 'out'), 'partial output')
       tmuxFake.statusPaths.set(window, statusPath)
-      return { window, outPath: join(dir, 'out'), statusPath, dispose: () => {} }
+      return {
+        window,
+        outPath: join(dir, 'out'),
+        statusPath,
+        dispose: () => rmSync(dir, { recursive: true, force: true }),
+      }
     },
     sendKey: async (target: string, key: string, env: NodeJS.ProcessEnv) => {
       if (!tmuxFake.on) return actual.sendKey(target, key, env)
@@ -568,6 +573,29 @@ describe('agent commands in tmux', () => {
       await expect(running).resolves.toMatchObject({
         ok: true,
         result: { status: 'completed', exitCode: 130 },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it("keeps a run's output readable for its call when the terminal goes away mid-wait", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux-closed', 'run', {
+        command: 'make build',
+        waitSeconds: 1,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      terminal.dispose()
+
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'running', output: 'partial output' },
       })
     } finally {
       tmuxFake.on = false

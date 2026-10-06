@@ -248,6 +248,8 @@ export class TerminalService {
   private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
   /** Runs a `run` call is still waiting on; their files are read when the wait ends. */
   private readonly awaitedRuns = new Set<TmuxRunHandle>()
+  /** Awaited runs released meanwhile (their terminal closed); their files go once the wait ends. */
+  private readonly releasedAwaitedRuns = new Set<TmuxRunHandle>()
   /** How to stop each tool call still in flight, so Stop interrupts exactly what it started. */
   private readonly toolStops = new Map<string, () => Promise<void>>()
 
@@ -488,6 +490,12 @@ export class TerminalService {
     else this.pendingRuns.set(terminalId, stillRunning)
   }
 
+  /** Removes a run's files now, or once the call still reading them is done with them. */
+  private releaseRun(handle: TmuxRunHandle): void {
+    if (this.awaitedRuns.has(handle)) this.releasedAwaitedRuns.add(handle)
+    else handle.dispose()
+  }
+
   private untrackRun(terminalId: string, handle: TmuxRunHandle): void {
     const remaining = (this.pendingRuns.get(terminalId) ?? []).filter((entry) => entry !== handle)
     if (remaining.length === 0) this.pendingRuns.delete(terminalId)
@@ -501,7 +509,7 @@ export class TerminalService {
   private releasePendingRuns(terminalId: string): void {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
-    for (const handle of pending) handle.dispose()
+    for (const handle of pending) this.releaseRun(handle)
     this.pendingRuns.delete(terminalId)
   }
 
@@ -812,7 +820,7 @@ export class TerminalService {
     this.sessions.clear()
     this.tmuxCache.clear()
     for (const handles of this.pendingRuns.values()) {
-      for (const handle of handles) handle.dispose()
+      for (const handle of handles) this.releaseRun(handle)
     }
     this.pendingRuns.clear()
     this.activeId = null
@@ -1282,7 +1290,10 @@ export class TerminalService {
     const outcome = await Promise.race([
       awaitRun(handle, waitMs),
       stopped.then(() => ({ ...pollRun(handle), done: true })),
-    ]).finally(() => this.awaitedRuns.delete(handle))
+    ]).finally(() => {
+      this.awaitedRuns.delete(handle)
+      if (this.releasedAwaitedRuns.delete(handle)) handle.dispose()
+    })
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
       this.untrackRun(terminal.terminalId, handle)

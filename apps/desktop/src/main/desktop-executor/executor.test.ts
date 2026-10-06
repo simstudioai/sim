@@ -488,6 +488,32 @@ describe('keeping the machine awake', () => {
     expect(sim.completions).toHaveLength(1)
   })
 
+  it('leaves nothing of the previous session behind when sign-out lands mid-recovery', async () => {
+    const { sim, journal, executor } = setup()
+    await journal.put({ toolCallId: 'c-1', state: 'claiming' })
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: DONE,
+    })
+    const loaded = deferred<void>()
+    const load = journal.load.bind(journal)
+    journal.load = async () => {
+      await loaded.promise
+      return load()
+    }
+
+    const recovering = executor.recover()
+    const signingOut = executor.dispose()
+    loaded.resolve()
+    await Promise.all([recovering, signingOut])
+    await sleep(40)
+
+    expect(sim.completions).toEqual([])
+    expect(journal.entries.size).toBe(0)
+  })
+
   it('goes idle at sign-out and stays silent when a recovered delivery settles afterwards', async () => {
     const { sim, journal, executor, busy } = setup()
     const answer = deferred<void>()

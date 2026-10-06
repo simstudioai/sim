@@ -89,6 +89,16 @@ export interface DesktopToolRunnerDeps {
   }
 }
 
+/** A terminal operation that outlived its deadline may still land, as a browser action may. */
+function terminalTimedOut(timeoutMs: number): DesktopToolCompletion {
+  const message = `The terminal did not respond within ${timeoutMs}ms. The operation may still be running and take effect: do not retry it automatically; check the terminal's state first.`
+  return {
+    status: 'error',
+    message,
+    data: { error: message, outcomeUnknown: true, doNotRetry: true },
+  }
+}
+
 /** Resolves once the signal aborts, which may be never. */
 function untilAborted(signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve()
@@ -187,7 +197,7 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
         unsettledTerminalWork.delete(call.chatId)
     })
     return withDeadline(operationDone.then(terminalToolCompletion), timeoutMs, () =>
-      terminalToolFailure(`The terminal did not respond within ${timeoutMs}ms`)
+      terminalTimedOut(timeoutMs ?? 0)
     )
   }
 
