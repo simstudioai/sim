@@ -48,6 +48,7 @@ describe('browser download admission with PostgreSQL', () => {
       result jsonb, error text, permission_decision text, permission_decided_at timestamp,
       permission_requested_at timestamp,
       pickup_deadline_at timestamp with time zone,
+      persist_seq bigint,
       claimed_at timestamp, claimed_by text, execution_started_at timestamp,
       execution_settled_at timestamp, execution_owner_token text,
       execution_lease_expires_at timestamptz, execution_revoked_at timestamptz,
