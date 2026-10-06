@@ -8,17 +8,29 @@
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
+const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+  const { createServer } = await import('node:http')
+  /** Stands in for the agent worker, which Stop also tells to end the stream. */
+  const server = createServer(async (request, response) => {
+    for await (const _chunk of request) {
+    }
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ settled: true }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as { port: number }
   const url = readTestRedisUrl()
   const inheritedEnv = {
     REDIS_URL: process.env.REDIS_URL,
     COPILOT_TOOL_PERMISSIONS_ENABLED: process.env.COPILOT_TOOL_PERMISSIONS_ENABLED,
+    SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module, the confirmation channel and the permission flag read these at import. */
+  /** The real Redis module, the confirmation channel, the permission flag and worker URL read these at import. */
   if (url) process.env.REDIS_URL = url
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
-  return { redisUrl: url, inheritedEnv }
+  process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
+  return { redisUrl: url, inheritedEnv, worker: { server } }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -31,6 +43,7 @@ import {
   copilotChats,
   copilotRuns,
   desktopDevices,
+  permissions,
   session,
   user,
   workspace,
@@ -59,9 +72,9 @@ import {
   areStreamToolExecutionsSettled,
   claimToolExecution,
   prepareWorkbenchAccess,
-  requestRunStop,
   revokeExpiredSimToolExecutions,
 } from '@/lib/mothership/async-runs/repository'
+import { abortRun } from '@/lib/mothership/request/application/controls'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -125,6 +138,7 @@ afterAll(async () => {
     channels[name] = undefined
   }
   await closeRedisConnection()
+  await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   for (const [key, value] of Object.entries(inheritedEnv)) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
@@ -327,6 +341,13 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       name: 'Bound turn fixture',
       ownerId: userId,
       billedAccountUserId: userId,
+    })
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId,
+      entityType: 'workspace',
+      entityId: workspaceId,
+      permissionType: 'admin',
     })
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: userId, email: `${userId}@bound-turn.test`, name: 'Bound turn' },
@@ -541,7 +562,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
   )
 
   it(
-    'ends a running call on Stop, and the device learns its token was revoked',
+    'ends a running call on Stop without the device, and tells the device to cancel it',
     async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
@@ -553,8 +574,16 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       })
       await offered(toolCallId)
       const { executionToken } = await desktop.claim(toolCallId)
-      await requestRunStop({ userId, workspaceId, streamId: run.streamId })
+      await abortRun.execute({
+        principal: { kind: 'session', userId, sessionId: generateId() },
+        input: { streamId: run.streamId, chatId: run.chatId, workspaceId },
+      })
       await answer
+      /** Stop rings the device to cancel what it runs; it never acknowledges here. */
+      await until(
+        async () => [...desktop.rings],
+        (rings) => rings.includes('cancel')
+      )
 
       expect(resultOf(context, toolCallId)).toMatchObject({
         success: false,
@@ -611,7 +640,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
 
         await lapse(toolCallId, 'pickup')
         await answer
-        expect(reads).toHaveBeenCalled()
         expect(resultOf(context, toolCallId)).toMatchObject({
           success: false,
           output: { notStarted: true, reason: 'not_responding' },

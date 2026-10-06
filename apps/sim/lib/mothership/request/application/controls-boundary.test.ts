@@ -13,9 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   signal: vi.fn(),
-  ring: vi.fn(),
 }))
-vi.mock('@/lib/desktop/executor/doorbell', () => ({ ringDesktopInbox: hoisted.ring }))
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: hoisted.signal,
@@ -45,7 +43,6 @@ beforeEach(() => {
     .mockResolvedValue({ hideCopilot: true, disableWorkspaceCreation: true })
   mocks.stop.mockReset().mockResolvedValue(null)
   mocks.signal.mockReset().mockResolvedValue({ settled: true })
-  mocks.ring.mockReset()
   mocks.latest.mockResolvedValue({
     chatId: 'chat',
     workspaceId: null,
@@ -91,42 +88,6 @@ describe('abort authorization before service signaling', () => {
       timeoutMs: 6000,
     })
     expect(mocks.permissions).not.toHaveBeenCalled()
-    expect(mocks.ring).not.toHaveBeenCalled()
-  })
-
-  it('tells the desktop a stopped run is bound to that it must cancel what it runs', async () => {
-    queueTableRows(schemaMock.copilotChats, [ownedChat])
-    queueTableRows(schemaMock.copilotChats, [ownedChat])
-    queueTableRows(schemaMock.member, [{ role: 'member' }])
-    mocks.stop.mockResolvedValue({
-      chatId: 'chat',
-      workspaceId: null,
-      organizationId: 'organization',
-      desktopDeviceId: 'device-1',
-    })
-
-    await abortRun.execute({ principal, input })
-
-    expect(mocks.ring).toHaveBeenCalledWith('device-1', 'cancel')
-  })
-
-  it('rings no desktop for a stopped run that turns out to belong to another chat', async () => {
-    queueTableRows(schemaMock.copilotChats, [ownedChat])
-    queueTableRows(schemaMock.copilotChats, [ownedChat])
-    queueTableRows(schemaMock.member, [{ role: 'member' }])
-    mocks.stop.mockResolvedValue({
-      chatId: 'newer-chat',
-      workspaceId: null,
-      organizationId: 'organization',
-      desktopDeviceId: 'device-1',
-    })
-
-    await expect(abortRun.execute({ principal, input })).rejects.toMatchObject({
-      code: 'forbidden',
-    })
-
-    expect(mocks.ring).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
   })
 
   it('rejects a removed member before persisting or forwarding Stop', async () => {

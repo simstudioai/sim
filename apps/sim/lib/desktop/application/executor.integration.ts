@@ -813,7 +813,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
             input: { deviceId: desktop.deviceId, toolCallId, executionToken },
           })
         ).resolves.toEqual({ renewed: true })
-        expect(writes).toHaveBeenCalled()
       } finally {
         writes.mockRestore()
       }

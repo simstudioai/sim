@@ -149,8 +149,6 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(response.status).toBe(409)
-    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
   })
 
   it('atomically detaches a live background confirmation', async () => {

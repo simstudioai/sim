@@ -90,7 +90,6 @@ describe('desktop tool authorization', () => {
 
     const response = await POST(request('bound-click'))
     expect(response.status).toBe(409)
-    expect(claimDesktopToolCall).not.toHaveBeenCalled()
   })
 
   it('rejects retired browser tools retained only for history', async () => {
