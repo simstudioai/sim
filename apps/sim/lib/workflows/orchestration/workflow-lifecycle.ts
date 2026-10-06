@@ -259,7 +259,8 @@ export async function createWorkflowWithState({
   try {
     const workflow = await db.transaction(async (tx) => {
       const row = await createWorkflowInTransaction(tx, { ...params, deduplicate: true })
-      await saveWorkflowToNormalizedTables(row.id, state, governance, tx)
+      const saved = await saveWorkflowToNormalizedTables(row.id, state, governance, tx)
+      if (!saved.success) throw new Error(saved.error ?? 'Failed to save workflow state')
       return row
     })
     return { success: true, workflow }
