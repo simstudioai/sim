@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { leaseDesktopTool, stopDesktopTools } from './desktop-tool-lifetimes'
+import {
+  leaseDesktopTool,
+  stopDesktopTools,
+} from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 
 describe('desktop tool leases', () => {
   it('cancels every running tool of the stopped turn and no other turn', () => {
