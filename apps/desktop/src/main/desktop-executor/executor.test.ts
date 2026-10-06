@@ -155,7 +155,9 @@ class FakeRunner implements DesktopToolRunner {
   }
 }
 
-function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
+function setup(
+  options: { leaseRenewMs?: number; maxHeldCalls?: number; deliveryAwakeLimitMs?: number } = {}
+) {
   /** Approval items the executor handed to the notifier, one array per inbox read. */
   const approvals: DesktopApprovalItem[][] = []
   const sim = new FakeSim()
@@ -173,6 +175,9 @@ function setup(options: { leaseRenewMs?: number; maxHeldCalls?: number } = {}) {
     onBusyChange: (value) => busy.push(value),
     onApprovals: (items) => approvals.push(items),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
+    ...(options.deliveryAwakeLimitMs !== undefined
+      ? { deliveryAwakeLimitMs: options.deliveryAwakeLimitMs }
+      : {}),
   })
   return { sim, journal, runner, executor, onUnregistered, busy, approvals }
 }
@@ -578,6 +583,24 @@ describe('keeping the machine awake', () => {
     answer.resolve()
     await sleep(40)
 
+    expect(busy).toEqual([true, false])
+  })
+
+  it('lets the machine sleep once a result has kept failing to reach Sim, and keeps retrying', async () => {
+    const { sim, journal, executor, busy } = setup({ deliveryAwakeLimitMs: 20 })
+    sim.completeErrors = Array.from({ length: 6 }, () => new DeviceRequestError(503, 'deploying'))
+    await journal.put({
+      toolCallId: 'r-1',
+      state: 'result',
+      executionToken: 't-1',
+      completion: DONE,
+    })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(busy).toEqual([true, false]))
+    expect(sim.completions).toHaveLength(0)
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
     expect(busy).toEqual([true, false])
   })
 

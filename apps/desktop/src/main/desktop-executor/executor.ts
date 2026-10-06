@@ -28,6 +28,11 @@ const logger = createLogger('DesktopExecutor')
 const DEFAULT_MAX_HELD_CALLS = 32
 /** Ceiling on the wait between attempts to deliver one result. */
 const DELIVERY_RETRY_MAX_MS = 30_000
+/**
+ * How long a result that keeps failing to reach Sim holds the machine awake. Delivery keeps
+ * retrying after this; it just stops counting as work that needs the machine awake.
+ */
+const DELIVERY_AWAKE_LIMIT_MS = 10 * 60_000
 
 const NOT_STARTED_AFTER_RESTART =
   'Not run: this action never started, because the Sim desktop app restarted before it began. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user, who can ask again.'
@@ -65,6 +70,8 @@ export interface DesktopExecutorOptions {
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
+  /** How long a failing delivery keeps the machine awake; tests shorten it. */
+  deliveryAwakeLimitMs?: number
 }
 
 type HeldPhase = 'queued' | 'running' | 'reporting'
@@ -95,7 +102,9 @@ export class DesktopExecutor {
   /** The journal walk after a restart; sign-out waits for it before clearing the journal. */
   private recovering: Promise<void> | null = null
   /** Results a previous app run left, still on their way to Sim. */
-  private recoveredInFlight = 0
+  private readonly recoveringIds = new Set<string>()
+  /** Results that have failed to reach Sim for longer than {@link DELIVERY_AWAKE_LIMIT_MS}. */
+  private readonly stalledDeliveries = new Set<string>()
   /** Results Sim refused because it no longer recognized this device; sent once it registers again. */
   private readonly parked = new Map<
     string,
@@ -154,10 +163,10 @@ export class DesktopExecutor {
         state: entry.state,
       })
       // Held awake like a running call: the result exists only on this machine until Sim has it.
-      this.recoveredInFlight += 1
+      this.recoveringIds.add(entry.toolCallId)
       this.updateBusy()
       void this.deliver(entry.toolCallId, entry.executionToken, completion).finally(() => {
-        this.recoveredInFlight -= 1
+        this.recoveringIds.delete(entry.toolCallId)
         this.updateBusy()
       })
     }
@@ -357,9 +366,25 @@ export class DesktopExecutor {
     completion: DesktopToolCompletion
   ): Promise<void> {
     if (this.disposed) return
-    let pending = completion
     // Best effort: unrecorded, a crash reports the call from its `started` entry as outcome unknown.
     await this.record({ toolCallId, state: 'result', executionToken, completion })
+    const sendingSince = Date.now()
+    try {
+      await this.sendResult(toolCallId, executionToken, completion, sendingSince)
+    } finally {
+      // Whoever holds the delivery (a held call, a recovered result) updates the busy state as it
+      // lets go; doing it here first would flash the machine awake again in between.
+      this.stalledDeliveries.delete(toolCallId)
+    }
+  }
+
+  private async sendResult(
+    toolCallId: string,
+    executionToken: string,
+    completion: DesktopToolCompletion,
+    sendingSince: number
+  ): Promise<void> {
+    let pending = completion
     for (let attempt = 1; !this.disposed; attempt++) {
       try {
         const outcome = await this.options.client.complete({
@@ -406,6 +431,15 @@ export class DesktopExecutor {
             status: error.status,
           })
           break
+        }
+        if (
+          Date.now() - sendingSince >
+            (this.options.deliveryAwakeLimitMs ?? DELIVERY_AWAKE_LIMIT_MS) &&
+          !this.stalledDeliveries.has(toolCallId)
+        ) {
+          // Still retried, but no longer a reason to keep the machine awake.
+          this.stalledDeliveries.add(toolCallId)
+          this.updateBusy()
         }
         await sleep(
           backoffWithJitter(attempt, error.retryAfterMs, {
@@ -478,7 +512,9 @@ export class DesktopExecutor {
   private updateBusy(): void {
     // A disposed executor reports idle once, at dispose; a delivery that settles later must not
     // speak for the executor that replaced it.
-    const busy = !this.disposed && (this.held.size > 0 || this.recoveredInFlight > 0)
+    const awake = (toolCallId: string) => !this.stalledDeliveries.has(toolCallId)
+    const busy =
+      !this.disposed && ([...this.held.keys()].some(awake) || [...this.recoveringIds].some(awake))
     if (busy === this.busy) return
     this.busy = busy
     this.options.onBusyChange?.(busy)
