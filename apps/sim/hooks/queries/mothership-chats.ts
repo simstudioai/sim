@@ -610,11 +610,15 @@ export function useSetMothershipChatEffort(chatId: string | undefined) {
       return setChatEffort({ chatId, effort })
     },
     scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
+    // Runs at once even while an earlier save for this chat holds the scope, so a failed
+    // save rolls back its own pick by token, never a later pick of the same value.
     onMutate: (effort) => {
-      if (chatId) useMothershipEffortStore.getState().setChatEffort(chatId, effort)
+      if (!chatId) return undefined
+      return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
     },
-    onError: (_error, effort) => {
-      if (chatId) useMothershipEffortStore.getState().dropChatEffort(chatId, effort)
+    onError: (_error, _effort, context) => {
+      if (chatId && context)
+        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
     },
     onSuccess: (_data, effort) => {
       queryClient.setQueryData<MothershipChatHistory>(

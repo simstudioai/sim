@@ -42,11 +42,30 @@ describe('Build reasoning preferences', () => {
 
   it('keeps a newer chat pick when an older pick fails to save', () => {
     const store = useMothershipEffortStore.getState()
-    store.setChatEffort('chat-1', 'low')
-    store.setChatEffort('chat-1', 'high')
-    store.dropChatEffort('chat-1', 'low')
-    expect(useMothershipEffortStore.getState().chatEfforts).toEqual({ 'chat-1': 'high' })
-    store.dropChatEffort('chat-1', 'high')
+    const low = store.setChatEffort('chat-1', 'low')
+    const high = store.setChatEffort('chat-1', 'high')
+    store.dropChatEffort('chat-1', low)
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('high')
+    store.dropChatEffort('chat-1', high)
     expect(useMothershipEffortStore.getState().chatEfforts).toEqual({})
+  })
+
+  it('keeps a newer pick of the same value when the first pick fails to save', () => {
+    const store = useMothershipEffortStore.getState()
+    const first = store.setChatEffort('chat-1', 'low')
+    store.setChatEffort('chat-1', 'high')
+    const latest = store.setChatEffort('chat-1', 'low')
+    store.dropChatEffort('chat-1', first)
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
+    store.dropChatEffort('chat-1', latest)
+    expect(useMothershipEffortStore.getState().chatEfforts).toEqual({})
+  })
+
+  it('keeps an adopted new-chat pick when a stale save token fails', () => {
+    const store = useMothershipEffortStore.getState()
+    const stale = store.setChatEffort('chat-1', 'low')
+    store.adoptNewChatEffort('chat-1', 'low')
+    store.dropChatEffort('chat-1', stale)
+    expect(useMothershipEffortStore.getState().chatEfforts['chat-1']?.effort).toBe('low')
   })
 })
