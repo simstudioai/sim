@@ -4024,14 +4024,17 @@ export function useChat(
                ran: reattaching would read the missing stream as finished and drop the
                message. Retry it later like a busy refusal; the server's claim settles.
                This is checked before adopting the chat the answer names, so a retried
-               message stays under the key it was sent from. */
+               message stays under the key it was sent from. A lookup that fails for
+               another reason proves nothing either way, so it is retried too: the server
+               deduplicates the retry by id. Only a lookup this send aborted (Stop, or the
+               user moving on) is not retried. */
             const dedupedStreamExists = await fetchStreamBatch(
               conflictStreamId,
               '0',
               abortController.signal
             ).then(
               () => true,
-              (error: unknown) => !isStreamGoneError(error)
+              (error: unknown) => !isStreamGoneError(error) && abortController.signal.aborted
             )
             if (!dedupedStreamExists) {
               releaseRefusedSend()

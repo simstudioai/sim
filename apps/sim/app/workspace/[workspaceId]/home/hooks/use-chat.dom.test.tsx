@@ -3073,6 +3073,43 @@ describe('useChat remount send recovery', () => {
       ).toEqual(['Follow-up after the restore'])
     })
 
+    /** A stream lookup that fails for another reason does not prove a turn ran either. */
+    it('retries a deduplicated send whose stream lookup failed', async () => {
+      const history = idleHistory('chat-deduped-lookup-failed')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      let posts = 0
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          posts++
+          if (posts === 1) {
+            return Response.json(
+              {
+                error: 'This message was already sent.',
+                activeStreamId: state.postBodies[0].userMessageId,
+              },
+              { status: 409 }
+            )
+          }
+          return emptySseResponse()
+        }
+        if (url.includes('/api/mothership/chat/stream') && posts === 1) {
+          return Response.json({ error: 'Internal error' }, { status: 500 })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+
+      await act(async () => {
+        await getResult().sendMessage('Told it was already sent, lookup failed')
+      })
+      await waitFor(() => state.postBodies.length === 2, 5_000)
+
+      expect(state.postBodies[1].message).toBe('Told it was already sent, lookup failed')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
     /**
      * On the new-chat surface the "already sent" answer also names the chat the
      * earlier attempt opened. With no stream yet, the retry must still go out,
