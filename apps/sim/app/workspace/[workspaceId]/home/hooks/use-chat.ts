@@ -4799,7 +4799,9 @@ export function useChat(
         if (!removedFromQueue) {
           return
         }
-        if (options.epoch !== queueDispatchEpochRef.current && !retriesOnItsOwn) {
+        /* A withdrawn send was never admitted, so it goes back to its chat's queue
+           even when the user has moved on since its dispatch started. */
+        if (options.epoch !== queueDispatchEpochRef.current && !withdrawn) {
           return
         }
         // If the user explicitly removed this message during dispatch, honor

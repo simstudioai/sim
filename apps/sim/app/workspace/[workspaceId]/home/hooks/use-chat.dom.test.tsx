@@ -2197,6 +2197,42 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
     })
 
+    /** Switching chats while a queued send is failing must not drop it from its own chat. */
+    it('keeps a queued send that failed after the user switched chats', async () => {
+      const history = idleHistory('chat-left-mid-dispatch')
+      const other = idleHistory('chat-switched-to')
+      mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
+        Promise.resolve({
+          chat: JSON.stringify(input).includes(other.id) ? other : history,
+        })
+      )
+      let failPost: (() => void) | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          return new Promise<Response>((_, reject) => {
+            failPost = () => reject(new TypeError('Failed to fetch'))
+          })
+        }
+        return fetchStub(input, init)
+      })
+      useMothershipQueueStore
+        .getState()
+        .enqueue(history.id, { id: 'queued-then-left', content: 'Sent as I switched chats' })
+      const { navigate } = renderUseChatInChat(history.id, history)
+      await waitFor(() => failPost !== undefined)
+
+      navigate(other.id, other)
+      await act(async () => {
+        failPost?.()
+        await sleep(100)
+      })
+
+      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
+      expect(queued.map((message) => message.content)).toEqual(['Sent as I switched chats'])
+      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
     /** The `online` event can fire while no surface for the chat is mounted. */
     it('sends a held message when its chat mounts after the network came back', async () => {
       const history = idleHistory('chat-held-while-away')
