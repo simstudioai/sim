@@ -23,7 +23,7 @@
   "tags": [
     {
       "name": "Files",
-      "description": "Create, upload, download, organize, share, version, and delete workspace files."
+      "description": "Create, upload, download, organize, share, version, and delete workspace and Project files."
     },
     {
       "name": "Audit Logs",
@@ -2375,7 +2375,7 @@
       "patch": {
         "operationId": "updateProjectFileShare",
         "summary": "Update Project File Share",
-        "description": "Create or update a Project file's public share. isActive is required; omitted settings retain their current values. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Create or update a Project file's public share. isActive is required; omitted settings retain their current values except credentials unused by the selected access mode, which are cleared. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "project_files.share.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
@@ -6942,9 +6942,9 @@
                       "description": "Time the current file content was written."
                     },
                     "revision": {
-                      "description": "Current content revision for subsequent edits.",
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "description": "Current content revision for subsequent edits."
                     },
                     "owner": {
                       "type": "object",
@@ -6989,6 +6989,7 @@
                     "uploadedAt",
                     "updatedAt",
                     "contentUpdatedAt",
+                    "revision",
                     "owner",
                     "originalCreatorUserId"
                   ],
@@ -9128,9 +9129,16 @@
           },
           "folderId": {
             "description": "Destination folder identifier; omit or use null for the Project root.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["name", "contentType", "size"],

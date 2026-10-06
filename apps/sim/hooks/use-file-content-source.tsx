@@ -136,7 +136,14 @@ function createProjectFileContentSource(projectId: string, fileId: string): File
   return {
     owner: { entityType: 'project', entityId: projectId },
     ...inlineImageSource(
-      (_key, opts) => `${base}/${encodeURIComponent(fileId)}/${opts?.raw ? 'content' : 'artifact'}`,
+      (_key, opts) => {
+        const params = new URLSearchParams()
+        if (opts?.preview && !opts.raw) params.set('preview', '1')
+        if (opts?.version != null) params.set('v', String(opts.version))
+        else if (opts?.bust) params.set('t', String(Date.now()))
+        const query = params.toString()
+        return `${base}/${encodeURIComponent(fileId)}/${opts?.raw ? 'content' : 'artifact'}${query ? `?${query}` : ''}`
+      },
       `${base}/inline`,
       { entityType: 'project', entityId: projectId }
     ),

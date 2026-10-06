@@ -35,6 +35,7 @@ vi.mock('@/lib/uploads/documents/compiled-store', () => ({
 }))
 
 import { collectReferencedFileIds, compileDoc } from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
 
@@ -53,29 +54,91 @@ describe('collectReferencedFileIds', () => {
   })
 
   it('captures the id from getFileBase64(...) with single or double quotes', () => {
-    expect(collectReferencedFileIds(`await getFileBase64('${ID}')`)).toEqual(new Set([ID]))
-    expect(collectReferencedFileIds(`getFileBase64("abc_def-1")`)).toEqual(new Set(['abc_def-1']))
+    expect(collectReferencedFileIds(`await getFileBase64('${ID}')`, 'javascript')).toEqual(
+      new Set([ID])
+    )
+    expect(collectReferencedFileIds(`getFileBase64("abc_def-1")`, 'javascript')).toEqual(
+      new Set(['abc_def-1'])
+    )
   })
 
   it('captures the id from pptx addImage(slide, id, opts) (second arg)', () => {
     const src = `await addImage(slide, '${ID}', { x: 1, y: 1, w: 2, h: 2 })`
-    expect(collectReferencedFileIds(src)).toEqual(new Set([ID]))
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set([ID]))
   })
 
   it('captures the id from docx addImage(id, opts) (first arg)', () => {
     const src = `const img = await addImage('docx-img-1', { width: 200, height: 100 })`
-    expect(collectReferencedFileIds(src)).toEqual(new Set(['docx-img-1']))
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set(['docx-img-1']))
   })
 
   it('captures the id from pdf drawImage(page, id, opts) (second arg)', () => {
     const src = `await drawImage(page, 'pdf-img-2', { x: 0, y: 0, width: 100, height: 100 })`
-    expect(collectReferencedFileIds(src)).toEqual(new Set(['pdf-img-2']))
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set(['pdf-img-2']))
   })
 
   it('still supports the legacy /home/user/inputs/<id> path form', () => {
-    expect(collectReferencedFileIds(`fs.readFileSync('/home/user/inputs/legacy-1')`)).toEqual(
-      new Set(['legacy-1'])
+    expect(
+      collectReferencedFileIds(`fs.readFileSync('/home/user/inputs/legacy-1')`, 'javascript')
+    ).toEqual(new Set(['legacy-1']))
+  })
+
+  it('ignores helper examples and comments while resolving executable calls', () => {
+    const source = [
+      '// getFileBase64("comment")',
+      '/* addImage(slide, "comment-block") */',
+      'const example = \'getFileBase64("string-example")\'',
+      'const template = `addImage("template-example")`',
+      'await getFileBase64("actual")',
+    ].join('\n')
+    expect(collectReferencedFileIds(source, 'javascript')).toEqual(new Set(['actual']))
+  })
+
+  it('ignores JavaScript regex literals and preserves calls after regex quotes', () => {
+    const source = [
+      'const example = /getFileBase64("regex-example")/',
+      "const quote = /'/; getFileBase64('actual')",
+      `const interpolation = \`\${/}/.test("}") ? getFileBase64("nested") : ""}\``,
+      'const path = `/home/user/inputs/template-path`',
+    ].join('\n')
+    expect(collectReferencedFileIds(source, 'javascript')).toEqual(
+      new Set(['actual', 'nested', 'template-path'])
     )
+  })
+
+  it('distinguishes Python floor division and quoted examples from file reads', () => {
+    const source = [
+      '# input_path("comment")',
+      "'''input_path(\"example\")'''",
+      'ratio = 4 // 2; image = input_path("actual")',
+    ].join('\n')
+    expect(collectReferencedFileIds(source, 'python')).toEqual(new Set(['actual']))
+  })
+
+  it('discovers Python f-string expressions without staging literal examples', () => {
+    const source = [
+      `example = f"input_path('example') {{input_path('escaped-example')}}"`,
+      `path = f"{input_path('actual')}"`,
+      `raw = input_path(r'raw-id')`,
+      `nested = f"{f\"{input_path('nested')}\"}"`,
+      `formatted = f"{value:input_path('format-example'){input_path('width')}}"`,
+      `mapping = f"{ {'x': input_path('mapping')} }"`,
+      `static = input_path(f'static-id')`,
+    ].join('\n')
+    expect(collectReferencedFileIds(source, 'python')).toEqual(
+      new Set(['actual', 'raw-id', 'nested', 'width', 'mapping', 'static-id'])
+    )
+  })
+
+  it('reports malformed JavaScript as a document source error before compilation', async () => {
+    await expect(
+      compileDoc({
+        source: `const image = getFileBase64('unterminated`,
+        fileName: 'report.pptx',
+        workspaceId: 'workspace-1',
+        filePrincipal: FILE_PRINCIPAL,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
   })
 
   it('collects and dedupes ids across multiple call sites', () => {
@@ -84,21 +147,21 @@ describe('collectReferencedFileIds', () => {
       const uri = await getFileBase64('logo-1');
       await addImage(slide, 'crest-2', { x: 2, y: 0, w: 1, h: 1 });
     `
-    expect(collectReferencedFileIds(src)).toEqual(new Set(['logo-1', 'crest-2']))
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set(['logo-1', 'crest-2']))
   })
 
   it('does not match id-like strings outside the image helpers', () => {
     const src = `slide.addText('order ${ID} shipped', { x: 1, y: 1, w: 8, h: 1 })`
-    expect(collectReferencedFileIds(src)).toEqual(new Set())
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set())
   })
 
   it('does not match slide.addImage({ data }) — no fileId is present there', () => {
     const src = `slide.addImage({ data: base64Data, x: 1, y: 1, w: 2, h: 2 })`
-    expect(collectReferencedFileIds(src)).toEqual(new Set())
+    expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set())
   })
 
   it('retains a full deck rebuild — every extracted image plus headroom fits the cap', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(500))
+    const ids = collectReferencedFileIds(referencedFileSource(500), 'javascript')
 
     expect(ids.size).toBe(500)
     expect(ids.has('file-0')).toBe(true)
@@ -106,7 +169,7 @@ describe('collectReferencedFileIds', () => {
   })
 
   it('stops collecting at the one-over-cap sentinel', () => {
-    const ids = collectReferencedFileIds(referencedFileSource(2000))
+    const ids = collectReferencedFileIds(referencedFileSource(2000), 'javascript')
 
     expect(ids.size).toBe(501)
   })

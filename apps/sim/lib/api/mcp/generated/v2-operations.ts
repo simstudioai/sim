@@ -2968,7 +2968,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateProjectFileShareContract,
     summary: 'Update Project File Share',
     description:
-      "Create or update a Project file's public share. isActive is required; omitted settings retain their current values. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+      "Create or update a Project file's public share. isActive is required; omitted settings retain their current values except credentials unused by the selected access mode, which are cleared. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/projects/[projectId]/files/[fileId]/share/route').then(

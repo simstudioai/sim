@@ -53,6 +53,7 @@ const { mockExecuteInSandbox } = remoteSandboxMockFns
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
+const LEGACY_PDF_SOURCE = Buffer.from('pdf.addPage();', 'utf-8')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')
 const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
@@ -343,7 +344,7 @@ describe('resolveServableDocBytes', () => {
     mockRunSandboxTask.mockResolvedValue(compiled)
 
     const result = await resolveServableDocBytes({
-      rawBuffer: PDF_SOURCE,
+      rawBuffer: LEGACY_PDF_SOURCE,
       fileName: 'report.pdf',
       workspaceId: WORKSPACE_ID,
     })
@@ -352,7 +353,7 @@ describe('resolveServableDocBytes', () => {
     expect(result.contentType).toBe('application/pdf')
     expect(mockRunSandboxTask).toHaveBeenCalledWith(
       'pdf-generate',
-      { code: PDF_SOURCE.toString('utf-8'), workspaceId: WORKSPACE_ID },
+      { code: LEGACY_PDF_SOURCE.toString('utf-8'), workspaceId: WORKSPACE_ID },
       expect.objectContaining({})
     )
   })
@@ -365,7 +366,7 @@ describe('resolveServableDocBytes', () => {
 
     await expect(
       resolveServableDocBytes({
-        rawBuffer: PDF_SOURCE,
+        rawBuffer: LEGACY_PDF_SOURCE,
         fileName: 'report.pdf',
         workspaceId: WORKSPACE_ID,
       })

@@ -240,7 +240,10 @@ const FILE_RESOURCE_ROUTES: Record<
 > = {
   workspace: (entityId, fileId, attribute) =>
     attribute === 'src' ? `/api/files/view/${fileId}` : `/workspace/${entityId}/files/${fileId}`,
-  project: (entityId, fileId) => `/api/projects/${entityId}/files/${fileId}/content`,
+  project: (entityId, fileId, attribute) =>
+    attribute === 'src'
+      ? `/api/projects/${entityId}/files/${fileId}/content`
+      : `/projects/${entityId}/files/${fileId}`,
 }
 
 function resolveSimFileLinks(html: string, owner: EditableFileOwner | undefined, baseUrl: string) {

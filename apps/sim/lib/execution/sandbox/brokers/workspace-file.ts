@@ -33,14 +33,16 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
     }
     if (ctx.resolvePreparedFile) {
       const file = ctx.resolvePreparedFile(args.fileId)
-      const dataUri = `data:${file.contentType};base64,${file.content.toString('base64')}`
+      const prefix = `data:${file.contentType};base64,`
+      const encodedLength = 4 * Math.ceil(file.content.length / 3)
       if (
-        dataUri.length > MAX_SANDBOX_IMAGE_DATA_URI_CHARS ||
-        JSON.stringify({ dataUri }).length > MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS
+        prefix.length + encodedLength > MAX_SANDBOX_IMAGE_DATA_URI_CHARS ||
+        JSON.stringify({ dataUri: prefix }).length + encodedLength >
+          MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS
       ) {
         throw new Error('Prepared file exceeds the document broker byte limit')
       }
-      return { dataUri }
+      return { dataUri: `${prefix}${file.content.toString('base64')}` }
     }
     if (!ctx.workspaceId) {
       throw new Error('workspaceFile broker requires a workspaceId')

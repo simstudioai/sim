@@ -1837,7 +1837,7 @@ export type CopyFileItemsResponse = {
       uploadedAt: string
       updatedAt: string
       contentUpdatedAt: string | null
-      revision?: string
+      revision: string
       owner: {
         entityType: 'workspace' | 'project'
         entityId: string
@@ -2939,7 +2939,7 @@ export type CreateProjectFileUploadBody = {
   contentType: string
   size: number
   folderPath?: CreateProjectFileUploadBodyRef0
-  folderId?: string
+  folderId?: string | null
 }
 
 type CreateProjectFileUploadResponseRef0 = {

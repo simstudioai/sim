@@ -11,7 +11,7 @@ export const GET = defineInternalJsonRoute({
   contract: getProjectCsvPreviewContract,
   auth: internalSessionAuth,
   operation: readProjectFileCsvPreview.operation,
-  rateLimit: internalRateLimits.none({ reason: 'Authenticated bounded CSV preview' }),
+  rateLimit: internalRateLimits.user({ bucketName: 'project-files.csv-preview' }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query }, { request }) => ({
     projectId: params.id,

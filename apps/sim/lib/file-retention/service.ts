@@ -1,4 +1,8 @@
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
+import {
+  DEFAULT_DELETE_CHUNK_SIZE,
+  DEFAULT_MAX_BATCHES_PER_TABLE,
+} from '@/lib/cleanup/batch-delete'
 import { prepareLegacyFileArchiveCleanup } from '@/lib/file-retention/legacy-archive'
 import type {
   FileArchiveCleanup,
@@ -46,10 +50,17 @@ const OWNER_ADAPTERS: FileOwnerAdapters<RetentionAdapter> = {
       return { deleted, attempted: deleted }
     },
     async archive(ids, { budgets }) {
+      const files = budgets?.files ?? {
+        remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+      }
+      const folders = budgets?.folders ?? {
+        remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+      }
       let deleted = 0
       for (const id of ids) {
-        deleted += await cleanupArchivedProjectFiles(id, budgets?.files)
-        deleted += await cleanupArchivedProjectFileFolders(id, budgets?.folders)
+        if (files.remaining <= 0 && folders.remaining <= 0) break
+        deleted += await cleanupArchivedProjectFiles(id, files)
+        deleted += await cleanupArchivedProjectFileFolders(id, folders)
       }
       return {
         cleanupStorage: async () => ({ filesDeleted: 0, deleteRows: async () => deleted }),

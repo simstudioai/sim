@@ -259,15 +259,12 @@ async function resolveRoleUncached(
     // this one — but returned after it — bury this result.
     return commitRoleDecision(key, role, readSeq)
   } catch (error) {
-    logger.warn(
-      `Failed to re-validate role for user ${userId} on ${roomName(room)}; using last known role`,
-      error
-    )
+    logger.warn(`Failed to re-validate role for user ${userId} on ${roomName(room)}`, error)
     // Prefer the last recorded decision — even if expired, and even if it is `null` for an
     // already-revoked user — so a recorded revocation survives a transient DB failure
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
-    if (isProjectRoom(room)) return null
+    if (isProjectRoom(room)) throw error
     const lastKnown = roleCache.get(key)
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
@@ -280,7 +277,8 @@ async function resolveRoleUncached(
  * (single-flight), so out-of-order cache writes cannot resurrect revoked access.
  *
  * Returns `null` when the user genuinely has no access (removed/revoked, or the room's
- * resource is gone). On a transient DB failure it reuses the last recorded decision for
+ * resource is gone). Project callback failures throw so callers can retry without recording a revocation.
+ * On a transient DB failure for other room types, it reuses the last recorded decision for
  * this (user, room) — including a previously recorded revocation (`null`) — and only
  * falls back to `fallbackRole` when no decision has been recorded yet, so a blip neither
  * blocks legitimate editors nor resurrects already-revoked access.

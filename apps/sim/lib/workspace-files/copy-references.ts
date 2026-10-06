@@ -1,4 +1,7 @@
-import { iterateDocumentFileReferences } from '@/lib/uploads/documents/references'
+import {
+  type DocumentSourceLanguage,
+  iterateDocumentFileReferences,
+} from '@/lib/uploads/documents/references'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 interface CopiedFileReferenceMaps {
@@ -136,7 +139,8 @@ function rewriteFileReference(reference: string, maps: CopiedFileReferenceMaps):
 /** Repoints only the canonical selected identities; it neither discovers nor copies dependencies. */
 export function rewriteCopiedFileReferences(
   content: string,
-  maps: CopiedFileReferenceMaps
+  maps: CopiedFileReferenceMaps,
+  language: DocumentSourceLanguage | null = null
 ): string {
   if (!content || (maps.fileIds.size === 0 && maps.fileKeys.size === 0)) return content
   const replacements: SourceReplacement[] = []
@@ -153,9 +157,16 @@ export function rewriteCopiedFileReferences(
     if (value === null) continue
     replacements.push({ start, end: start + reference.length, value })
   }
-  for (const { fileId, start, end } of iterateDocumentFileReferences(content)) {
-    const value = maps.fileIds.get(fileId)
-    if (value !== undefined) replacements.push({ start, end, value })
+  if (language) {
+    try {
+      for (const { fileId, start, end } of iterateDocumentFileReferences(content, language)) {
+        const value = maps.fileIds.get(fileId)
+        if (value !== undefined) replacements.push({ start, end, value })
+      }
+    } catch (error) {
+      if (error instanceof DocCompileUserError) return content
+      throw error
+    }
   }
   replacements.sort((left, right) => left.start - right.start)
   const chunks: string[] = []
@@ -167,3 +178,5 @@ export function rewriteCopiedFileReferences(
   chunks.push(content.slice(offset))
   return chunks.join('')
 }
+
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'

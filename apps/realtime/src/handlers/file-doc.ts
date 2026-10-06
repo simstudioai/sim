@@ -303,7 +303,7 @@ function hasOversizedLegacyUpdate(bytes: Uint8Array): boolean {
  */
 function broadcast(io: Server, name: string, payload: Uint8Array, exceptSocketId: string | null) {
   const channel = exceptSocketId ? io.to(name).except(exceptSocketId) : io.to(name)
-  channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+  channel.except(`${name}:pending`).emit(FILE_DOC_EVENTS.MESSAGE, payload)
 }
 
 /**
@@ -319,7 +319,7 @@ function broadcastLocal(
   exceptSocketId: string | null
 ) {
   const channel = exceptSocketId ? io.local.to(name).except(exceptSocketId) : io.local.to(name)
-  channel.emit(FILE_DOC_EVENTS.MESSAGE, payload)
+  channel.except(`${name}:pending`).emit(FILE_DOC_EVENTS.MESSAGE, payload)
 }
 
 /**
@@ -539,7 +539,9 @@ function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
       avatarUrl: owner.avatarUrl,
     })
   }
-  io.to(name).emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users })
+  io.to(name)
+    .except(`${name}:pending`)
+    .emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users })
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */
@@ -1345,8 +1347,15 @@ async function handleClientUpdate(
     reject('NOT_JOINED', true, candidate.updateId)
     return
   }
-  const admission = isFileDocWriteAllowed(socket, io, name)
-  const allowed = typeof admission === 'boolean' ? admission : await admission
+  let allowed: boolean
+  try {
+    const admission = isFileDocWriteAllowed(socket, io, name)
+    allowed = typeof admission === 'boolean' ? admission : await admission
+  } catch (error) {
+    logger.warn('Document write authorization unavailable', { error })
+    reject('TEMPORARY_FAILURE', true, candidate.updateId)
+    return
+  }
   if (!allowed) {
     reject('ACCESS_REVOKED', false, candidate.updateId)
     return
@@ -1477,6 +1486,19 @@ export function setupWorkspaceFileDocHandlers(
   let currentFileRoom: string | null = null
   /** Co-mounted providers share invalidation membership until their last admission settles. */
   const pendingMemberships = new Map<string, number>()
+
+  let membershipTail = Promise.resolve()
+  function changeMembership(change: () => void | Promise<void>): Promise<void> {
+    const pending = membershipTail.then(change)
+    membershipTail = pending.catch(() => {})
+    return pending
+  }
+  function leaveUnclaimedRoom(name: string): Promise<void> {
+    return changeMembership(() => {
+      if (socketToRoomName.get(socket.id) !== name && !pendingMemberships.has(name))
+        return socket.leave(name)
+    })
+  }
 
   socket.on(FILE_DOC_EVENTS.JOIN, async (payload: JoinFileDocPayload) => {
     const { fileId, clientId } = payload
@@ -1672,7 +1694,9 @@ export function setupWorkspaceFileDocHandlers(
          */
         pendingMemberships.set(name, (pendingMemberships.get(name) ?? 0) + 1)
         subscribed = true
-        await socket.join(admissionName)
+        await changeMembership(() => socket.join(admissionName))
+        if (socketToRoomName.get(socket.id) !== name)
+          await changeMembership(() => socket.join(`${name}:pending`))
         const joinedVersion =
           Math.max(entry.syncedVersion ?? 0, (await store.getSyncedVersion(name)) ?? 0) || undefined
         /** Adapter membership can wait; resolve access again before checking the final generation. */
@@ -1700,7 +1724,7 @@ export function setupWorkspaceFileDocHandlers(
           return
         }
         if (!canRegisterJoin()) return
-        await socket.join(name)
+        await changeMembership(() => socket.join(name))
         if (fileDocOwnerAdapter(owner).tracksLifecycle) {
           const currentAccess = await authorizeJoin()
           if (!currentAccess) return
@@ -1764,8 +1788,9 @@ export function setupWorkspaceFileDocHandlers(
         // and simply re-runs the sync handshake, idempotently.
         const currentName = socketToRoomName.get(socket.id)
         if (currentName && currentName !== name) {
-          socket.leave(currentName)
           cleanupFileDocForSocket(socket.id, io)
+          await leaveUnclaimedRoom(currentName)
+          if (!canRegisterJoin()) return
         }
 
         // ADD this provider's clientID to the socket's ownership set (do NOT overwrite a sibling
@@ -1782,6 +1807,14 @@ export function setupWorkspaceFileDocHandlers(
         clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
         socketToRoomName.set(socket.id, name)
         registered = true
+        await changeMembership(() => socket.leave(`${name}:pending`))
+        if (!canRegisterJoin()) {
+          if (isCurrentJoin() && socketToRoomName.get(socket.id) === name) {
+            cleanupFileDocForSocket(socket.id, io)
+            await leaveUnclaimedRoom(name)
+          }
+          return
+        }
 
         // Attribution for the server-side persist, refreshed to the actual editor on each edit in
         // `handleMessage`.
@@ -1839,8 +1872,13 @@ export function setupWorkspaceFileDocHandlers(
           if (remaining > 0) pendingMemberships.set(name, remaining)
           else {
             pendingMemberships.delete(name)
-            await socket.leave(admissionName)
-            if (socketToRoomName.get(socket.id) !== name) await socket.leave(name)
+            await changeMembership(async () => {
+              if (pendingMemberships.has(name)) return
+              if (socketToRoomName.get(socket.id) !== name) await socket.leave(name)
+              if (pendingMemberships.has(name)) return
+              await socket.leave(`${name}:pending`)
+              await socket.leave(admissionName)
+            })
           }
         }
       }
@@ -1853,9 +1891,13 @@ export function setupWorkspaceFileDocHandlers(
          * Roll back ownership only if this attempt committed it. A failed provisional admission must
          * preserve a previous file's binding and any co-mounted provider already in the target room.
          */
-        if (registered && socketToRoomName.get(socket.id) === name) {
-          socket.leave(name)
+        if (
+          registered &&
+          joinGeneration.get(socket.id) === generation &&
+          socketToRoomName.get(socket.id) === name
+        ) {
           cleanupFileDocForSocket(socket.id, io)
+          await leaveUnclaimedRoom(name)
         }
         destroyRoomIfIdle(name)
       } catch {}
@@ -1889,7 +1931,7 @@ export function setupWorkspaceFileDocHandlers(
     }
   )
 
-  socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
+  socket.on(FILE_DOC_EVENTS.LEAVE, async (payload?: LeaveFileDocPayload) => {
     try {
       // Cancel an in-flight join whose file the client is now leaving (or an unscoped leave): a
       // join still awaiting authorization would otherwise complete after the client left, register
@@ -1910,8 +1952,8 @@ export function setupWorkspaceFileDocHandlers(
       // Scope the leave to the named file when provided: a deferred leave from a
       // prior document must not evict the socket from one it has since opened.
       if (leavingRoom && leavingRoom !== name) return
-      socket.leave(name)
       cleanupFileDocForSocket(socket.id, io)
+      await leaveUnclaimedRoom(name)
     } catch (error) {
       logger.error('Error leaving file-doc room:', error)
     }

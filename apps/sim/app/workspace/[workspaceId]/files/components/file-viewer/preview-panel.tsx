@@ -159,7 +159,7 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
       // The sandbox can neither navigate nor open windows, so hand the click
       // to the host: workspace routes go through the app router, external
       // http(s) links open a new tab.
-      if (href.startsWith('/workspace/') || /^https?:\\/\\//i.test(href)) {
+      if ((href.startsWith('/workspace/') || href.startsWith('/projects/')) || /^https?:\\/\\//i.test(href)) {
         parent.postMessage({ __simPageNav: href }, '*')
       }
     },
@@ -189,14 +189,15 @@ function stampTheme(html: string, theme: 'dark' | 'light'): string {
 export function buildHtmlPreviewDocument(
   content: string,
   theme: 'dark' | 'light' = 'light',
-  workspaceId?: string
+  workspaceId?: string,
+  projectId?: string
 ): string {
   // The pdf model: a page file STORES its source (frontmatter + markdown +
   // sim: fences) and every rendering surface compiles on demand. Partial
   // source mid-stream compiles too, so the page builds up live as the agent
   // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
   if (isSimPageSource(content)) {
-    content = compileSimPage(content, { workspaceId })
+    content = compileSimPage(content, { workspaceId, projectId })
   } else if (content.trimStart().startsWith('---')) {
     // Page source that does not compile yet — frontmatter still streaming in,
     // or a malformed header. Never show a reader raw source: hold the empty
@@ -278,7 +279,11 @@ function useInlinedWorkspaceImages(content: string): string {
   useEffect(() => {
     const cache = cacheRef.current
     if (!cache) return
-    const urls = [...content.matchAll(/src="(\/api\/files\/view\/[^"]+)"/g)].map((m) => m[1])
+    const urls = [
+      ...content.matchAll(
+        /src="(\/api\/(?:files\/view\/[^"?]+|projects\/[^/"?]+\/files\/[^/"?]+\/content)(?:\?[^"]*)?)"/g
+      ),
+    ].map((m) => m[1])
     const missing = [...new Set(urls)].filter((url) => !cache.has(url))
     if (missing.length === 0) return
     let cancelled = false
@@ -314,10 +319,13 @@ function useInlinedWorkspaceImages(content: string): string {
   }, [content])
   return useMemo(
     () =>
-      content.replace(/src="(\/api\/files\/view\/[^"]+)"/g, (match, url: string) => {
-        const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
-        return blobUrl ? `src="${blobUrl}"` : match
-      }),
+      content.replace(
+        /src="(\/api\/(?:files\/view\/[^"?]+|projects\/[^/"?]+\/files\/[^/"?]+\/content)(?:\?[^"]*)?)"/g,
+        (match, url: string) => {
+          const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
+          return blobUrl ? `src="${blobUrl}"` : match
+        }
+      ),
     [content, resolved]
   )
 }
@@ -359,7 +367,8 @@ const HtmlPreview = memo(function HtmlPreview({
   const builtContent = buildHtmlPreviewDocument(
     servedHtml ?? batchedContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',
-    workspaceId
+    source.owner?.entityType === 'project' ? undefined : workspaceId,
+    source.owner?.entityType === 'project' ? source.owner.entityId : undefined
   )
   // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
   // the COMPILED document — the raw source says sim:file/… — so substituting
@@ -373,7 +382,7 @@ const HtmlPreview = memo(function HtmlPreview({
     const onMessage = (event: MessageEvent) => {
       const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
       if (typeof href !== 'string') return
-      if (href.startsWith('/workspace/')) {
+      if (href.startsWith('/workspace/') || href.startsWith('/projects/')) {
         router.push(href)
       } else if (/^https?:\/\//i.test(href)) {
         // The server-compiled document absolutizes workspace links (so a
@@ -381,7 +390,10 @@ const HtmlPreview = memo(function HtmlPreview({
         // in-app rather than spawning a new tab of the whole app.
         try {
           const url = new URL(href)
-          if (url.origin === window.location.origin && url.pathname.startsWith('/workspace/')) {
+          if (
+            url.origin === window.location.origin &&
+            (url.pathname.startsWith('/workspace/') || url.pathname.startsWith('/projects/'))
+          ) {
             router.push(`${url.pathname}${url.search}${url.hash}`)
             return
           }

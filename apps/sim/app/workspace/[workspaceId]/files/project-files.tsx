@@ -60,8 +60,9 @@ import {
   filesUrlKeys,
   projectFileFilterParsers,
   projectFilesScopeParsers,
+  serializeProjectFilesLocation,
 } from '@/app/workspace/[workspaceId]/files/search-params'
-import { FILE_UPLOAD_ACCEPT, hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
+import { hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
 import {
   useArchiveProjectFileItems,
   useCreateProjectFile,
@@ -183,7 +184,18 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
       : null
   const currentFolder = allFolders.find((folder) => folder.id === folderId)
   const base = `/workspace/${encodeURIComponent(workspaceId)}/files`
-  const ownerQuery = `owner=project&projectId=${encodeURIComponent(project.id)}`
+  const locationState = {
+    owner: 'project' as const,
+    projectId: project.id,
+    folderId,
+    search,
+    type: types,
+    size: sizes,
+    uploadedBy: creatorIds,
+    sort: sort.sort,
+    dir: sort.dir,
+    scope,
+  }
   const searchSetter = useDebouncedSearchSetter(
     (value, options) => {
       void setFilters({ search: value }, options)
@@ -193,8 +205,13 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
 
   function navigateToFolder(nextFolderId: string | null) {
     if (fileId) {
-      const folderQuery = nextFolderId ? `&folderId=${encodeURIComponent(nextFolderId)}` : ''
-      navigation.navigate(`${base}?${ownerQuery}${folderQuery}`)
+      navigation.navigate(
+        serializeProjectFilesLocation(base, {
+          ...locationState,
+          folderId: nextFolderId,
+          search: '',
+        })
+      )
       return
     }
     searchSetter('')
@@ -207,7 +224,9 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
       setExtractTarget({ id, name: target.name })
       return
     }
-    navigation.navigate(`${base}/${encodeURIComponent(id)}?${ownerQuery}`)
+    navigation.navigate(
+      serializeProjectFilesLocation(`${base}/${encodeURIComponent(id)}`, locationState)
+    )
   }
 
   function editing(id: string) {
@@ -245,7 +264,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
       })
       setDeleteTarget(null)
       clearSelection()
-      if (fileId) router.push(`${base}?${ownerQuery}`)
+      if (fileId) router.push(serializeProjectFilesLocation(base, locationState))
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unable to delete this item'))
     }
@@ -689,7 +708,6 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
         multiple
         className='hidden'
         aria-label='Upload Project files'
-        accept={FILE_UPLOAD_ACCEPT}
         disabled={!canWrite || archived || upload.uploading}
         onChange={(event) => {
           uploadFiles(Array.from(event.target.files ?? []))

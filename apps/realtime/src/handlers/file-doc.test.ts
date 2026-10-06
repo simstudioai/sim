@@ -55,7 +55,7 @@ const ROOM_NAME = 'workspace-file-doc:file-1'
 
 interface SentMessage {
   target: string
-  except?: string
+  except?: string[]
   event: string
   payload: unknown
 }
@@ -69,12 +69,11 @@ function createIo(deliver?: (message: SentMessage) => void) {
   }
   /** Records `io.in(socketId).socketsLeave(room)` — a socket forced out of a room from outside. */
   const left: { socketId: string; room: string }[] = []
-  const to = vi.fn((target: string) => ({
-    except: (exclude: string) => ({
-      emit: (event: string, payload: unknown) => emit({ target, except: exclude, event, payload }),
-    }),
-    emit: (event: string, payload: unknown) => emit({ target, event, payload }),
-  }))
+  const channel = (target: string, excluded: string[] = []) => ({
+    except: (exclude: string) => channel(target, [...excluded, exclude]),
+    emit: (event: string, payload: unknown) => emit({ target, except: excluded, event, payload }),
+  })
+  const to = vi.fn((target: string) => channel(target))
   const inFn = vi.fn((socketId: string) => ({
     socketsLeave: (room: string) => {
       left.push({ socketId, room })
@@ -648,7 +647,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // the stream live (the emitting provider no-ops on its own echo).
     const fanout = sent
       .slice(before)
-      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && m.except === undefined)
+      .filter((m) => m.event === FILE_DOC_EVENTS.MESSAGE && !m.except?.includes('socket-1'))
     expect(fanout.length).toBeGreaterThan(0)
 
     // ...but it must NOT mark the doc dirty: a last-disconnect flush never persists agent content (the

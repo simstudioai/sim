@@ -470,7 +470,15 @@ async function claimQueuedOwnerJobs(
           ),
           and(
             eq(workspaceFileSearchRevision.status, 'ready'),
-            sql`EXISTS (SELECT 1 FROM file_search_dependency dependency LEFT JOIN workspace_files input ON input.id = dependency.file_id WHERE dependency.build_id = ${workspaceFileSearchRevision.buildId} AND (input.id IS NULL OR input.deleted_at IS NOT NULL OR input.key <> dependency.key OR input.content_updated_at <> dependency.source_content_updated_at))`
+            or(
+              ...owners.map((owner) =>
+                and(
+                  sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
+                  sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
+                  sql`NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})`
+                )
+              )
+            )
           )
         )
       )

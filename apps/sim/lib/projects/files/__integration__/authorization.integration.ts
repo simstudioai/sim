@@ -28,6 +28,7 @@ import {
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -57,6 +58,8 @@ import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/applica
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { createFileCopyAuthorizer } from '@/lib/workspace-files/application/copy-authorization'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const readAccess = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.list,
@@ -105,7 +108,7 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
   []
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 
@@ -712,6 +715,11 @@ describe('Project file authority at the database boundary', () => {
         .update(workspace)
         .set({ archivedAt: new Date() })
         .where(eq(workspace.id, f.workspaces[1]))
+      expect(await writeAccess.execute(args)).toEqual({ projectId: f.projectId })
+      await grant(f.readerId, f.workspaces[0], 'read')
+      expect(await readAccess.execute(args)).toEqual({ projectId: f.projectId, canWrite: false })
+      await expect(writeAccess.execute(args)).rejects.toMatchObject({ code: 'forbidden' })
+      await grant(f.readerId, f.workspaces[0], 'admin')
       expect(await writeAccess.execute(args)).toEqual({ projectId: f.projectId })
       await db.transaction(async (tx) => {
         await tx

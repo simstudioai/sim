@@ -53,6 +53,7 @@ interface InternalBinaryRouteOptions<
   auth: typeof internalSessionAuth
   rateLimit: InternalBinaryRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  headSafe?: boolean
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
 
@@ -73,6 +74,10 @@ export function defineInternalBinaryRoute<
     options.operation,
     options.useCase.operation
   )
+
+  if (options.headSafe === false && typeof options.useCase.authorize !== 'function') {
+    throw new Error('A binary route with headSafe: false requires an authorize phase')
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -99,6 +104,11 @@ export function defineInternalBinaryRoute<
 
       try {
         const input = options.mapInput(parsed.data)
+        if (request.method === 'HEAD' && options.headSafe === false) {
+          if (!options.useCase.authorize) throw new Error('Missing HEAD authorization phase')
+          await options.useCase.authorize({ principal, input, request })
+          return new NextResponse(null, { status: successStatus })
+        }
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
         await options.onSuccess?.({ principal, input, result })

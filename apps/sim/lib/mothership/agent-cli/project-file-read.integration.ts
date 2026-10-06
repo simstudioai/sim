@@ -15,6 +15,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -29,6 +30,8 @@ const { redisUrl } = await vi.hoisted(async () => {
   if (redisUrl) process.env.REDIS_URL = redisUrl
   return { redisUrl }
 })
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
@@ -51,7 +54,7 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
   []
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })

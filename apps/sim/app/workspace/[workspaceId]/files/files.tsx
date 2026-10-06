@@ -126,11 +126,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
-import {
-  FILE_UPLOAD_ACCEPT,
-  FILE_UPLOAD_EXTENSIONS,
-  hasExternalFiles,
-} from '@/app/workspace/[workspaceId]/files/utils'
+import { hasExternalFiles, isSupportedFileUpload } from '@/app/workspace/[workspaceId]/files/utils'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
@@ -899,8 +895,7 @@ function FilesContent() {
 
       const unsupported: string[] = []
       const allowedFiles = sizeFiltered.filter((f) => {
-        const ext = getFileExtension(f.name)
-        const ok = FILE_UPLOAD_EXTENSIONS.includes(ext as (typeof FILE_UPLOAD_EXTENSIONS)[number])
+        const ok = isSupportedFileUpload(f.name)
         if (!ok) unsupported.push(f.name)
         return ok
       })
@@ -2038,7 +2033,6 @@ function FilesContent() {
         className='hidden'
         onChange={handleFileChange}
         disabled={uploading || !canEdit}
-        accept={FILE_UPLOAD_ACCEPT}
         multiple
       />
     </div>

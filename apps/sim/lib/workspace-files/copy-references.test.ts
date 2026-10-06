@@ -159,7 +159,7 @@ describe('selected copy references', () => {
       'getFileBase64(variable)',
       "slide.addText('photo-1')",
     ].join('\n')
-    expect(rewriteCopiedFileReferences(source, maps)).toBe(
+    expect(rewriteCopiedFileReferences(source, maps, 'javascript')).toBe(
       [
         "const image = await getFileBase64('copied-photo')",
         'await addImage(slide, "copied-photo", options)',
@@ -173,4 +173,16 @@ describe('selected copy references', () => {
       ].join('\n')
     )
   })
+
+  it.each(['javascript', 'python'] as const)(
+    'copies unfinished %s document source without partial reference rewrites',
+    (language) => {
+      const source = [
+        'link = "/api/files/view/photo-1"',
+        'image = getFileBase64("photo-1")',
+        'unfinished = "unterminated',
+      ].join('\n')
+      expect(rewriteCopiedFileReferences(source, maps, language)).toBe(source)
+    }
+  )
 })

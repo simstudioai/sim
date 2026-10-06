@@ -52,6 +52,7 @@ export function FileFilterControls({
     <ResourceFilterPanel>
       <ResourceFilterSection label='File Type'>
         <ChipCombobox
+          aria-label='File type'
           options={[...FILE_BROWSER_TYPE_OPTIONS]}
           multiSelect
           multiSelectValues={types}
@@ -65,6 +66,7 @@ export function FileFilterControls({
       </ResourceFilterSection>
       <ResourceFilterSection label='Size'>
         <ChipCombobox
+          aria-label='File size'
           options={[...FILE_BROWSER_SIZE_OPTIONS]}
           multiSelect
           multiSelectValues={sizes}
@@ -79,6 +81,7 @@ export function FileFilterControls({
       {creators.length > 0 && (
         <ResourceFilterSection label='Uploaded By'>
           <ChipCombobox
+            aria-label='Uploaded by'
             options={creators}
             multiSelect
             multiSelectValues={creatorIds}

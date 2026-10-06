@@ -28,7 +28,11 @@ import {
   stageFileContent,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { isCompiledDocumentBuffer } from '@/lib/uploads/documents/compile'
+import {
+  getDocumentSourceLanguage,
+  getE2BDocFormat,
+  isCompiledDocumentBuffer,
+} from '@/lib/uploads/documents'
 import { getWorkspaceFileSize, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isMarkdownFile, isRenderableDocumentName } from '@/lib/uploads/utils/file-utils'
 import {
@@ -138,17 +142,27 @@ export const copyFileItems: AuthorizingUseCase<
             ) ||
             isMarkdownFile({ name: source.originalName, type: source.contentType }) ||
             isRenderableDocumentName(source.originalName)
-          const copiedContent =
-            textual && isUtf8(content) && !isCompiledDocumentBuffer(source.originalName, content)
-              ? Buffer.from(
-                  rewriteCopiedFileReferences(content.toString('utf8'), {
-                    sourceOwner: prepared.context.source.owner,
-                    destinationOwner: prepared.context.destination.owner,
-                    fileIds,
-                    fileKeys,
-                  })
-                )
-              : content
+          let copiedContent = content
+          if (
+            textual &&
+            isUtf8(content) &&
+            !isCompiledDocumentBuffer(source.originalName, content)
+          ) {
+            const text = content.toString('utf8')
+            const format = await getE2BDocFormat(source.originalName)
+            copiedContent = Buffer.from(
+              rewriteCopiedFileReferences(
+                text,
+                {
+                  sourceOwner: prepared.context.source.owner,
+                  destinationOwner: prepared.context.destination.owner,
+                  fileIds,
+                  fileKeys,
+                },
+                format ? getDocumentSourceLanguage(text, format, source.contentType) : null
+              )
+            )
+          }
           stagedBytes += copiedContent.length
           if (stagedBytes > MAX_BUFFERED_TRANSFER_BYTES)
             throw new OrchestrationError(

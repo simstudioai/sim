@@ -14,6 +14,7 @@ import {
   listProjectFileItems,
   projectFileOperations,
 } from '@/lib/projects/files/application'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
@@ -100,7 +101,7 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ params, body }) => ({
     projectId: params.id,
     name: body.name,
-    contentType: body.contentType ?? 'text/plain',
+    contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
     content: body.content,
     encoding: body.encoding,
     exactName: body.exactName,

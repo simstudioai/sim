@@ -168,7 +168,7 @@ export async function requireProjectFileOwnerRole(
     throw new OrchestrationError('forbidden', 'User account is suspended')
   const canWrite =
     access.orgAdmin ||
-    access.rows.some((row) => row.permission === 'admin') ||
+    access.active.some((row) => row.permission === 'admin') ||
     (access.active.length > 0 &&
       access.active.every((row) => row.permission === 'write' || row.permission === 'admin'))
   if (accessMode === 'write' && !canWrite) {

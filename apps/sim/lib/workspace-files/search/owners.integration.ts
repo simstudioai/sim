@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db, runOutsideTransactionContext } from '@sim/db'
 import {
+  fileSearchDispatchQueue,
   folder,
   member,
   organization,
@@ -22,15 +23,18 @@ import {
   createExecutorPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { Document, Packer, Paragraph } from 'docx'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
 import { readProjectFileArtifact } from '@/lib/projects/files/application/artifacts'
@@ -45,6 +49,7 @@ import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
+import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
 import {
   appendFileSearchChunks,
   beginFileSearchBuild,
@@ -66,7 +71,7 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 const signal = new AbortController().signal
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
@@ -247,6 +252,121 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       expect(result.results.map((hit) => hit.fileId)).toEqual([file.id])
     }
   )
+
+  check('requeues the former owner and rebuilds derived files after an input moves', async () => {
+    const f = await fixture()
+    const destination = await fixture()
+    const dependencyId = generateId()
+    const sourceId = generateId()
+    const [dependency] = await db
+      .insert(workspaceFiles)
+      .values({
+        id: dependencyId,
+        userId: f.ownerId,
+        workspaceId: f.workspaceId,
+        context: 'workspace',
+        key: `workspace/${f.workspaceId}/${dependencyId}/input.txt`,
+        originalName: 'input.txt',
+        contentType: 'text/plain',
+        sizeBytes: 5,
+      })
+      .returning()
+    await db.insert(workspaceFiles).values({
+      id: sourceId,
+      userId: f.ownerId,
+      workspaceId: f.workspaceId,
+      context: 'workspace',
+      key: `workspace/${f.workspaceId}/${sourceId}/derived.docx`,
+      originalName: 'derived.docx',
+      contentType: 'text/x-docxjs',
+      sizeBytes: 10,
+    })
+    const claimed = await claim(sourceId)
+    const build = await beginFileSearchBuild(
+      {
+        workspaceId: f.workspaceId,
+        fileId: sourceId,
+        sourceContentUpdatedAt: new Date(claimed.sourceContentUpdatedAt),
+      },
+      claimed.dispatchToken
+    )
+    if (!build) throw new Error('Derived file build was not admitted')
+    expect(
+      await publishFileSearchBuild(
+        build,
+        {
+          status: 'ready',
+          lineCount: 0,
+          indexedBytes: 0,
+          chunkCount: 0,
+          dependencies: [
+            {
+              fileId: dependencyId,
+              key: dependency.key,
+              sourceContentUpdatedAt: dependency.contentUpdatedAt,
+            },
+          ],
+        },
+        signal
+      )
+    ).toBe(true)
+    await prepareWorkspaceFileSearchDispatch(0)
+    await db
+      .delete(fileSearchDispatchQueue)
+      .where(
+        and(
+          eq(fileSearchDispatchQueue.entityType, 'workspace'),
+          eq(fileSearchDispatchQueue.entityId, f.workspaceId)
+        )
+      )
+    await db
+      .update(workspaceFiles)
+      .set({ workspaceId: destination.workspaceId })
+      .where(eq(workspaceFiles.id, dependencyId))
+    const queued = await db
+      .select()
+      .from(fileSearchDispatchQueue)
+      .where(
+        and(
+          eq(fileSearchDispatchQueue.entityType, 'workspace'),
+          eq(fileSearchDispatchQueue.entityId, f.workspaceId)
+        )
+      )
+    expect(queued).toHaveLength(1)
+    const locked = createDeferred<void>()
+    const release = createDeferred<void>()
+    const blocker = runOutsideTransactionContext(() =>
+      db.transaction(async (tx) => {
+        await tx.select().from(workspaceFiles).where(eq(workspaceFiles.id, sourceId)).for('update')
+        locked.resolve()
+        await release.promise
+      })
+    )
+    await locked.promise
+    try {
+      await prepareWorkspaceFileSearchDispatch()
+      const waiting = await db
+        .select()
+        .from(fileSearchDispatchQueue)
+        .where(
+          and(
+            eq(fileSearchDispatchQueue.entityType, 'workspace'),
+            eq(fileSearchDispatchQueue.entityId, f.workspaceId)
+          )
+        )
+      expect(waiting).toHaveLength(1)
+    } finally {
+      release.resolve()
+      await blocker
+    }
+    const dispatch = await prepareWorkspaceFileSearchDispatch()
+    expect(dispatch.payloads.some((payload) => payload.fileId === sourceId)).toBe(true)
+    const [revision] = await db
+      .select()
+      .from(workspaceFileSearchRevision)
+      .where(eq(workspaceFileSearchRevision.fileId, sourceId))
+    expect(revision).toMatchObject({ status: 'pending', buildId: null })
+  })
 
   check('queues canonical Project revisions and isolates workspace and Project text', async () => {
     const f = await fixture()
@@ -873,9 +993,15 @@ afterAll(async () => {
       .select({ id: workspaceFiles.id })
       .from(workspaceFiles)
       .where(
-        inArray(
-          workspaceFiles.projectId,
-          fixtures.flatMap((f) => [f.projectId, f.workspaceId])
+        or(
+          inArray(
+            workspaceFiles.projectId,
+            fixtures.map((f) => f.projectId)
+          ),
+          inArray(
+            workspaceFiles.workspaceId,
+            fixtures.map((f) => f.workspaceId)
+          )
         )
       )
   ).map((row) => row.id)
@@ -901,6 +1027,12 @@ afterAll(async () => {
     }
   }
   for (const f of fixtures) {
+    await db.execute(
+      sql`DELETE FROM file_search_dispatch_queue WHERE (entity_type = 'project' AND entity_id = ${f.projectId}) OR (entity_type = 'workspace' AND entity_id = ${f.workspaceId})`
+    )
+    await db.execute(
+      sql`DELETE FROM workspace_file_search_dispatch_queue WHERE workspace_id = ${f.workspaceId}`
+    )
     await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(project).where(eq(project.id, f.projectId))

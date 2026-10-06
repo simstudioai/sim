@@ -21,11 +21,14 @@ import {
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -63,7 +66,7 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
   []
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })

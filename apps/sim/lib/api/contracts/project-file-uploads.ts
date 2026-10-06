@@ -21,7 +21,7 @@ export type ProjectFileUploadParams = z.input<typeof projectFileUploadParamsSche
 
 export const createProjectFileUploadBodySchema = v2CreateFileUploadBodySchema
   .omit({ workspaceId: true })
-  .extend({ folderId: folderIdSchema.optional() })
+  .extend({ folderId: folderIdSchema.nullish() })
   .strict()
 export type CreateProjectFileUploadBody = z.input<typeof createProjectFileUploadBodySchema>
 

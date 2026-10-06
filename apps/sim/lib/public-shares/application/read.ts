@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -24,6 +25,7 @@ import {
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
+  getDocumentSourceLanguage,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
 } from '@/lib/uploads/documents/compile'
@@ -211,8 +213,13 @@ export async function readPublicFileShareContent({
           ...new Set(
             pageHtml
               ? references.map((ref) => ref.fileId)
-              : generated
-                ? collectReferencedFileIds(source)
+              : generated && format
+                ? collectReferencedFileIds(
+                    source,
+                    isDocSandboxEnabled
+                      ? getDocumentSourceLanguage(source, format, initial.file.contentType)
+                      : 'javascript'
+                  )
                 : []
           ),
         ]

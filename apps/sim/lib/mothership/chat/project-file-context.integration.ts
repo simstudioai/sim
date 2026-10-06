@@ -13,6 +13,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -35,6 +36,8 @@ import {
 } from '@/app/api/copilot/chat/resources/route'
 import { DELETE as removeMothershipResource } from '@/app/api/mothership/chat/resources/route'
 import { GET as readMothershipChat } from '@/app/api/mothership/chats/[chatId]/route'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/auth', () => authMock)
 
@@ -65,7 +68,7 @@ function identityCheck(name: string, run: () => Promise<void>) {
 
 const fixtures: { userId: string; workspaceId: string; fileId: string }[] = []
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 async function fixture() {

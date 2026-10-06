@@ -48,9 +48,7 @@ export const copiedFileSchema = projectFileRecordSchema
     owner: fileCopyDestinationSchema.shape.owner.describe(
       'Canonical destination owner of the copied file.'
     ),
-    revision: nonEmptyIdSchema
-      .optional()
-      .describe('Current content revision for subsequent edits.'),
+    revision: nonEmptyIdSchema.describe('Current content revision for subsequent edits.'),
   })
 export type CopiedFile = z.output<typeof copiedFileSchema>
 

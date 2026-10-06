@@ -45,7 +45,7 @@ export const projectFileShareOpenApiRoutes = [
       applicationOperation: projectFileOperations.updateShare,
       operationId: 'updateProjectFileShare',
       summary: 'Update Project File Share',
-      description: `Create or update a Project file's public share. isActive is required; omitted settings retain their current values. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or update a Project file's public share. isActive is required; omitted settings retain their current values except credentials unused by the selected access mode, which are cleared. Disabling retains the token and access configuration. Publication requires Project edit access and the current sharing policy across accessible active environments. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: RESOURCE_ERRORS,
       success: { description: 'The updated Project file share.', headers: RATE_LIMIT_HEADERS },

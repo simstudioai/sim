@@ -22,6 +22,7 @@ import {
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -41,6 +42,8 @@ import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/context
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { PUT as putUploadBytes } from '@/app/api/v2/uploads/[uploadId]/route'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-project-purge-'))
 setUploadDirServer(storageRoot)
@@ -67,7 +70,7 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 
@@ -432,11 +435,25 @@ describe('Private Project teardown and durable object cleanup', () => {
         .set({ availableAt: new Date(0) })
         .where(eq(outboxEvent.id, final.id))
       expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
-        'completed'
+        'pending'
       )
       await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
         code: 'ENOENT',
       })
+      await writeFile(join(storageRoot, upload.finalKey), 'finished-after-empty-sweep')
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: new Date(0), attempts: 4 })
+        .where(eq(outboxEvent.id, final.id))
+      expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
+        'pending'
+      )
+      await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
+      const [retained] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, final.id))
+      expect(retained.attempts).toBe(0)
+      expect(retained.availableAt.getTime()).toBeGreaterThan(Date.now())
       const unsafe = generateId()
       await db.insert(outboxEvent).values({
         id: unsafe,

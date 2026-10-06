@@ -1,1 +1,1 @@
-export { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_EXTENSIONS, hasExternalFiles } from './uploads'
+export { hasExternalFiles, isSupportedFileUpload } from './uploads'

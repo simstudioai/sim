@@ -1,7 +1,7 @@
 import { dbFor } from '@sim/db'
 import { workspaceFileVersion } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
-import { and, count, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
+import { and, asc, count, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
 import {
   DEFAULT_DELETE_CHUNK_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -22,7 +22,8 @@ const FREE_MAX_SUPERSEDED_VERSIONS = 99
 async function selectCandidateFileIds(
   workspaceIds: string[],
   cutoff: Date,
-  maxSuperseded: number
+  maxSuperseded: number,
+  afterId: string
 ): Promise<string[]> {
   const rows = await cleanupDb
     .select({ fileId: workspaceFileVersion.fileId })
@@ -30,7 +31,8 @@ async function selectCandidateFileIds(
     .where(
       and(
         inArray(workspaceFileVersion.workspaceId, workspaceIds),
-        isNotNull(workspaceFileVersion.supersededAt)
+        isNotNull(workspaceFileVersion.supersededAt),
+        gt(workspaceFileVersion.fileId, afterId)
       )
     )
     .groupBy(workspaceFileVersion.fileId)
@@ -46,6 +48,8 @@ async function selectCandidateFileIds(
         )
       )
     )
+    .orderBy(asc(workspaceFileVersion.fileId))
+    .limit(FILES_PER_QUERY)
   return rows.map((row) => row.fileId)
 }
 
@@ -61,9 +65,12 @@ export async function cleanupWorkspaceFileVersions(
   let attempted = 0
   for (const group of chunkArray(workspaceIds, DEFAULT_WORKSPACE_CHUNK_SIZE)) {
     if (attempted >= limit) break
-    const candidates = await selectCandidateFileIds(group, cutoff, maxSuperseded)
     let batches = 0
-    for (const fileIds of chunkArray(candidates, FILES_PER_QUERY)) {
+    let afterId = ''
+    while (batches < DEFAULT_MAX_BATCHES_PER_TABLE && attempted < limit) {
+      const fileIds = await selectCandidateFileIds(group, cutoff, maxSuperseded, afterId)
+      if (fileIds.length === 0) break
+      afterId = fileIds[fileIds.length - 1]
       let exhausted = false
       while (!exhausted && batches < DEFAULT_MAX_BATCHES_PER_TABLE && attempted < limit) {
         batches++

@@ -69,7 +69,7 @@ describe('compileSimPage', () => {
     )
     expect(html).toContain('src="https://sim.example/api/projects/project-one/files/img-9/content"')
     expect(html).toContain(
-      'href="https://sim.example/api/projects/project-one/files/img-9/content#details" data-sim-link=""'
+      'href="https://sim.example/projects/project-one/files/img-9#details" data-sim-link=""'
     )
   })
 

@@ -11,6 +11,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -25,11 +26,13 @@ interface BrowserFixture {
   fileIds: string[]
   folderIds: string[]
 }
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+
 const fixtures: BrowserFixture[] = []
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 beforeEach(() => {
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
 function check(name: string, run: () => Promise<void>) {

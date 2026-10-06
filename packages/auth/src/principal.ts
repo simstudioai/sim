@@ -188,7 +188,7 @@ export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDe
 export type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
 
 /** An owner grant may be narrowed to a single file, but never widened to another owner. */
-export interface ResourceEntityScope {
+interface ResourceEntityScope {
   kind: 'entity'
   entityType: ResourceEntityType
   entityId: string

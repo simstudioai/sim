@@ -1453,7 +1453,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Files',
       description:
-        'Create, upload, download, organize, share, version, and delete workspace files.',
+        'Create, upload, download, organize, share, version, and delete workspace and Project files.',
     },
     {
       name: 'Audit Logs',

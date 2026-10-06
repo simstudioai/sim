@@ -187,7 +187,7 @@ export async function triggerProjectFileDownload(
   }
   const response = await requestRaw(
     readProjectFileArtifactContract,
-    { params: { id: record.owner.entityId, fileId: record.id } },
+    { params: { id: record.owner.entityId, fileId: record.id }, query: {} },
     { cache: 'no-store' }
   )
   saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))

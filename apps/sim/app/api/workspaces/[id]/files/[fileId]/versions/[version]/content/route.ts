@@ -12,6 +12,7 @@ import { encodeFilenameForHeader } from '@/app/api/files/utils'
 export const GET = defineInternalBinaryRoute({
   contract: downloadWorkspaceFileVersionContract,
   auth: internalSessionAuth,
+  headSafe: false,
   operation: fileOperations.downloadVersion,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated historical downloads follow the workspace binary delivery policy',

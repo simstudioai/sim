@@ -149,7 +149,10 @@ export function useCreateProjectFileFolder(projectId: string) {
     mutationFn: (body: CreateProjectFileFolderBody) =>
       requestJson(createProjectFileFolderContract, { params: { id: projectId }, body }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: projectFilesKeys.projectFolders(projectId) }),
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectFilesKeys.projectFolders(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectFilesKeys.projectLists(projectId) }),
+      ]),
   })
 }
 

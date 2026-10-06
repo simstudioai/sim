@@ -132,10 +132,18 @@ export const readProjectFileContentContract = defineRouteContract({
   response: { mode: 'binary' },
 })
 
+export const projectFileArtifactQuerySchema = z.object({
+  preview: z.enum(['1', '0']).optional(),
+  v: z.string().max(128).optional(),
+  t: z.string().max(32).optional(),
+})
+export type ProjectFileArtifactQuery = z.input<typeof projectFileArtifactQuerySchema>
+
 export const readProjectFileArtifactContract = defineRouteContract({
   method: 'GET',
   path: '/api/projects/[id]/files/[fileId]/artifact',
   params: projectFileParamsSchema,
+  query: projectFileArtifactQuerySchema,
   response: { mode: 'binary' },
 })
 

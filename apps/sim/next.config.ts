@@ -3,6 +3,7 @@ import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
+import { PROXY_CLIENT_MAX_BODY_BYTES } from './lib/core/config/request-limits'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
@@ -154,6 +155,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
+    proxyClientMaxBodySize: PROXY_CLIENT_MAX_BODY_BYTES,
     /**
      * Turbopack's dev filesystem cache stays ON (this is also the Next default
      * since v16.1). It is what makes a dev-server restart cheap: without it every

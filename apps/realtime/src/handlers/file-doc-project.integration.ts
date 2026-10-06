@@ -6,14 +6,18 @@ import {
   FILE_DOC_EVENTS,
   FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
+  type JoinFileDocError,
+  type JoinFileDocPayload,
   type JoinFileDocSuccess,
 } from '@sim/realtime-protocol/file-doc'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { Server } from 'socket.io'
 import { io as connect, type Socket } from 'socket.io-client'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
+import { startAccessRevalidationSweep } from '@/access-revalidation'
 import { env } from '@/env'
 import {
   cleanupFileDocForSocket,
@@ -21,7 +25,11 @@ import {
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
+import {
+  beginRoomPermissionRead,
+  commitRoomPermission,
+  ROLE_REVALIDATION_TTL_MS,
+} from '@/middleware/permissions'
 import { MemoryRoomManager } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
 
@@ -43,6 +51,15 @@ let http: HttpServer
 let io: Server
 let socketUrl: string
 const capturedActors: string[] = []
+const accessGates = new Map<
+  string,
+  {
+    requests: number
+    entered: ReturnType<typeof createDeferred<void>>
+    release: ReturnType<typeof createDeferred<void>>
+    status: number
+  }
+>()
 
 async function listen(server: HttpServer) {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -69,6 +86,15 @@ beforeAll(async () => {
     if (!request.url?.startsWith(`/api/internal/project-file-doc/${projectId}/${fileId}/`)) {
       response.writeHead(404).end('{}')
       return
+    }
+    const gate = accessGates.get(actor)
+    if (gate && request.url.endsWith('/access') && ++gate.requests > 1) {
+      gate.entered.resolve()
+      await gate.release.promise
+      if (gate.status !== 200) {
+        response.writeHead(gate.status).end('{}')
+        return
+      }
     }
     const role = actors.get(actor)
     if (!role) {
@@ -112,7 +138,7 @@ beforeAll(async () => {
   socketUrl = await listen(http)
 })
 
-async function join(actor: string, assertedProject = projectId, owner?: unknown) {
+async function startJoin(actor: string, assertedProject = projectId, owner?: unknown) {
   const socket = connect(socketUrl, { transports: ['websocket'], auth: { actor } })
   clients.push(socket)
   await new Promise<void>((resolve) => socket.once('connect', resolve))
@@ -129,7 +155,12 @@ async function join(actor: string, assertedProject = projectId, owner?: unknown)
     clientId,
     schemaVersion: FILE_DOC_SCHEMA_VERSION,
   })
-  return { socket, joined: await joined }
+  return { socket, joined }
+}
+
+async function join(actor: string, assertedProject = projectId, owner?: unknown) {
+  const pending = await startJoin(actor, assertedProject, owner)
+  return { socket: pending.socket, joined: await pending.joined }
 }
 
 function check(name: string, run: () => Promise<void>) {
@@ -173,6 +204,184 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
     expect(capturedActors).toEqual([])
     write.destroy()
   })
+
+  for (const status of [200, 403, 503]) {
+    check(`withholds Project broadcasts while final access resolves to ${status}`, async () => {
+      const actor = `pending-${generateId()}`
+      actors.set(actor, 'read')
+      const gate = {
+        requests: 0,
+        entered: createDeferred<void>(),
+        release: createDeferred<void>(),
+        status,
+      }
+      accessGates.set(actor, gate)
+      const writer = await join('writer')
+      const installed = createDeferred<void>()
+      const releaseAdapter = createDeferred<void>()
+      const adapter = io.of('/').adapter
+      const addAll = adapter.addAll.bind(adapter)
+      adapter.addAll = async (id, rooms) => {
+        await addAll(id, rooms)
+        if (
+          io.sockets.sockets.get(id)?.handshake.auth.actor === actor &&
+          rooms.has(`project-file-doc:${projectId}/${fileId}`)
+        ) {
+          installed.resolve()
+          await releaseAdapter.promise
+        }
+      }
+      const pending = await startJoin(actor)
+      const outcome = pending.joined.then(
+        (value) => ({ value, error: null }),
+        (error: Error) => ({ value: null, error })
+      )
+      const frames: string[] = []
+      pending.socket.on(FILE_DOC_EVENTS.MESSAGE, () => frames.push('document'))
+      pending.socket.on(FILE_DOC_EVENTS.PRESENCE, () => frames.push('presence'))
+      try {
+        await installed.promise
+        const edit = new Y.Doc()
+        Y.applyUpdate(edit, Buffer.from(seed, 'base64'))
+        edit.getText('body').insert(0, `while-pending-${status}`)
+        expect(
+          await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+            fileId,
+            projectId,
+            docId,
+            updateId: generateId(),
+            update: Y.encodeStateAsUpdate(edit),
+          })
+        ).toMatchObject({ status: 'accepted' })
+        edit.destroy()
+        await join('reader')
+        const drained = new Promise<void>((resolve) =>
+          pending.socket.once('fixture-drained', resolve)
+        )
+        io.sockets.sockets.get(pending.socket.id ?? '')?.emit('fixture-drained')
+        await drained
+        expect(frames).toEqual([])
+        releaseAdapter.resolve()
+        await gate.entered.promise
+        await join('reader')
+        const finalDrain = new Promise<void>((resolve) =>
+          pending.socket.once('fixture-drained', resolve)
+        )
+        io.sockets.sockets.get(pending.socket.id ?? '')?.emit('fixture-drained')
+        await finalDrain
+        expect(frames).toEqual([])
+      } finally {
+        adapter.addAll = addAll
+        releaseAdapter.resolve()
+        gate.release.resolve()
+      }
+      const result = await outcome
+      if (status === 200) expect(result.value?.canWrite).toBe(false)
+      else {
+        expect(result.error).not.toBeNull()
+        expect(
+          io.sockets.sockets
+            .get(pending.socket.id ?? '')
+            ?.rooms.has(`project-file-doc:${projectId}/${fileId}`)
+        ).toBe(false)
+        expect(frames).toEqual([])
+      }
+      accessGates.delete(actor)
+      pending.socket.disconnect()
+      writer.socket.disconnect()
+    })
+  }
+
+  for (const rejectLeave of [false, true]) {
+    check(
+      `a stale rejoin preserves the admitted document when delayed cleanup ${rejectLeave ? 'rejects' : 'resolves'}`,
+      async () => {
+        const actor = `rejoining-${generateId()}`
+        actors.set(actor, 'write')
+        const admitted = await join(actor)
+        const server = io.sockets.sockets.get(admitted.socket.id ?? '')
+        if (!server) throw new Error('Admitted socket missing')
+        const originalJoin = server.listeners(FILE_DOC_EVENTS.JOIN)[0]
+        if (!originalJoin) throw new Error('Document join handler missing')
+        const doc = new Y.Doc()
+        const clientId = doc.clientID
+        doc.destroy()
+        const done = createDeferred<void>()
+        const entered = createDeferred<void>()
+        const release = createDeferred<void>()
+        const observeJoin = async (payload: JoinFileDocPayload) => {
+          try {
+            await originalJoin.call(server, payload)
+          } finally {
+            if (payload.clientId === clientId) done.resolve()
+          }
+        }
+        server.off(FILE_DOC_EVENTS.JOIN, originalJoin)
+        server.on(FILE_DOC_EVENTS.JOIN, observeJoin)
+        const adapter = io.of('/').adapter
+        const del = adapter.del.bind(adapter)
+        let held = false
+        adapter.del = async (id, name) => {
+          await del(id, name)
+          if (
+            !held &&
+            id === server.id &&
+            name === `project-file-doc:${projectId}/${fileId}:pending`
+          ) {
+            held = true
+            entered.resolve()
+            await release.promise
+            if (rejectLeave) throw new Error('Fixture membership removal failed')
+          }
+        }
+        try {
+          admitted.socket.emit(FILE_DOC_EVENTS.JOIN, {
+            fileId,
+            projectId,
+            clientId,
+            schemaVersion: FILE_DOC_SCHEMA_VERSION,
+          })
+          await entered.promise
+          const missingFileId = generateId()
+          const rejected = new Promise<JoinFileDocError>((resolve) => {
+            const onError = (error: JoinFileDocError) => {
+              if (error.fileId !== missingFileId) return
+              admitted.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, onError)
+              resolve(error)
+            }
+            admitted.socket.on(FILE_DOC_EVENTS.JOIN_ERROR, onError)
+          })
+          admitted.socket.emit(FILE_DOC_EVENTS.JOIN, {
+            fileId: missingFileId,
+            projectId,
+            clientId: clientId + 1,
+            schemaVersion: FILE_DOC_SCHEMA_VERSION,
+          })
+          expect((await rejected).code).toBe('NOT_FOUND')
+          release.resolve()
+          await done.promise
+          const edit = new Y.Doc()
+          Y.applyUpdate(edit, Buffer.from(seed, 'base64'))
+          edit.getText('body').insert(0, 'preserved after failed navigation')
+          const reply = await admitted.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+            fileId,
+            projectId,
+            docId,
+            updateId: generateId(),
+            update: Y.encodeStateAsUpdate(edit),
+          })
+          edit.destroy()
+          expect(reply).toMatchObject({ status: 'accepted' })
+        } finally {
+          release.resolve()
+          adapter.del = del
+          server.off(FILE_DOC_EVENTS.JOIN, observeJoin)
+          server.on(FILE_DOC_EVENTS.JOIN, originalJoin)
+          admitted.socket.disconnect()
+        }
+      }
+    )
+  }
 
   check(
     'a writer can publish and a reader joining later never replaces the actual editor',
@@ -231,6 +440,51 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
         update: Y.encodeStateAsUpdate(document),
       })
       expect(mismatched).toMatchObject({ status: 'rejected', code: 'INVALID_UPDATE' })
+    }
+  )
+
+  check(
+    'callback outages preserve membership and acknowledge writes as retryable; revocations still evict',
+    async () => {
+      const actor = `transient-${generateId()}`
+      actors.set(actor, 'write')
+      const writer = await join(actor)
+      const gate = {
+        requests: 1,
+        entered: createDeferred<void>(),
+        release: createDeferred<void>(),
+        status: 503,
+      }
+      gate.release.resolve()
+      accessGates.set(actor, gate)
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now + ROLE_REVALIDATION_TTL_MS + 1)
+      const sweep = startAccessRevalidationSweep(new MemoryRoomManager(io))
+      sweep.stop()
+      const room = `project-file-doc:${projectId}/${fileId}`
+      try {
+        await sweep.runOnce()
+        expect(io.sockets.sockets.get(writer.socket.id ?? '')?.rooms.has(room)).toBe(true)
+        const reply = await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+          fileId,
+          projectId,
+          docId,
+          updateId: generateId(),
+          update: Y.encodeStateAsUpdate(document),
+        })
+        expect(reply).toMatchObject({
+          status: 'rejected',
+          code: 'TEMPORARY_FAILURE',
+          retryable: true,
+        })
+        gate.status = 404
+        await sweep.runOnce()
+        expect(io.sockets.sockets.get(writer.socket.id ?? '')?.rooms.has(room)).toBe(false)
+      } finally {
+        clock.mockRestore()
+        accessGates.delete(actor)
+        writer.socket.disconnect()
+      }
     }
   )
 

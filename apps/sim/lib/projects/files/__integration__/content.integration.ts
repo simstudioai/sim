@@ -26,6 +26,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -55,6 +56,8 @@ import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+
 const localStorageRoot = mkdtempSync(join(tmpdir(), 'sim-project-content-'))
 setUploadDirServer(localStorageRoot)
 const fixtures: {
@@ -69,7 +72,7 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 
 beforeEach(() => {
   vi.restoreAllMocks()
-  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })

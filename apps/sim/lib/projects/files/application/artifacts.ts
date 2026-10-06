@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { workspaceFiles } from '@sim/db/schema'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
+import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type { DbTransaction } from '@/lib/db/types'
@@ -28,11 +29,13 @@ import { downloadFile } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
   compileFileDocument,
+  getDocumentSourceLanguage,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
   resolveDocumentRender,
 } from '@/lib/uploads/documents'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -50,6 +53,7 @@ interface ArtifactInput extends ProjectFileTarget {
   fileId: string
   maxBytes: number
   forModel?: boolean
+  preview?: boolean
 }
 interface SourceSnapshot {
   file: WorkspaceFileRow
@@ -131,9 +135,10 @@ const snapshotArtifact = defineAuthorizedProjectFileUseCase<
     const pageHtml = page
       ? renderSimPageDocument(source, { projectId: context.projectId })
       : undefined
+    const format = await getE2BDocFormat(input.source.file.originalName)
     const generatedDocument =
       !page &&
-      (await getE2BDocFormat(input.source.file.originalName)) !== null &&
+      format !== null &&
       !isCompiledDocumentBuffer(input.source.file.originalName, input.source.content)
     const references = pageHtml ? collectSimPageFileReferences(pageHtml) : []
     if (
@@ -147,8 +152,13 @@ const snapshotArtifact = defineAuthorizedProjectFileUseCase<
       ...new Set(
         pageHtml
           ? references.map((reference) => reference.fileId)
-          : generatedDocument
-            ? collectReferencedFileIds(source)
+          : generatedDocument && format
+            ? collectReferencedFileIds(
+                source,
+                isDocSandboxEnabled
+                  ? getDocumentSourceLanguage(source, format, input.source.file.contentType)
+                  : 'javascript'
+              )
             : []
       ),
     ]
@@ -253,7 +263,12 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
           }
         }
       )
-      return { ...artifact, writtenArtifactKeys: [...writtenArtifactKeys] }
+      const derivative = input.preview
+        ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key)
+        : null
+      if (derivative)
+        assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')
+      return { ...artifact, ...derivative, writtenArtifactKeys: [...writtenArtifactKeys] }
     } catch (error) {
       await discardArtifactWrites(context.owner, [...writtenArtifactKeys])
       throw error

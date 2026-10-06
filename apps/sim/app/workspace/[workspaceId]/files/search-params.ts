@@ -1,4 +1,10 @@
-import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import {
+  createParser,
+  createSerializer,
+  parseAsArrayOf,
+  parseAsString,
+  parseAsStringLiteral,
+} from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
 import {
   FILE_BROWSER_SIZES,
@@ -126,3 +132,14 @@ export const projectFileFilterParsers = {
   type: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_TYPES)).withDefault([]),
   size: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_SIZES)).withDefault([]),
 } as const
+
+export const serializeProjectFilesLocation = createSerializer(
+  {
+    ...filesParsers,
+    ...fileOwnerParsers,
+    ...projectFileFilterParsers,
+    ...filesSortParams.parsers,
+    ...projectFilesScopeParsers,
+  },
+  { urlKeys: filesFilterUrlKeyMap }
+)

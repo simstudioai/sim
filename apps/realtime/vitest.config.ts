@@ -1,10 +1,10 @@
 import path from 'node:path'
 import { defineConfig, mergeConfig } from 'vitest/config'
-import sharedConfig from '../../vitest.shared'
+import sharedConfig, { integrationTestConfig } from '../../vitest.shared'
 
 export default defineConfig(({ mode }) =>
   mergeConfig(
-    sharedConfig,
+    mergeConfig(sharedConfig, mode === 'integration' ? integrationTestConfig : {}),
     defineConfig({
       test: {
         include: mode === 'integration' ? ['src/**/*.integration.ts'] : ['**/*.test.{ts,tsx}'],
@@ -16,10 +16,6 @@ export default defineConfig(({ mode }) =>
         ...(mode === 'integration'
           ? {
               fileParallelism: false,
-              reporters: ['default', 'json'],
-              outputFile: {
-                json: process.env.INTEGRATION_REPORT_PATH ?? 'test-results/integration.json',
-              },
             }
           : {}),
       },
