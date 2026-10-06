@@ -56,6 +56,7 @@ import {
 import {
   MOTHERSHIP_CHAT_API_PATH,
   MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
   MOTHERSHIP_STREAM_REPLAY_HEADER,
 } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -2683,6 +2684,7 @@ export function useChat(
                 resumeCursor: latestCursor,
                 deferFlushes: true,
                 suppressedWorkflowToolStartIds: suppressedSeedWorkflowToolStartIds,
+                ...(opts.initialBatch?.desktopToolsOnDevice ? { desktopToolsOnDevice: true } : {}),
                 ...(targetChatId ? { targetChatId } : {}),
                 ...(shouldContinue ? { shouldContinue } : {}),
               }
@@ -2753,6 +2755,9 @@ export function useChat(
             {
               preserveExistingState: preserveNextReplayState,
               resumeCursor: latestCursor,
+              ...(sseRes.headers.get(MOTHERSHIP_DESKTOP_EXECUTOR_HEADER) === 'device'
+                ? { desktopToolsOnDevice: true }
+                : {}),
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
             }
@@ -2860,6 +2865,7 @@ export function useChat(
               resumeCursor: replaySelection.afterCursor,
               deferFlushes: true,
               suppressedWorkflowToolStartIds: getReplayCompletedWorkflowToolCallIds(batch.events),
+              ...(batch.desktopToolsOnDevice ? { desktopToolsOnDevice: true } : {}),
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
             }
@@ -4092,6 +4098,9 @@ export function useChat(
         if (!response.body) throw new Error('No response body')
 
         const streamResult = await processSSEStream(response.body.getReader(), assistantId, gen, {
+          ...(response.headers.get(MOTHERSHIP_DESKTOP_EXECUTOR_HEADER) === 'device'
+            ? { desktopToolsOnDevice: true }
+            : {}),
           ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
         })
         if (streamGenRef.current === gen) {

@@ -1,15 +1,19 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
+import { getDesktopBridge } from '@/lib/desktop'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import {
   type MothershipChatHistory,
+  type MothershipChatMetadata,
   type MothershipChatOwner,
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
+import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 const logger = createLogger('MothershipChatEvents')
@@ -181,6 +185,45 @@ export function resyncMothershipChatCaches(
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
 }
 
+/** The chat route a page shows, so a notification never repeats what is on screen. */
+function chatRoute(owner: MothershipChatOwner, chatId: string): string {
+  return typeof owner === 'string'
+    ? `/workspace/${owner}/chat/${chatId}`
+    : `/o/${owner.organizationId}/chat/${chatId}`
+}
+
+/**
+ * Reflects a turn starting or ending in the chats that run in the background: the desktop
+ * activity list changes, and a chat the user is not looking at that finished its turn is
+ * announced. The desktop app decides whether to show that notification (notifications on, the
+ * chat not on screen in the focused window); the chat on screen announces its own completion.
+ */
+export function reflectBackgroundChatStatus(
+  queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries'>,
+  owner: MothershipChatOwner,
+  data: unknown
+): void {
+  const payload = parseChatStatusEventPayload(data)
+  if (payload?.type !== 'started' && payload?.type !== 'completed') return
+  queryClient.invalidateQueries({ queryKey: desktopActivityKeys.lists() })
+  if (payload.type !== 'completed' || !payload.chatId) return
+  const settings = getDesktopBridge()?.settings
+  if (!settings) return
+  const route = chatRoute(owner, payload.chatId)
+  if (typeof window !== 'undefined' && window.location.pathname === route) return
+  const chats = queryClient.getQueryData<MothershipChatMetadata[]>(
+    mothershipChatKeys.ownerList(owner)
+  )
+  const name = chats?.find((chat) => chat.id === payload.chatId)?.name
+  void settings
+    .notify({ title: name ?? 'Task complete', body: 'Sim finished responding.', route })
+    .catch((error) =>
+      logger.warn('Could not show a chat completion notification', {
+        error: getErrorMessage(error),
+      })
+    )
+}
+
 /**
  * Subscribes to chat status SSE events and invalidates chat caches on changes.
  * The SSE event name remains `task_status` for wire compatibility.
@@ -210,11 +253,9 @@ export function useMothershipChatEvents(
       url: `/api/mothership/events?${ownerParam}`,
       events: {
         task_status: (event) => {
-          handleMothershipChatStatusEvent(
-            queryClient,
-            eventOwner,
-            event instanceof MessageEvent ? event.data : undefined
-          )
+          const data = event instanceof MessageEvent ? event.data : undefined
+          handleMothershipChatStatusEvent(queryClient, eventOwner, data)
+          reflectBackgroundChatStatus(queryClient, eventOwner, data)
         },
       },
       onOpen: (reason) => {

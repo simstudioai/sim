@@ -108,31 +108,47 @@ describe('tool events (dispatch → model + side effects)', () => {
     )
   })
 
-  it("only shows a desktop call when the chat's turn runs on a desktop in the background", () => {
+  it("only shows desktop calls when the desktop's background executor runs the turn", () => {
     const startClientBrowserTool = vi.fn()
-    const deps = makeStreamLoopDeps({ startClientBrowserTool, chatIdRef: ref('chat-1') })
-    vi.mocked(deps.queryClient.getQueryData).mockImplementation((key) =>
-      JSON.stringify(key) === JSON.stringify(['desktop-activity', 'list', 'ws-1'])
-        ? [{ chatId: 'chat-1', state: 'running', deviceName: 'MacBook' }]
-        : undefined
-    )
-    const ctx = createStreamLoopContext(deps)
-
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'click-1',
-        toolName: 'browser_click',
-        arguments: { ref: 'e1' },
-        status: 'executing',
+    const startClientTerminalTool = vi.fn()
+    const startClientLocalFilesystemTool = vi.fn()
+    const startClientWorkflowTool = vi.fn()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({
+        startClientBrowserTool,
+        startClientTerminalTool,
+        startClientLocalFilesystemTool,
+        startClientWorkflowTool,
+        chatIdRef: ref('chat-1'),
+        options: { desktopToolsOnDevice: true },
       })
     )
+    const call = (toolCallId: string, toolName: string, args: Record<string, unknown>) =>
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId,
+          toolName,
+          arguments: args,
+          status: 'executing',
+        })
+      )
+
+    call('click-1', 'browser_click', { ref: 'e1' })
+    call('run-1', 'terminal', { operation: 'run', args: { command: 'ls' } })
+    call('read-1', 'read_local_file', { path: '~/notes.txt' })
+    call('workflow-1', 'run_workflow', { workflowId: 'wf-1' })
 
     expect(toolNode(ctx, 'click-1').status).toBe('running')
     expect(startClientBrowserTool).not.toHaveBeenCalled()
+    expect(startClientTerminalTool).not.toHaveBeenCalled()
+    expect(startClientLocalFilesystemTool).not.toHaveBeenCalled()
+    expect(startClientWorkflowTool).toHaveBeenCalledWith('workflow-1', 'run_workflow', {
+      workflowId: 'wf-1',
+    })
   })
 
   it('runs a desktop call in the view when no desktop runs the chat in the background', () => {

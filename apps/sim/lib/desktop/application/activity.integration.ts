@@ -29,11 +29,8 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
 import { closeRedisConnection } from '@/lib/core/config/redis'
-import {
-  listDesktopActivity,
-  openDesktopInboxStream,
-  registerDesktopDevice,
-} from '@/lib/desktop/application/executor'
+import { listDesktopActivity } from '@/lib/desktop/application/activity'
+import { openDesktopInboxStream, registerDesktopDevice } from '@/lib/desktop/application/executor'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 
@@ -134,7 +131,15 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       runId: waiting.runId,
       toolCallId: generateId(),
       toolName: 'terminal',
-      args: { operation: 'run', command: 'npm publish' },
+      args: { operation: 'run', args: { command: 'npm publish' } },
+      permissionRequestedAt: new Date(),
+    })
+    // An allowed command waits for nobody: the desktop simply runs it.
+    await db.insert(copilotAsyncToolCalls).values({
+      runId: running.runId,
+      toolCallId: generateId(),
+      toolName: 'terminal',
+      args: { operation: 'run', args: { command: 'npm test' } },
     })
     await chatWithRun(desktop, null)
     await chatWithRun(desktop, desktop.deviceId, 'complete')
@@ -174,6 +179,47 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
     } finally {
       close()
     }
+  })
+
+  it('reports a chat whose running call handed control to the user as needing input', async () => {
+    const desktop = await signedInDesktop()
+    const handoff = await chatWithRun(desktop, desktop.deviceId)
+    const takeover = await chatWithRun(desktop, desktop.deviceId)
+    const decided = await chatWithRun(desktop, desktop.deviceId)
+    await db.insert(copilotAsyncToolCalls).values([
+      {
+        runId: handoff.runId,
+        toolCallId: generateId(),
+        toolName: 'terminal',
+        args: { operation: 'handoff', args: { reason: 'Enter your password' } },
+        status: 'running',
+      },
+      {
+        runId: takeover.runId,
+        toolCallId: generateId(),
+        toolName: 'browser_request_takeover',
+        args: { reason: 'Solve the captcha' },
+        status: 'running',
+      },
+      {
+        runId: decided.runId,
+        toolCallId: generateId(),
+        toolName: 'terminal',
+        args: { operation: 'run', args: { command: 'npm publish' } },
+        permissionRequestedAt: new Date(),
+        permissionDecision: 'skip',
+        status: 'pending',
+      },
+    ])
+
+    const { chats } = await listDesktopActivity.execute({
+      principal: desktop.principal,
+      input: { workspaceId: desktop.workspaceId },
+    })
+    const stateOf = (chatId: string) => chats.find((chat) => chat.chatId === chatId)?.state
+    expect(stateOf(handoff.chatId)).toBe('needs_input')
+    expect(stateOf(takeover.chatId)).toBe('needs_input')
+    expect(stateOf(decided.chatId)).toBe('blocked')
   })
 
   it("never reports another user's chats, or chats in another workspace", async () => {

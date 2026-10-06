@@ -125,7 +125,7 @@ export function Desktop() {
           />
           <PreferenceRow
             id='desktop-notifications-unfocused'
-            label="Notify only when Sim isn't focused"
+            label='Notify only for chats in the background'
             checked={preferences.notificationsOnlyWhenUnfocused}
             disabled={notificationsDisabled || pendingPreference !== null}
             onCheckedChange={(checked) =>

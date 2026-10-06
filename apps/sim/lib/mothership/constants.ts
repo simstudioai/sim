@@ -94,6 +94,12 @@ export const MOTHERSHIP_STREAM_REPLAY_HEADER = 'x-mothership-stream-replay'
 /** Durable chat identity returned after the send transaction commits, before SSE delivery. */
 export const MOTHERSHIP_CHAT_ID_HEADER = 'x-mothership-chat-id'
 
+/**
+ * Set to `device` on a turn's stream when a desktop app's background executor runs its desktop
+ * tools. A chat view reading that stream only shows those calls; it never starts or reports them.
+ */
+export const MOTHERSHIP_DESKTOP_EXECUTOR_HEADER = 'x-mothership-desktop-executor'
+
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 

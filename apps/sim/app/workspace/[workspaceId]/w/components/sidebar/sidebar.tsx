@@ -187,7 +187,7 @@ const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
 
 const DESKTOP_ACTIVITY_COLOR: Record<DesktopChatActivity['state'], string> = {
   running: '#EAB308',
-  needs_input: '#F97316',
+  needs_input: 'var(--warning)',
   blocked: 'var(--text-error)',
 }
 

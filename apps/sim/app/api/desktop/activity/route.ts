@@ -4,7 +4,7 @@ import {
   desktopExecutorErrorPolicy,
   desktopExecutorRateLimit,
 } from '@/lib/api/server/routes/desktop-executor'
-import { listDesktopActivity } from '@/lib/desktop/application/executor'
+import { listDesktopActivity } from '@/lib/desktop/application/activity'
 
 export const dynamic = 'force-dynamic'
 

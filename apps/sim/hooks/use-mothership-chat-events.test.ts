@@ -11,8 +11,10 @@ vi.mock('@/lib/browser-agent/transport', () => ({ suspendBrowserScope }))
 vi.mock('@/lib/terminal/transport', () => ({ suspendTerminalScope }))
 
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys'
 import {
   handleMothershipChatStatusEvent,
+  reflectBackgroundChatStatus,
   resyncMothershipChatCaches,
 } from '@/hooks/use-mothership-chat-events'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
@@ -292,5 +294,76 @@ describe('resyncMothershipChatCaches', () => {
     expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: mothershipChatKeys.details() })
     )
+  })
+})
+
+describe('reflectBackgroundChatStatus', () => {
+  const notify = vi.fn(async () => true)
+  const queryClient = {
+    getQueryData: vi.fn(),
+    invalidateQueries: vi.fn().mockResolvedValue(undefined),
+  } satisfies Pick<QueryClient, 'getQueryData' | 'invalidateQueries'>
+
+  function showing(pathname: string, desktop = true) {
+    vi.stubGlobal('window', {
+      location: { pathname },
+      ...(desktop ? { simDesktop: { settings: { notify } } } : {}),
+    })
+    queryClient.getQueryData.mockReturnValue([{ id: 'chat-b', name: 'Fix CI' }])
+  }
+
+  const completed = JSON.stringify({ chatId: 'chat-b', type: 'completed', streamId: 's-1' })
+
+  it('announces a chat that finished in the background, and opens it from the notification', () => {
+    showing('/workspace/ws-1/chat/chat-c')
+
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+
+    expect(notify).toHaveBeenCalledWith({
+      title: 'Fix CI',
+      body: 'Sim finished responding.',
+      route: '/workspace/ws-1/chat/chat-b',
+    })
+  })
+
+  it('leaves the chat on screen to announce itself', () => {
+    showing('/workspace/ws-1/chat/chat-b')
+
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('stays silent outside the desktop app and for a turn that only started', () => {
+    showing('/workspace/ws-1/chat/chat-c', false)
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+    showing('/workspace/ws-1/chat/chat-c')
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-2' })
+    )
+
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('refreshes which chats run on a desktop whenever a turn starts or ends', () => {
+    showing('/workspace/ws-1/home', false)
+
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-3' })
+    )
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'chat-b', type: 'renamed' })
+    )
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: desktopActivityKeys.lists(),
+    })
   })
 })
