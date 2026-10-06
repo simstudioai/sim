@@ -349,28 +349,36 @@ describe('Copilot Confirm API Route', () => {
     }
   )
 
-  it('completes a computer result only through its exact native claim', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'computer',
-      claimedBy: 'desktop-computer',
-    })
-    const response = await POST(
-      createMockPostRequest({ toolCallId: 'tool-call-123', status: 'success', data: { ok: true } })
-    )
-    expect(response.status).toBe(200)
-    expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
-      {
-        toolCallId: 'tool-call-123',
-        status: 'completed',
-        result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-        error: null,
-      },
-      'desktop-computer'
-    )
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).toHaveBeenCalledOnce()
-  })
+  it.each([null, 'device-1'])(
+    'completes a native computer claim with background device %s',
+    async (desktopDeviceId) => {
+      getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', desktopDeviceId })
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName: 'computer',
+        claimedBy: 'desktop-computer',
+      })
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'success',
+          data: { ok: true },
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
+        {
+          toolCallId: 'tool-call-123',
+          status: 'completed',
+          result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+          error: null,
+        },
+        'desktop-computer'
+      )
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).toHaveBeenCalledOnce()
+    }
+  )
 
   it('rejects background computer results without detaching the native claim', async () => {
     getAsyncToolCall.mockResolvedValue({

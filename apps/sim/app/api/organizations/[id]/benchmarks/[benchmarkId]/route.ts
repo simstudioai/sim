@@ -17,9 +17,7 @@ export const GET = defineInternalJsonRoute({
   contract: getBenchmarkContract,
   auth: internalSessionAuth,
   operation: benchmarkOperations.read,
-  rateLimit: internalRateLimits.none({
-    reason: 'The owner polls bounded benchmark artifacts under current source access',
-  }),
+  rateLimit: internalRateLimits.user({ bucketName: 'benchmark-read' }),
   errorPolicy: internalOrchestrationErrorPolicy,
   beforeParse: async ({ principal }) => {
     await requireBenchmarkOperator(principal)

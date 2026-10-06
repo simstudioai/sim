@@ -9,9 +9,9 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
-  type DesktopExecutorDevice,
   ComputerUseError,
   type ComputerUseToolFailure,
+  type DesktopExecutorDevice,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
   type DesktopServerConfiguration,

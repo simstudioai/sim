@@ -66,12 +66,12 @@ export class NativeComputerUseClient implements ComputerUseNativeClient {
     child.stdout.on('data', (chunk: Buffer) => {
       if (this.child !== child) return
       this.buffer = Buffer.concat([this.buffer, chunk])
-      if (this.buffer.length > MAX_FRAME_BYTES) {
-        this.stopWithError(new Error('Computer Use returned an oversized response.'))
-        return
-      }
       let newline = this.buffer.indexOf(10)
       while (newline >= 0) {
+        if (newline > MAX_FRAME_BYTES) {
+          this.stopWithError(new Error('Computer Use returned an oversized response.'))
+          return
+        }
         const line = this.buffer.subarray(0, newline).toString('utf8')
         this.buffer = this.buffer.subarray(newline + 1)
         try {
@@ -89,6 +89,8 @@ export class NativeComputerUseClient implements ComputerUseNativeClient {
         }
         newline = this.buffer.indexOf(10)
       }
+      if (this.buffer.length > MAX_FRAME_BYTES)
+        this.stopWithError(new Error('Computer Use returned an oversized response.'))
     })
     /** Native diagnostics must never copy app contents into application logs. */
     child.stderr.resume()

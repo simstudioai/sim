@@ -40,7 +40,7 @@ interface BenchmarkEditorProps {
   busy: boolean
   saving: boolean
   stage: RunBenchmarkStageBody['stage'] | null
-  onUpdate: (body: UpdateBenchmarkBody) => void
+  onUpdate: (body: UpdateBenchmarkBody, onSaved: () => void) => void
   onRun: (stage: RunBenchmarkStageBody['stage'], runLabel?: string) => void
 }
 
@@ -53,7 +53,16 @@ function BenchmarkEditor({
   onUpdate,
   onRun,
 }: BenchmarkEditorProps) {
-  const [draft, setDraft] = useState(benchmark.artifacts)
+  const [edit, setEdit] = useState<{
+    version: number
+    artifacts: BenchmarkCase['artifacts']
+  } | null>(null)
+  const draft = edit?.artifacts ?? benchmark.artifacts
+  const changeDraft = (patch: Partial<BenchmarkCase['artifacts']>) =>
+    setEdit((current) => ({
+      version: current?.version ?? benchmark.version,
+      artifacts: { ...(current?.artifacts ?? benchmark.artifacts), ...patch },
+    }))
   const [runLabel, setRunLabel] = useState('')
   const { artifacts } = benchmark
   const referenceDirty =
@@ -76,6 +85,13 @@ function BenchmarkEditor({
 
   return (
     <div className='flex flex-col gap-8 divide-y divide-[var(--border)] [&>section+section]:pt-8'>
+      {edit && edit.version !== benchmark.version && (
+        <div role='alert' className='flex items-center gap-3 text-[var(--text-muted)] text-small'>
+          This benchmark changed on the server. Your edits are preserved; copy any text you need
+          before loading the latest version.
+          <Chip onClick={() => setEdit(null)}>Discard local edits</Chip>
+        </div>
+      )}
       <BenchmarkReference
         artifacts={draft}
         busy={busy}
@@ -83,24 +99,18 @@ function BenchmarkEditor({
         stage={stage}
         referenceDirty={referenceDirty}
         redactionDirty={redactionDirty}
-        onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+        onChange={changeDraft}
         onSave={() => {
           onUpdate(
-            referenceDirty
-              ? {
-                  version: benchmark.version,
-                  ...(draft.taskBrief !== artifacts.taskBrief
-                    ? { taskBrief: draft.taskBrief }
-                    : {}),
-                  ...(draft.referenceSpec !== artifacts.referenceSpec
-                    ? { referenceSpec: draft.referenceSpec }
-                    : {}),
-                }
-              : {
-                  version: benchmark.version,
-                  redactedSpec: draft.redactedSpec,
-                  blanks: draft.blanks,
-                }
+            {
+              version: edit?.version ?? benchmark.version,
+              ...(draft.taskBrief !== artifacts.taskBrief ? { taskBrief: draft.taskBrief } : {}),
+              ...(draft.referenceSpec !== artifacts.referenceSpec
+                ? { referenceSpec: draft.referenceSpec }
+                : {}),
+              ...(redactionDirty ? { redactedSpec: draft.redactedSpec, blanks: draft.blanks } : {}),
+            },
+            () => setEdit((current) => (current === edit ? null : current))
           )
         }}
         onRun={onRun}
@@ -122,8 +132,8 @@ function BenchmarkEditor({
       >
         {!canPlan && (
           <p className='text-[var(--text-muted)] text-small'>
-            Plan mode requires permission to create organization workspaces. An organization
-            administrator can update the selected user’s access.
+            The selected user needs Plan mode access and permission to create organization
+            workspaces.
           </p>
         )}
         {artifacts.generatedSpec ? (
@@ -310,15 +320,15 @@ export function BenchmarkDetail({
         <BenchmarkHistory organizationId={organizationId} benchmarkId={benchmarkId} />
       ) : (
         <BenchmarkEditor
-          key={`${benchmark.id}:${benchmark.version}`}
+          key={benchmark.id}
           benchmark={benchmark}
           canPlan={canPlan}
           busy={busy}
           saving={updateBenchmark.isPending}
           stage={stage}
-          onUpdate={(body) => {
+          onUpdate={(body, onSaved) => {
             runStage.reset()
-            updateBenchmark.mutate(body)
+            updateBenchmark.mutate(body, { onSuccess: onSaved })
           }}
           onRun={(nextStage, runLabel) => {
             updateBenchmark.reset()

@@ -133,10 +133,10 @@ export function BenchmarkHistory({ organizationId, benchmarkId }: BenchmarkHisto
           Loading saved results…
         </p>
       )}
-      {selected.data && (!baselineId || baseline.data) && (
+      {selected.data && (
         <BenchmarkRunComparison
           run={selected.data.run}
-          baseline={baseline.data?.run}
+          baseline={baseline.error ? undefined : baseline.data?.run}
           organizationId={organizationId}
         />
       )}

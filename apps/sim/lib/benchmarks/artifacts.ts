@@ -28,6 +28,11 @@ export function redactBenchmarkSpec(
 export function validateBenchmarkRedaction(
   artifacts: Pick<BenchmarkArtifacts, 'referenceSpec' | 'redactedSpec' | 'blanks'>
 ): void {
+  if (/\[\[BLANK:[^\]]+\]\]/.test(artifacts.referenceSpec))
+    throw new OrchestrationError(
+      'validation',
+      'The [[BLANK:id]] syntax is reserved for redaction markers; remove literal markers from the reference before saving it'
+    )
   if (!artifacts.redactedSpec && artifacts.blanks.length === 0) return
   const answers = new Map(artifacts.blanks.map((blank) => [blank.id, blank.answer]))
   if (answers.size !== artifacts.blanks.length || answers.size === 0) {

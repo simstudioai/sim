@@ -4133,6 +4133,10 @@ export const mothershipBenchmarkRuns = pgTable(
       'mothership_benchmark_runs_score_check',
       sql`${table.total} > 0 AND ${table.correct} >= 0 AND ${table.correct} <= ${table.total}`
     ),
+    automaticScoreCheck: check(
+      'mothership_benchmark_runs_automatic_score_check',
+      sql`${table.automaticCorrect} >= 0 AND ${table.automaticCorrect} <= ${table.total}`
+    ),
   })
 )
 

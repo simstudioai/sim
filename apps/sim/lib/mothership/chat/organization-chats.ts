@@ -253,6 +253,8 @@ export const authorizeOrganizationChatDelegation = {
       .limit(1)
     if (!chat) throw new OrchestrationError('not_found', 'Conversation not found')
     if (mode === 'agent' || mode === 'plan') await requireOrganizationBuildPermission(context)
+    if (mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     return context
   },
 }

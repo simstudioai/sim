@@ -136,7 +136,10 @@ import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
-import { useMothershipEffortStore, useMothershipPlanEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 import {
   liveQueueKey,
   liveQueuePosition,
@@ -2358,7 +2361,10 @@ export function useChat(
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
         startClientComputerTool: (toolCallId, args, eventTs) => {
-          void executeComputerToolOnClient(toolCallId, args, eventTs, streamAbortSignal)
+          const lease = desktopTurn?.lease()
+          void executeComputerToolOnClient(toolCallId, args, eventTs, lease?.signal).finally(() =>
+            lease?.release()
+          )
         },
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,

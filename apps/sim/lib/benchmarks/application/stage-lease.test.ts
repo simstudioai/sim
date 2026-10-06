@@ -14,6 +14,9 @@ describe('benchmark stage lifetime', () => {
     version: 2,
     stage: 'distill' as const,
     attemptId: 'attempt',
+    get leaseExpiresAt() {
+      return new Date(Date.now() + 120_000)
+    },
   }
 
   beforeEach(() => {
@@ -32,19 +35,52 @@ describe('benchmark stage lifetime', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it.each([false, new Error('database unavailable')])(
-    'aborts the inspection when its ownership cannot be renewed (%s)',
-    async (outcome) => {
-      if (outcome instanceof Error) renew.mockRejectedValue(outcome)
-      else renew.mockResolvedValue(outcome)
-      const result = withBenchmarkStageLease(attempt, undefined, async (signal) => {
-        await vi.advanceTimersByTimeAsync(60_000)
+  it('aborts the inspection immediately when ownership is explicitly lost', async () => {
+    renew.mockResolvedValue(false)
+    const result = withBenchmarkStageLease(attempt, undefined, async (signal) => {
+      await vi.advanceTimersByTimeAsync(60_000)
+      signal.throwIfAborted()
+    }).catch((error: unknown) => error)
+    await expect(result).resolves.toMatchObject({ code: 'conflict' })
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('survives a transient renewal failure while the acknowledged lease is still valid', async () => {
+    renew.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(
+      withBenchmarkStageLease(attempt, undefined, async (signal) => {
+        await vi.advanceTimersByTimeAsync(30_000)
         signal.throwIfAborted()
-      }).catch((error: unknown) => error)
-      await expect(result).resolves.toMatchObject({ code: 'conflict' })
-      expect(vi.getTimerCount()).toBe(0)
-    }
-  )
+        await vi.advanceTimersByTimeAsync(180_000)
+        signal.throwIfAborted()
+        return 'finished'
+      })
+    ).resolves.toBe('finished')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('expires ownership at the last acknowledged lease when renewals keep failing', async () => {
+    renew.mockRejectedValue(new Error('database unavailable'))
+    await expect(
+      withBenchmarkStageLease(attempt, undefined, async (signal) => {
+        await vi.advanceTimersByTimeAsync(119_999)
+        expect(signal.aborted).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
+        signal.throwIfAborted()
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('expires a hung renewal independently of the query and clears every timer', async () => {
+    renew.mockImplementation(() => new Promise(() => {}))
+    const run = withBenchmarkStageLease(attempt, undefined, () => new Promise(() => {})).catch(
+      (error: unknown) => error
+    )
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(await run).toMatchObject({ code: 'conflict' })
+    expect(vi.getTimerCount()).toBe(0)
+  })
 
   it('propagates caller cancellation and clears its heartbeat when work throws', async () => {
     const controller = new AbortController()

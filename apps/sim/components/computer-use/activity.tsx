@@ -21,8 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 /** Remains visible while a native action is active, even if rollout or device access is revoked. */
 export function ComputerUseActivity() {
-  const { status } = useComputerUseStatus()
-  const activity = status?.activeAction
+  const { activeAction: activity } = useComputerUseStatus()
   if (!activity) return null
   return (
     <div

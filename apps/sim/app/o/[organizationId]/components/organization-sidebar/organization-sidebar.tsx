@@ -102,7 +102,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
     organization.id,
     searchAccess.memberScoped,
     canUseHome,
-    benchmarkEnabled && mothershipAvailable
+    benchmarkEnabled
   )
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)

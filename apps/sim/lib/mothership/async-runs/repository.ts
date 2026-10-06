@@ -461,7 +461,6 @@ export async function getRunSegment(runId: string) {
           id: copilotRuns.id,
           userId: copilotRuns.userId,
           status: copilotRuns.status,
-          toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
           workflowId: copilotRuns.workflowId,
           // Needed to scope an "allow for this chat" decision to its chat.
           chatId: copilotRuns.chatId,

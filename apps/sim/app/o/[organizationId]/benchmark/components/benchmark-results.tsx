@@ -44,12 +44,12 @@ export function BenchmarkResults({
                 </span>
               )}
               {!result && answer?.evidenceError && (
-                <div>
+                <dl className='text-small'>
                   <dt className='text-[var(--text-muted)]'>Evidence needs review</dt>
                   <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>
                     {answer.evidenceError}
                   </dd>
-                </div>
+                </dl>
               )}
             </div>
             <dl className='flex flex-col gap-3 text-small'>

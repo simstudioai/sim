@@ -10,6 +10,15 @@ import { useComputerUseAvailability } from '@/hooks/queries/computer-use'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
 export function ComputerUseSettings() {
+  return (
+    <>
+      <ComputerUseActivity />
+      <ComputerUseSettingsControls />
+    </>
+  )
+}
+
+function ComputerUseSettingsControls() {
   const bridge = getDesktopBridge()?.computerUse
   const availability = useComputerUseAvailability(Boolean(bridge))
   const { status, setStatus, refresh, error } = useComputerUseStatus()
@@ -36,7 +45,6 @@ export function ComputerUseSettings() {
   return (
     <SettingsSection label='Computer Use'>
       <div className='flex flex-col gap-3'>
-        <ComputerUseActivity />
         <div className='flex items-center justify-between'>
           <Label asChild>
             <span>Allow Mothership to use Mac apps</span>

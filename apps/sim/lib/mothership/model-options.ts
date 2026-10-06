@@ -34,19 +34,23 @@ export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS = MOTHERSHIP_EFFORT_OPTIONS.filter
 
 /**
  * Shared by the visible controls, send path and server admission so hidden preferences cannot leak.
- * Without the model picker no selection is sent, so the worker routes every model role itself.
+ * Without the model picker, Build leaves routing to the worker and Plan selects its Opus default.
  */
 export function resolveMothershipModelSettings(
   settings: { effort?: MothershipEffort; modelSelection?: ModelSelection },
   advanced: boolean,
   plan = false
 ): { effort: MothershipEffort; modelSelection: ModelSelection | undefined } {
-  let effort = settings.effort ?? DEFAULT_MOTHERSHIP_EFFORT
+  const defaultEffort = plan ? 'medium' : DEFAULT_MOTHERSHIP_EFFORT
+  let effort = settings.effort ?? defaultEffort
   // No served model reasons at `none`; a pick stored before it was retired runs at the nearest effort.
   if (effort === 'none') effort = 'low'
   if (!advanced) {
     if (!plan && effort === 'max') effort = 'xhigh'
-    return { effort, modelSelection: plan ? { model: 'claude-opus-5-5', fastMode: false } : undefined }
+    return {
+      effort,
+      modelSelection: plan ? { model: 'claude-opus-5-5', fastMode: false } : undefined,
+    }
   }
   const modelSelection = normalizeModelSelection(
     settings.modelSelection ?? { model: plan ? 'claude-opus-5-5' : 'gpt-6-astra', fastMode: false }

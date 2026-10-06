@@ -13,6 +13,8 @@ const READ_ENGINES = new Set([
   'workflows deps',
   'workflows inputs',
   'workflows tools',
+  'workflows lint',
+  'workflows api',
 ])
 
 /** Services and sinks bypass the HTTP transport, so admission checks them independently. */

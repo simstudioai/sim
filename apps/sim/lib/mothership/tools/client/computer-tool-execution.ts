@@ -71,11 +71,25 @@ export async function executeComputerToolOnClient(
   const existing = executions.get(toolCallId)
   if (existing) return deliver(toolCallId, existing)
   const execution: Execution = {}
+  const claim = replayLedger.claim(toolCallId)
   const reject = async (message: string, data?: Record<string, unknown>) => {
-    await reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
-      error: message,
-      ...data,
-    }).catch((error) =>
+    const dataWithError = { error: message, ...data }
+    if (executions.size < MAX_UNDELIVERED_RESULTS) {
+      execution.completion = {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message,
+        data: dataWithError,
+      }
+      executions.set(toolCallId, execution)
+      return deliver(toolCallId, execution)
+    }
+    // The replay ledger still prevents dispatch when the bounded delivery queue is full.
+    await reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      message,
+      dataWithError
+    ).catch((error) =>
       logger.warn('Could not report computer action rejection', {
         toolCallId,
         error: getErrorMessage(error),
@@ -99,7 +113,6 @@ export async function executeComputerToolOnClient(
   const parsed = ComputerUseSchema.safeParse(omit(params, ['activity']))
   if (!parsed.success)
     return reject('Computer action arguments are invalid. Inspect the tool schema and try again.')
-  const claim = replayLedger.claim(toolCallId)
   if (claim !== 'claimed')
     return reject(
       claim === 'duplicate'

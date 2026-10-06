@@ -14,7 +14,7 @@ interface ComputerUseClaim {
 
 /** Locks the run with its action so Stop and native admission have a single ordering point. */
 export async function claimComputerUseTool(input: ComputerUseClaim) {
-  return db.transaction(async (tx) => {
+  return await db.transaction(async (tx) => {
     const [pending] = await tx
       .select({ args: copilotAsyncToolCalls.args })
       .from(copilotRuns)

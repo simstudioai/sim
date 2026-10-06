@@ -152,6 +152,7 @@ export async function executeBenchmarkPlan(input: {
   signal: AbortSignal
 }): Promise<{ generatedSpec: string; plannerChatId: string }> {
   getBenchmarkMothershipUrl()
+  input.signal.throwIfAborted()
   const target = await prepareBenchmarkPlan.execute({
     principal: input.principal,
     input: { organizationId: input.benchmark.organizationId, benchmarkId: input.benchmark.id },

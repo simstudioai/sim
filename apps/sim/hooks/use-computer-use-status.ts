@@ -1,27 +1,39 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseStatus } from '@sim/desktop-bridge'
 import { getDesktopBridge } from '@/lib/desktop'
 
 /** Refresh native permissions when the user returns from System Settings and on activity changes. */
 export function useComputerUseStatus() {
-  const [status, setStatus] = useState<ComputerUseStatus | null>(null)
+  const requestVersion = useRef(0)
+  const [status, setStatus] = useState<Omit<ComputerUseStatus, 'activeAction'> | null>(null)
+  const [activeAction, setActiveAction] = useState<ComputerUseStatus['activeAction']>(null)
   const [error, setError] = useState(false)
+  const updateStatus = useCallback((nextStatus: ComputerUseStatus) => {
+    requestVersion.current += 1
+    const { activeAction: nextActivity, ...nextPermissions } = nextStatus
+    setStatus(nextPermissions)
+    setActiveAction(nextActivity)
+    setError(false)
+  }, [])
   const refresh = useCallback(async () => {
     const bridge = getDesktopBridge()?.computerUse
     if (!bridge) return
+    const version = ++requestVersion.current
     try {
-      setStatus(await bridge.getStatus())
-      setError(false)
+      const nextStatus = await bridge.getStatus()
+      if (version !== requestVersion.current) return
+      updateStatus(nextStatus)
     } catch {
+      if (version !== requestVersion.current) return
       setError(true)
     }
-  }, [])
+  }, [updateStatus])
   useEffect(() => {
     const bridge = getDesktopBridge()?.computerUse
     if (!bridge) return
     void refresh()
     const unsubscribe = bridge.onActivity((activeAction) => {
-      setStatus((current) => (current ? { ...current, activeAction } : current))
+      setActiveAction(activeAction)
       void refresh()
     })
     const onFocus = () => {
@@ -29,9 +41,16 @@ export function useComputerUseStatus() {
     }
     window.addEventListener('focus', onFocus)
     return () => {
+      requestVersion.current += 1
       unsubscribe()
       window.removeEventListener('focus', onFocus)
     }
   }, [refresh])
-  return { status, setStatus, refresh, error }
+  return {
+    status: status ? { ...status, activeAction } : null,
+    activeAction,
+    setStatus: updateStatus,
+    refresh,
+    error,
+  }
 }

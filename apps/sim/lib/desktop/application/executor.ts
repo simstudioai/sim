@@ -53,7 +53,7 @@ import {
 import {
   chatViewDesktopLeaseOwnerToken,
   getDesktopExecutorClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
 
 const logger = createLogger('DesktopExecutor')
@@ -277,7 +277,7 @@ export const claimDesktopTool = defineAuthorizedCredentialUserUseCase({
     )
     if (!call) throw new OrchestrationError('not_found', 'Desktop tool call not found')
     const args = isPlainRecord(call.args) ? call.args : {}
-    if (!isDesktopToolCall(call.toolName, args))
+    if (!isBackgroundDesktopToolCall(call.toolName, args))
       throw new OrchestrationError('forbidden', 'Tool call is not authorized for desktop execution')
     if (call.toolName === 'import_local_files') {
       if (typeof args.targetWorkspaceId !== 'string')

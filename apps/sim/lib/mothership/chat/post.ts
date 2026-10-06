@@ -1219,7 +1219,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               modelSelection: body.modelSelection,
             },
             modelSelectorEnabled,
-        body.mode === 'plan'
+            body.mode === 'plan'
           )
         )
 

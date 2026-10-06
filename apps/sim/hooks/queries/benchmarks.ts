@@ -229,11 +229,16 @@ export function useRunBenchmarkStage(organizationId: string, benchmarkId: string
       }),
     onMutate: async ({ stage }) => {
       await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<BenchmarkResponse>(queryKey)
       queryClient.setQueryData<BenchmarkResponse>(queryKey, (current) =>
         current
           ? { ...current, benchmark: { ...current.benchmark, runningStage: stage, error: null } }
           : current
       )
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onSettled: () => {

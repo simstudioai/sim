@@ -253,4 +253,39 @@ describe('computer action delivery', () => {
     ])
     expect(output.content).toContain('x = imageX * 400 / 800')
   })
+
+  it('redelivers the original preflight rejection after delivery recovers', async () => {
+    const id = nextId()
+    const timestamp = now()
+    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+    await executeComputerToolOnClient(id, { action: 'invalid' }, timestamp)
+    const rejection = mocks.complete.mock.calls[0]
+    expect(rejection[2]).toContain('arguments are invalid')
+    mocks.complete.mockResolvedValue(undefined)
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.complete).toHaveBeenLastCalledWith(...rejection)
+  })
+
+  it('never executes an action rejected during a delivery backlog when the stream replays it', async () => {
+    const ids = Array.from({ length: 8 }, nextId)
+    const rejectedId = nextId()
+    const timestamp = now()
+    mocks.execute.mockResolvedValue({ kind: 'apps', apps: [] })
+    mocks.complete.mockRejectedValue(new Error('offline'))
+    for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    await executeComputerToolOnClient(rejectedId, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    mocks.complete.mockResolvedValue(undefined)
+    for (const id of ids) await executeComputerToolOnClient(id, { action: 'list_apps' }, timestamp)
+    await executeComputerToolOnClient(rejectedId, { action: 'list_apps' }, timestamp)
+    expect(mocks.execute).toHaveBeenCalledTimes(8)
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      rejectedId,
+      'error',
+      expect.any(String),
+      expect.anything()
+    )
+  })
 })

@@ -1,5 +1,5 @@
 /**
- * The inbox and the overdue sweep filter calls with a SQL form of `isDesktopToolCall`, so their
+ * The inbox and the overdue sweep filter calls with a SQL form of `isBackgroundDesktopToolCall`, so their
  * limits apply only to calls the desktop runs. Nothing else ties the two together: a desktop tool
  * added on one side only would silently drop out of the inbox and the sweep, or let Sim-only calls
  * crowd them. This runs one table of calls through both against real PostgreSQL and requires them
@@ -19,7 +19,10 @@ import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { listDesktopInboxRows } from '@/lib/desktop/executor/repository'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
-import { isDesktopToolCall, NAMED_DESKTOP_TOOL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import {
+  isBackgroundDesktopToolCall,
+  NAMED_BACKGROUND_DESKTOP_TOOL_NAMES,
+} from '@/lib/mothership/tools/desktop-tools'
 
 interface ClassifierCase {
   label: string
@@ -28,7 +31,8 @@ interface ClassifierCase {
 }
 
 const CASES: ClassifierCase[] = [
-  ...NAMED_DESKTOP_TOOL_NAMES.map((toolName) => ({
+  { label: 'chat-view computer action', toolName: 'computer', args: { action: 'list_apps' } },
+  ...NAMED_BACKGROUND_DESKTOP_TOOL_NAMES.map((toolName) => ({
     label: `named desktop tool ${toolName}`,
     toolName,
     args: {},
@@ -165,13 +169,18 @@ describe('desktop call classification in SQL and TypeScript', () => {
     const verdicts = [...callIds].map(([toolCallId, testCase]) => ({
       case: testCase.label,
       sql: admittedBySql.has(toolCallId),
-      typescript: isDesktopToolCall(testCase.toolName, testCase.args),
+      typescript: isBackgroundDesktopToolCall(testCase.toolName, testCase.args),
     }))
 
     expect(verdicts.filter((verdict) => verdict.sql !== verdict.typescript)).toEqual([])
+    expect(verdicts.find((verdict) => verdict.case === 'chat-view computer action')).toEqual({
+      case: 'chat-view computer action',
+      sql: false,
+      typescript: false,
+    })
     /** Both sides must also admit something, so agreement on "nothing" cannot pass. */
     expect(verdicts.filter((verdict) => verdict.typescript).length).toBeGreaterThan(
-      NAMED_DESKTOP_TOOL_NAMES.length
+      NAMED_BACKGROUND_DESKTOP_TOOL_NAMES.length
     )
   })
 })

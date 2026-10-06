@@ -56,50 +56,53 @@ describe('tool events (dispatch → model + side effects)', () => {
     libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({})
   })
 
-  it('routes a complete native computer call and never executes a partial or settled call', () => {
-    const deps = makeStreamLoopDeps()
-    const ctx = createStreamLoopContext(deps)
-    const args = { action: 'list_apps' }
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-        partial: true,
-      })
-    )
-    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-      })
-    )
-    expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
-    dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
-    vi.mocked(deps.startClientComputerTool).mockClear()
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-      })
-    )
-    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
-  })
+  it.each([false, true])(
+    'routes computer calls through the native view with background execution %s',
+    (desktopToolsOnDevice) => {
+      const deps = makeStreamLoopDeps({ options: { desktopToolsOnDevice } })
+      const ctx = createStreamLoopContext(deps)
+      const args = { action: 'list_apps' }
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+          partial: true,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
+      dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
+      vi.mocked(deps.startClientComputerTool).mockClear()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([true, false])(
     'does not redispatch a completed computer call from a fresh replay batch (success=%s)',

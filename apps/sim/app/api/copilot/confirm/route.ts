@@ -12,6 +12,7 @@ import {
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
   type AsyncTerminalStatus,
+  DESKTOP_TOOL_CLAIM_OWNER,
   getTerminalConfirmationStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
@@ -42,7 +43,7 @@ import {
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
   getDesktopToolClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
   isNativeDesktopTool,
 } from '@/lib/mothership/tools/desktop-tools'
 import {
@@ -210,7 +211,10 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        if (run.desktopDeviceId && isDesktopToolCall(existing.toolName, toRecord(existing.args))) {
+        if (
+          run.desktopDeviceId &&
+          isBackgroundDesktopToolCall(existing.toolName, toRecord(existing.args))
+        ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json(
             {
@@ -442,7 +446,12 @@ export const POST = withRouteHandler((req: NextRequest) => {
             ...(isPreclaimNativeTerminalOutcome
               ? { guard: { kind: 'pending' } as const }
               : existing.toolName === 'computer'
-                ? { guard: { kind: 'claimed', claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer } as const }
+                ? {
+                    guard: {
+                      kind: 'claimed',
+                      claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer,
+                    } as const,
+                  }
                 : {}),
           }
         )

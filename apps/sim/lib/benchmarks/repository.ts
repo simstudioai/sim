@@ -73,12 +73,12 @@ function readCursor(value?: string) {
   }
 }
 
-function nextCursor(rows: { id: string; createdAt: Date }[], limit: number) {
+function nextCursor(rows: { id: string; cursorCreatedAt: string }[], limit: number) {
   const last = rows[limit - 1]
   return rows.length > limit && last
-    ? Buffer.from(
-        JSON.stringify({ id: last.id, createdAt: last.createdAt.toISOString() })
-      ).toString('base64url')
+    ? Buffer.from(JSON.stringify({ id: last.id, createdAt: last.cursorCreatedAt })).toString(
+        'base64url'
+      )
     : null
 }
 
@@ -91,7 +91,10 @@ export async function listBenchmarkRecords(input: {
 }) {
   const cursor = readCursor(input.cursor)
   const rows = await db
-    .select(summaryColumns)
+    .select({
+      ...summaryColumns,
+      cursorCreatedAt: sql<string>`to_char(${mothershipBenchmarks.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+    })
     .from(mothershipBenchmarks)
     .where(
       and(
@@ -105,9 +108,9 @@ export async function listBenchmarkRecords(input: {
           : undefined,
         cursor
           ? or(
-              lt(mothershipBenchmarks.createdAt, new Date(cursor.createdAt)),
+              lt(mothershipBenchmarks.createdAt, sql`${cursor.createdAt}::timestamp`),
               and(
-                eq(mothershipBenchmarks.createdAt, new Date(cursor.createdAt)),
+                eq(mothershipBenchmarks.createdAt, sql`${cursor.createdAt}::timestamp`),
                 lt(mothershipBenchmarks.id, cursor.id)
               )
             )
@@ -367,7 +370,10 @@ export async function listBenchmarkRunRecords(
   const cursor = readCursor(input.cursor)
   const limit = Math.max(1, Math.min(input.limit, 50))
   const rows = await db
-    .select(runSummaryColumns)
+    .select({
+      ...runSummaryColumns,
+      cursorCreatedAt: sql<string>`to_char(${mothershipBenchmarkRuns.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+    })
     .from(mothershipBenchmarkRuns)
     .innerJoin(
       mothershipBenchmarks,
@@ -378,9 +384,9 @@ export async function listBenchmarkRunRecords(
         scopeWhere(input),
         cursor
           ? or(
-              lt(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+              lt(mothershipBenchmarkRuns.createdAt, sql`${cursor.createdAt}::timestamp`),
               and(
-                eq(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+                eq(mothershipBenchmarkRuns.createdAt, sql`${cursor.createdAt}::timestamp`),
                 lt(mothershipBenchmarkRuns.id, cursor.id)
               )
             )

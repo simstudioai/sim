@@ -205,32 +205,47 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,
   z.strictObject({ kind: z.literal("apps"), apps: z.array(ComputerUseAppSchema).max(1000) }),
   ComputerUseSnapshotSchema,
-  z.strictObject({
-    kind: z.literal("action"),
-    action: z.enum([
-      "activate_app",
-      "click",
-      "type_text",
-      "press_key",
-      "scroll",
-      "drag",
-      "set_value",
-      "perform_action",
-      "input_sequence",
-    ]),
-    bundleId: BundleId,
-    dispatched: z.literal(true),
-    verified: z.boolean(),
-    sequence: z
-      .strictObject({
-        completedSteps: z.number().int().min(0).max(32),
-        totalSteps: z.number().int().min(1).max(32),
-        error: z.string().min(1).max(2000).optional(),
-      })
-      .optional(),
-    observation: ComputerUseSnapshotSchema.optional(),
-    observationError: z.string().min(1).max(2000).optional(),
-  }),
+  z
+    .strictObject({
+      kind: z.literal("action"),
+      action: z.enum([
+        "activate_app",
+        "click",
+        "type_text",
+        "press_key",
+        "scroll",
+        "drag",
+        "set_value",
+        "perform_action",
+        "input_sequence",
+      ]),
+      bundleId: BundleId,
+      dispatched: z.literal(true),
+      verified: z.boolean(),
+      sequence: z
+        .strictObject({
+          completedSteps: z.number().int().min(0).max(32),
+          totalSteps: z.number().int().min(1).max(32),
+          error: z.string().min(1).max(2000).optional(),
+        })
+        .optional(),
+      observation: ComputerUseSnapshotSchema.optional(),
+      observationError: z.string().min(1).max(2000).optional(),
+    })
+    .superRefine((result, ctx) => {
+      if (result.action === "input_sequence" && !result.sequence)
+        ctx.addIssue({
+          code: "custom",
+          path: ["sequence"],
+          message: "Input sequences require dispatch progress",
+        });
+      if (result.sequence && result.sequence.completedSteps > result.sequence.totalSteps)
+        ctx.addIssue({
+          code: "custom",
+          path: ["sequence", "completedSteps"],
+          message: "Completed steps cannot exceed total steps",
+        });
+    }),
 ]);
 export type ComputerUseResult = z.infer<typeof ComputerUseResultSchema>;
 

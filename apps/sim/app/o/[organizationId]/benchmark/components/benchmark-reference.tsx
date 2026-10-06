@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Chip, ChipInput, ChipTextarea, toast } from '@sim/emcn'
-import { Code, Plus, Trash, Upload } from '@sim/emcn/icons'
+import { Chip, ChipTextarea, toast } from '@sim/emcn'
+import { Code, Upload } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BenchmarkCase, RunBenchmarkStageBody } from '@/lib/api/contracts/benchmarks'
 import { BenchmarkJson } from '@/app/o/[organizationId]/benchmark/components/benchmark-json'
@@ -119,7 +119,10 @@ export function BenchmarkReference({
           <Chip
             leftIcon={Code}
             disabled={busy || referenceDirty || !referenceSpec.trim()}
-            onClick={() => setJsonOpen(true)}
+            onClick={() => {
+              onChange({})
+              setJsonOpen(true)
+            }}
           >
             Edit JSON
           </Chip>
@@ -148,7 +151,7 @@ export function BenchmarkReference({
           <ChipTextarea
             aria-label='Redacted reference spec'
             value={redactedSpec}
-            onChange={(event) => onChange({ redactedSpec: event.target.value })}
+            readOnly
             rows={10}
             resizable
           />
@@ -156,63 +159,20 @@ export function BenchmarkReference({
             Each marker uses [[BLANK:id]], and its expected answer must restore the exact original
             passage. Keep discoverable details and remove answers revealed elsewhere in the text.
           </p>
-          {blanks.map((blank, index) => (
-            <div key={index} className='flex items-start gap-2'>
-              <div className='grid min-w-0 flex-1 gap-2 sm:grid-cols-[140px_1fr]'>
-                <ChipInput
-                  aria-label={`Blank ${index + 1} ID`}
-                  value={blank.id}
-                  maxLength={64}
-                  onChange={(event) =>
-                    onChange({
-                      redactedSpec: redactedSpec.replaceAll(
-                        `[[BLANK:${blank.id}]]`,
-                        `[[BLANK:${event.target.value}]]`
-                      ),
-                      blanks: blanks.map((item, position) =>
-                        position === index ? { ...item, id: event.target.value } : item
-                      ),
-                    })
-                  }
-                />
-                <ChipTextarea
-                  aria-label={`Expected answer for blank ${index + 1}`}
-                  value={blank.answer}
-                  rows={2}
-                  resizable
-                  onChange={(event) =>
-                    onChange({
-                      blanks: blanks.map((item, position) =>
-                        position === index ? { ...item, answer: event.target.value } : item
-                      ),
-                    })
-                  }
-                />
+          <dl className='flex flex-col gap-3'>
+            {blanks.map((blank) => (
+              <div key={blank.id} className='flex flex-col gap-1'>
+                <dt className='text-[var(--text-body)] text-small'>{blank.id}</dt>
+                <dd className='whitespace-pre-wrap text-[var(--text-muted)] text-small'>
+                  {blank.answer}
+                </dd>
               </div>
-              <Chip
-                leftIcon={Trash}
-                aria-label={`Remove blank ${index + 1}`}
-                onClick={() =>
-                  onChange({
-                    redactedSpec: redactedSpec.replaceAll(`[[BLANK:${blank.id}]]`, blank.answer),
-                    blanks: blanks.filter((_, position) => position !== index),
-                  })
-                }
-              />
-            </div>
-          ))}
-          <div>
-            <Chip
-              leftIcon={Plus}
-              onClick={() => {
-                let suffix = blanks.length + 1
-                while (blanks.some((blank) => blank.id === `detail_${suffix}`)) suffix += 1
-                onChange({ blanks: [...blanks, { id: `detail_${suffix}`, answer: '' }] })
-              }}
-            >
-              Add blank
-            </Chip>
-          </div>
+            ))}
+          </dl>
+          <p className='text-[var(--text-muted)] text-small'>
+            Use Edit JSON to change markers and answers together. Changes are checked against the
+            original reference before applying.
+          </p>
         </fieldset>
       )}
       {dirty && (

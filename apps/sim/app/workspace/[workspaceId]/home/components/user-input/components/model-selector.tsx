@@ -23,7 +23,10 @@ import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
-import { useMothershipEffortStore, useMothershipPlanEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
 /** Model, reasoning effort, and Fast mode for Build chat composers. */
 export function ModelSelector({ plan = false }: { plan?: boolean }) {

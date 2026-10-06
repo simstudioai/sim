@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -6,11 +7,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
-import {
-  isMemorySpacesEnabled,
-  isMothershipModelSelectorEnabled,
-  isPlanModeEnabled,
-} from '@/lib/mothership/feature-flags'
+import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -24,6 +21,8 @@ import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+
+const logger = createLogger('OrganizationLayout')
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
@@ -60,26 +59,21 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [
-    ,
-    modelSelectorEnabled,
-    planModeEnabled,
-    dashboardsEnabled,
-    memorySpacesEnabled,
-    benchmarkEnabled,
-  ] = await Promise.all([
-    prefetchOrganizationSidebar(
-      queryClient,
-      organizationId,
-      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-      getActiveOrganizationId(session)
-    ),
-    isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(session.user.id),
-    isDashboardsEnabled(organizationId),
-    isMemorySpacesEnabled(session.user.id),
-    canUseBenchmarks(session.user.id),
-  ])
+  const [, modelSelectorEnabled, dashboardsEnabled, benchmarkEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isMothershipModelSelectorEnabled(),
+      isDashboardsEnabled(organizationId),
+      canUseBenchmarks(session.user.id).catch(() => {
+        logger.warn('Could not resolve benchmark navigation access')
+        return false
+      }),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -88,8 +82,8 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'mothership-model-selector': modelSelectorEnabled,
-          'mothership-plan-mode': planModeEnabled,
-          'mothership-memory-spaces': memorySpacesEnabled,
+          'mothership-plan-mode': benchmarkEnabled,
+          'mothership-memory-spaces': benchmarkEnabled,
         }}
       >
         <OrganizationProvider context={context}>

@@ -1,0 +1,1 @@
+ALTER TABLE "mothership_benchmark_runs" ADD CONSTRAINT "mothership_benchmark_runs_automatic_score_check" CHECK ("mothership_benchmark_runs"."automatic_correct" >= 0 AND "mothership_benchmark_runs"."automatic_correct" <= "mothership_benchmark_runs"."total") NOT VALID;

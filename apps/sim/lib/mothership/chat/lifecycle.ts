@@ -21,8 +21,8 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
-import type { MothershipEffort } from '@/lib/mothership/model-options'
 import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,

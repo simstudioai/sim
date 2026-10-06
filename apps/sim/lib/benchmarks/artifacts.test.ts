@@ -93,3 +93,9 @@ describe('benchmark reference integrity', () => {
     expect(result.grade).toBeNull()
   })
 })
+
+it('rejects reserved blank syntax when importing an unredacted reference', () => {
+  expect(() =>
+    applyBenchmarkPatch(artifacts, { referenceSpec: 'Keep [[BLANK:example]] literally.' })
+  ).toThrow('reserved')
+})

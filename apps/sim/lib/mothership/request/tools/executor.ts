@@ -89,7 +89,11 @@ import {
   type ToolCallState,
 } from '@/lib/mothership/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
-import { isDesktopToolCall, isLocalReadToolCall } from '@/lib/mothership/tools/desktop-tools'
+import {
+  isBackgroundDesktopToolCall,
+  isDesktopToolCall,
+  isLocalReadToolCall,
+} from '@/lib/mothership/tools/desktop-tools'
 import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
 
@@ -259,7 +263,11 @@ export function pendingToolWaitBudgetMs(
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
-  if (desktopDeviceId && executableName && isDesktopToolCall(executableName, toolCall?.params))
+  if (
+    desktopDeviceId &&
+    executableName &&
+    isBackgroundDesktopToolCall(executableName, toolCall?.params)
+  )
     return CLIENT_TOOL_RESULT_TIMEOUT_MS
   if (executableName === 'computer') return COMPUTER_USE_TOOL_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {

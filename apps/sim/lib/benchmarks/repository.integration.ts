@@ -9,6 +9,11 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const database = await vi.hoisted(async () => {
+  const originalEnv = {
+    MOTHERSHIP_BENCHMARK_ENABLED: process.env.MOTHERSHIP_BENCHMARK_ENABLED,
+    MOTHERSHIP_BENCHMARK_URL: process.env.MOTHERSHIP_BENCHMARK_URL,
+    COPILOT_API_KEY: process.env.COPILOT_API_KEY,
+  }
   process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
   const { createServer } = await import('node:http')
   const requests: Record<string, unknown>[] = []
@@ -46,7 +51,7 @@ const database = await vi.hoisted(async () => {
   if (!address || typeof address === 'string') throw new Error('Worker fixture did not bind')
   process.env.MOTHERSHIP_BENCHMARK_URL = `http://127.0.0.1:${address.port}`
   process.env.COPILOT_API_KEY = 'local-benchmark-fixture'
-  return { current: undefined as PostgresJsDatabase | undefined, worker, requests }
+  return { current: undefined as PostgresJsDatabase | undefined, worker, requests, originalEnv }
 })
 vi.mock('server-only', () => ({}))
 vi.mock('@sim/db', () => {
@@ -85,6 +90,7 @@ import {
   failBenchmarkStage,
   getBenchmarkRecord,
   getBenchmarkRunRecord,
+  listBenchmarkRecords,
   listBenchmarkRunRecords,
   renewBenchmarkStage,
   updateBenchmarkRecord,
@@ -202,6 +208,10 @@ describe('private benchmark persistence and attempt fencing', () => {
   })
 
   afterAll(async () => {
+    for (const [key, value] of Object.entries(database.originalEnv)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
     try {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
@@ -256,6 +266,8 @@ describe('private benchmark persistence and attempt fencing', () => {
   })
 
   it('runs reference recovery in a fresh target-owned organization conversation without the source workspace', async () => {
+    await connection`UPDATE "user" SET role = 'admin' WHERE id = 'target'`
+    await connection`INSERT INTO settings (id, user_id, super_user_mode_enabled) VALUES ('target', 'target', true) ON CONFLICT (user_id) DO UPDATE SET super_user_mode_enabled = true`
     await connection`UPDATE member SET role = 'owner' WHERE id = 'owner-member'`
     const { benchmark } = await createBenchmark.execute({
       principal,
@@ -332,7 +344,7 @@ describe('private benchmark persistence and attempt fencing', () => {
     ).toBe(1)
   })
 
-  it('lets a superuser outside the organization select a member and prepares a private Plan owned by that target', async () => {
+  it('lets a superuser outside the organization prepare a private Plan owned by an eligible target', async () => {
     await connection`DELETE FROM member WHERE user_id = 'owner'`
     expect(
       (
@@ -380,6 +392,14 @@ describe('private benchmark persistence and attempt fencing', () => {
         benchmark: { id: benchmark.id, operatorUserId: 'owner' },
       },
     })
+    await expect(
+      prepareBenchmarkPlan.execute({
+        principal,
+        input: { organizationId: 'org', benchmarkId: benchmark.id },
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Plan mode is unavailable' })
+    await connection`UPDATE "user" SET role = 'admin' WHERE id = 'target'`
+    await connection`INSERT INTO settings (id, user_id, super_user_mode_enabled) VALUES ('target', 'target', true) ON CONFLICT (user_id) DO UPDATE SET super_user_mode_enabled = true`
     const target = await prepareBenchmarkPlan.execute({
       principal,
       input: { organizationId: 'org', benchmarkId: benchmark.id },
@@ -605,6 +625,61 @@ describe('private benchmark persistence and attempt fencing', () => {
     expect(
       (await connection`SELECT count(*)::int AS count FROM mothership_benchmarks`)[0]?.count
     ).toBe(1)
+  })
+
+  it('rejects automatic scores outside the saved run total at the database boundary', async () => {
+    const saved = await saveGrade()
+    for (const score of [-1, graded.blanks.length + 1]) {
+      await expect(
+        connection`UPDATE mothership_benchmark_runs SET automatic_correct = ${score} WHERE id = ${saved.runId}`
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint_name: 'mothership_benchmark_runs_automatic_score_check',
+      })
+    }
+    expect((await getBenchmarkRunRecord({ ...scope, runId: saved.runId })).automaticCorrect).toBe(1)
+  })
+
+  it('paginates distinct and tied PostgreSQL microsecond timestamps without omissions', async () => {
+    const first = await saveGrade()
+    const second = await saveGrade()
+    const third = await saveGrade()
+    await connection`UPDATE mothership_benchmark_runs SET created_at = '2026-01-01 00:00:00.123456' WHERE id = ${first.runId}`
+    await connection`UPDATE mothership_benchmark_runs SET created_at = '2026-01-01 00:00:00.123789' WHERE id IN (${second.runId}, ${third.runId})`
+    const runIds: string[] = []
+    let cursor: string | null = null
+    for (let index = 0; index < 3; index++) {
+      const page = await listBenchmarkRunRecords({
+        ...scope,
+        limit: 1,
+        ...(cursor ? { cursor } : {}),
+      })
+      runIds.push(...page.runs.map((row) => row.id))
+      cursor = page.nextCursor
+      if (index < 2) expect(cursor).not.toBeNull()
+    }
+    expect(cursor).toBeNull()
+    expect(runIds).toEqual([...[second.runId, third.runId].sort().reverse(), first.runId])
+    for (const benchmarkId of ['case-newer-a', 'case-newer-b']) {
+      await createBenchmarkRecord({
+        ...scope,
+        benchmarkId,
+        sourceWorkspaceId: 'workspace',
+        name: 'Additional case',
+        artifacts,
+      })
+    }
+    await connection`UPDATE mothership_benchmarks SET created_at = '2026-01-01 00:00:00.123456' WHERE id = ${scope.benchmarkId}`
+    await connection`UPDATE mothership_benchmarks SET created_at = '2026-01-01 00:00:00.123789' WHERE id IN ('case-newer-a', 'case-newer-b')`
+    const caseIds: string[] = []
+    for (let index = 0; index < 3; index++) {
+      const page = await listBenchmarkRecords({ ...scope, limit: 1, ...(cursor ? { cursor } : {}) })
+      caseIds.push(...page.benchmarks.map((row) => row.id))
+      cursor = page.nextCursor
+      if (index < 2) expect(cursor).not.toBeNull()
+    }
+    expect(cursor).toBeNull()
+    expect(caseIds).toEqual(['case-newer-b', 'case-newer-a', scope.benchmarkId])
   })
 
   it('retains immutable graded artifacts across edits, with scores and bounded summary pagination', async () => {

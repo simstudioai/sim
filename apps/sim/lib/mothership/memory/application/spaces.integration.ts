@@ -14,6 +14,7 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
@@ -22,6 +23,7 @@ import { createWorkspaceChat } from '@/lib/mothership/chat/application/create-wo
 import { forkChat } from '@/lib/mothership/chat/application/fork'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
+  authorizeOrganizationChatDelegation,
   createOrganizationChat,
   createOrganizationChatRecord,
 } from '@/lib/mothership/chat/organization-chats'
@@ -35,8 +37,10 @@ import {
   selectMemorySpace,
 } from '@/lib/mothership/memory/application/spaces'
 
-vi.hoisted(() => {
+const inheritedBenchmarkEnabled = vi.hoisted(() => {
+  const previous = process.env.MOTHERSHIP_BENCHMARK_ENABLED
   process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
+  return previous
 })
 /** The worker conversation copy is a separate service; Sim persistence and authorization stay real. */
 vi.mock('@/lib/mothership/chat/fork-worker', () => ({ copyWorkerConversation: async () => {} }))
@@ -129,6 +133,8 @@ beforeAll(async () => {
   )
 })
 afterAll(async () => {
+  if (inheritedBenchmarkEnabled === undefined) process.env.MOTHERSHIP_BENCHMARK_ENABLED = undefined
+  else process.env.MOTHERSHIP_BENCHMARK_ENABLED = inheritedBenchmarkEnabled
   await db.delete(organization).where(inArray(organization.id, [ids.org, ids.secondOrg]))
   await db.delete(user).where(inArray(user.id, [ids.owner, ids.other, ids.outsider, ids.regular]))
 })
@@ -167,7 +173,7 @@ describe('private KG selection through authorized application boundaries', () =>
       runAsUserId: ids.regular,
       sourceWorkspaceId: ids.workspace,
       name: 'Synthetic scope fixture',
-      artifacts: {},
+      artifacts: emptyBenchmarkArtifacts(),
     })
     const chat = await createOrganizationChatRecord(
       { userId: ids.regular, organizationId: ids.org },
@@ -178,6 +184,23 @@ describe('private KG selection through authorized application boundaries', () =>
       enabled: false,
       userId: ids.regular,
     })
+  })
+
+  it('rejects a delegated Plan continuation for an ineligible chat owner', async () => {
+    const chat = await createOrganizationChatRecord(
+      { userId: ids.regular, organizationId: ids.org },
+      'plan'
+    )
+    const caller = createTrustedOrganizationCopilotPrincipal(
+      { userId: ids.regular, organizationId: ids.org, chatId: chat.id, delegationId: generateId() },
+      { audience: 'sim:knowledge', ttlMs: 60_000 }
+    )
+    await expect(
+      authorizeOrganizationChatDelegation.execute({ principal: caller, mode: 'plan' })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Plan mode is unavailable' })
+    await expect(
+      authorizeOrganizationChatDelegation.execute({ principal: caller, mode: 'agent' })
+    ).resolves.toMatchObject({ userId: ids.regular })
   })
 
   it('keeps Default implicit and rolls back an invalid first creation', async () => {

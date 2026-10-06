@@ -475,21 +475,22 @@ it.each([
   }
 )
 
-it('renders and restores separate Plan and Build model preferences when changing modes', async () => {
+it('preserves mode-specific models and unsent effort across composer remounts', async () => {
   mocks.plan = true
   mocks.advanced = true
   await render(false, '', 'plan')
   expect(container.textContent).toContain('Opus 5.5')
   expect(container.textContent).toContain('Medium')
   await act(async () => {
-    useMothershipPlanEffortStore.getState().setModel('gpt-6-astra')
-    useMothershipPlanEffortStore.getState().setEffort('xhigh')
+    useMothershipPlanEffortStore.getState().setModel('gpt-6-sol')
+    useMothershipEffortStore.getState().setNewChatEffort('xhigh')
   })
-  expect(container.textContent).toContain('GPT-6 Astra')
+  expect(container.textContent).toContain('GPT-6 Sol')
   expect(container.textContent).toContain('Extra High')
   await render(false, '', 'agent')
   expect(container.textContent).toContain('GPT-6 Astra')
-  expect(container.textContent).not.toContain('Extra High')
+  expect(container.textContent).toContain('Extra High')
   await render(false, '', 'plan')
+  expect(container.textContent).toContain('GPT-6 Sol')
   expect(container.textContent).toContain('Extra High')
 })

@@ -83,16 +83,13 @@ describe('benchmark reference workspace inspection', () => {
         invocation: { kind: 'augmentation', name: 'new engine', positionals: [], flags: {} },
       })
     ).toBe(false)
-    expect(
-      isReadOnlyCliRequest({
-        invocation: {
-          kind: 'augmentation',
-          name: 'workflows deps',
-          positionals: ['workflow'],
-          flags: {},
-        },
-      })
-    ).toBe(true)
+    for (const name of ['workflows deps', 'workflows lint', 'workflows api']) {
+      expect(
+        isReadOnlyCliRequest({
+          invocation: { kind: 'augmentation', name, positionals: ['workflow'], flags: {} },
+        })
+      ).toBe(true)
+    }
     expect(isReadOnlyCliRequest({ invocation: { kind: 'cli', argv: ['workflows', 'list'] } })).toBe(
       true
     )

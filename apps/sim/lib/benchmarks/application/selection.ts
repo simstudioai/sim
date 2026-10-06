@@ -160,7 +160,9 @@ export const listBenchmarkWorkspaces = defineAuthorizedBenchmarkUseCase({
     return {
       workspaces,
       nextCursor: result.nextCursor,
-      canPlan: canCreateOrganizationWorkspace(target.role, config),
+      canPlan:
+        canCreateOrganizationWorkspace(target.role, config) &&
+        (await canUseBenchmarks(target.userId)),
     }
   },
 })

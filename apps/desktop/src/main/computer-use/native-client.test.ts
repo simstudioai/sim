@@ -62,6 +62,18 @@ describe('native computer use transport', () => {
     expect(results).toEqual([JSON.parse(status), JSON.parse(status)])
   })
 
+  it('accepts a maximum-sized frame followed by another valid frame', async () => {
+    const { client, reset } = helper(`let first; ${reader}
+      if (!first) { first = request; return; }
+      const a = JSON.stringify({id:first.id,result:${status}});
+      const b = JSON.stringify({id:request.id,result:${status}});
+      process.stdout.write(a.padEnd(16 * 1024 * 1024, ' ') + '\\n' + b + '\\n');
+    });`)
+    const results = await Promise.all([client.request('status', {}), client.request('status', {})])
+    expect(results).toEqual([JSON.parse(status), JSON.parse(status)])
+    expect(reset).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed output and can start a fresh helper afterward', async () => {
     const { client, reset } = helper(`${reader}
       process.stdout.write(request.method==='bad'?'not json\\n':JSON.stringify({id:request.id,result:${status}})+'\\n');

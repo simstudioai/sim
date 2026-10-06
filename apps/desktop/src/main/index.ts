@@ -8,10 +8,10 @@ import {
   BrowserWindow,
   crashReporter,
   dialog,
+  globalShortcut,
   Notification,
   net,
   powerSaveBlocker,
-  globalShortcut,
   session,
   shell,
 } from 'electron'

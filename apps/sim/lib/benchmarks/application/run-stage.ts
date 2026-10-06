@@ -227,8 +227,11 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       runAsUserId: current.runAsUserId ?? current.userId,
     })
     try {
-      const output = await withBenchmarkStageLease(attempt, request?.signal, (signal) =>
-        performStage(principal, claimed, input.stage, signal)
+      if (!claimed.leaseExpiresAt) throw new Error('Benchmark claim has no lease')
+      const output = await withBenchmarkStageLease(
+        { ...attempt, leaseExpiresAt: new Date(claimed.leaseExpiresAt) },
+        request?.signal,
+        (signal) => performStage(principal, claimed, input.stage, signal)
       )
       request?.signal?.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)

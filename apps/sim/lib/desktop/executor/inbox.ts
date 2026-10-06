@@ -2,7 +2,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { DesktopInboxRow } from '@/lib/desktop/executor/repository'
 import { ASYNC_TOOL_STATUS, isAwaitingToolPermission } from '@/lib/mothership/async-runs/lifecycle'
-import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
+import { isBackgroundDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 
 const SUMMARY_MAX_LENGTH = 200
 
@@ -48,7 +48,7 @@ export function classifyDesktopInbox(rows: DesktopInboxRow[]): DesktopInboxEntry
   const entries: DesktopInboxEntry[] = []
   for (const row of rows) {
     const args = isPlainRecord(row.args) ? row.args : {}
-    if (!isDesktopToolCall(row.toolName, args)) continue
+    if (!isBackgroundDesktopToolCall(row.toolName, args)) continue
     if (row.claimed) {
       if (row.status !== ASYNC_TOOL_STATUS.running)
         entries.push({ kind: 'cancel', toolCallId: row.toolCallId })
