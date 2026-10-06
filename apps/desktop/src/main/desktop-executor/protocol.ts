@@ -195,6 +195,10 @@ export function parseCompletionOutcome(body: unknown): DesktopCompletionOutcome 
     : null
 }
 
+/**
+ * Reads Sim's answer to an import entry: the id and name it stored the entry as. Null when either
+ * is missing or empty, which the client reports as a malformed response.
+ */
 export function parseImportedEntry(body: unknown): DesktopImportedEntry | null {
   if (!isRecordLike(body) || typeof body.id !== 'string' || typeof body.name !== 'string')
     return null
