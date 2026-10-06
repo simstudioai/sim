@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { getDesktopToolClaimOwner } from '@/lib/mothership/async-runs/desktop-tools'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
@@ -48,6 +47,7 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
+import { getDesktopToolClaimOwner } from '@/lib/mothership/tools/desktop-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'

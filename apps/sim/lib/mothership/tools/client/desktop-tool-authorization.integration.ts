@@ -31,7 +31,7 @@ import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
-  claimPendingAsyncToolCall,
+  claimToolExecution,
   closeStreamToolAdmission,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
@@ -42,6 +42,7 @@ import type { StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const APP_ORIGIN = 'http://localhost:3000'
 
@@ -80,7 +81,7 @@ async function storedCall(toolCallId: string) {
     .select({
       status: copilotAsyncToolCalls.status,
       claimedBy: copilotAsyncToolCalls.claimedBy,
-      result: copilotAsyncToolCalls.result,
+      error: copilotAsyncToolCalls.error,
     })
     .from(copilotAsyncToolCalls)
     .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
@@ -127,7 +128,12 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
   }
 
   /** The production pre-persist path, with the tool permission gate turned on for this user. */
-  async function agentCalls(runId: string, toolName: string, args: Record<string, unknown>) {
+  async function agentCalls(
+    runId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    registry?: ResolvedSecretTraceRegistry
+  ) {
     const toolCallId = generateId()
     const context: StreamingContext = {
       runId,
@@ -168,13 +174,20 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
         },
       },
       context,
-      {}
+      {},
+      registry
+        ? { userId, workflowId: generateId(), resolvedSecretTraceRegistry: registry }
+        : undefined
     )
     return toolCallId
   }
 
-  async function desktopIsRunning(runId: string, toolName: string) {
-    const toolCallId = await agentCalls(runId, toolName, {})
+  async function desktopIsRunning(
+    runId: string,
+    toolName: string,
+    registry?: ResolvedSecretTraceRegistry
+  ) {
+    const toolCallId = await agentCalls(runId, toolName, {}, registry)
     const claim = await desktopClaims(toolCallId)
     expect(claim.status).toBe(200)
     return toolCallId
@@ -257,7 +270,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     expect(await storedCall(toolCallId)).toMatchObject({
       status: 'cancelled',
       claimedBy: null,
-      result: expect.objectContaining({ notStarted: true }),
+      error: expect.stringContaining('Not run'),
     })
   })
 
@@ -296,23 +309,31 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
     await closeStreamToolAdmission(streamId, userId)
 
-    expect(await claimPendingAsyncToolCall(toolCallId, 'desktop-terminal')).toBe('admission_closed')
+    expect(
+      await claimToolExecution({ toolCallId, runId, userId, claimedBy: 'desktop-terminal' })
+    ).toEqual({ outcome: 'closed' })
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
   })
 
-  it('wakes the waiting turn when Stop cancels a call the desktop already claimed', async () => {
+  it('wakes the waiting turn with what Stop did to a call the desktop already claimed', async () => {
     const { runId, streamId } = await startRun()
-    const toolCallId = await desktopIsRunning(runId, 'terminal')
+    const registry = new ResolvedSecretTraceRegistry([])
+    const toolCallId = await desktopIsRunning(runId, 'terminal', registry)
     const agentAnswer = waitForClientToolCompletion({
       toolCallId,
       runId,
       userId,
       timeoutMs: 10_000,
+      registry,
     })
 
     await requestRunStop({ userId, workspaceId, streamId, chatId })
 
-    expect(await agentAnswer).toMatchObject({ status: 'cancelled' })
+    expect(await agentAnswer).toMatchObject({
+      status: 'cancelled',
+      message: expect.stringContaining('Stopped by the user'),
+      data: { outcomeUnknown: true, doNotRetry: true },
+    })
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'cancelled' })
   })
 
@@ -322,7 +343,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     await requestRunStop({ userId, workspaceId, streamId, chatId })
     expect(await storedCall(toolCallId)).toMatchObject({
       status: 'cancelled',
-      result: expect.objectContaining({ outcomeUnknown: true, doNotRetry: true }),
+      error: expect.stringContaining('Stopped by the user'),
     })
 
     const lateResult = await reportsResult(toolCallId)

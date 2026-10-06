@@ -8,7 +8,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getDesktopToolClaimOwner } from '@/lib/mothership/async-runs/desktop-tools'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -40,11 +39,9 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
-import {
-  retainSealedClientToolContext,
-  sealClientToolCompletion,
-} from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
+import { getDesktopToolClaimOwner } from '@/lib/mothership/tools/desktop-tools'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
@@ -417,27 +414,24 @@ export const POST = withRouteHandler((req: NextRequest) => {
             }
           : {
               message: getClientToolCompletionMessage(status),
-              data: {
-                ...retainSealedClientToolContext(existing.result),
-                ...(await sealClientToolCompletion({
-                  toolCallId,
-                  runId: existing.runId,
-                  userId: authenticatedUserId,
-                  ...(isIndeterminateNativeExit
-                    ? {
-                        message: NATIVE_HANDOFF_INTERRUPTED_MESSAGE,
-                        data: {
-                          error: NATIVE_HANDOFF_INTERRUPTED_MESSAGE,
-                          outcomeUnknown: true,
-                          doNotRetry: true,
-                        },
-                      }
-                    : {
-                        ...(message !== undefined ? { message } : {}),
-                        ...(data !== undefined ? { data } : {}),
-                      }),
-                })),
-              },
+              data: await sealClientToolSettlement(existing.result, {
+                toolCallId,
+                runId: existing.runId,
+                userId: authenticatedUserId,
+                ...(isIndeterminateNativeExit
+                  ? {
+                      message: NATIVE_HANDOFF_INTERRUPTED_MESSAGE,
+                      data: {
+                        error: NATIVE_HANDOFF_INTERRUPTED_MESSAGE,
+                        outcomeUnknown: true,
+                        doNotRetry: true,
+                      },
+                    }
+                  : {
+                      ...(message !== undefined ? { message } : {}),
+                      ...(data !== undefined ? { data } : {}),
+                    }),
+              }),
             }
 
         const updateOutcome = await updateToolCallStatus(

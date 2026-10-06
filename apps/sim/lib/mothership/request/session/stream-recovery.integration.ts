@@ -61,7 +61,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
-  claimSimToolExecution,
+  claimToolExecution,
   completeOwnedSimToolCall,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
@@ -265,7 +265,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
       args: {},
     })
     expect(
-      await claimSimToolExecution({ toolCallId: simCallId, runId, userId, ownerToken: 'dead' })
+      await claimToolExecution({ toolCallId: simCallId, runId, userId, ownerToken: 'dead' })
     ).toEqual({ outcome: 'claimed' })
     await completeOwnedSimToolCall(
       { toolCallId: simCallId, status: 'completed', result: storedResult },

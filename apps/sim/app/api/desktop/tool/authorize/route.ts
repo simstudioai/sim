@@ -9,10 +9,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
 import {
-  claimPendingAsyncToolCall,
+  claimToolExecution,
   getAsyncToolCall,
   getRunSegment,
-  type PendingToolCallClaim,
+  type ToolExecutionClaim,
 } from '@/lib/mothership/async-runs/repository'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -23,16 +23,16 @@ import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
 const admissionClosedResponse = () =>
   NextResponse.json(
-    { error: 'This chat was stopped, so the tool call can no longer run' },
+    { error: 'This chat turn ended or was stopped, so the tool call can no longer run' },
     { status: 410 }
   )
 
 /** A refused claim answers the same way for every tool, except how each reports a lost race. */
 function refusedClaimResponse(
-  claim: Exclude<PendingToolCallClaim, 'claimed'>,
+  claim: Exclude<ToolExecutionClaim['outcome'], 'claimed'>,
   notPending: () => NextResponse
 ): NextResponse {
-  if (claim === 'admission_closed') return admissionClosedResponse()
+  if (claim === 'closed') return admissionClosedResponse()
   if (claim === 'awaiting_permission')
     return NextResponse.json({ error: 'The user has not approved this tool call' }, { status: 403 })
   return notPending()
@@ -115,11 +115,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 409 }
         )
       if (toolCall.status !== 'pending') return alreadyStarted()
-      const claim = await claimPendingAsyncToolCall(
-        toolCall.toolCallId,
-        DESKTOP_TOOL_CLAIM_OWNER.files
-      )
-      if (claim !== 'claimed') return refusedClaimResponse(claim, alreadyStarted)
+      const { outcome } = await claimToolExecution({
+        toolCallId: toolCall.toolCallId,
+        runId: toolCall.runId,
+        userId,
+        claimedBy: DESKTOP_TOOL_CLAIM_OWNER.files,
+      })
+      if (outcome !== 'claimed') return refusedClaimResponse(outcome, alreadyStarted)
     } else if (
       toolCall.status !== 'running' ||
       toolCall.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.files
@@ -134,11 +136,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBrowserTool || isTerminalTool) {
     const notPending = () => createNotFoundResponse('Pending client tool call not found')
     if (toolCall.status !== 'pending') return notPending()
-    const claim = await claimPendingAsyncToolCall(
-      toolCall.toolCallId,
-      isBrowserTool ? DESKTOP_TOOL_CLAIM_OWNER.browser : DESKTOP_TOOL_CLAIM_OWNER.terminal
-    )
-    if (claim !== 'claimed') return refusedClaimResponse(claim, notPending)
+    const { outcome } = await claimToolExecution({
+      toolCallId: toolCall.toolCallId,
+      runId: toolCall.runId,
+      userId,
+      claimedBy: isBrowserTool
+        ? DESKTOP_TOOL_CLAIM_OWNER.browser
+        : DESKTOP_TOOL_CLAIM_OWNER.terminal,
+    })
+    if (outcome !== 'claimed') return refusedClaimResponse(outcome, notPending)
   }
 
   return NextResponse.json({

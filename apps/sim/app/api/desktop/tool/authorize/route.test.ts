@@ -17,7 +17,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
 
-const claimPendingAsyncToolCall = mothershipAsyncRunsMockFns.mockClaimPendingAsyncToolCall
+const claimToolExecution = mothershipAsyncRunsMockFns.mockClaimToolExecution
 const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
 const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
@@ -50,7 +50,7 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'active',
     })
-    claimPendingAsyncToolCall.mockResolvedValue('claimed')
+    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -84,7 +84,7 @@ describe('desktop tool authorization', () => {
     const response = await POST(request('retired-browser-tool'))
 
     expect(response.status).toBe(403)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(claimToolExecution).not.toHaveBeenCalled()
   })
 
   it('rejects a replayed browser action after its pending row was claimed', async () => {
@@ -98,7 +98,7 @@ describe('desktop tool authorization', () => {
 
     const response = await POST(request('browser-tool'))
     expect(response.status).toBe(404)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(claimToolExecution).not.toHaveBeenCalled()
   })
 
   it('rejects workspace VFS calls and mutating legacy local tools', async () => {
@@ -176,13 +176,18 @@ describe('desktop tool authorization', () => {
       { userId: 'user-1', chatId: 'chat-1', organizationId: 'org-1', workspaceId: undefined },
       'target'
     )
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith('import-1', 'desktop-files')
+    expect(claimToolExecution).toHaveBeenCalledExactlyOnceWith({
+      toolCallId: 'import-1',
+      runId: 'run-1',
+      userId: 'user-1',
+      claimedBy: 'desktop-files',
+    })
     getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'desktop-files' })
     expect((await POST(request('import-1', true))).status).toBe(409)
     expect((await POST(request('import-1'))).status).toBe(200)
     getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'sim-stream' })
     expect((await POST(request('import-1'))).status).toBe(404)
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledOnce()
+    expect(claimToolExecution).toHaveBeenCalledOnce()
   })
 
   it('rejects inaccessible destinations and lost import claims before exposing files', async () => {
@@ -197,8 +202,8 @@ describe('desktop tool authorization', () => {
       new OrchestrationError('not_found', 'Workspace not found')
     )
     expect((await POST(request('import-1', true))).status).toBe(404)
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
-    claimPendingAsyncToolCall.mockResolvedValueOnce('not_pending')
+    expect(claimToolExecution).not.toHaveBeenCalled()
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'existing' })
     expect((await POST(request('import-1', true))).status).toBe(409)
   })
 

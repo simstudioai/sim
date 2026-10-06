@@ -1,9 +1,27 @@
 import { CURRENT_BROWSER_TOOL_NAMES, isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName, TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
+import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
-type DesktopToolClaimOwner =
+/**
+ * The one place that answers "is this a desktop tool": the calls that act on the user's machine
+ * through the Sim desktop app rather than on Sim's servers.
+ */
+
+export type DesktopToolClaimOwner =
   (typeof DESKTOP_TOOL_CLAIM_OWNER)[keyof typeof DESKTOP_TOOL_CLAIM_OWNER]
+
+const DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set([
+  ...CURRENT_BROWSER_TOOL_NAMES,
+  TERMINAL_TOOL_NAME,
+  'import_local_files',
+  'read_local_file',
+])
+
+/** Whether a call runs through the desktop app, including VFS reads of a granted local folder. */
+export function isDesktopToolCall(toolName: string, args: Record<string, unknown> | undefined) {
+  return DESKTOP_TOOL_NAMES.has(toolName) || isUserLocalVfsToolCall(toolName, args)
+}
 
 /**
  * The owner Electron claims a call as before acting on it, for the desktop tools whose pending
@@ -15,14 +33,6 @@ export function getDesktopToolClaimOwner(toolName: string): DesktopToolClaimOwne
   if (toolName === 'import_local_files') return DESKTOP_TOOL_CLAIM_OWNER.files
   return undefined
 }
-
-/** Every tool that acts on the user's machine through the desktop app. */
-export const DESKTOP_TOOL_NAMES = [
-  ...CURRENT_BROWSER_TOOL_NAMES,
-  TERMINAL_TOOL_NAME,
-  'import_local_files',
-  'read_local_file',
-] as const
 
 /** What the model learns about a desktop call that Stop cancelled before the desktop picked it up. */
 export const STOPPED_BEFORE_START_MESSAGE =
