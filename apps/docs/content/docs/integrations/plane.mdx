@@ -31,7 +31,7 @@ Create a work item (issue) in a Plane project
 | `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
 | `projectId` | string | Yes | Project ID \(UUID\) |
 | `name` | string | Yes | Work item title |
-| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\) |
+| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\). Leave empty to keep the current description; pass "&lt;p&gt;&lt;/p&gt;" to clear it |
 | `stateId` | string | No | State ID \(UUID\). Use List States to find state IDs |
 | `priority` | string | No | Priority: urgent, high, medium, low, or none |
 | `assigneeIds` | array | No | User IDs to assign \(UUIDs of active project members\). On update, replaces all assignees |
@@ -153,7 +153,7 @@ Update fields on a Plane work item. Only the fields you provide are changed; ass
 | `projectId` | string | Yes | Project ID \(UUID\) |
 | `workItemId` | string | Yes | Work item ID \(UUID\) |
 | `name` | string | No | New work item title |
-| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\) |
+| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\). Leave empty to keep the current description; pass "&lt;p&gt;&lt;/p&gt;" to clear it |
 | `stateId` | string | No | State ID \(UUID\). Use List States to find state IDs |
 | `priority` | string | No | Priority: urgent, high, medium, low, or none |
 | `assigneeIds` | array | No | User IDs to assign \(UUIDs of active project members\). On update, replaces all assignees |

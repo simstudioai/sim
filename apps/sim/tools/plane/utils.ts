@@ -93,17 +93,22 @@ export function planeHeaders(params: { apiKey: string }): Record<string, string>
   }
 }
 
-/** Appends Plane cursor pagination params to a URL. */
+/**
+ * Appends Plane cursor pagination params to a URL. `per_page` is always sent, because the server
+ * default differs between Plane Cloud and self-hosted editions.
+ */
 export function withPlanePagination(
   url: string,
   params: { perPage?: number | string; cursor?: string },
   extra: Record<string, string | undefined> = {}
 ): string {
   const query = new URLSearchParams()
-  const perPage = Number(params.perPage)
-  if (params.perPage !== undefined && params.perPage !== '' && Number.isFinite(perPage)) {
-    query.set('per_page', String(Math.min(Math.max(Math.trunc(perPage), 1), PLANE_MAX_PER_PAGE)))
-  }
+  const requested =
+    params.perPage !== undefined && params.perPage !== '' ? Number(params.perPage) : Number.NaN
+  const perPage = Number.isFinite(requested)
+    ? Math.min(Math.max(Math.trunc(requested), 1), PLANE_MAX_PER_PAGE)
+    : PLANE_MAX_PER_PAGE
+  query.set('per_page', String(perPage))
   if (params.cursor?.trim()) query.set('cursor', params.cursor.trim())
   for (const [key, value] of Object.entries(extra)) {
     if (value?.trim()) query.set(key, value.trim())

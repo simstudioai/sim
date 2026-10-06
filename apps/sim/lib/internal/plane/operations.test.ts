@@ -153,6 +153,30 @@ describe('executePlaneUploadAttachment', () => {
     expect(mockSecureFetchWithValidation.mock.calls[1][1].method).toBe('DELETE')
   })
 
+  it('discards the pending attachment when Plane rejects the upload confirmation', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(jsonResponse(ticket(5)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: 'You are not allowed to upload this attachment' }, 403)
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    const response = await executePlaneUploadAttachment(INPUT, {
+      userId: 'sim-user',
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'You are not allowed to upload this attachment',
+    })
+    const [discardUrl, discardInit] = mockSecureFetchWithValidation.mock.calls[3]
+    expect(discardUrl).toBe(`${ATTACHMENT_URL}asset-1/`)
+    expect(discardInit.method).toBe('DELETE')
+  })
+
   it('surfaces a rejected file type with the MIME type it sent', async () => {
     mockSecureFetchWithValidation.mockResolvedValueOnce(
       jsonResponse({ error: 'Invalid file type.', status: false }, 400)

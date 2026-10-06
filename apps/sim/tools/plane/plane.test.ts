@@ -267,6 +267,12 @@ describe('Plane collaboration and planning tools', () => {
     ).toEqual({ comment_html: '<p>Done</p>', access: 'EXTERNAL' })
   })
 
+  it('always requests a full page so Cloud and self-hosted defaults agree', () => {
+    expect(resolveUrl(planeListCyclesTool, { ...CONNECTION, projectId: 'project-1' })).toBe(
+      'https://api.plane.so/api/v1/workspaces/acme/projects/project-1/cycles/?per_page=100'
+    )
+  })
+
   it('treats the unpaginated current-cycle response as a single page', async () => {
     const result = await planeListCyclesTool.transformResponse?.(
       jsonResponse([{ id: 'cycle-1', name: 'Sprint 1', total_issues: 3, completed_issues: 1 }])

@@ -9,7 +9,8 @@ export const PLANE_WORK_ITEM_FIELD_PARAMS = {
     type: 'string',
     required: false,
     visibility: 'user-or-llm',
-    description: 'Work item description as HTML (e.g., "<p>Steps to reproduce</p>")',
+    description:
+      'Work item description as HTML (e.g., "<p>Steps to reproduce</p>"). Leave empty to keep the current description; pass "<p></p>" to clear it',
   },
   stateId: {
     type: 'string',

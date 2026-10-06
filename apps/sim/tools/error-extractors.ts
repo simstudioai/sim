@@ -131,14 +131,24 @@ function extractPlaneErrorMessage(data: unknown): string | undefined {
     if (typeof value === 'string' && value.trim()) return value
   }
   const messages: string[] = []
-  for (const [field, value] of Object.entries(record)) {
-    const fieldMessages = (Array.isArray(value) ? value : [value]).filter(
-      (item): item is string => typeof item === 'string' && item.trim().length > 0
-    )
-    for (const message of fieldMessages) {
-      messages.push(PLANE_UNPREFIXED_ERROR_KEYS.has(field) ? message : `${field}: ${message}`)
+  const collect = (value: unknown, path: string) => {
+    if (messages.length >= PLANE_MAX_VALIDATION_MESSAGES) return
+    if (typeof value === 'string') {
+      if (value.trim()) messages.push(path ? `${path}: ${value}` : value)
+      return
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) collect(item, path)
+      return
+    }
+    if (value && typeof value === 'object') {
+      for (const [key, nested] of Object.entries(value)) {
+        const nestedPath = path ? `${path}.${key}` : PLANE_UNPREFIXED_ERROR_KEYS.has(key) ? '' : key
+        collect(nested, nestedPath)
+      }
     }
   }
+  collect(record, '')
   return messages.length > 0
     ? messages.slice(0, PLANE_MAX_VALIDATION_MESSAGES).join('; ')
     : undefined

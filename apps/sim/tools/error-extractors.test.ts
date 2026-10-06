@@ -440,6 +440,17 @@ describe('Error Extractors', () => {
       )
     })
 
+    it('keeps nested serializer errors with their field paths', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: { assignees: { 0: ['Invalid pk "x" - object does not exist.'] } },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLANE_ERRORS)).toBe(
+        'assignees.0: Invalid pk "x" - object does not exist.'
+      )
+    })
+
     it('is not part of the fallback chain for tools without an extractor', () => {
       const errorInfo: ErrorInfo = { status: 400, data: { name: ['This field is required.'] } }
 

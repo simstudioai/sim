@@ -263,6 +263,7 @@ export async function executePlaneUploadAttachment(
     )
     if (!confirmed.ok) {
       const message = await readPlaneError(confirmed, context.signal)
+      await discardPendingAttachment(input, ticket.assetId, context.signal)
       throw new PlaneUploadError(message, upstreamStatus(confirmed.status))
     }
     await confirmed.body?.cancel().catch(() => {})
