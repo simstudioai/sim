@@ -3010,8 +3010,15 @@ export function useChat(
         const fallbackStreamId =
           streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? cached?.activeStreamId
         const loadedStream = await getActiveStreamIdForChat(chatId, recoveryController.signal)
+        /* The chat no longer lists a running turn, but this surface is still showing
+           one: it ended while nothing here was listening (its reader went silent, or a
+           recovery it superseded was attached). Resolve that stream instead of
+           leaving it running: its terminal state replays the rest and finalizes. */
+        const locallyRunningStreamId = sendingRef.current
+          ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId)
+          : undefined
         const streamId = loadedStream.loaded
-          ? (loadedStream.streamId ?? undefined)
+          ? (loadedStream.streamId ?? locallyRunningStreamId)
           : fallbackStreamId
         if (
           !isSameRecoverySubject() ||

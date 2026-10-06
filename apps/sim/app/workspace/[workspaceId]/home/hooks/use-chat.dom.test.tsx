@@ -1226,6 +1226,64 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  /**
+   * The turn ends on the server while this surface's reader is silent (a stalled
+   * socket, or a recovery a later return superseded), so it never sees `complete`.
+   * The next return reads a chat with no running turn; it must resolve the stream
+   * it still shows as running instead of leaving the chat stuck on Stop.
+   */
+  it('finishes a turn that ended while its reader was silent when the user returns', async () => {
+    let turnRunning = true
+    const history: MothershipChatHistory = {
+      id: 'chat-ended-while-silent',
+      mode: 'agent',
+      title: 'Ended while silent',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() =>
+      Promise.resolve({
+        chat: {
+          ...history,
+          activeStreamId: turnRunning ? (state.postBodies[0]?.userMessageId ?? null) : null,
+        },
+      })
+    )
+    state.postBehavior = 'accept'
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+      if (url.includes('batch=true')) {
+        return Response.json({
+          success: true,
+          events: [],
+          status: turnRunning ? 'streaming' : 'complete',
+        })
+      }
+      return new Response(new ReadableStream<Uint8Array>(), {
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await act(async () => {
+      void getResult().sendMessage('Finish while I am away')
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('pageshow'))
+      await sleep(100)
+    })
+    expect(getResult().isSending).toBe(true)
+
+    turnRunning = false
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+    })
+    await waitFor(() => !getResult().isSending)
+
+    expect(state.postBodies).toHaveLength(1)
+  })
+
   it('keeps re-attaching a long turn whose tails deliver events between separate network failures', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
