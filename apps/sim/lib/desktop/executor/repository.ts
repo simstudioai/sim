@@ -442,3 +442,54 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
 }
+
+/**
+ * The caller's live device-bound runs in a workspace, newest first, with each run's calls that
+ * are still waiting to be offered (the ones that may be held for approval).
+ */
+export async function listDesktopActivityRows(input: { userId: string; workspaceId: string }) {
+  const runs = await db
+    .select({
+      runId: copilotRuns.id,
+      chatId: copilotRuns.chatId,
+      deviceId: desktopDevices.id,
+      deviceName: desktopDevices.name,
+    })
+    .from(copilotRuns)
+    .innerJoin(desktopDevices, eq(desktopDevices.id, copilotRuns.desktopDeviceId))
+    .where(
+      and(
+        eq(copilotRuns.userId, input.userId),
+        eq(copilotRuns.workspaceId, input.workspaceId),
+        isNotNull(copilotRuns.desktopDeviceId),
+        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
+        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
+        isNull(copilotRuns.toolAdmissionClosedAt)
+      )
+    )
+    .orderBy(sql`${copilotRuns.startedAt} DESC`)
+    .limit(INBOX_ROW_LIMIT)
+  if (runs.length === 0) return []
+  const waiting = await db
+    .select({
+      runId: copilotAsyncToolCalls.runId,
+      toolName: copilotAsyncToolCalls.toolName,
+      args: copilotAsyncToolCalls.args,
+    })
+    .from(copilotAsyncToolCalls)
+    .where(
+      and(
+        inArray(
+          copilotAsyncToolCalls.runId,
+          runs.map((run) => run.runId)
+        ),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+        isNull(copilotAsyncToolCalls.permissionDecision),
+        isNull(copilotAsyncToolCalls.executionLeaseExpiresAt)
+      )
+    )
+  return runs.map((run) => ({
+    ...run,
+    waitingCalls: waiting.filter((call) => call.runId === run.runId),
+  }))
+}

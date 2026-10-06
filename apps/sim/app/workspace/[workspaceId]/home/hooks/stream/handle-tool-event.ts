@@ -37,6 +37,7 @@ import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/ho
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { isChatRunOnDesktop } from '@/hooks/queries/utils/desktop-activity-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
@@ -195,9 +196,18 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const args = payload.arguments as Record<string, unknown> | undefined
   // Every client tailing the chat sees the call. A client without the desktop app leaves desktop
   // tools to it: its answer could only be an error, and that error would beat the real result.
+  // A turn running on a desktop's background executor belongs to that desktop: this view only shows it.
+  const runsInBackground =
+    isDesktopToolCall(name, args) &&
+    isChatRunOnDesktop(
+      deps.queryClient,
+      deps.workspaceId,
+      deps.options.targetChatId ?? deps.chatIdRef.current
+    )
   const shouldStartClientTool =
     isClientExecutedToolCall(name, args) &&
     (isDesktopApp() || !isDesktopToolCall(name, args)) &&
+    !runsInBackground &&
     !isPartial &&
     !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
     node?.kind === 'tool' &&
