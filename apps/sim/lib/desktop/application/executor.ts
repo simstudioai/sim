@@ -4,7 +4,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { defineOperation } from '@/lib/core/application'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import {
@@ -23,9 +22,10 @@ import {
   DesktopCallRevokedError,
   DesktopDeviceUnrecognizedError,
 } from '@/lib/desktop/executor/errors'
+import { isDesktopBackgroundExecutorEnabled } from '@/lib/desktop/executor/flag'
 import { classifyDesktopInbox, type DesktopInboxEntry } from '@/lib/desktop/executor/inbox'
 import {
-  isDesktopPresenceAvailable,
+  isDesktopPresent,
   markDesktopPresent,
   releaseDesktopPresence,
 } from '@/lib/desktop/executor/presence'
@@ -35,13 +35,18 @@ import {
   getBindableDesktopDevice,
   getBoundDesktopCall,
   getBoundDesktopDevice,
+  listDesktopActivityRows,
   listDesktopInboxRows,
   recordDesktopCallResult,
   renewDesktopCallLease,
   touchDesktopDevice,
   upsertDesktopDevice,
 } from '@/lib/desktop/executor/repository'
-import { desktopClaimOwner, isDesktopExecutorTool } from '@/lib/desktop/executor/tools'
+import {
+  desktopCallAwaitsApproval,
+  desktopClaimOwner,
+  isDesktopExecutorTool,
+} from '@/lib/desktop/executor/tools'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASYNC_TOOL_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
@@ -63,12 +68,6 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
   })
   if (!device) throw new DesktopDeviceUnrecognizedError()
   return device
-}
-
-/** Whether new turns from this user may bind to a desktop. Never consulted for runs already bound. */
-async function isDesktopBackgroundExecutorEnabled(userId: string): Promise<boolean> {
-  if (!isDesktopPresenceAvailable()) return false
-  return isFeatureEnabled('mothership-desktop-background-executor', { userId })
 }
 
 /**
@@ -426,5 +425,60 @@ export const completeDesktopTool = defineAuthorizedCredentialUserUseCase({
     if (acknowledged.outcome === 'unknown')
       throw new OrchestrationError('not_found', 'Desktop tool call not found')
     return acknowledged
+  },
+})
+
+export interface DesktopChatActivityEntry {
+  chatId: string
+  state: 'running' | 'needs_input' | 'blocked'
+  deviceName: string
+}
+
+/**
+ * Which of the caller's chats in a workspace are running on one of their desktops, and whether
+ * each needs the user's approval or is blocked because that desktop is offline. Lists only the
+ * caller's own runs, so it needs no workspace role; runs already bound keep showing after the
+ * executor is turned off, until they end.
+ */
+export const listDesktopActivity = defineAuthorizedCredentialUserUseCase({
+  // permission-group-exempt: reports only the caller's own runs, with no content.
+  operation: defineOperation({
+    id: 'desktop.executor.activity.list',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  async execute({
+    principal,
+    input,
+  }: {
+    principal: SessionPrincipal
+    input: { workspaceId: string }
+  }): Promise<{ chats: DesktopChatActivityEntry[] }> {
+    const runs = await listDesktopActivityRows({
+      userId: principal.userId,
+      workspaceId: input.workspaceId,
+    })
+    const devices = [...new Set(runs.map((run) => run.deviceId))]
+    const online = new Map(
+      await Promise.all(
+        devices.map(
+          async (deviceId) =>
+            [deviceId, await isDesktopPresent(deviceId).catch(() => false)] as const
+        )
+      )
+    )
+    const chats = new Map<string, DesktopChatActivityEntry>()
+    for (const run of runs) {
+      if (chats.has(run.chatId)) continue
+      const needsInput = run.waitingCalls.some((call) =>
+        desktopCallAwaitsApproval(call.toolName, isPlainRecord(call.args) ? call.args : {})
+      )
+      chats.set(run.chatId, {
+        chatId: run.chatId,
+        deviceName: run.deviceName,
+        state: needsInput ? 'needs_input' : online.get(run.deviceId) ? 'running' : 'blocked',
+      })
+    }
+    return { chats: [...chats.values()] }
   },
 })

@@ -108,6 +108,60 @@ describe('tool events (dispatch → model + side effects)', () => {
     )
   })
 
+  it("only shows a desktop call when the chat's turn runs on a desktop in the background", () => {
+    const startClientBrowserTool = vi.fn()
+    const deps = makeStreamLoopDeps({ startClientBrowserTool, chatIdRef: ref('chat-1') })
+    vi.mocked(deps.queryClient.getQueryData).mockImplementation((key) =>
+      JSON.stringify(key) === JSON.stringify(['desktop-activity', 'list', 'ws-1'])
+        ? [{ chatId: 'chat-1', state: 'running', deviceName: 'MacBook' }]
+        : undefined
+    )
+    const ctx = createStreamLoopContext(deps)
+
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'click-1',
+        toolName: 'browser_click',
+        arguments: { ref: 'e1' },
+        status: 'executing',
+      })
+    )
+
+    expect(toolNode(ctx, 'click-1').status).toBe('running')
+    expect(startClientBrowserTool).not.toHaveBeenCalled()
+  })
+
+  it('runs a desktop call in the view when no desktop runs the chat in the background', () => {
+    const startClientBrowserTool = vi.fn()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({ startClientBrowserTool, chatIdRef: ref('chat-1') })
+    )
+
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'click-2',
+        toolName: 'browser_click',
+        arguments: { ref: 'e1' },
+        status: 'executing',
+      })
+    )
+
+    expect(startClientBrowserTool).toHaveBeenCalledWith(
+      'click-2',
+      'browser_click',
+      { ref: 'e1' },
+      expect.anything()
+    )
+  })
+
   it('never starts a skipped terminal command', () => {
     const startClientTerminalTool = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientTerminalTool }))
