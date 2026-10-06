@@ -633,46 +633,27 @@ export async function markAsyncToolRunning(toolCallId: string, claimedBy: string
   return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
 }
 
-export type ToolExecutionClaim =
-  | { outcome: 'claimed' }
-  /** Stop, a newer turn, or the run's end closed tool admission. */
-  | { outcome: 'closed' }
-  /** Already claimed or settled. */
-  | { outcome: 'existing' }
-  /** Held for the user's decision, and not allowed (yet). */
-  | { outcome: 'awaiting_permission' }
-
-/** The desktop app acting on a pending call it was handed, before any effect on the machine. */
-export interface DesktopToolExecutionClaimant {
-  toolCallId: string
-  runId: string
-  userId: string
-  claimedBy: DesktopToolClaimOwner
-}
-
 /**
- * Claims a tool call exactly once, serialized with Stop by the run row lock: nothing is claimed
- * once the run's tool admission has closed. Sim claims a call it is about to execute under an
- * execution lease, and a terminal tool result never releases that claim. The desktop app claims a
- * pending call before crossing the Electron boundary, so a replayed renderer event cannot click,
- * type, or run a command twice, and a call held for the user's decision only once they allowed it.
+ * Locks the call's run and runs `claim` only while the run still admits tools, so a claim and Stop
+ * serialize on the run row: nothing is claimed once tool admission has closed.
  */
-export async function claimToolExecution(
-  input: SimToolExecutionOwner | DesktopToolExecutionClaimant
-): Promise<ToolExecutionClaim> {
-  const simOwner = 'ownerToken' in input ? input : undefined
-  const claimedBy = 'ownerToken' in input ? 'sim-stream' : input.claimedBy
+async function claimUnderRunAdmission<T>(
+  call: { toolCallId: string; runId: string; userId: string },
+  claimedBy: string,
+  requireCurrentVersion: boolean,
+  claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>
+): Promise<T | { outcome: 'closed' }> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
     {
-      [TraceAttr.ToolCallId]: input.toolCallId,
-      [TraceAttr.RunId]: input.runId,
+      [TraceAttr.ToolCallId]: call.toolCallId,
+      [TraceAttr.RunId]: call.runId,
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
     () =>
-      traceMothershipTransaction<ToolExecutionClaim>('claim_tool', async (tx) => {
+      traceMothershipTransaction<T | { outcome: 'closed' }>('claim_tool', async (tx) => {
         const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
           tx
             .select({
@@ -681,83 +662,142 @@ export async function claimToolExecution(
               status: copilotRuns.status,
             })
             .from(copilotRuns)
-            .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
+            .where(and(eq(copilotRuns.id, call.runId), eq(copilotRuns.userId, call.userId)))
             .for('update')
         )
-        if (!run || (simOwner && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION))
+        if (
+          !run ||
+          (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
+        )
           throw new Error('Tool execution ownership is unavailable for this run')
         if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
           return { outcome: 'closed' }
-        const startedAt = new Date()
-        const thisCall = and(
-          eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-          eq(copilotAsyncToolCalls.runId, input.runId)
+        return claim(
+          tx,
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
+            eq(copilotAsyncToolCalls.runId, call.runId)
+          )
         )
-        const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
-          tx
-            .update(copilotAsyncToolCalls)
-            .set(
-              simOwner
-                ? {
-                    status: ASYNC_TOOL_STATUS.running,
-                    claimedBy,
-                    claimedAt: startedAt,
-                    executionStartedAt: startedAt,
-                    executionOwnerToken: simOwner.ownerToken,
-                    executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
-                    updatedAt: startedAt,
-                  }
-                : {
-                    status: ASYNC_TOOL_STATUS.running,
-                    claimedBy,
-                    claimedAt: startedAt,
-                    updatedAt: startedAt,
-                  }
-            )
-            .where(
-              simOwner
-                ? and(
-                    thisCall,
-                    isNull(copilotAsyncToolCalls.executionStartedAt),
-                    inArray(copilotAsyncToolCalls.status, [
-                      ASYNC_TOOL_STATUS.pending,
-                      ASYNC_TOOL_STATUS.running,
-                    ])
-                  )
-                : and(
-                    thisCall,
-                    eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-                    or(
-                      and(
-                        isNull(copilotAsyncToolCalls.permissionRequestedAt),
-                        isNull(copilotAsyncToolCalls.permissionDecision)
-                      ),
-                      inArray(copilotAsyncToolCalls.permissionDecision, [
-                        ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-                      ])
-                    )
-                  )
-            )
-            .returning({ id: copilotAsyncToolCalls.id })
-        )
-        if (claimed) return { outcome: 'claimed' }
-        const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
-          tx
-            .select({
-              status: copilotAsyncToolCalls.status,
-              permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
-              permissionDecision: copilotAsyncToolCalls.permissionDecision,
-            })
-            .from(copilotAsyncToolCalls)
-            .where(thisCall)
-        )
-        if (!record) throw new Error('Tool execution record is unavailable')
-        return !simOwner &&
-          record.status === ASYNC_TOOL_STATUS.pending &&
-          isAwaitingToolPermission(record)
-          ? { outcome: 'awaiting_permission' }
-          : { outcome: 'existing' }
       })
+  )
+}
+
+export type ToolExecutionClaim =
+  | { outcome: 'claimed' }
+  /** Stop, a newer turn, or the run's end closed tool admission. */
+  | { outcome: 'closed' }
+  /** Already claimed or settled. */
+  | { outcome: 'existing' }
+
+/** Sim claims a call it is about to execute under an execution lease; a terminal result never releases it. */
+export async function claimToolExecution(
+  owner: SimToolExecutionOwner
+): Promise<ToolExecutionClaim> {
+  return await claimUnderRunAdmission(owner, 'sim-stream', true, async (tx, thisCall) => {
+    const startedAt = new Date()
+    const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
+      tx
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: ASYNC_TOOL_STATUS.running,
+          claimedBy: 'sim-stream',
+          claimedAt: startedAt,
+          executionStartedAt: startedAt,
+          executionOwnerToken: owner.ownerToken,
+          executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+          updatedAt: startedAt,
+        })
+        .where(
+          and(
+            thisCall,
+            isNull(copilotAsyncToolCalls.executionStartedAt),
+            inArray(copilotAsyncToolCalls.status, [
+              ASYNC_TOOL_STATUS.pending,
+              ASYNC_TOOL_STATUS.running,
+            ])
+          )
+        )
+        .returning({ id: copilotAsyncToolCalls.id })
+    )
+    if (claimed) return { outcome: 'claimed' } as const
+    const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
+      tx.select({ id: copilotAsyncToolCalls.id }).from(copilotAsyncToolCalls).where(thisCall)
+    )
+    if (!record) throw new Error('Tool execution record is unavailable')
+    return { outcome: 'existing' } as const
+  })
+}
+
+/** The desktop app acting on a pending call it was handed, before any effect on the machine. */
+export interface DesktopToolCallClaimant {
+  toolCallId: string
+  runId: string
+  userId: string
+  claimedBy: DesktopToolClaimOwner
+}
+
+export type DesktopToolCallClaim =
+  | ToolExecutionClaim
+  /** Held for the user's decision, and not allowed (yet). */
+  | { outcome: 'awaiting_permission' }
+
+/**
+ * The desktop app claims a pending call before crossing the Electron boundary, so a replayed
+ * renderer event cannot click, type, or run a command twice, and a call held for the user's
+ * decision only once they allowed it.
+ */
+export async function claimDesktopToolCall(
+  claimant: DesktopToolCallClaimant
+): Promise<DesktopToolCallClaim> {
+  return await claimUnderRunAdmission(
+    claimant,
+    claimant.claimedBy,
+    false,
+    async (tx, thisCall): Promise<DesktopToolCallClaim> => {
+      const claimedAt = new Date()
+      const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
+        tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            status: ASYNC_TOOL_STATUS.running,
+            claimedBy: claimant.claimedBy,
+            claimedAt,
+            updatedAt: claimedAt,
+          })
+          .where(
+            and(
+              thisCall,
+              eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              or(
+                and(
+                  isNull(copilotAsyncToolCalls.permissionRequestedAt),
+                  isNull(copilotAsyncToolCalls.permissionDecision)
+                ),
+                inArray(copilotAsyncToolCalls.permissionDecision, [
+                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                ])
+              )
+            )
+          )
+          .returning({ id: copilotAsyncToolCalls.id })
+      )
+      if (claimed) return { outcome: 'claimed' }
+      const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
+        tx
+          .select({
+            status: copilotAsyncToolCalls.status,
+            permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
+            permissionDecision: copilotAsyncToolCalls.permissionDecision,
+          })
+          .from(copilotAsyncToolCalls)
+          .where(thisCall)
+      )
+      if (!record) throw new Error('Tool execution record is unavailable')
+      return record.status === ASYNC_TOOL_STATUS.pending && isAwaitingToolPermission(record)
+        ? { outcome: 'awaiting_permission' }
+        : { outcome: 'existing' }
+    }
   )
 }
 
@@ -1482,7 +1522,7 @@ export async function completeOwnedSimToolCall(
 
 /**
  * Finalizes a client tool only while it remains unclaimed. This is the inverse
- * CAS of the desktop claim (`claimToolExecution`): exactly one of a renderer-side preclaim
+ * CAS of the desktop claim (`claimDesktopToolCall`): exactly one of a renderer-side preclaim
  * failure or the native authorization claim may transition the pending row.
  */
 export async function completePendingAsyncToolCall(input: CompleteAsyncToolCallInput) {

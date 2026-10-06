@@ -59,6 +59,7 @@ import {
   requireToolCallError,
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
+import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
 import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
   type ToolExecutionLifetime,
@@ -75,7 +76,6 @@ import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
 } from '@/lib/mothership/request/tools/tables'
-import { settleToolCallFailure } from '@/lib/mothership/request/tools/tool-call-failure'
 import { applyCreateWorkflowOutputToContext } from '@/lib/mothership/request/tools/workflow-context'
 import {
   type ExecutionContext,

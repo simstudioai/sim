@@ -4,8 +4,8 @@ import type { AsyncTerminalCompletionSnapshot } from '@/lib/mothership/async-run
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
+import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
-import { settleToolCallFailure } from '@/lib/mothership/request/tools/tool-call-failure'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotDesktopToolWait')
