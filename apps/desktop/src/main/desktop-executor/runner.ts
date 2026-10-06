@@ -107,6 +107,9 @@ async function withDeadline<T>(
 }
 
 export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToolRunner {
+  /** Each chat's last terminal operation, until it actually settles. */
+  const unsettledTerminalWork = new Map<string, Promise<void>>()
+
   async function runBrowser(
     call: ClaimedDesktopCall,
     tool: BrowserToolName
@@ -154,12 +157,21 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     }
     const args = isRecordLike(call.args.args) ? (call.args.args as TerminalToolArgs) : {}
     const timeoutMs = terminalOperationTimeoutMs(operation)
-    return withDeadline(
-      deps.terminal
-        .executeTool(call.chatId, call.toolCallId, operation, args)
-        .then(terminalToolCompletion),
-      timeoutMs,
-      () => terminalToolFailure(`The terminal did not respond within ${timeoutMs}ms`)
+    // An operation reported as unresponsive may still land; the chat's next one waits for it, so
+    // two never act on the same terminals at once.
+    await unsettledTerminalWork.get(call.chatId)
+    const operationDone = deps.terminal.executeTool(call.chatId, call.toolCallId, operation, args)
+    const settled = operationDone.then(
+      () => undefined,
+      () => undefined
+    )
+    unsettledTerminalWork.set(call.chatId, settled)
+    void settled.then(() => {
+      if (unsettledTerminalWork.get(call.chatId) === settled)
+        unsettledTerminalWork.delete(call.chatId)
+    })
+    return withDeadline(operationDone.then(terminalToolCompletion), timeoutMs, () =>
+      terminalToolFailure(`The terminal did not respond within ${timeoutMs}ms`)
     )
   }
 

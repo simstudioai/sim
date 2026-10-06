@@ -37,7 +37,7 @@ import {
   isResourceTabSelectionShortcut,
   resourceTabTargetIndex,
 } from '@/main/resource-shortcuts'
-import { signalForegroundProcessGroup } from '@/main/terminal/process-group'
+import { readForegroundProcessGroup, signalProcessGroup } from '@/main/terminal/process-group'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
@@ -48,6 +48,7 @@ import {
   isTmuxUnavailable,
   killPane,
   listPanes,
+  pollRun,
   resolveAttachment,
   sendKey,
   sendText,
@@ -151,8 +152,34 @@ export interface TerminalServiceOptions {
    */
   loadCwd?(): string | undefined
   canSpawn?(): boolean
-  /** Signals a terminal's foreground program; the OS process group by default. */
-  signalForegroundGroup?(shellPid: number, signal: NodeJS.Signals): Promise<void>
+  /** Reads and signals a terminal's foreground process group; the OS's by default. */
+  processGroups?: TerminalProcessGroups
+}
+
+interface TerminalProcessGroups {
+  foreground(shellPid: number): Promise<number | null>
+  signal(pgid: number, signal: NodeJS.Signals): void
+}
+
+const OS_PROCESS_GROUPS: TerminalProcessGroups = {
+  foreground: readForegroundProcessGroup,
+  signal: signalProcessGroup,
+}
+
+/**
+ * One tool call's Stop: remembered if it arrives before the call's command starts, and handed to
+ * whatever is running once it does.
+ */
+interface StopLatch {
+  stopped: boolean
+  stopRunning: (() => Promise<void>) | null
+}
+
+function stoppedBeforeStart(): TerminalError {
+  return new TerminalError(
+    'CANCELLED',
+    'Stopped before the command started, so nothing ran in the terminal.'
+  )
 }
 
 /**
@@ -777,8 +804,16 @@ export class TerminalService {
     operation: TerminalOperation,
     args: TerminalToolArgs
   ): Promise<TerminalToolResponse> {
+    // A Stop can arrive before the command exists (while the shell or tmux is still being
+    // resolved); the latch carries it to the moment the command would start.
+    const latch: StopLatch = { stopped: false, stopRunning: null }
+    const stop = async () => {
+      latch.stopped = true
+      await latch.stopRunning?.()
+    }
+    this.toolStops.set(toolCallId, stop)
     try {
-      const result = await this.dispatch(toolCallId, operation, args ?? {})
+      const result = await this.dispatch(toolCallId, operation, args ?? {}, latch)
       return { ok: true, result }
     } catch (error) {
       if (error instanceof TerminalError) {
@@ -788,6 +823,8 @@ export class TerminalService {
       const message = (error as Error).message
       logger.error('Terminal operation failed', { toolCallId, operation, error: message })
       return { ok: false, error: message }
+    } finally {
+      if (this.toolStops.get(toolCallId) === stop) this.toolStops.delete(toolCallId)
     }
   }
 
@@ -801,19 +838,6 @@ export class TerminalService {
     if (!stop) return false
     await stop()
     return true
-  }
-
-  private async withToolStop<T>(
-    toolCallId: string,
-    stop: () => Promise<void>,
-    work: () => Promise<T>
-  ): Promise<T> {
-    this.toolStops.set(toolCallId, stop)
-    try {
-      return await work()
-    } finally {
-      if (this.toolStops.get(toolCallId) === stop) this.toolStops.delete(toolCallId)
-    }
   }
 
   /** Waits for the command a run started to end, up to `ms`. */
@@ -830,24 +854,34 @@ export class TerminalService {
     return true
   }
 
+  /**
+   * Interrupts the command a run started. Escalation is bound to that command's own process
+   * group, read while it still holds the foreground, and each signal is sent only while the same
+   * call and the same group still hold it, so a command the user starts meanwhile is never hit.
+   */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
     if (session.runningToolCallId !== toolCallId) return
+    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
+    const pgid = await groups.foreground(session.pid)
+    if (session.runningToolCallId !== toolCallId) return
     session.kill('SIGINT')
-    const signal = this.options.signalForegroundGroup ?? signalForegroundProcessGroup
     for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
+      if (pgid === null || (await groups.foreground(session.pid)) !== pgid) return
+      if (session.runningToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {
         toolCallId,
         signal: escalation,
       })
-      await signal(session.pid, escalation)
+      groups.signal(pgid, escalation)
     }
   }
 
   private async dispatch(
     toolCallId: string,
     operation: TerminalOperation,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    latch: StopLatch
   ): Promise<unknown> {
     switch (operation) {
       case 'list':
@@ -902,11 +936,9 @@ export class TerminalService {
         }
       }
       case 'handoff':
-        return this.withToolStop(
-          toolCallId,
-          async () => this.finishHandoff(session.terminalId),
-          () => this.handoff(session, args)
-        )
+        if (latch.stopped) throw stoppedBeforeStart()
+        latch.stopRunning = async () => this.finishHandoff(session.terminalId)
+        return this.handoff(session, args)
       case 'panes': {
         if (!tmux) {
           throw new TerminalError(
@@ -922,12 +954,8 @@ export class TerminalService {
       }
       case 'run':
         return tmux
-          ? this.runInTmux(toolCallId, session, tmux.session, args)
-          : this.withToolStop(
-              toolCallId,
-              () => this.stopCommand(session, toolCallId),
-              () => this.run(toolCallId, session, args)
-            )
+          ? this.runInTmux(session, tmux.session, args, latch)
+          : this.run(toolCallId, session, args, latch)
       case 'read': {
         const requested = Number(args.lines)
         const lines = Number.isFinite(requested) && requested > 0 ? requested : 200
@@ -1148,13 +1176,14 @@ export class TerminalService {
    * see through tmux.
    */
   private async runInTmux(
-    toolCallId: string,
     terminal: TerminalSession,
     session: string,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    latch: StopLatch
   ): Promise<unknown> {
     const command = typeof args.command === 'string' ? args.command.trim() : ''
     if (!command) throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
+    if (latch.stopped) throw stoppedBeforeStart()
 
     const started = Date.now()
     this.reapFinishedRuns(terminal.terminalId)
@@ -1163,14 +1192,25 @@ export class TerminalService {
 
     const waitMs = resolveRunWaitMs(args.waitSeconds)
     // Inside tmux a stop arrives as Ctrl-C in the run's own window; closing that window hangs up
-    // anything that ignored it.
-    const stop = async () => {
+    // anything that ignored it. The wait ends with the stop, since a closed window never writes
+    // the run's exit status.
+    let endWait: () => void = () => {}
+    const stopped = new Promise<void>((resolve) => {
+      endWait = resolve
+    })
+    latch.stopRunning = async () => {
       await sendKey(handle.window, 'C-c', terminal.env)
       const deadline = Date.now() + STOP_ESCALATION_MS
       while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
       if (!isRunComplete(handle)) await closeRunWindow(handle, terminal.env)
+      endWait()
     }
-    const outcome = await this.withToolStop(toolCallId, stop, () => awaitRun(handle, waitMs))
+    // A Stop that landed while the run window opened applies now.
+    if (latch.stopped) void latch.stopRunning()
+    const outcome = await Promise.race([
+      awaitRun(handle, waitMs),
+      stopped.then(() => ({ ...pollRun(handle), done: true })),
+    ])
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
       handle.dispose()
@@ -1199,7 +1239,8 @@ export class TerminalService {
   private async run(
     toolCallId: string,
     session: TerminalSession,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    latch: StopLatch
   ): Promise<unknown> {
     const command = typeof args.command === 'string' ? args.command.trim() : ''
     if (!command) {
@@ -1221,6 +1262,8 @@ export class TerminalService {
       )
     }
 
+    if (latch.stopped) throw stoppedBeforeStart()
+    latch.stopRunning = () => this.stopCommand(session, toolCallId)
     return session.runCommand(command, toolCallId, resolveRunWaitMs(args.waitSeconds))
   }
 

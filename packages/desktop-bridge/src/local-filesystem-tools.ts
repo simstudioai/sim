@@ -145,10 +145,11 @@ async function glob(
   context: UserLocalFilesystemToolContext,
   requestId: string,
   args: Record<string, unknown>
-): Promise<{ files: string[] }> {
+): Promise<{ files: string[]; truncated?: true }> {
   const pattern = requiredString(args, 'pattern')
   const mounts = await listMounts(context)
   const files = new Set<string>()
+  let scanIncomplete = false
 
   for (const mount of mounts) {
     if (context.signal?.aborted) throw abortError(context.signal)
@@ -167,6 +168,7 @@ async function glob(
     if (!('entries' in data)) {
       throw new Error('The desktop app returned an invalid glob result.')
     }
+    if (data.truncated) scanIncomplete = true
     for (const entry of data.entries) {
       const path = vfsPathForUri(context, mount, entry.uri)
       if (micromatch.isMatch(path, pattern, VFS_GLOB_OPTIONS)) {
@@ -177,7 +179,9 @@ async function glob(
     if (files.size >= MAX_USER_LOCAL_GLOB_RESULTS) break
   }
 
-  return { files: [...files].sort() }
+  // A partial listing says so, so the model does not treat a missing file as absent.
+  const truncated = scanIncomplete || files.size >= MAX_USER_LOCAL_GLOB_RESULTS
+  return { files: [...files].sort(), ...(truncated ? { truncated: true as const } : {}) }
 }
 
 async function read(

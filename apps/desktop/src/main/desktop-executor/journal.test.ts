@@ -68,6 +68,40 @@ describe('executor journal', () => {
     await expect(readFile(filePath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('reports a transition it could not make durable', async () => {
+    const encryption = testEncryption()
+    encryption.encryptString.mockImplementation(() => {
+      throw new Error('keychain locked')
+    })
+
+    await expect(
+      createExecutorJournal(await journalPath(), encryption).put(RESULT)
+    ).rejects.toThrow('keychain locked')
+  })
+
+  it('keeps results within what a restart can read back, dropping the data of the excess', async () => {
+    const filePath = await journalPath()
+    const encryption = testEncryption()
+    const journal = createExecutorJournal(filePath, encryption)
+    const screenshot = 'x'.repeat(20 * 1024 * 1024)
+    for (const toolCallId of ['call-1', 'call-2']) {
+      await journal.put({
+        toolCallId,
+        state: 'result',
+        executionToken: `token-${toolCallId}`,
+        completion: { status: 'success', message: 'done', data: { screenshot } },
+      })
+    }
+
+    const restored = await createExecutorJournal(filePath, encryption).load()
+    expect(restored).toHaveLength(2)
+    const kept = restored.filter(
+      (entry) => entry.state === 'result' && entry.completion.data?.screenshot === screenshot
+    )
+    expect(kept).toHaveLength(1)
+    expect(JSON.stringify(restored)).toContain('resultOmitted')
+  })
+
   it('starts empty from a corrupt or foreign file instead of failing', async () => {
     const filePath = await journalPath()
     await writeFile(filePath, '{"version":1,"ciphertext":"not-base64-json"}')

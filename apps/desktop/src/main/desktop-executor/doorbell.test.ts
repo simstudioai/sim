@@ -6,7 +6,7 @@ const encoder = new TextEncoder()
 
 /** A stream the test writes SSE text into, closing when told to or when its reader aborts. */
 function controllableStream(signal: AbortSignal) {
-  let controller!: ReadableStreamDefaultController<Uint8Array>
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined
   const stream = new ReadableStream<Uint8Array>({
     start(c) {
       controller = c
@@ -14,17 +14,17 @@ function controllableStream(signal: AbortSignal) {
   })
   signal.addEventListener('abort', () => {
     try {
-      controller.error(new Error('aborted'))
+      controller?.error(new Error('aborted'))
     } catch {}
   })
   return {
     stream,
-    write: (text: string) => controller.enqueue(encoder.encode(text)),
-    end: () => controller.close(),
+    write: (text: string) => controller?.enqueue(encoder.encode(text)),
+    end: () => controller?.close(),
   }
 }
 
-function harness(options: { staleAfterMs?: number } = {}) {
+function harness(options: { staleAfterMs?: number; retryBaseMs?: number } = {}) {
   const connections: ReturnType<typeof controllableStream>[] = []
   const failures: DeviceRequestError[] = []
   const onRing = vi.fn()
@@ -104,6 +104,30 @@ describe('InboxDoorbell', () => {
     doorbell.start()
 
     await vi.waitFor(() => expect(onUnregistered).toHaveBeenCalled())
+    doorbell.stop()
+  })
+
+  it('reconnects at once on wake, without waiting out a backoff', async () => {
+    const { doorbell, connections, onRing } = harness({ retryBaseMs: 60_000 })
+    doorbell.start()
+    await vi.waitFor(() => expect(connections).toHaveLength(1))
+
+    doorbell.wake()
+
+    await vi.waitFor(() => expect(connections).toHaveLength(2))
+    await vi.waitFor(() => expect(onRing).toHaveBeenCalledTimes(2))
+    doorbell.stop()
+  })
+
+  it('starts on wake after sleep stopped it', async () => {
+    const { doorbell, connections } = harness({ retryBaseMs: 60_000 })
+    doorbell.start()
+    await vi.waitFor(() => expect(connections).toHaveLength(1))
+    doorbell.stop()
+
+    doorbell.wake()
+
+    await vi.waitFor(() => expect(connections).toHaveLength(2))
     doorbell.stop()
   })
 })

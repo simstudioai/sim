@@ -454,6 +454,8 @@ export type TerminalErrorCode =
   /** No pane with that target — the targets come from the `panes` operation. */
   | 'NO_SUCH_PANE'
   | 'INVALID_REQUEST'
+  /** The call was stopped before its command started; nothing ran. */
+  | 'CANCELLED'
 
 export interface TerminalStartOptions {
   cols: number

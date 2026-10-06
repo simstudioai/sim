@@ -1,8 +1,8 @@
 /**
  * Tells the user when a chat they are not looking at waits for their approval. The notification
  * only opens the chat at its approval card; approving happens there, where the user sees what
- * they are approving. It closes itself once the call is decided, and never names the command,
- * since a notification can show on a locked screen.
+ * they are approving. It closes itself once the call is decided, and names neither the chat nor
+ * the command, since a notification can show on a locked screen.
  */
 import type { DesktopApprovalItem } from '@/main/desktop-executor/executor'
 
@@ -23,12 +23,6 @@ export interface ApprovalNotifierDeps {
     body: string
     silent: boolean
   }) => ApprovalNotification | null
-}
-
-function approvalBody(item: DesktopApprovalItem): string {
-  return item.chatTitle
-    ? `“${item.chatTitle}” is waiting for your approval.`
-    : 'A chat is waiting for your approval.'
 }
 
 export function createApprovalNotifier(deps: ApprovalNotifierDeps) {
@@ -54,7 +48,7 @@ export function createApprovalNotifier(deps: ApprovalNotifierDeps) {
         }
         const notification = deps.createNotification({
           title: 'Approval needed',
-          body: approvalBody(item),
+          body: 'A chat is waiting for your approval.',
           silent: !preferences.notificationSounds,
         })
         if (!notification) return

@@ -61,7 +61,7 @@ function harness(options: { enabled?: boolean; focusedChatId?: string | null } =
 }
 
 describe('approval notifications', () => {
-  it('notifies once per waiting call and opens its chat, never naming the command', () => {
+  it('notifies once per waiting call and opens its chat, naming neither chat nor command', () => {
     const { notifier, notifications, openRoute } = harness()
 
     notifier.update([approval('call-1')])
@@ -70,6 +70,7 @@ describe('approval notifications', () => {
     expect(notifications).toHaveLength(1)
     expect(notifications[0]?.show).toHaveBeenCalledOnce()
     expect(notifications[0]?.options.body).not.toContain('rm -rf')
+    expect(notifications[0]?.options.body).not.toContain('Fix CI')
     notifications[0]?.click()
     expect(openRoute).toHaveBeenCalledWith('/workspace/ws-1/chat/chat-b')
   })

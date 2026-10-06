@@ -16,6 +16,7 @@ const logger = createLogger('DesktopExecutorDoorbell')
 /** Sim heartbeats every 30 s; two missed ones mean the connection is gone. */
 const STALE_STREAM_MS = 75_000
 const RECONNECT_MAX_MS = 30_000
+const HANDSHAKE_TIMEOUT_MS = 15_000
 
 interface DoorbellOptions {
   client: Pick<DesktopExecutorClient, 'openInboxStream'>
@@ -54,6 +55,10 @@ export function parseServerSentEvents(buffer: string): {
 
 export class InboxDoorbell {
   private running = false
+  /** Which loop is current; a loop left over from before a stop ends at its next turn. */
+  private loopGeneration = 0
+  /** The connection was dropped on purpose; open the next one without backing off. */
+  private reconnectNow = false
   private connection: AbortController | null = null
   private sleeper: AbortController | null = null
 
@@ -62,30 +67,46 @@ export class InboxDoorbell {
   start(): void {
     if (this.running) return
     this.running = true
-    void this.loop()
+    this.loopGeneration += 1
+    void this.loop(this.loopGeneration)
   }
 
   stop(): void {
     this.running = false
+    this.loopGeneration += 1
     this.connection?.abort()
     this.sleeper?.abort()
   }
 
-  /** Drops the current connection and reconnects now, as after waking or coming back online. */
-  reconnect(): void {
+  /**
+   * After waking or coming back online: a stopped doorbell starts, and a running one drops its
+   * connection, which may be dead without knowing it, and reconnects at once.
+   */
+  wake(): void {
+    if (!this.running) {
+      this.start()
+      return
+    }
+    this.reconnectNow = true
     this.connection?.abort()
     this.sleeper?.abort()
   }
 
-  private async loop(): Promise<void> {
+  private async loop(generation: number): Promise<void> {
     let attempt = 0
-    while (this.running) {
+    const current = () => this.loopGeneration === generation
+    while (current()) {
       const rotated = await this.connectOnce().then(
         (result) => {
           attempt = 0
           return result === 'rotated'
         },
         (error: unknown) => {
+          if (this.reconnectNow) {
+            this.reconnectNow = false
+            attempt = 0
+            return true
+          }
           attempt += 1
           if (error instanceof DeviceRequestError && error.unregistered) {
             this.options.onUnregistered()
@@ -97,7 +118,7 @@ export class InboxDoorbell {
           return false
         }
       )
-      if (!this.running || rotated) continue
+      if (!current() || rotated) continue
       this.sleeper = new AbortController()
       await interruptibleSleep(
         attempt === 0
@@ -123,7 +144,11 @@ export class InboxDoorbell {
       staleTimer = setTimeout(() => connection.abort(), staleAfterMs)
     }
     try {
-      const stream = await this.options.client.openInboxStream(connection.signal)
+      // A stream whose response never starts is as dead as one that went quiet.
+      const handshake = setTimeout(() => connection.abort(), HANDSHAKE_TIMEOUT_MS)
+      const stream = await this.options.client
+        .openInboxStream(connection.signal)
+        .finally(() => clearTimeout(handshake))
       touch()
       this.options.onRing()
       const reader = stream.getReader()

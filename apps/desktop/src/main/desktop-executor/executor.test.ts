@@ -95,10 +95,13 @@ class FakeSim {
 class MemoryJournal implements ExecutorJournal {
   readonly entries = new Map<string, JournalEntry>()
   readonly history: JournalEntry[] = []
+  /** A transition the disk refuses, as a full disk or a failed encryption would. */
+  failOn: JournalEntry['state'] | null = null
   async load() {
     return [...this.entries.values()]
   }
   async put(entry: JournalEntry) {
+    if (entry.state === this.failOn) throw new Error('disk full')
     this.entries.set(entry.toolCallId, entry)
     this.history.push(entry)
   }
@@ -117,6 +120,8 @@ class FakeRunner implements DesktopToolRunner {
   /** When set, every call finishes at once with this completion. */
   immediate: DesktopToolCompletion | null = null
   onStart: ((call: ClaimedDesktopCall) => void) | null = null
+  /** An action that finishes with its full result even after being told to stop. */
+  ignoresAbort = false
 
   async run(call: ClaimedDesktopCall, signal: AbortSignal) {
     this.started.push(call.toolCallId)
@@ -124,9 +129,10 @@ class FakeRunner implements DesktopToolRunner {
     if (this.immediate) return this.immediate
     const result = deferred<DesktopToolCompletion>()
     this.pending.set(call.toolCallId, result)
-    signal.addEventListener('abort', () =>
-      result.resolve({ status: 'error', message: 'This browser action was cancelled.' })
-    )
+    signal.addEventListener('abort', () => {
+      if (!this.ignoresAbort)
+        result.resolve({ status: 'error', message: 'This browser action was cancelled.' })
+    })
     return result.promise
   }
 
@@ -313,7 +319,7 @@ describe('reporting', () => {
     sim.inbox = [callItem('call-1', 'chat-a')]
 
     await executor.reconcile()
-    await vi.waitFor(() => expect(journal.entries.get('call-1')?.state).toBe('result'))
+    await vi.waitFor(() => expect(journal.history.map((entry) => entry.state)).toContain('result'))
 
     await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
     expect(runner.started).toEqual(['call-1'])
@@ -365,6 +371,23 @@ describe('stopping', () => {
     runner.finish('a-1')
     await vi.waitFor(() => expect(executor.heldCallCount()).toBe(0))
     expect(runner.started).toEqual(['a-1'])
+  })
+
+  it('sends nothing the stopped action produced, only the acknowledgement', async () => {
+    const { sim, runner, executor } = setup()
+    runner.ignoresAbort = true
+    sim.inbox = [callItem('call-1', 'chat-a', 'read_local_file')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
+
+    sim.inbox = [{ kind: 'cancel', toolCallId: 'call-1' }]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.cancelled).toEqual(['call-1']))
+    runner.finish('call-1', { status: 'success', message: 'read', data: { text: 'secret' } })
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    expect(sim.completions[0]?.completion.status).toBe('cancelled')
+    expect(JSON.stringify(sim.completions[0])).not.toContain('secret')
   })
 
   it('ignores a cancel for a call it never held', async () => {
@@ -430,5 +453,52 @@ describe('registration', () => {
     expect(runner.cancelled).toEqual(['call-1'])
     expect(journal.entries.size).toBe(0)
     expect(executor.heldCallCount()).toBe(0)
+  })
+
+  it('does not keep a claim that Sim answers after sign-out', async () => {
+    const { sim, journal, runner, executor } = setup({ leaseRenewMs: 10 })
+    const answer = deferred<void>()
+    const claim = sim.client.claim
+    sim.client.claim = async (toolCallId) => {
+      await answer.promise
+      return claim(toolCallId)
+    }
+    sim.inbox = [callItem('call-1', 'chat-a')]
+    const reading = executor.reconcile()
+    await vi.waitFor(() => expect(journal.entries.get('call-1')?.state).toBe('claiming'))
+
+    const signingOut = executor.dispose()
+    answer.resolve()
+    await Promise.all([reading, signingOut])
+    await sleep(40)
+
+    expect(executor.heldCallCount()).toBe(0)
+    expect(runner.started).toEqual([])
+    expect(sim.renewals).toEqual([])
+    expect(journal.entries.size).toBe(0)
+  })
+})
+
+describe('recording', () => {
+  it('leaves a call on offer when it cannot record the claim', async () => {
+    const { sim, journal, executor } = setup()
+    journal.failOn = 'claiming'
+    sim.inbox = [callItem('call-1', 'chat-a')]
+
+    await executor.reconcile()
+
+    expect(sim.claims).toEqual([])
+  })
+
+  it('never starts an action it could not record, and reports it as not run', async () => {
+    const { sim, journal, runner, executor } = setup()
+    journal.failOn = 'started'
+    sim.inbox = [callItem('call-1', 'chat-a')]
+
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    expect(sim.completions[0]?.completion.data).toMatchObject({ notStarted: true })
+    expect(runner.started).toEqual([])
   })
 })

@@ -1,0 +1,75 @@
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
+import type { Session } from 'electron'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
+import { createDesktopExecutorService } from '@/main/desktop-executor/service'
+
+/** Sim's device routes, with registration answers held until the test releases them. */
+function fakeSim() {
+  const requests: string[] = []
+  const registrations: Array<(enabled: boolean) => void> = []
+  const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
+    const path = new URL(url).pathname
+    requests.push(`${init.method} ${path}`)
+    if (path === '/api/desktop/devices') {
+      const enabled = await new Promise<boolean>((resolve) => registrations.push(resolve))
+      return Response.json({
+        enabled,
+        protocolVersion: 1,
+        leaseMs: 60_000,
+        leaseRenewMs: 20_000,
+        reconcileMs: 10_000,
+      })
+    }
+    if (path === '/api/desktop/inbox') return Response.json({ items: [] })
+    return new Promise<Response>((_resolve, reject) =>
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+    )
+  })
+  return { fetch, requests, registrations }
+}
+
+async function service() {
+  const sim = fakeSim()
+  const desktopExecutor = createDesktopExecutorService({
+    userDataPath: await mkdtemp(join(tmpdir(), 'sim-executor-service-')),
+    origin: () => 'https://sim.test',
+    appSession: () => ({ fetch: sim.fetch }) as unknown as Session,
+    preferences: () => ({ browserEnabled: true, terminalEnabled: true }),
+    accountDataAvailable: () => true,
+    runner: { run: vi.fn(), cancel: vi.fn() },
+  })
+  return { sim, desktopExecutor }
+}
+
+describe('desktop executor registration', () => {
+  it('offers the device for binding once Sim enables it', async () => {
+    const { sim, desktopExecutor } = await service()
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+    sim.registrations[0]?.(true)
+
+    await vi.waitFor(() => expect(desktopExecutor.getDevice()).not.toBeNull())
+    await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
+  })
+
+  it('never resumes for a registration that Sim answers after sign-out', async () => {
+    const { sim, desktopExecutor } = await service()
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+    await desktopExecutor.signOut()
+    sim.registrations[0]?.(true)
+    await sleep(50)
+
+    expect(desktopExecutor.getDevice()).toBeNull()
+    expect(sim.requests).not.toContain('GET /api/desktop/inbox')
+    expect(sim.requests).not.toContain('GET /api/desktop/inbox/stream')
+  })
+})

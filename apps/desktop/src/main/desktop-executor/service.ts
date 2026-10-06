@@ -102,6 +102,9 @@ export function createDesktopExecutorService(
   let registrationAttempt = 0
   let suspended = false
   let started = false
+  /** Bumped on sign-out, so work started for the previous session cannot resume it. */
+  let generation = 0
+  let executorDeviceId: string | null = null
 
   async function installId(): Promise<string> {
     if (deviceId) return deviceId
@@ -158,9 +161,15 @@ export function createDesktopExecutorService(
   }
 
   /** Builds the executor for this install the first time Sim recognizes it. */
-  async function startExecutor(id: string, nextTiming: DesktopExecutorTiming): Promise<void> {
+  async function startExecutor(
+    id: string,
+    nextTiming: DesktopExecutorTiming,
+    registrationGeneration: number
+  ): Promise<void> {
+    if (executor && executorDeviceId !== id) await resetExecutor()
     timing = nextTiming
     if (!executor || !client) {
+      executorDeviceId = id
       client = createDesktopExecutorClient({
         origin: deps.origin,
         fetch: fetchWithAppSession,
@@ -175,6 +184,8 @@ export function createDesktopExecutorService(
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
       })
       await executor.recover()
+      // Signed out while recovering: sign-out already disposed this executor.
+      if (registrationGeneration !== generation || !executor) return
     }
     if (!doorbell) {
       doorbell = new InboxDoorbell({
@@ -190,11 +201,14 @@ export function createDesktopExecutorService(
 
   async function register(): Promise<void> {
     if (!deps.accountDataAvailable()) return
+    const registrationGeneration = generation
     const id = await installId()
     const preferences = deps.preferences()
-    const registrationClient =
-      client ??
-      createDesktopExecutorClient({ origin: deps.origin, fetch: fetchWithAppSession, deviceId: id })
+    const registrationClient = createDesktopExecutorClient({
+      origin: deps.origin,
+      fetch: fetchWithAppSession,
+      deviceId: id,
+    })
     try {
       const nextTiming = await registrationClient.register({
         deviceId: id,
@@ -208,6 +222,7 @@ export function createDesktopExecutorService(
           localFiles: deps.accountDataAvailable(),
         },
       })
+      if (registrationGeneration !== generation || id !== deviceId) return
       registrationAttempt = 0
       device = nextTiming.enabled
         ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
@@ -215,8 +230,9 @@ export function createDesktopExecutorService(
       logger.info('Desktop executor registered', { enabled: nextTiming.enabled })
       // Off for this user: a turn already bound to this device still finishes here, so the
       // executor keeps serving the inbox; no new turn binds while `device` is null.
-      await startExecutor(id, nextTiming)
+      await startExecutor(id, nextTiming, registrationGeneration)
     } catch (error) {
+      if (registrationGeneration !== generation) return
       device = null
       if (error instanceof DeviceRequestError && error.status === 409) {
         // The id belongs to another account (a copied profile); this install takes a new one.
@@ -275,6 +291,7 @@ export function createDesktopExecutorService(
     stopLoops()
     const current = executor
     executor = null
+    executorDeviceId = null
     client = null
     timing = null
     device = null
@@ -284,8 +301,7 @@ export function createDesktopExecutorService(
   function wake(): void {
     suspended = false
     executor?.setPaused(false)
-    doorbell?.start()
-    doorbell?.reconnect()
+    doorbell?.wake()
     void executor?.reconcile()
     scheduleReconcile()
   }
@@ -319,6 +335,8 @@ export function createDesktopExecutorService(
       return device
     },
     async signOut() {
+      // A registration in flight now answers for a session that is gone; it must not restart.
+      generation += 1
       if (registrationTimer) clearTimeout(registrationTimer)
       registrationTimer = null
       await resetExecutor()

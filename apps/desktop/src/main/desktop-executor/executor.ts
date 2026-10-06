@@ -15,7 +15,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { type DesktopExecutorClient, DeviceRequestError } from '@/main/desktop-executor/client'
-import type { ExecutorJournal } from '@/main/desktop-executor/journal'
+import type { ExecutorJournal, JournalEntry } from '@/main/desktop-executor/journal'
 import type { ClaimedDesktopCall, DesktopInboxItem } from '@/main/desktop-executor/protocol'
 
 const logger = createLogger('DesktopExecutor')
@@ -30,6 +30,9 @@ const NOT_STARTED_AFTER_RESTART =
 const OUTCOME_UNKNOWN_AFTER_RESTART =
   'The Sim desktop app restarted while this action was running, so its result was lost. It may already have taken effect: inspect the current state before repeating it, and do not retry it automatically.'
 const STOPPED_BEFORE_START = 'Stopped before the Sim desktop app started this action.'
+const STOPPED_WHILE_RUNNING = 'Stopped while the Sim desktop app was running this action.'
+const NOT_RECORDED =
+  'Not run: the Sim desktop app could not record this action on the user’s computer before starting it, so it did not start it.'
 const RESULT_TOO_LARGE =
   'The action finished, but its result was too large to send back. Do not repeat a side-effecting action; inspect the current state instead.'
 
@@ -100,8 +103,10 @@ export class DesktopExecutor {
     const entries = await this.options.journal.load()
     for (const entry of entries) {
       if (entry.state === 'claiming') {
-        // Unknown whether the claim landed; the inbox decides whether it is still on offer.
-        await this.options.journal.remove(entry.toolCallId)
+        // Unknown whether the claim landed. If it did not, the inbox offers the call again. If it
+        // did, its token never reached this device, so nothing here can report it; Sim settles it
+        // as outcome unknown once its lease lapses, which is conservative because nothing ran.
+        await this.forget(entry.toolCallId)
         continue
       }
       const completion: DesktopToolCompletion =
@@ -156,6 +161,8 @@ export class DesktopExecutor {
   /** Sign-out: stops every action and forgets every call; the session that owned them is gone. */
   async dispose(): Promise<void> {
     this.disposed = true
+    // An inbox read in flight may still be claiming; let it see `disposed` before clearing.
+    await this.reconciling?.catch(() => {})
     const held = [...this.held.values()]
     for (const entry of held) this.release(entry)
     await Promise.allSettled(
@@ -192,21 +199,43 @@ export class DesktopExecutor {
     }
   }
 
+  /** Writes a journal transition; false when it could not be made durable. */
+  private async record(entry: JournalEntry): Promise<boolean> {
+    try {
+      await this.options.journal.put(entry)
+      return true
+    } catch (error) {
+      logger.warn('Could not record a desktop call locally', {
+        toolCallId: entry.toolCallId,
+        state: entry.state,
+        error: getErrorMessage(error),
+      })
+      return false
+    }
+  }
+
+  private async forget(toolCallId: string): Promise<void> {
+    await this.options.journal.remove(toolCallId).catch((error) =>
+      logger.warn('Could not forget a desktop call locally', {
+        toolCallId,
+        error: getErrorMessage(error),
+      })
+    )
+  }
+
   private async claim(toolCallId: string): Promise<void> {
-    await this.options.journal.put({ toolCallId, state: 'claiming' })
+    // Unrecorded, a claim that then crashed could never be accounted for; leave it on offer.
+    if (!(await this.record({ toolCallId, state: 'claiming' }))) return
     let call: ClaimedDesktopCall
     try {
       call = await this.options.client.claim(toolCallId)
     } catch (error) {
-      await this.options.journal.remove(toolCallId)
+      await this.forget(toolCallId)
       this.noteRequestFailure('Desktop call was not claimed', error, { toolCallId })
       return
     }
-    await this.options.journal.put({
-      toolCallId,
-      state: 'claimed',
-      executionToken: call.executionToken,
-    })
+    // Best effort: an unrecorded token leaves `claiming`, which recovery treats conservatively.
+    await this.record({ toolCallId, state: 'claimed', executionToken: call.executionToken })
     const entry: HeldCall = {
       call,
       phase: 'queued',
@@ -238,17 +267,34 @@ export class DesktopExecutor {
   private async execute(entry: HeldCall): Promise<void> {
     if (entry.stopped || this.disposed) return
     const { call } = entry
-    await this.options.journal.put({
+    const recorded = await this.record({
       toolCallId: call.toolCallId,
       state: 'started',
       executionToken: call.executionToken,
     })
     if (entry.stopped || this.disposed) return
+    entry.phase = 'reporting'
+    if (!recorded) {
+      // Running it unrecorded could let a crash report an action that ran as never started.
+      await this.deliver(call.toolCallId, call.executionToken, {
+        status: 'error',
+        message: NOT_RECORDED,
+        data: { error: NOT_RECORDED, notStarted: true },
+      })
+      this.release(entry)
+      return
+    }
     entry.phase = 'running'
     const completion = await this.options.runner.run(call, entry.controller.signal)
     if (this.disposed || this.held.get(call.toolCallId) !== entry) return
     entry.phase = 'reporting'
-    await this.deliver(call.toolCallId, call.executionToken, completion)
+    // A stopped call's result is only an acknowledgement: Sim already settled it, so nothing the
+    // action produced (page text, file contents) leaves the machine.
+    await this.deliver(
+      call.toolCallId,
+      call.executionToken,
+      entry.stopped ? { status: 'cancelled', message: STOPPED_WHILE_RUNNING } : completion
+    )
     this.release(entry)
   }
 
@@ -262,7 +308,8 @@ export class DesktopExecutor {
     completion: DesktopToolCompletion
   ): Promise<void> {
     let pending = completion
-    await this.options.journal.put({ toolCallId, state: 'result', executionToken, completion })
+    // Best effort: unrecorded, a crash reports the call from its `started` entry as outcome unknown.
+    await this.record({ toolCallId, state: 'result', executionToken, completion })
     for (let attempt = 1; !this.disposed; attempt++) {
       try {
         const outcome = await this.options.client.complete({
@@ -297,7 +344,7 @@ export class DesktopExecutor {
         )
       }
     }
-    if (!this.disposed) await this.options.journal.remove(toolCallId)
+    if (!this.disposed) await this.forget(toolCallId)
   }
 
   private async renew(entry: HeldCall): Promise<void> {

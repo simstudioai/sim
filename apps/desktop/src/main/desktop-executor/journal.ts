@@ -28,6 +28,37 @@ const logger = createLogger('DesktopExecutorJournal')
 const JOURNAL_VERSION = 1
 /** Results can carry a screenshot, so the bound is the size of a few of them. */
 const MAX_JOURNAL_BYTES = 64 * 1024 * 1024
+/**
+ * Result data kept on disk across all entries. Encryption and base64 grow it by about a third,
+ * so a journal within this budget always reads back under {@link MAX_JOURNAL_BYTES}.
+ */
+const MAX_PERSISTED_RESULT_CHARS = 32 * 1024 * 1024
+const RESULT_NOT_KEPT =
+  'The action finished, but its result was too large to keep on this computer. Do not repeat a side-effecting action; inspect the current state instead.'
+
+/**
+ * The entries as written to disk: a result whose data would push the journal past its budget is
+ * kept as finished without its data, so the file never grows past what a restart can read.
+ */
+function boundedEntries(entries: Map<string, JournalEntry>): JournalEntry[] {
+  let budget = MAX_PERSISTED_RESULT_CHARS
+  return [...entries.values()].map((entry) => {
+    if (entry.state !== 'result' || entry.completion.data === undefined) return entry
+    const size = JSON.stringify(entry.completion.data).length
+    if (size <= budget) {
+      budget -= size
+      return entry
+    }
+    return {
+      ...entry,
+      completion: {
+        status: entry.completion.status,
+        message: RESULT_NOT_KEPT,
+        data: { error: RESULT_NOT_KEPT, resultOmitted: true },
+      },
+    }
+  })
+}
 
 export type JournalEntry =
   | { toolCallId: string; state: 'claiming' }
@@ -97,24 +128,19 @@ export function createExecutorJournal(
     return result
   }
 
+  /**
+   * Rewrites the whole journal. A failure rejects, so the caller knows the transition is not
+   * durable; the in-memory journal stays current and the next transition rewrites it all.
+   */
   const persist = async (): Promise<void> => {
     if (!encryptionAvailable(encryption)) return
     if (entries.size === 0) {
       await removeFileIfPresent(filePath)
       return
     }
-    const payload = JSON.stringify({ version: JOURNAL_VERSION, entries: [...entries.values()] })
+    const payload = JSON.stringify({ version: JOURNAL_VERSION, entries: boundedEntries(entries) })
     const ciphertext = encryption.encryptString(payload).toString('base64')
     await writeJsonFileAtomically(filePath, { version: JOURNAL_VERSION, ciphertext })
-  }
-
-  /** A failed write leaves the in-memory journal correct; the next transition rewrites it all. */
-  const persistLogged = async (): Promise<void> => {
-    try {
-      await persist()
-    } catch (error) {
-      logger.warn('Could not write the executor journal', { error: getErrorMessage(error) })
-    }
   }
 
   return {
@@ -160,13 +186,13 @@ export function createExecutorJournal(
     put(entry) {
       return enqueue(async () => {
         entries.set(entry.toolCallId, entry)
-        await persistLogged()
+        await persist()
       })
     },
     remove(toolCallId) {
       return enqueue(async () => {
         if (!entries.delete(toolCallId)) return
-        await persistLogged()
+        await persist()
       })
     },
     clear() {
