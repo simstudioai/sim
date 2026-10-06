@@ -12589,6 +12589,7 @@
                     "type": "string",
                     "enum": [
                       "github-repositories",
+                      "eloqua",
                       "google-email",
                       "google-drive",
                       "google-docs",

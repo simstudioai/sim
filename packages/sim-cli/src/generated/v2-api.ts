@@ -1687,6 +1687,7 @@ export type CreateCredentialConnectionBody =
       displayName: string
       providerId:
         | 'github-repositories'
+        | 'eloqua'
         | 'google-email'
         | 'google-drive'
         | 'google-docs'
@@ -6286,6 +6287,11 @@ export type GetSelectorBody = {
     | 'confluence.spaces'
     | 'confluence.spacesById'
     | 'confluence.pages'
+    | 'eloqua.campaigns'
+    | 'eloqua.contactLists'
+    | 'eloqua.emails'
+    | 'eloqua.forms'
+    | 'eloqua.segments'
     | 'google.tasks.lists'
     | 'gmail.labels'
     | 'google.calendar'
@@ -9091,6 +9097,11 @@ export type ListSelectorBody = {
     | 'confluence.spaces'
     | 'confluence.spacesById'
     | 'confluence.pages'
+    | 'eloqua.campaigns'
+    | 'eloqua.contactLists'
+    | 'eloqua.emails'
+    | 'eloqua.forms'
+    | 'eloqua.segments'
     | 'google.tasks.lists'
     | 'gmail.labels'
     | 'google.calendar'
@@ -17112,6 +17123,11 @@ export const V2_OPERATIONS = {
           'confluence.spaces',
           'confluence.spacesById',
           'confluence.pages',
+          'eloqua.campaigns',
+          'eloqua.contactLists',
+          'eloqua.emails',
+          'eloqua.forms',
+          'eloqua.segments',
           'google.tasks.lists',
           'gmail.labels',
           'google.calendar',
@@ -19202,6 +19218,11 @@ export const V2_OPERATIONS = {
           'confluence.spaces',
           'confluence.spacesById',
           'confluence.pages',
+          'eloqua.campaigns',
+          'eloqua.contactLists',
+          'eloqua.emails',
+          'eloqua.forms',
+          'eloqua.segments',
           'google.tasks.lists',
           'gmail.labels',
           'google.calendar',

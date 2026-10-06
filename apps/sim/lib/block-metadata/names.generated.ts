@@ -74,6 +74,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   dynatrace: 'Dynatrace',
   elasticsearch: 'Elasticsearch',
   elevenlabs: 'ElevenLabs',
+  eloqua: 'Oracle Eloqua',
   emailbison: 'Email Bison',
   embeddings: 'Embeddings',
   enrich: 'Enrich',
