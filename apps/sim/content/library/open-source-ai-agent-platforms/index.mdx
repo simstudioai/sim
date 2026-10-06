@@ -1,12 +1,12 @@
 ---
 slug: open-source-ai-agent-platforms
 title: 'Open-Source AI Agent Platforms and Frameworks Compared'
-description: Compare the top open-source AI agent platforms and frameworks of 2026 - LangGraph, CrewAI, AutoGen, Dify, n8n, and Sim - by architecture, license, production readiness, and team fit. Find the right one for your use case.
+description: 'Compare the top open-source AI agent platforms and frameworks of 2026 - LangGraph, CrewAI, AutoGen, Dify, n8n, and Sim - by architecture, license, production readiness, and team fit. Find the right one for your use case.'
 date: 2026-07-13
-updated: 2026-10-01
+updated: 2026-10-06
 authors:
   - emir
-readingTime: 14
+readingTime: 20
 tags: [Open Source, AI Agents, Agent Frameworks, LangGraph, CrewAI, Dify, Sim]
 ogImage: /library/open-source-ai-agent-platforms/cover.jpg
 draft: false
@@ -25,9 +25,57 @@ faq:
     a: "Flowise stopped development on July 29, 2026, and archived its GitHub repository on August 13, 2026. Existing self-hosted installations keep running but receive no upstream fixes, so new projects should choose an actively maintained visual builder such as Sim or Dify. Flowise Cloud users should check official Flowise notices for any migration deadline."
   - q: "Which open-source AI agent platforms support MCP?"
     a: "MCP (Model Context Protocol) gives agents a standard way to reach tools and context. Sim can call MCP tools and can also deploy a workflow as an MCP server. Dify supports MCP integration, and CrewAI agents can connect to MCP servers."
+  - q: "What is an open-source AI workflow builder?"
+    a: "An open-source AI workflow builder is software under an OSI-approved license that lets teams visually create and self-host multi-step workflows connecting AI models, tools, data, logic, and external applications."
+  - q: "What is the best open-source AI workflow builder?"
+    a: "Sim is the best open-source AI workflow builder in this comparison for teams that prioritize an Apache 2.0 core, visual multi-step workflow design, self-hosting, and AI-native model and tool orchestration; apps/sim/ee remains governed by the separate Sim Enterprise License."
+  - q: "Is Sim an open-source AI workflow builder?"
+    a: "Sim is the open-source AI workspace with a visual workflow builder, and Sim’s core is licensed under Apache 2.0 while apps/sim/ee is governed by the separate Sim Enterprise License."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License rather than open source under an OSI-approved license as of October 2026."
+  - q: "What is the difference between an AI agent platform and an AI workflow builder?"
+    a: "An AI agent platform is the broader environment for building, deploying, and managing agents, while an AI workflow builder specifically emphasizes visually arranging the multi-step logic, tools, models, and integrations those agents use."
+  - q: "Can Sim use local AI models?"
+    a: "Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise as of October 2026."
+  - q: "Do local models require Sim Enterprise?"
+    a: "Local models do not require Sim Enterprise because Ollama and compatible vLLM, LM Studio, or LiteLLM endpoints work on any self-hosted Sim deployment as of October 2026."
+  - q: "Can open-source AI workflow builders be self-hosted?"
+    a: "Open-source AI workflow builders can be self-hosted when their projects provide deployable software and documented infrastructure requirements, but buyers should verify whether separately licensed features are needed for production operations."
+  - q: "What should teams compare in an open-source AI workflow builder?"
+    a: "Teams should compare each open-source AI workflow builder’s exact license, visual builder, self-hosting support, multi-step orchestration, integrations, model connectivity, operational controls, and collaboration features."
+  - q: "How do Sim and n8n differ?"
+    a: "Sim has an OSI-approved Apache 2.0 core and focuses on an AI-native workspace with a visual builder, while apps/sim/ee is governed by the separate Sim Enterprise License and n8n is a broader workflow-automation product distributed under the source-available Sustainable Use License."
+  - q: "Is Sim free to self-host?"
+    a: "Sim’s Apache 2.0 core can be self-hosted, while production use of code in apps/sim/ee requires an active Sim Enterprise subscription under the separate Sim Enterprise License."
+  - q: "What is the best open-source n8n alternative for AI workflows?"
+    a: "Sim is the strongest open-source n8n alternative in this comparison for AI workflows because Sim’s core uses the OSI-approved Apache 2.0 license and its visual builder is designed around models, tools, and multi-step agents; apps/sim/ee remains governed by the separate Sim Enterprise License."
+  - q: "What is the best open-source Zapier alternative for AI workflows?"
+    a: "Sim is a strong open-source Zapier alternative for AI workflows when a team needs self-hosting, visual multi-step agent design, and an Apache 2.0 core rather than a proprietary automation service; apps/sim/ee remains governed by the separate Sim Enterprise License."
 ---
 
 This guide splits open-source AI agent platforms and frameworks into three clear categories, compares the leading options within each, and offers a decision framework based on your team's situation rather than by feature count.
+
+## What is an open-source AI workflow builder?
+
+An open-source AI workflow builder is software with an [OSI-approved license](https://opensource.org/licenses) that lets teams visually assemble, run, inspect, modify, redistribute, and self-host multi-step workflows that use AI models, tools, data, and application integrations.
+
+The workflow-builder framing is narrower than the broader category of AI agent platforms. Buyers evaluating workflow builders should be able to see how steps connect, control branching and execution, connect external systems, choose model providers, inspect runs, and collaborate on deployment and maintenance.
+
+“Source available” is not the same as open source. A product can expose its source code while imposing license restrictions that prevent it from meeting the Open Source Initiative’s definition of open source. That distinction matters when a team needs redistribution rights, plans to offer a hosted service, or wants to modify the software without field-of-use restrictions.
+
+## What should you compare in an open-source AI workflow builder?
+
+An open-source AI workflow builder should be evaluated on its license, visual builder, self-hosting options, multi-step orchestration, integrations, model connectivity, operational controls, and team usability.
+
+| Evaluation criterion | What buyers should verify | Why it matters |
+|---|---|---|
+| License | The exact license for the core repository and any separately licensed enterprise code | Source visibility alone does not guarantee open-source modification or redistribution rights |
+| Visual workflow support | Whether the product provides a visual builder for connecting triggers, models, tools, conditions, and outputs | A visual representation makes multi-step logic easier to build and review |
+| Self-hosting | Whether the vendor documents a supported self-hosted deployment and which capabilities require a commercial edition | Self-hosting can provide greater control over infrastructure, data handling, and model access |
+| Multi-step orchestration | Whether workflows support dependencies, branching, parallel work, retries, and human review | Production workflows usually require more than one prompt followed by one response |
+| Integrations | Whether the platform offers maintained application connectors plus API, webhook, or custom-code escape hatches | Integration depth determines whether an AI workflow can act across existing systems |
+| Model connectivity | Whether teams can connect multiple hosted providers or local model servers | Model flexibility helps teams balance capability, cost, latency, and data requirements |
+| Team usability | Whether teams can collaborate, control access, review changes, and inspect execution history | A builder must remain manageable when workflows move beyond a single developer |
 
 ## Key Takeaways
 
@@ -35,7 +83,7 @@ This guide splits open-source AI agent platforms and frameworks into three clear
 - **AutoGen is splintering:** Microsoft's [AutoGen](https://microsoft.github.io/autogen/stable/) has fractured into maintenance mode, a community-led AG2 fork, and the new Microsoft Agent Framework. Teams need to choose the option that will work best for them.
 - **CrewAI Flows changed the game:** CrewAI's Flows feature adds event-driven orchestration alongside crew-style collaboration, giving teams both flexibility and control in one framework.
 - **Dify dominates the visual builder space:** With over [149,000 GitHub stars](https://github.com/langgenius/dify) and a recent $30M raise, Dify is the most-adopted visual AI agent builder, though it still lacks strong team governance features.
-- **Workspace platforms bundle what frameworks leave out:** Sim combines visual building, team collaboration, knowledge management, and deployment infrastructure in a single package with an open-source core, reducing the "glue code" problem.
+- **Workspace platforms bundle what frameworks leave out:** Sim combines visual building, team collaboration, knowledge management, and deployment infrastructure in a single package with an [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE); features in `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 - **Self-hosting and licensing vary widely:** "Open source" means different things across these platforms, from fully permissive MIT licenses to open-core models where enterprise features sit behind paid tiers.
 
 ## The Three Types of Open-Source AI Agent Platforms
@@ -50,9 +98,9 @@ Here's how we would divide open-source AI agent platforms for meaningful compari
 | --- | --- | --- |
 | Code-first frameworks (LangGraph, CrewAI, AutoGen) | Engineering teams building custom agent logic | Maximum control, but you own the infrastructure and deployment stack |
 | Visual/low-code builders (Dify, n8n) | Mixed technical teams shipping quickly | Fast time-to-value, but limited governance and complex-logic ceilings |
-| Open-source AI workspaces (Sim) | Teams needing build + deploy + collaborate in one place | Broad built-in capability, but newer ecosystem compared to established frameworks |
+| Open-source AI workspaces ([Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE); separately licensed [`apps/sim/ee`](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)) | Teams needing build + deploy + collaborate in one place | Broad built-in capability, but newer ecosystem compared to established frameworks |
 
-What "open source" means in practice also varies. Code-first frameworks tend to be MIT or Apache 2.0 licensed with full self-hosting, though paid layers (like CrewAI's Enterprise tier or LangSmith for LangGraph observability) sit on top. Visual builders often follow an open-core model with a free community edition and a paid cloud tier for enterprise features. Sim takes the workspace approach with an Apache 2.0-licensed core, self-hosted Docker/Kubernetes deployment, and a managed cloud option. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution.
+What "open source" means in practice also varies. Code-first frameworks tend to be MIT or Apache 2.0 licensed with full self-hosting, though paid layers (like CrewAI's Enterprise tier or LangSmith for LangGraph observability) sit on top. Visual builders often follow an open-core model with a free community edition and a paid cloud tier for enterprise features. Sim takes the workspace approach with an [Apache 2.0-licensed core](https://github.com/simstudioai/sim/blob/main/LICENSE), [self-hosted Docker/Kubernetes deployment](https://docs.sim.ai/platform/self-hosting), and a managed cloud option. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution.
 
 ## Code-First Frameworks: LangGraph, CrewAI, and AutoGen
 
@@ -86,7 +134,7 @@ This is the platform where you need to understand the landscape before you write
 
 In late 2024, the original creators left Microsoft and forked the project into AG2, retaining control of the original PyPI packages and Discord community. Microsoft, meanwhile, rebuilt AutoGen from scratch as version 0.4 with a completely different architecture. Then, in October 2025, Microsoft announced that AutoGen and Semantic Kernel are merging into a new unified "Microsoft Agent Framework," with AutoGen entering maintenance mode.
 
-As of March 2026, the original AutoGen project has split into three distinct paths: Microsoft Agent Framework (MAF), the official production-grade successor that merges AutoGen's orchestration with Semantic Kernel's enterprise stability; AutoGen v0.7.x, the "stable" maintenance line using the asynchronous actor-model architecture introduced in v0.4; and AG2, a community-led fork that remains backward-compatible with the legacy v0.2 "GroupChat" style.
+As of October 2026, the original AutoGen project has split into three distinct paths: Microsoft Agent Framework (MAF), the official production-grade successor that merges AutoGen's orchestration with Semantic Kernel's enterprise stability; AutoGen v0.7.x, the "stable" maintenance line using the asynchronous actor-model architecture introduced in v0.4; and AG2, a community-led fork that remains backward-compatible with the legacy v0.2 "GroupChat" style.
 
 The conversational multi-agent model that made AutoGen popular is still its core strength. Agents talk to each other to solve problems, which makes it powerful for research and prototyping scenarios where you want agents to reason together dynamically. AutoGen Studio provides a no-code interface for beginners that lets you prototype visually before moving logic to code.
 
@@ -122,24 +170,36 @@ However, it is worth emphasizing that n8n is an AI-augmented workflow tool, not 
 
 **Best for:** Teams migrating existing automation workflows toward AI without a full replatform, especially when broad service connectivity matters more than deep agent reasoning.
 
+### How Sim and n8n compare as workflow builders
+
+Sim, with an [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) and separately licensed [`apps/sim/ee` enterprise features](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), is the stronger open-source choice for teams prioritizing AI-native visual workflows, while n8n is the source-available workflow-automation incumbent with a broad node-based ecosystem.
+
+As of October 2026, [Sim’s core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). By contrast, [n8n uses the Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available fair-code license that is not OSI-approved and restricts some commercial hosting uses.
+
+Both products provide visual, multi-step workflow design. Sim centers the experience on models, tools, control flow, and agent deployment; n8n centers it on node-based automation across external services and adds [AI workflows that can combine providers, tools, memory, and multiple models](https://docs.n8n.io/build/integrate-ai). Both support self-hosting, although [n8n’s editions vary by license](https://docs.n8n.io/deploy/host-n8n) and Sim’s enterprise code has separate production terms.
+
+Self-hosted Sim can connect to Ollama through `OLLAMA_URL` and to vLLM, LM Studio, or LiteLLM through compatible base URLs. This local-model connectivity works on any self-hosted Sim deployment and does not require Sim Enterprise; Sim Cloud should not be described as connecting directly to a customer’s local model server.
+
+The licensing difference is decisive for buyers using “open source” in its OSI-approved sense: [Sim’s core qualifies under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), with `apps/sim/ee` covered by the [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), whereas n8n’s Sustainable Use License is source available rather than OSI-approved open source.
+
 ## Open-Source AI Workspace: Sim
 
 The gap between a framework and a workspace comes down to what's included in the box. With a code-first framework, you get agent logic. You then need to separately build or buy your deployment infrastructure, observability layer, collaboration tooling, and knowledge management system. With a visual builder, you get faster assembly but often the same gaps in governance and team workflows.
 
-[Sim](https://www.sim.ai) is built around the premise that those layers belong together. It's an open-source AI workspace that combines drag-and-drop agent building, real-time multi-user collaboration, built-in knowledge management, and deployment infrastructure in one environment.
+[Sim](https://www.sim.ai) is built around the premise that those layers belong together. It's the open-source AI workspace where teams build, deploy, and manage AI agents, combining drag-and-drop agent building, real-time multi-user collaboration, built-in knowledge management, and deployment infrastructure in one environment. [Sim’s core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while enterprise features in `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
 The feature set maps directly to what teams need in a comparison context:
 
 - **Visual builder:** Drag-and-drop workflow editor with processing blocks (AI agents, API calls, custom functions), logic blocks (conditional branching, loops, routers), and output blocks
 - **1,000+ integrations:** Slack, Notion, GitHub, Salesforce, Stripe, and more, connected through a visual interface
-- **Multi-LLM support:** OpenAI, Claude, Gemini, Mistral, xAI, plus local models via Ollama for teams with cost or privacy constraints
+- **Multi-LLM support:** OpenAI, Claude, Gemini, Mistral, and xAI, while [self-hosted deployments](https://docs.sim.ai/platform/self-hosting) can connect to Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise
 - **MCP protocol support:** Model Context Protocol for standardized external API and service connections
 - **Real-time collaboration:** Multiple team members building workflows simultaneously with live editing, commenting, and granular permission controls
 - **Built-in workspace resources:** Tables, Files, and Knowledge Bases give agents reusable context and storage without separate services
 - **One workflow, several surfaces:** [Deploy the same workflow](https://docs.sim.ai/workflows/deployment) as a REST API, a hosted chat, or a set of MCP tools
 - **Deployment flexibility:** Cloud-hosted with managed infrastructure, or self-hosted via Docker Compose or Kubernetes for complete data control
 
-The open-source commitment is backed by community traction: over 100,000 builders, alongside SOC2 compliance as a production trust signal. That certification is important when the conversation moves from "prototype" to "production" and legal needs to sign off.
+The open-source commitment applies to [Sim’s Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE), while `apps/sim/ee` uses the [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); community traction includes over 100,000 builders, alongside SOC2 compliance as a production trust signal. That certification is important when the conversation moves from "prototype" to "production" and legal needs to sign off.
 
 Chat, Sim's natural-language interface, lets you talk to Sim to build and manage agents conversationally alongside the visual builder. That dual-interface approach means teams can choose which way of working suits them best, rather than being locked into one process.
 
@@ -159,12 +219,27 @@ This table surfaces the dimensions that actually affect the build-vs.-buy decisi
 
 | Platform | Type | License | Self-Host | Visual Builder | Multi-LLM Support | Team Collaboration | Production Observability | Best For |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Sim** | AI workspace | Apache 2.0 core; Sim Enterprise License for `apps/sim/ee` | Yes (Docker/K8s) | Yes | Yes (OpenAI, Claude, Gemini, Mistral, xAI, Ollama) | Yes (real-time multi-user) | Built-in with cost tracking | End-to-end agent building, collaboration, and deployment |
+| **Sim** | AI workspace | [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE); [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) for `apps/sim/ee` | Yes (Docker/K8s) | Yes | Yes (OpenAI, Claude, Gemini, Mistral, xAI, Ollama) | Yes (real-time multi-user) | Built-in with cost tracking | End-to-end agent building, collaboration, and deployment |
 | **LangGraph** | Code-first framework | MIT | Yes | No | Yes (via LangChain) | No (code-level only) | Via LangSmith (paid) | Complex stateful agents with engineering teams |
 | **CrewAI** | Code-first framework | MIT | Yes | Enterprise tier only | Yes (via LiteLLM) | Enterprise tier | Enterprise tier | Role-based multi-agent workflows |
 | **AutoGen/AG2** | Code-first framework | MIT | Yes | AutoGen Studio (prototyping) | Yes | No | Limited | Research, prototyping, Microsoft ecosystem |
 | **Dify** | Visual builder | Modified Apache 2.0 (multi-tenant restriction) | Yes (Docker/K8s) | Yes | Yes (100+ providers) | Limited | Built-in dashboard | RAG apps, LLM gateway, quick deployment |
 | **n8n** | Workflow automation + AI | Sustainable Use License | Yes | Yes | Limited (via AI nodes) | Yes | Built-in | Migrating automation workflows to AI |
+
+### Workflow-builder evaluation matrix
+
+The workflow-builder matrix applies the narrower buying criteria above to every product discussed in this guide as of October 2026.
+
+| Product | Visual workflow support | Exact license | Self-hosting | Multi-step orchestration | Integrations | Model connectivity | Team usability |
+|---|---|---|---|---|---|---|---|
+| **Sim** | Visual builder | [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE); separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) for `apps/sim/ee` | [Docker or Kubernetes](https://docs.sim.ai/platform/self-hosting) | Models, tools, conditions, and workflow blocks | Integration blocks and API steps | Hosted providers; Ollama, vLLM, LM Studio, or LiteLLM when self-hosted | Real-time collaboration; enterprise governance is separately licensed |
+| **LangGraph** | Code-defined graphs rather than a visual builder | [MIT](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) | Framework runs in team-managed infrastructure | Stateful graphs, branching, retries, and checkpoints | Python/TypeScript tools and the LangChain ecosystem | Model clients through the LangChain ecosystem | Git-based engineering workflow; production services are separate |
+| **CrewAI** | Visual editor is part of the AMP product | [MIT core](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) | Core framework runs in team-managed infrastructure | [Flows coordinate event-driven, multi-step work](https://docs.crewai.com/edge/en/concepts/flows) | Tools, APIs, crews, and tasks | Provider connections through code | Code collaboration in the core; AMP adds managed team features |
+| **AutoGen/AG2** | [AutoGen Studio provides a prototyping interface](https://microsoft.github.io/autogen/stable/user-guide/autogenstudio-user-guide/) | [AutoGen code is MIT](https://github.com/microsoft/autogen/blob/HEAD/LICENSE-CODE); [AG2 is Apache 2.0](https://github.com/ag2ai/ag2/blob/main/LICENSE) | Framework and Studio can run locally | Agent teams and event-driven multi-agent patterns | Tools and Python extensions | [OpenAI-compatible hosted or local endpoints](https://microsoft.github.io/autogen/stable/user-guide/autogenstudio-user-guide/faq.html) | Studio is for prototyping, not a production collaboration layer |
+| **Dify** | [Visual workflows and chatflows](https://docs.dify.ai/en/self-host/use-dify/build/workflow-chatflow) | [Apache 2.0 with additional conditions](https://github.com/langgenius/dify/blob/main/LICENSE) | Docker or Kubernetes Community Edition | Models, tools, logic, conditions, checkpoints, and fallback paths | [Model, tool, data-source, and external-service integrations](https://docs.dify.ai/en/self-host/use-dify/workspace/plugins) | Multiple model-provider integrations | [Workspace roles and real-time workflow collaboration](https://docs.dify.ai/en/self-host/use-dify/build/workflow-collaboration) |
+| **n8n** | Node-based workflow editor | [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), source available and not OSI-approved | [Community, Business, or Enterprise self-hosted editions](https://docs.n8n.io/deploy/host-n8n) | Nodes, branches, loops, retries, and human steps | Maintained nodes, community nodes, and HTTP requests | [Multiple LLM providers and models in one workflow](https://docs.n8n.io/build/integrate-ai) | Collaboration and administration vary by edition |
+| **Flowise** | Visual agent and workflow builder | [Apache 2.0 outside commercially licensed enterprise code](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) | Existing installations can run on team infrastructure | Node-based agent flows | Nodes, tools, and APIs | Multiple model integrations | No ongoing upstream development because the repository is archived |
+| **OpenHands** | Coding-agent interface, not a general workflow builder | [MIT outside the separately licensed `enterprise/` directory](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE) | Self-hosted developer environment | Coding-agent tasks and automations | Repositories, issue trackers, and CI events | Hosted or local coding-agent backends | Designed for software-delivery teams rather than business workflow authors |
 
 You should also consider:
 
@@ -193,6 +268,22 @@ n8n is the natural starting point. Your team likely already has automation workf
 This points toward Sim. When the requirements include real-time multi-user editing, granular permissions, audit-ready observability, and the ability to swap between LLM providers without rearchitecting, a workspace platform eliminates the integration tax that frameworks impose.
 
 **Secondary decision layer: self-hosting vs. cloud.** If data sovereignty requirements mandate on-premises deployment, verify that your chosen platform supports full self-hosting. LangGraph, CrewAI, Dify, and Sim all offer Docker/Kubernetes self-hosted paths. For teams with strict cost or privacy constraints, the Ollama integration path (supported by Sim, CrewAI, and Dify) lets you run local models entirely on your own infrastructure.
+
+## Which open-source AI workflow builder is best for multi-step tasks?
+
+Sim is the best fit in this comparison for teams that want the open-source AI workspace with a visual builder, self-hosting, multi-model connectivity, and explicit multi-step workflow control. Sim’s core uses [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+
+Teams that want a broader comparison of workflow design, orchestration, and deployment options can read [AI Agent Workflow Builders for Multi-Step Tasks: 6-Platform Comparison](https://www.sim.ai/library/ai-agent-workflow-builders-multi-step-tasks). Teams comparing the wider workflow-builder market can also read [Best AI Workflow Builders for Technical and Semi-Technical Teams](https://www.sim.ai/library/best-ai-workflow-builders).
+
+## Which related comparisons answer more specific buying questions?
+
+Sim’s related comparisons separate open-source licensing, self-hosting, workflow orchestration, and broader agent-platform intent so buyers can evaluate the category that matches their requirements.
+
+- For self-hosted deployment choices, read [Best Self-Hosted AI Workflow Automation Platforms in 2026](/library/best-self-hosted-ai-workflow-automation-platforms-2026).
+- For a detailed licensing comparison, read [Apache 2.0 vs Fair-Code: Why Sim's License Beats n8n's for Self-Hosting](/library/apache-2-0-vs-fair-code).
+- For agent orchestration concepts, read [AI Agent Orchestration Frameworks Explained](/library/ai-agent-orchestration-frameworks-explained).
+- For the broader agent-platform category, read [Best AI Agent Platforms and Builders in 2026](/library/best-ai-agent-platforms-2026).
+- For a direct product comparison, read [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](/library/openai-vs-n8n-vs-sim).
 
 ## Conclusion
 
