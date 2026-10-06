@@ -3036,12 +3036,17 @@ export function useChat(
       if (!chatId) return
 
       const subjectKey = buildRecoverySubjectKey(startingChatId, startingSelectedChatId)
+      /* A return signal supersedes a recovery already in flight, as it supersedes the
+         send's own reader: that recovery's tail may have gone silent while the tab was
+         away or offline, or it may be sleeping out a reconnect backoff, and either
+         would hold the stream for up to the idle timeout or the backoff. */
       const existingRecovery = activeStreamReturnRecoveryRef.current
-      if (existingRecovery?.subjectKey === subjectKey) {
-        return existingRecovery.promise
-      }
       if (existingRecovery) {
-        existingRecovery.controller.abort('replaced_by_new_recovery_subject')
+        existingRecovery.controller.abort(
+          existingRecovery.subjectKey === subjectKey
+            ? 'superseded_by_return'
+            : 'replaced_by_new_recovery_subject'
+        )
         activeStreamReturnRecoveryRef.current = null
       }
 
@@ -3059,8 +3064,26 @@ export function useChat(
         const fallbackStreamId =
           streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? cached?.activeStreamId
         const loadedStream = await getActiveStreamIdForChat(chatId, recoveryController.signal)
+        /* The chat no longer lists a running turn, but this surface is still showing
+           one: it ended while nothing here was listening (its reader went silent, or a
+           recovery it superseded was attached). Resolve that stream instead of
+           leaving it running: its terminal state replays the rest and finalizes. A
+           send whose POST has not answered yet is such a stream only once the loaded
+           chat holds its message (the server admitted it, and the answer is lost);
+           until then it may still be on its way, and recovering it would abort it. */
+        const pendingAdmission = pendingChatAdmissionRef.current
+        const admitted =
+          !pendingAdmission ||
+          (loadedStream.loaded &&
+            queryClient
+              .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+              ?.messages.some((message) => message.id === pendingAdmission.userMessageId) === true)
+        const locallyRunningStreamId =
+          sendingRef.current && admitted
+            ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId)
+            : undefined
         const streamId = loadedStream.loaded
-          ? (loadedStream.streamId ?? undefined)
+          ? (loadedStream.streamId ?? locallyRunningStreamId)
           : fallbackStreamId
         if (
           !isSameRecoverySubject() ||
