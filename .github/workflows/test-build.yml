@@ -480,6 +480,7 @@ jobs:
             [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] || { echo '::error::Local app did not become ready'; exit 1; }
             sleep 2
           done
+          (while sleep 15; do echo "memory: $(free -m | awk '/Mem:/ {print $7}') MB available"; done) &
           cd apps/desktop
           SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
           SIM_DESKTOP_E2E_PROXY_PORT=3020 \
@@ -488,7 +489,7 @@ jobs:
           SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
           SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
-            --output "$report_dir/desktop-tools-results"
+            --output "$report_dir/desktop-tools-results" --reporter=line --retries=0
 
       - name: Upload end-to-end reports and server logs
         if: failure()
