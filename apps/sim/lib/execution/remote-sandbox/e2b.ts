@@ -376,17 +376,17 @@ class E2BSandboxHandle implements SandboxHandle {
     return this.sandbox.sandboxId
   }
 
-  outlives(lifetimeMs: number): boolean {
+  outlives(lifetimeMs: number, fromMs: number): boolean {
     return (
       this.sessionDeadlineAtMs !== undefined &&
-      this.sessionDeadlineAtMs >= Date.now() + e2bTimeoutMs(lifetimeMs)
+      this.sessionDeadlineAtMs >= fromMs + e2bTimeoutMs(lifetimeMs)
     )
   }
 
   async extendLifetime(lifetimeMs: number): Promise<void> {
     const timeoutMs = e2bTimeoutMs(lifetimeMs)
     if (this.sessionKey !== undefined) {
-      if (this.outlives(lifetimeMs)) return
+      if (this.outlives(lifetimeMs, Date.now())) return
       /** Session callers serialize updates so a short job cannot shorten another job's lease. */
       const info = await this.sandbox.getInfo()
       if (info.endAt.getTime() >= Date.now() + timeoutMs) return

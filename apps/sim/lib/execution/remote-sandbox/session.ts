@@ -63,8 +63,8 @@ export async function ensureSessionSandbox(args: {
       providerId: provider.id,
       sandboxId: created.sandbox.sandboxId,
     })
-  // The budget is anchored before acquisition, so a lease granted by the lookup or create covers it.
-  if (!created.sandbox.outlives?.(Math.max(0, lifetimeMs - (Date.now() - requestedAtMs))))
+  // Measured from before acquisition: any lease the lookup or create granted starts no earlier.
+  if (!created.sandbox.outlives?.(lifetimeMs, requestedAtMs))
     await created.sandbox.extendLifetime?.(lifetimeMs)
   signal.throwIfAborted()
   if (session.cli) {
