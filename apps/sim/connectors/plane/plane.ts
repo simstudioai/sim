@@ -111,7 +111,7 @@ export const planeConnector: ConnectorConfig = {
     }
     const response = await requestPlane(token, config, resourcePath(config), {
       cursor,
-      per_page: Math.min(PAGE_SIZE, remaining),
+      per_page: PAGE_SIZE,
       fields: config.contentType === 'pages' ? PAGE_FIELDS : WORK_ITEM_FIELDS,
       ...(config.contentType === 'work_items'
         ? { expand: 'state,assignees,labels', order_by: 'created_at' }
@@ -120,11 +120,13 @@ export const planeConnector: ConnectorConfig = {
     if (!response.ok) throw listingRequestError('Plane listing failed', response.status)
     const page = parsePlanePage(await response.json(), cursor)
     const documents = await Promise.all(
-      page.results.map((item) =>
-        config.contentType === 'pages'
-          ? planePageDocument(item, config, true)
-          : planeWorkItemDocument(item, config)
-      )
+      page.results
+        .slice(0, remaining)
+        .map((item) =>
+          config.contentType === 'pages'
+            ? planePageDocument(item, config, true)
+            : planeWorkItemDocument(item, config)
+        )
     )
     const total = fetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = total

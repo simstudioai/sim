@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile, writeFile } from 'node:fs/promises'
+import { open, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
@@ -1017,10 +1017,16 @@ try {
       2
     )
   )
-  if (process.env.PLANE_E2E_CONTRACT_PATH)
-    await writeFile(process.env.PLANE_E2E_CONTRACT_PATH, JSON.stringify(contracts, null, 2), {
-      mode: 0o600,
-    })
+  if (process.env.PLANE_E2E_CONTRACT_PATH) {
+    const contractFile = await open(process.env.PLANE_E2E_CONTRACT_PATH, 'a', 0o600)
+    try {
+      await contractFile.chmod(0o600)
+      await contractFile.truncate(0)
+      await contractFile.writeFile(JSON.stringify(contracts, null, 2))
+    } finally {
+      await contractFile.close()
+    }
+  }
 }
 logger.info('Plane E2E completed', {
   passed: checks.filter((item) => item.status === 'passed').length,

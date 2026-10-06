@@ -163,6 +163,21 @@ beforeEach(() => {
 })
 
 describe('buildProviderConfig canonical collapse', () => {
+  it('does not accept subscription cleanup credentials from an authored block', () => {
+    const block = makeBlock('google_drive_poller', {
+      triggerConfig: {
+        previousSubscription: {
+          provider: 'slack',
+          providerConfig: { credentialId: 'foreign-credential' },
+        },
+        subscriptionActivationPending: false,
+      },
+    })
+    const { providerConfig } = buildProviderConfig(block, 'google_drive_poller', driveTrigger)
+    expect(providerConfig).not.toHaveProperty('previousSubscription')
+    expect(providerConfig).not.toHaveProperty('subscriptionActivationPending')
+  })
+
   it('collapses a drift block (stale basic + active advanced via override) to the active value', () => {
     const block = makeBlock(
       'google_drive_poller',
@@ -655,6 +670,12 @@ describe('saveTriggerWebhooksForDeploy activation recovery', () => {
           onConflictDoNothing: dbChainMockFns.onConflictDoNothing,
         }
       })
+      dbChainMockFns.set.mockImplementation((values: unknown) => {
+        const row = [...persisted.values()][0]
+        if (row && typeof row.id === 'string')
+          persisted.set(row.id, { ...row, ...structuredClone(toRecord(values)) })
+        return { where: async () => [] }
+      })
       dbChainMockFns.delete.mockImplementation(() => ({
         where: async () => {
           persisted.clear()
@@ -669,6 +690,7 @@ describe('saveTriggerWebhooksForDeploy activation recovery', () => {
             ...toRecord(row.providerConfig),
             externalId,
             webhookSecret: 'test-secret',
+            subscriptionActivationPending: true,
           },
           externalSubscriptionCreated: true,
         }
@@ -717,6 +739,11 @@ describe('saveTriggerWebhooksForDeploy activation recovery', () => {
       expect(config.webhookSecret).toBe('test-secret')
       expect(external.get(String(config.externalId))?.active).toBe(true)
       if (cleanupFails) expect(config.externalId).toBe(retainedExternalId)
+      vi.mocked(activateExternalWebhookSubscription).mockRejectedValue(
+        new Error('provider unavailable')
+      )
+      queueTableRows(webhook, [...persisted.values()])
+      expect((await saveTriggerWebhooksForDeploy(input)).success).toBe(true)
     }
   )
 })

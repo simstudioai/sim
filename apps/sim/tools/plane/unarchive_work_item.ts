@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMSFDC2FC_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemsfdc2fcSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMSA385BB_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemsa385bbSchema } from '@/tools/plane/schemas'
 import type {
   PlaneUnarchiveWorkItemParams,
   PlaneUnarchiveWorkItemResponse,
@@ -79,6 +79,6 @@ export const planeUnarchiveWorkItemTool: ToolConfig<
     redirectPolicy: planeRedirectPolicy,
   },
   transformResponse: async (response) =>
-    planeObjectResponse(response, planeV2WorkItemsfdc2fcSchema),
-  outputs: { result: PLANEV2WORKITEMSFDC2FC_OUTPUT },
+    planeObjectResponse(response, planeV2WorkItemsa385bbSchema),
+  outputs: { result: PLANEV2WORKITEMSA385BB_OUTPUT },
 }

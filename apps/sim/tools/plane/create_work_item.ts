@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMS70DCEE_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems70dceeSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMS0F282F_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItems0f282fSchema } from '@/tools/plane/schemas'
 import type { PlaneCreateWorkItemParams, PlaneCreateWorkItemResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -435,7 +435,7 @@ export const planeCreateWorkItemTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItems70dceeSchema)
-      : planeObjectResponse(response, planeV2WorkItems70dceeSchema),
-  outputs: { result: PLANEV2WORKITEMS70DCEE_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItems0f282fSchema)
+      : planeObjectResponse(response, planeV2WorkItems0f282fSchema),
+  outputs: { result: PLANEV2WORKITEMS0F282F_OUTPUT },
 }

@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMS5A99D3_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems5a99d3Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMSE09EEB_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemse09eebSchema } from '@/tools/plane/schemas'
 import type {
   PlaneGetWorkItemByIdentifierParams,
   PlaneGetWorkItemByIdentifierResponse,
@@ -74,6 +74,6 @@ export const planeGetWorkItemByIdentifierTool: ToolConfig<
     retry: { enabled: true, maxRetries: 3, retryIdempotentOnly: true },
   },
   transformResponse: async (response) =>
-    planeObjectResponse(response, planeV2WorkItems5a99d3Schema),
-  outputs: { result: PLANEV2WORKITEMS5A99D3_OUTPUT },
+    planeObjectResponse(response, planeV2WorkItemse09eebSchema),
+  outputs: { result: PLANEV2WORKITEMSE09EEB_OUTPUT },
 }

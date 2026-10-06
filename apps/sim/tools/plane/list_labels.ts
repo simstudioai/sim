@@ -119,6 +119,12 @@ export const planeListLabelsTool: ToolConfig<PlaneListLabelsParams, PlaneListLab
       description:
         'v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
     },
+    parent_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'API v2: true selects top-level labels, false selects labels with a parent.',
+    },
   },
   request: {
     url: (params) => {
@@ -141,6 +147,7 @@ export const planeListLabelsTool: ToolConfig<PlaneListLabelsParams, PlaneListLab
               'count',
               'fields',
               'cursor',
+              'parent_id__isnull',
             ],
         [
           'workspace_slug',
@@ -157,6 +164,7 @@ export const planeListLabelsTool: ToolConfig<PlaneListLabelsParams, PlaneListLab
           'fields',
           'cursor',
           'expand',
+          'parent_id__isnull',
         ],
         version
       )

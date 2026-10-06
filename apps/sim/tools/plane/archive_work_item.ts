@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMS50747F_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems50747fSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMS9ED9D6_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItems9ed9d6Schema } from '@/tools/plane/schemas'
 import type { PlaneArchiveWorkItemParams, PlaneArchiveWorkItemResponse } from '@/tools/plane/types'
 import {
   PLANE_CREDENTIAL_PARAMS,
@@ -76,6 +76,6 @@ export const planeArchiveWorkItemTool: ToolConfig<
     redirectPolicy: planeRedirectPolicy,
   },
   transformResponse: async (response) =>
-    planeObjectResponse(response, planeV2WorkItems50747fSchema),
-  outputs: { result: PLANEV2WORKITEMS50747F_OUTPUT },
+    planeObjectResponse(response, planeV2WorkItems9ed9d6Schema),
+  outputs: { result: PLANEV2WORKITEMS9ED9D6_OUTPUT },
 }

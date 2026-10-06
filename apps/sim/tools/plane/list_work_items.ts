@@ -323,6 +323,41 @@ export const planeListWorkItemsTool: ToolConfig<
       description:
         'v1 compatibility only. Structured filter expression. Supports nested `and`/`or`/`not` groups and field comparisons with operators like `__in`, `__gte`, `__range`, `__isnull`, `__icontains`, etc. JSON-encoded into the `filters=` query param by the client. Requires a Plane edition with work item query filtering; Community Edition rejects this parameter.',
     },
+    assignee_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'API v2: select records with a missing assignee when true, or a present assignee when false.',
+    },
+    label_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'API v2: select records with a missing label when true, or a present label when false.',
+    },
+    parent_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'API v2: select records with a missing parent when true, or a present parent when false.',
+    },
+    cycle_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'API v2: select records with a missing cycle when true, or a present cycle when false.',
+    },
+    module_id__isnull: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'API v2: select records with a missing module when true, or a present module when false.',
+    },
   },
   request: {
     url: (params) => {
@@ -385,6 +420,11 @@ export const planeListWorkItemsTool: ToolConfig<
               'paginate',
               'expand',
               'cursor',
+              'assignee_id__isnull',
+              'label_id__isnull',
+              'parent_id__isnull',
+              'cycle_id__isnull',
+              'module_id__isnull',
             ],
         [
           'workspace_slug',
@@ -430,6 +470,11 @@ export const planeListWorkItemsTool: ToolConfig<
           'cursor',
           'pql',
           'filters',
+          'assignee_id__isnull',
+          'label_id__isnull',
+          'parent_id__isnull',
+          'cycle_id__isnull',
+          'module_id__isnull',
         ],
         version
       )
@@ -492,6 +537,11 @@ export const planeListWorkItemsTool: ToolConfig<
               paginate: { key: 'paginate', type: 'string', required: false },
               expand: { key: 'expand', type: 'string', required: false },
               cursor: { key: 'cursor', type: 'string', required: false },
+              assignee_id__isnull: { key: 'assignee_id__isnull', type: 'boolean', required: false },
+              label_id__isnull: { key: 'label_id__isnull', type: 'boolean', required: false },
+              parent_id__isnull: { key: 'parent_id__isnull', type: 'boolean', required: false },
+              cycle_id__isnull: { key: 'cycle_id__isnull', type: 'boolean', required: false },
+              module_id__isnull: { key: 'module_id__isnull', type: 'boolean', required: false },
             })
           )
     },

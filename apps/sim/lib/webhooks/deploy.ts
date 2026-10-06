@@ -3,7 +3,7 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { toRecord } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -215,7 +215,10 @@ export function buildProviderConfig(
   const triggerConfigValue = getSubBlockValue(block, 'triggerConfig')
   const baseConfig =
     triggerConfigValue && typeof triggerConfigValue === 'object'
-      ? (triggerConfigValue as Record<string, unknown>)
+      ? omit(triggerConfigValue as Record<string, unknown>, [
+          'previousSubscription',
+          'subscriptionActivationPending',
+        ])
       : {}
 
   const providerConfig: Record<string, unknown> = { ...baseConfig }
@@ -980,7 +983,7 @@ export async function saveTriggerWebhooksForDeploy({
           logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
         }
       }
-      if (!needsRecreation) {
+      if (!needsRecreation && existingConfig.subscriptionActivationPending === true) {
         try {
           await activateExternalWebhookSubscription(
             request,
@@ -989,6 +992,10 @@ export async function saveTriggerWebhooksForDeploy({
             userId,
             requestId
           )
+          await db
+            .update(webhook)
+            .set({ providerConfig: { ...existingConfig, subscriptionActivationPending: false } })
+            .where(eq(webhook.id, existingWh.id))
         } catch (error) {
           return {
             success: false,
@@ -1173,6 +1180,16 @@ export async function saveTriggerWebhooksForDeploy({
         userId,
         requestId
       )
+      if (sub.updatedProviderConfig.subscriptionActivationPending === true) {
+        sub.updatedProviderConfig = {
+          ...sub.updatedProviderConfig,
+          subscriptionActivationPending: false,
+        }
+        await db
+          .update(webhook)
+          .set({ providerConfig: sub.updatedProviderConfig })
+          .where(eq(webhook.id, sub.webhookId))
+      }
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },

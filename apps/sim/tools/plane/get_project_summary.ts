@@ -39,7 +39,7 @@ export const planeGetProjectSummaryTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The project summary id.',
+      description: 'Project ID or bare project identifier whose summary to retrieve.',
     },
     counts: {
       type: 'string',

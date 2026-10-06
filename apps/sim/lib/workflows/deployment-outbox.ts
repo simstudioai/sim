@@ -33,7 +33,10 @@ import {
   prepareStableTriggerWebhooksForDeploy,
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
-import { cleanupRetiredWebhookRegistrationsAfterActivation } from '@/lib/webhooks/registration-service'
+import {
+  activatePendingWebhookSubscriptionsAfterActivation,
+  cleanupRetiredWebhookRegistrationsAfterActivation,
+} from '@/lib/webhooks/registration-service'
 import { activateWebhookRegistrations } from '@/lib/webhooks/registration-store'
 import {
   DEPLOYMENT_ERROR_CODES,
@@ -593,6 +596,20 @@ async function runPostActivationWork(params: {
   context: OutboxEventContext
 }): Promise<DeferredOutboxHandlerResult | undefined> {
   await emitPostActivationSideEffects(params)
+  const activationHasMore = await activatePendingWebhookSubscriptionsAfterActivation({
+    request: new NextRequest(new URL('/api/webhooks', getBaseUrl())),
+    fence: {
+      workflowId: params.payload.workflowId,
+      deploymentVersionId: params.payload.deploymentVersionId,
+      operationId: params.payload.operationId,
+      generation: params.payload.generation,
+    },
+    workflow: params.workflow,
+    userId: params.payload.userId,
+    requestId: params.payload.requestId,
+    signal: params.context.signal,
+  })
+  if (activationHasMore) return continueOutboxHandler('webhook_activation_pending')
   await cleanupRetiredWebhooksForOperation({
     payload: params.payload,
     workflow: params.workflow,

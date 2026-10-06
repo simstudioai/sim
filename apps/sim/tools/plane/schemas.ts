@@ -489,8 +489,6 @@ const idb23e78Schema = z.string()
 
 const name6f7b53Schema = z.string()
 
-const identifier4f4557Schema = z.string()
-
 const sequenceIdfb3d8dSchema = z.number()
 
 const prioritydca6ceSchema = z.string()
@@ -1967,17 +1965,21 @@ export const planeV2V2ListWebhooksresultSchema = z.object({
   has_more: hasPages8e2bc3Schema.optional(),
 })
 
+const isActive94c709Schema = z.union([hasPages8e2bc3Schema, id045d22Schema])
+
+const scopes6811caSchema = z.union([defaultValuecb839fSchema, id045d22Schema])
+
 export const planeV2V2RegenerateWebhookSecretresultSchema = z.object({
-  content_type: assetIdSchema.optional(),
-  created_at: assetIdSchema.optional(),
-  created_by_id: assetIdSchema.optional(),
+  content_type: cycle883343Schema.optional(),
+  created_at: cycle883343Schema.optional(),
+  created_by_id: cycle883343Schema.optional(),
   id: assetIdSchema.optional(),
-  is_active: hasPages8e2bc3Schema.optional(),
-  name: assetIdSchema.optional(),
-  scopes: defaultValuecb839fSchema.optional(),
+  is_active: isActive94c709Schema.optional(),
+  name: cycle883343Schema.optional(),
+  scopes: scopes6811caSchema.optional(),
   secret_key: assetIdSchema.optional(),
-  url: assetIdSchema.optional(),
-  version: assetIdSchema.optional(),
+  url: cycle883343Schema.optional(),
+  version: cycle883343Schema.optional(),
 })
 
 const assetUrlec2eacSchema = z.union([assetUrlSchema, id045d22Schema])
@@ -2307,6 +2309,8 @@ export const planeV2WorkItemLinksbf8b88Schema = z.object({
   deleted_by: cycle5e8355Schema.optional(),
 })
 
+const name92e185Schema = z.string()
+
 const metadatae42e21Schema = z.object({
   url: assetIdSchema.optional(),
   title: assetIdSchema.optional(),
@@ -2324,7 +2328,7 @@ const metadata3e5254Schema = z.union([
   metadatae42e21Schema,
 ])
 
-export const planeV2WorkItemLinks2ed9b8Schema = z.object({
+export const planeV2WorkItemLinks9c2403Schema = z.object({
   created_at: createdAt44295aSchema.optional(),
   created_by_id: createdByIde4947aSchema.optional(),
   id: id835e8aSchema.optional(),
@@ -2332,6 +2336,7 @@ export const planeV2WorkItemLinks2ed9b8Schema = z.object({
   title: titleb3da20Schema.optional(),
   url: urlb9b40fSchema.optional(),
   work_item_id: workItemId1fb0c4Schema.optional(),
+  name: name92e185Schema.optional(),
   updated_at: updatedAtSchema.optional(),
   deleted_at: deletedAtSchema.optional(),
   created_by: createdBy94a812Schema.optional(),
@@ -2403,7 +2408,9 @@ export const planeV2WorkItemLinks38dcf4Schema = z.object({
 
 const nameeff235Schema = z.union([name6f7b53Schema, id045d22Schema])
 
-const identifier1ada10Schema = z.union([identifier4f4557Schema, id045d22Schema])
+const identifier73db85Schema = z.string()
+
+const identifier88c0eaSchema = z.union([identifier73db85Schema, id045d22Schema])
 
 const sequenceIde286f6Schema = z.union([sequenceIdfb3d8dSchema, id045d22Schema])
 
@@ -2423,10 +2430,10 @@ const cycleId7c066cSchema = z.union([assetIdSchema, id045d22Schema])
 
 const moduleIdsSchema = z.union([defaultValuecb839fSchema, id045d22Schema])
 
-export const planeV2WorkItems50747fSchema = z.object({
+export const planeV2WorkItems9ed9d6Schema = z.object({
   id: idb23e78Schema.optional(),
   name: nameeff235Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde286f6Schema.optional(),
   priority: priority69905eSchema.optional(),
   state_id: stateId99d408Schema.optional(),
@@ -2465,10 +2472,10 @@ const moduleIdsccb225Schema = z.array(moduleIdsItemSchema)
 
 const moduleIds80dc0dSchema = z.union([moduleIdsccb225Schema, id045d22Schema])
 
-export const planeV2WorkItems5a99d3Schema = z.object({
+export const planeV2WorkItemse09eebSchema = z.object({
   id: idb23e78Schema.optional(),
   name: nameeff235Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde281c0Schema.optional(),
   priority: priority69905eSchema.optional(),
   state_id: stateId99d408Schema.optional(),
@@ -2546,10 +2553,10 @@ const type65a531Schema = z.union([
   type071f88Schema,
 ])
 
-export const planeV2WorkItems70dceeSchema = z.object({
+export const planeV2WorkItems0f282fSchema = z.object({
   id: id3b71dcSchema.optional(),
   name: name31ecc6Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde56cecSchema.optional(),
   priority: priorityce8c57Schema.optional(),
   state_id: stateId99d408Schema.optional(),
@@ -2651,10 +2658,10 @@ const labelsa1887dSchema = z.array(labelsIteme6cc5dSchema)
 
 const labelsdb08cdSchema = labelsa1887dSchema
 
-export const planeV2WorkItems6d2e4eSchema = z.object({
+export const planeV2WorkItems675283Schema = z.object({
   id: id3b71dcSchema.optional(),
   name: name31ecc6Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde56cecSchema.optional(),
   priority: priorityce8c57Schema.optional(),
   state_id: stateId99d408Schema.optional(),
@@ -2706,14 +2713,14 @@ export const planeV2WorkItems6d2e4eSchema = z.object({
   state_group: cycle883343Schema.optional(),
 })
 
-const dataec4fd0Schema = z.array(planeV2WorkItems5a99d3Schema)
+const dataf74a82Schema = z.array(planeV2WorkItemse09eebSchema)
 
 const nextSchema = z.union([access644595Schema, id045d22Schema, sortOrderdde3e5Schema])
 
 const previous55126eSchema = z.union([sortOrderdde3e5Schema, access644595Schema, id045d22Schema])
 
 export const planeV2V2ListWorkItemsresultSchema = z.object({
-  data: dataec4fd0Schema.optional(),
+  data: dataf74a82Schema.optional(),
   next: nextSchema.optional(),
   previous: previous55126eSchema.optional(),
   total_count: access644595Schema.optional(),
@@ -2797,10 +2804,10 @@ const moduleIds241605Schema = z.array(assigneeIdsItemSchema)
 
 const moduleIdsc1b38aSchema = z.union([moduleIds241605Schema, id045d22Schema])
 
-const planeV2WorkItemsd70712Schema = z.object({
+const planeV2WorkItems3305dfSchema = z.object({
   id: idb23e78Schema.optional(),
   name: nameeff235Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde1225bSchema.optional(),
   priority: priority69905eSchema.optional(),
   state_id: stateId99d408Schema.optional(),
@@ -2827,10 +2834,10 @@ const planeV2WorkItemsd70712Schema = z.object({
   type: typef949c2Schema.optional(),
 })
 
-const dataa48daeSchema = z.array(planeV2WorkItemsd70712Schema)
+const datac48c4dSchema = z.array(planeV2WorkItems3305dfSchema)
 
 export const planeV2V2ListWorkspaceWorkItemsresultSchema = z.object({
-  data: dataa48daeSchema.optional(),
+  data: datac48c4dSchema.optional(),
   next: previousSchema.optional(),
   pagination: planeV2PaginationSchema.optional(),
   previous: previousSchema.optional(),
@@ -2839,10 +2846,10 @@ export const planeV2V2ListWorkspaceWorkItemsresultSchema = z.object({
   has_more: hasPages8e2bc3Schema.optional(),
 })
 
-export const planeV2WorkItemsfdc2fcSchema = z.object({
+export const planeV2WorkItemsa385bbSchema = z.object({
   id: idb23e78Schema.optional(),
   name: nameeff235Schema.optional(),
-  identifier: identifier1ada10Schema.optional(),
+  identifier: identifier88c0eaSchema.optional(),
   sequence_id: sequenceIde281c0Schema.optional(),
   priority: priority69905eSchema.optional(),
   state_id: stateId99d408Schema.optional(),

@@ -239,7 +239,7 @@ export function planeApiUrl(
     throw new Error('Plane instance URL must not include /api/v1 or another API version')
   }
   url.pathname = `${url.pathname.replace(/\/+$/, '')}${path}`
-  const maxPerPage = path.includes('/api/v2/') ? Number.MAX_SAFE_INTEGER : 100
+  const maxPerPage = path.includes('/api/v2/') ? 200 : 100
   for (const [name, value] of Object.entries(query)) {
     if (value === undefined || value === null || value === '') continue
     if (
@@ -247,6 +247,15 @@ export function planeApiUrl(
       (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > maxPerPage)
     ) {
       throw new Error(`per_page must be an integer between 1 and ${maxPerPage}`)
+    }
+    if (
+      name === 'offset' &&
+      path.includes('/api/v2/') &&
+      (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 10000)
+    ) {
+      throw new Error(
+        'offset must be an integer between 0 and 10000; use cursor pagination beyond that'
+      )
     }
     url.searchParams.set(
       name,

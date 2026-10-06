@@ -469,6 +469,41 @@ describe('POST /api/webhooks credential references', () => {
 
 describe('POST /api/webhooks subscription replacement recovery', () => {
   beforeEach(setupUpsertMocks)
+  it.each(['create', 'save'])(
+    'preserves the live subscription when replacement fails at %s',
+    async (failure) => {
+      queueUpdatePathRows(true, {
+        autoRegister: true,
+        externalId: 'external-old',
+        webhookSecret: 'old-secret',
+      })
+      mocks.getProviderHandler.mockReturnValue({ activateSubscription: async () => undefined })
+      mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+      const external = new Set(['external-old'])
+      mocks.createExternalWebhookSubscription.mockImplementation(async () => {
+        if (failure === 'create') throw new Error('creation unavailable')
+        external.add('external-new')
+        return {
+          updatedProviderConfig: {
+            autoRegister: true,
+            externalId: 'external-new',
+            webhookSecret: 'new-secret',
+            subscriptionActivationPending: true,
+          },
+          externalSubscriptionCreated: true,
+        }
+      })
+      if (failure === 'save')
+        dbChainMockFns.set.mockImplementation(() => {
+          throw new Error('database unavailable')
+        })
+      mocks.cleanupExternalWebhook.mockImplementation(async (row) => {
+        external.delete(String(toRecord(row.providerConfig).externalId))
+      })
+      expect((await POST(upsertRequest({ autoRegister: true }))).status).toBe(500)
+      expect([...external]).toEqual(['external-old'])
+    }
+  )
   it.each([false, true])(
     'retains recoverable state when prior cleanup fails: %s',
     async (priorCleanupFails) => {
@@ -513,6 +548,7 @@ describe('POST /api/webhooks subscription replacement recovery', () => {
             ...toRecord(row.providerConfig),
             externalId,
             webhookSecret: 'new-secret',
+            subscriptionActivationPending: true,
           },
           externalSubscriptionCreated: true,
         }
@@ -553,16 +589,18 @@ describe('POST /api/webhooks subscription replacement recovery', () => {
       }
       queueCurrentRows()
       expect((await POST(replacementRequest())).status).toBe(500)
-      expect(external.size).toBe(1)
+      expect(external.size).toBe(priorCleanupFails ? 2 : 1)
       const retainedConfig = toRecord(persisted.providerConfig)
       if (priorCleanupFails) {
-        expect(retainedConfig).toEqual({
+        expect(retainedConfig.projectId).toBe('next')
+        expect(toRecord(retainedConfig.previousSubscription).providerConfig).toEqual({
           autoRegister: true,
           projectId: 'prior',
           externalId: 'external-old',
           webhookSecret: 'old-secret',
         })
         expect(external.get('external-old')?.active).toBe(true)
+        expect(external.get(String(retainedConfig.externalId))?.active).toBe(false)
       } else {
         expect(retainedConfig.projectId).toBe('next')
         expect(retainedConfig.webhookSecret).toBe('new-secret')

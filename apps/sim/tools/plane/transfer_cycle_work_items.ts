@@ -53,7 +53,7 @@ export const planeTransferCycleWorkItemsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The cycle transfer id.',
+      description: 'Source cycle ID. The source cycle must be completed.',
     },
     new_cycle_id: {
       type: 'string',

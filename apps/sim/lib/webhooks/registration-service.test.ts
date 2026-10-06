@@ -71,7 +71,7 @@ function dependencies(
 }
 
 describe('stable webhook registration service', () => {
-  it.each(['success', 'checkpoint failure', 'activation failure'] as const)(
+  it.each(['success', 'checkpoint failure', 'activation failure', 'deferred activation'] as const)(
     'records subscription credentials before activation: %s',
     async (failure) => {
       const desired: DesiredWebhookRegistrationIntent = {
@@ -98,7 +98,11 @@ describe('stable webhook registration service', () => {
           orphanedCandidates: [],
         }),
         createExternal: async () => ({
-          updatedProviderConfig: { externalId: 'external-new', webhookSecret: 'test-secret' },
+          updatedProviderConfig: {
+            externalId: 'external-new',
+            webhookSecret: 'test-secret',
+            ...(failure === 'deferred activation' ? { subscriptionActivationPending: true } : {}),
+          },
           externalSubscriptionCreated: true,
         }),
         checkpointCandidate: async (input) => {
@@ -123,13 +127,20 @@ describe('stable webhook registration service', () => {
         },
         store
       )
-      if (failure === 'success') await preparation
+      if (failure === 'success' || failure === 'deferred activation') await preparation
       else
         await expect(preparation).rejects.toThrow(
           failure === 'checkpoint failure' ? 'checkpoint failed' : 'activation failed'
         )
       expect(active).toBe(failure === 'success')
-      if (failure === 'checkpoint failure') {
+      if (failure === 'deferred activation') {
+        expect(credentialsAtActivation).toBeUndefined()
+        expect(persisted).toEqual({
+          externalId: 'external-new',
+          webhookSecret: 'test-secret',
+          subscriptionActivationPending: true,
+        })
+      } else if (failure === 'checkpoint failure') {
         expect(credentialsAtActivation).toBeUndefined()
         expect(persisted).toEqual({})
       } else {

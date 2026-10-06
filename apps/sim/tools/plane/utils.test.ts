@@ -23,6 +23,12 @@ describe('Plane instance URL boundary', () => {
   ])('rejects an ambiguous or credential-bearing instance URL: %s', (url) => {
     expect(() => planeApiUrl(url, '/api/v1/users/me/')).toThrow()
   })
+  it.each([{ per_page: 201 }, { offset: 10001 }, { offset: -1 }])(
+    'rejects out-of-contract v2 pagination %j',
+    (query) => {
+      expect(() => planeApiUrl(undefined, '/api/v2/workspaces/example/projects/', query)).toThrow()
+    }
+  )
 })
 
 describe('Plane partial update serialization', () => {

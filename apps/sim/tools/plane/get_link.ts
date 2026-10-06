@@ -1,5 +1,5 @@
-import { PLANEV2WORKITEMLINKS2ED9B8_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItemLinks2ed9b8Schema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMLINKS9C2403_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItemLinks9c2403Schema } from '@/tools/plane/schemas'
 import type { PlaneGetLinkParams, PlaneGetLinkResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -126,7 +126,7 @@ export const planeGetLinkTool: ToolConfig<PlaneGetLinkParams, PlaneGetLinkRespon
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItemLinks2ed9b8Schema)
-      : planeObjectResponse(response, planeV2WorkItemLinks2ed9b8Schema),
-  outputs: { result: PLANEV2WORKITEMLINKS2ED9B8_OUTPUT },
+      ? planeObjectResponse(response, planeV2WorkItemLinks9c2403Schema)
+      : planeObjectResponse(response, planeV2WorkItemLinks9c2403Schema),
+  outputs: { result: PLANEV2WORKITEMLINKS9C2403_OUTPUT },
 }

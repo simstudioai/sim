@@ -63,7 +63,7 @@ export const planeCreateWebhookTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The scopes.',
     },
-    url: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Target URL.' },
+    url: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Target URL.' },
     version: {
       type: 'string',
       required: false,
@@ -98,7 +98,7 @@ export const planeCreateWebhookTool: ToolConfig<
           is_active: { key: 'is_active', type: 'boolean', required: false },
           name: { key: 'name', type: 'string', required: false },
           scopes: { key: 'scopes', type: 'array', required: false },
-          url: { key: 'url', type: 'string', required: false },
+          url: { key: 'url', type: 'string', required: true },
           version: { key: 'version', type: 'string', required: false },
         },
         params.bodyOverrides

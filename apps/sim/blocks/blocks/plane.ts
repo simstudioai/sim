@@ -129,6 +129,7 @@ const OPERATION_FIELDS: Record<string, Record<string, PlaneOperationField>> = {
     fields: { field: 'fields', type: 'string', required: false },
     cursor: { field: 'cursor', type: 'string', required: false },
     expand: { field: 'expand', type: 'string', required: false },
+    parent_id__isnull: { field: 'parent_id__isnull', type: 'boolean', required: false },
   },
   plane_update_label: {
     workspace_slug: { field: 'workspace_slug', type: 'string', required: true },
@@ -498,7 +499,7 @@ const OPERATION_FIELDS: Record<string, Record<string, PlaneOperationField>> = {
     is_active: { field: 'is_active', type: 'boolean', required: false },
     name: { field: 'name', type: 'string', required: false },
     scopes: { field: 'scopes', type: 'array', required: false },
-    url: { field: 'url', type: 'string', required: false },
+    url: { field: 'url', type: 'string', required: true },
     version: { field: 'version', type: 'string', required: false },
     fields: { field: 'fields', type: 'string', required: false },
     bodyOverrides: { field: 'bodyOverrides', type: 'object', required: false },
@@ -817,6 +818,11 @@ const OPERATION_FIELDS: Record<string, Record<string, PlaneOperationField>> = {
     cursor: { field: 'cursor', type: 'string', required: false },
     pql: { field: 'pql', type: 'string', required: false },
     filters: { field: 'filters', type: 'object', required: false },
+    assignee_id__isnull: { field: 'assignee_id__isnull', type: 'boolean', required: false },
+    label_id__isnull: { field: 'label_id__isnull', type: 'boolean', required: false },
+    parent_id__isnull: { field: 'parent_id__isnull', type: 'boolean', required: false },
+    cycle_id__isnull: { field: 'cycle_id__isnull', type: 'boolean', required: false },
+    module_id__isnull: { field: 'module_id__isnull', type: 'boolean', required: false },
   },
   plane_list_workspace_work_items: {
     workspace_slug: { field: 'workspace_slug', type: 'string', required: true },
@@ -2138,7 +2144,7 @@ export const PlaneBlock: BlockConfig = {
           'plane_update_link',
         ],
       },
-      required: { field: 'operation', value: ['plane_create_link'] },
+      required: { field: 'operation', value: ['plane_create_webhook', 'plane_create_link'] },
     },
     {
       id: 'access_integer',
@@ -2245,7 +2251,10 @@ export const PlaneBlock: BlockConfig = {
         { label: 'False', id: 'false' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: ['plane_list_workspace_work_items'] },
+      condition: {
+        field: 'operation',
+        value: ['plane_list_work_items', 'plane_list_workspace_work_items'],
+      },
       mode: 'advanced',
     },
     {
@@ -2563,7 +2572,10 @@ export const PlaneBlock: BlockConfig = {
         { label: 'False', id: 'false' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: ['plane_list_workspace_work_items'] },
+      condition: {
+        field: 'operation',
+        value: ['plane_list_work_items', 'plane_list_workspace_work_items'],
+      },
       mode: 'advanced',
     },
     {
@@ -3135,7 +3147,10 @@ export const PlaneBlock: BlockConfig = {
         { label: 'False', id: 'false' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: ['plane_list_workspace_work_items'] },
+      condition: {
+        field: 'operation',
+        value: ['plane_list_work_items', 'plane_list_workspace_work_items'],
+      },
       mode: 'advanced',
     },
     {
@@ -3277,7 +3292,10 @@ export const PlaneBlock: BlockConfig = {
         { label: 'False', id: 'false' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: ['plane_list_workspace_work_items'] },
+      condition: {
+        field: 'operation',
+        value: ['plane_list_work_items', 'plane_list_workspace_work_items'],
+      },
       mode: 'advanced',
     },
     {
@@ -3469,7 +3487,10 @@ export const PlaneBlock: BlockConfig = {
         { label: 'False', id: 'false' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: ['plane_list_workspace_work_items'] },
+      condition: {
+        field: 'operation',
+        value: ['plane_list_labels', 'plane_list_work_items', 'plane_list_workspace_work_items'],
+      },
       mode: 'advanced',
     },
     {

@@ -14,8 +14,11 @@ import {
   checkpointWebhookCandidate,
   type DesiredWebhookRegistrationIntent,
   deleteWebhookRegistrationAfterCleanup,
+  getPendingWebhookSubscriptionActivation,
   getWebhookCleanupSnapshotIfCurrent,
+  listPendingWebhookSubscriptionActivations,
   listRetiredWebhookRegistrationsForCleanup,
+  markWebhookSubscriptionActivated,
   type PreparedWebhookCandidate,
   type PreparedWebhookRegistrationWork,
   prepareWebhookRegistrationIntents,
@@ -43,6 +46,9 @@ export interface StableWebhookRegistrationDependencies {
   listRetired: typeof listRetiredWebhookRegistrationsForCleanup
   getCleanupSnapshot: typeof getWebhookCleanupSnapshotIfCurrent
   deleteAfterCleanup: typeof deleteWebhookRegistrationAfterCleanup
+  listPendingActivations: typeof listPendingWebhookSubscriptionActivations
+  getPendingActivation: typeof getPendingWebhookSubscriptionActivation
+  markActivated: typeof markWebhookSubscriptionActivated
   activateExternal: typeof activateExternalWebhookSubscription
   createExternal: typeof createExternalWebhookSubscription
   cleanupExternal: typeof cleanupExternalWebhook
@@ -54,6 +60,9 @@ const DEFAULT_DEPENDENCIES: StableWebhookRegistrationDependencies = {
   listRetired: listRetiredWebhookRegistrationsForCleanup,
   getCleanupSnapshot: getWebhookCleanupSnapshotIfCurrent,
   deleteAfterCleanup: deleteWebhookRegistrationAfterCleanup,
+  listPendingActivations: listPendingWebhookSubscriptionActivations,
+  getPendingActivation: getPendingWebhookSubscriptionActivation,
+  markActivated: markWebhookSubscriptionActivated,
   activateExternal: activateExternalWebhookSubscription,
   createExternal: createExternalWebhookSubscription,
   cleanupExternal: cleanupExternalWebhook,
@@ -161,14 +170,16 @@ async function createCandidateProviderState(
     })
   }
 
-  await dependencies.activateExternal(
-    input.request,
-    { ...webhookData, providerConfig },
-    input.workflow,
-    input.userId,
-    input.requestId,
-    { signal: input.signal }
-  )
+  if (providerConfig.subscriptionActivationPending !== true) {
+    await dependencies.activateExternal(
+      input.request,
+      { ...webhookData, providerConfig },
+      input.workflow,
+      input.userId,
+      input.requestId,
+      { signal: input.signal }
+    )
+  }
 
   if (handler.configurePolling) {
     let persistedProviderConfig: Record<string, unknown> | undefined
@@ -403,4 +414,29 @@ export async function cleanupRetiredWebhookRegistrationsAfterActivation(
       )
     }
   }
+}
+
+/** Activates prepared provider subscriptions only after their deployment is the live version. */
+export async function activatePendingWebhookSubscriptionsAfterActivation(
+  input: Omit<PrepareStableWebhookRegistrationsInput, 'desired'>,
+  dependencies: StableWebhookRegistrationDependencies = DEFAULT_DEPENDENCIES
+): Promise<boolean> {
+  input.signal?.throwIfAborted()
+  const rows = await dependencies.listPendingActivations(input.fence)
+  for (const row of rows) {
+    input.signal?.throwIfAborted()
+    const current = await dependencies.getPendingActivation({ ...input.fence, webhookId: row.id })
+    if (!current) continue
+    await dependencies.activateExternal(
+      input.request,
+      current,
+      input.workflow,
+      input.userId,
+      input.requestId,
+      { signal: input.signal }
+    )
+    input.signal?.throwIfAborted()
+    await dependencies.markActivated({ fence: input.fence, row: current })
+  }
+  return (await dependencies.listPendingActivations(input.fence)).length > 0
 }

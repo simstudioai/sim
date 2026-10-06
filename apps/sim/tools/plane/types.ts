@@ -25,7 +25,7 @@ export interface PlaneArchiveWorkItemParams extends PlaneCredentials {
   expand?: string
 }
 export interface PlaneArchiveWorkItemResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItems50747fSchema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItems9ed9d6Schema> }
 }
 
 export interface PlaneConfirmAttachmentUploadParams extends PlaneCredentials {
@@ -248,7 +248,7 @@ export interface PlaneCreateWebhookParams extends PlaneCredentials {
   is_active?: boolean | null
   name?: string | null
   scopes?: unknown[] | string | null
-  url?: string | null
+  url: string
   version?: string | null
   fields?: string
 }
@@ -294,7 +294,7 @@ export interface PlaneCreateWorkItemParams extends PlaneCredentials {
   module_ids?: unknown[] | string | null
 }
 export interface PlaneCreateWorkItemResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItems70dceeSchema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItems0f282fSchema> }
 }
 
 export interface PlaneDeleteAttachmentParams extends PlaneCredentials {
@@ -457,7 +457,7 @@ export interface PlaneGetLinkParams extends PlaneCredentials {
   per_page?: number
 }
 export interface PlaneGetLinkResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItemLinks2ed9b8Schema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItemLinks9c2403Schema> }
 }
 
 export interface PlaneGetModuleParams extends PlaneCredentials {
@@ -535,7 +535,7 @@ export interface PlaneGetWorkItemParams extends PlaneCredentials {
   order_by?: string
 }
 export interface PlaneGetWorkItemResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItems6d2e4eSchema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItems675283Schema> }
 }
 
 export interface PlaneGetWorkItemByIdentifierParams extends PlaneCredentials {
@@ -545,7 +545,7 @@ export interface PlaneGetWorkItemByIdentifierParams extends PlaneCredentials {
   fields?: string
 }
 export interface PlaneGetWorkItemByIdentifierResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItems5a99d3Schema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItemse09eebSchema> }
 }
 
 export interface PlaneListAttachmentsParams extends PlaneCredentials {
@@ -638,6 +638,7 @@ export interface PlaneListLabelsParams extends PlaneCredentials {
   fields?: string
   cursor?: string
   expand?: string
+  parent_id__isnull?: boolean
 }
 export interface PlaneListLabelsResponse extends ToolResponse {
   output:
@@ -857,6 +858,11 @@ export interface PlaneListWorkItemsParams extends PlaneCredentials {
   cursor?: string
   pql?: string
   filters?: Record<string, unknown> | string
+  assignee_id__isnull?: boolean
+  label_id__isnull?: boolean
+  parent_id__isnull?: boolean
+  cycle_id__isnull?: boolean
+  module_id__isnull?: boolean
 }
 export interface PlaneListWorkItemsResponse extends ToolResponse {
   output:
@@ -987,7 +993,7 @@ export interface PlaneUnarchiveWorkItemParams extends PlaneCredentials {
   expand?: string
 }
 export interface PlaneUnarchiveWorkItemResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItemsfdc2fcSchema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItemsa385bbSchema> }
 }
 
 export interface PlaneUpdateCommentParams extends PlaneCredentials {
@@ -1231,5 +1237,5 @@ export interface PlaneUpdateWorkItemParams extends PlaneCredentials {
   module_ids?: unknown[] | string | null
 }
 export interface PlaneUpdateWorkItemResponse extends ToolResponse {
-  output: { result: z.output<typeof schemas.planeV2WorkItems70dceeSchema> }
+  output: { result: z.output<typeof schemas.planeV2WorkItems0f282fSchema> }
 }

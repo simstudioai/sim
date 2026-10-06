@@ -69,6 +69,8 @@ type RecreateCheckInput = {
 /** System-managed fields that should not trigger recreation. */
 const SYSTEM_MANAGED_FIELDS = new Set([
   'externalId',
+  'previousSubscription',
+  'subscriptionActivationPending',
   'externalSubscriptionId',
   'eventTypes',
   'webhookTag',
@@ -230,7 +232,11 @@ export async function activateExternalWebhookSubscription(
 ): Promise<void> {
   const handler = getProviderHandler(String(webhookData.provider))
   const activateSubscription = handler.activateSubscription
-  if (!activateSubscription) return
+  if (
+    !activateSubscription ||
+    toRecord(webhookData.providerConfig).subscriptionActivationPending === false
+  )
+    return
   const workspaceId = typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
   const secrets = new Map<string, string>()
   const providerConfig = await resolveWebhookProviderConfig(
@@ -297,6 +303,19 @@ export async function cleanupExternalWebhook(
       { envVars, onResolved: (name, value) => secrets.set(name, value) }
     )
     resolvedProviderConfig = resolvedWebhook.providerConfig
+    const previousSubscription = toRecord(resolvedProviderConfig.previousSubscription)
+    if (typeof previousSubscription.provider === 'string') {
+      await cleanupExternalWebhook(
+        {
+          ...webhook,
+          provider: previousSubscription.provider,
+          providerConfig: previousSubscription.providerConfig,
+        },
+        workflow,
+        requestId,
+        options
+      )
+    }
 
     /** Workspace archival precedes provider cleanup; routing still uses its canonical owner. */
     await withResourceOutboundScope(

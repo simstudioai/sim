@@ -82,7 +82,13 @@ export const planeCreateAttachmentUploadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The system `external_id` came from, for example `github` or `jira`. Nullable.',
     },
-    type: { type: 'string', required: false, visibility: 'user-or-llm', description: 'The type.' },
+    type: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Required with API v1: attachment type, for example work_item_attachment. Optional with API v2.',
+    },
     fields: {
       type: 'string',
       required: false,

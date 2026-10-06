@@ -203,30 +203,54 @@ export function buildPlaneExtraFields(triggerId: string): SubBlockConfig[] {
 export function buildPlaneOutputs(): Record<string, TriggerOutput> {
   return {
     version: { type: 'string', description: 'Payload version: v1 or v2.' },
-    event: { type: 'string', description: 'Original Plane event or v1 resource name.' },
-    eventName: { type: 'string', description: 'Normalized event name, such as workitem.updated.' },
-    action: { type: 'string', description: 'v1 action; null for v2.' },
-    event_id: { type: 'string', description: 'v2 event ID, stable across retries; null for v1.' },
+    event: {
+      type: 'string',
+      nullable: true,
+      description: 'Original Plane event or v1 resource name.',
+    },
+    eventName: {
+      type: 'string',
+      nullable: true,
+      description: 'Normalized event name, such as workitem.updated.',
+    },
+    action: { type: 'string', nullable: true, description: 'v1 action; null for v2.' },
+    event_id: {
+      type: 'string',
+      nullable: true,
+      description: 'v2 event ID, stable across retries; null for v1.',
+    },
     delivery_id: {
       type: 'string',
+      nullable: true,
       description: 'Delivery attempt ID from the payload or X-Plane-Delivery header.',
     },
-    entity_id: { type: 'string', description: 'v2 primary entity ID; null for v1.' },
-    entity_type: { type: 'string', description: 'v2 entity type; null for v1.' },
-    webhook_id: { type: 'string', description: 'Plane webhook configuration ID.' },
-    workspace_id: { type: 'string', description: 'Plane workspace ID.' },
-    workspace_slug: { type: 'string', description: 'v1 workspace slug; null for v2.' },
+    entity_id: {
+      type: 'string',
+      nullable: true,
+      description: 'v2 primary entity ID; null for v1.',
+    },
+    entity_type: { type: 'string', nullable: true, description: 'v2 entity type; null for v1.' },
+    webhook_id: { type: 'string', nullable: true, description: 'Plane webhook configuration ID.' },
+    workspace_id: { type: 'string', nullable: true, description: 'Plane workspace ID.' },
+    workspace_slug: {
+      type: 'string',
+      nullable: true,
+      description: 'v1 workspace slug; null for v2.',
+    },
     data: {
       type: 'json',
+      nullable: true,
       description:
         'Complete entity payload, including resource-specific fields. v2 deletions send an empty object.',
     },
     activity: {
       type: 'json',
+      nullable: true,
       description: 'v1 changed field, old/new values, actor and identifiers; null for v2.',
     },
     previous_attributes: {
       type: 'json',
+      nullable: true,
       description: 'v2 previous changed values or full deleted record; null for v1.',
     },
   }

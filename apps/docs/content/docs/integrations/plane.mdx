@@ -185,7 +185,7 @@ Create a work item attachment upload in Plane. Supports API v1 compatibility.
 | `size` | number | Yes | Attachment size in bytes. For signed form uploads, allow room for multipart overhead in the storage policy. |
 | `external_id` | string | No | Your system's identifier for this record, for sync and import correlation. Nullable. |
 | `external_source` | string | No | The system `external_id` came from, for example `github` or `jira`. Nullable. |
-| `type` | string | No | The type. |
+| `type` | string | No | Required with API v1: attachment type, for example work_item_attachment. Optional with API v2. |
 | `fields` | string | No | Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`. |
 
 #### Output
@@ -795,7 +795,7 @@ Create a webhook in Plane. Requires API v2.
 | `is_active` | boolean | No | Whether the record is active. |
 | `name` | string | No | Display name. Maximum 255 characters. Nullable. |
 | `scopes` | json | No | The scopes. |
-| `url` | string | No | Target URL. |
+| `url` | string | Yes | Target URL. |
 | `version` | string | No | Version string, for example `1.4.0`. Maximum 10 characters. |
 | `fields` | string | No | Comma-separated list of fields to return. Unrequested keys are **omitted**, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400`. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `content_type`, `created_at`, `created_by_id`, `id`, `is_active`, `name`, `scopes`, `url`, `version`. |
 
@@ -1444,6 +1444,7 @@ Get a link in Plane. Supports API v1 compatibility.
 |   ↳ `title` | json | Title |
 |   ↳ `url` | json | Url |
 |   ↳ `work_item_id` | string | Work item id |
+|   ↳ `name` | string | Legacy link name. |
 |   ↳ `updated_at` | string | Updated at |
 |   ↳ `deleted_at` | string | Deleted at |
 |   ↳ `created_by` | string | Created by |
@@ -1682,7 +1683,7 @@ Get a project summary in Plane. Supports API v1 compatibility.
 | `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
-| `pk` | string | Yes | The project summary id. |
+| `pk` | string | Yes | Project ID or bare project identifier whose summary to retrieve. |
 | `counts` | string | No | Comma-separated count keys to include. Allowed: members, states, labels, cycles, modules, issues, intakes, work_item_types, work_item_properties, pages. Omitting returns all. Unknown keys are a 400. |
 | `fields` | string | No | v1 compatibility only. Comma-separated list of fields. |
 
@@ -2274,6 +2275,7 @@ List labels in Plane. Supports API v1 compatibility.
 | `fields` | string | No | Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can't silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `name`, `parent_id`, `sort_order`. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). |
 | `cursor` | string | No | Cursor from next_cursor. Repeat the original filters, per_page, and order_by when following it. |
 | `expand` | string | No | v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above. |
+| `parent_id__isnull` | boolean | No | API v2: true selects top-level labels, false selects labels with a parent. |
 
 #### Output
 
@@ -2987,6 +2989,11 @@ List work items in Plane. Supports API v1 compatibility.
 | `cursor` | string | No | Cursor from next_cursor. Repeat the original filters, per_page, and order_by when following it. |
 | `pql` | string | No | v1 compatibility only. Plane Query Language expression. Human-readable alternative to `filters`. Example: `priority = "urgent" AND assignee = currentUser\(\)`. Requires a Plane edition with work item query filtering; Community Edition rejects this parameter. |
 | `filters` | json | No | v1 compatibility only. Structured filter expression. Supports nested `and`/`or`/`not` groups and field comparisons with operators like `__in`, `__gte`, `__range`, `__isnull`, `__icontains`, etc. JSON-encoded into the `filters=` query param by the client. Requires a Plane edition with work item query filtering; Community Edition rejects this parameter. |
+| `assignee_id__isnull` | boolean | No | API v2: select records with a missing assignee when true, or a present assignee when false. |
+| `label_id__isnull` | boolean | No | API v2: select records with a missing label when true, or a present label when false. |
+| `parent_id__isnull` | boolean | No | API v2: select records with a missing parent when true, or a present parent when false. |
+| `cycle_id__isnull` | boolean | No | API v2: select records with a missing cycle when true, or a present cycle when false. |
+| `module_id__isnull` | boolean | No | API v2: select records with a missing module when true, or a present module when false. |
 
 #### Output
 
@@ -3437,7 +3444,7 @@ Transfer work items between cycles in Plane. Supports API v1 compatibility.
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
-| `pk` | string | Yes | The cycle transfer id. |
+| `pk` | string | Yes | Source cycle ID. The source cycle must be completed. |
 | `new_cycle_id` | string | Yes | Id of the related new cycle. |
 
 #### Output

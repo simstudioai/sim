@@ -1,6 +1,6 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { PLANEV2WORKITEMS70DCEE_OUTPUT } from '@/tools/plane/outputs'
-import { planeV2WorkItems70dceeSchema } from '@/tools/plane/schemas'
+import { PLANEV2WORKITEMS0F282F_OUTPUT } from '@/tools/plane/outputs'
+import { planeV2WorkItems0f282fSchema } from '@/tools/plane/schemas'
 import type { PlaneUpdateWorkItemParams, PlaneUpdateWorkItemResponse } from '@/tools/plane/types'
 import {
   assertPlaneVersionFields,
@@ -462,8 +462,8 @@ export const planeUpdateWorkItemTool: ToolConfig<
   },
   transformResponse: async (response, params) =>
     planeApiVersion(params?.apiVersion, true) === 'v1'
-      ? planeObjectResponse(response, planeV2WorkItems70dceeSchema)
-      : planeObjectResponse(response, planeV2WorkItems70dceeSchema),
+      ? planeObjectResponse(response, planeV2WorkItems0f282fSchema)
+      : planeObjectResponse(response, planeV2WorkItems0f282fSchema),
   postProcess: async (result, params, executeTool) => {
     if (planeApiVersion(params.apiVersion, true) !== 'v2') return result
     const clears = requestedRelationClears(params)
@@ -516,7 +516,14 @@ export const planeUpdateWorkItemTool: ToolConfig<
       })
       if (!refreshed.success || !isRecordLike(refreshed.output.result))
         throw new Error('Plane updated the relations but the final read failed')
-      const verified = { ...refreshed.output.result, ...unapplied }
+      const verified = { ...refreshed.output.result }
+      const selectedFields =
+        typeof params.fields === 'string' && params.fields !== 'all'
+          ? new Set(params.fields.split(',').map((field) => field.trim()))
+          : undefined
+      for (const [name, value] of Object.entries(unapplied)) {
+        if (!selectedFields || selectedFields.has(name)) verified[name] = value
+      }
       for (const [canonical, expanded] of [
         ['label_ids', 'labels'],
         ['assignee_ids', 'assignees'],
@@ -524,7 +531,7 @@ export const planeUpdateWorkItemTool: ToolConfig<
         if (Object.hasOwn(unapplied, canonical) && Object.hasOwn(verified, expanded))
           verified[expanded] = []
       }
-      return { ...result, output: { result: planeV2WorkItems70dceeSchema.parse(verified) } }
+      return { ...result, output: { result: planeV2WorkItems0f282fSchema.parse(verified) } }
     } catch {
       return {
         ...result,
@@ -534,5 +541,5 @@ export const planeUpdateWorkItemTool: ToolConfig<
       }
     }
   },
-  outputs: { result: PLANEV2WORKITEMS70DCEE_OUTPUT },
+  outputs: { result: PLANEV2WORKITEMS0F282F_OUTPUT },
 }

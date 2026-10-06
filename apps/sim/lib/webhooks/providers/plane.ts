@@ -195,10 +195,15 @@ export const planeHandler: WebhookProviderHandler = {
             providerConfigUpdates: {
               externalId: config.externalId,
               webhookSecret: config.webhookSecret,
+              subscriptionActivationPending: payload.is_active !== true,
             },
           }
         }
-      } else if (existing.status !== 404) {
+        throw new Error(
+          'The stored Plane webhook URL or scopes changed; update or remove it in Plane before retrying registration'
+        )
+      }
+      if (existing.status !== 404) {
         throw new Error(`Plane webhook recovery failed (HTTP ${existing.status})`)
       }
     }
@@ -230,7 +235,13 @@ export const planeHandler: WebhookProviderHandler = {
         !secretPayload.secret_key
       )
         throw new Error('Plane did not return a webhook secret')
-      return { providerConfigUpdates: { externalId, webhookSecret: secretPayload.secret_key } }
+      return {
+        providerConfigUpdates: {
+          externalId,
+          webhookSecret: secretPayload.secret_key,
+          subscriptionActivationPending: true,
+        },
+      }
     } catch (error) {
       try {
         await deletePlaneWebhook(config, externalId)

@@ -3219,21 +3219,36 @@ export const PLANEV2V2LISTWEBHOOKSRESULT_OUTPUT: OutputProperty = {
   },
 }
 
+const ISACTIVE94C709_OUTPUT: OutputProperty = {
+  type: 'boolean',
+  description: 'Has Pages',
+  optional: true,
+  nullable: true,
+}
+
+const SCOPES6811CA_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Default Value',
+  optional: true,
+  items: { type: 'string', description: 'Asset Id' },
+  nullable: true,
+}
+
 export const PLANEV2V2REGENERATEWEBHOOKSECRETRESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 V2 Regenerate Webhook Secretresult',
   optional: true,
   properties: {
-    content_type: { ...ASSETID_OUTPUT, description: 'Content type' },
-    created_at: { ...ASSETID_OUTPUT, description: 'Created at' },
-    created_by_id: { ...ASSETID_OUTPUT, description: 'Created by id' },
+    content_type: { ...CYCLE883343_OUTPUT, description: 'Content type' },
+    created_at: { ...CYCLE883343_OUTPUT, description: 'Created at' },
+    created_by_id: { ...CYCLE883343_OUTPUT, description: 'Created by id' },
     id: { ...ASSETID_OUTPUT, description: 'Id' },
-    is_active: { ...HASPAGES8E2BC3_OUTPUT, description: 'Is active' },
-    name: { ...ASSETID_OUTPUT, description: 'Name' },
-    scopes: { ...DEFAULTVALUECB839F_OUTPUT, description: 'Scopes' },
+    is_active: { ...ISACTIVE94C709_OUTPUT, description: 'Is active' },
+    name: { ...CYCLE883343_OUTPUT, description: 'Name' },
+    scopes: { ...SCOPES6811CA_OUTPUT, description: 'Scopes' },
     secret_key: { ...ASSETID_OUTPUT, description: 'Secret key' },
-    url: { ...ASSETID_OUTPUT, description: 'Url' },
-    version: { ...ASSETID_OUTPUT, description: 'Version' },
+    url: { ...CYCLE883343_OUTPUT, description: 'Url' },
+    version: { ...CYCLE883343_OUTPUT, description: 'Version' },
   },
 }
 
@@ -3794,6 +3809,12 @@ export const PLANEV2WORKITEMLINKSBF8B88_OUTPUT: OutputProperty = {
   },
 }
 
+const NAME92E185_OUTPUT: OutputProperty = {
+  type: 'string',
+  description: 'Legacy link name.',
+  optional: true,
+}
+
 const METADATAE14892_OUTPUT: OutputProperty = {
   type: 'json',
   description: 'Metadata',
@@ -3820,7 +3841,7 @@ const METADATA3E5254_OUTPUT: OutputProperty = {
   nullable: true,
 }
 
-export const PLANEV2WORKITEMLINKS2ED9B8_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMLINKS9C2403_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Item- Links',
   optional: true,
@@ -3832,6 +3853,7 @@ export const PLANEV2WORKITEMLINKS2ED9B8_OUTPUT: OutputProperty = {
     title: { ...TITLEB3DA20_OUTPUT, description: 'Title' },
     url: { ...URLB9B40F_OUTPUT, description: 'Url' },
     work_item_id: { ...WORKITEMID1FB0C4_OUTPUT, description: 'Work item id' },
+    name: { ...NAME92E185_OUTPUT, description: 'Legacy link name.' },
     updated_at: { ...UPDATEDAT_OUTPUT, description: 'Updated at' },
     deleted_at: { ...DELETEDAT_OUTPUT, description: 'Deleted at' },
     created_by: { ...CREATEDBY94A812_OUTPUT, description: 'Created by' },
@@ -3956,7 +3978,7 @@ const NAMEEFF235_OUTPUT: OutputProperty = {
   nullable: true,
 }
 
-const IDENTIFIER1ADA10_OUTPUT: OutputProperty = {
+const IDENTIFIER88C0EA_OUTPUT: OutputProperty = {
   type: 'string',
   description:
     "The human key, for example `PROJ-142`. It is the project's identifier joined to `sequence_id`, and it is what people paste into chat and commit messages. Use it with [Get a work item by identifier](https://developers.plane.so/api-reference/v2/work-items/get-work-item-by-identifier) when you don't have the project UUID.",
@@ -4032,7 +4054,7 @@ const MODULEIDS_OUTPUT: OutputProperty = {
   nullable: true,
 }
 
-export const PLANEV2WORKITEMS50747F_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMS9ED9D6_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Items',
   optional: true,
@@ -4043,7 +4065,7 @@ export const PLANEV2WORKITEMS50747F_OUTPUT: OutputProperty = {
         'Unique identifier for the work item. This is the `{pk}` on every project-scoped detail route.',
     },
     name: { ...NAMEEFF235_OUTPUT, description: 'Name' },
-    identifier: { ...IDENTIFIER1ADA10_OUTPUT, description: 'Identifier' },
+    identifier: { ...IDENTIFIER88C0EA_OUTPUT, description: 'Identifier' },
     sequence_id: { ...SEQUENCEIDE286F6_OUTPUT, description: 'Sequence id' },
     priority: { ...PRIORITY69905E_OUTPUT, description: 'Priority' },
     state_id: { ...STATEID99D408_OUTPUT, description: 'State id' },
@@ -4086,7 +4108,7 @@ const MODULEIDS80DC0D_OUTPUT: OutputProperty = {
   nullable: true,
 }
 
-export const PLANEV2WORKITEMS5A99D3_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMSE09EEB_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Items',
   optional: true,
@@ -4097,7 +4119,7 @@ export const PLANEV2WORKITEMS5A99D3_OUTPUT: OutputProperty = {
         'Unique identifier for the work item. This is the `{pk}` on every project-scoped detail route.',
     },
     name: { ...NAMEEFF235_OUTPUT, description: 'Name' },
-    identifier: { ...IDENTIFIER1ADA10_OUTPUT, description: 'Identifier' },
+    identifier: { ...IDENTIFIER88C0EA_OUTPUT, description: 'Identifier' },
     sequence_id: { ...SEQUENCEIDE281C0_OUTPUT, description: 'Sequence id' },
     priority: { ...PRIORITY69905E_OUTPUT, description: 'Priority' },
     state_id: { ...STATEID99D408_OUTPUT, description: 'State id' },
@@ -4224,14 +4246,14 @@ const TYPE65A531_OUTPUT: OutputProperty = {
   nullable: true,
 }
 
-export const PLANEV2WORKITEMS70DCEE_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMS0F282F_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Items',
   optional: true,
   properties: {
     id: { ...ID3B71DC_OUTPUT, description: 'Id' },
     name: { ...NAME31ECC6_OUTPUT, description: 'Name' },
-    identifier: { ...IDENTIFIER1ADA10_OUTPUT, description: 'Identifier' },
+    identifier: { ...IDENTIFIER88C0EA_OUTPUT, description: 'Identifier' },
     sequence_id: { ...SEQUENCEIDE56CEC_OUTPUT, description: 'Sequence id' },
     priority: { ...PRIORITYCE8C57_OUTPUT, description: 'Priority' },
     state_id: { ...STATEID99D408_OUTPUT, description: 'State id' },
@@ -4344,14 +4366,14 @@ const LABELSDB08CD_OUTPUT: OutputProperty = {
   },
 }
 
-export const PLANEV2WORKITEMS6D2E4E_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMS675283_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Items',
   optional: true,
   properties: {
     id: { ...ID3B71DC_OUTPUT, description: 'Id' },
     name: { ...NAME31ECC6_OUTPUT, description: 'Name' },
-    identifier: { ...IDENTIFIER1ADA10_OUTPUT, description: 'Identifier' },
+    identifier: { ...IDENTIFIER88C0EA_OUTPUT, description: 'Identifier' },
     sequence_id: { ...SEQUENCEIDE56CEC_OUTPUT, description: 'Sequence id' },
     priority: { ...PRIORITYCE8C57_OUTPUT, description: 'Priority' },
     state_id: { ...STATEID99D408_OUTPUT, description: 'State id' },
@@ -4404,7 +4426,7 @@ export const PLANEV2WORKITEMS6D2E4E_OUTPUT: OutputProperty = {
   },
 }
 
-const DATAEC4FD0_OUTPUT: OutputProperty = {
+const DATAF74A82_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Data',
   optional: true,
@@ -4582,7 +4604,7 @@ export const PLANEV2V2LISTWORKITEMSRESULT_OUTPUT: OutputProperty = {
   description: 'Plane V2 V2 List Work Itemsresult',
   optional: true,
   properties: {
-    data: { ...DATAEC4FD0_OUTPUT, description: 'Data' },
+    data: { ...DATAF74A82_OUTPUT, description: 'Data' },
     next: { ...NEXT_OUTPUT, description: 'Next' },
     previous: { ...PREVIOUS55126E_OUTPUT, description: 'Previous' },
     total_count: { ...ACCESS644595_OUTPUT, description: 'Total count' },
@@ -4701,7 +4723,7 @@ export const WORKITEMDC8A1D_OUTPUT: OutputProperty = {
   },
 }
 
-const DATAA48DAE_OUTPUT: OutputProperty = {
+const DATAC48C4D_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Data',
   optional: true,
@@ -4865,7 +4887,7 @@ export const PLANEV2V2LISTWORKSPACEWORKITEMSRESULT_OUTPUT: OutputProperty = {
   description: 'Plane V2 V2 List Workspace Work Itemsresult',
   optional: true,
   properties: {
-    data: { ...DATAA48DAE_OUTPUT, description: 'Data' },
+    data: { ...DATAC48C4D_OUTPUT, description: 'Data' },
     next: { ...PREVIOUS_OUTPUT, description: 'Next' },
     pagination: { ...PLANEV2PAGINATION_OUTPUT, description: 'Pagination' },
     previous: { ...PREVIOUS_OUTPUT, description: 'Previous' },
@@ -4875,7 +4897,7 @@ export const PLANEV2V2LISTWORKSPACEWORKITEMSRESULT_OUTPUT: OutputProperty = {
   },
 }
 
-export const PLANEV2WORKITEMSFDC2FC_OUTPUT: OutputProperty = {
+export const PLANEV2WORKITEMSA385BB_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Plane V2 Work- Items',
   optional: true,
@@ -4886,7 +4908,7 @@ export const PLANEV2WORKITEMSFDC2FC_OUTPUT: OutputProperty = {
         'Unique identifier for the work item. This is the `{pk}` on every project-scoped detail route.',
     },
     name: { ...NAMEEFF235_OUTPUT, description: 'Name' },
-    identifier: { ...IDENTIFIER1ADA10_OUTPUT, description: 'Identifier' },
+    identifier: { ...IDENTIFIER88C0EA_OUTPUT, description: 'Identifier' },
     sequence_id: { ...SEQUENCEIDE281C0_OUTPUT, description: 'Sequence id' },
     priority: { ...PRIORITY69905E_OUTPUT, description: 'Priority' },
     state_id: { ...STATEID99D408_OUTPUT, description: 'State id' },
