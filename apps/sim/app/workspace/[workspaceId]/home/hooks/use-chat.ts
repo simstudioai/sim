@@ -206,12 +206,26 @@ interface FinalizeOptions {
 }
 
 /**
+ * A send handed back to the caller instead of rendered. `userMessageId` is what
+ * a retry reuses so the server deduplicates the two attempts. An `unreachable`
+ * send is held in the queue until the browser is back online or the user sends
+ * it: dispatching it again at once would fail the same way. When the browser
+ * came back online while that send was failing (`networkReturned`), the release
+ * it would have waited for has already fired, so it is not held.
+ */
+interface WithdrawnSendResult {
+  userMessageId: string
+  unreachable?: boolean
+  networkReturned?: boolean
+}
+
+/**
  * `true` when the send owns the transcript (rendered, or handed to reconnect),
  * `false` when the caller should restore the queue entry, and the object form
- * when an unmount cleanup withdrew it — `userMessageId` is what a retry reuses
- * so the server deduplicates the two attempts.
+ * when the send was withdrawn: by an unmount cleanup, because it never reached
+ * the server, or because another turn held the chat.
  */
-type StartSendMessageResult = boolean | { userMessageId: string }
+type StartSendMessageResult = boolean | WithdrawnSendResult
 
 interface StartSendMessageOptions {
   /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
@@ -723,6 +737,10 @@ export function useChat(
   const pendingStopModeRef = useRef<StopGenerationMode | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
+  /** Counts `online` events, so a send can tell the network returned while it was failing. */
+  const onlineEventsRef = useRef(0)
+  /** Identifies this chatless surface across mounts, for the sends it holds. */
+  const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
   const onTitleUpdateRef = useRef(options?.onTitleUpdate)
@@ -3487,6 +3505,7 @@ export function useChat(
 
       let consumedByTranscript = false
       let sendReachedServer = false
+      const onlineEventsAtSend = onlineEventsRef.current
 
       setError(null)
       setTransportStreaming()
@@ -3901,10 +3920,10 @@ export function useChat(
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
           if (response.status === 409) {
+            /* A deduplicated send always names itself; a chat busy with another
+               turn names that turn, or nothing when its stream id is unreadable. */
             const conflictStreamId =
-              typeof errorData.activeStreamId === 'string'
-                ? errorData.activeStreamId
-                : userMessageId
+              typeof errorData.activeStreamId === 'string' ? errorData.activeStreamId : undefined
             const supersededStreamId = queuedSendHandoff?.supersededStreamId ?? pendingStopStreamId
             if (supersededStreamId && conflictStreamId === supersededStreamId) {
               rollbackOptimisticSend()
@@ -3917,6 +3936,35 @@ export function useChat(
               }
               setError('Previous response is still shutting down; queued message was restored.')
               return false
+            }
+            if (conflictStreamId !== userMessageId) {
+              /* Another turn holds the chat: one started in another tab, or one this
+                 surface lost track of. This message was not admitted (the server
+                 released its id), so it goes back to the queue under the same id. The
+                 queue drains only while the chat is idle, so the chat's running turn is
+                 read before the message is handed back: the chat then attaches to that
+                 turn and the message goes out once, after it ends. */
+              rollbackOptimisticSend()
+              if (streamGenRef.current === gen) {
+                streamGenRef.current++
+                abortController.abort('send_conflict:chat_busy')
+                abortControllerRef.current = null
+                clearActiveTurn()
+                setTransportIdle()
+              }
+              if (requestChatId) {
+                const busyChatId = requestChatId
+                if (conflictStreamId) {
+                  upsertChatHistory(busyChatId, (current) => ({
+                    ...current,
+                    activeStreamId: conflictStreamId,
+                  }))
+                }
+                await queryClient
+                  .refetchQueries({ queryKey: mothershipChatKeys.detail(busyChatId), exact: true })
+                  .catch(() => {})
+              }
+              return { userMessageId }
             }
             /* A send deduplicated against an earlier attempt comes back naming
                the chat that attempt opened. Adopting it here spares a chatless
@@ -4035,6 +4083,31 @@ export function useChat(
             })
           }
           return consumedByTranscript
+        }
+
+        if (!sendReachedServer) {
+          /* The POST got no answer, so nothing shows the server admitted it, and a
+             stream that was never opened reads as finished. Hand the message back
+             under the same id: if the server did admit it, the retry deduplicates
+             and the chat's own recovery shows the running turn. */
+          rollbackOptimisticSend()
+          if (gen !== undefined && streamGenRef.current === gen) {
+            streamGenRef.current++
+            admission?.controller.abort('send_unreachable:no_response')
+            abortControllerRef.current = null
+            clearActiveTurn()
+            setTransportIdle()
+          }
+          setError(
+            err instanceof TypeError
+              ? 'Message not sent: Sim could not be reached. It will send when you are back online.'
+              : getErrorMessage(err, 'Failed to send message')
+          )
+          return {
+            userMessageId,
+            unreachable: true,
+            ...(onlineEventsRef.current !== onlineEventsAtSend ? { networkReturned: true } : {}),
+          }
         }
 
         const activeStreamId = streamIdRef.current
@@ -4194,11 +4267,12 @@ export function useChat(
       const result = await startSendMessage(message, fileAttachments, contexts, options)
       if (typeof result !== 'object') return
 
-      /* An unmount cleanup withdrew the send. A chat-bound key is the stable
-         chat id, so re-queueing under the key this was sent to is the durable
-         retry — and keeps the message in that chat rather than following the
-         user into whichever one they opened next. Only a chatless surface,
-         whose key dies with the mount, goes to the cross-surface lanes. */
+      /* The send was withdrawn. A chat-bound key is the stable chat id, so
+         re-queueing under the key this was sent to is the durable retry, and
+         keeps the message in that chat rather than following the user into
+         whichever one they opened next. Only a send an unmount withdrew from a
+         chatless surface, whose key dies with the mount, goes to the
+         cross-surface lanes. */
       const withdrawn = {
         content: message,
         fileAttachments,
@@ -4210,30 +4284,34 @@ export function useChat(
           ? { assistantSearchLevel: options?.assistantSearchLevel }
           : {}),
       }
-      if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+      if (!result.unreachable && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
         return
       }
-      useMothershipQueueStore
-        .getState()
-        .enqueue(
-          activeChatKey,
-          createQueuedMessage(
-            message,
-            fileAttachments,
-            contexts,
-            result.userMessageId,
-            options?.requestMode,
-            options?.assistantSearch,
-            options?.assistantSearchLevel
-          )
-        )
+      useMothershipQueueStore.getState().enqueue(activeChatKey, {
+        ...createQueuedMessage(
+          message,
+          fileAttachments,
+          contexts,
+          result.userMessageId,
+          options?.requestMode,
+          options?.assistantSearch,
+          options?.assistantSearchLevel
+        ),
+        ...(result.unreachable && !result.networkReturned
+          ? { retryRequired: true, heldUntilOnline: true }
+          : {}),
+        ...(result.unreachable && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+          ? { heldSurface: heldSendSurface }
+          : {}),
+      })
     },
     [
       workspaceId,
       createQueuedMessage,
       startSendMessage,
       handOffWithdrawnSend,
+      heldSendSurface,
       hasPendingChatAdmission,
     ]
   )
@@ -4780,9 +4858,10 @@ export function useChat(
       let dispatched = msg
       const restoreQueuedMessage = (
         handoff?: QueuedSendHandoffSeed,
-        withdrawnUserMessageId?: string
+        withdrawn?: WithdrawnSendResult
       ) => {
-        const withdrawnByCleanup = withdrawnUserMessageId !== undefined
+        const withdrawnUserMessageId = withdrawn?.userMessageId
+        const retriesOnItsOwn = withdrawn !== undefined && !withdrawn.unreachable
         const savedHandoff = readQueuedSendHandoffState()
         const retainedHandoff =
           savedHandoff?.id === msg.id
@@ -4798,7 +4877,9 @@ export function useChat(
         if (!removedFromQueue) {
           return
         }
-        if (options.epoch !== queueDispatchEpochRef.current && !withdrawnByCleanup) {
+        /* A withdrawn send was never admitted, so it goes back to its chat's queue
+           even when the user has moved on since its dispatch started. */
+        if (options.epoch !== queueDispatchEpochRef.current && !withdrawn) {
           return
         }
         // If the user explicitly removed this message during dispatch, honor
@@ -4811,7 +4892,7 @@ export function useChat(
            restore would strand this under the dead instance's key — hand it to
            the next surface instead. A chat-bound key is the stable chat id, so
            the queue itself is the durable retry. */
-        if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        if (withdrawn && retriesOnItsOwn && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
           clearQueuedSendHandoffState(msg.id)
           handOffWithdrawnSend({
             content: dispatched.content,
@@ -4822,7 +4903,7 @@ export function useChat(
             ...(dispatched.assistantSearchLevel !== undefined
               ? { assistantSearchLevel: dispatched.assistantSearchLevel }
               : {}),
-            userMessageId: withdrawnUserMessageId,
+            userMessageId: withdrawn.userMessageId,
           })
           return
         }
@@ -4831,7 +4912,13 @@ export function useChat(
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
           ...dispatched,
           ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
-          retryRequired: !withdrawnByCleanup,
+          retryRequired: withdrawn?.unreachable ? !withdrawn.networkReturned : !retriesOnItsOwn,
+          ...(withdrawn?.unreachable && !withdrawn.networkReturned
+            ? { heldUntilOnline: true }
+            : {}),
+          ...(withdrawn?.unreachable && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+            ? { heldSurface: heldSendSurface }
+            : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
       }
@@ -4875,7 +4962,7 @@ export function useChat(
         if (sendResult !== true) {
           restoreQueuedMessage(
             activeQueuedSendHandoff,
-            typeof sendResult === 'object' ? sendResult.userMessageId : undefined
+            typeof sendResult === 'object' ? sendResult : undefined
           )
         }
       } catch {
@@ -4886,7 +4973,7 @@ export function useChat(
         userRemovedDuringDispatch.delete(msg.id)
       }
     },
-    [startSendMessage, handOffWithdrawnSend]
+    [startSendMessage, handOffWithdrawnSend, heldSendSurface]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {
@@ -5040,6 +5127,29 @@ export function useChat(
     }
   }, [])
 
+  /**
+   * Sends held because the server could not be reached are released once the
+   * browser is online: on the `online` event, and on mount in case it fired while
+   * no chat surface was listening. The queue drain below sends a released head
+   * under its usual rules (history loaded, no running turn). A chatless surface
+   * first adopts what a dead mount of the same surface held, since that mount's
+   * queue key died with it.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const releaseHeldSends = () => useMothershipQueueStore.getState().releaseHeldUntilOnline()
+    const handleOnline = () => {
+      onlineEventsRef.current++
+      releaseHeldSends()
+    }
+    if (chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+      useMothershipQueueStore.getState().adoptHeldSends(chatKey, heldSendSurface)
+    }
+    if (navigator.onLine) releaseHeldSends()
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [chatKey, heldSendSurface])
+
   /** A recovered send already in history belongs to its accepted turn, even after Stop. */
   useEffect(() => {
     if (!chatHistory || chatHistory.id !== chatKeyRef.current) return
@@ -5063,9 +5173,10 @@ export function useChat(
   // `notifyTurnEnded`. Idempotent — the dispatch loop dedupes.
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
+  const queueHeadHeld = messageQueue[0]?.retryRequired === true
   useEffect(() => {
     if (!scopeKey) return
-    if (messageQueue.length === 0) return
+    if (messageQueue.length === 0 || queueHeadHeld) return
     if (sendingRef.current || pendingStopPromiseRef.current) return
     if (queueDispatchTaskRef.current) return
     if (resolvedChatId && !chatHistoryReady) return
@@ -5076,6 +5187,7 @@ export function useChat(
     organizationId,
     scopeKey,
     messageQueue.length,
+    queueHeadHeld,
     resolvedChatId,
     chatHistoryReady,
     remoteActiveStreamId,

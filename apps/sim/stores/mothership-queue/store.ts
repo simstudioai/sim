@@ -44,6 +44,7 @@ const sessionStorageAdapter = {
 const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
+  cleared: {} as Record<string, true>,
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -67,6 +68,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
         enqueue: (chatKey, message) =>
           set((state) => ({
+            cleared: omitKey(state.cleared, chatKey),
             queues: setQueueForChat(state.queues, chatKey, [
               ...(state.queues[chatKey] ?? []),
               message,
@@ -75,6 +77,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
 
         insertAt: (chatKey, index, message) =>
           set((state) => {
+            /** A restore that lands after its chat was cleared (deleted) must not recreate it. */
+            if (state.cleared[chatKey]) return state
             const current = state.queues[chatKey] ?? []
             if (current.some((m) => m.id === message.id)) return state
             const next = [...current]
@@ -93,6 +97,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
               retryRequired: _retry,
+              heldUntilOnline: _held,
+              heldSurface: _surface,
               ...rest
             } = next[index]
             next[index] = {
@@ -142,7 +148,11 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               // Merge defensively in case a stale bucket survived in
               // sessionStorage. FIFO: existing first, then the resolved stream.
               const existing = state.queues[toKey] ?? []
-              queues[toKey] = [...existing, ...fromQueue]
+              /** A chat-bound key is stable, so its messages no longer need a surface to adopt them. */
+              queues[toKey] = [
+                ...existing,
+                ...fromQueue.map(({ heldSurface: _surface, ...message }) => message),
+              ]
             }
             const editing = omitKey(state.editing, fromKey)
             if (fromEditing !== undefined) {
@@ -151,10 +161,47 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             return { queues, editing }
           }),
 
+        releaseHeldUntilOnline: () =>
+          set((state) => {
+            let released = false
+            const queues: Record<string, QueuedMothershipMessage[]> = {}
+            for (const [chatKey, queue] of Object.entries(state.queues)) {
+              queues[chatKey] = queue.map((message) => {
+                if (!message.heldUntilOnline) return message
+                released = true
+                const { retryRequired: _retry, heldUntilOnline: _held, ...rest } = message
+                return rest
+              })
+            }
+            return released ? { queues } : state
+          }),
+
+        adoptHeldSends: (toKey, surface) =>
+          set((state) => {
+            const adopted: QueuedMothershipMessage[] = []
+            let queues = state.queues
+            for (const [chatKey, queue] of Object.entries(state.queues)) {
+              if (chatKey === toKey) continue
+              const held = queue.filter((message) => message.heldSurface === surface)
+              if (held.length === 0) continue
+              adopted.push(...held)
+              queues = setQueueForChat(
+                queues,
+                chatKey,
+                queue.filter((message) => message.heldSurface !== surface)
+              )
+            }
+            if (adopted.length === 0) return state
+            return {
+              queues: setQueueForChat(queues, toKey, [...(queues[toKey] ?? []), ...adopted]),
+            }
+          }),
+
         clearChat: (chatKey) =>
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
             editing: omitKey(state.editing, chatKey),
+            cleared: { ...state.cleared, [chatKey]: true },
           })),
 
         reset: () => set(initialState),
