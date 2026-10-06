@@ -1,3 +1,4 @@
+import { DESKTOP_IMPORT_TOKEN_HEADER, isStorableImportName } from '@sim/desktop-bridge'
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
@@ -212,8 +213,9 @@ export const listDesktopActivityContract = defineRouteContract({
   error: z.object({ error: z.string() }),
 })
 
-/** Workspace file names cannot hold a backslash, which a macOS or Linux file name can. */
-const BACKSLASH_NAME = 'Sim cannot store a file or folder whose name contains a backslash'
+/** Names a workspace cannot hold, though a macOS or Linux file name can be any of them. */
+const UNSTORABLE_NAME =
+  'Sim cannot store a file or folder whose name is blank, "." or "..", or contains a backslash'
 
 /** One relative path inside an import source, as the device's manifest lists it. */
 const desktopImportRelativePathSchema = z
@@ -225,12 +227,11 @@ const desktopImportRelativePathSchema = z
       path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..'),
     'Relative path must stay inside the import source'
   )
-  .refine((path) => !path.includes('\\'), BACKSLASH_NAME)
+  .refine((path) => path === '' || path.split('/').every(isStorableImportName), UNSTORABLE_NAME)
 
 const importDesktopEntryQuerySchema = z.object({
   deviceId: desktopDeviceIdSchema,
   toolCallId: desktopToolCallIdSchema,
-  executionToken: z.string().min(1).max(128),
   kind: z.enum(['file', 'directory']),
   /** The import source's own name: the folder a directory import lands in, or the file. */
   sourceName: z
@@ -238,8 +239,7 @@ const importDesktopEntryQuerySchema = z.object({
     .trim()
     .min(1, 'Source name is required')
     .max(255)
-    .refine((name) => !name.includes('/'), 'Source name must be a single name')
-    .refine((name) => !name.includes('\\'), BACKSLASH_NAME),
+    .refine(isStorableImportName, UNSTORABLE_NAME),
   relativePath: desktopImportRelativePathSchema,
 })
 
@@ -257,6 +257,7 @@ export const importDesktopEntryContract = defineRouteContract({
   method: 'PUT',
   path: '/api/desktop/tool/import',
   query: importDesktopEntryQuerySchema,
+  headers: z.object({ [DESKTOP_IMPORT_TOKEN_HEADER]: z.string().min(1).max(128) }),
   response: { mode: 'json', schema: importDesktopEntryResponseSchema },
   error: z.object({ error: z.string() }),
 })

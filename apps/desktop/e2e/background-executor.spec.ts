@@ -197,7 +197,7 @@ class FixtureSim {
       !call ||
       call.deviceId !== query.deviceId ||
       call.toolName !== 'import_local_files' ||
-      call.token !== query.executionToken ||
+      call.token !== request.headers['x-sim-execution-token'] ||
       call.status !== 'running'
     ) {
       this.json(response, 404, { error: 'Desktop import not found' })

@@ -47,3 +47,15 @@ export function resolveSimMcpHostPath(
   if (!dedicated) return null
   return pathname === AUTHORIZATION_SERVER_METADATA ? pathname : 'not_found'
 }
+
+/**
+ * For a route the proxy does not run on: whether the request came in through the dedicated MCP
+ * host, which serves nothing but the MCP server. Such a route answers it as not found itself, as
+ * the proxy would have.
+ */
+export function isOffAppHost(request: { headers: Headers; url: string }): boolean {
+  return (
+    resolveSimMcpHostPath(request.headers.get('host'), new URL(request.url).pathname) ===
+    'not_found'
+  )
+}

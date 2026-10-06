@@ -3,6 +3,7 @@
  * own session cookie, which is the session the device registered under; Sim refuses any other.
  */
 
+import { DESKTOP_IMPORT_TOKEN_HEADER } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncateAtCodePoint } from '@sim/utils/string'
@@ -110,7 +111,8 @@ export function createDesktopExecutorClient(
     path: string,
     body?: Record<string, unknown> | Blob,
     signal?: AbortSignal,
-    timeoutMs = REQUEST_TIMEOUT_MS
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    extraHeaders: Record<string, string> = {}
   ): Promise<Response> {
     const timeout = AbortSignal.timeout(timeoutMs)
     const raw = body instanceof Blob
@@ -125,6 +127,7 @@ export function createDesktopExecutorClient(
           ...(body
             ? { 'Content-Type': raw ? 'application/octet-stream' : 'application/json' }
             : {}),
+          ...extraHeaders,
         },
         ...(encoded !== undefined ? { body: encoded } : {}),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -221,7 +224,6 @@ export function createDesktopExecutorClient(
       const query = new URLSearchParams({
         deviceId,
         toolCallId: call.toolCallId,
-        executionToken: call.executionToken,
         kind,
         sourceName,
         relativePath,
@@ -231,7 +233,8 @@ export function createDesktopExecutorClient(
         `/api/desktop/tool/import?${query}`,
         content,
         signal,
-        IMPORT_TIMEOUT_MS
+        IMPORT_TIMEOUT_MS,
+        { [DESKTOP_IMPORT_TOKEN_HEADER]: call.executionToken }
       )
       const entry = parseImportedEntry(await response.json().catch(() => null))
       if (!entry) throw malformed('import')

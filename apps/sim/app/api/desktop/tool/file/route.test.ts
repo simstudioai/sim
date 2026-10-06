@@ -87,4 +87,26 @@ describe('/api/desktop/tool/file', () => {
     expect(request.bodyUsed).toBe(false)
     expect(mockSave).not.toHaveBeenCalled()
   })
+
+  it('saves nothing from a download that does not match its declared length', async () => {
+    const res = await PUT(
+      put('toolCallId=call-2&name=report.csv', new Uint8Array([1, 2, 3]), {
+        'content-length': '10',
+      })
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockSave).not.toHaveBeenCalled()
+  })
+
+  it('refuses a download that does not declare its length', async () => {
+    const request = new NextRequest(`${URL_BASE}?toolCallId=call-3&name=a.csv`, {
+      method: 'PUT',
+      body: new ReadableStream({ start: (controller) => controller.close() }),
+      duplex: 'half',
+    })
+
+    expect((await PUT(request)).status).toBe(411)
+    expect(mockSave).not.toHaveBeenCalled()
+  })
 })

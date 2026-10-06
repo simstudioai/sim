@@ -12,6 +12,7 @@ import {
   type DesktopLocalFileManifest,
   type DesktopLocalFileRequest,
   type DesktopLocalFileResponse,
+  isStorableImportName,
   MAX_DESKTOP_IMPORT_FILE_BYTES,
 } from './local-files'
 
@@ -244,12 +245,15 @@ export function assertImportableManifest(manifest: DesktopLocalFileManifest): vo
       'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
     )
   }
-  const backslashed = [manifest.name, ...manifest.entries.map((entry) => entry.relativePath)].find(
-    (name) => name.includes('\\')
-  )
-  if (backslashed !== undefined) {
+  const unstorable = [
+    manifest.name,
+    ...manifest.entries.flatMap((entry) =>
+      entry.relativePath === '' ? [] : entry.relativePath.split('/')
+    ),
+  ].find((name) => !isStorableImportName(name))
+  if (unstorable !== undefined) {
     throw new Error(
-      `Sim cannot store a file or folder whose name contains a backslash: "${backslashed}". Rename it, or import the rest separately.`
+      `Sim cannot store a file or folder named "${unstorable}": a name needs visible characters, and cannot be "." or ".." or contain a backslash. Rename it, or import the rest separately.`
     )
   }
 }

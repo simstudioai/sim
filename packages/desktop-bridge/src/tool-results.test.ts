@@ -137,7 +137,11 @@ describe('import file reads', () => {
 })
 
 describe('importable manifests', () => {
-  it('refuses a name Sim cannot store before anything is imported', () => {
+  it.each([
+    ['a backslash', 'q3\\draft.txt'],
+    ['a blank name', 'q3/ '],
+    ['a dot segment after trimming', '.. /notes.txt'],
+  ])('refuses %s before anything is imported', (_case, relativePath) => {
     expect(() =>
       assertImportableManifest({
         kind: 'manifest',
@@ -145,9 +149,9 @@ describe('importable manifests', () => {
         targetWorkspaceId: 'ws-1',
         entries: [
           { relativePath: '', kind: 'directory', size: 0, revision: 'r0' },
-          { relativePath: 'q3\\draft.txt', kind: 'file', size: 1, revision: 'r1' },
+          { relativePath, kind: 'file', size: 1, revision: 'r1' },
         ],
       })
-    ).toThrow('backslash')
+    ).toThrow('Sim cannot store a file or folder named')
   })
 })

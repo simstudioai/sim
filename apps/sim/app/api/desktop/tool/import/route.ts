@@ -1,6 +1,7 @@
-import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
+import { DESKTOP_IMPORT_TOKEN_HEADER, MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
 import { type NextRequest, NextResponse } from 'next/server'
 import { importDesktopEntryContract } from '@/lib/api/contracts/desktop-executor'
+import { isOffAppHost } from '@/lib/api/mcp/host-routing'
 import { parseRequest } from '@/lib/api/server'
 import { desktopExecutorRateLimit } from '@/lib/api/server/routes/desktop-executor'
 import {
@@ -26,6 +27,8 @@ const TOO_LARGE = `Desktop imports support files up to ${MAX_DESKTOP_IMPORT_FILE
  * handed to the use case that re-validates the claim and stores it.
  */
 export const PUT = withRouteHandler(async (request: NextRequest) => {
+  if (isOffAppHost(request))
+    return NextResponse.json(withRequestId({ error: 'Not found' }), { status: 404 })
   let principal
   try {
     principal = await internalSessionAuth.authenticate()
@@ -39,7 +42,10 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
   if (limited) return limited
   const parsed = await parseRequest(importDesktopEntryContract, request, {})
   if (!parsed.success) return parsed.response
-  const query = parsed.data.query
+  const query = {
+    ...parsed.data.query,
+    executionToken: parsed.data.headers[DESKTOP_IMPORT_TOKEN_HEADER],
+  }
   const lengthHeader = request.headers.get('content-length')
   const declaredLength = Number(lengthHeader ?? 0)
   if (!Number.isFinite(declaredLength) || declaredLength > MAX_DESKTOP_IMPORT_FILE_BYTES) {
