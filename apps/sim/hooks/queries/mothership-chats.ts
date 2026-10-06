@@ -619,9 +619,12 @@ export function saveMothershipChatEffort(
   chatId: string,
   effort: MothershipEffort
 ): void {
-  new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  const observer = new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  // Detaching once the save settles lets the mutation cache collect it.
+  observer
     .mutate(effort)
     .catch(() => undefined)
+    .finally(() => observer.reset())
 }
 
 function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | undefined) {
