@@ -73,7 +73,7 @@ export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
  * Same cause as the workflow grace: only the chat view showing this chat starts the call, so a
  * call issued while the user is on another chat or page is claimed by nobody. A live view claims
  * within a second or two (stream frame -> IPC -> authorize), and there is no server fallback to
- * run instead, so the call fails with a "not started, safe to retry" result rather than parking
+ * run instead, so the call fails with a "never started" result rather than parking
  * until a watchdog calls it hung.
  */
 export const DESKTOP_TOOL_PICKUP_GRACE_MS = 15_000

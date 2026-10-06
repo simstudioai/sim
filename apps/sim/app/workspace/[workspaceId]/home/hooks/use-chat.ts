@@ -91,6 +91,10 @@ import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
+import {
+  leaseDesktopTool,
+  stopDesktopTools,
+} from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
   captureResourceActivityScope,
@@ -457,22 +461,6 @@ export async function waitForDetachedChatResolution(
 const USER_STOP_ABORT_REASON = 'user_stop:client_stopGeneration'
 
 /**
- * The lifetime a browser action started from one stream observes: only the user's Stop cancels
- * it. Replacing the stream reader (the window returning to view, a history reconnect) or leaving
- * the chat view leaves it running, so it finishes and reports its own result.
- */
-function browserToolLifetime(streamSignal: AbortSignal | undefined): AbortSignal | undefined {
-  if (!streamSignal) return undefined
-  const lifetime = new AbortController()
-  const followStop = () => {
-    if (streamSignal.reason === USER_STOP_ABORT_REASON) lifetime.abort(USER_STOP_ABORT_REASON)
-  }
-  if (streamSignal.aborted) followStop()
-  else streamSignal.addEventListener('abort', followStop, { once: true })
-  return lifetime.signal
-}
-
-/**
  * Runs a browser tool on the desktop client. The agent's tab reaches the
  * resource strip through the desktop tab list, so nothing is opened here.
  * Replay/exactly-once guarding lives in executeBrowserToolOnClient
@@ -484,10 +472,18 @@ function startClientBrowserTool(
   toolArgs: Record<string, unknown>,
   scopeId: string,
   eventTs?: string,
-  signal?: AbortSignal
+  turnStreamId?: string
 ): void {
   if (!isCurrentBrowserToolName(toolName)) return
-  executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
+  const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
+  void executeBrowserToolOnClient(
+    toolCallId,
+    toolName,
+    toolArgs,
+    scopeId,
+    eventTs,
+    lease?.signal
+  ).finally(() => lease?.release())
 }
 
 /**
@@ -1592,10 +1588,11 @@ export function useChat(
         return
       }
       handledClientLocalFilesystemToolIds.add(toolCallId)
+      const lease = streamIdRef.current ? leaseDesktopTool(streamIdRef.current) : undefined
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
-        signal: abortControllerRef.current?.signal,
+        signal: lease?.signal,
       }
       /**
        * Dynamic on purpose: the local-filesystem executor only runs for desktop-local
@@ -1606,35 +1603,40 @@ export function useChat(
        * report an error completion rather than leaving it hanging with the dedupe ref
        * already marked handled.
        */
-      import('@/lib/mothership/tools/client/local-filesystem').then(
-        (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
-        async (error) => {
-          logger.error('Failed to load local filesystem tool executor', { error })
-          /**
-           * The recovery itself can reject (the helper chunks or the completion POST can
-           * fail for the same reason the executor chunk did). Contain it: an unhandled
-           * rejection here would settle nothing and surface as a console error, exactly
-           * like the executor's own report-failure path, which also degrades to a log.
-           */
-          try {
-            const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
-              await Promise.all([
-                import('@/lib/mothership/tools/client/completion'),
-                import('@/lib/mothership/async-runs/lifecycle'),
-              ])
-            await reportClientToolCompletion(
-              toolCallId,
-              ASYNC_TOOL_CONFIRMATION_STATUS.error,
-              'Local filesystem tool failed to load'
-            )
-          } catch (reportError) {
-            logger.error('Failed to report local filesystem tool load failure', {
-              toolCallId,
-              error: reportError,
-            })
+      import('@/lib/mothership/tools/client/local-filesystem')
+        .then(
+          (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
+          async (error) => {
+            logger.error('Failed to load local filesystem tool executor', { error })
+            /**
+             * The recovery itself can reject (the helper chunks or the completion POST can
+             * fail for the same reason the executor chunk did). Contain it: an unhandled
+             * rejection here would settle nothing and surface as a console error, exactly
+             * like the executor's own report-failure path, which also degrades to a log.
+             */
+            try {
+              const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
+                await Promise.all([
+                  import('@/lib/mothership/tools/client/completion'),
+                  import('@/lib/mothership/async-runs/lifecycle'),
+                ])
+              await reportClientToolCompletion(
+                toolCallId,
+                ASYNC_TOOL_CONFIRMATION_STATUS.error,
+                'Local filesystem tool failed to load'
+              )
+            } catch (reportError) {
+              logger.error('Failed to report local filesystem tool load failure', {
+                toolCallId,
+                error: reportError,
+              })
+            }
           }
-        }
-      )
+        )
+        .catch((error) => {
+          logger.error('Local filesystem tool execution failed unexpectedly', { toolCallId, error })
+        })
+        .finally(() => lease?.release())
     },
     [workspaceId, organizationId, scopeKey]
   )
@@ -2171,7 +2173,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const browserToolSignal = browserToolLifetime(abortControllerRef.current?.signal)
+      const turnStreamId = streamIdRef.current
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -2192,7 +2194,7 @@ export function useChat(
         eventTs?: string
       ) => {
         const scopeId = activityScopeId()
-        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, browserToolSignal)
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, turnStreamId)
       }
       const startClientTerminalToolForStream = (
         toolCallId: string,
@@ -4443,6 +4445,7 @@ export function useChat(
         )
       }
       clearResourceActivity(stopActivityTracker, true)
+      if (sid) stopDesktopTools(sid, USER_STOP_ABORT_REASON)
 
       // Establish the stream boundary immediately after synchronous activity
       // settlement. Native cancellation above is deliberately fire-and-forget,

@@ -33,6 +33,19 @@ async function fetchCompletion(input: RequestInfo | URL, init: RequestInit): Pro
 }
 
 /**
+ * Whether a delivery attempt needs no retry: the server took it, or answered 409 because the
+ * desktop app holds the call and only its own result settles it.
+ */
+function isSettledDelivery(response: Response, toolCallId: string): boolean {
+  if (response.ok) return true
+  if (response.status !== 409) return false
+  logger.info('Client tool completion was not needed: another reporter holds the call', {
+    toolCallId,
+  })
+  return true
+}
+
+/**
  * Persist a client-executed tool result and wake the server-side async waiter.
  * Shared by workflow execution and desktop-native client tools.
  */
@@ -71,7 +84,7 @@ export async function reportClientToolCompletion(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await send(body)
-      if (response.ok) return
+      if (isSettledDelivery(response, toolCallId)) return
 
       if (isRecordLike(data) && bodySize > largePayloadThreshold) {
         const { logs: _logs, ...dataWithoutLogs } = data
@@ -89,7 +102,7 @@ export async function reportClientToolCompletion(
             data: dataWithoutLogs,
           })
         )
-        if (retryResponse.ok) return
+        if (isSettledDelivery(retryResponse, toolCallId)) return
         lastError = new Error(`Completion retry failed with status ${retryResponse.status}`)
       } else {
         lastError = new Error(`Completion failed with status ${response.status}`)

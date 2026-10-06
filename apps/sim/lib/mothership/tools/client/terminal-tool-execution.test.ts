@@ -67,7 +67,7 @@ describe('terminal client execution', () => {
     expect(reportClientToolCompletion).toHaveBeenCalledWith(
       'terminal-stale',
       'error',
-      expect.stringContaining('safe to retry'),
+      expect.stringContaining('never started'),
       expect.objectContaining({ notStarted: true })
     )
   })

@@ -178,7 +178,6 @@
     "ajv": "8.18.0",
     "commander": "^11.1.0",
     "concurrently": "10.0.5",
-    "drizzle-orm": "^0.45.2",
     "glob": "13.0.0",
     "gray-matter": "4.0.3",
     "husky": "9.1.7",

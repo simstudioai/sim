@@ -84,6 +84,18 @@ function acknowledgeSettledToolCall(
   return createConfirmationResponse(toolCallId, settledStatus, 'Tool call was already settled')
 }
 
+/**
+ * A desktop call this report may not settle: the desktop app holds it under its claim (or a
+ * report raced that claim and lost), so only the claim's own result settles it. Final, not
+ * retryable: the reporter stops.
+ */
+function heldByAnotherReporterResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'The desktop app holds this tool call; only its own result settles it' },
+    { status: 409 }
+  )
+}
+
 /** Atomically finalize or detach a client tool before publishing its wakeup event. */
 async function updateToolCallStatus(
   existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
@@ -272,7 +284,11 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const isMutableClientToolCall = isWorkflowTool
           ? isWorkflowToolExecutionClaimable(existing.status, existing.permissionDecision)
           : existing.status === ASYNC_TOOL_STATUS.running || isPreclaimNativeTerminalOutcome
-        if ((isNativeClientTool || isWorkflowTool) && !isMutableClientToolCall) {
+        if (isNativeClientTool && !isMutableClientToolCall) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return heldByAnotherReporterResponse()
+        }
+        if (isWorkflowTool && !isMutableClientToolCall) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
         }
@@ -285,7 +301,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           existing.status !== ASYNC_TOOL_STATUS.pending
         ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
-          return createNotFoundResponse('Pending client tool call not found')
+          return heldByAnotherReporterResponse()
         }
 
         let effectiveStatus = status
@@ -422,7 +438,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         if (reconciledOutcome === 'conflict' && isPreclaimNativeTerminalOutcome) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
-          return createNotFoundResponse('Pending client tool call not found')
+          return heldByAnotherReporterResponse()
         }
 
         if (reconciledOutcome !== 'updated') {

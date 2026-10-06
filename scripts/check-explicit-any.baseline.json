@@ -1972,7 +1972,6 @@
     "packages/workflow-renderer/src/workflow-block/workflow-block-view.tsx": 12,
     "packages/workflow-types/src/workflow.ts": 1,
     "scripts/create-single-release.ts": 1,
-    "scripts/generate-docs.ts": 2,
-    "scripts/probes/mothership-request-admission.ts": 2
+    "scripts/generate-docs.ts": 2
   }
 }

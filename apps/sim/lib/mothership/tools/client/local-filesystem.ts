@@ -337,17 +337,17 @@ async function execute(
   return executeUserLocalRead(toolCallId, args, context.signal)
 }
 
-export function executeLocalFilesystemTool(
+export async function executeLocalFilesystemTool(
   toolCallId: string,
   toolName: string,
   args: Record<string, unknown>,
   context: LocalFilesystemExecutionContext
-): void {
+): Promise<void> {
   if (isNativeFileTool(toolName)) {
-    void executeNativeFileTool(toolCallId, toolName, context.signal)
+    await executeNativeFileTool(toolCallId, toolName, context.signal)
     return
   }
-  void execute(toolCallId, toolName, args, context).then(
+  await execute(toolCallId, toolName, args, context).then(
     async (data) => {
       if (context.signal?.aborted) return
       try {
