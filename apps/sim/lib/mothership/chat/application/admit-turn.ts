@@ -86,9 +86,12 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
-    const desktopDeviceId = input.desktopDeviceId
-      ? await resolveTurnDesktopDevice(principal, input.desktopDeviceId)
-      : null
+    // Only a workspace chat runs on a desktop in the background: its sidebar shows the status and
+    // an approval notification links back to it. An organization chat stays with its chat view.
+    const desktopDeviceId =
+      input.desktopDeviceId && workspaceId
+        ? await resolveTurnDesktopDevice(principal, input.desktopDeviceId)
+        : null
     const turnConfig = sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx

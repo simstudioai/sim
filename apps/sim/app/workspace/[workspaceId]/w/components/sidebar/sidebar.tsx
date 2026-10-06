@@ -201,23 +201,19 @@ interface DesktopActivityDotProps {
   activity: DesktopChatActivity
 }
 
-/** The status of a chat one of the user's desktops is running in the background. */
+/**
+ * The status of a chat one of the user's desktops is running in the background. The row's
+ * indicator slot is pointer-inert and gives way to the row's actions on hover, so the label is
+ * read out here and shown in the row's own tooltip.
+ */
 function DesktopActivityDot({ activity }: DesktopActivityDotProps) {
-  const label = desktopActivityLabel(activity)
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <span
-          role='img'
-          aria-label={label}
-          className='size-[6px] rounded-full'
-          style={{ backgroundColor: DESKTOP_ACTIVITY_COLOR[activity.state] }}
-        />
-      </Tooltip.Trigger>
-      <Tooltip.Content>
-        <p>{label}</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <span
+      role='img'
+      aria-label={desktopActivityLabel(activity)}
+      className='size-[6px] rounded-full'
+      style={{ backgroundColor: DESKTOP_ACTIVITY_COLOR[activity.state] }}
+    />
   )
 }
 
@@ -280,7 +276,12 @@ const SidebarChatItem = memo(function SidebarChatItem({
   }
 
   return (
-    <SidebarTooltip label={chat.name} enabled={showCollapsedTooltips}>
+    <SidebarTooltip
+      label={
+        desktopActivity ? `${chat.name} · ${desktopActivityLabel(desktopActivity)}` : chat.name
+      }
+      enabled={showCollapsedTooltips || Boolean(desktopActivity)}
+    >
       <ChatNavigationLink
         chatId={chat.id}
         href={chat.href}
@@ -885,8 +886,12 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  useMothershipChatEvents(workspaceId, chatEnabled && !permissionConfig.hideCopilot)
   const desktopExecutorEnabled = useFeatureFlag('mothership-desktop-background-executor')
+  useMothershipChatEvents(
+    workspaceId,
+    chatEnabled && !permissionConfig.hideCopilot,
+    desktopExecutorEnabled
+  )
   const { data: desktopActivity } = useDesktopActivity(
     workspaceId,
     desktopExecutorEnabled && chatEnabled && !permissionConfig.hideCopilot

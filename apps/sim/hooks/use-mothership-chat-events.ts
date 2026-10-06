@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
@@ -194,19 +194,21 @@ function chatRoute(owner: MothershipChatOwner, chatId: string): string {
 
 /**
  * Reflects a turn starting or ending in the chats that run in the background: the desktop
- * activity list changes, and a chat the user is not looking at that finished its turn is
- * announced. The desktop app decides whether to show that notification (notifications on, the
- * chat not on screen in the focused window); the chat on screen announces its own completion.
+ * activity list changes and, with `announceCompletions`, a chat the user is not looking at that
+ * finished its turn is announced. The desktop app decides whether to show that notification
+ * (notifications on, the chat not on screen in the focused window); the chat on screen announces
+ * its own completion.
  */
 export function reflectBackgroundChatStatus(
   queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries'>,
   owner: MothershipChatOwner,
-  data: unknown
+  data: unknown,
+  announceCompletions: boolean
 ): void {
   const payload = parseChatStatusEventPayload(data)
   if (payload?.type !== 'started' && payload?.type !== 'completed') return
   queryClient.invalidateQueries({ queryKey: desktopActivityKeys.lists() })
-  if (payload.type !== 'completed' || !payload.chatId) return
+  if (!announceCompletions || payload.type !== 'completed' || !payload.chatId) return
   const settings = getDesktopBridge()?.settings
   if (!settings) return
   const route = chatRoute(owner, payload.chatId)
@@ -234,9 +236,13 @@ export function reflectBackgroundChatStatus(
  */
 export function useMothershipChatEvents(
   owner: MothershipChatOwner | undefined,
-  chatEnabled: boolean
+  chatEnabled: boolean,
+  /** Announce chats that finish in the background; only with the background executor on. */
+  announceBackgroundCompletions = false
 ) {
   const queryClient = useQueryClient()
+  const announceRef = useRef(announceBackgroundCompletions)
+  announceRef.current = announceBackgroundCompletions
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'object' ? owner.organizationId : undefined
 
@@ -255,7 +261,7 @@ export function useMothershipChatEvents(
         task_status: (event) => {
           const data = event instanceof MessageEvent ? event.data : undefined
           handleMothershipChatStatusEvent(queryClient, eventOwner, data)
-          reflectBackgroundChatStatus(queryClient, eventOwner, data)
+          reflectBackgroundChatStatus(queryClient, eventOwner, data, announceRef.current)
         },
       },
       onOpen: (reason) => {

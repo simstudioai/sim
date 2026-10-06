@@ -317,7 +317,7 @@ describe('reflectBackgroundChatStatus', () => {
   it('announces a chat that finished in the background, and opens it from the notification', () => {
     showing('/workspace/ws-1/chat/chat-c')
 
-    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
 
     expect(notify).toHaveBeenCalledWith({
       title: 'Fix CI',
@@ -326,22 +326,31 @@ describe('reflectBackgroundChatStatus', () => {
     })
   })
 
+  it('announces nothing while the background executor is off', () => {
+    showing('/workspace/ws-1/chat/chat-c')
+
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed, false)
+
+    expect(notify).not.toHaveBeenCalled()
+  })
+
   it('leaves the chat on screen to announce itself', () => {
     showing('/workspace/ws-1/chat/chat-b')
 
-    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
 
     expect(notify).not.toHaveBeenCalled()
   })
 
   it('stays silent outside the desktop app and for a turn that only started', () => {
     showing('/workspace/ws-1/chat/chat-c', false)
-    reflectBackgroundChatStatus(queryClient, 'ws-1', completed)
+    reflectBackgroundChatStatus(queryClient, 'ws-1', completed, true)
     showing('/workspace/ws-1/chat/chat-c')
     reflectBackgroundChatStatus(
       queryClient,
       'ws-1',
-      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-2' })
+      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-2' }),
+      true
     )
 
     expect(notify).not.toHaveBeenCalled()
@@ -353,12 +362,14 @@ describe('reflectBackgroundChatStatus', () => {
     reflectBackgroundChatStatus(
       queryClient,
       'ws-1',
-      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-3' })
+      JSON.stringify({ chatId: 'chat-b', type: 'started', streamId: 's-3' }),
+      true
     )
     reflectBackgroundChatStatus(
       queryClient,
       'ws-1',
-      JSON.stringify({ chatId: 'chat-b', type: 'renamed' })
+      JSON.stringify({ chatId: 'chat-b', type: 'renamed' }),
+      true
     )
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)

@@ -26,6 +26,7 @@ import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 
 const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
+  resolveDesktop: vi.fn(),
 }))
 const mocks = {
   ...hoisted,
@@ -43,6 +44,9 @@ vi.mock('@/lib/mothership/request/session/controller-lease', () => ({
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/desktop/application/executor', () => ({
+  resolveTurnDesktopDevice: hoisted.resolveDesktop,
+}))
 
 const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const chatId = '11111111-1111-4111-8111-111111111111'
@@ -117,6 +121,25 @@ describe('organization turn admission through current private-chat authorization
       ],
       expect.objectContaining({ streamId }),
       expect.anything()
+    )
+  })
+  it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {
+    hoisted.resolveDesktop.mockResolvedValue('device-1')
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ model: null }])
+      .mockResolvedValueOnce([{ id: 'run-1', organizationId: 'org-1', workspaceId: null }])
+      .mockResolvedValueOnce([{ key: 'claim' }])
+
+    await admitChatTurn.execute({
+      principal,
+      input: { ...input(), desktopDeviceId: '33333333-3333-4333-8333-333333333333' },
+    })
+
+    expect(hoisted.resolveDesktop).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', desktopDeviceId: null })
     )
   })
   it.each(['agent', 'assistant', 'plan'] as const)(

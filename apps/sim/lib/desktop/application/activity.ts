@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { defineOperation } from '@/lib/core/application'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
-import { isDesktopPresent } from '@/lib/desktop/executor/presence'
+import { isDesktopPresenceAvailable, isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { listDesktopActivityRows } from '@/lib/desktop/executor/repository'
 
 const logger = createLogger('DesktopActivity')
@@ -21,8 +21,9 @@ export interface DesktopChatActivityEntry {
   deviceName: string
 }
 
-/** Presence Sim cannot read is not evidence of an offline desktop. */
+/** Presence Sim cannot read, or cannot track at all, is not evidence of an offline desktop. */
 async function readPresence(deviceId: string): Promise<boolean> {
+  if (!isDesktopPresenceAvailable()) return true
   try {
     return await isDesktopPresent(deviceId)
   } catch (error) {
