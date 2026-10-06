@@ -2138,6 +2138,125 @@ describe('useChat remount send recovery', () => {
         ?.messages.map((message) => message.id)
     ).toEqual(['saved-user', 'saved-assistant'])
   })
+
+  /**
+   * The tab finalizes on the `complete` event, which reaches it before the server
+   * saves the turn. A transcript read in that gap is the server's in-flight copy;
+   * the tab must read again rather than keep it (live ids, the finished stream
+   * still listed as running) until something else happens to refetch. That holds
+   * when the save is slow, and when a follow-up is queued but not yet sent.
+   */
+  it.each([
+    { label: 'right after the first read', unsavedReads: 1, heldFollowUp: false },
+    { label: 'only after a slow save', unsavedReads: 9, heldFollowUp: false },
+    { label: 'with a follow-up queued but held', unsavedReads: 1, heldFollowUp: true },
+  ])(
+    're-reads a transcript fetched before the server saved the finished turn ($label)',
+    async ({ unsavedReads, heldFollowUp }) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        const chatId = `chat-saved-after-complete-${unsavedReads}-${heldFollowUp}`
+        const history: MothershipChatHistory = {
+          id: chatId,
+          mode: 'agent',
+          title: 'Saved late',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        }
+        let streamId: string | undefined
+        let completed = false
+        let detailReads = 0
+        mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+          if (contract.path !== '/api/mothership/chats/[chatId]') {
+            return Promise.resolve({ chats: [] })
+          }
+          if (!completed) return Promise.resolve({ chat: history })
+          detailReads++
+          if (detailReads <= unsavedReads && streamId) {
+            return Promise.resolve({
+              chat: {
+                ...history,
+                activeStreamId: streamId,
+                messages: [
+                  { id: streamId, role: 'user', content: 'Summarize the run' },
+                  { id: `live-assistant:${streamId}`, role: 'assistant', content: 'Done.' },
+                ],
+              },
+            })
+          }
+          return Promise.resolve({
+            chat: {
+              ...history,
+              messages: [
+                { id: streamId, role: 'user', content: 'Summarize the run' },
+                { id: 'saved-assistant', role: 'assistant', content: 'Done.' },
+              ],
+            },
+          })
+        })
+        let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+            return fetchStub(input, init)
+          }
+          streamId = JSON.parse(String(init.body)).userMessageId
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                stream = controller
+              },
+            }),
+            { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+          )
+        })
+        const { getResult } = renderUseChatInChat(chatId, history)
+
+        await act(async () => {
+          void getResult().sendMessage('Summarize the run')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(stream).toBeDefined()
+        if (heldFollowUp) {
+          useMothershipQueueStore
+            .getState()
+            .enqueue(chatId, { id: 'held-follow-up', content: 'And the next one' })
+          useMothershipQueueStore.getState().setEditing(chatId, 'held-follow-up')
+        }
+        const emit = (event: Omit<MothershipStreamV1EventEnvelope, 'v' | 'ts' | 'stream'>) =>
+          stream?.enqueue(
+            new TextEncoder().encode(
+              `data: ${JSON.stringify({ v: 1, ts: '', stream: { streamId }, ...event })}\n\n`
+            )
+          )
+        const saved = () =>
+          queryClient
+            .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+            ?.messages.some((message) => message.id === 'saved-assistant') === true
+        await act(async () => {
+          emit({ seq: 1, type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
+          completed = true
+          emit({ seq: 2, type: 'complete', payload: { status: 'complete' } })
+          stream?.close()
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        for (let second = 0; second < 90 && !saved(); second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+
+        expect(saved()).toBe(true)
+        expect(
+          queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+            ?.activeStreamId
+        ).toBeNull()
+        expect(detailReads).toBe(unsavedReads + 1)
+        expect(getResult().isSending).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
   describe.each([
     {
       kind: 'browser action',

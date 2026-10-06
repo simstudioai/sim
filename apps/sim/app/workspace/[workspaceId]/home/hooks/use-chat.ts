@@ -299,6 +299,11 @@ const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_IDLE_TIMEOUT_MS = 45_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
+/** Backoff for re-reading a transcript the server has not yet saved a finished turn into. */
+const PERSISTED_TURN_REFETCH_BASE_MS = 250
+const PERSISTED_TURN_REFETCH_MAX_DELAY_MS = 5_000
+/** How long a finished turn's save is waited for; a slow save still lands well inside it. */
+const PERSISTED_TURN_WAIT_MS = 120_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
 const DETACHED_CHAT_RETRY_BASE_MS = 1000
 const DETACHED_CHAT_RETRY_MAX_MS = 30_000
@@ -992,6 +997,8 @@ export function useChat(
   // the copy-request-ID button functional after refetch).
   const streamRequestIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
+  /** The finished stream whose saved transcript is being waited for, if any. */
+  const persistedTurnWaitRef = useRef<string | null>(null)
   const lastCursorRef = useRef('0')
   const logResyncedStreamIdRef = useRef<string | null>(null)
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
@@ -1914,6 +1921,47 @@ export function useChat(
     if (!isHomePage || !chatIdRef.current) return
     resetHomeChatState()
   }, [isHomePage, resetHomeChatState])
+
+  /**
+   * This tab finalizes on the stream's `complete` event, which the server sends
+   * before it saves the turn, so the transcript read right after can still be the
+   * in-flight copy: the stream listed as active and the answer under its live id.
+   * That copy matches the optimistic one, so nothing would read it again; re-read
+   * until the saved turn is there. The first pass joins finalize's own read. The
+   * wait ends as soon as this chat moves on: another send, or another chat.
+   */
+  const awaitPersistedTurn = useCallback(
+    async (chatId: string, streamId: string) => {
+      if (persistedTurnWaitRef.current === streamId) return
+      persistedTurnWaitRef.current = streamId
+      const deadline = Date.now() + PERSISTED_TURN_WAIT_MS
+      try {
+        for (let attempt = 0; Date.now() < deadline; attempt++) {
+          if (attempt > 0) {
+            await sleep(
+              backoffWithJitter(attempt, null, {
+                baseMs: PERSISTED_TURN_REFETCH_BASE_MS,
+                maxMs: PERSISTED_TURN_REFETCH_MAX_DELAY_MS,
+              })
+            )
+          }
+          if (locallyTerminalStreamIdRef.current !== streamId || chatIdRef.current !== chatId)
+            return
+          await queryClient.refetchQueries(
+            { queryKey: mothershipChatKeys.detail(chatId), exact: true },
+            { cancelRefetch: false }
+          )
+          const history = queryClient.getQueryData<MothershipChatHistory>(
+            mothershipChatKeys.detail(chatId)
+          )
+          if (history?.activeStreamId !== streamId) return
+        }
+      } finally {
+        if (persistedTurnWaitRef.current === streamId) persistedTurnWaitRef.current = null
+      }
+    },
+    [queryClient]
+  )
 
   useEffect(() => {
     if (!chatHistory) return
@@ -3347,9 +3395,12 @@ export function useChat(
       if (completedActivityTracker?.generation === streamGenRef.current) {
         clearResourceActivity(completedActivityTracker, true)
       }
+      const terminalStreamId =
+        options?.streamTerminal !== false
+          ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined)
+          : undefined
       if (options?.streamTerminal !== false) {
-        locallyTerminalStreamIdRef.current =
-          streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+        locallyTerminalStreamIdRef.current = terminalStreamId
       }
       clearActiveTurn()
       setTransportIdle()
@@ -3358,9 +3409,13 @@ export function useChat(
         includeDetail: !hasQueuedFollowUp,
         ...(options?.targetChatId ? { targetChatId: options.targetChatId } : {}),
       })
+      if (terminalStreamId && completedChatId) {
+        void awaitPersistedTurn(completedChatId, terminalStreamId)
+      }
       notifyTurnEnded({ error: isError })
     },
     [
+      awaitPersistedTurn,
       clearResourceActivity,
       clearActiveTurn,
       invalidateChatQueries,
