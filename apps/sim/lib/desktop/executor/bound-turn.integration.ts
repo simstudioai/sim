@@ -55,7 +55,10 @@ import {
 } from '@/lib/desktop/executor/doorbell'
 import { DesktopCallRevokedError } from '@/lib/desktop/executor/errors'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
-import { requestRunStop } from '@/lib/mothership/async-runs/repository'
+import {
+  requestRunStop,
+  revokeExpiredSimToolExecutions,
+} from '@/lib/mothership/async-runs/repository'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -438,13 +441,15 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       await offered(toolCallId)
       expect((await storedCall(toolCallId)).status).toBe('pending')
       await lapse(toolCallId, 'pickup')
+      /** Before the wait's next check settles it, the closed window already refuses the device. */
+      expect((await desktop.pull()).items).toEqual([])
+      await expect(desktop.claim(toolCallId)).rejects.toThrow('no longer waiting')
       await answer
 
       expect(resultOf(context, toolCallId)).toMatchObject({
         success: false,
         output: { notStarted: true, reason: 'not_responding' },
       })
-      await expect(desktop.claim(toolCallId)).rejects.toThrow('no longer waiting')
     },
     TURN_WAIT_MS
   )
@@ -468,6 +473,9 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       expect((await storedCall(toolCallId)).status).toBe('running')
 
       await lapse(toolCallId, 'lease')
+      /** A Sim tool waiting on the same run sweeps its expired executions; this one is not its. */
+      await revokeExpiredSimToolExecutions({ runId: run.runId, userId })
+      expect((await storedCall(toolCallId)).status).toBe('running')
       await answer
       const late = await desktop.complete(toolCallId, executionToken, { output: 'built' })
 

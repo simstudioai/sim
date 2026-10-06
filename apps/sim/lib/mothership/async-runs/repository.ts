@@ -815,6 +815,11 @@ export async function claimDesktopToolCall(
             and(
               thisCall,
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              // An offered call whose pickup window closed belongs to its not-started settlement.
+              or(
+                isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+                sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+              ),
               or(
                 and(
                   isNull(copilotAsyncToolCalls.permissionRequestedAt),
@@ -903,6 +908,12 @@ async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) 
         isNull(copilotAsyncToolCalls.executionSettledAt),
         isNull(copilotAsyncToolCalls.executionRevokedAt),
         isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+        // A desktop executor's lapsed lease is settled by its own wait and the stale-execution cron,
+        // with a result that warns the action may already have taken effect.
+        or(
+          isNull(copilotAsyncToolCalls.claimedBy),
+          notInArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER))
+        ),
         sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
       )
     )

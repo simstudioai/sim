@@ -132,6 +132,10 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           and(
             eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
             isNull(copilotAsyncToolCalls.executionOwnerToken),
+            or(
+              isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+              sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
+            ),
             inArray(copilotRuns.status, LIVE_RUN_STATUSES),
             isNull(copilotRuns.toolAdmissionClosedAt)
           ),
