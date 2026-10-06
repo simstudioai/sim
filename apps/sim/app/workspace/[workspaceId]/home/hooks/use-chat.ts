@@ -5043,23 +5043,16 @@ export function useChat(
   }, [])
 
   /**
-   * Sends held because the server could not be reached go out once the browser is
-   * online: on the `online` event, and on mount in case it fired while no chat
-   * surface was listening. A chatless surface first adopts what a dead mount of the
-   * same surface held, since that mount's queue key died with it.
+   * Sends held because the server could not be reached are released once the
+   * browser is online: on the `online` event, and on mount in case it fired while
+   * no chat surface was listening. The queue drain below sends a released head
+   * under its usual rules (history loaded, no running turn). A chatless surface
+   * first adopts what a dead mount of the same surface held, since that mount's
+   * queue key died with it.
    */
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const releaseHeldSends = () => {
-      useMothershipQueueStore.getState().releaseHeldUntilOnline()
-      if (
-        useMothershipQueueStore.getState().queues[chatKeyRef.current]?.length &&
-        !sendingRef.current &&
-        !pendingStopPromiseRef.current
-      ) {
-        void enqueueQueueDispatchRef.current({ type: 'send_head' })
-      }
-    }
+    const releaseHeldSends = () => useMothershipQueueStore.getState().releaseHeldUntilOnline()
     if (chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
       useMothershipQueueStore.getState().adoptHeldSends(chatKey, heldSendSurface)
     }
@@ -5091,9 +5084,10 @@ export function useChat(
   // `notifyTurnEnded`. Idempotent — the dispatch loop dedupes.
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
+  const queueHeadHeld = messageQueue[0]?.retryRequired === true
   useEffect(() => {
     if (!scopeKey) return
-    if (messageQueue.length === 0) return
+    if (messageQueue.length === 0 || queueHeadHeld) return
     if (sendingRef.current || pendingStopPromiseRef.current) return
     if (queueDispatchTaskRef.current) return
     if (resolvedChatId && !chatHistoryReady) return
@@ -5104,6 +5098,7 @@ export function useChat(
     organizationId,
     scopeKey,
     messageQueue.length,
+    queueHeadHeld,
     resolvedChatId,
     chatHistoryReady,
     remoteActiveStreamId,

@@ -2114,6 +2114,48 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies.at(-1)?.message).toBe('First message, sent offline')
     })
 
+    /**
+     * Releasing held sends on mount must not bypass the queue's own rules: a
+     * follow-up queued behind a turn that is still running (here, restored after a
+     * reload) waits for that turn instead of being sent into a busy chat.
+     */
+    it('keeps a queued follow-up waiting on mount while the chat is still running', async () => {
+      const history: MothershipChatHistory = {
+        ...idleHistory('chat-still-running'),
+        activeStreamId: 'turn-still-running',
+      }
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          return emptySseResponse()
+        }
+        if (url.includes('/api/mothership/chat/stream')) {
+          if (url.includes('batch=true')) {
+            return Response.json({ success: true, events: [], status: 'streaming' })
+          }
+          return new Response(new ReadableStream<Uint8Array>(), {
+            headers: { 'Content-Type': 'text/event-stream' },
+          })
+        }
+        return fetchStub(input, init)
+      })
+      useMothershipQueueStore
+        .getState()
+        .enqueue(history.id, { id: 'queued-before-reload', content: 'Queued before the reload' })
+      renderUseChatInChat(history.id)
+
+      await act(async () => {
+        await sleep(1000)
+      })
+
+      expect(state.postBodies).toHaveLength(0)
+      expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+        'Queued before the reload'
+      )
+    })
+
     /** The `online` event can fire while no surface for the chat is mounted. */
     it('sends a held message when its chat mounts after the network came back', async () => {
       const history = idleHistory('chat-held-while-away')
