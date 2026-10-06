@@ -205,6 +205,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   pinecone: 'Pinecone',
   pipedrive: 'Pipedrive',
   pitchbook: 'PitchBook',
+  plane: 'Plane',
   planetscale: 'PlanetScale',
   polymarket: 'Polymarket',
   postgresql: 'PostgreSQL',

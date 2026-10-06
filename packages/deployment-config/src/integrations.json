@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -18168,6 +18168,1988 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "plane",
+      "slug": "plane",
+      "name": "Plane",
+      "description": "Manage projects and work items in Plane",
+      "longDescription": "Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choose API v1 for Community Edition or older instances. Actions with a current successor are consolidated. Unsupported version-specific inputs fail explicitly. Manage work items, projects, cycles, modules, states, labels, comments, links, attachments, pages, collections, initiatives, epics, releases, customers, estimates, worklogs, intake, members, invitations, and workspace administration. Availability of advanced resources depends on the Plane edition and version.",
+      "bgColor": "#3F76FF",
+      "iconName": "PlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/plane",
+      "operations": [
+        {
+          "name": "Add or remove collection members",
+          "description": "Add or remove collection members in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove cycle work items",
+          "description": "Add or remove cycle work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove initiative labels",
+          "description": "Add or remove initiative labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove initiative projects",
+          "description": "Add or remove initiative projects in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove initiative work items",
+          "description": "Add or remove initiative work items in Plane. Requires API v2."
+        },
+        {
+          "name": "Add or remove milestone work items",
+          "description": "Add or remove milestone work items in Plane. Requires API v2."
+        },
+        {
+          "name": "Add or remove module work items",
+          "description": "Add or remove module work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove pages in a collection",
+          "description": "Add or remove pages in a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove release labels",
+          "description": "Add or remove release labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove release work items",
+          "description": "Add or remove release work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Append a new version",
+          "description": "Append a new version in Plane. Requires API v2."
+        },
+        {
+          "name": "Archive a project",
+          "description": "Archive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Archive a work item",
+          "description": "Archive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Attach a property to a type",
+          "description": "Attach a property to a type in Plane. Requires API v2."
+        },
+        {
+          "name": "Attach properties to a workspace type",
+          "description": "Attach properties to a workspace type in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create comments",
+          "description": "Bulk create comments in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create cycles",
+          "description": "Bulk create cycles in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create estimate points",
+          "description": "Bulk create estimate points in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create estimates",
+          "description": "Bulk create estimates in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create labels",
+          "description": "Bulk create labels in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create milestones",
+          "description": "Bulk create milestones in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create modules",
+          "description": "Bulk create modules in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create projects",
+          "description": "Bulk create projects in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create states",
+          "description": "Bulk create states in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk create work items",
+          "description": "Bulk create work items in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete comments",
+          "description": "Bulk delete comments in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete cycles",
+          "description": "Bulk delete cycles in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete estimate points",
+          "description": "Bulk delete estimate points in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete estimates",
+          "description": "Bulk delete estimates in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete labels",
+          "description": "Bulk delete labels in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete milestones",
+          "description": "Bulk delete milestones in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete modules",
+          "description": "Bulk delete modules in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete states",
+          "description": "Bulk delete states in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk delete work items",
+          "description": "Bulk delete work items in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk invite members",
+          "description": "Bulk invite members in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update comments",
+          "description": "Bulk update comments in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update cycles",
+          "description": "Bulk update cycles in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update estimate points",
+          "description": "Bulk update estimate points in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update estimates",
+          "description": "Bulk update estimates in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update labels",
+          "description": "Bulk update labels in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update milestones",
+          "description": "Bulk update milestones in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update modules",
+          "description": "Bulk update modules in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update projects",
+          "description": "Bulk update projects in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update states",
+          "description": "Bulk update states in Plane. Requires API v2."
+        },
+        {
+          "name": "Bulk update work items",
+          "description": "Bulk update work items in Plane. Requires API v2."
+        },
+        {
+          "name": "Confirm a user asset upload",
+          "description": "Confirm a user asset upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Confirm a work item attachment upload",
+          "description": "Confirm a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Confirm a workspace asset upload",
+          "description": "Confirm a workspace asset upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a collection",
+          "description": "Create a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a comment",
+          "description": "Create a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a customer",
+          "description": "Create a customer in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a customer property",
+          "description": "Create a customer property in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a customer request",
+          "description": "Create a customer request in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a cycle",
+          "description": "Create a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a label",
+          "description": "Create a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a link",
+          "description": "Create a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a milestone",
+          "description": "Create a milestone in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a module",
+          "description": "Create a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project",
+          "description": "Create a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project mapping",
+          "description": "Create a project mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project member",
+          "description": "Create a project member in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project page",
+          "description": "Create a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project project automation",
+          "description": "Create a project project automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a project view",
+          "description": "Create a project view in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a project work item template",
+          "description": "Create a project work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a property context",
+          "description": "Create a property context in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a property option",
+          "description": "Create a property option in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a release",
+          "description": "Create a release in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a release comment",
+          "description": "Create a release comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a release label",
+          "description": "Create a release label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a release link",
+          "description": "Create a release link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a release tag",
+          "description": "Create a release tag in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a state",
+          "description": "Create a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a sticky",
+          "description": "Create a sticky in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a teamspace",
+          "description": "Create a teamspace in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a user asset upload",
+          "description": "Create a user asset upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a webhook",
+          "description": "Create a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a work item",
+          "description": "Create a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a work item attachment upload",
+          "description": "Create a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a work item from a template",
+          "description": "Create a work item from a template in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a work item property",
+          "description": "Create a work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a work item type",
+          "description": "Create a work item type in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a workflow",
+          "description": "Create a workflow in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workflow state",
+          "description": "Create a workflow state in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workflow transition",
+          "description": "Create a workflow transition in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a worklog",
+          "description": "Create a worklog in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a workspace asset upload",
+          "description": "Create a workspace asset upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a workspace mapping",
+          "description": "Create a workspace mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a workspace page",
+          "description": "Create a workspace page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a workspace property option",
+          "description": "Create a workspace property option in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workspace view",
+          "description": "Create a workspace view in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workspace work item property",
+          "description": "Create a workspace work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workspace work item template",
+          "description": "Create a workspace work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workspace work item type",
+          "description": "Create a workspace work item type in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a workspace workspace automation",
+          "description": "Create a workspace workspace automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an artifact",
+          "description": "Create an artifact in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an estimate",
+          "description": "Create an estimate in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create an estimate point",
+          "description": "Create an estimate point in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an initiative",
+          "description": "Create an initiative in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create an initiative label",
+          "description": "Create an initiative label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create an intake work item",
+          "description": "Create an intake work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create an invitation",
+          "description": "Create an invitation in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create an project automation edge",
+          "description": "Create an project automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an project automation node",
+          "description": "Create an project automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an workspace automation edge",
+          "description": "Create an workspace automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Create an workspace automation node",
+          "description": "Create an workspace automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a collection",
+          "description": "Delete a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a comment",
+          "description": "Delete a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a customer",
+          "description": "Delete a customer in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a customer property",
+          "description": "Delete a customer property in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a customer request",
+          "description": "Delete a customer request in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a cycle",
+          "description": "Delete a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a label",
+          "description": "Delete a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a link",
+          "description": "Delete a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a milestone",
+          "description": "Delete a milestone in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a module",
+          "description": "Delete a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project",
+          "description": "Delete a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project mapping",
+          "description": "Delete a project mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project member",
+          "description": "Delete a project member in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project page",
+          "description": "Delete a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project project automation",
+          "description": "Delete a project project automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a project view",
+          "description": "Delete a project view in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a project work item template",
+          "description": "Delete a project work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a property context",
+          "description": "Delete a property context in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a property option",
+          "description": "Delete a property option in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a release",
+          "description": "Delete a release in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a release comment",
+          "description": "Delete a release comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a release label",
+          "description": "Delete a release label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a release link",
+          "description": "Delete a release link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a release tag",
+          "description": "Delete a release tag in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a state",
+          "description": "Delete a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a sticky",
+          "description": "Delete a sticky in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a teamspace",
+          "description": "Delete a teamspace in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a user asset",
+          "description": "Delete a user asset in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a webhook",
+          "description": "Delete a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a work item",
+          "description": "Delete a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a work item property",
+          "description": "Delete a work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a work item type",
+          "description": "Delete a work item type in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a workflow",
+          "description": "Delete a workflow in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workflow state",
+          "description": "Delete a workflow state in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workflow transition",
+          "description": "Delete a workflow transition in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a worklog",
+          "description": "Delete a worklog in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a workspace mapping",
+          "description": "Delete a workspace mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a workspace page",
+          "description": "Delete a workspace page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a workspace property option",
+          "description": "Delete a workspace property option in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workspace view",
+          "description": "Delete a workspace view in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workspace work item property",
+          "description": "Delete a workspace work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workspace work item template",
+          "description": "Delete a workspace work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workspace work item type",
+          "description": "Delete a workspace work item type in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a workspace workspace automation",
+          "description": "Delete a workspace workspace automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an asset",
+          "description": "Delete an asset in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an attachment",
+          "description": "Delete an attachment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an estimate",
+          "description": "Delete an estimate in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an estimate point",
+          "description": "Delete an estimate point in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an initiative",
+          "description": "Delete an initiative in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an initiative label",
+          "description": "Delete an initiative label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an intake work item",
+          "description": "Delete an intake work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an invitation",
+          "description": "Delete an invitation in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an project automation edge",
+          "description": "Delete an project automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an project automation node",
+          "description": "Delete an project automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an workspace automation edge",
+          "description": "Delete an workspace automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete an workspace automation node",
+          "description": "Delete an workspace automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Detach a property from a type",
+          "description": "Detach a property from a type in Plane. Requires API v2."
+        },
+        {
+          "name": "Detach a property from a workspace type",
+          "description": "Detach a property from a workspace type in Plane. Requires API v2."
+        },
+        {
+          "name": "Enable or disable a project project automation",
+          "description": "Enable or disable a project project automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Enable or disable a workspace workspace automation",
+          "description": "Enable or disable a workspace workspace automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Enable work item types",
+          "description": "Enable work item types in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a collection",
+          "description": "Get a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a comment",
+          "description": "Get a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a customer",
+          "description": "Get a customer in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a customer property",
+          "description": "Get a customer property in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a customer request",
+          "description": "Get a customer request in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a cycle",
+          "description": "Get a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a label",
+          "description": "Get a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a link",
+          "description": "Get a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a milestone",
+          "description": "Get a milestone in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a module",
+          "description": "Get a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a permission scheme",
+          "description": "Get a permission scheme in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a project",
+          "description": "Get a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project mapping",
+          "description": "Get a project mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project member",
+          "description": "Get a project member in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project page",
+          "description": "Get a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project project automation",
+          "description": "Get a project project automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a project summary",
+          "description": "Get a project summary in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project view",
+          "description": "Get a project view in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a project work item template",
+          "description": "Get a project work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a property context",
+          "description": "Get a property context in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a property on a workspace type",
+          "description": "Get a property on a workspace type in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a property option",
+          "description": "Get a property option in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release",
+          "description": "Get a release in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release changelog",
+          "description": "Get a release changelog in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release comment",
+          "description": "Get a release comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release label",
+          "description": "Get a release label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release link",
+          "description": "Get a release link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a release tag",
+          "description": "Get a release tag in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a role",
+          "description": "Get a role in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a state",
+          "description": "Get a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a sticky",
+          "description": "Get a sticky in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a teamspace",
+          "description": "Get a teamspace in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a type property",
+          "description": "Get a type property in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a user asset",
+          "description": "Get a user asset in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a webhook",
+          "description": "Get a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a webhook log",
+          "description": "Get a webhook log in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a work item",
+          "description": "Get a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a work item by identifier",
+          "description": "Get a work item by identifier in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a work item property",
+          "description": "Get a work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a work item type",
+          "description": "Get a work item type in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a work item type schema",
+          "description": "Get a work item type schema in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workflow",
+          "description": "Get a workflow in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workflow state",
+          "description": "Get a workflow state in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workflow transition",
+          "description": "Get a workflow transition in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a worklog",
+          "description": "Get a worklog in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace mapping",
+          "description": "Get a workspace mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a workspace page",
+          "description": "Get a workspace page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a workspace property option",
+          "description": "Get a workspace property option in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace view",
+          "description": "Get a workspace view in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace work item property",
+          "description": "Get a workspace work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace work item template",
+          "description": "Get a workspace work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace work item type",
+          "description": "Get a workspace work item type in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a workspace workspace automation",
+          "description": "Get a workspace workspace automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an activity",
+          "description": "Get an activity in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an artifact",
+          "description": "Get an artifact in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an asset",
+          "description": "Get an asset in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an attachment",
+          "description": "Get an attachment in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an audit log",
+          "description": "Get an audit log in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an estimate",
+          "description": "Get an estimate in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an estimate point",
+          "description": "Get an estimate point in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an initiative",
+          "description": "Get an initiative in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an initiative label",
+          "description": "Get an initiative label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an intake work item",
+          "description": "Get an intake work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an invitation",
+          "description": "Get an invitation in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get an project automation activity",
+          "description": "Get an project automation activity in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an project automation edge",
+          "description": "Get an project automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an project automation node",
+          "description": "Get an project automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an workspace automation activity",
+          "description": "Get an workspace automation activity in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an workspace automation edge",
+          "description": "Get an workspace automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an workspace automation node",
+          "description": "Get an workspace automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Get current user",
+          "description": "Get current user in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get project features",
+          "description": "Get project features in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get project role distribution",
+          "description": "Get project role distribution in Plane. Requires API v2."
+        },
+        {
+          "name": "Get the group sync configuration",
+          "description": "Get the group sync configuration in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get the project worklog summary",
+          "description": "Get the project worklog summary in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get workspace features",
+          "description": "Get workspace features in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get your effective project permissions",
+          "description": "Get your effective project permissions in Plane. Requires API v2."
+        },
+        {
+          "name": "Get your effective workspace permissions",
+          "description": "Get your effective workspace permissions in Plane. Requires API v2."
+        },
+        {
+          "name": "Import work item types",
+          "description": "Import work item types in Plane. Requires API v2."
+        },
+        {
+          "name": "Link or unlink customer work items",
+          "description": "Link or unlink customer work items in Plane. Requires API v2."
+        },
+        {
+          "name": "List activities",
+          "description": "List activities in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List attachments",
+          "description": "List attachments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List audit logs",
+          "description": "List audit logs in Plane. Requires API v2."
+        },
+        {
+          "name": "List collection members",
+          "description": "List collection members in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List collections",
+          "description": "List collections in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List comments",
+          "description": "List comments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List customer properties",
+          "description": "List customer properties in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List customer property values",
+          "description": "List customer property values in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List customer requests",
+          "description": "List customer requests in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List customers",
+          "description": "List customers in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List cycles",
+          "description": "List cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List estimate points",
+          "description": "List estimate points in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List estimates",
+          "description": "List estimates in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List initiative labels",
+          "description": "List initiative labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List initiatives",
+          "description": "List initiatives in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List intake work items",
+          "description": "List intake work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List invitations",
+          "description": "List invitations in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List labels",
+          "description": "List labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List links",
+          "description": "List links in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List milestones",
+          "description": "List milestones in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List modules",
+          "description": "List modules in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List permission schemes",
+          "description": "List permission schemes in Plane. Requires API v2."
+        },
+        {
+          "name": "List project automation activities",
+          "description": "List project automation activities in Plane. Requires API v2."
+        },
+        {
+          "name": "List project automation edges",
+          "description": "List project automation edges in Plane. Requires API v2."
+        },
+        {
+          "name": "List project automation nodes",
+          "description": "List project automation nodes in Plane. Requires API v2."
+        },
+        {
+          "name": "List project mappings",
+          "description": "List project mappings in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List project members",
+          "description": "List project members in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List project pages",
+          "description": "List project pages in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List project project automations",
+          "description": "List project project automations in Plane. Requires API v2."
+        },
+        {
+          "name": "List project views",
+          "description": "List project views in Plane. Requires API v2."
+        },
+        {
+          "name": "List project work item templates",
+          "description": "List project work item templates in Plane. Requires API v2."
+        },
+        {
+          "name": "List projects",
+          "description": "List projects in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List properties on a workspace type",
+          "description": "List properties on a workspace type in Plane. Requires API v2."
+        },
+        {
+          "name": "List property contexts",
+          "description": "List property contexts in Plane. Requires API v2."
+        },
+        {
+          "name": "List property options",
+          "description": "List property options in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List release comments",
+          "description": "List release comments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List release labels",
+          "description": "List release labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List release links",
+          "description": "List release links in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List release tags",
+          "description": "List release tags in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List releases",
+          "description": "List releases in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List roles",
+          "description": "List roles in Plane. Requires API v2."
+        },
+        {
+          "name": "List states",
+          "description": "List states in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List stickies",
+          "description": "List stickies in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List teamspaces",
+          "description": "List teamspaces in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List type properties",
+          "description": "List type properties in Plane. Requires API v2."
+        },
+        {
+          "name": "List user assets",
+          "description": "List user assets in Plane. Requires API v2."
+        },
+        {
+          "name": "List webhook logs",
+          "description": "List webhook logs in Plane. Requires API v2."
+        },
+        {
+          "name": "List webhooks",
+          "description": "List webhooks in Plane. Requires API v2."
+        },
+        {
+          "name": "List work item properties",
+          "description": "List work item properties in Plane. Requires API v2."
+        },
+        {
+          "name": "List work item types",
+          "description": "List work item types in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List work items",
+          "description": "List work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List work items across a workspace",
+          "description": "List work items across a workspace in Plane. Requires API v2."
+        },
+        {
+          "name": "List workflow states",
+          "description": "List workflow states in Plane. Requires API v2."
+        },
+        {
+          "name": "List workflow transitions",
+          "description": "List workflow transitions in Plane. Requires API v2."
+        },
+        {
+          "name": "List workflows",
+          "description": "List workflows in Plane. Requires API v2."
+        },
+        {
+          "name": "List worklogs",
+          "description": "List worklogs in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List workspace assets",
+          "description": "List workspace assets in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace automation activities",
+          "description": "List workspace automation activities in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace automation edges",
+          "description": "List workspace automation edges in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace automation nodes",
+          "description": "List workspace automation nodes in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace mappings",
+          "description": "List workspace mappings in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List workspace members",
+          "description": "List workspace members in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List workspace pages",
+          "description": "List workspace pages in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List workspace property options",
+          "description": "List workspace property options in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace views",
+          "description": "List workspace views in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace work item properties",
+          "description": "List workspace work item properties in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace work item templates",
+          "description": "List workspace work item templates in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace work item types",
+          "description": "List workspace work item types in Plane. Requires API v2."
+        },
+        {
+          "name": "List workspace workspace automations",
+          "description": "List workspace workspace automations in Plane. Requires API v2."
+        },
+        {
+          "name": "Mark a work item type as default",
+          "description": "Mark a work item type as default in Plane. Requires API v2."
+        },
+        {
+          "name": "Mark a workspace work item type as default",
+          "description": "Mark a workspace work item type as default in Plane. Requires API v2."
+        },
+        {
+          "name": "Publish an artifact",
+          "description": "Publish an artifact in Plane. Requires API v2."
+        },
+        {
+          "name": "Regenerate a webhook secret",
+          "description": "Regenerate a webhook secret in Plane. Requires API v2."
+        },
+        {
+          "name": "Regenerate an project automation node webhook secret",
+          "description": "Regenerate an project automation node webhook secret in Plane. Requires API v2."
+        },
+        {
+          "name": "Regenerate an workspace automation node webhook secret",
+          "description": "Regenerate an workspace automation node webhook secret in Plane. Requires API v2."
+        },
+        {
+          "name": "Remove a workspace member",
+          "description": "Remove a workspace member in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Search pages for a collection",
+          "description": "Search pages for a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Set customer property values",
+          "description": "Set customer property values in Plane. Requires API v2."
+        },
+        {
+          "name": "Transfer work items between cycles",
+          "description": "Transfer work items between cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a project",
+          "description": "Unarchive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a work item",
+          "description": "Unarchive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a collection",
+          "description": "Update a collection in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a comment",
+          "description": "Update a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a customer",
+          "description": "Update a customer in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a customer property",
+          "description": "Update a customer property in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a customer request",
+          "description": "Update a customer request in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a cycle",
+          "description": "Update a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a label",
+          "description": "Update a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a link",
+          "description": "Update a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a milestone",
+          "description": "Update a milestone in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a module",
+          "description": "Update a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project",
+          "description": "Update a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project mapping",
+          "description": "Update a project mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project member",
+          "description": "Update a project member in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project page",
+          "description": "Update a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project project automation",
+          "description": "Update a project project automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a project view",
+          "description": "Update a project view in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a project work item template",
+          "description": "Update a project work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a property context",
+          "description": "Update a property context in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a property option",
+          "description": "Update a property option in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release",
+          "description": "Update a release in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release changelog",
+          "description": "Update a release changelog in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release comment",
+          "description": "Update a release comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release label",
+          "description": "Update a release label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release link",
+          "description": "Update a release link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a release tag",
+          "description": "Update a release tag in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a state",
+          "description": "Update a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a sticky",
+          "description": "Update a sticky in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a teamspace",
+          "description": "Update a teamspace in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a webhook",
+          "description": "Update a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a work item",
+          "description": "Update a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a work item property",
+          "description": "Update a work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a work item type",
+          "description": "Update a work item type in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a workflow",
+          "description": "Update a workflow in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workflow state",
+          "description": "Update a workflow state in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workflow transition",
+          "description": "Update a workflow transition in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a worklog",
+          "description": "Update a worklog in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a workspace mapping",
+          "description": "Update a workspace mapping in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a workspace page",
+          "description": "Update a workspace page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a workspace property option",
+          "description": "Update a workspace property option in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workspace view",
+          "description": "Update a workspace view in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workspace work item property",
+          "description": "Update a workspace work item property in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workspace work item template",
+          "description": "Update a workspace work item template in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workspace work item type",
+          "description": "Update a workspace work item type in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a workspace workspace automation",
+          "description": "Update a workspace workspace automation in Plane. Requires API v2."
+        },
+        {
+          "name": "Update an estimate",
+          "description": "Update an estimate in Plane. Requires API v2."
+        },
+        {
+          "name": "Update an estimate point",
+          "description": "Update an estimate point in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update an initiative",
+          "description": "Update an initiative in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update an initiative label",
+          "description": "Update an initiative label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update an intake work item",
+          "description": "Update an intake work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update an project automation edge",
+          "description": "Update an project automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Update an project automation node",
+          "description": "Update an project automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Update an workspace automation edge",
+          "description": "Update an workspace automation edge in Plane. Requires API v2."
+        },
+        {
+          "name": "Update an workspace automation node",
+          "description": "Update an workspace automation node in Plane. Requires API v2."
+        },
+        {
+          "name": "Update project features",
+          "description": "Update project features in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update the group sync configuration",
+          "description": "Update the group sync configuration in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update workspace features",
+          "description": "Update workspace features in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Upsert a comment",
+          "description": "Upsert a comment in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a customer",
+          "description": "Upsert a customer in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a cycle",
+          "description": "Upsert a cycle in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a label",
+          "description": "Upsert a label in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a milestone",
+          "description": "Upsert a milestone in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a module",
+          "description": "Upsert a module in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a project",
+          "description": "Upsert a project in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a state",
+          "description": "Upsert a state in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert a work item",
+          "description": "Upsert a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert an estimate",
+          "description": "Upsert an estimate in Plane. Requires API v2."
+        },
+        {
+          "name": "Upsert an estimate point",
+          "description": "Upsert an estimate point in Plane. Requires API v2."
+        },
+        {
+          "name": "v1 only: Add custom property values",
+          "description": "v1 only: Add custom property values in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Archive a cycle",
+          "description": "v1 only: Archive a cycle in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Archive a module",
+          "description": "v1 only: Archive a module in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Archive a project page",
+          "description": "v1 only: Archive a project page in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Archive a workspace page",
+          "description": "v1 only: Archive a workspace page in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Confirm a workspace page attachment upload",
+          "description": "v1 only: Confirm a workspace page attachment upload in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Create project with template",
+          "description": "v1 only: Create project with template in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Create work item page link",
+          "description": "v1 only: Create work item page link in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Create work item relation",
+          "description": "v1 only: Create work item relation in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Delete a workspace page attachment",
+          "description": "v1 only: Delete a workspace page attachment in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Delete property value",
+          "description": "v1 only: Delete property value in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Delete work item page link",
+          "description": "v1 only: Delete work item page link in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Download a workspace page attachment",
+          "description": "v1 only: Download a workspace page attachment in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Get cycle work item",
+          "description": "v1 only: Get cycle work item in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Get property value",
+          "description": "v1 only: Get property value in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Get work item page link",
+          "description": "v1 only: Get work item page link in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List all archived cycles",
+          "description": "v1 only: List all archived cycles in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List all archived modules",
+          "description": "v1 only: List all archived modules in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List collection pages",
+          "description": "v1 only: List collection pages in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List milestone work items",
+          "description": "v1 only: List milestone work items in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List work item pages",
+          "description": "v1 only: List work item pages in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: List work item relations",
+          "description": "v1 only: List work item relations in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Move or reorder a collection page",
+          "description": "v1 only: Move or reorder a collection page in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Remove work item relation",
+          "description": "v1 only: Remove work item relation in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Restore a cycle",
+          "description": "v1 only: Restore a cycle in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Restore a module",
+          "description": "v1 only: Restore a module in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Restore a project page",
+          "description": "v1 only: Restore a project page in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Restore a workspace page",
+          "description": "v1 only: Restore a workspace page in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Retrieve a work item by identifier",
+          "description": "v1 only: Retrieve a work item by identifier in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Retrieve workspace page attachment metadata",
+          "description": "v1 only: Retrieve workspace page attachment metadata in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Update project group mapping by key",
+          "description": "v1 only: Update project group mapping by key in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Update property value",
+          "description": "v1 only: Update property value in Plane. Requires API v1."
+        },
+        {
+          "name": "v1 only: Update workspace invitation",
+          "description": "v1 only: Update workspace invitation in Plane. Requires API v1."
+        }
+      ],
+      "operationCount": 428,
+      "triggers": [
+        {
+          "id": "plane_webhook",
+          "name": "Plane All Events",
+          "description": "Trigger a workflow for any signed Plane event."
+        },
+        {
+          "id": "plane_project_created",
+          "name": "Plane Project Created",
+          "description": "Trigger a workflow for Plane project created events."
+        },
+        {
+          "id": "plane_project_updated",
+          "name": "Plane Project Updated",
+          "description": "Trigger a workflow for Plane project updated events."
+        },
+        {
+          "id": "plane_project_archived",
+          "name": "Plane Project Archived",
+          "description": "Trigger a workflow for Plane project archived events."
+        },
+        {
+          "id": "plane_project_deleted",
+          "name": "Plane Project Deleted",
+          "description": "Trigger a workflow for Plane project deleted events."
+        },
+        {
+          "id": "plane_cycle_created",
+          "name": "Plane Cycle Created",
+          "description": "Trigger a workflow for Plane cycle created events."
+        },
+        {
+          "id": "plane_cycle_updated",
+          "name": "Plane Cycle Updated",
+          "description": "Trigger a workflow for Plane cycle updated events."
+        },
+        {
+          "id": "plane_cycle_archived",
+          "name": "Plane Cycle Archived",
+          "description": "Trigger a workflow for Plane cycle archived events."
+        },
+        {
+          "id": "plane_cycle_deleted",
+          "name": "Plane Cycle Deleted",
+          "description": "Trigger a workflow for Plane cycle deleted events."
+        },
+        {
+          "id": "plane_module_created",
+          "name": "Plane Module Created",
+          "description": "Trigger a workflow for Plane module created events."
+        },
+        {
+          "id": "plane_module_updated",
+          "name": "Plane Module Updated",
+          "description": "Trigger a workflow for Plane module updated events."
+        },
+        {
+          "id": "plane_module_archived",
+          "name": "Plane Module Archived",
+          "description": "Trigger a workflow for Plane module archived events."
+        },
+        {
+          "id": "plane_module_deleted",
+          "name": "Plane Module Deleted",
+          "description": "Trigger a workflow for Plane module deleted events."
+        },
+        {
+          "id": "plane_milestone_created",
+          "name": "Plane Milestone Created",
+          "description": "Trigger a workflow for Plane milestone created events."
+        },
+        {
+          "id": "plane_milestone_updated",
+          "name": "Plane Milestone Updated",
+          "description": "Trigger a workflow for Plane milestone updated events."
+        },
+        {
+          "id": "plane_milestone_deleted",
+          "name": "Plane Milestone Deleted",
+          "description": "Trigger a workflow for Plane milestone deleted events."
+        },
+        {
+          "id": "plane_page_created",
+          "name": "Plane Page Created",
+          "description": "Trigger a workflow for Plane page created events."
+        },
+        {
+          "id": "plane_page_updated",
+          "name": "Plane Page Updated",
+          "description": "Trigger a workflow for Plane page updated events."
+        },
+        {
+          "id": "plane_page_archived",
+          "name": "Plane Page Archived",
+          "description": "Trigger a workflow for Plane page archived events."
+        },
+        {
+          "id": "plane_page_deleted",
+          "name": "Plane Page Deleted",
+          "description": "Trigger a workflow for Plane page deleted events."
+        },
+        {
+          "id": "plane_page_comment_created",
+          "name": "Plane Page Comment Created",
+          "description": "Trigger a workflow for Plane page comment created events."
+        },
+        {
+          "id": "plane_page_comment_updated",
+          "name": "Plane Page Comment Updated",
+          "description": "Trigger a workflow for Plane page comment updated events."
+        },
+        {
+          "id": "plane_page_comment_deleted",
+          "name": "Plane Page Comment Deleted",
+          "description": "Trigger a workflow for Plane page comment deleted events."
+        },
+        {
+          "id": "plane_workitem_created",
+          "name": "Plane Work Item Created",
+          "description": "Trigger a workflow for Plane work item created events."
+        },
+        {
+          "id": "plane_workitem_updated",
+          "name": "Plane Work Item Updated",
+          "description": "Trigger a workflow for Plane work item updated events."
+        },
+        {
+          "id": "plane_workitem_archived",
+          "name": "Plane Work Item Archived",
+          "description": "Trigger a workflow for Plane work item archived events."
+        },
+        {
+          "id": "plane_workitem_deleted",
+          "name": "Plane Work Item Deleted",
+          "description": "Trigger a workflow for Plane work item deleted events."
+        },
+        {
+          "id": "plane_workitem_comment_created",
+          "name": "Plane Work Item Comment Created",
+          "description": "Trigger a workflow for Plane work item comment created events."
+        },
+        {
+          "id": "plane_workitem_comment_updated",
+          "name": "Plane Work Item Comment Updated",
+          "description": "Trigger a workflow for Plane work item comment updated events."
+        },
+        {
+          "id": "plane_workitem_comment_deleted",
+          "name": "Plane Work Item Comment Deleted",
+          "description": "Trigger a workflow for Plane work item comment deleted events."
+        },
+        {
+          "id": "plane_workitem_link_created",
+          "name": "Plane Work Item Link Created",
+          "description": "Trigger a workflow for Plane work item link created events."
+        },
+        {
+          "id": "plane_workitem_link_updated",
+          "name": "Plane Work Item Link Updated",
+          "description": "Trigger a workflow for Plane work item link updated events."
+        },
+        {
+          "id": "plane_workitem_link_deleted",
+          "name": "Plane Work Item Link Deleted",
+          "description": "Trigger a workflow for Plane work item link deleted events."
+        },
+        {
+          "id": "plane_workitem_vote_created",
+          "name": "Plane Work Item Vote Created",
+          "description": "Trigger a workflow for Plane work item vote created events."
+        },
+        {
+          "id": "plane_workitem_vote_deleted",
+          "name": "Plane Work Item Vote Deleted",
+          "description": "Trigger a workflow for Plane work item vote deleted events."
+        },
+        {
+          "id": "plane_workitem_attachment_created",
+          "name": "Plane Work Item Attachment Created",
+          "description": "Trigger a workflow for Plane work item attachment created events."
+        },
+        {
+          "id": "plane_workitem_attachment_updated",
+          "name": "Plane Work Item Attachment Updated",
+          "description": "Trigger a workflow for Plane work item attachment updated events."
+        },
+        {
+          "id": "plane_workitem_attachment_deleted",
+          "name": "Plane Work Item Attachment Deleted",
+          "description": "Trigger a workflow for Plane work item attachment deleted events."
+        },
+        {
+          "id": "plane_workitem_relation_created",
+          "name": "Plane Work Item Relation Created",
+          "description": "Trigger a workflow for Plane work item relation created events."
+        },
+        {
+          "id": "plane_workitem_relation_deleted",
+          "name": "Plane Work Item Relation Deleted",
+          "description": "Trigger a workflow for Plane work item relation deleted events."
+        },
+        {
+          "id": "plane_workitem_dependency_created",
+          "name": "Plane Work Item Dependency Created",
+          "description": "Trigger a workflow for Plane work item dependency created events."
+        },
+        {
+          "id": "plane_workitem_dependency_deleted",
+          "name": "Plane Work Item Dependency Deleted",
+          "description": "Trigger a workflow for Plane work item dependency deleted events."
+        },
+        {
+          "id": "plane_workitem_page_link_created",
+          "name": "Plane Work Item Page Link Created",
+          "description": "Trigger a workflow for Plane work item page link created events."
+        },
+        {
+          "id": "plane_workitem_page_link_deleted",
+          "name": "Plane Work Item Page Link Deleted",
+          "description": "Trigger a workflow for Plane work item page link deleted events."
+        },
+        {
+          "id": "plane_cycle_issue_created",
+          "name": "Plane Cycle Membership (v1) Created",
+          "description": "Trigger a workflow for Plane cycle membership (v1) created events."
+        },
+        {
+          "id": "plane_cycle_issue_updated",
+          "name": "Plane Cycle Membership (v1) Updated",
+          "description": "Trigger a workflow for Plane cycle membership (v1) updated events."
+        },
+        {
+          "id": "plane_cycle_issue_deleted",
+          "name": "Plane Cycle Membership (v1) Deleted",
+          "description": "Trigger a workflow for Plane cycle membership (v1) deleted events."
+        },
+        {
+          "id": "plane_module_issue_created",
+          "name": "Plane Module Membership (v1) Created",
+          "description": "Trigger a workflow for Plane module membership (v1) created events."
+        },
+        {
+          "id": "plane_module_issue_updated",
+          "name": "Plane Module Membership (v1) Updated",
+          "description": "Trigger a workflow for Plane module membership (v1) updated events."
+        },
+        {
+          "id": "plane_module_issue_deleted",
+          "name": "Plane Module Membership (v1) Deleted",
+          "description": "Trigger a workflow for Plane module membership (v1) deleted events."
+        }
+      ],
+      "triggerCount": 50,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing"]
     },
     {
       "type": "planetscale",
