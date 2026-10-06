@@ -57,6 +57,10 @@ const mocks = {
   environment: environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables,
 }
 
+const SECRET_FIELDS: Record<string, string[]> = {
+  'slack-custom-bot': ['signingSecret', 'botToken'],
+  'claude-platform-service-account': ['apiToken'],
+}
 const WORKSPACE_ID = 'workspace-1'
 const workspace = {
   workspaceId: WORKSPACE_ID,
@@ -100,11 +104,12 @@ describe('credential service-account application operations', () => {
     })
     mocks.listCatalog.mockResolvedValue([{ providerId: 'zoom-service-account' }])
     mocks.deleteRecord.mockResolvedValue(true)
-    mocks.requireProvider.mockReturnValue({
+    mocks.requireProvider.mockImplementation((_catalog: unknown, providerId: string) => ({
       type: 'service_account',
-      providerId: 'zoom-service-account',
+      providerId,
       available: true,
-    })
+      fields: (SECRET_FIELDS[providerId] ?? []).map((id) => ({ id, secret: true })),
+    }))
     mocks.environment.mockResolvedValue({
       SIGNING: { value: 'secret-signing', scope: 'workspace', visible: true },
       BOT: { value: 'secret-bot', scope: 'workspace', visible: true },
@@ -246,6 +251,20 @@ describe('credential service-account application operations', () => {
     ).rejects.toThrow('must reference existing Sim secrets as {{NAME}} for: botToken')
     expect(mocks.environment).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('resolves a stored secret whose name starts with a digit', async () => {
+    mocks.environment.mockResolvedValue({
+      '1_ANTHROPIC_KEY': { value: 'sk-ant-secret', scope: 'workspace', visible: true },
+    })
+    await connectStored(copilotContext, {
+      workspaceId: WORKSPACE_ID,
+      providerId: 'claude-platform-service-account',
+      apiToken: '{{1_ANTHROPIC_KEY}}',
+    })
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ apiToken: 'sk-ant-secret' })
+    )
   })
 
   it('does not duplicate creation audit or analytics when the primitive reuses a credential', async () => {

@@ -15,6 +15,7 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   listCredentialProviderCatalog,
   requireAvailableServiceAccountCredentialProvider,
+  type ServiceAccountCredentialProviderCatalogEntry,
 } from '@/lib/credentials/application/provider-catalog'
 import {
   type CreateServiceAccountCredentialParams,
@@ -22,7 +23,10 @@ import {
   deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import type { CredentialRow } from '@/lib/credentials/queries'
-import { SERVICE_ACCOUNT_SECRET_FIELD_IDS } from '@/lib/credentials/service-account-fields'
+import {
+  SERVICE_ACCOUNT_SECRET_FIELD_IDS,
+  type ServiceAccountSecretFieldId,
+} from '@/lib/credentials/service-account-fields'
 import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -50,13 +54,28 @@ class CredentialProviderUnavailableError extends HttpError {
   }
 }
 
+function secretFieldIds(
+  provider: ServiceAccountCredentialProviderCatalogEntry
+): ServiceAccountSecretFieldId[] {
+  return provider.fields
+    .filter((field) => field.secret)
+    .map(({ id }) => {
+      const known = SERVICE_ACCOUNT_SECRET_FIELD_IDS.find((secretField) => secretField === id)
+      if (!known) {
+        throw new Error(`Secret field ${id} is missing from SERVICE_ACCOUNT_SECRET_FIELD_IDS`)
+      }
+      return known
+    })
+}
+
 /** Copilot passes secret fields as `{{NAME}}` references, never raw values. */
 async function resolveDelegatedSecretReferences(
   userId: string,
   workspaceId: string,
-  input: CreateServiceAccountInput
+  input: CreateServiceAccountInput,
+  secretFields: readonly ServiceAccountSecretFieldId[]
 ): Promise<CreateServiceAccountInput> {
-  const references = SERVICE_ACCOUNT_SECRET_FIELD_IDS.flatMap((field) => {
+  const references = secretFields.flatMap((field) => {
     const value = input[field]
     if (value === undefined) return []
     return [{ field, name: parseExactEnvironmentReference(value) }]
@@ -91,11 +110,16 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
   authorizationOptions: { delegation: credentialDelegationPolicy },
   async execute({ principal, input, context, request }): Promise<CreateServiceAccountResult> {
     const catalog = await listCredentialProviderCatalog(principal, context)
-    requireAvailableServiceAccountCredentialProvider(catalog, input.providerId)
+    const provider = requireAvailableServiceAccountCredentialProvider(catalog, input.providerId)
     const userId = requirePrincipalSubjectUserId(principal)
     const credentialInput =
       principal.kind === 'delegated'
-        ? await resolveDelegatedSecretReferences(userId, context.workspaceId, input)
+        ? await resolveDelegatedSecretReferences(
+            userId,
+            context.workspaceId,
+            input,
+            secretFieldIds(provider)
+          )
         : input
     const result = await createServiceAccountCredential({
       ...credentialInput,
