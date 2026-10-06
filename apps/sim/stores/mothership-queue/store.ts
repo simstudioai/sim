@@ -67,13 +67,15 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         ...initialState,
 
         enqueue: (chatKey, message) =>
-          set((state) => ({
-            cleared: omitKey(state.cleared, chatKey),
-            queues: setQueueForChat(state.queues, chatKey, [
-              ...(state.queues[chatKey] ?? []),
-              message,
-            ]),
-          })),
+          set((state) => {
+            if (state.cleared[chatKey]) return state
+            return {
+              queues: setQueueForChat(state.queues, chatKey, [
+                ...(state.queues[chatKey] ?? []),
+                message,
+              ]),
+            }
+          }),
 
         insertAt: (chatKey, index, message) =>
           set((state) => {
@@ -99,6 +101,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               retryRequired: _retry,
               heldUntilOnline: _held,
               heldSurface: _surface,
+              busyRetries: _busyRetries,
+              notBefore: _notBefore,
               ...rest
             } = next[index]
             next[index] = {
@@ -203,6 +207,11 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             editing: omitKey(state.editing, chatKey),
             cleared: { ...state.cleared, [chatKey]: true },
           })),
+
+        reopenChat: (chatKey) =>
+          set((state) =>
+            state.cleared[chatKey] ? { cleared: omitKey(state.cleared, chatKey) } : state
+          ),
 
         reset: () => set(initialState),
       }),

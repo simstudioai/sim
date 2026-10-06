@@ -24,6 +24,10 @@ export type QueuedMothershipMessage = QueuedMessage & {
    * mount: the next chatless surface for the same owner and workflow adopts it.
    */
   heldSurface?: string
+  /** Busy refusals so far; paces the next retry. */
+  busyRetries?: number
+  /** Epoch ms before which a busy-refused message is not sent again. */
+  notBefore?: number
   /**
    * Message id of a prior attempt at this send that an unmount cleanup
    * withdrew. Reused when the entry is dispatched so the server deduplicates
@@ -49,8 +53,8 @@ export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>
   editing: Record<string, string>
   /**
-   * Chats cleared this session (deleted). A late restore of a send dispatched
-   * before the clear does not recreate their queue; a new enqueue lifts it.
+   * Chats cleared this session (deleted). No write recreates their queue (a late
+   * restore, or a failed send handed back); restoring the chat lifts it.
    */
   cleared: Record<string, true>
 
@@ -65,5 +69,7 @@ export interface MothershipQueueState {
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
   clearChat: (chatKey: string) => void
+  /** Lifts `cleared` for a chat restored from Recently Deleted. */
+  reopenChat: (chatKey: string) => void
   reset: () => void
 }

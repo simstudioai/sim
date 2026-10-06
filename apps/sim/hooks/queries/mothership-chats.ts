@@ -365,6 +365,9 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
+    onSuccess: (_data, chatId) => {
+      useMothershipQueueStore.getState().reopenChat(chatId)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
