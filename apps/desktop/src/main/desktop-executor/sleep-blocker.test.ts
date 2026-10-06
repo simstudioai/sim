@@ -1,25 +1,25 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 
 function harness(enabled = true) {
   let nextId = 1
-  const active = new Set<number>()
+  /** The blockers the OS holds now, by id, with the kind each one prevents. */
+  const active = new Map<number, string>()
   const powerSaveBlocker = {
-    start: vi.fn(() => {
+    start: (type: 'prevent-app-suspension') => {
       const id = nextId++
-      active.add(id)
+      active.set(id, type)
       return id
-    }),
-    stop: vi.fn((id: number) => {
+    },
+    stop: (id: number) => {
       active.delete(id)
-    }),
+    },
     isStarted: (id: number) => active.has(id),
   }
   let preference = enabled
   const blocker = createSleepBlocker({ enabled: () => preference, powerSaveBlocker })
   return {
     blocker,
-    powerSaveBlocker,
     active,
     setPreference: (value: boolean) => {
       preference = value
@@ -30,12 +30,11 @@ function harness(enabled = true) {
 
 describe('keeping the machine awake for background work', () => {
   it('holds one blocker only while a chat has work running', () => {
-    const { blocker, powerSaveBlocker, active } = harness()
+    const { blocker, active } = harness()
 
     blocker.setBusy(true)
     blocker.setBusy(true)
-    expect(active.size).toBe(1)
-    expect(powerSaveBlocker.start).toHaveBeenCalledWith('prevent-app-suspension')
+    expect([...active.values()]).toEqual(['prevent-app-suspension'])
 
     blocker.setBusy(false)
     expect(active.size).toBe(0)
