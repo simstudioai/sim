@@ -68,8 +68,8 @@ export function isClaimedOnPickup(
   )
 }
 
-/** Every tool name {@link isDesktopToolCall} can accept, for narrowing a query before it. */
-export const DESKTOP_TOOL_CALL_NAMES = [...DESKTOP_TOOL_NAMES, 'read', 'grep', 'glob']
+/** The tools that run through the desktop app by name alone; local VFS reads also depend on args. */
+export const NAMED_DESKTOP_TOOL_NAMES: readonly string[] = [...DESKTOP_TOOL_NAMES]
 
 /**
  * The claim owner a desktop background executor records. It is the per-surface owner the chat

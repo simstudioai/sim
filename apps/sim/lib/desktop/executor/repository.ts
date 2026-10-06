@@ -31,7 +31,8 @@ import {
   isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { DESKTOP_TOOL_PICKUP_GRACE_MS } from '@/lib/mothership/constants'
-import { DESKTOP_TOOL_CALL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import { NAMED_DESKTOP_TOOL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import { USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
 
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
 
@@ -61,6 +62,26 @@ function pickupOverdueAt(at: SQL) {
     sql`${pickupDeadline} <= ${at}`
   )
 }
+
+function isUserLocalVfsPath(path: SQL) {
+  return sql`(${path} = ${USER_LOCAL_VFS_ROOT} OR ${path} LIKE ${`${USER_LOCAL_VFS_ROOT}/%`})`
+}
+
+/**
+ * The SQL form of `isDesktopToolCall`, so a query limits only over calls the desktop runs: a
+ * desktop tool by name, or a VFS read of a granted local folder (not a read of Sim's own files).
+ */
+const isDesktopToolCallRow = or(
+  inArray(copilotAsyncToolCalls.toolName, [...NAMED_DESKTOP_TOOL_NAMES]),
+  and(
+    inArray(copilotAsyncToolCalls.toolName, ['read', 'grep']),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'path'`)
+  ),
+  and(
+    eq(copilotAsyncToolCalls.toolName, 'glob'),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'pattern'`)
+  )
+)
 const INBOX_ROW_LIMIT = 500
 
 export interface DesktopDeviceRegistration {
@@ -183,7 +204,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           eq(copilotRuns.desktopDeviceId, identity.deviceId),
           eq(copilotRuns.userId, identity.userId),
           sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-          inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
+          isDesktopToolCallRow,
           state
         )
       )
@@ -366,7 +387,7 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
       and(
         eq(copilotAsyncToolCalls.toolCallId, toolCallId),
         isNotNull(copilotRuns.desktopDeviceId),
-        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES])
+        isDesktopToolCallRow
       )
     )
     .limit(1)
@@ -380,11 +401,12 @@ export type DesktopToolCallDeadlines = NonNullable<
 /**
  * Bound desktop calls a deadline passed for at least `slackMs` ago: unclaimed past their pickup
  * deadline (offered or not), or claimed by the executor with a lapsed lease. A live waiter settles
- * these within its 5 s poll, so anything this finds lost its waiter. Only runs inside the inbox's
- * horizon are scanned, oldest calls first.
+ * these within its 5 s poll, so anything this finds lost its waiter. Only deadlines that lapsed
+ * within the inbox's horizon are scanned, whatever the run's age, oldest calls first.
  */
 export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
   const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
+  const horizon = sql`clock_timestamp() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`
   const rows = await db
     .select({ toolCallId: copilotAsyncToolCalls.toolCallId })
     .from(copilotAsyncToolCalls)
@@ -392,16 +414,16 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .where(
       and(
         isNotNull(copilotRuns.desktopDeviceId),
-        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
+        isDesktopToolCallRow,
         or(
-          pickupOverdueAt(overdue),
+          and(pickupOverdueAt(overdue), sql`${pickupDeadline} > ${horizon}`),
           and(
             eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
             inArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER)),
             isNotNull(copilotAsyncToolCalls.executionOwnerToken),
             isNull(copilotAsyncToolCalls.executionRevokedAt),
-            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} < ${overdue}`
+            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} < ${overdue}`,
+            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > ${horizon}`
           )
         )
       )
