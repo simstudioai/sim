@@ -18175,7 +18175,7 @@
       "name": "Plane",
       "description": "Manage projects and work items in Plane",
       "longDescription": "Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choose API v1 for Community Edition or older instances. Actions with a current successor are consolidated. Unsupported version-specific inputs fail explicitly. Manage work items, projects, cycles, modules, states, labels, comments, links, attachments, pages, and webhooks. API v1 compatibility is available within supported current actions.",
-      "bgColor": "#3F76FF",
+      "bgColor": "#FFFFFF",
       "iconName": "PlaneIcon",
       "docsUrl": "https://docs.sim.ai/integrations/plane",
       "operations": [

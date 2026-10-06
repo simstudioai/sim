@@ -931,7 +931,7 @@ export const PlaneBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   icon: PlaneIcon,
-  bgColor: '#3F76FF',
+  bgColor: '#FFFFFF',
   canvasPresentation: {
     defaultTitle: 'Plane',
     sentences: {
