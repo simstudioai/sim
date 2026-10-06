@@ -339,17 +339,19 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/desktop-inbox-next.log"
           mkdir -p "$report_dir"
+          rm -rf .next/dev
           node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
+            status=$?
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
+            [ "$status" -eq 0 ] || tail -n 200 "$server_log"
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
