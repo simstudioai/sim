@@ -458,9 +458,9 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -yq xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 \
             libxtst6 libatk-bridge2.0-0t64 libxkbcommon0 > /dev/null
-          # The build stages node-pty prebuilds in TMPDIR and renames them into node_modules, so
-          # TMPDIR must be on the workspace's filesystem.
-          (cd apps/desktop && TMPDIR="$RUNNER_TEMP" bun run build)
+          # Bundle only: `bun run build` also fetches the macOS node-pty prebuilds for packaging,
+          # which a Linux run does not use.
+          (cd apps/desktop && bun run scripts/build.ts)
           (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
             exec bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
           realtime_pid=$!
