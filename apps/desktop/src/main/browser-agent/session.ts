@@ -298,6 +298,8 @@ interface BrowserScopeState {
    */
   findingTabId: string | null
   findingRequestId: number | null
+  /** When the user last clicked, scrolled or typed in the tab the agent drives. */
+  userInterventionAt: number | null
 }
 
 function createBrowserScopeState(): BrowserScopeState {
@@ -319,6 +321,7 @@ function createBrowserScopeState(): BrowserScopeState {
     automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
+    userInterventionAt: null,
   }
 }
 
@@ -2368,6 +2371,7 @@ function initializeTabView(
         return
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
+      if (tab?.id === currentScope.automationTabId) noteUserIntervention()
       if (tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (mouse.type === 'mouseDown') tab.lastRealUserGestureAt = Date.now()
@@ -2484,6 +2488,13 @@ function initializeTabView(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
       const tab = tabs.find((entry) => entry.view === view)
+      if (
+        !isDispatchingAgentInput(contents) &&
+        input.type === 'keyDown' &&
+        tab?.id === currentScope.automationTabId
+      ) {
+        noteUserIntervention()
+      }
       if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
@@ -3117,8 +3128,20 @@ export function claimActiveTabForUser(): AgentTab | null {
   return tab
 }
 
+/** The user just acted in the page the agent drives; the agent yields until they stop. */
+function noteUserIntervention(): void {
+  currentScope.userInterventionAt = Date.now()
+}
+
+/** How long ago the user last acted in the current scope's agent tab, or null if never. */
+export function msSinceUserIntervention(): number | null {
+  const at = currentScope.userInterventionAt
+  return at === null ? null : Math.max(0, Date.now() - at)
+}
+
 /** Explicit hand-back after takeover lets automation resume in the same page. */
 export function returnAutomationTabToAgent(): void {
+  currentScope.userInterventionAt = null
   if (currentScope.activeTabId === currentScope.automationTabId) {
     currentScope.visibleTabUserSelected = false
   }

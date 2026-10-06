@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
 interface PreferenceRowProps {
@@ -60,12 +61,19 @@ export function Desktop() {
     }
   }
 
+  const { pending: preventSleepPending, mutate: setPreventSleep } = useDesktopPreferenceMutation(
+    async (bridge, enabled: boolean) => bridge.settings.setPreventSleepWhileRunning?.(enabled),
+    'Could not update desktop settings',
+    setPreferences
+  )
+
   if (!preferences) {
     return null
   }
 
   const notificationsDisabled =
     !preferences.notificationsEnabled || pendingPreference === 'notificationsEnabled'
+  const supportsPreventSleep = Boolean(getDesktopBridge()?.settings.setPreventSleepWhileRunning)
 
   return (
     <SettingsPanel>
@@ -90,6 +98,22 @@ export function Desktop() {
             disabled={pendingPreference !== null}
             onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
           />
+          {supportsPreventSleep && (
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex min-w-0 flex-col gap-1'>
+                <Label htmlFor='desktop-prevent-sleep'>Prevent sleep while a chat is running</Label>
+                <p className='text-[var(--text-muted)] text-caption'>
+                  Closing the lid still puts your computer to sleep
+                </p>
+              </div>
+              <Switch
+                id='desktop-prevent-sleep'
+                checked={preferences.preventSleepWhileRunning ?? true}
+                disabled={preventSleepPending}
+                onCheckedChange={(checked) => void setPreventSleep(checked)}
+              />
+            </div>
+          )}
           <PreferenceRow
             id='desktop-tray-enabled'
             label='Show Sim in Control Center'

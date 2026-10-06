@@ -32,7 +32,7 @@ import {
 import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { isRecordLike, omit, toArray, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
@@ -5094,6 +5094,30 @@ function withNotices(result: unknown): unknown {
   return { value: result, notices }
 }
 
+/** Quiet time after the user's last click or keystroke before the agent takes the page back. */
+const USER_TAKEOVER_IDLE_MS = 4_000
+
+function isUserWorkingInPage(): boolean {
+  const since = session.msSinceUserIntervention()
+  return since !== null && since < USER_TAKEOVER_IDLE_MS
+}
+
+/**
+ * The user and the agent never act in the same page at once. While the user is clicking, typing
+ * or scrolling in the tab the agent drives, the agent's next action waits, marked as needing
+ * attention, and resumes once the user has left the page alone for a few seconds.
+ */
+async function yieldToUser(toolCallId: string | undefined, signal: AbortSignal): Promise<void> {
+  session.setAutomationNeedsAttention(true)
+  logger.info('Browser automation yielding to the user', { toolCallId })
+  while (isUserWorkingInPage()) {
+    await interruptibleSleep(250, signal)
+    if (signal.aborted) throw new ToolError('This browser action was cancelled.')
+  }
+  session.setAutomationNeedsAttention(false)
+  logger.info('Browser automation resumed after the user stopped', { toolCallId })
+}
+
 export async function executeTool(
   scopeId: string,
   tool: BrowserToolName,
@@ -5190,6 +5214,9 @@ export async function executeTool(
           session.setAutomationActive(true)
         }
         try {
+          if (tool !== 'browser_request_takeover' && isUserWorkingInPage()) {
+            await yieldToUser(toolCallId, executionController.signal)
+          }
           const response = dialogResponse(tool, params)
           state.dialogResponse = response
             ? { contents: session.requireAutomationTab().view.webContents, response }

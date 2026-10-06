@@ -9,6 +9,7 @@ import {
   dialog,
   Notification,
   net,
+  powerSaveBlocker,
   session,
   shell,
 } from 'electron'
@@ -63,6 +64,7 @@ import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
 import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
 import { createDesktopExecutorService } from '@/main/desktop-executor/service'
+import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
@@ -546,6 +548,7 @@ function main(): void {
       }
       desktopExecutor.refreshRegistration()
     },
+    setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -572,6 +575,11 @@ function main(): void {
     },
   })
 
+  const sleepBlocker = createSleepBlocker({
+    enabled: () => desktopSettings.getPreferences().preventSleepWhileRunning ?? true,
+    powerSaveBlocker,
+  })
+
   const approvalNotifier = createApprovalNotifier({
     preferences: () => desktopSettings.getPreferences(),
     focusedChatId: () => {
@@ -592,6 +600,7 @@ function main(): void {
     preferences: () => desktopSettings.getPreferences(),
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
+    onBusyChange: (busy) => sleepBlocker.setBusy(busy),
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,

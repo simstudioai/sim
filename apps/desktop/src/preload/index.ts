@@ -179,6 +179,8 @@ const api: SimDesktopApi = {
     getPreferences: (): Promise<DesktopPreferences> => ipcRenderer.invoke('desktop:settings:get'),
     setPreference: (key: DesktopPreferenceKey, value: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set', key, value),
+    setPreventSleepWhileRunning: (enabled: boolean): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-prevent-sleep', enabled),
     setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-browser-search-suggestions', enabled),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>

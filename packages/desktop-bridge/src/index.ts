@@ -882,6 +882,11 @@ export interface DesktopPreferences {
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
+   * Keep the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  preventSleepWhileRunning?: boolean
+  /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
    */
@@ -974,6 +979,11 @@ interface SimDesktopSettingsApi {
    * for compatibility with installed shells that predate live suggestions.
    */
   setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Keeps the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
