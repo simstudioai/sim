@@ -37,13 +37,13 @@ export function canonicalizeVfsPath(path: string): string {
 }
 
 /**
- * Canonical, per-segment-encoded VFS path of a workspace file. `uploads` is the
- * chat-upload namespace, which has no folders.
+ * Canonical, per-segment-encoded VFS path of a workspace file. `uploads` (chat uploads) and
+ * `issues` (issue bodies) are namespaces without folders.
  */
 export function canonicalWorkspaceFilePath(parts: {
   folderPath?: string | null
   name: string
-  prefix?: 'files' | 'recently-deleted/files' | 'uploads'
+  prefix?: 'files' | 'recently-deleted/files' | 'uploads' | 'issues'
 }): string {
   const prefix = parts.prefix ?? 'files'
   const folderSegments = parts.folderPath

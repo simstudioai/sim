@@ -255,6 +255,9 @@ export async function parseFileText(
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: ({ principal, input }) =>
-    resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
+    resolveReferencedWorkspaceFileContext(principal, input, {
+      includeChatUploads: true,
+      includeIssueBodies: true,
+    }),
   execute: executeReadWorkspaceFileText,
 })

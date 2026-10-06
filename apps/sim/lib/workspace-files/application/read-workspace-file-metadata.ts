@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -47,6 +48,7 @@ async function executeReadWorkspaceFileMetadata({
     getWorkspaceFile(context.workspaceId, context.fileId, {
       includeDeleted: input.includeDeleted,
       throwOnError: true,
+      includeIssueBodies: true,
     }),
     getShareForResource('file', context.fileId),
   ])
@@ -56,7 +58,8 @@ async function executeReadWorkspaceFileMetadata({
 
 export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
-  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }) =>
+    resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   execute: executeReadWorkspaceFileMetadata,
 })
 
@@ -66,12 +69,18 @@ export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({
  */
 export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readMetadata,
-  resolveContext: ({ input }: { input: ReadWorkspaceFileMetadataInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkspaceFileMetadataInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ input, context }): Promise<ReadWorkspaceFileMetadataWithVersionResult> {
     const [file, share] = await Promise.all([
       getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId, {
         includeDeleted: input.includeDeleted,
+        includeIssueBodies: true,
       }),
       getShareForResource('file', context.fileId),
     ])

@@ -49,6 +49,9 @@ import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-command
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
+/** Resource types with no chat context to attach (see `mapResourceToContext`). */
+const CHAT_CONTEXTLESS_RESOURCE_TYPES: readonly MothershipResourceType[] = ['issue']
+
 /**
  * The `@` list is shorter than the emcn menu default (420px, sized for right-click
  * action menus). This one floats directly over the chat input, so a menu tall enough
@@ -85,6 +88,7 @@ const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integratio
  */
 const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
   ...MENTION_ONLY_RESOURCE_TYPES,
+  ...CHAT_CONTEXTLESS_RESOURCE_TYPES,
   'browser',
   'terminal',
 ]
@@ -154,6 +158,7 @@ export const PlusMenuDropdown = React.memo(
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
+      excludeTypes: CHAT_CONTEXTLESS_RESOURCE_TYPES,
     })
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
@@ -412,6 +417,7 @@ export const PlusMenuDropdown = React.memo(
               key={workspace.id}
               workspaceId={workspace.id}
               onChange={receiveInventory}
+              excludeTypes={CHAT_CONTEXTLESS_RESOURCE_TYPES}
             />
           ))}
         <DropdownMenuTrigger asChild>

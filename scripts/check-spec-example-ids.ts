@@ -39,6 +39,7 @@ const APPROVED: Record<string, string> = {
   '0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01': 'run id in the RUN_ID_CONFLICT error example',
   '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36': 'the shared workflow id placeholder',
   '4c1f9e77-2b3a-4f8d-9e10-6a2c8d4b1e05': 'KNOWLEDGE_CHUNK_ID',
+  '6f0b2c4e-1d8a-4c3b-9e7f-2a5d8c1b4e90': 'issue id in the issue examples',
   '7c9e6679-7425-40de-944b-e07fc1f90ae7': "KNOWLEDGE_BASE_ID, Wikipedia's canonical example UUID",
   '9d3b7f10-2c8e-4a56-b0f4-6e1a8c5d2b97': 'pausedExecutionId on the paused-execution example',
   '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94': 'second workspace id, where one example needs two',

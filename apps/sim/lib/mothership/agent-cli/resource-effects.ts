@@ -192,13 +192,17 @@ const EFFECT_ROUTES: EffectRoute[] = [
   },
   { ...after(files.v2GetFileContract, ({ data }) => upsert('file', data, true)), readOnly: true },
   {
-    ...after(files.v2ReadFileTextContract, ({ data }) => [
-      {
-        op: 'upsert',
-        readOnly: true,
-        resource: { type: 'file', id: data.fileId, title: data.name, path: data.path },
-      },
-    ]),
+    ...after(files.v2ReadFileTextContract, ({ data }) =>
+      data.path.startsWith('issues/')
+        ? []
+        : [
+            {
+              op: 'upsert',
+              readOnly: true,
+              resource: { type: 'file', id: data.fileId, title: data.name, path: data.path },
+            },
+          ]
+    ),
     readOnly: true,
   },
   {

@@ -5,7 +5,13 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  issue,
+  uploadSession,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import {
@@ -48,7 +54,7 @@ import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestrati
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import {
@@ -57,6 +63,7 @@ import {
   resolveRestoredFolderId,
 } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
+import { formatIssueKey, parseIssueKey } from '@/lib/issues/types'
 import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
@@ -106,6 +113,7 @@ import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,
 } from '@/lib/workspace-files/page-source-embed'
+import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -168,7 +176,7 @@ export interface WorkspaceFileRecord {
    * Set on chat uploads (`context = 'mothership'`), which the VFS addresses as
    * `uploads/<name>` rather than `files/…`; `name` then carries the upload's display name.
    */
-  vfsNamespace?: 'uploads'
+  vfsNamespace?: 'uploads' | 'issues'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -188,6 +196,8 @@ export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
 
 export interface ActiveWorkspaceFileContext {
   fileId: string
+  /** `workspace_files.context`: `'issue'` for an issue body, which follows the issue's policy. */
+  fileContext: string
   workspaceId: string
   workspaceOrganizationId: string | null
   allowPersonalApiKeys: boolean
@@ -281,6 +291,7 @@ interface WorkspaceFileMetadataInsert {
   originalName: string
   contentType: string
   size: number
+  context?: 'workspace' | 'issue'
 }
 
 /**
@@ -295,9 +306,9 @@ async function insertWorkspaceFileMetadataInTx(
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
-      ...omit(metadata, ['size']),
+      ...omit(metadata, ['size', 'context']),
       sizeBytes: metadata.size,
-      context: 'workspace',
+      context: metadata.context ?? 'workspace',
       displayName: metadata.originalName,
       deletedAt: null,
       uploadedAt: new Date(),
@@ -610,6 +621,71 @@ export async function uploadWorkspaceFile(
     cause: describeError(lastError),
   })
   throw new FileConflictError(fileName)
+}
+
+/** An issue body's stored name; it reads as `SIM-<n>.md` only in records (see {@link mapIssueBodyRecord}). */
+function issueBodyStoredName(fileId: string): string {
+  return `${fileId}.md`
+}
+
+/**
+ * Creates an issue's markdown body (`context = 'issue'`). `insertOwner` runs in the file's insert
+ * transaction, so the issue row and its body commit together or not at all.
+ */
+export async function createIssueBodyFile<T>(params: {
+  workspaceId: string
+  userId: string
+  content: string
+  insertOwner: (tx: DbTransaction, fileId: string) => Promise<T>
+}): Promise<{ fileId: string; owner: T }> {
+  const fileId = `wf_${generateShortId()}`
+  const name = issueBodyStoredName(fileId)
+  const buffer = Buffer.from(params.content, 'utf-8')
+  const storageKey = generateWorkspaceFileKey(params.workspaceId, name)
+  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
+  const uploadResult = await uploadFile({
+    file: buffer,
+    fileName: storageKey,
+    contentType: 'text/markdown',
+    context: 'workspace',
+    preserveKey: true,
+    customKey: storageKey,
+    metadata: {
+      originalName: name,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'workspace',
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+    },
+    persistMetadata: false,
+  })
+  try {
+    const { owner, updatedUsage } = await db.transaction(async (tx) => {
+      const inserted = await insertWorkspaceFileMetadataInTx(tx, {
+        id: fileId,
+        key: uploadResult.key,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        folderId: null,
+        originalName: name,
+        contentType: 'text/markdown',
+        size: buffer.length,
+        context: 'issue',
+      })
+      if (!inserted) throw new Error(`Issue body file ${fileId} was not inserted`)
+      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+        tx,
+        storageBillingContext,
+        buffer.length
+      )
+      return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+    })
+    void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+    return { fileId, owner }
+  } catch (error) {
+    await cleanupWorkspaceStorageObject(uploadResult.key, 'issue body owner insert failure')
+    throw error
+  }
 }
 
 /**
@@ -1217,6 +1293,7 @@ async function mapSingleWorkspaceFileRecord(
   if (file.context === 'mothership') {
     return mapChatUploadRecord(file, workspaceId)
   }
+  if (file.context === 'issue') return mapIssueBodyRecord(file, workspaceId)
   if (!file.folderId) {
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
@@ -1229,6 +1306,21 @@ async function mapSingleWorkspaceFileRecord(
     workspaceId,
     folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
   )
+}
+
+/** An issue body reads as `issues/<KEY>.md`, the path Sim addresses it by. */
+async function mapIssueBodyRecord(
+  file: WorkspaceFileRow,
+  workspaceId: string
+): Promise<WorkspaceFileRecord> {
+  const record = mapWorkspaceFileRecord(file, workspaceId, new Map())
+  const [owner] = await db
+    .select({ number: issue.number })
+    .from(issue)
+    .where(eq(issue.bodyFileId, file.id))
+    .limit(1)
+  if (!owner) return record
+  return { ...record, name: `${formatIssueKey(owner.number)}.md`, vfsNamespace: 'issues' }
 }
 
 /**
@@ -1299,27 +1391,34 @@ export async function getWorkspaceFileByName(
  */
 export interface WorkspaceFileLookupOptions {
   includeChatUploads?: boolean
+  /**
+   * Admit issue bodies (`context = 'issue'`), by id or as `issues/<KEY>.md`. Only content reads
+   * and writes set this, and their use cases apply the issue policy to whatever they admit.
+   */
+  includeIssueBodies?: boolean
   /** Internal Mothership scope for uploads/<name>; ordinary API lookup remains workspace-wide. */
   chatId?: string
 }
 
-/** Row context a single-file lookup admits: workspace files, plus chat uploads on opt-in. */
-function workspaceFileContextCondition(includeChatUploads?: boolean) {
-  return includeChatUploads
-    ? inArray(workspaceFiles.context, ['workspace', 'mothership'])
-    : eq(workspaceFiles.context, 'workspace')
+/** Row context a single-file lookup admits: workspace files, plus chat uploads and issue bodies on opt-in. */
+function workspaceFileContextCondition(options?: WorkspaceFileLookupOptions) {
+  const contexts = [
+    'workspace',
+    ...(options?.includeChatUploads ? ['mothership'] : []),
+    ...(options?.includeIssueBodies ? ['issue'] : []),
+  ]
+  return contexts.length === 1
+    ? eq(workspaceFiles.context, 'workspace')
+    : inArray(workspaceFiles.context, contexts)
 }
 
 /** Workspace-file rows for one scope: live, Recently Deleted, or both. */
 function workspaceFileScopeCondition(
   workspaceId: string,
   scope: WorkspaceFileScope,
-  includeChatUploads?: boolean
+  lookup?: WorkspaceFileLookupOptions
 ) {
-  const base = [
-    eq(workspaceFiles.workspaceId, workspaceId),
-    workspaceFileContextCondition(includeChatUploads),
-  ]
+  const base = [eq(workspaceFiles.workspaceId, workspaceId), workspaceFileContextCondition(lookup)]
   if (scope === 'all') return and(...base)
   return scope === 'archived'
     ? and(...base, isNotNull(workspaceFiles.deletedAt))
@@ -1654,6 +1753,36 @@ async function getWorkspaceFileByExactReference(
   return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
 }
 
+/** The issue number in an `issues/SIM-152.md` reference; null for any other reference. */
+export function parseIssueBodyReference(fileReference: string): number | null {
+  const trimmed = fileReference.trim().replace(/^\/+/, '')
+  if (!trimmed.startsWith('issues/')) return null
+  const segments = decodeVfsPathSegments(trimmed)
+  if (segments.length !== 2 || !segments[1].toLowerCase().endsWith('.md')) return null
+  return parseIssueKey(segments[1].slice(0, -'.md'.length))
+}
+
+/** An issue's body file, which reads as `issues/<KEY>.md`. */
+async function getIssueBodyByNumber(
+  workspaceId: string,
+  issueNumber: number
+): Promise<WorkspaceFileRecord | null> {
+  const [row] = await db
+    .select({ bodyFileId: issue.bodyFileId })
+    .from(issue)
+    .where(
+      and(
+        eq(issue.workspaceId, workspaceId),
+        eq(issue.number, issueNumber),
+        isNull(issue.deletedAt)
+      )
+    )
+    .limit(1)
+  return row
+    ? getWorkspaceFileWithCurrentVersion(workspaceId, row.bodyFileId, { includeIssueBodies: true })
+    : null
+}
+
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
  *
@@ -1662,12 +1791,17 @@ async function getWorkspaceFileByExactReference(
  * records without one rather than pairing a row with a version a second query read later.
  * With `includeChatUploads`, an `uploads/<name>` path (or a chat upload's own id) reaches
  * the chat upload it names; chat uploads are never found through the listing fallback.
+ * With `includeIssueBodies`, `issues/<KEY>.md` (or the body's own id) reaches that issue's body.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string,
   options?: WorkspaceFileLookupOptions
 ): Promise<WorkspaceFileRecord | null> {
+  if (options?.includeIssueBodies) {
+    const issueNumber = parseIssueBodyReference(fileReference)
+    if (issueNumber !== null) return getIssueBodyByNumber(workspaceId, issueNumber)
+  }
   const includeChatUploads = options?.includeChatUploads === true
   if (includeChatUploads) {
     const uploadName = parseChatUploadReference(fileReference)
@@ -1682,6 +1816,7 @@ export async function resolveWorkspaceFileReference(
   if (normalizedReference.startsWith('wf_') || isUuid(normalizedReference)) {
     const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference, {
       includeChatUploads,
+      includeIssueBodies: options?.includeIssueBodies,
     })
     if (file) return file
   }
@@ -1705,6 +1840,7 @@ export async function loadActiveWorkspaceFileContext(
   const [context] = await db
     .select({
       fileId: workspaceFiles.id,
+      fileContext: workspaceFiles.context,
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
@@ -1715,7 +1851,7 @@ export async function loadActiveWorkspaceFileContext(
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        workspaceFileContextCondition(options?.includeChatUploads),
+        workspaceFileContextCondition(options),
         ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
         isNull(workspace.archivedAt)
       )
@@ -1736,6 +1872,7 @@ export async function loadWorkspaceFileLifecycleContext(
   const [context] = await db
     .select({
       fileId: workspaceFiles.id,
+      fileContext: workspaceFiles.context,
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
@@ -1798,7 +1935,7 @@ export async function getWorkspaceFile(
         and(
           eq(workspaceFiles.id, fileId),
           eq(workspaceFiles.workspaceId, workspaceId),
-          workspaceFileContextCondition(options?.includeChatUploads),
+          workspaceFileContextCondition(options),
           ...(includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)])
         )
       )
@@ -1835,7 +1972,7 @@ export async function getWorkspaceFileWithCurrentVersion(
         workspaceFileScopeCondition(
           workspaceId,
           options?.includeDeleted ? 'all' : 'active',
-          options?.includeChatUploads
+          options
         )
       )
     )
@@ -1998,19 +2135,21 @@ export async function updateWorkspaceFileContent(
   }
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
-  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId, { includeIssueBodies: true })
   if (!fileRecord) {
     throw new OrchestrationError('not_found', 'File not found')
   }
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
-  const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
+  const storedName =
+    fileRecord.vfsNamespace === 'issues' ? issueBodyStoredName(fileRecord.id) : fileRecord.name
+  const nextStorageKey = generateWorkspaceFileKey(workspaceId, storedName)
   const contentHash = sha256Hex(content)
 
   try {
     const metadata: Record<string, string> = {
-      originalName: fileRecord.name,
+      originalName: storedName,
       uploadedAt: new Date().toISOString(),
       purpose: 'workspace',
       userId,
@@ -2046,7 +2185,7 @@ export async function updateWorkspaceFileContent(
             and(
               eq(workspaceFiles.id, fileId),
               eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
+              contentWritableWorkspaceFileContextCondition,
               isNull(workspaceFiles.deletedAt)
             )
           )
@@ -2115,7 +2254,7 @@ export async function updateWorkspaceFileContent(
             and(
               eq(workspaceFiles.id, fileId),
               eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
+              contentWritableWorkspaceFileContextCondition,
               isNull(workspaceFiles.deletedAt)
             )
           )

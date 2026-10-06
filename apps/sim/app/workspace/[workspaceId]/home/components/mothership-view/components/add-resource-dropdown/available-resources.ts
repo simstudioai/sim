@@ -13,6 +13,7 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
+import { useIssueList } from '@/hooks/queries/issues'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -97,6 +98,7 @@ export function useAvailableResources(
   options?: UseAvailableResourcesOptions
 ): AvailableResources {
   const dashboardsEnabled = useFeatureFlag('dashboards')
+  const issuesEnabled = useFeatureFlag('issues')
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
   const browserAvailable = useSyncExternalStore(
@@ -120,6 +122,9 @@ export function useAvailableResources(
   })
   const { data: dashboardData, isPending: dashboardsPending } = useWorkspaceDashboard(workspaceId, {
     enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
+  })
+  const { data: issues, isPending: issuesPending } = useIssueList(workspaceId, {
+    enabled: enabled && issuesEnabled && !excludeTypes?.includes('issue'),
   })
   const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
@@ -172,6 +177,7 @@ export function useAvailableResources(
       tablesPending ||
       filesPending ||
       (dashboardsEnabled && !excludeTypes?.includes('dashboard') && dashboardsPending) ||
+      (issuesEnabled && !excludeTypes?.includes('issue') && issuesPending) ||
       knowledgeBasesPending ||
       foldersPending ||
       (options?.includeFolderMentions &&
@@ -185,6 +191,7 @@ export function useAvailableResources(
     if (!enabled) return NO_RESOURCE_GROUPS
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     if (!dashboardsEnabled) excluded.add('dashboard')
+    if (!issuesEnabled) excluded.add('issue')
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
@@ -217,6 +224,14 @@ export function useAvailableResources(
         items: dashboardData?.dashboard
           ? [{ id: dashboardData.dashboard.id, name: dashboardData.dashboard.name, folderId: null }]
           : [],
+      },
+      {
+        type: 'issue' as const,
+        items: (issues ?? []).map((issue) => ({
+          id: issue.key,
+          name: `${issue.key} ${issue.title}`,
+          folderId: null,
+        })),
       },
       {
         type: 'file' as const,
@@ -311,11 +326,13 @@ export function useAvailableResources(
     tables,
     files,
     dashboardData,
+    issues,
     knowledgeBases,
     tasks,
     logs,
     excludeTypes,
     dashboardsEnabled,
+    issuesEnabled,
   ])
 
   /**

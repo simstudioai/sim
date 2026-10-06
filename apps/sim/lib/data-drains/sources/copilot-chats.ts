@@ -45,6 +45,7 @@ const chatColumns = {
   lastSeenAt: copilotChats.lastSeenAt,
   autoAllowedTools: copilotChats.autoAllowedTools,
   pinned: copilotChats.pinned,
+  issueId: copilotChats.issueId,
   deletedAt: copilotChats.deletedAt,
   createdAt: copilotChats.createdAt,
   updatedAt: copilotChats.updatedAt,

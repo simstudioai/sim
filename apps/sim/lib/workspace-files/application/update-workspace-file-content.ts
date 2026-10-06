@@ -115,8 +115,8 @@ function projectUpdateWorkspaceFileContentAudit(result: UpdateWorkspaceFileConte
 
 const admitUpdateWorkspaceFileContentUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: { fileId: string } }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: { fileId: string } }) =>
+    resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute() {},
 })
 
@@ -129,8 +129,13 @@ export async function admitUpdateWorkspaceFileContent(
 
 export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileContentResult> {
     const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
     if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
@@ -151,8 +156,13 @@ export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
 
 export const updateWorkspaceFileContentFromBuffer = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentBufferInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentBufferInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   execute: ({ principal, input, context }) =>
     updateAuthorizedWorkspaceFileContent({
       principal,

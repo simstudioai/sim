@@ -78,7 +78,7 @@ interface WorkspaceFileAttachmentIdentity {
 export interface WorkspaceFileSecretProvenanceIdentity {
   fileId: string
   key: string
-  context: 'workspace' | 'mothership' | 'execution'
+  context: 'workspace' | 'mothership' | 'execution' | 'issue'
   contentUpdatedAt?: Date
 }
 
@@ -438,7 +438,7 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
         eq(workspaceFiles.id, fileId),
         gte(workspaceFiles.contentUpdatedAt, contentUpdatedAt),
         lt(workspaceFiles.contentUpdatedAt, nextContentMillisecond),
-        inArray(workspaceFiles.context, ['workspace', 'mothership', 'execution']),
+        inArray(workspaceFiles.context, ['workspace', 'mothership', 'execution', 'issue']),
         or(
           isNull(workspaceFiles.secretProvenanceVersion),
           eq(workspaceFiles.secretProvenanceVersion, 1)

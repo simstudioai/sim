@@ -1967,6 +1967,36 @@ export type CreateFileUploadPartUrlsResponse = {
   data: CreateFileUploadPartUrlsResponseRef1
 }
 
+/** `POST /api/v2/issues` */
+export type CreateIssueQuery = Record<string, unknown>
+
+export type CreateIssueBody = {
+  workspaceId: string
+  title: string
+  body: string
+  priority?: 0 | 1 | 2 | 3 | 4
+}
+
+export type CreateIssueResponse = {
+  data: {
+    id: string
+    key: string
+    title: string
+    status: 'inbox' | 'in_progress' | 'done'
+    inboxKind: 'new' | 'review' | null
+    closeReason: 'completed' | 'dismissed' | 'duplicate' | null
+    priority: 0 | 1 | 2 | 3 | 4
+    ownerId: string | null
+    workingChatId: string | null
+    reviewSummary: string | null
+    bodyFileId: string
+    createdAt: string
+    updatedAt: string
+    startedAt: string | null
+    completedAt: string | null
+  }
+}
+
 /** `POST /api/v2/knowledge` */
 export type CreateKnowledgeBaseQuery = Record<string, unknown>
 
@@ -5523,6 +5553,35 @@ type GetFileVersionResponseRef0 = {
 
 export type GetFileVersionResponse = {
   data: GetFileVersionResponseRef0
+}
+
+/** `GET /api/v2/issues/[issueKey]` */
+export type GetIssueParams = {
+  issueKey: string
+}
+
+export type GetIssueQuery = {
+  workspaceId: string
+}
+
+export type GetIssueResponse = {
+  data: {
+    id: string
+    key: string
+    title: string
+    status: 'inbox' | 'in_progress' | 'done'
+    inboxKind: 'new' | 'review' | null
+    closeReason: 'completed' | 'dismissed' | 'duplicate' | null
+    priority: 0 | 1 | 2 | 3 | 4
+    ownerId: string | null
+    workingChatId: string | null
+    reviewSummary: string | null
+    bodyFileId: string
+    createdAt: string
+    updatedAt: string
+    startedAt: string | null
+    completedAt: string | null
+  }
 }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]` */
@@ -14950,6 +15009,28 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createIssue: {
+    method: 'POST',
+    path: '/api/v2/issues',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Issue',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace to file the issue in.' },
+      title: { kind: 'string', required: true, describe: 'What is going wrong, in one line.' },
+      body: {
+        kind: 'string',
+        required: true,
+        describe:
+          'The issue document as markdown, including any dashboard, diff, or mermaid blocks.',
+      },
+      priority: {
+        kind: 'unknown',
+        describe: '0 is no priority, then low, medium, high, and 4 is urgent.',
+      },
+    },
+  },
   createKnowledgeBase: {
     method: 'POST',
     path: '/api/v2/knowledge',
@@ -16696,6 +16777,18 @@ export const V2_OPERATIONS = {
     summary: 'Get File Version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  getIssue: {
+    method: 'GET',
+    path: '/api/v2/issues/[issueKey]',
+    pathParams: ['issueKey'] as const,
+    pathParamDocs: { issueKey: 'Issue key, such as SIM-152.' },
+    responseMode: 'json',
+    summary: 'Get Issue',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the issue.' },
     },
   },
   getKnowledgeBase: {

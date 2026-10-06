@@ -7,6 +7,7 @@ const logger = createLogger('DatabasePush')
 const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],
+  ['bun', '--env-file=.env', 'run', './scripts/apply-issue-triggers.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0019_tin_keyword_projection.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],

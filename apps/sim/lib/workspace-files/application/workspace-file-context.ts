@@ -1,4 +1,7 @@
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireIssuesEnabled } from '@/lib/issues/feature-flag'
+import { hasLiveIssueForBody } from '@/lib/issues/repository'
 import {
   type ActiveWorkspaceFileContext,
   loadActiveWorkspaceFileContext,
@@ -15,6 +18,34 @@ export interface WorkspaceFileContextInput {
    * use cases set this: chat uploads stay out of listings and closed to writes.
    */
   includeChatUploads?: boolean
+  /**
+   * Admit an issue body (`context = 'issue'`) for this principal under the issue policy. Only
+   * content reads and writes pass it; every other file operation never reaches an issue body.
+   */
+  issueBodyPrincipal?: Principal
+}
+
+/** Principals the issue operations admit; workspace API keys and system callers never reach a body. */
+const ISSUE_BODY_PRINCIPAL_KINDS = new Set<Principal['kind']>([
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'delegated',
+])
+
+/** An issue body follows its live issue: the rollout flag, and the issue operations' principal kinds. */
+export async function assertIssueBodyAccess(
+  principal: Principal,
+  context: ActiveWorkspaceFileContext
+): Promise<void> {
+  if (context.fileContext !== 'issue') return
+  if (
+    !ISSUE_BODY_PRINCIPAL_KINDS.has(principal.kind) ||
+    !(await hasLiveIssueForBody(context.fileId))
+  ) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  await requireIssuesEnabled(context.workspaceOrganizationId)
 }
 
 export async function resolveActiveWorkspaceFileContext(
@@ -23,6 +54,7 @@ export async function resolveActiveWorkspaceFileContext(
   const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
     includeDeleted: input.includeDeleted,
     includeChatUploads: input.includeChatUploads,
+    ...(input.issueBodyPrincipal ? { includeIssueBodies: true } : {}),
   })
   if (
     !canonical ||
@@ -30,6 +62,7 @@ export async function resolveActiveWorkspaceFileContext(
   ) {
     throw new OrchestrationError('not_found', 'File not found')
   }
+  if (input.issueBodyPrincipal) await assertIssueBodyAccess(input.issueBodyPrincipal, canonical)
   return canonical
 }
 

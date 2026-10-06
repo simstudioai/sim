@@ -11,6 +11,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { assertIssueBodyAccess } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ResolveWorkspaceFileReferenceInput {
   principal: Principal
@@ -42,10 +43,16 @@ export interface ReferencedWorkspaceFileContext extends ActiveWorkspaceFileConte
 
 /**
  * Reads may reach a chat upload through its explicit `uploads/<name>` reference (or its
- * own id); every other file operation resolves workspace files only, so no write, move,
- * rename, delete, or share can land on one.
+ * own id), and an issue body through `issues/<KEY>.md`; every other file operation resolves
+ * workspace files only, so no move, rename, delete, or share can land on either.
  */
-const CHAT_UPLOAD_LOOKUP: WorkspaceFileLookupOptions = { includeChatUploads: true }
+const READ_CONTENT_LOOKUP: WorkspaceFileLookupOptions = {
+  includeChatUploads: true,
+  includeIssueBodies: true,
+}
+
+/** Content writes reach an issue body (`issues/<KEY>.md`); no other write can. */
+const CONTENT_WRITE_LOOKUP: WorkspaceFileLookupOptions = { includeIssueBodies: true }
 
 /**
  * Resolves a VFS reference to its canonical authorization context, carrying the resolved
@@ -60,13 +67,10 @@ export async function resolveReferencedWorkspaceFileContext(
     (principal.kind === 'delegated' && principal.serviceId === 'copilot'
       ? principal.resourceScope?.chatId
       : undefined) ?? input.chatId
+  const lookup = chatId === undefined ? options : { ...options, chatId }
   const file =
     input.folderId === undefined
-      ? await resolveStoredWorkspaceFileReference(
-          input.workspaceId,
-          input.reference,
-          chatId === undefined ? options : { ...options, chatId }
-        )
+      ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, lookup)
       : await getWorkspaceFileByName(input.workspaceId, input.reference, {
           folderId: input.folderId,
         })
@@ -75,6 +79,7 @@ export async function resolveReferencedWorkspaceFileContext(
   if (!canonical || canonical.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('not_found', 'File not found')
   }
+  await assertIssueBodyAccess(principal, canonical)
   return { ...canonical, file }
 }
 
@@ -106,12 +111,13 @@ type WorkspaceFileReferenceUseCase = OperationUseCase<
 const workspaceFileReferenceUseCases = {
   [fileOperations.readContent.id]: defineWorkspaceFileReferenceUseCase(
     fileOperations.readContent,
-    CHAT_UPLOAD_LOOKUP
+    READ_CONTENT_LOOKUP
   ),
   [fileOperations.create.id]: defineWorkspaceFileReferenceUseCase(fileOperations.create),
   [fileOperations.rename.id]: defineWorkspaceFileReferenceUseCase(fileOperations.rename),
   [fileOperations.updateContent.id]: defineWorkspaceFileReferenceUseCase(
-    fileOperations.updateContent
+    fileOperations.updateContent,
+    CONTENT_WRITE_LOOKUP
   ),
   [fileOperations.move.id]: defineWorkspaceFileReferenceUseCase(fileOperations.move),
   [fileOperations.delete.id]: defineWorkspaceFileReferenceUseCase(fileOperations.delete),

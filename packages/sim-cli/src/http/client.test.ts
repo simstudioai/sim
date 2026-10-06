@@ -459,6 +459,7 @@ describe('destructive operations are gated', () => {
     'createFileFolder',
     'createFileUpload',
     'createFileUploadPartUrls',
+    'createIssue',
     'createKnowledgeBase',
     'createKnowledgeChunk',
     'createKnowledgeConnector',

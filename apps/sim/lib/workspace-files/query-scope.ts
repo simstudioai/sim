@@ -9,3 +9,9 @@ export function activeWorkspaceFileConditions(workspaceIds: string[]) {
     isNull(workspaceFiles.deletedAt),
   ]
 }
+
+/** Rows whose content the editor and Sim write: workspace files and issue bodies. */
+export const contentWritableWorkspaceFileContextCondition = inArray(workspaceFiles.context, [
+  'workspace',
+  'issue',
+])

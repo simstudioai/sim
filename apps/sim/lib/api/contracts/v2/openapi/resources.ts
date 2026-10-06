@@ -22,6 +22,7 @@ import {
   v2ListCustomToolsContract,
   v2UpdateCustomToolContract,
 } from '@/lib/api/contracts/v2/custom-tools'
+import { v2CreateIssueContract, v2GetIssueContract } from '@/lib/api/contracts/v2/issues'
 import {
   v2CreateMcpServerContract,
   v2DeleteMcpServerContract,
@@ -98,6 +99,7 @@ import {
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
+import { issueOperations } from '@/lib/issues/application/operations'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 import { secretOperations } from '@/lib/secrets/application/operations'
@@ -393,6 +395,24 @@ const CUSTOM_TOOL_DECLARATION_EXAMPLE = {
   },
 } as const
 
+const ISSUE_EXAMPLE = {
+  id: '6f0b2c4e-1d8a-4c3b-9e7f-2a5d8c1b4e90',
+  key: 'SIM-152',
+  title: 'Order-status escalations spiked this week',
+  status: 'inbox',
+  inboxKind: 'new',
+  closeReason: null,
+  priority: 4,
+  ownerId: null,
+  workingChatId: null,
+  reviewSummary: null,
+  bodyFileId: 'wf_V1StGXR8Z5jdHi6BmyT',
+  createdAt: '2026-09-18T09:02:00.000Z',
+  updatedAt: '2026-09-18T09:02:00.000Z',
+  startedAt: null,
+  completedAt: null,
+} as const
+
 const CUSTOM_TOOL_EXAMPLE = {
   id: 'V1StGXR8Z5jdHi6BmyT',
   title: 'lookup_order',
@@ -525,6 +545,7 @@ type ResourceTag =
   | 'Credentials'
   | 'Secrets'
   | 'Catalog'
+  | 'Issues'
 
 function resourceOperation(
   tag: ResourceTag,
@@ -1103,6 +1124,73 @@ const declaredRoutes = [
         'Revoke skill editor response',
         'Acknowledgement that the explicit editor grant was revoked.',
         [{ data: { email: SKILL_EDITOR_EXAMPLE.email, revoked: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateIssueContract,
+    resourceOperation('Issues', {
+      applicationOperation: issueOperations.create,
+      operationId: 'createIssue',
+      summary: 'Create Issue',
+      description: `File an issue in a workspace. The body is the issue document as markdown; it lands in the inbox as new until someone starts work on it with Sim. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The issue was filed.' },
+    }),
+    {
+      query: v2CreateIssueContract.query,
+      body: documentedSchema(
+        v2CreateIssueContract.body,
+        'CreateIssueRequest',
+        'Create issue request',
+        'Title and markdown document of a new issue.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            title: ISSUE_EXAMPLE.title,
+            body: '## What we are seeing\n\nSeven escalations this week, against a typical two.\n',
+            priority: 4,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateIssueContract.response.schema,
+        'CreateIssueResponse',
+        'Create issue response',
+        'The filed issue.',
+        [{ data: ISSUE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetIssueContract,
+    resourceOperation('Issues', {
+      applicationOperation: issueOperations.read,
+      operationId: 'getIssue',
+      summary: 'Get Issue',
+      description: `Get one issue by its key, scoped to its workspace. Read the document with Read File Text on its bodyFileId. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The issue.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetIssueContract.params,
+        'GetIssueParams',
+        'Get issue path parameters',
+        'Issue selected for retrieval.'
+      ),
+      query: documentedSchema(
+        v2GetIssueContract.query,
+        'GetIssueQuery',
+        'Get issue query',
+        'Workspace scope for the issue.'
+      ),
+      response: documentedSchema(
+        v2GetIssueContract.response.schema,
+        'GetIssueResponse',
+        'Get issue response',
+        'One issue.',
+        [{ data: ISSUE_EXAMPLE }]
       ),
     }
   ),
@@ -2178,7 +2266,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, issues, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -2220,6 +2308,10 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Skills',
       description: 'Create and manage reusable instruction documents for agents.',
+    },
+    {
+      name: 'Issues',
+      description: 'File issues and read their status; Sim works on them in chats.',
     },
     {
       name: 'Custom Tools',

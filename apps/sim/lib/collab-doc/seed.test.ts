@@ -115,7 +115,10 @@ describe('buildFileDocSeed', () => {
   it('requests the file with throwOnError so a read failure is not mistaken for an empty file', async () => {
     mockGetWorkspaceFile.mockRejectedValue(new Error('db down'))
     await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow('db down')
-    expect(mockGetWorkspaceFile).toHaveBeenCalledWith('ws-1', 'file-1', { throwOnError: true })
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith('ws-1', 'file-1', {
+      throwOnError: true,
+      includeIssueBodies: true,
+    })
   })
 })
 

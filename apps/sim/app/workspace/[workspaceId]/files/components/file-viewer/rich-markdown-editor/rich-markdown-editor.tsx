@@ -2,6 +2,7 @@
 
 import {
   memo,
+  type ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -238,19 +239,33 @@ interface RichMarkdownEditorProps {
    * listener, so only one may be enabled at a time — see {@link useFindShortcut}.
    */
   enableFind?: boolean
+  /** Rendered above the document inside its scroll container, so it scrolls with the content. */
+  header?: ReactNode
+  /** Rendered below the document inside its scroll container. */
+  footer?: ReactNode
 }
 
 /** Source fallback unmounts the rich surface so only one editing engine owns the local draft. */
 export const RichMarkdownEditor = memo(function RichMarkdownEditor(props: RichMarkdownEditorProps) {
   const [sourceFileId, setSourceFileId] = useState<string | null>(null)
-  if (sourceFileId === props.file.id)
-    return (
+  if (sourceFileId === props.file.id) {
+    const source = (
       <TextEditor
         {...props}
         previewMode='editor'
         disableStreamingAutoScroll={props.disableStreamingAutoScroll ?? false}
       />
     )
+    if (!props.header && !props.footer) return source
+    // The source editor scrolls itself, so the surrounding chrome scrolls around a fixed-height editor.
+    return (
+      <div className='flex min-h-0 flex-1 flex-col overflow-y-auto'>
+        {props.header}
+        <div className='flex h-[60vh] min-h-[320px] shrink-0 flex-col'>{source}</div>
+        {props.footer}
+      </div>
+    )
+  }
   return <RichMarkdownSurface {...props} onEditSource={() => setSourceFileId(props.file.id)} />
 })
 
@@ -280,6 +295,8 @@ function RichMarkdownSurface({
   onDeriveTitleFromHeading,
   enableFind = false,
   onEditSource,
+  header,
+  footer,
 }: RichMarkdownSurfaceProps) {
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
@@ -370,6 +387,8 @@ function RichMarkdownSurface({
         onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         enableFind={enableFind}
         onEditSource={onEditSource}
+        header={header}
+        footer={footer}
       />
     </>
   )
@@ -407,6 +426,10 @@ interface LoadedRichMarkdownEditorProps {
   /** See {@link RichMarkdownEditorProps.enableFind}. */
   enableFind: boolean
   onEditSource?: () => void
+  /** See {@link RichMarkdownEditorProps.header}. */
+  header?: ReactNode
+  /** See {@link RichMarkdownEditorProps.footer}. */
+  footer?: ReactNode
 }
 
 type CollaborationStatus = 'connecting' | 'ready' | 'reconnecting' | 'fatal'
@@ -452,6 +475,8 @@ export function LoadedRichMarkdownEditor({
   onDeriveTitleFromHeading,
   enableFind,
   onEditSource,
+  header,
+  footer,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const [streamingAtMount] = useState(isStreaming)
@@ -1440,6 +1465,7 @@ export function LoadedRichMarkdownEditor({
             void insertImagesRef.current(images, range)
           }}
         />
+        {header}
         <MarkdownStreamingContext value={isStreaming}>
           {showPlaceholder && placeholder && (
             <ReadOnlyPlaceholder
@@ -1453,6 +1479,7 @@ export function LoadedRichMarkdownEditor({
             className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
           />
         </MarkdownStreamingContext>
+        {footer}
       </div>
     </div>
   )

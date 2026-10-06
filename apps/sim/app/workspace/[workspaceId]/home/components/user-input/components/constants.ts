@@ -133,6 +133,8 @@ const RESOURCE_TO_CONTEXT: Record<
     ...(r.viewId ? { viewId: r.viewId } : {}),
   }),
   dashboard: (r) => ({ kind: 'dashboard', dashboardId: r.id, label: r.title }),
+  /** No chat context: Sim reads an issue by key or as `issues/<KEY>.md`, so the attach menu omits issues. */
+  issue: () => null,
   file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
   filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),

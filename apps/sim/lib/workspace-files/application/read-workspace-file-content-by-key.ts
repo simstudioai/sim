@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -11,6 +12,7 @@ import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { assertIssueBodyAccess } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileByKeyInput {
   key: string
@@ -32,6 +34,7 @@ async function loadCurrentWorkspaceFileByKey(
 ): Promise<WorkspaceFileRecord> {
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
     throwOnError: true,
+    includeIssueBodies: true,
   })
   if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
   return file
@@ -52,22 +55,32 @@ async function executeReadWorkspaceFileContentByKey({
   }
 }
 
+/** Workspace files and issue bodies share the `workspace/` key prefix; the row says which. */
+const KEY_READABLE_CONTEXTS = new Set(['workspace', 'issue'])
+
 async function resolveWorkspaceFileByKeyContext({
+  principal,
   input,
 }: {
+  principal: Principal
   input: ReadWorkspaceFileByKeyInput
 }): Promise<ActiveWorkspaceFileContext> {
-  const metadata = await getFileMetadataByKey(input.key, 'workspace')
+  const metadata = await getFileMetadataByKey(input.key)
   if (
     !metadata?.workspaceId ||
+    !KEY_READABLE_CONTEXTS.has(metadata.context) ||
     (input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId !== metadata.workspaceId)
   ) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  const canonical = await loadActiveWorkspaceFileContext(metadata.id)
+  const canonical = await loadActiveWorkspaceFileContext(
+    metadata.id,
+    metadata.context === 'issue' ? { includeIssueBodies: true } : undefined
+  )
   if (!canonical || canonical.workspaceId !== metadata.workspaceId) {
     throw new OrchestrationError('not_found', 'File not found')
   }
+  await assertIssueBodyAccess(principal, canonical)
   return canonical
 }
 
