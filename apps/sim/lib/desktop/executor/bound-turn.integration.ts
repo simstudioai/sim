@@ -795,6 +795,27 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
   )
 
   it(
+    'still settles a call that stayed overdue for days, however long the backstop missed it',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId,
+        toolName: 'browser_click',
+        args: { ref: 'e1' },
+        createdAt: new Date(Date.now() - 2 * 24 * 3_600_000),
+      })
+
+      await runCleanupStaleExecutions()
+
+      expect((await storedCall(toolCallId)).status).toBe('failed')
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
     'settles a call whose window lapsed recently on a run that started long ago',
     async () => {
       const desktop = await signedInDesktop()

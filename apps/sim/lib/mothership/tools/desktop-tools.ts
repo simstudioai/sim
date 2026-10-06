@@ -15,12 +15,15 @@ import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 export type DesktopToolClaimOwner =
   (typeof DESKTOP_TOOL_CLAIM_OWNER)[keyof typeof DESKTOP_TOOL_CLAIM_OWNER]
 
-const DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set([
+/** The tools that run through the desktop app by name alone; local VFS reads also depend on args. */
+export const NAMED_DESKTOP_TOOL_NAMES = [
   ...CURRENT_BROWSER_TOOL_NAMES,
   TERMINAL_TOOL_NAME,
   'import_local_files',
   'read_local_file',
-])
+] as const
+
+const DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set(NAMED_DESKTOP_TOOL_NAMES)
 
 /** Whether a call runs through the desktop app, including VFS reads of a granted local folder. */
 export function isDesktopToolCall(toolName: string, args: Record<string, unknown> | undefined) {
@@ -67,9 +70,6 @@ export function isClaimedOnPickup(
     (desktopClaimsLocalReads && isLocalReadToolCall(toolName, args))
   )
 }
-
-/** The tools that run through the desktop app by name alone; local VFS reads also depend on args. */
-export const NAMED_DESKTOP_TOOL_NAMES: readonly string[] = [...DESKTOP_TOOL_NAMES]
 
 /**
  * The claim owner a desktop background executor records. It is the per-surface owner the chat

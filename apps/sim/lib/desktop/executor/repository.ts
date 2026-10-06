@@ -422,12 +422,12 @@ export type DesktopToolCallDeadlines = NonNullable<
 /**
  * Bound desktop calls a deadline passed for at least `slackMs` ago: unclaimed past their pickup
  * deadline (offered or not), or claimed by the executor with a lapsed lease. A live waiter settles
- * these within its 5 s poll, so anything this finds lost its waiter. Only deadlines that lapsed
- * within the inbox's horizon are scanned, whatever the run's age, oldest calls first.
+ * these within its 5 s poll, so anything this finds lost its waiter. The scan starts from the
+ * few unsettled calls (pending or running), in persistence order, so however long a call stayed
+ * overdue it is still reached.
  */
 export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
   const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
-  const horizon = sql`clock_timestamp() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`
   const rows = await db
     .select({ toolCallId: copilotAsyncToolCalls.toolCallId })
     .from(copilotAsyncToolCalls)
@@ -437,14 +437,13 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
         isNotNull(copilotRuns.desktopDeviceId),
         isDesktopToolCallRow,
         or(
-          and(pickupOverdueAt(overdue), sql`${pickupDeadline} > ${horizon}`),
+          pickupOverdueAt(overdue),
           and(
             eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
             inArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER)),
             isNotNull(copilotAsyncToolCalls.executionOwnerToken),
             isNull(copilotAsyncToolCalls.executionRevokedAt),
-            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} < ${overdue}`,
-            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > ${horizon}`
+            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} < ${overdue}`
           )
         )
       )
