@@ -68,6 +68,17 @@ describe('Plane URL helpers', () => {
     expect(normalizePlaneBaseUrl('https://plane.example.com/api')).toBe('https://plane.example.com')
   })
 
+  it('rejects dot-segment and slash IDs that would re-target a parent resource', () => {
+    for (const workItemId of ['..', '.', '../other', 'a/b', '']) {
+      expect(() => resolveUrl(planeDeleteWorkItemTool, { ...SCOPE, workItemId })).toThrow(
+        /workItemId/
+      )
+    }
+    expect(() =>
+      resolveUrl(planeListWorkItemsTool, { ...CONNECTION, workspaceSlug: '..', projectId: 'p-1' })
+    ).toThrow(/workspaceSlug/)
+  })
+
   it('parses ID lists from arrays, JSON strings, and comma-separated strings', () => {
     expect(parsePlaneIdList(undefined)).toBeUndefined()
     expect(parsePlaneIdList('')).toBeUndefined()

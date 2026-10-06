@@ -44,7 +44,10 @@ export const planeAddWorkItemsToModuleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      planeProjectUrl(params, `modules/${planePathSegment(params.moduleId)}/module-issues/`),
+      planeProjectUrl(
+        params,
+        `modules/${planePathSegment(params.moduleId, 'moduleId')}/module-issues/`
+      ),
     method: 'POST',
     headers: planeHeaders,
     body: (params) => {

@@ -25,7 +25,8 @@ export const planeDeleteWorkItemTool: ToolConfig<PlaneDeleteWorkItemParams, Plan
   },
 
   request: {
-    url: (params) => planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId)}/`),
+    url: (params) =>
+      planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId, 'workItemId')}/`),
     method: 'DELETE',
     headers: planeHeaders,
   },

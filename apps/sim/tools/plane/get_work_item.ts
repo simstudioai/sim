@@ -26,7 +26,8 @@ export const planeGetWorkItemTool: ToolConfig<PlaneGetWorkItemParams, PlaneWorkI
   },
 
   request: {
-    url: (params) => planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId)}/`),
+    url: (params) =>
+      planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId, 'workItemId')}/`),
     method: 'GET',
     headers: planeHeaders,
   },

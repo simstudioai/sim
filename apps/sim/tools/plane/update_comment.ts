@@ -38,7 +38,8 @@ export const planeUpdateCommentTool: ToolConfig<PlaneUpdateCommentParams, PlaneC
   },
 
   request: {
-    url: (params) => planeWorkItemUrl(params, `comments/${planePathSegment(params.commentId)}/`),
+    url: (params) =>
+      planeWorkItemUrl(params, `comments/${planePathSegment(params.commentId, 'commentId')}/`),
     method: 'PATCH',
     headers: planeHeaders,
     body: (params) => ({ comment_html: params.comment }),

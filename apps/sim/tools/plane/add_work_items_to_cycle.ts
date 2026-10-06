@@ -42,7 +42,10 @@ export const planeAddWorkItemsToCycleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      planeProjectUrl(params, `cycles/${planePathSegment(params.cycleId)}/cycle-issues/`),
+      planeProjectUrl(
+        params,
+        `cycles/${planePathSegment(params.cycleId, 'cycleId')}/cycle-issues/`
+      ),
     method: 'POST',
     headers: planeHeaders,
     body: (params) => {

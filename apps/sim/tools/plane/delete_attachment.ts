@@ -34,7 +34,10 @@ export const planeDeleteAttachmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      planeWorkItemUrl(params, `attachments/${planePathSegment(params.attachmentId)}/`),
+      planeWorkItemUrl(
+        params,
+        `attachments/${planePathSegment(params.attachmentId, 'attachmentId')}/`
+      ),
     method: 'DELETE',
     headers: planeHeaders,
   },

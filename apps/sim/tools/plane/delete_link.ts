@@ -30,7 +30,8 @@ export const planeDeleteLinkTool: ToolConfig<PlaneDeleteLinkParams, PlaneDeleteR
   },
 
   request: {
-    url: (params) => planeWorkItemUrl(params, `links/${planePathSegment(params.linkId)}/`),
+    url: (params) =>
+      planeWorkItemUrl(params, `links/${planePathSegment(params.linkId, 'linkId')}/`),
     method: 'DELETE',
     headers: planeHeaders,
   },

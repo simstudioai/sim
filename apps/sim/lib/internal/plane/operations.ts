@@ -23,6 +23,7 @@ import {
   mapPlaneAttachment,
   normalizePlaneBaseUrl,
   planeHeaders,
+  planePathSegment,
   planeWorkItemUrl,
 } from '@/tools/plane/utils'
 
@@ -131,7 +132,7 @@ async function discardPendingAttachment(
 ) {
   try {
     const response = await planeRequest(
-      planeWorkItemUrl(input, `attachments/${encodeURIComponent(assetId)}/`),
+      planeWorkItemUrl(input, `attachments/${planePathSegment(assetId, 'attachmentId')}/`),
       { method: 'DELETE', apiKey: input.apiKey },
       signal
     )
@@ -256,7 +257,7 @@ export async function executePlaneUploadAttachment(
     await uploaded.body?.cancel().catch(() => {})
 
     const confirmed = await planeRequest(
-      planeWorkItemUrl(input, `attachments/${encodeURIComponent(ticket.assetId)}/`),
+      planeWorkItemUrl(input, `attachments/${planePathSegment(ticket.assetId, 'attachmentId')}/`),
       { method: 'PATCH', apiKey: input.apiKey, body: { is_uploaded: true } },
       context.signal
     )

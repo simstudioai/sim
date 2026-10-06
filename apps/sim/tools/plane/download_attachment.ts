@@ -42,7 +42,10 @@ export const planeDownloadAttachmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      planeWorkItemUrl(params, `attachments/${planePathSegment(params.attachmentId)}/`),
+      planeWorkItemUrl(
+        params,
+        `attachments/${planePathSegment(params.attachmentId, 'attachmentId')}/`
+      ),
     method: 'GET',
     headers: (params) => ({ 'X-API-Key': params.apiKey.trim(), Accept: '*/*' }),
     responseType: 'binary',

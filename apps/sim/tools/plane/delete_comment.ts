@@ -30,7 +30,8 @@ export const planeDeleteCommentTool: ToolConfig<PlaneDeleteCommentParams, PlaneD
   },
 
   request: {
-    url: (params) => planeWorkItemUrl(params, `comments/${planePathSegment(params.commentId)}/`),
+    url: (params) =>
+      planeWorkItemUrl(params, `comments/${planePathSegment(params.commentId, 'commentId')}/`),
     method: 'DELETE',
     headers: planeHeaders,
   },

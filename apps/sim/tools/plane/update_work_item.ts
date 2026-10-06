@@ -40,7 +40,7 @@ export const planeUpdateWorkItemTool: ToolConfig<PlaneUpdateWorkItemParams, Plan
 
     request: {
       url: (params) =>
-        planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId)}/`),
+        planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId, 'workItemId')}/`),
       method: 'PATCH',
       headers: planeHeaders,
       body: (params) => {

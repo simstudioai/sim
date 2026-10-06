@@ -1,5 +1,6 @@
 import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import type {
   PlaneActivity,
   PlaneAttachment,
@@ -36,9 +37,16 @@ export function normalizePlaneBaseUrl(baseUrl?: string | null): string {
   return withScheme.replace(/\/+$/, '').replace(/\/api(\/v1)?$/i, '')
 }
 
-/** Encodes one path segment after trimming copy-paste whitespace. */
-export function planePathSegment(value: string): string {
-  return encodeURIComponent(value.trim())
+/**
+ * Validates and encodes one path segment after trimming copy-paste whitespace. Plane IDs are UUIDs
+ * and workspace slugs are letters, digits, hyphens, and underscores, so anything else (notably a
+ * `.` or `..` dot-segment, which URL parsing collapses into a parent resource) is rejected.
+ */
+export function planePathSegment(value: string, paramName = 'ID'): string {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  const validation = validatePathSegment(trimmed, { paramName })
+  if (!validation.isValid) throw new Error(validation.error ?? `Invalid ${paramName}`)
+  return encodeURIComponent(trimmed)
 }
 
 /** Builds an absolute Plane API v1 URL for a path below the API root. */
@@ -48,7 +56,10 @@ export function planeApiUrl(baseUrl: string | undefined, path: string): string {
 
 /** Builds an absolute URL scoped to a workspace (`/api/v1/workspaces/{slug}/...`). */
 export function planeWorkspaceUrl(params: PlaneBaseParams, path: string): string {
-  return planeApiUrl(params.baseUrl, `workspaces/${planePathSegment(params.workspaceSlug)}/${path}`)
+  return planeApiUrl(
+    params.baseUrl,
+    `workspaces/${planePathSegment(params.workspaceSlug, 'workspaceSlug')}/${path}`
+  )
 }
 
 /** Builds an absolute URL scoped to a project (`.../projects/{projectId}/...`). */
@@ -56,7 +67,10 @@ export function planeProjectUrl(
   params: PlaneBaseParams & { projectId: string },
   path: string
 ): string {
-  return planeWorkspaceUrl(params, `projects/${planePathSegment(params.projectId)}/${path}`)
+  return planeWorkspaceUrl(
+    params,
+    `projects/${planePathSegment(params.projectId, 'projectId')}/${path}`
+  )
 }
 
 /** Builds an absolute URL scoped to a work item (`.../work-items/{workItemId}/...`). */
@@ -64,7 +78,10 @@ export function planeWorkItemUrl(
   params: PlaneBaseParams & { projectId: string; workItemId: string },
   path: string
 ): string {
-  return planeProjectUrl(params, `work-items/${planePathSegment(params.workItemId)}/${path}`)
+  return planeProjectUrl(
+    params,
+    `work-items/${planePathSegment(params.workItemId, 'workItemId')}/${path}`
+  )
 }
 
 /** Request headers for Plane's personal access token authentication. */

@@ -24,7 +24,8 @@ export const planeGetProjectTool: ToolConfig<PlaneGetProjectParams, PlaneProject
   },
 
   request: {
-    url: (params) => planeWorkspaceUrl(params, `projects/${planePathSegment(params.projectId)}/`),
+    url: (params) =>
+      planeWorkspaceUrl(params, `projects/${planePathSegment(params.projectId, 'projectId')}/`),
     method: 'GET',
     headers: planeHeaders,
   },
