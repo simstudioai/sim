@@ -123,8 +123,8 @@ jobs:
   http-e2e:
     name: End-to-end over real HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    # Five suites, each starting its own dev app, run in sequence.
-    timeout-minutes: 45
+    # Four suites, each starting its own dev app, run in sequence.
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -433,9 +433,64 @@ jobs:
           DESKTOP_INBOX_E2E_REPORT_PATH="$report_dir/desktop-inbox-http-report.json" \
             bun run test:desktop-inbox:e2e
 
-      # Desktop tools in the real Electron app against a local app with Redis and its realtime
-      # server: chat switches, Stop, sign-out, approval and the flag-off foreground round trip.
-      # The spec runs the recording proxy (the app's public origin) and the stand-in worker.
+      - name: Upload end-to-end reports and server logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: http-e2e-reports
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Desktop tools in the real Electron app against a local app, on its own runner: the
+  # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
+  desktop-live-e2e:
+    name: Desktop tools against a local app
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: desktop-live-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      # Chat switches, Stop, sign-out, approval and the flag-off foreground round trip. The spec
+      # runs the recording proxy (the app's public origin) and the stand-in worker.
       - name: Verify desktop tools in the Electron app against a local app
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3020
@@ -480,7 +535,6 @@ jobs:
             [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] || { echo '::error::Local app did not become ready'; exit 1; }
             sleep 2
           done
-          (while sleep 15; do echo "memory: $(free -m | awk '/Mem:/ {print $7}') MB available"; done) &
           cd apps/desktop
           SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
           SIM_DESKTOP_E2E_PROXY_PORT=3020 \
@@ -489,13 +543,13 @@ jobs:
           SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
           SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
-            --output "$report_dir/desktop-tools-results" --reporter=line --retries=0
+            --output "$report_dir/desktop-tools-results"
 
-      - name: Upload end-to-end reports and server logs
+      - name: Upload Electron E2E results and server logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: http-e2e-reports
+          name: desktop-live-e2e-results
           path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
