@@ -551,20 +551,21 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
 }
 
 /**
- * Fire-and-forget entry point invoked by the stream tool-event handler when a
- * `browser_*` client tool call arrives.
+ * Entry point invoked by the stream tool-event handler when a `browser_*`
+ * client tool call arrives. It reports its own outcome; the returned promise
+ * only tells the caller when the action has settled.
  *
  * @param eventTs - the stream envelope's emission timestamp; stale events
  * (replays after reconnect/reload) are dropped rather than re-executed.
  */
-export function executeBrowserToolOnClient(
+export async function executeBrowserToolOnClient(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>,
   scopeId = useBrowserSessionStore.getState().activeScopeId,
   eventTs?: string,
   abortSignal?: AbortSignal
-): void {
+): Promise<void> {
   if (retryRetainedTerminalCompletion(toolCallId)) {
     logger.info('Suppressing browser tool while recovering its terminal completion', {
       toolCallId,
@@ -703,7 +704,7 @@ export function executeBrowserToolOnClient(
     }
   }
   runningBrowserToolCalls.add(toolCallId)
-  void doExecuteBrowserTool(
+  await doExecuteBrowserTool(
     toolCallId,
     toolName,
     params,

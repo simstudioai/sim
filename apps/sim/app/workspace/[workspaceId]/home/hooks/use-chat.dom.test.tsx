@@ -2217,6 +2217,9 @@ describe('useChat remount send recovery', () => {
 
     beforeEach(() => {
       libDesktopMockFns.mockIsDesktopApp.mockReturnValue(true)
+      const stillRunning = () => new Promise<void>(() => {})
+      mockExecuteBrowserToolOnClient.mockImplementation(stillRunning)
+      mockExecuteLocalFilesystemTool.mockImplementation(stillRunning)
     })
 
     afterEach(() => {
