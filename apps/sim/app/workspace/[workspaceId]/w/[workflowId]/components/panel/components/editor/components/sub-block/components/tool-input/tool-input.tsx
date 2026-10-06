@@ -40,6 +40,7 @@ import {
   type CanonicalModeOverrides,
   isCanonicalPair,
   reindexToolCanonicalModes,
+  resolveActiveCanonicalValue,
   resolveCanonicalMode,
   resolveDependencyValue,
   scopeCanonicalModesForTool,
@@ -1569,6 +1570,17 @@ export const ToolInput = memo(function ToolInput({
             ? // canonical-index-unscoped: nested tool params are always the action surface
               buildCanonicalIndex(toolBlock.subBlocks)
             : null
+          const toolContextValues: Record<string, unknown> = {
+            operation: tool.operation,
+            ...tool.params,
+          }
+          for (const group of Object.values(toolCanonicalIndex?.groupsById ?? {})) {
+            toolContextValues[group.canonicalId] = resolveActiveCanonicalValue(
+              group,
+              tool.params ?? {},
+              toolScopedOverrides
+            )
+          }
 
           const mcpTool = isMcpTool ? mcpTools.find((t) => t.id === tool.toolId) : null
           const advancedMcpServer = isAdvancedMcpServer
@@ -1951,6 +1963,7 @@ export const ToolInput = memo(function ToolInput({
                             effectiveParamId={effectiveParamId}
                             toolType={tool.type}
                             toolParams={tool.params}
+                            dependencyContextValues={toolContextValues}
                             onParamChange={handleParamChange}
                             disabled={disabled}
                             canonicalToggle={canonicalToggleProp}

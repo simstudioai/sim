@@ -1119,6 +1119,18 @@ describe('transformBlockTool knowledge-base identities', () => {
         canonicalParamId: 'knowledgeBaseId',
         mode: 'advanced',
       },
+      {
+        id: 'tagFilters',
+        type: 'knowledge-tag-filters',
+        canonicalParamId: 'tagFilters',
+        mode: 'basic',
+      },
+      {
+        id: 'manualTagFilters',
+        type: 'knowledge-tag-filters',
+        canonicalParamId: 'tagFilters',
+        mode: 'advanced',
+      },
     ],
     tools: {
       access: ['knowledge_search', 'knowledge_upload_chunk'],
@@ -1166,6 +1178,21 @@ describe('transformBlockTool knowledge-base identities', () => {
   it('falls back to the base tool id when no knowledge base is selected', async () => {
     const result = await transformKb({})
     expect(result?.id).toBe('knowledge_search')
+  })
+
+  it('executes a nested tool with only its active advanced tag filters', async () => {
+    const basicFilters = '[{"tagName":"stale-basic","tagValue":"docs"}]'
+    const advancedFilters = '[{"tagId":"<start.tagId>","tagValue":"docs"}]'
+    const result = await transformKb(
+      { tagFilters: basicFilters, manualTagFilters: advancedFilters },
+      { '0:tagFilters': 'advanced' },
+      0
+    )
+
+    expect(result?.paramsTransform?.(result.params ?? {})).toMatchObject({
+      tagFilters: advancedFilters,
+    })
+    expect(result?.paramsTransform?.(result.params ?? {})).not.toHaveProperty('manualTagFilters')
   })
 })
 
