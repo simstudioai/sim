@@ -1,0 +1,381 @@
+/**
+ * The background executor's state machine: takes the calls Sim offers this device, runs each in
+ * its chat's own browser, terminal or file scope, and delivers every result until Sim
+ * acknowledges it, whether or not any window shows that chat.
+ *
+ * A call is claimed as soon as it is offered, then waits in a local queue per chat and surface,
+ * so a busy chat never lets a backlog miss Sim's pickup window. Its lease is renewed from claim
+ * until Sim acknowledges the result. Each step is journaled before the step it guards, so a
+ * restart reports a call that never started as not started, one that did as outcome unknown, and
+ * a finished one with its real result; none is ever run twice.
+ */
+import type { DesktopToolCompletion } from '@sim/desktop-bridge/tool-results'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { type DesktopExecutorClient, DeviceRequestError } from '@/main/desktop-executor/client'
+import type { ExecutorJournal } from '@/main/desktop-executor/journal'
+import type { ClaimedDesktopCall, DesktopInboxItem } from '@/main/desktop-executor/protocol'
+
+const logger = createLogger('DesktopExecutor')
+
+/** Claimed calls this device holds at once, across every chat. */
+const DEFAULT_MAX_HELD_CALLS = 32
+/** Ceiling on the wait between attempts to deliver one result. */
+const DELIVERY_RETRY_MAX_MS = 30_000
+
+const NOT_STARTED_AFTER_RESTART =
+  'Not run: the Sim desktop app restarted before this action started, so nothing happened on the user’s computer.'
+const OUTCOME_UNKNOWN_AFTER_RESTART =
+  'The Sim desktop app restarted while this action was running, so its result was lost. It may already have taken effect: inspect the current state before repeating it, and do not retry it automatically.'
+const STOPPED_BEFORE_START = 'Stopped before the Sim desktop app started this action.'
+const RESULT_TOO_LARGE =
+  'The action finished, but its result was too large to send back. Do not repeat a side-effecting action; inspect the current state instead.'
+
+/** Runs one claimed call on this machine. Implementations never throw; failures are completions. */
+export interface DesktopToolRunner {
+  run(call: ClaimedDesktopCall, signal: AbortSignal): Promise<DesktopToolCompletion>
+  /** Stops the action a running call started, through its surface's own cancel. */
+  cancel(call: ClaimedDesktopCall): Promise<void>
+}
+
+export type DesktopApprovalItem = Extract<DesktopInboxItem, { kind: 'approval_needed' }>
+
+export interface DesktopExecutorOptions {
+  client: DesktopExecutorClient
+  journal: ExecutorJournal
+  runner: DesktopToolRunner
+  leaseRenewMs: number
+  /** Called when Sim no longer recognizes this device for the current session. */
+  onUnregistered: () => void
+  /** Every inbox read's calls that wait for the user's approval. */
+  onApprovals?: (items: DesktopApprovalItem[]) => void
+  /** Called whenever the number of held calls changes between zero and more. */
+  onBusyChange?: (busy: boolean) => void
+  maxHeldCalls?: number
+  /** First delivery retry delay; tests shorten it. */
+  retryBaseMs?: number
+}
+
+type HeldPhase = 'queued' | 'running' | 'reporting'
+
+interface HeldCall {
+  call: ClaimedDesktopCall
+  phase: HeldPhase
+  controller: AbortController
+  renewTimer: ReturnType<typeof setInterval> | null
+  stopped: boolean
+}
+
+function surfaceOf(toolName: string): 'browser' | 'terminal' | 'files' {
+  if (toolName.startsWith('browser_')) return 'browser'
+  if (toolName === 'terminal') return 'terminal'
+  return 'files'
+}
+
+export class DesktopExecutor {
+  private readonly held = new Map<string, HeldCall>()
+  /** Each chat surface's tail, so calls in one chat run in the order they were offered. */
+  private readonly queues = new Map<string, Promise<void>>()
+  private reconciling: Promise<void> | null = null
+  private reconcileAgain = false
+  private paused = false
+  private disposed = false
+  private busy = false
+
+  constructor(private readonly options: DesktopExecutorOptions) {}
+
+  heldCallCount(): number {
+    return this.held.size
+  }
+
+  /** Suspend stops new claims; held calls keep running and reporting. */
+  setPaused(paused: boolean): void {
+    this.paused = paused
+  }
+
+  /** Reports every call the journal says a previous run of the app left unfinished. */
+  async recover(): Promise<void> {
+    const entries = await this.options.journal.load()
+    for (const entry of entries) {
+      if (entry.state === 'claiming') {
+        // Unknown whether the claim landed; the inbox decides whether it is still on offer.
+        await this.options.journal.remove(entry.toolCallId)
+        continue
+      }
+      const completion: DesktopToolCompletion =
+        entry.state === 'result'
+          ? entry.completion
+          : entry.state === 'claimed'
+            ? {
+                status: 'error',
+                message: NOT_STARTED_AFTER_RESTART,
+                data: { error: NOT_STARTED_AFTER_RESTART, notStarted: true },
+              }
+            : {
+                status: 'error',
+                message: OUTCOME_UNKNOWN_AFTER_RESTART,
+                data: {
+                  error: OUTCOME_UNKNOWN_AFTER_RESTART,
+                  outcomeUnknown: true,
+                  doNotRetry: true,
+                },
+              }
+      logger.info('Reporting a call left unfinished by the previous app run', {
+        toolCallId: entry.toolCallId,
+        state: entry.state,
+      })
+      void this.deliver(entry.toolCallId, entry.executionToken, completion)
+    }
+  }
+
+  /**
+   * Reads the inbox and acts on it. Concurrent requests coalesce: one more read runs after the
+   * current one, so a doorbell that rings mid-read is never lost.
+   */
+  reconcile(): Promise<void> {
+    if (this.reconciling) {
+      this.reconcileAgain = true
+      return this.reconciling
+    }
+    const run = async () => {
+      try {
+        do {
+          this.reconcileAgain = false
+          await this.reconcileOnce()
+        } while (this.reconcileAgain && !this.disposed)
+      } finally {
+        this.reconciling = null
+      }
+    }
+    this.reconciling = run()
+    return this.reconciling
+  }
+
+  /** Sign-out: stops every action and forgets every call; the session that owned them is gone. */
+  async dispose(): Promise<void> {
+    this.disposed = true
+    const held = [...this.held.values()]
+    for (const entry of held) this.release(entry)
+    await Promise.allSettled(
+      held
+        .filter((entry) => entry.phase === 'running')
+        .map((entry) => {
+          entry.controller.abort()
+          return this.options.runner.cancel(entry.call)
+        })
+    )
+    await this.options.journal.clear()
+  }
+
+  private async reconcileOnce(): Promise<void> {
+    if (this.disposed) return
+    let items: DesktopInboxItem[]
+    try {
+      items = await this.options.client.listInbox()
+    } catch (error) {
+      this.noteRequestFailure('Could not read the desktop inbox', error)
+      return
+    }
+    for (const item of items) {
+      if (item.kind === 'cancel') void this.stop(item.toolCallId, 'Stopped by the user.')
+    }
+    this.options.onApprovals?.(
+      items.filter((item): item is DesktopApprovalItem => item.kind === 'approval_needed')
+    )
+    for (const item of items) {
+      if (item.kind !== 'call' || this.held.has(item.toolCallId)) continue
+      if (this.paused || this.disposed) return
+      if (this.held.size >= (this.options.maxHeldCalls ?? DEFAULT_MAX_HELD_CALLS)) return
+      await this.claim(item.toolCallId)
+    }
+  }
+
+  private async claim(toolCallId: string): Promise<void> {
+    await this.options.journal.put({ toolCallId, state: 'claiming' })
+    let call: ClaimedDesktopCall
+    try {
+      call = await this.options.client.claim(toolCallId)
+    } catch (error) {
+      await this.options.journal.remove(toolCallId)
+      this.noteRequestFailure('Desktop call was not claimed', error, { toolCallId })
+      return
+    }
+    await this.options.journal.put({
+      toolCallId,
+      state: 'claimed',
+      executionToken: call.executionToken,
+    })
+    const entry: HeldCall = {
+      call,
+      phase: 'queued',
+      controller: new AbortController(),
+      renewTimer: null,
+      stopped: false,
+    }
+    this.held.set(toolCallId, entry)
+    this.updateBusy()
+    entry.renewTimer = setInterval(() => void this.renew(entry), this.options.leaseRenewMs)
+    logger.info('Claimed a desktop call', {
+      toolCallId,
+      toolName: call.toolName,
+      chatId: call.chatId,
+    })
+    this.enqueue(entry)
+  }
+
+  private enqueue(entry: HeldCall): void {
+    const key = `${entry.call.chatId}:${surfaceOf(entry.call.toolName)}`
+    const tail = this.queues.get(key) ?? Promise.resolve()
+    const next = tail.then(() => this.execute(entry))
+    this.queues.set(key, next)
+    void next.finally(() => {
+      if (this.queues.get(key) === next) this.queues.delete(key)
+    })
+  }
+
+  private async execute(entry: HeldCall): Promise<void> {
+    if (entry.stopped || this.disposed) return
+    const { call } = entry
+    await this.options.journal.put({
+      toolCallId: call.toolCallId,
+      state: 'started',
+      executionToken: call.executionToken,
+    })
+    if (entry.stopped || this.disposed) return
+    entry.phase = 'running'
+    const completion = await this.options.runner.run(call, entry.controller.signal)
+    if (this.disposed || this.held.get(call.toolCallId) !== entry) return
+    entry.phase = 'reporting'
+    await this.deliver(call.toolCallId, call.executionToken, completion)
+    this.release(entry)
+  }
+
+  /**
+   * Delivers a result until Sim acknowledges it. Any answer Sim gives for the token acknowledges
+   * it: recorded, a duplicate of one already recorded, or superseded by Sim settling it first.
+   */
+  private async deliver(
+    toolCallId: string,
+    executionToken: string,
+    completion: DesktopToolCompletion
+  ): Promise<void> {
+    let pending = completion
+    await this.options.journal.put({ toolCallId, state: 'result', executionToken, completion })
+    for (let attempt = 1; !this.disposed; attempt++) {
+      try {
+        const outcome = await this.options.client.complete({
+          toolCallId,
+          executionToken,
+          completion: pending,
+        })
+        logger.info('Desktop call result acknowledged', { toolCallId, outcome })
+        break
+      } catch (error) {
+        if (!(error instanceof DeviceRequestError)) throw error
+        if (error.unregistered) this.options.onUnregistered()
+        else if (error.status === 413 && pending.data !== undefined) {
+          pending = {
+            status: pending.status,
+            message: RESULT_TOO_LARGE,
+            data: { error: RESULT_TOO_LARGE, resultOmitted: true },
+          }
+          continue
+        } else if (!error.transient) {
+          logger.warn('Sim refused a desktop call result; dropping it', {
+            toolCallId,
+            status: error.status,
+          })
+          break
+        }
+        await sleep(
+          backoffWithJitter(attempt, error.retryAfterMs, {
+            baseMs: this.options.retryBaseMs,
+            maxMs: DELIVERY_RETRY_MAX_MS,
+          })
+        )
+      }
+    }
+    if (!this.disposed) await this.options.journal.remove(toolCallId)
+  }
+
+  private async renew(entry: HeldCall): Promise<void> {
+    if (this.held.get(entry.call.toolCallId) !== entry) return
+    try {
+      await this.options.client.renewLease(entry.call.toolCallId, entry.call.executionToken)
+    } catch (error) {
+      if (error instanceof DeviceRequestError && error.status === 410) {
+        this.clearRenewal(entry)
+        await this.stop(entry.call.toolCallId, 'Sim no longer holds this call for this device.')
+        return
+      }
+      this.noteRequestFailure('Could not renew a desktop call lease', error, {
+        toolCallId: entry.call.toolCallId,
+      })
+    }
+  }
+
+  /**
+   * Stops a held call Sim settled without it. A queued call never starts; a running one is
+   * interrupted. Either way its result is still delivered, which acknowledges the stop.
+   */
+  private async stop(toolCallId: string, reason: string): Promise<void> {
+    const entry = this.held.get(toolCallId)
+    if (!entry || entry.stopped) return
+    entry.stopped = true
+    logger.info('Stopping a desktop call', { toolCallId, phase: entry.phase, reason })
+    if (entry.phase === 'queued') {
+      entry.phase = 'reporting'
+      await this.deliver(toolCallId, entry.call.executionToken, {
+        status: 'cancelled',
+        message: STOPPED_BEFORE_START,
+        data: { error: STOPPED_BEFORE_START, notStarted: true },
+      })
+      this.release(entry)
+      return
+    }
+    if (entry.phase === 'running') {
+      entry.controller.abort()
+      await this.options.runner.cancel(entry.call).catch((error) =>
+        logger.warn('Could not stop a desktop action', {
+          toolCallId,
+          error: getErrorMessage(error),
+        })
+      )
+    }
+  }
+
+  private release(entry: HeldCall): void {
+    this.clearRenewal(entry)
+    if (this.held.get(entry.call.toolCallId) === entry) this.held.delete(entry.call.toolCallId)
+    this.updateBusy()
+  }
+
+  private clearRenewal(entry: HeldCall): void {
+    if (entry.renewTimer) clearInterval(entry.renewTimer)
+    entry.renewTimer = null
+  }
+
+  private updateBusy(): void {
+    const busy = this.held.size > 0
+    if (busy === this.busy) return
+    this.busy = busy
+    this.options.onBusyChange?.(busy)
+  }
+
+  private noteRequestFailure(
+    message: string,
+    error: unknown,
+    context: Record<string, unknown> = {}
+  ): void {
+    if (error instanceof DeviceRequestError && error.unregistered) {
+      this.options.onUnregistered()
+    }
+    logger.warn(message, {
+      ...context,
+      ...(error instanceof DeviceRequestError ? { status: error.status } : {}),
+      error: getErrorMessage(error),
+    })
+  }
+}

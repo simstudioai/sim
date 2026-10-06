@@ -234,6 +234,11 @@ export class TerminalRegistry {
     return entry.service.executeTool(toolCallId, operation, args)
   }
 
+  /** Stops one in-flight tool call in a chat's terminals; false when none is running it. */
+  cancelTool(scope: string, toolCallId: string): Promise<boolean> {
+    return this.entries.get(scope)?.service.cancelTool(toolCallId) ?? Promise.resolve(false)
+  }
+
   /**
    * Moves a provisional chat's live service to its durable chat id.
    *

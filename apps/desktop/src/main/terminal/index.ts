@@ -37,6 +37,7 @@ import {
   isResourceTabSelectionShortcut,
   resourceTabTargetIndex,
 } from '@/main/resource-shortcuts'
+import { signalForegroundProcessGroup } from '@/main/terminal/process-group'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
@@ -150,7 +151,15 @@ export interface TerminalServiceOptions {
    */
   loadCwd?(): string | undefined
   canSpawn?(): boolean
+  /** Signals a terminal's foreground program; the OS process group by default. */
+  signalForegroundGroup?(shellPid: number, signal: NodeJS.Signals): Promise<void>
 }
+
+/**
+ * How long a stopped command gets to exit after each escalation: Ctrl-C first, as the user would
+ * press it, then SIGTERM and finally SIGKILL to its process group.
+ */
+const STOP_ESCALATION_MS = 2_000
 
 export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
@@ -193,6 +202,8 @@ export class TerminalService {
    * Held here so the terminal's own lifecycle can reclaim them.
    */
   private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
+  /** How to stop each tool call still in flight, so Stop interrupts exactly what it started. */
+  private readonly toolStops = new Map<string, () => Promise<void>>()
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -780,6 +791,59 @@ export class TerminalService {
     }
   }
 
+  /**
+   * Stops a tool call still in flight: interrupts the command a `run` started (escalating to its
+   * process group if Ctrl-C does not end it) or ends a handoff. The call then returns its result
+   * as usual. False when this service is not running that call.
+   */
+  async cancelTool(toolCallId: string): Promise<boolean> {
+    const stop = this.toolStops.get(toolCallId)
+    if (!stop) return false
+    await stop()
+    return true
+  }
+
+  private async withToolStop<T>(
+    toolCallId: string,
+    stop: () => Promise<void>,
+    work: () => Promise<T>
+  ): Promise<T> {
+    this.toolStops.set(toolCallId, stop)
+    try {
+      return await work()
+    } finally {
+      if (this.toolStops.get(toolCallId) === stop) this.toolStops.delete(toolCallId)
+    }
+  }
+
+  /** Waits for the command a run started to end, up to `ms`. */
+  private async commandEnds(
+    session: TerminalSession,
+    toolCallId: string,
+    ms: number
+  ): Promise<boolean> {
+    const deadline = Date.now() + ms
+    while (session.runningToolCallId === toolCallId) {
+      if (Date.now() >= deadline || !session.alive) return session.runningToolCallId !== toolCallId
+      await sleep(50)
+    }
+    return true
+  }
+
+  private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
+    if (session.runningToolCallId !== toolCallId) return
+    session.kill('SIGINT')
+    const signal = this.options.signalForegroundGroup ?? signalForegroundProcessGroup
+    for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
+      if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
+      logger.info('Stopped command ignored the previous signal; escalating', {
+        toolCallId,
+        signal: escalation,
+      })
+      await signal(session.pid, escalation)
+    }
+  }
+
   private async dispatch(
     toolCallId: string,
     operation: TerminalOperation,
@@ -838,7 +902,11 @@ export class TerminalService {
         }
       }
       case 'handoff':
-        return this.handoff(session, args)
+        return this.withToolStop(
+          toolCallId,
+          async () => this.finishHandoff(session.terminalId),
+          () => this.handoff(session, args)
+        )
       case 'panes': {
         if (!tmux) {
           throw new TerminalError(
@@ -854,8 +922,12 @@ export class TerminalService {
       }
       case 'run':
         return tmux
-          ? this.runInTmux(session, tmux.session, args)
-          : this.run(toolCallId, session, args)
+          ? this.runInTmux(toolCallId, session, tmux.session, args)
+          : this.withToolStop(
+              toolCallId,
+              () => this.stopCommand(session, toolCallId),
+              () => this.run(toolCallId, session, args)
+            )
       case 'read': {
         const requested = Number(args.lines)
         const lines = Number.isFinite(requested) && requested > 0 ? requested : 200
@@ -1076,6 +1148,7 @@ export class TerminalService {
    * see through tmux.
    */
   private async runInTmux(
+    toolCallId: string,
     terminal: TerminalSession,
     session: string,
     args: TerminalToolArgs
@@ -1089,7 +1162,15 @@ export class TerminalService {
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
 
     const waitMs = resolveRunWaitMs(args.waitSeconds)
-    const outcome = await awaitRun(handle, waitMs)
+    // Inside tmux a stop arrives as Ctrl-C in the run's own window; closing that window hangs up
+    // anything that ignored it.
+    const stop = async () => {
+      await sendKey(handle.window, 'C-c', terminal.env)
+      const deadline = Date.now() + STOP_ESCALATION_MS
+      while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
+      if (!isRunComplete(handle)) await closeRunWindow(handle, terminal.env)
+    }
+    const outcome = await this.withToolStop(toolCallId, stop, () => awaitRun(handle, waitMs))
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
       handle.dispose()

@@ -938,6 +938,12 @@ export function restoreBrowserScope(scopeId: string): BrowserTabsState {
   })
 }
 
+/** Whether a chat's browser has a live page for a tool to act on. */
+export function hasBrowserScopeSession(scopeId: string): boolean {
+  const resolved = resolveDriverScopeId(scopeId)
+  return session.withBrowserScope(resolved, () => session.hasSession())
+}
+
 /** Moves pending-new-chat driver and tab state to the server-issued chat id. */
 export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boolean {
   const from = resolveDriverScopeId(fromScopeId)

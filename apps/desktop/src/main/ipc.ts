@@ -9,6 +9,7 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
+  type DesktopExecutorDevice,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
   type DesktopServerConfiguration,
@@ -374,6 +375,8 @@ export interface IpcDeps {
     getConfiguration: () => DesktopServerConfiguration
     setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
+  /** The device a new chat turn may bind to, or null while Sim has not enabled one. */
+  getExecutorDevice: () => DesktopExecutorDevice | null
 }
 
 /**
@@ -770,6 +773,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         error: 'Local filesystem access is not allowed from this page.',
       },
       handler: (request) => deps.localFilesystem.handle(request),
+    },
+    'desktop-executor:get-device': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: () => deps.getExecutorDevice(),
     },
     'desktop:settings:get': {
       kind: 'invoke',

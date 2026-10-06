@@ -157,7 +157,8 @@ function normalizeVfsDisplaySegment(segment: string): string {
     .replace(/\s+/g, ' ')
 }
 
-function mountVfsRoot(mount: GrantedMount): string {
+/** The `user-local/<name>--<id>` directory a granted folder appears under in the model's VFS. */
+export function mountVfsRoot(mount: Pick<GrantedMount, 'id' | 'name'>): string {
   return `user-local/${encodeURIComponent(normalizeVfsDisplaySegment(mount.name))}--${mount.id}`
 }
 

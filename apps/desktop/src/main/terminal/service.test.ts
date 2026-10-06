@@ -5,7 +5,16 @@ import { TerminalService } from '@/main/terminal'
 const { stubSessions } = vi.hoisted(() => ({
   stubSessions: new Map<
     string,
-    { setBusy(busy: boolean): void; exit(): void; clearScrollback(): void }
+    {
+      setBusy(busy: boolean): void
+      exit(): void
+      clearScrollback(): void
+      /** Whether Ctrl-C ends the running command, as it does for most programs. */
+      setInterruptible(interruptible: boolean): void
+      /** Ends the running command the way its process exiting would. */
+      finishRun(exitCode: number): void
+      kill: ReturnType<typeof vi.fn>
+    }
   >(),
 }))
 
@@ -32,11 +41,42 @@ vi.mock('@/main/terminal/session', async () => {
         terminalId: string
         callbacks: { onExit(terminalId: string): void }
       }) => {
-        const state = { cwd, disposed: false, busy: false }
+        const state = {
+          cwd,
+          disposed: false,
+          busy: false,
+          interruptible: true,
+          toolCallId: null as string | null,
+          resolveRun: null as ((result: Record<string, unknown>) => void) | null,
+        }
+        const finishRun = (exitCode: number) => {
+          const resolve = state.resolveRun
+          state.busy = false
+          state.toolCallId = null
+          state.resolveRun = null
+          resolve?.({ status: 'completed', exitCode, terminalId })
+        }
         const stub = {
           setBusy: (busy: boolean) => {
             state.busy = busy
           },
+          setInterruptible: (interruptible: boolean) => {
+            state.interruptible = interruptible
+          },
+          finishRun,
+          runCommand: (_command: string, toolCallId: string) =>
+            new Promise((resolve) => {
+              state.busy = true
+              state.toolCallId = toolCallId
+              state.resolveRun = resolve
+            }),
+          get runningToolCallId() {
+            return state.toolCallId
+          },
+          kill: vi.fn((signal: string) => {
+            if (signal === 'SIGINT' && state.interruptible) finishRun(130)
+          }),
+          waitForShellIntegration: async () => {},
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true
@@ -330,5 +370,58 @@ describe('a shell that ends by itself', () => {
     const after = terminal.getTabs()
     expect(after.tabs).toHaveLength(0)
     expect(after.activeTerminalId).toBeNull()
+  })
+})
+
+describe('stopping a tool call', () => {
+  function cancellableService() {
+    const signalForegroundGroup = vi.fn(async (_shellPid: number, _signal: NodeJS.Signals) => {})
+    const terminal = new TerminalService({ loadCwd: () => '/tmp', signalForegroundGroup })
+    const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+    const session = stubSessions.get(activeTerminalId as string)
+    if (!session) throw new Error('No stub session')
+    return { terminal, session, signalForegroundGroup }
+  }
+
+  async function startRun(terminal: TerminalService, toolCallId: string) {
+    const running = terminal.executeTool(toolCallId, 'run', { command: 'sleep 60' })
+    await vi.waitFor(() => expect(terminal.getTabs().tabs[0]?.running).not.toBeUndefined())
+    return running
+  }
+
+  it('interrupts the command its run started, and the run reports how it ended', async () => {
+    const { terminal, session, signalForegroundGroup } = cancellableService()
+    const running = startRun(terminal, 'call-run')
+    await vi.waitFor(async () => expect(await terminal.cancelTool('call-run')).toBe(true))
+
+    const response = await await running
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(response).toMatchObject({ ok: true, result: { exitCode: 130 } })
+    expect(signalForegroundGroup).not.toHaveBeenCalled()
+  })
+
+  it('terminates the foreground process group of a command that ignores Ctrl-C', async () => {
+    const { terminal, session, signalForegroundGroup } = cancellableService()
+    session.setInterruptible(false)
+    signalForegroundGroup.mockImplementation(async () => session.finishRun(143))
+    const running = startRun(terminal, 'call-stubborn')
+    await vi.waitFor(async () => expect(await terminal.cancelTool('call-stubborn')).toBe(true), {
+      timeout: 8_000,
+    })
+
+    expect(signalForegroundGroup).toHaveBeenCalledWith(expect.any(Number), 'SIGTERM')
+    await expect(await running).toMatchObject({ ok: true, result: { exitCode: 143 } })
+  })
+
+  it('leaves the terminal alone for a call it is not running', async () => {
+    const { terminal, session, signalForegroundGroup } = cancellableService()
+    const running = startRun(terminal, 'call-other')
+    await vi.waitFor(() => expect(session.kill).toBeDefined())
+
+    await expect(terminal.cancelTool('call-unknown')).resolves.toBe(false)
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(signalForegroundGroup).not.toHaveBeenCalled()
+    await vi.waitFor(() => session.finishRun(0))
+    await running
   })
 })

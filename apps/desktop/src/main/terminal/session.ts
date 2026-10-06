@@ -434,6 +434,11 @@ export class TerminalSession {
     return this.foregroundCommand
   }
 
+  /** The agent tool call whose command holds the foreground, if one does. */
+  get runningToolCallId(): string | null {
+    return this.foregroundToolCallId
+  }
+
   /**
    * Tab-strip view of this terminal. The label prefers the running command,
    * which is what the user is actually waiting on, and falls back to the
