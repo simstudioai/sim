@@ -90,6 +90,7 @@ async function request<S extends z.ZodType>(
   options: { body?: unknown; expected?: number; schema?: S } = {}
 ): Promise<z.output<S>> {
   const started = Date.now()
+  // boundary-raw-fetch: drives the running app from another process as the desktop does, with the device's session cookie, and asserts the raw status of refusals; responses are still parsed with the contract schemas.
   const response = await fetch(new URL(path, baseUrl), {
     method,
     headers: {
@@ -224,6 +225,7 @@ function openDoorbell(desktop: Desktop) {
   const controller = new AbortController()
   const events: string[] = []
   const listeners = new Set<() => void>()
+  // boundary-raw-fetch: reads the SSE doorbell as a stream.
   const opened = fetch(new URL(`/api/desktop/inbox/stream?deviceId=${desktop.deviceId}`, baseUrl), {
     headers: { Cookie: `better-auth.session_token=${desktop.cookie}`, Accept: 'text/event-stream' },
     signal: controller.signal,
