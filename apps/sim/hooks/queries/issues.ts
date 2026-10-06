@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { toast } from '@sim/emcn'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
@@ -70,10 +71,13 @@ export function useIssue(workspaceId: string, key: string) {
 
 function useInvalidateIssue() {
   const queryClient = useQueryClient()
-  return (workspaceId: string, key: string) => {
-    queryClient.invalidateQueries({ queryKey: issueKeys.list(workspaceId) })
-    queryClient.invalidateQueries({ queryKey: issueKeys.detail(workspaceId, key) })
-  }
+  return useCallback(
+    (workspaceId: string, key: string) => {
+      queryClient.invalidateQueries({ queryKey: issueKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: issueKeys.detail(workspaceId, key) })
+    },
+    [queryClient]
+  )
 }
 
 export function useCreateIssue(workspaceId: string) {

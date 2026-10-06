@@ -1,5 +1,5 @@
 {
-  "id": "73b191ef-7b69-4372-b645-44b2daabad93",
+  "id": "e7f612e9-df21-42b5-8cee-5dbce1f4e02d",
   "prevId": "40b244b6-62d3-4a72-9c2c-b04b18f00268",
   "version": "7",
   "dialect": "postgresql",
@@ -9467,6 +9467,27 @@
           "columns": [
             {
               "expression": "number_scope_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "issue_workspace_number_unique": {
+          "name": "issue_workspace_number_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

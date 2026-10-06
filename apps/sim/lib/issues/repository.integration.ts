@@ -147,10 +147,12 @@ describe('issue state in PostgreSQL', () => {
   it('numbers issues per scope without gaps or collisions', async () => {
     const db = testDb()
     const numbers = await Promise.all(
-      Array.from({ length: 5 }, () => db.transaction((tx) => allocateIssueNumber(tx, 'org-a')))
+      Array.from({ length: 5 }, () =>
+        db.transaction((tx) => allocateIssueNumber(tx, 'org-a', 'ws-a'))
+      )
     )
     expect([...numbers].sort()).toEqual([1, 2, 3, 4, 5])
-    expect(await db.transaction((tx) => allocateIssueNumber(tx, 'org-b'))).toBe(1)
+    expect(await db.transaction((tx) => allocateIssueNumber(tx, 'org-b', 'ws-b'))).toBe(1)
   })
 
   it('refuses an edit when a field it changes no longer holds the value that was read', async () => {
@@ -167,6 +169,14 @@ describe('issue state in PostgreSQL', () => {
       )
     expect(await rename('Stale title')).toBeNull()
     expect((await rename('Title'))?.title).toBe('Renamed')
+  })
+
+  it('skips past the numbers a workspace already holds when its scope changes', async () => {
+    const db = testDb()
+    await connection`INSERT INTO issue (id, workspace_id, number_scope_id, number, title, body_file_id, created_by_actor)
+      VALUES ('moved-1', 'ws-moved', 'personal', 3, 'Old', 'file-moved-1', '{}'::jsonb)`
+    expect(await db.transaction((tx) => allocateIssueNumber(tx, 'org-new', 'ws-moved'))).toBe(4)
+    expect(await db.transaction((tx) => allocateIssueNumber(tx, 'org-new', 'ws-other'))).toBe(5)
   })
 
   it('lets only one of two transitions from the same state win', async () => {

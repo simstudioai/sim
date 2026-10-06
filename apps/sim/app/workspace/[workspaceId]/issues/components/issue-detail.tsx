@@ -248,10 +248,14 @@ function IssueFooter({ workspaceId, detail, canEdit }: IssueFooterProps) {
 }
 
 /** The prompt that opens an issue's chat; Sim reads and writes the issue document by key. */
+function changesPrompt(issue: IssueRecord): string {
+  return `I reviewed ${issue.key} and it needs more work. Pick it up again from issues/${issue.key}.md, and ask me to review when it is ready.`
+}
+
 function issuePrompt(issue: IssueRecord, followUp: boolean): string {
   const document = `issues/${issue.key}.md`
   return followUp
-    ? `Follow up on ${issue.key}: ${issue.title}. The issue document is ${document}.`
+    ? `Follow up on ${issue.key}: ${issue.title}. It was closed and is open again; the issue document is ${document}. Pick up from what it says, write what you learn into it, and ask me to review when it is done.`
     : `Work on ${issue.key}: ${issue.title}. The issue document is ${document}. Read it, find the cause, write what you learn into it, and ask me to review when it is fixed.`
 }
 
@@ -328,41 +332,47 @@ function IssueActions({ workspaceId, issue, canEdit, chatHref }: IssueActionsPro
   const startIssue = useStartIssue()
   const approveIssue = useApproveIssue()
   const requestChanges = useRequestIssueChanges()
+  const reopenIssue = useReopenIssue()
   const [opening, setOpening] = useState(false)
 
   /**
-   * Starts a chat on the issue without leaving the page: the chat gets the issue as a tab and its
-   * first message, and Sim keeps working after this page stops listening to the stream.
+   * Sends a message without leaving the page: the chat's run continues server-side once this page
+   * stops listening to the stream.
+   */
+  async function sendToChat(chatId: string, message: string) {
+    // boundary-raw-fetch: the chat send responds with an SSE stream; only its acceptance matters here, the run continues server-side once the reader is cancelled
+    const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        workspaceId,
+        chatId,
+        userMessageId: generateId(),
+        createNewChat: false,
+      }),
+    })
+    if (!response.ok) throw new Error('Sim could not start on this issue')
+    await response.body?.cancel()
+    void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+  }
+
+  /**
+   * Starts a new chat on the issue, with the issue as its tab. A follow-up on a closed issue
+   * reopens it first, so the new chat becomes its working chat and appears in its history.
    */
   async function startChat(followUp: boolean) {
     setOpening(true)
     let started = false
     try {
+      if (followUp) await reopenIssue.mutateAsync({ workspaceId, key: issue.key })
       const chat = await requestJson(createMothershipChatContract, { body: { workspaceId } })
       await requestJson(addMothershipChatResourceContract, {
         body: { chatId: chat.id, resource: { type: 'issue', id: issue.key, title: issue.title } },
       })
-      if (!followUp) {
-        await startIssue.mutateAsync({ workspaceId, key: issue.key, chatId: chat.id })
-        started = true
-      }
-      // boundary-raw-fetch: the chat send responds with an SSE stream; only its acceptance matters here, the run continues server-side once the reader is cancelled
-      const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: issuePrompt(issue, followUp),
-          workspaceId,
-          chatId: chat.id,
-          userMessageId: generateId(),
-          createNewChat: false,
-        }),
-      })
-      if (!response.ok) throw new Error('Sim could not start on this issue')
-      await response.body?.cancel()
-      void queryClient.invalidateQueries({
-        queryKey: mothershipChatKeys.workspaceLists(workspaceId),
-      })
+      await startIssue.mutateAsync({ workspaceId, key: issue.key, chatId: chat.id })
+      started = true
+      await sendToChat(chat.id, issuePrompt(issue, followUp))
       toast.success(
         followUp ? `Started a follow-up on ${issue.key}` : `Sim is working on ${issue.key}`
       )
@@ -371,6 +381,28 @@ function IssueActions({ workspaceId, issue, canEdit, chatHref }: IssueActionsPro
         started
           ? 'The chat is ready but its first message did not send. Open the chat to send it again.'
           : getErrorMessage(error, 'Sim could not start on this issue')
+      )
+    } finally {
+      setOpening(false)
+    }
+  }
+
+  /** Sends the issue back to its working chat, and tells that chat to keep going. */
+  async function sendBackForChanges() {
+    const chatId = issue.workingChat?.id
+    if (!chatId) return
+    setOpening(true)
+    let reopened = false
+    try {
+      await requestChanges.mutateAsync({ workspaceId, key: issue.key })
+      reopened = true
+      await sendToChat(chatId, changesPrompt(issue))
+      toast.success(`Sim is back on ${issue.key}`)
+    } catch (error) {
+      toast.error(
+        reopened
+          ? 'Changes were requested but the chat did not get the message. Open the chat to send it.'
+          : getErrorMessage(error, 'Could not request changes')
       )
     } finally {
       setOpening(false)
@@ -406,8 +438,8 @@ function IssueActions({ workspaceId, issue, canEdit, chatHref }: IssueActionsPro
       {openChatLink}
       <Chip
         variant='outline'
-        disabled={!canEdit || requestChanges.isPending}
-        onClick={() => requestChanges.mutate({ workspaceId, key: issue.key })}
+        disabled={!canEdit || opening}
+        onClick={() => void sendBackForChanges()}
       >
         Request changes
       </Chip>

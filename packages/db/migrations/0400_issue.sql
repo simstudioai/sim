@@ -156,6 +156,7 @@ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "issue_number_scope_unique" ON "issue" USING btree ("number_scope_id","number");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "issue_workspace_number_unique" ON "issue" USING btree ("workspace_id","number");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "issue_body_file_unique" ON "issue" USING btree ("body_file_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "issue_workspace_status_idx" ON "issue" USING btree ("workspace_id","status","updated_at") WHERE "issue"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "issue_working_chat_idx" ON "issue" USING btree ("working_chat_id") WHERE "issue"."working_chat_id" IS NOT NULL;--> statement-breakpoint

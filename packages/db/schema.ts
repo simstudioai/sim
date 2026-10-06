@@ -2527,6 +2527,11 @@ export const issue = pgTable(
   },
   (table) => ({
     numberUnique: uniqueIndex('issue_number_scope_unique').on(table.numberScopeId, table.number),
+    /** Keys are looked up per workspace, so a workspace that changed scope never repeats one. */
+    workspaceNumberUnique: uniqueIndex('issue_workspace_number_unique').on(
+      table.workspaceId,
+      table.number
+    ),
     bodyFileUnique: uniqueIndex('issue_body_file_unique').on(table.bodyFileId),
     workspaceStatusIdx: index('issue_workspace_status_idx')
       .on(table.workspaceId, table.status, table.updatedAt)

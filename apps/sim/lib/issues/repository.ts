@@ -35,13 +35,22 @@ const LISTED_DONE_ISSUES = 50
 const ISSUE_EVENT_LIMIT = 200
 
 /** Hands out the next issue number in a numbering scope. */
-export async function allocateIssueNumber(tx: DbTransaction, scopeId: string): Promise<number> {
+/**
+ * Next number in the scope, never below the workspace's own highest: a workspace that moved into
+ * an organization keeps its old keys, and the organization's counter skips past them.
+ */
+export async function allocateIssueNumber(
+  tx: DbTransaction,
+  scopeId: string,
+  workspaceId: string
+): Promise<number> {
+  const workspaceHighest = sql`(SELECT COALESCE(MAX(${issue.number}), 0) FROM ${issue} WHERE ${issue.workspaceId} = ${workspaceId})`
   const [row] = await tx
     .insert(issueCounter)
-    .values({ scopeId, lastNumber: 1 })
+    .values({ scopeId, lastNumber: sql`${workspaceHighest} + 1` })
     .onConflictDoUpdate({
       target: issueCounter.scopeId,
-      set: { lastNumber: sql`${issueCounter.lastNumber} + 1` },
+      set: { lastNumber: sql`GREATEST(${issueCounter.lastNumber}, ${workspaceHighest}) + 1` },
     })
     .returning({ lastNumber: issueCounter.lastNumber })
   return row.lastNumber

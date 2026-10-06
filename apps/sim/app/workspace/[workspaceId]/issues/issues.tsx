@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { OverflowText } from '@sim/emcn'
+import { useRef, useState } from 'react'
+import { cn, OverflowText, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { ListChecks, Plus } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ShimmerText } from '@/components/ui/shimmer-text'
@@ -52,6 +52,8 @@ function noteFor(issue: IssueRecord): string | null {
 }
 
 export function Issues({ workspaceId }: IssuesProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef)
   const [creating, setCreating] = useState(false)
   const query = useIssueList(workspaceId, { followProgress: true })
   const groups = groupIssues(query.data ?? [])
@@ -65,8 +67,12 @@ export function Issues({ workspaceId }: IssuesProps) {
           { text: 'New issue', icon: Plus, variant: 'primary', onSelect: () => setCreating(true) },
         ]}
       />
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='mx-auto flex max-w-[860px] flex-col gap-10 px-6 py-8'>
+      <div
+        ref={scrollRef}
+        className={cn('min-h-0 flex-1 overflow-y-auto py-8', scrollFadeClass)}
+        {...scrollFadeAttributes(edges)}
+      >
+        <div className='mx-auto flex max-w-[860px] flex-col gap-10 px-6'>
           {query.error && !query.data ? (
             <p role='alert' className='text-[var(--text-error)] text-small'>
               {query.error.message}

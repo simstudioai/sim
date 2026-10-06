@@ -246,7 +246,7 @@ export const createIssue = defineAuthorizedWorkspaceUseCase({
             id: generateId(),
             workspaceId: context.workspaceId,
             numberScopeId: scopeId,
-            number: await allocateIssueNumber(tx, scopeId),
+            number: await allocateIssueNumber(tx, scopeId, context.workspaceId),
             title,
             bodyFileId,
             priority: input.priority ?? 0,
