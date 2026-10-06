@@ -2,10 +2,12 @@ import { authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createSSEStream,
   createWorkspaceSSE,
   HEARTBEAT_INTERVAL_MS,
   MAX_CONNECTION_MS,
   MAX_UNDRAINED_CHUNKS,
+  OPENED_COMMENT,
   ROTATION_GRACE_MS,
 } from '@/lib/events/sse-endpoint'
 
@@ -63,6 +65,16 @@ describe('createWorkspaceSSE', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('starts the response before the first heartbeat', async () => {
+    const { body } = await openConnection()
+    const chunks: string[] = []
+    void collect(body, chunks)
+
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS - 1)
+
+    expect(chunks).toEqual([OPENED_COMMENT])
   })
 
   it('announces rotation before releasing the old connection', async () => {
@@ -153,5 +165,64 @@ describe('createWorkspaceSSE', () => {
 
     await expect(response.body?.getReader().read()).rejects.toThrow('subscribe failed')
     expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('createSSEStream', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('opens only once its subscriptions receive events', async () => {
+    let live: () => void = () => {}
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      subscriptions: [
+        {
+          subscribe: () => () => {},
+          ready: () =>
+            new Promise<void>((resolve) => {
+              live = resolve
+            }),
+        },
+      ],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(chunks).toEqual([])
+
+    live()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(chunks).toEqual([OPENED_COMMENT])
+  })
+
+  it('delivers a revalidated event as soon as it is published', async () => {
+    let publish: (eventName: string, data: Record<string, unknown>) => void = () => {}
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      revalidate: async () => {},
+      subscriptions: [
+        {
+          subscribe: (send) => {
+            publish = send
+            return () => {}
+          },
+        },
+      ],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+    await vi.advanceTimersByTimeAsync(0)
+
+    publish('inbox_changed', { reason: 'call' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(chunks).toEqual([OPENED_COMMENT, 'event: inbox_changed\ndata: {"reason":"call"}\n\n'])
   })
 })

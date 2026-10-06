@@ -16,6 +16,11 @@ const logger = createLogger('PubSub')
 export interface PubSubChannel<T> {
   publish(event: T): void
   subscribe(handler: (event: T) => void): () => void
+  /**
+   * Settles once this process receives the channel's publications; anything published before
+   * then reaches no subscriber here.
+   */
+  ready(): Promise<void>
   dispose(): void
 }
 
@@ -29,6 +34,7 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   private sub: Redis
   private handlers = new Set<(event: T) => void>()
   private disposed = false
+  private readonly subscribed: Promise<void>
 
   constructor(
     redisUrl: string,
@@ -56,12 +62,17 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
     this.pub.on('connect', () => logger.info(`${config.label} publish client connected`))
     this.sub.on('connect', () => logger.info(`${config.label} subscribe client connected`))
 
-    this.sub.subscribe(config.channel, (err) => {
-      if (err) {
-        logger.error(`Failed to subscribe to ${config.label} channel:`, err)
-      } else {
-        logger.info(`Subscribed to ${config.label} channel`)
-      }
+    // Settles on failure too: nothing retries a failed subscribe, so waiting on it would only
+    // hold back every stream on this channel.
+    this.subscribed = new Promise((resolve) => {
+      this.sub.subscribe(config.channel, (err) => {
+        if (err) {
+          logger.error(`Failed to subscribe to ${config.label} channel:`, err)
+        } else {
+          logger.info(`Subscribed to ${config.label} channel`)
+        }
+        resolve()
+      })
     })
 
     this.sub.on('message', (channel: string, message: string) => {
@@ -93,6 +104,10 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
     return () => {
       this.handlers.delete(handler)
     }
+  }
+
+  ready(): Promise<void> {
+    return this.subscribed
   }
 
   dispose(): void {
@@ -128,6 +143,10 @@ class LocalPubSubChannel<T> implements PubSubChannel<T> {
     return () => {
       this.emitter.off(this.config.channel, handler)
     }
+  }
+
+  ready(): Promise<void> {
+    return Promise.resolve()
   }
 
   dispose(): void {

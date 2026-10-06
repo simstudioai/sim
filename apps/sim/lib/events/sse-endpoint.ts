@@ -19,6 +19,8 @@ interface SSESubscription {
     workspaceId: string,
     send: (eventName: string, data: Record<string, unknown>) => void
   ): () => void
+  /** Settles once the subscription receives events; the stream is announced only after it. */
+  ready?: () => Promise<void>
 }
 
 interface WorkspaceSSEConfig {
@@ -29,6 +31,9 @@ interface WorkspaceSSEConfig {
 const encoder = new TextEncoder()
 
 export const HEARTBEAT_INTERVAL_MS = 30_000
+
+/** Written once a stream's subscriptions are live; clients ignore comments. */
+export const OPENED_COMMENT = ': connected\n\n'
 
 /**
  * Starts a make-before-break rotation for one connection. Healthy clients open
@@ -83,6 +88,7 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
       label: `${config.label}:workspace:${workspaceId}`,
       subscriptions: config.subscriptions.map((subscription) => ({
         subscribe: (send) => subscription.subscribe(workspaceId, send),
+        ready: subscription.ready,
       })),
     })
   }
@@ -92,6 +98,8 @@ interface SSEStreamConfig {
   label: string
   subscriptions: Array<{
     subscribe(send: (eventName: string, data: Record<string, unknown>) => void): () => void
+    /** Settles once the subscription receives events; the stream is announced only after it. */
+    ready?: () => Promise<void>
   }>
   /** Rechecks a long-lived authorization before each publication and on heartbeats. */
   revalidate?: () => Promise<void>
@@ -224,6 +232,13 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         })
         teardowns.push(() => listenerScope.abort())
 
+        // The runtime sends the status and headers with the first body chunk, so without this the
+        // response would not start until the first event or heartbeat. A client reads its state
+        // once the stream opens, so it opens only when no later event can be missed.
+        void Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())).then(
+          () => enqueue(OPENED_COMMENT),
+          () => close('subscription_failed')
+        )
         logger.info(`SSE connection opened for ${config.label}`)
       } catch (error) {
         cleanup('setup_failed')

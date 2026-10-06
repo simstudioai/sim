@@ -43,6 +43,11 @@ export function ringDesktopInbox(deviceId: string, reason: DesktopInboxChangeRea
   }
 }
 
+/** Settles once this process hears every ring. */
+export function desktopInboxDoorbellReady(): Promise<void> {
+  return channel().ready()
+}
+
 /** Subscribes to one device's doorbell; returns the unsubscribe. */
 export function onDesktopInboxDoorbell(
   deviceId: string,

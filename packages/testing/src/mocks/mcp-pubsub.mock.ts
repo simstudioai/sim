@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/lib/mcp/pubsub`.
  *
- * `publish*` and `mockDispose` are bare no-ops; `mockOnToolsChanged` and
+ * `publish*` and `mockDispose` are bare no-ops, `mockReady` settles at once; `mockOnToolsChanged` and
  * `mockOnWorkflowToolsChanged` return a no-op unsubscribe (the real `channel.subscribe` contract).
  *
  * @example
@@ -21,6 +21,7 @@ export const mcpPubsubMockFns = {
   mockPublishWorkflowToolsChanged: vi.fn(),
   mockOnToolsChanged: vi.fn((_handler: (event: unknown) => void): (() => void) => () => {}),
   mockOnWorkflowToolsChanged: vi.fn((_handler: (event: unknown) => void): (() => void) => () => {}),
+  mockReady: vi.fn(async (): Promise<void> => {}),
   mockDispose: vi.fn(),
 }
 
@@ -40,6 +41,7 @@ export const mcpPubsubMock = {
     publishWorkflowToolsChanged: mcpPubsubMockFns.mockPublishWorkflowToolsChanged,
     onToolsChanged: mcpPubsubMockFns.mockOnToolsChanged,
     onWorkflowToolsChanged: mcpPubsubMockFns.mockOnWorkflowToolsChanged,
+    ready: mcpPubsubMockFns.mockReady,
     dispose: mcpPubsubMockFns.mockDispose,
   },
 }

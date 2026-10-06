@@ -16,7 +16,7 @@ import {
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { HEARTBEAT_INTERVAL_MS } from '@/lib/events/sse-endpoint'
+import { HEARTBEAT_INTERVAL_MS, OPENED_COMMENT } from '@/lib/events/sse-endpoint'
 import type { ChatStatusEvent } from '@/lib/mothership/chat-status'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
@@ -41,13 +41,15 @@ function emit(event: ChatStatusEvent) {
   handler(event)
 }
 
+/** Every chunk after the stream's opening comment. */
 async function collect(body: ReadableStream<Uint8Array>, chunks: string[]) {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   while (true) {
     const { done, value } = await reader.read()
     if (done) return
-    chunks.push(decoder.decode(value))
+    const chunk = decoder.decode(value)
+    if (chunk !== OPENED_COMMENT) chunks.push(chunk)
   }
 }
 

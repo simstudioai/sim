@@ -32,7 +32,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return createSSEStream(request, {
       label: 'desktop-inbox',
       revalidate: inbox.revalidate,
-      subscriptions: [{ subscribe: inbox.subscribe }],
+      subscriptions: [{ subscribe: inbox.subscribe, ready: inbox.ready }],
     })
   } catch (error) {
     if (error instanceof InternalUnauthenticatedError)
