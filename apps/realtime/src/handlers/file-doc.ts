@@ -1488,10 +1488,7 @@ export function setupWorkspaceFileDocHandlers(
   roomManager: IRoomManager
 ) {
   const io = roomManager.io
-  // The file this socket currently intends to edit (set when a join starts). A leave targeting it
-  // — or an unscoped leave — advances the join generation to cancel an in-flight join, so a join
-  // awaiting authorization can't complete after the client left and register a ghost owner. A
-  // leave for a DIFFERENT file must NOT cancel it (a document switch), mirroring workspace-files.
+  // Owner-qualified intent fences delayed admissions and leaves across document switches.
   let currentFileRoom: string | null = null
   /** Co-mounted providers share invalidation membership until their last admission settles. */
   const pendingMemberships = new Map<string, number>()
@@ -1562,19 +1559,18 @@ export function setupWorkspaceFileDocHandlers(
         return
       }
 
-      // A generation represents the socket's intended FILE, not an individual provider. Co-mounted
-      // providers for the same file must be allowed to join concurrently; switching files advances the
-      // generation so every in-flight join for the old file is cancelled together.
-      if (currentFileRoom !== roomName(fileDocRoom(target))) {
+      const room = fileDocRoom(target)
+      const name = roomName(room)
+
+      // Co-mounted providers share a generation only while their owner-qualified target matches.
+      if (currentFileRoom !== name) {
         generation = (joinGeneration.get(socket.id) ?? 0) + 1
         joinGeneration.set(socket.id, generation)
-        currentFileRoom = roomName(fileDocRoom(target))
+        currentFileRoom = name
       } else {
         generation = joinGeneration.get(socket.id) ?? 0
       }
 
-      const room = fileDocRoom(target)
-      const name = roomName(room)
       const admissionName = fileDocAdmissionRoom(target)
 
       const authorizeJoin = () =>
@@ -1942,11 +1938,6 @@ export function setupWorkspaceFileDocHandlers(
 
   socket.on(FILE_DOC_EVENTS.LEAVE, async (payload?: LeaveFileDocPayload) => {
     try {
-      // Cancel an in-flight join whose file the client is now leaving (or an unscoped leave): a
-      // join still awaiting authorization would otherwise complete after the client left, register
-      // as an owner, and broadcast a ghost collaborator until disconnect. Guard on the current
-      // file intent so a stale/deferred leave for a DIFFERENT file can't abort the join the client
-      // has since switched to (bumping the generation blindly caused that regression in #5941).
       const target = payload?.fileId ? parseFileDocTarget(payload) : undefined
       if (payload?.fileId && !target) return
       const leavingRoom = target ? roomName(fileDocRoom(target)) : undefined

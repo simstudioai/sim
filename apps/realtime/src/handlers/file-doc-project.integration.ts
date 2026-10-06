@@ -14,6 +14,7 @@ import {
   type JoinFileDocError,
   type JoinFileDocPayload,
   type JoinFileDocSuccess,
+  type LeaveFileDocPayload,
 } from '@sim/realtime-protocol/file-doc'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -326,6 +327,100 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       pending.socket.disconnect()
       writer.socket.disconnect()
     })
+  }
+
+  for (const action of ['join', 'leave'] as const) {
+    check(
+      action === 'join'
+        ? 'a join for another owner supersedes the pending admission for the same file'
+        : 'a leave for another owner preserves the pending admission for the same file',
+      async () => {
+        const actor = `owner-intent-${generateId()}`
+        actors.set(actor, 'read')
+        const gate = {
+          requests: 0,
+          entered: createDeferred<void>(),
+          release: createDeferred<void>(),
+          status: 200,
+        }
+        accessGates.set(actor, gate)
+        const socket = connect(socketUrl, { transports: ['websocket'], auth: { actor } })
+        clients.push(socket)
+        await new Promise<void>((resolve) => socket.once('connect', resolve))
+        const server = io.sockets.sockets.get(socket.id ?? '')
+        if (!server) throw new Error('Pending socket missing')
+        const originalJoin = server.listeners(FILE_DOC_EVENTS.JOIN)[0]
+        const originalLeave = server.listeners(FILE_DOC_EVENTS.LEAVE)[0]
+        if (!originalJoin || !originalLeave) throw new Error('Document lifecycle handlers missing')
+        const provider = new Y.Doc()
+        const nextProvider = new Y.Doc()
+        const done = createDeferred<void>()
+        const actionDone = createDeferred<void>()
+        const observeJoin = async (payload: JoinFileDocPayload) => {
+          try {
+            await originalJoin.call(server, payload)
+          } finally {
+            if (payload.clientId === provider.clientID) done.resolve()
+            else actionDone.resolve()
+          }
+        }
+        const observeLeave = async (payload: LeaveFileDocPayload) => {
+          try {
+            await originalLeave.call(server, payload)
+          } finally {
+            actionDone.resolve()
+          }
+        }
+        server.off(FILE_DOC_EVENTS.JOIN, originalJoin)
+        server.on(FILE_DOC_EVENTS.JOIN, observeJoin)
+        server.off(FILE_DOC_EVENTS.LEAVE, originalLeave)
+        server.on(FILE_DOC_EVENTS.LEAVE, observeLeave)
+        const admissions: JoinFileDocSuccess[] = []
+        const errors: JoinFileDocError[] = []
+        socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, (payload) => admissions.push(payload))
+        socket.on(FILE_DOC_EVENTS.JOIN_ERROR, (payload) => errors.push(payload))
+        try {
+          socket.emit(FILE_DOC_EVENTS.JOIN, {
+            fileId,
+            owner: { entityType: 'project', entityId: projectId },
+            clientId: provider.clientID,
+            schemaVersion: FILE_DOC_SCHEMA_VERSION,
+          })
+          await gate.entered.promise
+          const otherOwner = {
+            fileId,
+            owner: { entityType: 'project' as const, entityId: generateId() },
+          }
+          if (action === 'join')
+            socket.emit(FILE_DOC_EVENTS.JOIN, {
+              ...otherOwner,
+              clientId: nextProvider.clientID,
+              schemaVersion: FILE_DOC_SCHEMA_VERSION,
+            })
+          else socket.emit(FILE_DOC_EVENTS.LEAVE, otherOwner)
+          await actionDone.promise
+          gate.release.resolve()
+          await done.promise
+          const drained = new Promise<void>((resolve) => socket.once('fixture-drained', resolve))
+          server.emit('fixture-drained')
+          await drained
+          const shouldAdmit = action === 'leave'
+          expect(server.rooms.has(`project-file-doc:${projectId}/${fileId}`)).toBe(shouldAdmit)
+          expect(admissions).toHaveLength(shouldAdmit ? 1 : 0)
+          expect(errors.map((error) => error.code)).toEqual(shouldAdmit ? [] : ['NOT_FOUND'])
+        } finally {
+          gate.release.resolve()
+          accessGates.delete(actor)
+          server.off(FILE_DOC_EVENTS.JOIN, observeJoin)
+          server.on(FILE_DOC_EVENTS.JOIN, originalJoin)
+          server.off(FILE_DOC_EVENTS.LEAVE, observeLeave)
+          server.on(FILE_DOC_EVENTS.LEAVE, originalLeave)
+          socket.disconnect()
+          provider.destroy()
+          nextProvider.destroy()
+        }
+      }
+    )
   }
 
   for (const rejectLeave of [false, true]) {
