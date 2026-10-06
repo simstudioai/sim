@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { desktopInboxStreamContract } from '@/lib/api/contracts/desktop-executor'
 import { parseRequest } from '@/lib/api/server'
+import { desktopExecutorRateLimit } from '@/lib/api/server/routes/desktop-executor'
 import {
   InternalUnauthenticatedError,
   internalSessionAuth,
@@ -22,6 +23,8 @@ const logger = createLogger('DesktopInboxStream')
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const principal = await internalSessionAuth.authenticate()
+    const limited = await desktopExecutorRateLimit.enforce(request, principal)
+    if (limited) return limited
     const parsed = await parseRequest(desktopInboxStreamContract, request, {})
     if (!parsed.success) return parsed.response
     const { deviceId } = parsed.data.query

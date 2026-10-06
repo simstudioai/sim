@@ -12,8 +12,7 @@ import {
   DESKTOP_CALL_LEASE_SECONDS,
   DESKTOP_CALL_PICKUP_GRACE_MS,
   DESKTOP_EXECUTOR_PROTOCOL_VERSION,
-  DESKTOP_INBOX_ACTIVE_RECONCILE_MS,
-  DESKTOP_INBOX_IDLE_RECONCILE_MS,
+  DESKTOP_INBOX_RECONCILE_MS,
   DESKTOP_PRESENCE_REFRESH_MS,
 } from '@/lib/desktop/executor/constants'
 import {
@@ -35,7 +34,6 @@ import {
   claimOfferedDesktopCall,
   getBoundDesktopCall,
   getBoundDesktopDevice,
-  hasActiveDesktopRun,
   listDesktopInboxRows,
   recordDesktopCallResult,
   renewDesktopCallLease,
@@ -126,8 +124,7 @@ export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
       leaseMs: DESKTOP_CALL_LEASE_SECONDS * 1000,
       leaseRenewMs: DESKTOP_CALL_LEASE_RENEW_MS,
       pickupGraceMs: DESKTOP_CALL_PICKUP_GRACE_MS,
-      activeReconcileMs: DESKTOP_INBOX_ACTIVE_RECONCILE_MS,
-      idleReconcileMs: DESKTOP_INBOX_IDLE_RECONCILE_MS,
+      reconcileMs: DESKTOP_INBOX_RECONCILE_MS,
     }
   },
 })
@@ -146,15 +143,14 @@ export const listDesktopInbox = defineAuthorizedCredentialUserUseCase({
   }: {
     principal: SessionPrincipal
     input: DeviceInput
-  }): Promise<{ items: DesktopInboxEntry[]; hasActiveRun: boolean }> {
+  }): Promise<{ items: DesktopInboxEntry[] }> {
     await requireBoundDevice(principal, input.deviceId)
     const identity = { deviceId: input.deviceId, userId: principal.userId }
-    const [rows, hasActiveRun] = await Promise.all([
+    const [rows] = await Promise.all([
       listDesktopInboxRows(identity),
-      hasActiveDesktopRun(identity),
       touchDesktopDevice(input.deviceId),
     ])
-    return { items: classifyDesktopInbox(rows), hasActiveRun }
+    return { items: classifyDesktopInbox(rows) }
   },
 })
 
@@ -320,6 +316,9 @@ export interface CompleteDesktopToolInput extends DesktopCallTokenInput {
   data?: unknown
 }
 
+const STOPPED_WHILE_RUNNING_MESSAGE =
+  'Stopped by the user while the Sim desktop app was running this action. It may already have taken effect; inspect the current state before repeating it.'
+
 const COMPLETION_STATUS = {
   success: { durable: ASYNC_TOOL_STATUS.completed, message: 'Tool completed' },
   error: { durable: ASYNC_TOOL_STATUS.failed, message: 'Tool failed' },
@@ -396,6 +395,7 @@ export const completeDesktopTool = defineAuthorizedCredentialUserUseCase({
       toolCallId: call.toolCallId,
       runId: call.runId,
       ownerToken: input.executionToken,
+      stoppedMessage: STOPPED_WHILE_RUNNING_MESSAGE,
     })
     if (acknowledged.outcome === 'unknown')
       throw new OrchestrationError('not_found', 'Desktop tool call not found')

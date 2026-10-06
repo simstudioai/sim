@@ -29,7 +29,8 @@ import {
  * completion. No chat view is open at any point.
  *
  * Start the app with the executor flag on and Redis configured, for example:
- *   MSHIP_DESKTOP_BACKGROUND_EXECUTOR=true REDIS_URL=redis://127.0.0.1:6379 bun run dev
+ *   MSHIP_DESKTOP_BACKGROUND_EXECUTOR=true COPILOT_TOOL_PERMISSIONS_ENABLED=true \
+ *     REDIS_URL=redis://127.0.0.1:6379 bun run dev
  * then run:
  *   DESKTOP_INBOX_E2E_BASE_URL=http://127.0.0.1:3000 \
  *   DESKTOP_INBOX_E2E_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/sim_test \
@@ -237,8 +238,10 @@ function openDoorbell(desktop: Desktop) {
             const frame = buffer.slice(0, boundary)
             buffer = buffer.slice(boundary + 2)
             const event = /^event: (.+)$/m.exec(frame)?.[1]
+            const data = /^data: (.+)$/m.exec(frame)?.[1]
             if (event) {
-              events.push(event)
+              const reason = data ? JSON.parse(data).reason : undefined
+              events.push(reason ? `${event}:${reason}` : event)
               for (const listener of listeners) listener()
             }
             boundary = buffer.indexOf('\n\n')
@@ -386,14 +389,15 @@ async function run() {
     )
     assert.equal(registration.pickupGraceMs, PICKUP_GRACE_SECONDS * 1000)
     assert(registration.leaseRenewMs < registration.leaseMs)
-    assert(registration.activeReconcileMs < registration.pickupGraceMs)
+    assert(registration.reconcileMs < registration.pickupGraceMs)
   })
 
   const doorbell = openDoorbell(desktop)
   await check('counts the device online while its doorbell stream is open', async () => {
     await doorbell.opened
     await waitFor(
-      async () => (await redis.exists(`desktop:presence:${desktop.deviceId}`)) === 1,
+      async () =>
+        (await redis.zcount(`desktop:presence:${desktop.deviceId}`, Date.now(), '+inf')) > 0,
       10_000,
       'presence'
     )
@@ -526,11 +530,16 @@ async function run() {
       schema: claimDesktopToolResponseSchema,
     })
     await sql`update copilot_runs set tool_admission_closed_at = now() where id = ${chat.runId}`
+    const heardBefore = doorbell.events.length
     await redis.publish(
       'desktop:inbox',
       JSON.stringify({ deviceId: desktop.deviceId, reason: 'cancel' })
     )
-    await waitFor(() => doorbell.events.includes('inbox_changed'), 5_000, 'the cancel doorbell')
+    await waitFor(
+      () => doorbell.events.slice(heardBefore).includes('inbox_changed:cancel'),
+      5_000,
+      'the cancel doorbell'
+    )
     const lease: RenewDesktopToolLeaseBody = {
       deviceId: desktop.deviceId,
       toolCallId,
@@ -592,7 +601,8 @@ async function run() {
   doorbell.close()
   await check('releases presence when the doorbell stream closes', async () => {
     await waitFor(
-      async () => (await redis.exists(`desktop:presence:${desktop.deviceId}`)) === 0,
+      async () =>
+        (await redis.zcount(`desktop:presence:${desktop.deviceId}`, Date.now(), '+inf')) === 0,
       65_000,
       'presence release'
     )

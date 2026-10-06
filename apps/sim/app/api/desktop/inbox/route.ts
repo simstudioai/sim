@@ -16,8 +16,7 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: desktopExecutorErrorPolicy,
   mapInput: ({ query }) => ({ deviceId: query.deviceId }),
   useCase: listDesktopInbox,
-  present: ({ items, hasActiveRun }) => ({
-    hasActiveRun,
+  present: ({ items }) => ({
     items: items.map((item) =>
       item.kind === 'call' ? { ...item, createdAt: item.createdAt.toISOString() } : item
     ),

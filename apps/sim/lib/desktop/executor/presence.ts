@@ -2,17 +2,10 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { DESKTOP_PRESENCE_TTL_SECONDS } from '@/lib/desktop/executor/constants'
 
 /**
- * A device is present while one of its inbox streams is open. Each stream writes its own
- * connection id, so a stream that closes after its replacement opened cannot erase the newer
- * stream's presence.
+ * A device is present while one of its inbox streams is open. Each stream holds its own entry in
+ * the device's set, scored by when that entry expires, so streams that overlap during a reconnect
+ * or rotation never erase each other's presence. The key itself expires with its newest entry.
  */
-const RELEASE_OWN_PRESENCE = `
-if redis.call('GET', KEYS[1]) == ARGV[1] then
-  return redis.call('DEL', KEYS[1])
-end
-return 0
-`
-
 function presenceKey(deviceId: string): string {
   return `desktop:presence:${deviceId}`
 }
@@ -26,22 +19,28 @@ export function isDesktopPresenceAvailable(): boolean {
 export async function markDesktopPresent(deviceId: string, connectionId: string): Promise<void> {
   const redis = getRedisClient()
   if (!redis) throw new Error('Desktop presence requires Redis')
-  await redis.set(presenceKey(deviceId), connectionId, 'EX', DESKTOP_PRESENCE_TTL_SECONDS)
+  const key = presenceKey(deviceId)
+  await redis
+    .multi()
+    .zremrangebyscore(key, '-inf', Date.now())
+    .zadd(key, Date.now() + DESKTOP_PRESENCE_TTL_SECONDS * 1000, connectionId)
+    .expire(key, DESKTOP_PRESENCE_TTL_SECONDS)
+    .exec()
 }
 
-/** Clears presence only when this connection is still the one recorded. */
+/** Removes only this connection's entry; any other open stream keeps the device present. */
 export async function releaseDesktopPresence(
   deviceId: string,
   connectionId: string
 ): Promise<void> {
   const redis = getRedisClient()
   if (!redis) return
-  await redis.eval(RELEASE_OWN_PRESENCE, 1, presenceKey(deviceId), connectionId)
+  await redis.zrem(presenceKey(deviceId), connectionId)
 }
 
-/** A device with no open inbox stream cannot pick up a call; a missing Redis reads as absent. */
+/** A device with no unexpired stream entry cannot pick up a call; a missing Redis reads as absent. */
 export async function isDesktopPresent(deviceId: string): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) return false
-  return (await redis.exists(presenceKey(deviceId))) === 1
+  return (await redis.zcount(presenceKey(deviceId), Date.now(), '+inf')) > 0
 }

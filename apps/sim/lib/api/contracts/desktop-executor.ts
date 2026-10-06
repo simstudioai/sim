@@ -37,8 +37,7 @@ export const registerDesktopDeviceResponseSchema = z.object({
   leaseMs: z.number().int().positive(),
   leaseRenewMs: z.number().int().positive(),
   pickupGraceMs: z.number().int().positive(),
-  activeReconcileMs: z.number().int().positive(),
-  idleReconcileMs: z.number().int().positive(),
+  reconcileMs: z.number().int().positive(),
 })
 
 export const registerDesktopDeviceContract = defineRouteContract({
@@ -53,7 +52,7 @@ const desktopInboxQuerySchema = z.object({ deviceId: desktopDeviceIdSchema })
 
 const desktopInboxCallSchema = z.object({
   kind: z.literal('call'),
-  toolCallId: z.string().min(1),
+  toolCallId: desktopToolCallIdSchema,
   toolName: z.string().min(1),
   chatId: z.string().min(1),
   workspaceId: z.string().nullable(),
@@ -62,7 +61,7 @@ const desktopInboxCallSchema = z.object({
 
 const desktopInboxApprovalSchema = z.object({
   kind: z.literal('approval_needed'),
-  toolCallId: z.string().min(1),
+  toolCallId: desktopToolCallIdSchema,
   toolName: z.string().min(1),
   chatId: z.string().min(1),
   chatTitle: z.string().nullable(),
@@ -73,7 +72,7 @@ const desktopInboxApprovalSchema = z.object({
 
 const desktopInboxCancelSchema = z.object({
   kind: z.literal('cancel'),
-  toolCallId: z.string().min(1),
+  toolCallId: desktopToolCallIdSchema,
 })
 
 /** Ordered by when each call was persisted, which is the order the executor claims them in. */
@@ -86,8 +85,6 @@ export type DesktopInboxItem = z.output<typeof desktopInboxItemSchema>
 
 export const desktopInboxResponseSchema = z.object({
   items: z.array(desktopInboxItemSchema),
-  /** True while any run bound to this device is active, so the device pulls at the active cadence. */
-  hasActiveRun: z.boolean(),
 })
 
 export const listDesktopInboxContract = defineRouteContract({

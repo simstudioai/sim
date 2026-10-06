@@ -16,13 +16,10 @@ export const DESKTOP_CALL_LEASE_RENEW_MS = 20_000
 export const DESKTOP_CALL_PICKUP_GRACE_MS = 15_000
 
 /**
- * The device's safety-net inbox pull while it has an active bound run. Shorter than the pickup
- * grace, so a lost doorbell still lets the device claim a call before it fails.
+ * The device's safety-net inbox pull. Shorter than the pickup grace, so a lost doorbell still lets
+ * the device claim a call before it fails, including the first call of a turn it has not seen.
  */
-export const DESKTOP_INBOX_ACTIVE_RECONCILE_MS = 10_000
-
-/** The device's safety-net inbox pull while none of its runs are active. */
-export const DESKTOP_INBOX_IDLE_RECONCILE_MS = 60_000
+export const DESKTOP_INBOX_RECONCILE_MS = 10_000
 
 /** Presence outlives two missed refreshes, so a rolling deploy does not read as offline. */
 export const DESKTOP_PRESENCE_TTL_SECONDS = 45

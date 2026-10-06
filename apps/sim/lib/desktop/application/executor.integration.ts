@@ -9,8 +9,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const url = readTestRedisUrl()
-  /** The real Redis module reads this at import. */
+  /** The real Redis module and the tool-permission switch read these at import. */
   if (url) process.env.REDIS_URL = url
+  process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   return { redisUrl: url }
 })
 
@@ -28,6 +29,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection } from '@/lib/core/config/redis'
@@ -278,7 +280,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       ).rejects.toBeInstanceOf(DesktopDeviceUnrecognizedError)
       await expect(
         listDesktopInbox.execute({ principal: newer, input: { deviceId: desktop.deviceId } })
-      ).resolves.toEqual({ items: [], hasActiveRun: false })
+      ).resolves.toEqual({ items: [] })
     })
 
     it('disconnects the device when its session is signed out', async () => {
@@ -519,18 +521,20 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         input: { deviceId: desktop.deviceId },
       })
       expect(inbox.items).toEqual([{ kind: 'cancel', toolCallId: running }])
-      expect(inbox.hasActiveRun).toBe(false)
 
-      /** The device's cancelled result acknowledges the cancellation. */
-      await completeDesktopTool.execute({
-        principal: desktop.principal,
-        input: {
-          deviceId: desktop.deviceId,
-          toolCallId: running,
-          executionToken,
-          status: 'cancelled',
-        },
-      })
+      /** Stop already answered the turn: even a success after it settles the call as stopped. */
+      await expect(
+        completeDesktopTool.execute({
+          principal: desktop.principal,
+          input: {
+            deviceId: desktop.deviceId,
+            toolCallId: running,
+            executionToken,
+            status: 'success',
+          },
+        })
+      ).resolves.toEqual({ outcome: 'superseded', status: 'cancelled' })
+      expect((await row(running)).status).toBe('cancelled')
       const after = await listDesktopInbox.execute({
         principal: desktop.principal,
         input: { deviceId: desktop.deviceId },
@@ -654,7 +658,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         principal: desktop.principal,
         input: { deviceId: desktop.deviceId },
       })
-      expect(inbox.hasActiveRun).toBe(true)
       expect(inbox.items.map((item) => item.kind === 'call' && item.toolCallId)).toEqual([
         first,
         second,
@@ -678,6 +681,28 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           .toEqual([{ event: 'inbox_changed', data: { reason: 'cancel' } }])
       } finally {
         close()
+      }
+      await expect.poll(() => isDesktopPresent(desktop.deviceId)).toBe(false)
+    })
+
+    it('keeps the device online while a replacement stream overlaps the one it replaces', async () => {
+      const desktop = await signedInDesktop()
+      const open = () =>
+        openDesktopInboxStream.execute({
+          principal: desktop.principal,
+          input: { deviceId: desktop.deviceId },
+        })
+      /** The stream that wrote presence last is the one that closes, while the other stays open. */
+      const closeStaying = (await open()).subscribe(() => {})
+      await expect.poll(() => isDesktopPresent(desktop.deviceId)).toBe(true)
+      const closeLeaving = (await open()).subscribe(() => {})
+      try {
+        await sleep(200)
+        closeLeaving()
+        await sleep(200)
+        expect(await isDesktopPresent(desktop.deviceId)).toBe(true)
+      } finally {
+        closeStaying()
       }
       await expect.poll(() => isDesktopPresent(desktop.deviceId)).toBe(false)
     })

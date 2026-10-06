@@ -13,11 +13,12 @@ import {
   DESKTOP_CALL_LEASE_SECONDS,
   DESKTOP_INBOX_HORIZON_HOURS,
 } from '@/lib/desktop/executor/constants'
+import { DESKTOP_EXECUTOR_TOOL_NAMES } from '@/lib/desktop/executor/tools'
 import { ASYNC_TOOL_STATUS, type AsyncCompletionData } from '@/lib/mothership/async-runs/lifecycle'
 
 const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
-const INBOX_ROW_LIMIT = 200
+const INBOX_ROW_LIMIT = 500
 
 const leaseFromNow = sql`clock_timestamp() + ${DESKTOP_CALL_LEASE_SECONDS} * interval '1 second'`
 
@@ -106,8 +107,10 @@ export async function touchDesktopDevice(deviceId: string): Promise<void> {
 }
 
 /**
- * The rows a device's inbox is built from: every open call on its recent bound runs, plus every
- * call it claimed and has not yet acknowledged. Ordered by persistence time.
+ * The rows a device's inbox is built from: every pending desktop call on its recent open runs,
+ * plus every call it claimed and has not yet acknowledged. Calls on stopped or ended runs that
+ * nobody claimed are left out here, so they cannot crowd actionable rows past the limit. Ordered
+ * by persistence time.
  */
 export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity, 'sessionId'>) {
   return db
@@ -136,11 +139,13 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
         eq(copilotRuns.desktopDeviceId, identity.deviceId),
         eq(copilotRuns.userId, identity.userId),
         sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
+        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_EXECUTOR_TOOL_NAMES]),
         or(
-          inArray(copilotAsyncToolCalls.status, [
-            ASYNC_TOOL_STATUS.pending,
-            ASYNC_TOOL_STATUS.running,
-          ]),
+          and(
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+            inArray(copilotRuns.status, LIVE_RUN_STATUSES),
+            isNull(copilotRuns.toolAdmissionClosedAt)
+          ),
           and(
             isNotNull(copilotAsyncToolCalls.executionOwnerToken),
             isNull(copilotAsyncToolCalls.executionSettledAt)
@@ -153,26 +158,6 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
 }
 
 export type DesktopInboxRow = Awaited<ReturnType<typeof listDesktopInboxRows>>[number]
-
-/** Whether any run bound to this device is still live, which sets the device's pull cadence. */
-export async function hasActiveDesktopRun(
-  identity: Omit<DesktopDeviceIdentity, 'sessionId'>
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: copilotRuns.id })
-    .from(copilotRuns)
-    .where(
-      and(
-        eq(copilotRuns.desktopDeviceId, identity.deviceId),
-        eq(copilotRuns.userId, identity.userId),
-        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
-        isNull(copilotRuns.toolAdmissionClosedAt)
-      )
-    )
-    .limit(1)
-  return Boolean(row)
-}
 
 /** A call and the run it belongs to, only when that run is bound to this device and user. */
 export async function getBoundDesktopCall(
@@ -304,8 +289,9 @@ export async function renewDesktopCallLease(input: {
 type DesktopTerminalStatus = Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
 
 /**
- * Records the device's result if its token still owns the running call. A lapsed lease does not
- * block it: until Sim settles the call as lost, a late but real result is the better answer.
+ * Records the device's result if its token still owns the running call and its run was not
+ * stopped. A lapsed lease does not block it: until Sim settles the call as lost, a late but real
+ * result is the better answer.
  */
 export async function recordDesktopCallResult(input: {
   toolCallId: string
@@ -333,7 +319,9 @@ export async function recordDesktopCallResult(input: {
         eq(copilotAsyncToolCalls.runId, input.runId),
         eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
         eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
-        isNull(copilotAsyncToolCalls.executionRevokedAt)
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId}
+          AND r.tool_admission_closed_at IS NULL)`
       )
     )
     .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
@@ -347,12 +335,15 @@ export type DesktopCallAcknowledgement =
 /**
  * Classifies a result that could not be recorded. A token whose own result is already recorded
  * is a duplicate; a token whose call Sim settled first is superseded, and acknowledging it here
- * removes the call's cancel item from the device's inbox.
+ * removes the call's cancel item from the device's inbox. A call still running on a stopped run
+ * is settled here as stopped: Stop is the answer the turn already received, whatever the device
+ * reports.
  */
 export async function acknowledgeDesktopCallResult(input: {
   toolCallId: string
   runId: string
   ownerToken: string
+  stoppedMessage: string
 }): Promise<DesktopCallAcknowledgement> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -360,6 +351,8 @@ export async function acknowledgeDesktopCallResult(input: {
         status: copilotAsyncToolCalls.status,
         settled: sql<boolean>`${copilotAsyncToolCalls.executionSettledAt} IS NOT NULL`,
         revoked: sql<boolean>`${copilotAsyncToolCalls.executionRevokedAt} IS NOT NULL`,
+        stopped: sql<boolean>`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId}
+          AND r.tool_admission_closed_at IS NOT NULL)`,
       })
       .from(copilotAsyncToolCalls)
       .where(
@@ -370,11 +363,33 @@ export async function acknowledgeDesktopCallResult(input: {
         )
       )
       .for('update')
+    if (!row) return { outcome: 'unknown' }
+    if (row.status === ASYNC_TOOL_STATUS.running && row.stopped && !row.revoked) {
+      await tx
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: ASYNC_TOOL_STATUS.cancelled,
+          result: { error: input.stoppedMessage, outcomeUnknown: true, doNotRetry: true },
+          error: input.stoppedMessage,
+          claimedBy: null,
+          claimedAt: null,
+          completedAt: sql`now()`,
+          executionSettledAt: sql`now()`,
+          executionRevokedAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+            eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken)
+          )
+        )
+      return { outcome: 'superseded', status: ASYNC_TOOL_STATUS.cancelled }
+    }
     if (
-      !row ||
-      (row.status !== ASYNC_TOOL_STATUS.completed &&
-        row.status !== ASYNC_TOOL_STATUS.failed &&
-        row.status !== ASYNC_TOOL_STATUS.cancelled)
+      row.status !== ASYNC_TOOL_STATUS.completed &&
+      row.status !== ASYNC_TOOL_STATUS.failed &&
+      row.status !== ASYNC_TOOL_STATUS.cancelled
     )
       return { outcome: 'unknown' }
     if (row.settled && !row.revoked) return { outcome: 'duplicate', status: row.status }

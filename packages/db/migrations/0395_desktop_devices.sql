@@ -34,6 +34,8 @@ END $$;
 --> statement-breakpoint
 COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
+-- migration-safe: replay removes only this new index to recover an interrupted concurrent build; no deployed code reads it yet.
+DROP INDEX CONCURRENTLY IF EXISTS "copilot_runs_desktop_device_started_at_idx";--> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "copilot_runs_desktop_device_started_at_idx" ON "copilot_runs" USING btree ("desktop_device_id","started_at") WHERE "copilot_runs"."desktop_device_id" IS NOT NULL;
 --> statement-breakpoint
 SET lock_timeout = '5s';
