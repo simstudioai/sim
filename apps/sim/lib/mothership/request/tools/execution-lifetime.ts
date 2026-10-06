@@ -9,15 +9,15 @@ import {
 } from '@/lib/mothership/async-runs/execution-lease'
 import {
   type CompleteAsyncToolCallInput,
-  claimSimToolExecution,
+  claimToolExecution,
   completeAsyncToolCall,
   completeOwnedSimToolCall,
   prepareWorkbenchAccess,
   recordSimSandboxProcess,
   renewSimToolExecutionLease,
-  type SimToolExecutionClaim,
   settleSimSandboxProcess,
   settleSimToolExecution,
+  type ToolExecutionClaim,
 } from '@/lib/mothership/async-runs/repository'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -30,7 +30,7 @@ export interface ToolExecutionLifetime {
   readonly signal: AbortSignal
   readonly owner?: SimToolExecutionOwner
   complete(input: CompleteAsyncToolCallInput): Promise<void>
-  claim(runId: string, userId: string): Promise<SimToolExecutionClaim>
+  claim(runId: string, userId: string): Promise<ToolExecutionClaim>
   hold<T>(work: Promise<T>): Promise<T>
 }
 
@@ -81,7 +81,7 @@ export async function withToolExecutionLifetime<T>(
       )
     },
     async claim(runId, userId) {
-      const claim = await claimSimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
+      const claim = await claimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
         () => {
           throw new Error('Tool could not start because execution admission could not be recorded')
         }

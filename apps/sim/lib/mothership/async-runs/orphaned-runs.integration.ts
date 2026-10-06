@@ -52,7 +52,7 @@ import {
   sweepOrphanedRuns,
 } from '@/lib/mothership/async-runs/orphaned-runs'
 import {
-  claimSimToolExecution,
+  claimToolExecution,
   requestRunStop,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
@@ -279,7 +279,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     /** A long tool call writes nothing to the run; only its execution heartbeat shows it is alive. */
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimSimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
 
     expect((await sweepOrphanedRuns()).settledRunIds).not.toContain(orphan.runId)
     const live = await stored(orphan.runId)
@@ -309,7 +309,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
           .where(eq(copilotRuns.id, orphan.runId))
           .for('update'),
       async (holder) => {
-        const claim = claimSimToolExecution(tool)
+        const claim = claimToolExecution(tool)
         const claimant = await lockWaiterBehind(holder)
         const sweep = sweepOrphanedRuns()
         await lockWaiterBehind(holder, claimant)
@@ -327,7 +327,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('never settles a run whose Sim tool lease a heartbeat renewed as the sweep settled it', async () => {
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimSimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
     await db
       .update(copilotAsyncToolCalls)
       .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })

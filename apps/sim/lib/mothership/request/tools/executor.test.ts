@@ -89,7 +89,7 @@ const {
   mockCompleteAsyncToolCall: completeAsyncToolCall,
   mockMarkAsyncToolRunning: markAsyncToolRunning,
   mockUpsertAsyncToolCall: upsertAsyncToolCall,
-  mockClaimSimToolExecution: claimSimToolExecution,
+  mockClaimToolExecution: claimToolExecution,
   mockSettleSimToolExecution: settleSimToolExecution,
   mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult,
 } = mothershipAsyncRunsMockFns
@@ -162,7 +162,7 @@ describe('tool result size diagnostics', () => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
@@ -289,7 +289,7 @@ describe('executeToolAndReport provenance isolation', () => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
   })
@@ -463,7 +463,7 @@ describe('executeToolAndReport provenance isolation', () => {
   it.each(['success', 'error', 'cancelled'] as const)(
     'observes another controller until its durable %s result without repeating or settling its execution',
     async (status) => {
-      claimSimToolExecution.mockResolvedValueOnce({
+      claimToolExecution.mockResolvedValueOnce({
         outcome: 'existing',
       })
       let finish: (value: AsyncConfirmationState | null) => void = () => {}
@@ -495,7 +495,7 @@ describe('executeToolAndReport provenance isolation', () => {
   )
 
   it('does not write a failed result or settle the owner when its observation ends unconfirmed', async () => {
-    claimSimToolExecution.mockResolvedValueOnce({
+    claimToolExecution.mockResolvedValueOnce({
       outcome: 'existing',
     })
     waitForToolConfirmation.mockResolvedValueOnce(null)
@@ -525,7 +525,7 @@ describe('executeToolAndReport provenance isolation', () => {
     async (stage) => {
       if (stage === 'row')
         upsertAsyncToolCall.mockRejectedValueOnce(new Error('database unavailable'))
-      else claimSimToolExecution.mockRejectedValueOnce(new Error('database unavailable'))
+      else claimToolExecution.mockRejectedValueOnce(new Error('database unavailable'))
       const tool = buildPendingToolCall()
       await expect(
         executeToolAndReport(tool.id, buildStreamingContext(tool), {
@@ -542,7 +542,7 @@ describe('executeToolAndReport provenance isolation', () => {
   )
 
   it('refuses a late tool after durable Stop closed admission', async () => {
-    claimSimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
     const tool = buildPendingToolCall()
     const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
       userId: 'user-1',

@@ -4437,6 +4437,12 @@ export const copilotAsyncToolCalls = pgTable(
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
+    /**
+     * Set when this call was held for the user's decision. Whether a call is gated depends on the
+     * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
+     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     */
+    permissionRequestedAt: timestamp('permission_requested_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     /** One-use download-save admission; never released after an uncertain storage outcome. */
