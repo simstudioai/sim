@@ -1381,7 +1381,7 @@ async function runCheckpointLoop(
         for (const [toolCallId, promise] of context.pendingToolPromises) {
           if (pendingWatchdogs.get(toolCallId)?.promise === promise) continue
           const waitBudgetMs =
-            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)) +
+            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId), context.desktopDeviceId) +
             TOOL_WATCHDOG_RESUME_GRACE_MS
           pendingWatchdogs.set(toolCallId, {
             promise,

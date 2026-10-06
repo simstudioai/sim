@@ -8,6 +8,7 @@ import {
   type CompleteAsyncToolCallInput,
   completeAsyncToolCall,
   completeClaimedAsyncToolCall,
+  completeLapsedDesktopToolCall,
   completeOwnedDesktopToolCall,
   completePendingAsyncToolCall,
   detachAsyncToolCall,
@@ -37,12 +38,14 @@ export function durableClientToolStatus(
  * - `pending`: only a call nobody claimed (the inverse of a claim).
  * - `claimed`: only the exact claim `claimedBy` holds.
  * - `owner`: only the running call this execution token still owns.
+ * - `lapsed`: only that running call once its lease lapsed, revoking the token.
  */
 export type ClientToolSettlementGuard =
   | { kind: 'open' }
   | { kind: 'pending' }
   | { kind: 'claimed'; claimedBy: string }
   | { kind: 'owner'; ownerToken: string }
+  | { kind: 'lapsed'; ownerToken: string }
 
 function completeUnderGuard(
   completion: CompleteAsyncToolCallInput,
@@ -55,6 +58,8 @@ function completeUnderGuard(
       return completeClaimedAsyncToolCall(completion, guard.claimedBy)
     case 'owner':
       return completeOwnedDesktopToolCall(completion, guard.ownerToken)
+    case 'lapsed':
+      return completeLapsedDesktopToolCall(completion, guard.ownerToken)
     case 'open':
       return completeAsyncToolCall(completion)
   }

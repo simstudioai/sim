@@ -7,6 +7,7 @@ import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resolveTurnDesktopDevice } from '@/lib/desktop/application/executor'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -38,6 +39,8 @@ interface AdmitTurnInput {
   notifyWorkspaceStatus: boolean
   /** The effort this send picked, kept as the chat's choice for later turns. */
   effortChoice?: MothershipEffort
+  /** The composer's desktop, offered for its background executor to run this turn's desktop tools. */
+  desktopDeviceId?: string
 }
 
 /** The accepted message, its start intent and retry destination commit together. */
@@ -83,6 +86,9 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
+    const desktopDeviceId = input.desktopDeviceId
+      ? await resolveTurnDesktopDevice(principal, input.desktopDeviceId)
+      : null
     const turnConfig = sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode ?? 'agent'}::text)`
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx
@@ -124,6 +130,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
         organizationId,
         streamId: request.messageId,
         workflowId: request.workflowId,
+        desktopDeviceId,
         requestContext: {
           requestId: input.requestId,
           controllerToken: input.lease.value,

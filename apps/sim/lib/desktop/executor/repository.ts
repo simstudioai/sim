@@ -8,7 +8,11 @@ import {
 } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { DESKTOP_INBOX_HORIZON_HOURS } from '@/lib/desktop/executor/constants'
-import { ASYNC_TOOL_STATUS, isTerminalAsyncStatus } from '@/lib/mothership/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_STATUS,
+  DESKTOP_TOOL_CLAIM_OWNER,
+  isTerminalAsyncStatus,
+} from '@/lib/mothership/async-runs/lifecycle'
 import { DESKTOP_TOOL_CALL_NAMES } from '@/lib/mothership/tools/desktop-tools'
 
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
@@ -220,4 +224,123 @@ export async function acknowledgeDesktopCallResult(input: {
     }
     return { outcome: 'superseded', status: row.status }
   })
+}
+
+/** A device the caller may bind a new turn to: theirs, on this session, and able to execute. */
+export async function getBindableDesktopDevice(identity: DesktopDeviceIdentity) {
+  const [row] = await db
+    .select({ id: desktopDevices.id })
+    .from(desktopDevices)
+    .where(
+      and(
+        eq(desktopDevices.id, identity.deviceId),
+        eq(desktopDevices.userId, identity.userId),
+        eq(desktopDevices.sessionId, identity.sessionId),
+        isNull(desktopDevices.revokedAt),
+        sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/** The device a run's desktop calls are bound to, or null for a run the chat view serves. */
+export async function getRunDesktopDeviceId(runId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ desktopDeviceId: copilotRuns.desktopDeviceId })
+    .from(copilotRuns)
+    .where(eq(copilotRuns.id, runId))
+    .limit(1)
+  return row?.desktopDeviceId ?? null
+}
+
+/**
+ * Offers a pending call on a bound run to its device by opening its pickup window. Only an
+ * unclaimed call can be offered, and only once, so a re-dispatched call keeps its first deadline.
+ */
+export async function offerDesktopToolCall(input: {
+  toolCallId: string
+  runId: string
+  pickupGraceMs: number
+}): Promise<boolean> {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      pickupDeadlineAt: sql`clock_timestamp() + ${input.pickupGraceMs} * interval '1 millisecond'`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.runId, input.runId),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+        isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id IS NOT NULL)`
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  return Boolean(row)
+}
+
+/**
+ * A bound desktop call with the deadlines only Sim enforces, read on the database clock every CAS
+ * uses: whether its pickup window closed while it is unclaimed, and whether its lease lapsed while
+ * it runs. Null for a call on a run no device is bound to.
+ */
+export async function getDesktopToolCallDeadlines(toolCallId: string) {
+  const [row] = await db
+    .select({
+      toolCallId: copilotAsyncToolCalls.toolCallId,
+      runId: copilotRuns.id,
+      userId: copilotRuns.userId,
+      deviceId: copilotRuns.desktopDeviceId,
+      status: copilotAsyncToolCalls.status,
+      ownerToken: copilotAsyncToolCalls.executionOwnerToken,
+      result: copilotAsyncToolCalls.result,
+      pickupOverdue: sql<boolean>`coalesce(${copilotAsyncToolCalls.pickupDeadlineAt} <= clock_timestamp(), false)`,
+      leaseLapsed: sql<boolean>`coalesce(${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp(), false)`,
+    })
+    .from(copilotAsyncToolCalls)
+    .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .where(
+      and(eq(copilotAsyncToolCalls.toolCallId, toolCallId), isNotNull(copilotRuns.desktopDeviceId))
+    )
+    .limit(1)
+  return row?.deviceId ? { ...row, deviceId: row.deviceId } : null
+}
+
+export type DesktopToolCallDeadlines = NonNullable<
+  Awaited<ReturnType<typeof getDesktopToolCallDeadlines>>
+>
+
+/**
+ * Bound desktop calls a deadline passed for at least `slackMs` ago: offered and still unclaimed,
+ * or claimed by the executor with a lapsed lease. A live waiter settles these within its 5 s
+ * poll, so anything this finds lost its waiter.
+ */
+export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
+  const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
+  const rows = await db
+    .select({ toolCallId: copilotAsyncToolCalls.toolCallId })
+    .from(copilotAsyncToolCalls)
+    .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .where(
+      and(
+        isNotNull(copilotRuns.desktopDeviceId),
+        or(
+          and(
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+            sql`${copilotAsyncToolCalls.pickupDeadlineAt} < ${overdue}`
+          ),
+          and(
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+            inArray(copilotAsyncToolCalls.claimedBy, Object.values(DESKTOP_TOOL_CLAIM_OWNER)),
+            isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+            isNull(copilotAsyncToolCalls.executionRevokedAt),
+            sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} < ${overdue}`
+          )
+        )
+      )
+    )
+    .limit(input.limit)
+  return rows.map((row) => row.toolCallId)
 }

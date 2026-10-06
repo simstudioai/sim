@@ -26,6 +26,7 @@ import { classifyDesktopInbox, type DesktopInboxEntry } from '@/lib/desktop/exec
 import { markDesktopPresent } from '@/lib/desktop/executor/presence'
 import {
   acknowledgeDesktopCallResult,
+  getBindableDesktopDevice,
   getBoundDesktopCall,
   getBoundDesktopDevice,
   listDesktopInboxRows,
@@ -66,6 +67,31 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
   })
   if (!device) throw new DesktopDeviceUnrecognizedError()
   return device
+}
+
+/**
+ * The device a new turn binds to: the composer's own, but only while the executor is on for this
+ * user and the device is registered to this very session as an executor. Anything else leaves
+ * the turn to the chat view, as before the executor existed.
+ */
+export async function resolveTurnDesktopDevice(
+  principal: SessionPrincipal,
+  deviceId: string
+): Promise<string | null> {
+  if (!(await isDesktopBackgroundExecutorEnabled(principal.userId))) return null
+  const device = await getBindableDesktopDevice({
+    deviceId,
+    userId: principal.userId,
+    sessionId: principal.sessionId,
+  })
+  if (!device) {
+    logger.warn('Turn not bound: its desktop is not registered to this session', {
+      userId: principal.userId,
+      deviceId,
+    })
+    return null
+  }
+  return device.id
 }
 
 interface RegisterDesktopDeviceInput extends DeviceInput {

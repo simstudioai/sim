@@ -1,18 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import {
-  completeAsyncToolCall,
-  completePendingAsyncToolCall,
-} from '@/lib/mothership/async-runs/repository'
-import {
-  MothershipStreamV1AsyncToolRecordStatus,
-  MothershipStreamV1ToolOutcome,
-} from '@/lib/mothership/generated/mothership-stream-v1'
-import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
+import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   sealClientToolCompletion,
   sealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotToolCallFailure')
@@ -59,24 +52,14 @@ export async function settleToolCallFailure(input: {
       durableData = { ...completion, ...provenance }
     }
     if (input.settledLocally?.()) return 'superseded'
-    const failure = {
-      toolCallId,
-      status: MothershipStreamV1AsyncToolRecordStatus.failed,
-      result: durableData,
-      error: message,
-    }
-    const completed = input.unclaimedOnly
-      ? await completePendingAsyncToolCall(failure)
-      : await completeAsyncToolCall(failure)
-    if (!completed) return 'lost'
-    publishToolConfirmation({
+    const outcome = await settleClientToolCall({
       toolCallId,
       status: MothershipStreamV1ToolOutcome.error,
       message,
       data: durableData,
-      timestamp: new Date().toISOString(),
+      guard: input.unclaimedOnly ? { kind: 'pending' } : { kind: 'open' },
     })
-    return 'settled'
+    return outcome === 'updated' ? 'settled' : 'lost'
   } catch (error) {
     logger.warn('Failed to persist a server-owned tool failure', {
       toolCallId,

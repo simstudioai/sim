@@ -72,6 +72,27 @@ describe('desktop tool authorization', () => {
     })
   })
 
+  it("refuses a chat view's claim on a run bound to a desktop's background executor", async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'bound-click',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_click',
+      args: { ref: 'e1' },
+    })
+    getRunSegment.mockResolvedValueOnce({
+      id: 'run-1',
+      chatId: 'chat-1',
+      userId: 'user-1',
+      status: 'active',
+      desktopDeviceId: 'device-1',
+    })
+
+    const response = await POST(request('bound-click'))
+    expect(response.status).toBe(409)
+    expect(claimDesktopToolCall).not.toHaveBeenCalled()
+  })
+
   it('rejects retired browser tools retained only for history', async () => {
     getAsyncToolCall.mockResolvedValueOnce({
       toolCallId: 'retired-browser-tool',

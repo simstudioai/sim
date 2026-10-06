@@ -1,7 +1,7 @@
 import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -40,7 +40,11 @@ import {
   settleClientToolCall,
 } from '@/lib/mothership/request/tools/client-settlement.server'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
-import { getDesktopToolClaimOwner, isNativeDesktopTool } from '@/lib/mothership/tools/desktop-tools'
+import {
+  getDesktopToolClaimOwner,
+  isDesktopToolCall,
+  isNativeDesktopTool,
+} from '@/lib/mothership/tools/desktop-tools'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
@@ -204,6 +208,17 @@ export const POST = withRouteHandler((req: NextRequest) => {
         if (run.userId !== authenticatedUserId) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        if (run.desktopDeviceId && isDesktopToolCall(existing.toolName, toRecord(existing.args))) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
+          return NextResponse.json(
+            {
+              error:
+                "This chat's desktop actions report through the desktop app's background executor",
+            },
+            { status: 409 }
+          )
         }
 
         const isWorkflowTool = isWorkflowToolName(existing.toolName || '')

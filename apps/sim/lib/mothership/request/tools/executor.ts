@@ -16,6 +16,7 @@ import {
 } from '@/lib/mothership/async-runs/repository'
 import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
 import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
   PERMISSION_WAIT_TIMEOUT_MS,
   TOOL_WATCHDOG_DEFAULT_MS,
   TOOL_WATCHDOG_LONG_RUNNING_MS,
@@ -256,15 +257,20 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 /**
  * How long the resume gate may wait on one pending tool call. Permission
  * prompts wait as long as the permission wait itself. Browser calls share the renderer's
- * budget so authorization and native queueing cannot outlive the resume gate.
+ * budget so authorization and native queueing cannot outlive the resume gate. A desktop call on a
+ * device-bound run gets the full client budget: its wait fails it once the device is offline, its
+ * pickup window closes or its lease lapses, and otherwise it runs as long as the device renews it.
  */
 export function pendingToolWaitBudgetMs(
   toolCall:
     | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
-    | undefined
+    | undefined,
+  desktopDeviceId?: string | null
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
+  if (desktopDeviceId && executableName && isDesktopToolCall(executableName, toolCall?.params))
+    return CLIENT_TOOL_RESULT_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
   }
@@ -445,7 +451,7 @@ export async function failPendingToolCall(
   const desktopCall = isDesktopToolCall(toolCall.execName ?? toolCall.name, toolCall.params)
   if (failureMessage === undefined && desktopCall) {
     const settled = await settleAbandonedToolCall(toolCall, context, execContext, {
-      ...desktopToolNotStarted(),
+      ...desktopToolNotStarted(context.desktopDeviceId ? 'not_responding' : 'chat_not_open'),
       unclaimedOnly: true,
     })
     if (settled) return
@@ -704,7 +710,7 @@ async function executeToolAndReportInner(
       /** The winning controller owns execution; this promise observes its durable result. */
       const completion = await waitForToolConfirmation(
         toolCall.id,
-        pendingToolWaitBudgetMs(toolCall),
+        pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId),
         options?.abortSignal ?? execContext.abortSignal,
         {
           executionScope: { runId: context.runId, userId: execContext.userId },

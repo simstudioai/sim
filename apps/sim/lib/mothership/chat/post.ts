@@ -313,6 +313,10 @@ const ChatMessageSchema = z
         localFilesystem: z.boolean().optional(),
         localFiles: z.boolean().optional(),
         localReadClaims: z.boolean().optional(),
+        /** The composer's desktop install, offered for its background executor. */
+        deviceId: z.string().uuid().optional(),
+        /** The background executor protocol version the desktop speaks. */
+        executor: z.number().int().min(1).max(1000).optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         terminals: z
@@ -374,6 +378,20 @@ const ChatMessageSchema = z
   )
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
+
+/**
+ * The desktop a turn asks its background executor to run on. Only a desktop composer that speaks
+ * the executor protocol and switched on at least one desktop surface asks; Assistant turns have
+ * no desktop tools.
+ */
+function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefined {
+  const desktop = body.desktopCapabilities
+  if (body.mode === 'assistant' || !desktop?.deviceId || !desktop.executor) return undefined
+  return desktop.browser || desktop.terminal || desktop.localFiles || desktop.localFilesystem
+    ? desktop.deviceId
+    : undefined
+}
+
 type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
 type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
 type UnifiedChatBranch =
@@ -1483,6 +1501,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyWorkspaceStatus: branch.notifyChatStatus,
             // The effort this turn actually runs at, so the stored pick is always one it can use.
             effortChoice: effortChoice && body.effort,
+            desktopDeviceId: backgroundExecutorDeviceId(body),
           },
         })
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.

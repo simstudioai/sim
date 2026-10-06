@@ -123,6 +123,11 @@ export async function waitForToolConfirmation(
   options: {
     acceptStatus?: (status: AsyncConfirmationState['status']) => boolean
     executionScope?: { runId: string; userId: string }
+    /**
+     * Settles the call if a deadline only the server enforces has passed, on every durable check:
+     * at subscribe, on each wake-up, and on the poll. Its settlement wakes this wait.
+     */
+    settleOverdue?: () => Promise<unknown>
   } = {}
 ): Promise<AsyncConfirmationState | null> {
   const acceptStatus = options.acceptStatus ?? (() => true)
@@ -158,6 +163,16 @@ export async function waitForToolConfirmation(
             error: toError(error).message,
           })
           return false
+        }
+      }
+      if (options.settleOverdue) {
+        try {
+          await options.settleOverdue()
+        } catch (error) {
+          logger.warn('Could not settle an overdue tool call; checking again on the next poll', {
+            toolCallId,
+            error: toError(error).message,
+          })
         }
       }
       const latest = await getToolConfirmation(toolCallId)

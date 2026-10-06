@@ -4479,6 +4479,11 @@ export const copilotAsyncToolCalls = pgTable(
      * a desktop claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
+    /**
+     * When a desktop call on a device-bound run must be claimed by: set once the call may run and
+     * is offered to its device. A call still unclaimed after it fails as never started.
+     */
+    pickupDeadlineAt: timestamp('pickup_deadline_at', { withTimezone: true }),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     /** One-use download-save admission; never released after an uncertain storage outcome. */

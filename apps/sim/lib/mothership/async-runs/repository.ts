@@ -128,6 +128,8 @@ export interface CreateRunSegmentInput {
   provider?: string | null
   requestContext?: Record<string, unknown>
   status?: CopilotRunStatus
+  /** The desktop whose background executor runs this turn's desktop tools. */
+  desktopDeviceId?: string | null
 }
 
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -343,6 +345,7 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       model: input.model ?? null,
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
+      desktopDeviceId: input.desktopDeviceId ?? null,
       status: stop ? 'cancelled' : (input.status ?? 'active'),
       ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
     })
@@ -466,6 +469,8 @@ export async function getRunSegment(runId: string) {
           organizationId: copilotRuns.organizationId,
           // Stop, a newer turn, or completion close admission; nothing may start after that.
           toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+          // A bound run's desktop calls belong to its device's background executor alone.
+          desktopDeviceId: copilotRuns.desktopDeviceId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
@@ -565,12 +570,13 @@ export async function getAsyncToolCall(toolCallId: string) {
 
 /**
  * The execution owner a status change must still belong to, and what its lease must be: `live`
- * (the default) for the owner's own result, and `any` where a late but real result beats the
- * outcome-unknown settlement nobody has written yet.
+ * (the default) for the owner's own result, `any` where a late but real result beats the
+ * outcome-unknown settlement nobody has written yet, and `lapsed` for that settlement itself, so
+ * it loses to a renewal.
  */
 interface ExecutionOwnerFence {
   token: string
-  lease?: 'live' | 'any'
+  lease?: 'live' | 'any' | 'lapsed'
 }
 
 async function markAsyncToolStatus(
@@ -583,6 +589,7 @@ async function markAsyncToolStatus(
     error?: string | null
     completedAt?: Date | null
     executionSettledAt?: Date
+    executionRevokedAt?: Date
   } = {},
   expectedStatuses?: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
@@ -618,6 +625,7 @@ async function markAsyncToolStatus(
           error: updates.error,
           completedAt: updates.completedAt,
           executionSettledAt: updates.executionSettledAt,
+          executionRevokedAt: updates.executionRevokedAt,
           updatedAt: new Date(),
         })
         .where(
@@ -631,7 +639,9 @@ async function markAsyncToolStatus(
                   isNull(copilotAsyncToolCalls.executionRevokedAt),
                   expectedOwner.lease === 'any'
                     ? undefined
-                    : sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+                    : expectedOwner.lease === 'lapsed'
+                      ? sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+                      : sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
                 )
               : undefined
           )
@@ -1529,7 +1539,7 @@ async function completeAsyncToolCallFromStatuses(
   input: CompleteAsyncToolCallInput,
   expectedStatuses: CopilotAsyncToolStatus[],
   expectedClaimedBy?: string,
-  expectedOwner?: ExecutionOwnerFence & { settles?: 'execution' }
+  expectedOwner?: ExecutionOwnerFence & { settles?: 'execution' | 'revocation' }
 ) {
   const completedAt = new Date()
   return await markAsyncToolStatus(
@@ -1542,6 +1552,7 @@ async function completeAsyncToolCallFromStatuses(
       error: input.error ?? null,
       completedAt,
       ...(expectedOwner?.settles === 'execution' ? { executionSettledAt: completedAt } : {}),
+      ...(expectedOwner?.settles === 'revocation' ? { executionRevokedAt: completedAt } : {}),
     },
     expectedStatuses,
     expectedClaimedBy,
@@ -1584,6 +1595,21 @@ export async function completeOwnedDesktopToolCall(
     token: ownerToken,
     lease: 'any',
     settles: 'execution',
+  })
+}
+
+/**
+ * Settles a desktop executor's call whose lease lapsed with this token still on it, revoking the
+ * token so the device's late result is answered as superseded. A renewal wins over it.
+ */
+export async function completeLapsedDesktopToolCall(
+  input: CompleteAsyncToolCallInput,
+  ownerToken: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], undefined, {
+    token: ownerToken,
+    lease: 'lapsed',
+    settles: 'revocation',
   })
 }
 

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
+import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
@@ -49,7 +51,7 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
-import { isClaimedOnPickup } from '@/lib/mothership/tools/desktop-tools'
+import { isClaimedOnPickup, isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
@@ -191,6 +193,24 @@ function rebindResolvedIntegrationCall(
   return true
 }
 
+/** Reads the run's device binding once per streaming context. */
+async function resolveRunDesktopDevice(context: StreamingContext): Promise<string | null> {
+  if (context.desktopDeviceId === undefined)
+    context.desktopDeviceId = context.runId ? await getRunDesktopDeviceId(context.runId) : null
+  return context.desktopDeviceId
+}
+
+/**
+ * Whether this turn's desktop claims local reads before reading them: a desktop that declared it
+ * does, and a bound device's background executor claims every desktop call.
+ */
+function desktopClaimsLocalReads(
+  options: OrchestratorOptions | undefined,
+  desktopDeviceId: string | null
+): boolean {
+  return options?.desktopClaimsLocalReads === true || desktopDeviceId !== null
+}
+
 /**
  * Upsert the durable `async_tool_calls` row before the authoritative tool-call
  * SSE frame is forwarded to the client, so `/api/copilot/confirm` and
@@ -300,6 +320,10 @@ export async function prePersistClientExecutableToolCall(
     }
   }
 
+  const desktopDeviceId = isDesktopToolCall(data.toolName, data.arguments)
+    ? await resolveRunDesktopDevice(context)
+    : null
+
   await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: data.toolCallId,
@@ -307,15 +331,20 @@ export async function prePersistClientExecutableToolCall(
     args: data.arguments,
     sealedContext,
     // Desktop calls the desktop claims on pickup (browser, terminal, import,
-    // and local reads when this turn's desktop claims them) cross a second,
-    // native authorization boundary. Leave those rows pending until Electron
-    // atomically claims them, so a replayed event cannot act twice and a call
-    // nobody picks up can fail fast. All other client tools retain the
-    // established "already dispatched" running state. A gated tool is
-    // likewise pending: nothing has been dispatched yet.
+    // and local reads when this turn's desktop or its bound background
+    // executor claims them) cross a second, native authorization boundary.
+    // Leave those rows pending until the desktop atomically claims them, so a
+    // replayed event cannot act twice and a call nobody picks up can fail fast.
+    // All other client tools retain the established "already dispatched"
+    // running state. A gated tool is likewise pending: nothing has been
+    // dispatched yet.
     status:
       gated ||
-      isClaimedOnPickup(data.toolName, data.arguments, options?.desktopClaimsLocalReads === true)
+      isClaimedOnPickup(
+        data.toolName,
+        data.arguments,
+        desktopClaimsLocalReads(options, desktopDeviceId)
+      )
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
     permissionRequested: gated,
@@ -327,6 +356,8 @@ export async function prePersistClientExecutableToolCall(
       error: getErrorMessage(err),
     })
   })
+  // The device lists the call for the user's decision; it claims it only once allowed.
+  if (gated && desktopDeviceId) ringDesktopInbox(desktopDeviceId, 'approval')
 }
 
 /**
@@ -895,6 +926,9 @@ async function dispatchToolExecution(
       },
       async (span) => {
         let completion: AsyncTerminalCompletionSnapshot | null
+        const desktopDeviceId = isDesktopToolCall(toolName, args)
+          ? await resolveRunDesktopDevice(context)
+          : null
         if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
@@ -939,13 +973,16 @@ async function dispatchToolExecution(
             return race.signal ?? errorCompletion('Tool completion missing')
           }
           completion = race.completion ?? null
-        } else if (isClaimedOnPickup(toolName, args, options.desktopClaimsLocalReads === true)) {
+        } else if (
+          isClaimedOnPickup(toolName, args, desktopClaimsLocalReads(options, desktopDeviceId))
+        ) {
           completion = await waitForDesktopToolCall({
             toolCallId,
             runId: context.runId,
             userId: execContext.userId,
             timeoutMs,
             pickupGraceMs: DESKTOP_TOOL_PICKUP_GRACE_MS,
+            desktopDeviceId,
             abortSignal: options.abortSignal,
             registry: execContext.resolvedSecretTraceRegistry,
           })
