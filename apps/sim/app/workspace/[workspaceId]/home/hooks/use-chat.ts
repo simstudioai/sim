@@ -1934,10 +1934,10 @@ export function useChat(
         for (let attempt = 0; Date.now() < deadline; attempt++) {
           if (attempt > 0) {
             await sleep(
-              Math.min(
-                PERSISTED_TURN_REFETCH_BASE_MS * 2 ** (attempt - 1),
-                PERSISTED_TURN_REFETCH_MAX_DELAY_MS
-              )
+              backoffWithJitter(attempt, null, {
+                baseMs: PERSISTED_TURN_REFETCH_BASE_MS,
+                maxMs: PERSISTED_TURN_REFETCH_MAX_DELAY_MS,
+              })
             )
           }
           if (locallyTerminalStreamIdRef.current !== streamId || chatIdRef.current !== chatId)
