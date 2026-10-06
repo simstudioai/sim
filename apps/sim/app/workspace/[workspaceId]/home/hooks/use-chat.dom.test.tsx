@@ -1322,6 +1322,62 @@ describe('useChat remount send recovery', () => {
     expect(getResult().isSending).toBe(true)
   })
 
+  /**
+   * The server admitted the send and finished its turn, but the POST's answer
+   * never arrived. Once the chat holds the message, a return resolves the turn
+   * rather than leaving the chat on Stop behind a POST that will not answer.
+   */
+  it('finishes an admitted turn whose POST never answered when the user returns', async () => {
+    let admitted = false
+    const history: MothershipChatHistory = {
+      id: 'chat-admitted-unanswered',
+      mode: 'agent',
+      title: 'Admitted, unanswered',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => {
+      const userMessageId = state.postBodies[0]?.userMessageId
+      return Promise.resolve({
+        chat: {
+          ...history,
+          messages:
+            admitted && userMessageId
+              ? [
+                  { id: userMessageId, role: 'user', content: 'Answer lost' },
+                  { id: 'saved-answer', role: 'assistant', content: 'Done.' },
+                ]
+              : [],
+        },
+      })
+    })
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return new Promise<Response>(() => {})
+      }
+      if (url.includes('/api/mothership/chat/stream')) {
+        return Response.json({ success: true, events: [], status: 'complete' })
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await act(async () => {
+      void getResult().sendMessage('Answer lost')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+
+    admitted = true
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+    })
+    await waitFor(() => !getResult().isSending)
+
+    expect(state.postBodies).toHaveLength(1)
+  })
+
   it('keeps re-attaching a long turn whose tails deliver events between separate network failures', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {

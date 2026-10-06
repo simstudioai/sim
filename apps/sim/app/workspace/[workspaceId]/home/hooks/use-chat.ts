@@ -3014,10 +3014,18 @@ export function useChat(
            one: it ended while nothing here was listening (its reader went silent, or a
            recovery it superseded was attached). Resolve that stream instead of
            leaving it running: its terminal state replays the rest and finalizes. A
-           send still waiting for its POST to be admitted is not such a stream: the
-           chat cannot list it yet, and recovering it would abort that POST. */
+           send whose POST has not answered yet is such a stream only once the loaded
+           chat holds its message (the server admitted it, and the answer is lost);
+           until then it may still be on its way, and recovering it would abort it. */
+        const pendingAdmission = pendingChatAdmissionRef.current
+        const admitted =
+          !pendingAdmission ||
+          (loadedStream.loaded &&
+            queryClient
+              .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+              ?.messages.some((message) => message.id === pendingAdmission.userMessageId) === true)
         const locallyRunningStreamId =
-          sendingRef.current && !pendingChatAdmissionRef.current
+          sendingRef.current && admitted
             ? (streamIdRef.current ?? activeTurnRef.current?.userMessageId)
             : undefined
         const streamId = loadedStream.loaded
