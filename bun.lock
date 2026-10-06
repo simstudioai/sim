@@ -290,6 +290,7 @@
         "@xterm/addon-webgl": "0.19.0",
         "@xterm/xterm": "6.0.0",
         "@xyflow/react": "12.11.3",
+        "acorn": "8.17.0",
         "ajv": "8.18.0",
         "archiver": "8.0.0",
         "better-auth": "1.6.27",

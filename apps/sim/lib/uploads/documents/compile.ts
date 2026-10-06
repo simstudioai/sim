@@ -21,7 +21,10 @@ import {
   storeCompiledDoc,
 } from '@/lib/uploads/documents/compiled-store'
 import { PPTX_SHIM_JS } from '@/lib/uploads/documents/pptx-shim'
-import { iterateDocumentFileReferences } from '@/lib/uploads/documents/references'
+import {
+  type DocumentSourceLanguage,
+  iterateDocumentFileReferences,
+} from '@/lib/uploads/documents/references'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -112,6 +115,20 @@ function isSimdocDeckSource(source: string): boolean {
   return source.trimStart().startsWith(SIMDOC_DECK_MARKER)
 }
 
+/** Selects the source dialect for dependency discovery, including retained legacy documents. */
+export function getDocumentSourceLanguage(
+  source: string,
+  format: E2BDocFormat,
+  sourceMime?: string
+): DocumentSourceLanguage {
+  if ((format.ext === 'pptx' || format.ext === 'docx') && isSimdocDeckSource(source))
+    return 'python'
+  if (sourceMime === 'text/x-pdflibjs') return 'javascript'
+  if (sourceMime === PYTHON_PDF_SOURCE_MIME || sourceMime === PYTHON_XLSX_SOURCE_MIME)
+    return 'python'
+  return format.engine === 'node' ? 'javascript' : 'python'
+}
+
 // The doc source is user/LLM-controlled, so bound how much it can pull into the
 // sandbox by BYTES (per file and total) — an authenticated member must not be
 // able to force very large workspace downloads to be base64-held in-process per
@@ -161,8 +178,12 @@ interface CompiledDocResult {
  * isolated-VM broker reaches files the static scan cannot see. Either one means these bytes can
  * change while this file's own stored source does not.
  */
-function touchesReferencedFiles(source: string, accessedCount: number): boolean {
-  return accessedCount > 0 || collectReferencedFileIds(source).size > 0
+function touchesReferencedFiles(
+  source: string,
+  accessedCount: number,
+  language: DocumentSourceLanguage
+): boolean {
+  return accessedCount > 0 || collectReferencedFileIds(source, language).size > 0
 }
 
 function referencedImageIdentities(
@@ -176,17 +197,13 @@ function referencedImageIdentities(
   }))
 }
 
-/**
- * Collects the workspace file ids a doc source references — from the injected
- * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
- * is scoped to the helper calls (not bare id-like strings in slide text), and the
- * caller skips any id that does not resolve to a real file, so over-matching is
- * harmless. Retention stops at one over the reference cap: callers need only
- * distinguish no references, an admissible set, and an oversized set.
- */
-export function collectReferencedFileIds(source: string): Set<string> {
+/** Collects static input identities, retaining one over the cap so callers can reject oversized sets. */
+export function collectReferencedFileIds(
+  source: string,
+  language: DocumentSourceLanguage
+): Set<string> {
   const ids = new Set<string>()
-  for (const { fileId } of iterateDocumentFileReferences(source)) {
+  for (const { fileId } of iterateDocumentFileReferences(source, language)) {
     ids.add(fileId)
     if (ids.size > MAX_REFERENCED_INPUTS) return ids
   }
@@ -194,10 +211,9 @@ export function collectReferencedFileIds(source: string): Set<string> {
 }
 
 async function resolveReferencedImages(
-  source: string,
   workspaceId: string,
   principal: Principal,
-  ids = collectReferencedFileIds(source)
+  ids: Set<string>
 ): Promise<ReferencedImageResolution> {
   if (ids.size > MAX_REFERENCED_INPUTS) {
     // User-fixable, not transient: each reference costs a metadata read, so an
@@ -561,7 +577,11 @@ async function buildCompiledDoc(
       referencedImages.artifactIdentity
     ),
     contentType: fmt.contentType,
-    dependsOnReferencedFiles: touchesReferencedFiles(args.source, contributingFiles.length),
+    dependsOnReferencedFiles: touchesReferencedFiles(
+      args.source,
+      contributingFiles.length,
+      getDocumentSourceLanguage(args.source, fmt)
+    ),
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
 }
@@ -668,7 +688,8 @@ async function compileDocInLegacySandbox(
       contentType: fmt.contentType,
       dependsOnReferencedFiles: touchesReferencedFiles(
         args.source,
-        cached.contributingFiles?.length ?? 0
+        cached.contributingFiles?.length ?? 0,
+        'javascript'
       ),
       ...(cached.contributingFiles && cached.contributingFiles.length > 0
         ? { contributingFiles: cached.contributingFiles }
@@ -692,7 +713,11 @@ async function compileDocInLegacySandbox(
   return {
     buffer,
     contentType: fmt.contentType,
-    dependsOnReferencedFiles: touchesReferencedFiles(args.source, contributingFiles.size),
+    dependsOnReferencedFiles: touchesReferencedFiles(
+      args.source,
+      contributingFiles.size,
+      'javascript'
+    ),
     ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
   }
 }
@@ -709,9 +734,8 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
   if (!isDocSandboxEnabled) return compileDocInLegacySandbox(args, fmt)
 
-  const referencedFileIds = collectReferencedFileIds(source)
+  const referencedFileIds = collectReferencedFileIds(source, getDocumentSourceLanguage(source, fmt))
   const referencedImages = await resolveReferencedImages(
-    source,
     workspaceId,
     args.filePrincipal,
     referencedFileIds
@@ -742,7 +766,11 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
         referencedImages.artifactIdentity
       ),
       contentType: fmt.contentType,
-      dependsOnReferencedFiles: touchesReferencedFiles(source, contributingFiles.length),
+      dependsOnReferencedFiles: touchesReferencedFiles(
+        source,
+        contributingFiles.length,
+        getDocumentSourceLanguage(source, fmt)
+      ),
       ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
     }
   }
@@ -772,7 +800,7 @@ async function loadCompiledDocByExt(
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const readOptions: CompiledDocReadOptions = { maxBytes: options.maxBytes, signal: options.signal }
-  const referencedFileIds = collectReferencedFileIds(source)
+  const referencedFileIds = collectReferencedFileIds(source, getDocumentSourceLanguage(source, fmt))
   if (!options.filePrincipal) {
     if (referencedFileIds.size === 0) {
       const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext, undefined, readOptions)
@@ -798,7 +826,6 @@ async function loadCompiledDocByExt(
     return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
   }
   const referencedImages = await resolveReferencedImages(
-    source,
     workspaceId,
     options.filePrincipal,
     referencedFileIds
@@ -942,7 +969,10 @@ export async function resolveServableDocBytes(args: {
   if (isCompiledDocumentBuffer(fileName, rawBuffer)) {
     return {
       buffer: rawBuffer,
-      contentType: getMimeTypeFromExtension(getFileExtension(fileName)),
+      contentType:
+        getFileExtension(fileName) === 'webm'
+          ? 'video/webm'
+          : getMimeTypeFromExtension(getFileExtension(fileName)),
       dependsOnReferencedFiles: false,
     }
   }
@@ -950,20 +980,26 @@ export async function resolveServableDocBytes(args: {
   if (!format && extNoDot !== 'xlsx') {
     return {
       buffer: rawBuffer,
-      contentType: getMimeTypeFromExtension(getFileExtension(fileName)),
+      contentType:
+        getFileExtension(fileName) === 'webm'
+          ? 'video/webm'
+          : getMimeTypeFromExtension(getFileExtension(fileName)),
       dependsOnReferencedFiles: false,
     }
   }
 
   const source = rawBuffer.toString('utf-8')
+  const fmt = await getE2BDocFormat(fileName)
+  if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
 
   if (workspaceId) {
     if (!isDocSandboxEnabled) {
-      const fmt = await getE2BDocFormat(fileName)
-      if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
       return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
     }
-    const referencedFileIds = collectReferencedFileIds(source)
+    const referencedFileIds = collectReferencedFileIds(
+      source,
+      getDocumentSourceLanguage(source, fmt)
+    )
     if (referencedFileIds.size > 0) {
       if (!filePrincipal) {
         const published = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
@@ -1000,7 +1036,8 @@ export async function resolveServableDocBytes(args: {
       // entry can hold contributor identities even though this call passed none.
       dependsOnReferencedFiles: touchesReferencedFiles(
         source,
-        cached.contributingFiles?.length ?? 0
+        cached.contributingFiles?.length ?? 0,
+        'javascript'
       ),
       ...(cached.contributingFiles && cached.contributingFiles.length > 0
         ? { contributingFiles: cached.contributingFiles }
@@ -1017,6 +1054,6 @@ export async function resolveServableDocBytes(args: {
   return {
     buffer: compiled,
     contentType: format.contentType,
-    dependsOnReferencedFiles: touchesReferencedFiles(source, 0),
+    dependsOnReferencedFiles: touchesReferencedFiles(source, 0, 'javascript'),
   }
 }

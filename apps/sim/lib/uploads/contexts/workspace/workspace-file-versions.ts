@@ -517,7 +517,7 @@ function withVersionSnapshot<T>(
   executor?: DbTransaction
 ): Promise<T> {
   const readSnapshot = async (tx: DbTransaction) => {
-    const [row] = await tx
+    const query = tx
       .select({
         key: workspaceFiles.key,
         sizeBytes: workspaceFiles.sizeBytes,
@@ -531,6 +531,7 @@ function withVersionSnapshot<T>(
       .from(workspaceFiles)
       .where(eq(workspaceFiles.id, file.id))
       .limit(1)
+    const [row] = await (executor ? query.for('share') : query)
     const snapshot: WorkspaceFileVersionSubject = row
       ? {
           id: file.id,

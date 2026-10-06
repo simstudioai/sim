@@ -28,6 +28,7 @@ import {
   chunkedBatchDeleteByScope,
   consumeRowBudget,
   DEFAULT_DELETE_CHUNK_SIZE,
+  DEFAULT_MAX_BATCHES_PER_TABLE,
   type RowBudget,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
@@ -849,9 +850,16 @@ export async function runCleanupSoftDeletes(
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
   const scope = resolveCleanupOwnerScope(payload)
+  const projectFileBudget = budgets?.files ?? {
+    remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+  }
+  const projectFolderBudget = budgets?.folders ?? {
+    remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
+  }
   for (const projectId of [...new Set(payload.projectIds ?? [])].sort()) {
-    await cleanupArchivedProjectFiles(projectId, budgets?.files)
-    await cleanupArchivedProjectFileFolders(projectId, budgets?.folders)
+    if (projectFileBudget.remaining <= 0 && projectFolderBudget.remaining <= 0) break
+    await cleanupArchivedProjectFiles(projectId, projectFileBudget)
+    await cleanupArchivedProjectFileFolders(projectId, projectFolderBudget)
   }
 
   if (scope.ids.length === 0) {

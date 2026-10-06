@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import {
   continueOutboxHandler,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxHandler,
   type OutboxHandlerRegistry,
@@ -28,6 +29,7 @@ import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/ty
 const EVENT_TYPE = 'project-file.storage.prefix-cleanup'
 const PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
+const RETIRED_PREFIX_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 type UploadCleanup = Pick<
   UploadSessionRecord,
@@ -36,9 +38,11 @@ type UploadCleanup = Pick<
 interface CleanupPayload {
   projectId: string
   uploads?: UploadCleanup[]
+  retained?: boolean
+  uploadCursor?: number
 }
 
-/** No transfer can be exposed after fresh admission fails, so retirement bounds its last signature. */
+/** Expired signatures stop new transfers, but a transfer already in progress may finish later. */
 function projectUploadCleanupAvailableAt(now = new Date()): Date {
   return new Date(now.getTime() + UPLOAD_URL_TTL_MS + CLOCK_SKEW_MS)
 }
@@ -52,7 +56,16 @@ function parsePayload(value: unknown): CleanupPayload {
   if (!isRecordLike(value) || typeof value.projectId !== 'string')
     throw new Error('Invalid Project cleanup payload')
   const prefix = prefixFor(value.projectId)
-  if (value.uploads === undefined) return { projectId: value.projectId }
+  const retained = value.retained === true
+  const uploadCursor = value.uploadCursor === undefined ? 0 : value.uploadCursor
+  if (
+    !Number.isSafeInteger(uploadCursor) ||
+    typeof uploadCursor !== 'number' ||
+    uploadCursor < 0 ||
+    uploadCursor > PAGE_SIZE
+  )
+    throw new Error('Invalid retired upload cursor')
+  if (value.uploads === undefined) return { projectId: value.projectId, retained, uploadCursor }
   if (!Array.isArray(value.uploads) || value.uploads.length > PAGE_SIZE)
     throw new Error('Invalid upload cleanup batch')
   const uploads = value.uploads.map((upload): UploadCleanup => {
@@ -78,7 +91,7 @@ function parsePayload(value: unknown): CleanupPayload {
       finalKey: upload.finalKey,
     }
   })
-  return { projectId: value.projectId, uploads }
+  return { projectId: value.projectId, uploads, retained, uploadCursor }
 }
 
 async function enqueueSweeps(
@@ -87,9 +100,14 @@ async function enqueueSweeps(
   retiredAt = new Date()
 ) {
   await enqueueOutboxEvent(executor, EVENT_TYPE, payload)
-  await enqueueOutboxEvent(executor, EVENT_TYPE, payload, {
-    availableAt: projectUploadCleanupAvailableAt(retiredAt),
-  })
+  await enqueueOutboxEvent(
+    executor,
+    EVENT_TYPE,
+    { ...payload, retained: true },
+    {
+      availableAt: projectUploadCleanupAvailableAt(retiredAt),
+    }
+  )
 }
 
 /** Must follow Project and payer locks and precede directory/file locks in the retirement transaction. */
@@ -266,7 +284,8 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
   if (owner) throw new Error('Cannot clean storage for an existing Project')
   const prefix = prefixFor(payload.projectId)
   const uploads = payload.uploads ?? []
-  for (const [index, upload] of uploads.entries()) {
+  for (let index = payload.uploadCursor ?? 0; index < uploads.length; index++) {
+    const upload = uploads[index]
     context.signal.throwIfAborted()
     try {
       await abortProviderUpload({
@@ -287,9 +306,9 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
         throw error
     }
     if ((index + 1) % 20 === 0 || index === uploads.length - 1)
-      await context.checkpointPayload({ uploads: uploads.slice(index + 1) })
+      await context.checkpointPayload({ uploadCursor: index + 1 })
     if (context.deadlineAt && Date.now() + 5000 >= context.deadlineAt) {
-      await context.checkpointPayload({ uploads: uploads.slice(index + 1) })
+      await context.checkpointPayload({ uploadCursor: index + 1 })
       return continueOutboxHandler('Continuing retired Project upload cleanup')
     }
   }
@@ -308,6 +327,17 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
     deleted++
   }
   if (keys.length >= PAGE_SIZE) return continueOutboxHandler('Continuing Project storage cleanup')
+  if (payload.retained) {
+    await context.checkpointPayload({ uploadCursor: 0 })
+    return {
+      ...deferOutboxHandler(
+        'Retired Project prefix remains subject to late transfer cleanup',
+        RETIRED_PREFIX_SWEEP_INTERVAL_MS,
+        false
+      ),
+      resetAttempts: true,
+    }
+  }
 }
 
 export const projectFilePrefixCleanupOutboxHandlers = {

@@ -442,11 +442,25 @@ describe('Private Project teardown and durable object cleanup', () => {
         .set({ availableAt: new Date(0) })
         .where(eq(outboxEvent.id, final.id))
       expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
-        'completed'
+        'pending'
       )
       await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
         code: 'ENOENT',
       })
+      await writeFile(join(storageRoot, upload.finalKey), 'finished-after-empty-sweep')
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: new Date(0), attempts: 4 })
+        .where(eq(outboxEvent.id, final.id))
+      expect(await processOutboxEventById(final.id, projectFilePrefixCleanupOutboxHandlers)).toBe(
+        'pending'
+      )
+      await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
+      const [retained] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, final.id))
+      expect(retained.attempts).toBe(0)
+      expect(retained.availableAt.getTime()).toBeGreaterThan(Date.now())
       const unsafe = generateId()
       await db.insert(outboxEvent).values({
         id: unsafe,

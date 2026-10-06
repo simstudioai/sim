@@ -184,9 +184,9 @@ export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegate
 
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
 
-/** Search-only authority delegated by a current organization member. */
 export type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
 
+/** Search-only authority delegated by a current organization member. */
 interface OrganizationDelegatedPrincipalBase {
   kind: 'organization_delegated'
   organizationId: string

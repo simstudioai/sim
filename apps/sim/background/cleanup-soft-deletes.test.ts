@@ -54,6 +54,7 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
   chunkedBatchDelete: mockChunkedBatchDelete,
   chunkedBatchDeleteByScope: mockScopedChunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE: 1000,
+  DEFAULT_MAX_BATCHES_PER_TABLE: 50,
   deleteRowsById: mockDeleteRowsById,
   selectRowsByIdChunks: mockSelectRowsByIdChunks,
 }))

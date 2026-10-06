@@ -118,7 +118,7 @@ function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
     for (const name of socket.rooms) {
       if (name === socket.id) continue
       const ref = parseRoomName(name)
-      if (!ref) continue
+      if (!ref || ref.id.includes(':')) continue
       targets.push({ room: ref, name, socket: authed, userId: authed.userId })
     }
   }

@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { localPutUploadContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
@@ -10,6 +11,8 @@ import {
   uploadSessionObjectMetadata,
 } from '@/lib/uploads/upload-session/service'
 import { v2Error, v2HttpError, v2UploadDataPlaneError } from '@/app/api/v2/lib/response'
+
+const logger = createLogger('LocalUpload')
 
 interface LocalPutRouteParams {
   params: Promise<{ uploadId: string }>
@@ -79,7 +82,14 @@ export const PUT = withRouteHandler(
         metadata: uploadSessionObjectMetadata(session),
       })
     } catch (error) {
-      await queueRetiredProjectUploadCleanup(session)
+      try {
+        await queueRetiredProjectUploadCleanup(session)
+      } catch (cleanupError) {
+        logger.error(
+          'Could not schedule retired upload cleanup; retirement reconciliation will retry',
+          { uploadId: session.id, error: cleanupError }
+        )
+      }
       if (error instanceof LocalUploadBodyError) {
         return v2Error('BAD_REQUEST', error.message)
       }

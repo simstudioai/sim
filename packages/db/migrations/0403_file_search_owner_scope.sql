@@ -132,6 +132,15 @@ BEGIN
     UPDATE workspace_file_search_build SET expires_at = now()
       WHERE id = (SELECT build_id FROM workspace_file_search_revision WHERE file_id = NEW.id);
     DELETE FROM workspace_file_search_revision WHERE file_id = NEW.id;
+    IF ROW(NEW.context, NEW.workspace_id, NEW.project_id)
+      IS DISTINCT FROM ROW(OLD.context, OLD.workspace_id, OLD.project_id) THEN
+      owner_type := CASE WHEN OLD.project_id IS NOT NULL THEN 'project' WHEN OLD.context = 'workspace' THEN 'workspace' END;
+      owner_id := coalesce(OLD.project_id, OLD.workspace_id);
+      IF owner_type IN ('workspace', 'project') AND OLD.context = owner_type AND owner_id IS NOT NULL THEN
+        INSERT INTO file_search_dispatch_queue (entity_type, entity_id) VALUES (owner_type, owner_id)
+          ON CONFLICT (entity_type, entity_id) DO UPDATE SET updated_at = now();
+      END IF;
+    END IF;
   END IF;
   owner_type := CASE WHEN NEW.project_id IS NOT NULL THEN 'project' WHEN NEW.context = 'workspace' THEN 'workspace' END;
   owner_id := coalesce(NEW.project_id, NEW.workspace_id);

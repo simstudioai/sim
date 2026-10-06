@@ -383,11 +383,15 @@ async function forEachCleanupChunk(
         }
       }
       for (const group of groups.values()) {
-        await emitChunk({
-          ...group,
-          workspaceIds: [],
-          label: `${group.plan}/projects/${group.projectIds[0]}`,
-        })
+        for (const projectId of group.projectIds) {
+          if (shouldStop()) break
+          await emitChunk({
+            ...group,
+            projectIds: [projectId],
+            workspaceIds: [],
+            label: `${group.plan}/projects/${projectId}`,
+          })
+        }
       }
     }
   }

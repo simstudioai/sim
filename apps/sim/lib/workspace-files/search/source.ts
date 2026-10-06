@@ -6,9 +6,11 @@ import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
+  getDocumentSourceLanguage,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
 } from '@/lib/uploads/documents'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import { compiledArtifactKey, loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import {
@@ -63,7 +65,19 @@ export async function loadFileSearchSource(
   if (!format || isCompiledDocumentBuffer(file.originalName, raw))
     return { file, bytes: { buffer: raw, kind: 'stored' }, dependencies: [] }
   const source = raw.toString('utf8')
-  const ids = [...new Set(collectReferencedFileIds(source))]
+  let ids: string[]
+  try {
+    ids = [
+      ...collectReferencedFileIds(
+        source,
+        getDocumentSourceLanguage(source, format, file.contentType)
+      ),
+    ]
+  } catch (error) {
+    if (error instanceof DocCompileUserError)
+      throw new FileSearchExclusionError('incomplete_extraction')
+    throw error
+  }
   if (ids.length > FILE_SEARCH_MAX_DEPENDENCIES)
     throw new FileSearchExclusionError('incomplete_extraction')
   const inputs =

@@ -65,19 +65,18 @@ export async function purgeProjectFilesInTx(
   }
   if (purgedBytes !== expectedBillableBytes)
     throw new Error('Project storage changed during retirement')
-  const removedFolders = await tx
-    .delete(folder)
-    .where(and(eq(folder.projectId, projectId), eq(folder.resourceType, 'file')))
-    .returning({ id: folder.id })
-  if (removedFolders.length)
-    await tx.delete(publicShare).where(
+  const ownedFolders = and(eq(folder.projectId, projectId), eq(folder.resourceType, 'file'))
+  await tx
+    .delete(publicShare)
+    .where(
       and(
         eq(publicShare.resourceType, 'folder'),
         inArray(
           publicShare.resourceId,
-          removedFolders.map((row) => row.id)
+          tx.select({ id: folder.id }).from(folder).where(ownedFolders)
         )
       )
     )
+  await tx.delete(folder).where(ownedFolders)
   return eventIds
 }
