@@ -638,4 +638,26 @@ describe('agent commands in tmux', () => {
       tmuxFake.gone.clear()
     }
   })
+
+  it('still stops at sign-out a run whose Sim terminal was closed', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-orphan', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.stopped).toEqual([[...tmuxFake.statusPaths.keys()][0]])
+    } finally {
+      tmuxFake.on = false
+    }
+  })
 })

@@ -671,12 +671,14 @@ describe('registration', () => {
     expect(journal.entries.size).toBe(0)
   })
 
-  it('settles an inbox read whose notifier throws instead of rejecting', async () => {
+  it('still claims the calls of an inbox read whose notifier throws', async () => {
     const sim = new FakeSim()
+    const runner = new FakeRunner()
+    runner.immediate = DONE
     const executor = new DesktopExecutor({
       client: sim.client,
       journal: new MemoryJournal(),
-      runner: new FakeRunner(),
+      runner,
       leaseRenewMs: 60_000,
       retryBaseMs: 5,
       onUnregistered: () => {},
@@ -685,7 +687,10 @@ describe('registration', () => {
       },
     })
 
+    sim.inbox = [callItem('call-1', 'chat-a')]
+
     await expect(executor.reconcile()).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
   })
 
   it('raises no approval from an inbox read that Sim answers after sign-out', async () => {
