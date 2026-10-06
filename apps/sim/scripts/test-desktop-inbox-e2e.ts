@@ -510,7 +510,7 @@ async function run() {
         desktop,
         chat.runId,
         'terminal',
-        { operation: 'run', command: 'npm run deploy' },
+        { operation: 'run', args: { command: 'npm run deploy' } },
         { gated: true }
       )
       const inbox = await pullInbox(desktop)

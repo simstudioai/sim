@@ -72,6 +72,23 @@ describe('waitForDesktopToolCall', () => {
 
     expect(answer).toMatchObject({ status: 'error', data: { notStarted: true } })
   })
+
+  it("settles a bound device's unclaimed call as never started when the turn's budget ends first", async () => {
+    desktopRepository.offerDesktopToolCall.mockResolvedValueOnce(true)
+    waitForClientToolCompletion.mockResolvedValueOnce(null)
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    const answer = await waitForDesktopToolCall({
+      ...params,
+      timeoutMs: 1_000,
+      desktopDeviceId: 'device-1',
+    })
+
+    expect(answer).toMatchObject({
+      status: 'error',
+      data: { notStarted: true, reason: 'not_responding' },
+    })
+  })
 })
 
 describe('settleAbandonedDesktopToolCalls', () => {

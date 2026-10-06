@@ -244,8 +244,10 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
 
   afterAll(async () => {
     if (chatIds.length) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
-    if (deviceIds.length)
+    if (deviceIds.length) {
+      await db.delete(auditLog).where(inArray(auditLog.resourceId, deviceIds))
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
+    }
     const workspaces = [...workspaceIds.values()]
     if (workspaces.length) await db.delete(workspace).where(inArray(workspace.id, workspaces))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
@@ -481,7 +483,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const toolCallId = await pendingCall(
         run.runId,
         'terminal',
-        { operation: 'run', command: 'npm test' },
+        { operation: 'run', args: { command: 'npm test' } },
         { awaitingApproval: true }
       )
       expect((await inbox(desktop)).items).toEqual([
@@ -512,7 +514,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])
       await expect(claim(desktop.principal, desktop.deviceId, toolCallId)).resolves.toMatchObject({
         toolName: 'terminal',
-        args: { operation: 'run', command: 'npm test' },
+        args: { operation: 'run', args: { command: 'npm test' } },
       })
     })
 
@@ -521,7 +523,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const run = await boundRun(desktop)
       const toolCallId = await pendingCall(run.runId, 'terminal', {
         operation: 'run',
-        command: 'ls',
+        args: { command: 'ls' },
       })
       expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])
     })
@@ -532,7 +534,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const toolCallId = await pendingCall(
         run.runId,
         'terminal',
-        { operation: 'run', command: 'rm -rf build' },
+        { operation: 'run', args: { command: 'rm -rf build' } },
         { awaitingApproval: true }
       )
       await db
@@ -818,6 +820,49 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       } finally {
         writes.mockRestore()
       }
+    })
+
+    it('lists new work however many calls the device is already running', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await db.insert(copilotAsyncToolCalls).values(
+        Array.from({ length: 501 }, () => ({
+          runId: run.runId,
+          toolCallId: generateId(),
+          toolName: 'browser_click',
+          args: { ref: 'e1' },
+          status: 'running' as const,
+          claimedBy: 'desktop-browser',
+          executionOwnerToken: generateId(),
+          executionLeaseExpiresAt: sql`now() + interval '1 minute'`,
+          createdAt: new Date(Date.now() - 60_000),
+        }))
+      )
+      /** A call Sim settled without the device's result, still to be acknowledged. */
+      const stopped = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: run.runId,
+        toolCallId: stopped,
+        toolName: 'browser_click',
+        args: { ref: 'e2' },
+        status: 'cancelled',
+        executionOwnerToken: generateId(),
+        executionRevokedAt: new Date(),
+        createdAt: new Date(Date.now() - 30_000),
+      })
+      const offered = await pendingCall(run.runId)
+      const gated = await pendingCall(
+        run.runId,
+        'terminal',
+        { operation: 'run', args: { command: 'make' } },
+        { awaitingApproval: true }
+      )
+
+      expect((await inbox(desktop)).items).toMatchObject([
+        { kind: 'cancel', toolCallId: stopped },
+        { kind: 'call', toolCallId: offered },
+        { kind: 'approval_needed', toolCallId: gated },
+      ])
     })
 
     it('lists pending calls in persistence order even when their doorbell was never heard', async () => {

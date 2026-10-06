@@ -1,4 +1,8 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
+
+const logger = createLogger('DesktopInboxDoorbell')
 
 /** Why a device should re-read its inbox. The event is only a hint; the inbox is the record. */
 export type DesktopInboxChangeReason = 'call' | 'approval' | 'cancel'
@@ -22,9 +26,21 @@ function channel(): PubSubChannel<DesktopInboxDoorbell> {
   return scope._desktopInboxDoorbell
 }
 
-/** Tells every pod serving this device's inbox stream that the inbox changed. */
+/**
+ * Tells every pod serving this device's inbox stream that the inbox changed. Best effort: the
+ * ring only hurries the device's next pull, and its periodic reconcile reads the same inbox, so a
+ * failed ring is logged and never fails the caller (Stop, a decision, an offer).
+ */
 export function ringDesktopInbox(deviceId: string, reason: DesktopInboxChangeReason): void {
-  channel().publish({ deviceId, reason })
+  try {
+    channel().publish({ deviceId, reason })
+  } catch (error) {
+    logger.warn('Could not ring the desktop inbox', {
+      deviceId,
+      reason,
+      error: toError(error).message,
+    })
+  }
 }
 
 /** Subscribes to one device's doorbell; returns the unsubscribe. */

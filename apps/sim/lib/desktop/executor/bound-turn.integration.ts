@@ -39,6 +39,7 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotAsyncToolCalls,
   copilotChats,
   copilotRuns,
@@ -363,8 +364,10 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
 
   afterAll(async () => {
     if (chatIds.length > 0) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
-    if (deviceIds.length > 0)
+    if (deviceIds.length > 0) {
+      await db.delete(auditLog).where(inArray(auditLog.resourceId, deviceIds))
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
+    }
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
@@ -545,7 +548,9 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
         (rings) => rings.length > 0
       )
       expect(desktop.rings).toEqual(['approval'])
-      expect((await desktop.pull()).items).toMatchObject([{ kind: 'approval_needed', toolCallId }])
+      expect((await desktop.pull()).items).toMatchObject([
+        { kind: 'approval_needed', toolCallId, summary: 'rm -rf build' },
+      ])
 
       const decided = await post(toolPermissionPOST, '/api/copilot/tool-permission', {
         decisions: [{ toolCallId, decision: 'allow' }],
@@ -559,6 +564,48 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       expect(desktop.rings).toEqual(['approval', 'approval', 'call'])
       const { executionToken } = await desktop.claim(toolCallId)
       await desktop.complete(toolCallId, executionToken, { output: 'removed' })
+      await answer
+
+      expect(resultOf(context, toolCallId)).toMatchObject({ success: true })
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'runs no pickup window while the user decides, and offers the call afresh once allowed',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      await desktop.pull()
+
+      const { toolCallId, answer, context } = await agentCalls(
+        run,
+        'terminal',
+        { operation: 'run', args: { command: 'make release' } },
+        { gated: true }
+      )
+      /** The user takes longer than a pickup window to answer, with a deadline already on the row. */
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          createdAt: new Date(Date.now() - 600_000),
+          pickupDeadlineAt: sql`now() - interval '5 minutes'`,
+        })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      await runCleanupStaleExecutions()
+      expect((await storedCall(toolCallId)).status).toBe('pending')
+      expect((await desktop.pull()).items).toMatchObject([{ kind: 'approval_needed', toolCallId }])
+
+      const decided = await post(toolPermissionPOST, '/api/copilot/tool-permission', {
+        decisions: [{ toolCallId, decision: 'allow' }],
+      })
+      expect(decided.status).toBe(200)
+      await until(
+        () => storedCall(toolCallId),
+        (row) => row.pickupDeadlineAt !== null && row.pickupDeadlineAt.getTime() > Date.now()
+      )
+      const { executionToken } = await desktop.claim(toolCallId)
+      await desktop.complete(toolCallId, executionToken, { output: 'released' })
       await answer
 
       expect(resultOf(context, toolCallId)).toMatchObject({ success: true })

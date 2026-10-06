@@ -13,6 +13,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   notInArray,
   or,
   type SQL,
@@ -152,55 +153,64 @@ export async function touchDesktopDevice(deviceId: string): Promise<void> {
 }
 
 /**
- * The rows a device's inbox is built from: every unclaimed pending desktop call on its recent open
- * runs, plus every call it claimed and has not yet acknowledged. Pending calls on stopped or ended
- * runs are left out here, so they cannot crowd actionable rows past the limit. Ordered by
- * persistence time, the order the device claims in.
+ * The rows a device's inbox is built from, in two sets with their own limits so neither can crowd
+ * out the other: unclaimed calls on its recent open runs that are offered or waiting for the
+ * user's decision, and calls it claimed that Sim settled without its result and it has not yet
+ * acknowledged (cancel items). A call the device is still running is never listed: it already
+ * holds it. Ordered by persistence time, the order the device claims in.
  */
 export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity, 'sessionId'>) {
-  return db
-    .select({
-      toolCallId: copilotAsyncToolCalls.toolCallId,
-      toolName: copilotAsyncToolCalls.toolName,
-      args: copilotAsyncToolCalls.args,
-      status: copilotAsyncToolCalls.status,
-      permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
-      permissionDecision: copilotAsyncToolCalls.permissionDecision,
-      claimed: sql<boolean>`${copilotAsyncToolCalls.executionOwnerToken} IS NOT NULL`,
-      createdAt: copilotAsyncToolCalls.createdAt,
-      chatId: copilotRuns.chatId,
-      chatTitle: copilotChats.title,
-      workspaceId: copilotRuns.workspaceId,
-    })
-    .from(copilotRuns)
-    .innerJoin(copilotAsyncToolCalls, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
-    .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
-    .where(
-      and(
-        eq(copilotRuns.desktopDeviceId, identity.deviceId),
-        eq(copilotRuns.userId, identity.userId),
-        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-        inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
-        or(
-          and(
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-            isNull(copilotAsyncToolCalls.executionOwnerToken),
-            or(
-              sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`,
-              awaitingPermission
-            ),
-            inArray(copilotRuns.status, LIVE_RUN_STATUSES),
-            isNull(copilotRuns.toolAdmissionClosedAt)
-          ),
-          and(
-            isNotNull(copilotAsyncToolCalls.executionOwnerToken),
-            isNull(copilotAsyncToolCalls.executionSettledAt)
-          )
+  const rowsWhere = (state: SQL | undefined) =>
+    db
+      .select({
+        toolCallId: copilotAsyncToolCalls.toolCallId,
+        toolName: copilotAsyncToolCalls.toolName,
+        args: copilotAsyncToolCalls.args,
+        status: copilotAsyncToolCalls.status,
+        permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
+        permissionDecision: copilotAsyncToolCalls.permissionDecision,
+        claimed: sql<boolean>`${copilotAsyncToolCalls.executionOwnerToken} IS NOT NULL`,
+        createdAt: copilotAsyncToolCalls.createdAt,
+        chatId: copilotRuns.chatId,
+        chatTitle: copilotChats.title,
+        workspaceId: copilotRuns.workspaceId,
+      })
+      .from(copilotRuns)
+      .innerJoin(copilotAsyncToolCalls, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+      .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+      .where(
+        and(
+          eq(copilotRuns.desktopDeviceId, identity.deviceId),
+          eq(copilotRuns.userId, identity.userId),
+          sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
+          inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
+          state
         )
       )
-    )
-    .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
-    .limit(INBOX_ROW_LIMIT)
+      .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
+      .limit(INBOX_ROW_LIMIT)
+  const [waiting, cancelled] = await Promise.all([
+    rowsWhere(
+      and(
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+        isNull(copilotAsyncToolCalls.executionOwnerToken),
+        or(sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`, awaitingPermission),
+        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
+        isNull(copilotRuns.toolAdmissionClosedAt)
+      )
+    ),
+    rowsWhere(
+      and(
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        ne(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running)
+      )
+    ),
+  ])
+  return [...waiting, ...cancelled].sort(
+    (a, b) =>
+      a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
+  )
 }
 
 export type DesktopInboxRow = Awaited<ReturnType<typeof listDesktopInboxRows>>[number]
@@ -295,7 +305,9 @@ export async function getRunDesktopDeviceId(runId: string): Promise<string | nul
 
 /**
  * Offers a pending call on a bound run to its device by opening its pickup window. Only an
- * unclaimed call can be offered, and only once, so a re-dispatched call keeps its first deadline.
+ * unclaimed call the user is not still deciding on can be offered, and only once, so a
+ * re-dispatched call keeps its first deadline; recording the user's decision clears it, so an
+ * allowed call's window starts when it is offered after the answer.
  */
 export async function offerDesktopToolCall(input: {
   toolCallId: string
@@ -313,6 +325,7 @@ export async function offerDesktopToolCall(input: {
         eq(copilotAsyncToolCalls.runId, input.runId),
         eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
         isNull(copilotAsyncToolCalls.pickupDeadlineAt),
+        sql`NOT (${awaitingPermission})`,
         sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id IS NOT NULL)`
       )
     )

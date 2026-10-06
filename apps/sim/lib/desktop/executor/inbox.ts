@@ -27,9 +27,11 @@ export type DesktopInboxEntry =
     }
   | { kind: 'cancel'; toolCallId: string }
 
+/** The command a gated terminal run would execute: `{ operation: 'run', args: { command } }`. */
 function summarize(args: Record<string, unknown>): string | null {
-  return typeof args.command === 'string' && args.command.trim()
-    ? truncate(args.command.trim(), SUMMARY_MAX_LENGTH)
+  const command = isPlainRecord(args.args) ? args.args.command : undefined
+  return typeof command === 'string' && command.trim()
+    ? truncate(command.trim(), SUMMARY_MAX_LENGTH)
     : null
 }
 

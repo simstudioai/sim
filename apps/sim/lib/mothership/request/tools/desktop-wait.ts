@@ -163,13 +163,29 @@ async function waitForChatViewDesktopToolCall(
 async function waitForBoundDesktopToolCall(
   params: WaitForDesktopToolCallParams & { runId: string; desktopDeviceId: string }
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const { toolCallId, runId, desktopDeviceId, pickupGraceMs } = params
+  const { toolCallId, runId, desktopDeviceId, pickupGraceMs, abortSignal } = params
   await offerDesktopToolCall({ toolCallId, runId, pickupGraceMs })
   ringDesktopInbox(desktopDeviceId, 'call')
-  return waitForClientToolCompletion({
+  const completion = await waitForClientToolCompletion({
     ...params,
     settleOverdue: () => settleOverdueDesktopToolCall(toolCallId),
   })
+  if (completion || abortSignal?.aborted) return completion
+
+  // The turn's budget ran out first (shorter than the pickup window): a call still unclaimed
+  // never started, and settling it, as the inverse of the claim, keeps the device from running it.
+  const notStarted = desktopToolNotStarted('not_responding')
+  const settlement = await settleToolCallFailure({
+    toolCallId,
+    runId,
+    userId: params.userId,
+    registry: params.registry,
+    ...notStarted,
+    unclaimedOnly: true,
+  })
+  if (settlement !== 'settled') return null
+  recordDegraded(CopilotDegradedReason.ClientPickupTimeout)
+  return { status: MothershipStreamV1ToolOutcome.error, ...notStarted }
 }
 
 async function settleBoundDesktopToolCall(

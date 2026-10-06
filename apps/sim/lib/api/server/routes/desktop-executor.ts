@@ -26,9 +26,11 @@ export const desktopExecutorErrorPolicy = extendInternalErrorPolicy(
 
 /**
  * One busy device renews a lease per running call every 20 s and pulls its inbox on every
- * doorbell, so the bucket allows a sustained 10 requests a second per user.
+ * doorbell, so the bucket allows a sustained 10 requests a second per user. It refills every
+ * second rather than once a minute: a device that spent its burst must still renew its leases
+ * well before they lapse.
  */
 export const desktopExecutorRateLimit = internalRateLimits.user({
   bucketName: 'desktop-executor',
-  config: { maxTokens: 600, refillRate: 600, refillIntervalMs: 60_000 },
+  config: { maxTokens: 600, refillRate: 10, refillIntervalMs: 1_000 },
 })

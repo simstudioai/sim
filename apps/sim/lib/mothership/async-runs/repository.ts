@@ -1738,6 +1738,8 @@ export async function recordToolPermissionDecision(
         .set({
           permissionDecision: decision,
           permissionDecidedAt: now,
+          // No pickup window runs while the user decides: an allowed call is offered afresh.
+          pickupDeadlineAt: null,
           updatedAt: now,
         })
         .where(
