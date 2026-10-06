@@ -324,11 +324,11 @@ export const PlaneBlock: BlockConfig = {
     },
     {
       id: 'parentId',
-      title: 'Parent Work Item ID',
+      title: 'Parent ID',
       type: 'short-input',
-      placeholder: 'Parent work item UUID',
+      placeholder: 'Parent work item UUID (or parent label UUID when creating a label)',
       mode: 'advanced',
-      condition: { field: 'operation', value: [...WORK_ITEM_WRITE_OPS] },
+      condition: { field: 'operation', value: [...WORK_ITEM_WRITE_OPS, 'plane_create_label'] },
     },
     {
       id: 'estimatePointId',
@@ -496,14 +496,6 @@ export const PlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'plane_create_label' },
     },
     {
-      id: 'labelParentId',
-      title: 'Parent Label ID',
-      type: 'short-input',
-      placeholder: 'Parent label UUID',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'plane_create_label' },
-    },
-    {
       id: 'cycleView',
       title: 'Cycles to Show',
       type: 'dropdown',
@@ -631,7 +623,6 @@ export const PlaneBlock: BlockConfig = {
           projectIdentifier,
           linkUrl,
           linkTitle,
-          labelParentId,
           ...rest
         } = params
         const result: Record<string, unknown> = { ...rest }
@@ -651,17 +642,14 @@ export const PlaneBlock: BlockConfig = {
 
         switch (operation) {
           case 'plane_get_work_item_by_identifier':
-            result.identifier = workItemIdentifier
+            if (workItemIdentifier !== undefined) result.identifier = workItemIdentifier
             break
           case 'plane_create_project':
-            result.identifier = projectIdentifier
+            if (projectIdentifier !== undefined) result.identifier = projectIdentifier
             break
           case 'plane_create_link':
-            result.url = linkUrl
-            result.title = linkTitle
-            break
-          case 'plane_create_label':
-            result.parentId = labelParentId
+            if (linkUrl !== undefined) result.url = linkUrl
+            if (linkTitle !== undefined) result.title = linkTitle
             break
           case 'plane_upload_attachment': {
             const normalizedFile = normalizeFileInput(file, { single: true })
@@ -692,7 +680,7 @@ export const PlaneBlock: BlockConfig = {
     labelIds: { type: 'string', description: 'Comma-separated label IDs' },
     startDate: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
     targetDate: { type: 'string', description: 'Target date (YYYY-MM-DD)' },
-    parentId: { type: 'string', description: 'Parent work item ID' },
+    parentId: { type: 'string', description: 'Parent work item ID, or parent label ID for labels' },
     estimatePointId: { type: 'string', description: 'Estimate point ID' },
     typeId: { type: 'string', description: 'Work item type ID' },
     externalSource: { type: 'string', description: 'External system name' },
@@ -711,7 +699,6 @@ export const PlaneBlock: BlockConfig = {
     defaultAssigneeId: { type: 'string', description: 'Default assignee user ID' },
     timezone: { type: 'string', description: 'Project timezone' },
     color: { type: 'string', description: 'Label color (hex)' },
-    labelParentId: { type: 'string', description: 'Parent label ID' },
     cycleView: { type: 'string', description: 'Which cycles to list' },
     cycleId: { type: 'string', description: 'Cycle ID' },
     moduleId: { type: 'string', description: 'Module ID' },

@@ -172,7 +172,8 @@ const isUploadedFileRecord = (value: unknown): value is { name: string } =>
   typeof value.name === 'string' &&
   value.name.trim() !== '' &&
   typeof value.path === 'string' &&
-  typeof value.size === 'number'
+  typeof value.size === 'number' &&
+  typeof value.type === 'string'
 
 /**
  * Attempts to parse a JSON string, returning the parsed value or the
