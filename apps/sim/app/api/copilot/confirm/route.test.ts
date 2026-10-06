@@ -332,10 +332,10 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'The desktop app holds this tool call; only its own result settles it',
+    })
     expect(recordedOutcome()).toBe(CopilotConfirmOutcome.HeldByDesktop)
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {

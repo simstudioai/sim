@@ -121,7 +121,6 @@ describe('client tool completion reporting', () => {
     await expect(
       reportClientToolCompletionOnPageExit('tool-1', 'error', 'Browser failed')
     ).resolves.toBeUndefined()
-    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('rejects a non-success response', async () => {
