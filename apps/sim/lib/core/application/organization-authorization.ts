@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import { requireUnrestrictedExecution } from '@/lib/core/application/execution-restriction'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
@@ -108,6 +109,9 @@ export async function authorizeOrganizationOperation(
   context: OrganizationAuthorizationContext,
   options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
+  requireUnrestrictedExecution(
+    principal.kind === 'delegated' ? principal.executionRestriction : undefined
+  )
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }

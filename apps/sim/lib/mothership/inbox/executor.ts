@@ -1,8 +1,8 @@
-import { copilotChats, db, mothershipInboxTask, user, workspace } from '@sim/db'
+import { copilotChats, db, mothershipInboxTask, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
@@ -15,6 +15,7 @@ import {
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { admitInboxTask, inboxExecutionRestriction } from '@/lib/mothership/inbox/admission'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
@@ -24,11 +25,7 @@ import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/
 import { requestChatTitle } from '@/lib/mothership/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import {
-  checkWorkspaceAccess,
-  getUserEntityPermissions,
-  type PermissionType,
-} from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, type PermissionType } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
@@ -67,6 +64,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       id: workspace.id,
       ownerId: workspace.ownerId,
       inboxProviderId: workspace.inboxProviderId,
+      inboxEnabled: workspace.inboxEnabled,
       inboxSecretScope: workspace.inboxSecretScope,
       inboxMountedSecrets: workspace.inboxMountedSecrets,
     })
@@ -87,20 +85,29 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   let responseSent = false
 
   try {
-    const [[claimed], actor] = await Promise.all([
-      db
-        .update(mothershipInboxTask)
-        .set({ status: 'processing', processingStartedAt: new Date() })
-        .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
-        .returning({ id: mothershipInboxTask.id }),
-      resolveInboxExecutionActor(inboxTask.fromEmail, ws),
-    ])
-    const userId = actor.executionUserId
-
-    if (!claimed) {
-      logger.info('Task already claimed by another execution, skipping', { taskId })
-      return
-    }
+    const [claimed] = await db
+      .update(mothershipInboxTask)
+      .set({ status: 'processing', processingStartedAt: new Date() })
+      .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
+      .returning({ id: mothershipInboxTask.id })
+    if (!claimed) return
+    if (!ws.inboxEnabled || !ws.inboxProviderId) throw new Error('Inbox is no longer available')
+    const admission = await admitInboxTask({
+      taskId,
+      senderEmail: inboxTask.fromEmail,
+      workspaceId: ws.id,
+      ownerId: ws.ownerId,
+      existing: inboxTask.executionAdmission,
+    })
+    await db
+      .update(mothershipInboxTask)
+      .set({ executionAdmission: admission })
+      .where(eq(mothershipInboxTask.id, taskId))
+    const executionRestriction = inboxExecutionRestriction(admission)
+    const userId = admission.executionUserId
+    const actor = { executionUserId: userId, secretActorUserId: admission.memberUserId }
+    // A new external admission must not replay a member's private history or workbench.
+    if (executionRestriction) chatId = null
 
     // Blocked senders and banned accounts must not drive the agent; the sender
     // email is checked directly (domain list + the sender's own account ban)
@@ -232,6 +239,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
     const userPermission = inboxToolPermission(actor, workspaceAccess.permission)
+    if (!userPermission) throw new Error('Inbox execution identity has no workspace access')
     const secretMountPolicy = normalizeSecretMountPolicy({
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
@@ -262,6 +270,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
+      executionRestriction,
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
@@ -392,27 +401,6 @@ function inboxToolPermission(
 ): PermissionType | null {
   if (actor.secretActorUserId !== null) return workspacePermission
   return workspacePermission === null ? null : 'read'
-}
-
-async function resolveInboxExecutionActor(
-  senderEmail: string,
-  ws: { id: string; ownerId: string }
-): Promise<InboxExecutionActor> {
-  const [matchedUser] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(sql`lower(${user.email}) = ${senderEmail.toLowerCase()}`)
-    .orderBy(user.createdAt)
-    .limit(1)
-
-  if (matchedUser) {
-    const permission = await getUserEntityPermissions(matchedUser.id, 'workspace', ws.id)
-    if (permission !== null) {
-      return { executionUserId: matchedUser.id, secretActorUserId: matchedUser.id }
-    }
-  }
-
-  return { executionUserId: ws.ownerId, secretActorUserId: null }
 }
 
 /**

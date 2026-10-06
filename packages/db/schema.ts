@@ -7401,6 +7401,7 @@ export const mothershipInboxTask = pgTable(
     responseMessageId: text('response_message_id'),
     agentmailMessageId: text('agentmail_message_id'),
     status: text('status').notNull().default('received'),
+    executionAdmission: jsonb('execution_admission').$type<Record<string, unknown>>(),
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'set null' }),
     triggerJobId: text('trigger_job_id'),
     resultSummary: text('result_summary'),

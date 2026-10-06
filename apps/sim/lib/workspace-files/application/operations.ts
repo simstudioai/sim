@@ -35,6 +35,7 @@ const UPLOAD_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 export const fileOperations = {
   list: defineWorkspaceOperation({
     id: 'files.list',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -43,6 +44,7 @@ export const fileOperations = {
   }),
   readMetadata: defineWorkspaceOperation({
     id: 'files.read_metadata',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -51,6 +53,7 @@ export const fileOperations = {
   }),
   readContent: defineWorkspaceOperation({
     id: 'files.read_content',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -59,6 +62,7 @@ export const fileOperations = {
   }),
   searchContent: defineWorkspaceOperation({
     id: 'files.search_content',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -67,6 +71,7 @@ export const fileOperations = {
   }),
   download: defineWorkspaceOperation({
     id: 'files.download',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -222,6 +227,7 @@ export const fileOperations = {
   }),
   listFolders: defineWorkspaceOperation({
     id: 'files.folders.list',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',

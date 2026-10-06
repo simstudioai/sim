@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
+import { ExternalMailerRestriction } from "./execution-restriction";
 import { IntegrationCatalogContext } from "./integration-catalog";
 import { SimConnection } from "./sim-transport";
 
@@ -143,6 +144,7 @@ export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
 
 export const ChatPayloadSchema = z
   .strictObject({
+    executionRestriction: ExternalMailerRestriction.optional(),
     desktop: DesktopContextSchema.optional(),
     simConnection: SimConnection.optional(),
     message: z.string().min(1),
@@ -195,6 +197,21 @@ export const ChatPayloadSchema = z
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.executionRestriction &&
+      (value.workspaceId !== value.executionRestriction.workspaceId ||
+        value.organizationId ||
+        value.workflowId ||
+        value.desktop ||
+        value.mode === "assistant" ||
+        value.mode === "plan" ||
+        value.integrationCatalog ||
+        value.inventory ||
+        value.origin ||
+        !value.chatId ||
+        !value.messageId)
+    )
+      ctx.addIssue({ code: "custom", message: "Invalid external Mailer scope" });
     if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
       ctx.addIssue({
         code: "custom",

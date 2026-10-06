@@ -27,9 +27,13 @@ const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-function readOperation<const Id extends string>(id: Id) {
+function readOperation<const Id extends string>(
+  id: Id,
+  restrictedExternalAccess?: 'workspace_read'
+) {
   return defineWorkspaceOperation({
     id,
+    restrictedExternalAccess,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -72,9 +76,13 @@ function toolWriteOperation<const Id extends string>(
   })
 }
 
-function toolReadOperation<const Id extends string>(id: Id) {
+function toolReadOperation<const Id extends string>(
+  id: Id,
+  restrictedExternalAccess?: 'workspace_read'
+) {
   return defineWorkspaceOperation({
     id,
+    restrictedExternalAccess,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -110,10 +118,11 @@ function stagedWriteOperation<const Id extends string>(id: Id) {
 }
 
 export const tableOperations = {
-  list: toolReadOperation('tables.list'),
-  read: toolReadOperation('tables.read'),
+  list: toolReadOperation('tables.list', 'workspace_read'),
+  read: toolReadOperation('tables.read', 'workspace_read'),
   readSnapshot: defineWorkspaceOperation({
     id: 'tables.snapshot.read',
+    restrictedExternalAccess: 'workspace_read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'tables.use',
@@ -125,7 +134,7 @@ export const tableOperations = {
   restore: writeOperation('tables.restore'),
   bulkMove: writeOperation('tables.bulk_move'),
   bulkDelete: writeOperation('tables.bulk_delete'),
-  listFolders: readOperation('tables.folders.list'),
+  listFolders: readOperation('tables.folders.list', 'workspace_read'),
   createFolder: writeOperation('tables.folders.create'),
   updateFolder: writeOperation('tables.folders.update'),
   deleteFolder: writeOperation('tables.folders.delete'),
@@ -133,7 +142,7 @@ export const tableOperations = {
   addColumn: writeOperation('tables.columns.add'),
   updateColumn: writeOperation('tables.columns.update'),
   deleteColumn: writeOperation('tables.columns.delete'),
-  listRows: readOperation('tables.rows.list'),
+  listRows: readOperation('tables.rows.list', 'workspace_read'),
   analytics: defineWorkspaceOperation({
     id: 'tables.rows.analytics',
     minimumRole: 'read',
@@ -141,9 +150,9 @@ export const tableOperations = {
     capability: 'tables.use',
     principalKinds: ['session'],
   }),
-  queryRows: toolReadOperation('tables.rows.query'),
-  searchRows: readOperation('tables.rows.search'),
-  readRow: toolReadOperation('tables.rows.read'),
+  queryRows: toolReadOperation('tables.rows.query', 'workspace_read'),
+  searchRows: readOperation('tables.rows.search', 'workspace_read'),
+  readRow: toolReadOperation('tables.rows.read', 'workspace_read'),
   createRows: toolWriteOperation('tables.rows.create', 'tables.use'),
   replaceRows: writeOperation('tables.rows.replace'),
   updateRow: toolWriteOperation('tables.rows.update', 'tables.use'),
@@ -151,18 +160,18 @@ export const tableOperations = {
   deleteRow: toolWriteOperation('tables.rows.delete', 'tables.use'),
   deleteRows: toolWriteOperation('tables.rows.delete_many', 'tables.use'),
   upsertRow: toolWriteOperation('tables.rows.upsert', 'tables.use'),
-  listViews: readOperation('tables.views.list'),
-  readView: readOperation('tables.views.read'),
+  listViews: readOperation('tables.views.list', 'workspace_read'),
+  readView: readOperation('tables.views.read', 'workspace_read'),
   createView: writeOperation('tables.views.create'),
   updateView: writeOperation('tables.views.update'),
   deleteView: writeOperation('tables.views.delete'),
-  listGroups: readOperation('tables.groups.list'),
+  listGroups: readOperation('tables.groups.list', 'workspace_read'),
   createGroup: toolWriteOperation('tables.groups.create', 'tables.use'),
   updateGroup: toolWriteOperation('tables.groups.update', 'tables.use'),
   deleteGroup: toolWriteOperation('tables.groups.delete', 'tables.use'),
   startRun: writeOperation('tables.runs.start'),
   /** Reading the state of a run — including one you started — is a read. */
-  readRun: readOperation('tables.runs.read'),
+  readRun: readOperation('tables.runs.read', 'workspace_read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
   createImport: stagedWriteOperation('tables.imports.create'),
   readImport: stagedReadOperation('tables.imports.read', 'tables.use', 'api:read'),

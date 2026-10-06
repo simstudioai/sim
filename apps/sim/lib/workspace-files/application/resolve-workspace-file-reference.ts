@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/application'
+import { resolveExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
@@ -56,6 +57,11 @@ export async function resolveReferencedWorkspaceFileContext(
   input: WorkspaceFileReferenceInput,
   options?: WorkspaceFileLookupOptions
 ): Promise<ReferencedWorkspaceFileContext> {
+  const lookupOptions = resolveExecutionRestriction(
+    principal.kind === 'delegated' ? principal.executionRestriction : undefined
+  )
+    ? { ...options, includeChatUploads: false }
+    : options
   const chatId =
     (principal.kind === 'delegated' && principal.serviceId === 'copilot'
       ? principal.resourceScope?.chatId
@@ -65,13 +71,13 @@ export async function resolveReferencedWorkspaceFileContext(
       ? await resolveStoredWorkspaceFileReference(
           input.workspaceId,
           input.reference,
-          chatId === undefined ? options : { ...options, chatId }
+          chatId === undefined ? lookupOptions : { ...lookupOptions, chatId }
         )
       : await getWorkspaceFileByName(input.workspaceId, input.reference, {
           folderId: input.folderId,
         })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  const canonical = await loadActiveWorkspaceFileContext(file.id, options)
+  const canonical = await loadActiveWorkspaceFileContext(file.id, lookupOptions)
   if (!canonical || canonical.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('not_found', 'File not found')
   }

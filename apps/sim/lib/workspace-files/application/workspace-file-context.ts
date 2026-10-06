@@ -1,3 +1,4 @@
+import { resolveExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
@@ -22,7 +23,7 @@ export async function resolveActiveWorkspaceFileContext(
 ): Promise<ActiveWorkspaceFileContext> {
   const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
     includeDeleted: input.includeDeleted,
-    includeChatUploads: input.includeChatUploads,
+    includeChatUploads: resolveExecutionRestriction() ? false : input.includeChatUploads,
   })
   if (
     !canonical ||

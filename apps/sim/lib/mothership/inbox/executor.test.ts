@@ -89,7 +89,7 @@ vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
 }))
 
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
-  requestChatTitle: vi.fn(),
+  requestChatTitle: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
@@ -132,6 +132,7 @@ const WORKSPACE = {
   id: 'workspace-1',
   ownerId: 'owner-1',
   inboxProviderId: 'provider-1',
+  inboxEnabled: true,
   inboxSecretScope: 'selected',
   inboxMountedSecrets: ['INBOX_KEY'],
 }
@@ -139,6 +140,7 @@ const WORKSPACE = {
 describe('Inbox execution actor', () => {
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.mothershipInboxAllowedSender, [{ id: 'allowed-sender' }])
     mockBuildIntegrationToolSchemas.mockResolvedValue([
       { name: 'gmail_search_v2', input_schema: { type: 'object' } },
     ])
@@ -281,8 +283,7 @@ describe('Inbox execution actor', () => {
 
     await executeInboxTask('task-1')
 
-    const [, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
-    expect(options.userPermission).toBeUndefined()
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
   it.each(['member', 'external'])(

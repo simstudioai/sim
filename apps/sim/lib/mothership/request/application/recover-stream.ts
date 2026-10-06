@@ -72,6 +72,7 @@ export const readChatStream = defineAuthorizedChatUseCase({
     const { run, chatId, userId, workspaceId, organizationId } = context
     if (isTerminalStreamStatus(run.status)) return run
     const saved = run.requestContext as Record<string, unknown> | null
+    if (saved?.executionRestriction) return run
     const config = StreamRecoveryConfigSchema.safeParse(saved?.recovery)
     if (!config.success || typeof saved?.controllerToken !== 'string') return run
     const intent = config.data.request

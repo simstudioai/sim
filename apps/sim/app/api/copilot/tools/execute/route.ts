@@ -9,6 +9,7 @@ import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-c
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { restoreInboxRestriction } from '@/lib/mothership/inbox/admission'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
@@ -56,6 +57,7 @@ async function getTurnEgressRegistry(
   }
   const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId, {
     includeSecrets: requestMode !== 'assistant',
+    protectCatalog: requestMode === 'external_mailer',
   })
   for (const [cachedKey, cached] of turnRegistryCache) {
     if (cached.expiresAt <= now) turnRegistryCache.delete(cachedKey)
@@ -122,6 +124,21 @@ export const POST = withRouteHandler((request: NextRequest) =>
         assistantSearch,
         targetWorkspaceId,
       } = validation.data
+      let executionRestriction
+      try {
+        executionRestriction = await restoreInboxRestriction({
+          userId,
+          workspaceId,
+          organizationId,
+          chatId,
+          streamId: messageId,
+        })
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Tool execution admission is unavailable' },
+          { status: 403 }
+        )
+      }
       rootSpan.setAttributes({
         [TraceAttr.ToolName]: toolName,
         [TraceAttr.ToolCallId]: toolCallId,
@@ -158,7 +175,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
           userId,
           workspaceId,
           messageId,
-          requestMode,
+          executionRestriction ? 'external_mailer' : requestMode,
           organizationId
         )
         toolRegistry = turnRegistry.forkForInputPaths([])
@@ -203,6 +220,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         // with "Unknown server tool".
         await ensureHandlersRegistered()
         const result = await executeTool(toolName, params, {
+          executionRestriction,
           userId,
           workflowId: workflowId ?? '',
           workspaceId,
@@ -213,7 +231,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
           parentToolCallId,
           userPermission,
           copilotToolExecution: true,
-          copilotInteractionMode: 'interactive',
+          copilotInteractionMode: executionRestriction ? 'headless' : 'interactive',
           requestMode,
           assistantSearch,
           targetWorkspaceId,

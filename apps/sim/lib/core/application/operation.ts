@@ -44,6 +44,7 @@ const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = [
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
+  readonly restrictedExternalAccess?: 'workspace_read'
   /** Required by definitions that admit OAuth; independent of the user's membership role. */
   readonly oauthScope?: OAuthApiScope
   /**

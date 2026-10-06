@@ -1,0 +1,1 @@
+ALTER TABLE "mothership_inbox_task" ADD COLUMN "execution_admission" jsonb;

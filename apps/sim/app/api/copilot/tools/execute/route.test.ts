@@ -1,3 +1,4 @@
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import {
   mothershipEnvironmentContextMock,
@@ -62,6 +63,15 @@ const BASE_BODY = {
 
 describe('POST /api/copilot/tools/execute (in-band)', () => {
   beforeEach(() => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.copilotRuns, [
+      {
+        chatId: BASE_BODY.chatId,
+        workspaceId: BASE_BODY.workspaceId,
+        organizationId: null,
+        context: {},
+      },
+    ])
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockToolRequiresApprovalLane.mockReturnValue(false)
     // A fresh, complete registry per test: the module-level turn cache is keyed

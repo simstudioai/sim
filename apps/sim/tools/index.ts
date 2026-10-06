@@ -15,6 +15,7 @@ import {
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { requireUnrestrictedExecution } from '@/lib/core/application/execution-restriction'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
@@ -1610,6 +1611,7 @@ export async function executeTool(
   params: Record<string, any>,
   options: ExecuteToolOptions = {}
 ): Promise<ToolResponse> {
+  requireUnrestrictedExecution(options.operationContext?.executionRestriction)
   const parentRegistry =
     options.resolvedSecretTraceRegistry ??
     options.executionContext?.resolvedSecretTraceRegistry ??

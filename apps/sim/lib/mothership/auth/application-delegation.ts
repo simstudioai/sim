@@ -1,4 +1,9 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  ExternalMailerRestriction,
+  OrganizationDelegatedPrincipal,
+} from '@sim/auth/principal'
+import { resolveExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 
 /**
@@ -9,6 +14,7 @@ import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 export const COPILOT_APPLICATION_DELEGATION_TTL_MS = TOOL_WATCHDOG_LONG_RUNNING_MS
 
 export interface CopilotExecutionContext {
+  executionRestriction?: ExternalMailerRestriction
   requestMode?: string
   userId?: string
   workspaceId?: string
@@ -55,6 +61,7 @@ interface CreateCopilotApplicationPrincipalOptions extends CopilotDelegationConf
 }
 
 interface CreateTrustedCopilotPrincipalInput {
+  executionRestriction?: ExternalMailerRestriction
   userId: string
   workspaceId: string
   delegationId: string
@@ -69,6 +76,7 @@ interface CreateTrustedCopilotPrincipalOptions {
 }
 
 export interface CopilotChatDelegationContext {
+  executionRestriction?: ExternalMailerRestriction
   userId: string
   workspaceId: string
   chatId?: string
@@ -107,6 +115,7 @@ export function requireTrustedCopilotExecutionContext(
   }
 
   return Object.freeze({
+    executionRestriction: resolveExecutionRestriction(context.executionRestriction),
     userId: context.userId,
     workspaceId: context.workspaceId,
     ...(context.chatId ? { chatId: context.chatId } : {}),
@@ -174,6 +183,7 @@ export function createTrustedCopilotPrincipal(
   })
 
   return Object.freeze({
+    executionRestriction: resolveExecutionRestriction(input.executionRestriction),
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: input.userId,
@@ -194,6 +204,7 @@ export function createCopilotApplicationPrincipal(
   const delegationId = options.createDelegationId(trustedContext)
   return createTrustedCopilotPrincipal(
     {
+      executionRestriction: trustedContext.executionRestriction,
       userId: trustedContext.userId,
       workspaceId: trustedContext.workspaceId,
       delegationId,

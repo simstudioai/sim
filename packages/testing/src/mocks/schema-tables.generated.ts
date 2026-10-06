@@ -1846,6 +1846,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'responseMessageId',
     'agentmailMessageId',
     'status',
+    'executionAdmission',
     'chatId',
     'triggerJobId',
     'resultSummary',

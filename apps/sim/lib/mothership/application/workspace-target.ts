@@ -1,4 +1,6 @@
+import type { ExternalMailerRestriction } from '@sim/auth/principal'
 import { authorizeWorkspaceOperation, defineWorkspaceOperation } from '@/lib/core/application'
+import { resolveExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -12,6 +14,7 @@ import {
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface InvocationOwner {
+  executionRestriction?: ExternalMailerRestriction
   userId: string
   workspaceId?: string
   organizationId?: string
@@ -21,6 +24,15 @@ export interface InvocationOwner {
 
 /** Resolve a requested target against immutable server-owned chat scope, never profiles or prior calls. */
 export async function resolveInvocationWorkspace(owner: InvocationOwner, requested?: string) {
+  const restriction = resolveExecutionRestriction(owner.executionRestriction)
+  if (
+    restriction &&
+    (owner.organizationId ||
+      owner.chatOrganizationId ||
+      owner.workspaceId !== restriction.workspaceId ||
+      (requested && requested !== restriction.workspaceId))
+  )
+    throw new OrchestrationError('forbidden', 'Workspace outside external Mailer admission')
   const organizationId = owner.chatOrganizationId ?? owner.organizationId
   const workspaceId = requested ?? (organizationId ? undefined : owner.workspaceId)
   if (!workspaceId?.trim() || workspaceId !== workspaceId.trim())
@@ -42,7 +54,12 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
           { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
         )
       : createCopilotChatPrincipal(
-          { userId: owner.userId, workspaceId, chatId: owner.chatId },
+          {
+            executionRestriction: restriction,
+            userId: owner.userId,
+            workspaceId,
+            chatId: owner.chatId,
+          },
           WORKSPACE_TARGET_AUDIENCE
         )
     return authorizeChatWorkspaceTarget.execute({
@@ -54,7 +71,7 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
     throw new OrchestrationError('validation', 'Organization operations require an owned chat')
   const context = await resolveActiveWorkspaceApplicationContext(workspaceId)
   const principal = createCopilotChatPrincipal(
-    { userId: owner.userId, workspaceId },
+    { executionRestriction: restriction, userId: owner.userId, workspaceId },
     WORKSPACE_TARGET_AUDIENCE
   )
   await authorizeWorkspaceOperation(principal, headlessTargetOperation, context, {
@@ -66,6 +83,7 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
 const headlessTargetOperation = defineWorkspaceOperation({
   id: 'mothership.workspace_target',
   minimumRole: 'read',
+  restrictedExternalAccess: 'workspace_read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
   principalKinds: ['delegated'],

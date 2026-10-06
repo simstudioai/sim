@@ -12,6 +12,7 @@ export const WORKSPACE_TARGET_AUDIENCE = 'sim:workspaces'
 const targetOperation = defineWorkspaceOperation({
   id: 'mothership.chats.workspace_target',
   minimumRole: 'read',
+  restrictedExternalAccess: 'workspace_read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
   principalKinds: ['session', 'personal_api_key', 'delegated'],

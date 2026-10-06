@@ -1,3 +1,4 @@
+import type { ExternalMailerRestriction } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
@@ -6,6 +7,7 @@ import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
+  executionRestriction?: ExternalMailerRestriction
   /** Worker endpoint chosen at turn admission; retained for cost delivery. */
   mothershipBaseURL?: string
   /** Trusted entry point for Search metering; never read from model arguments. */

@@ -126,7 +126,32 @@ export interface WebhookSystemPrincipal {
 
 type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookSystemPrincipal
 
+/** Server-authored external Mailer authority; every privilege is bounded by this admission. */
+export interface ExternalMailerRestriction {
+  readonly version: 1
+  readonly kind: 'external_mailer'
+  readonly admissionId: string
+  readonly inboxTaskId: string
+  readonly workspaceId: string
+}
+
+export function parseExternalMailerRestriction(value: unknown): ExternalMailerRestriction {
+  const policy = requireRecord(value, 'execution restriction')
+  requireExactKeys(policy, ['version', 'kind', 'admissionId', 'inboxTaskId', 'workspaceId'])
+  if (policy.version !== 1 || policy.kind !== 'external_mailer') {
+    throw new Error('Unsupported execution restriction')
+  }
+  return Object.freeze({
+    version: 1,
+    kind: 'external_mailer',
+    admissionId: requireString(policy.admissionId, 'admissionId'),
+    inboxTaskId: requireString(policy.inboxTaskId, 'inboxTaskId'),
+    workspaceId: requireString(policy.workspaceId, 'workspaceId'),
+  })
+}
+
 interface DelegatedPrincipalBase {
+  executionRestriction?: ExternalMailerRestriction
   kind: 'delegated'
   workspaceId: string
   delegationId: string
@@ -544,7 +569,7 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
           'issuedAt',
           'expiresAt',
         ],
-        ['resourceScope']
+        ['resourceScope', 'executionRestriction']
       )
       const serviceId = requireString(principal.serviceId, 'serviceId')
       if (!['copilot', 'realtime'].includes(serviceId)) {
@@ -559,6 +584,11 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
         audience: requireString(principal.audience, 'audience'),
         issuedAt: requireDate(principal.issuedAt, 'issuedAt'),
         expiresAt: requireDate(principal.expiresAt, 'expiresAt'),
+        ...(principal.executionRestriction === undefined
+          ? {}
+          : {
+              executionRestriction: parseExternalMailerRestriction(principal.executionRestriction),
+            }),
         ...(principal.resourceScope === undefined
           ? {}
           : { resourceScope: parseResourceScope(principal.resourceScope) }),

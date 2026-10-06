@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import {
+  resolveExecutionRestriction,
+  withExecutionRestriction,
+} from '@/lib/core/application/execution-restriction'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -39,6 +43,44 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  let executionRestriction: ToolExecutionContext['executionRestriction']
+  try {
+    executionRestriction = resolveExecutionRestriction(context.executionRestriction)
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+  if (
+    executionRestriction &&
+    (context.organizationId ||
+      context.workspaceId !== executionRestriction.workspaceId ||
+      (context.targetWorkspaceId && context.targetWorkspaceId !== executionRestriction.workspaceId))
+  )
+    return { success: false, error: 'Workspace outside external Mailer admission' }
+  return withExecutionRestriction(executionRestriction, () =>
+    executeScopedTool(toolId, params, {
+      ...context,
+      executionRestriction,
+      ...(executionRestriction
+        ? {
+            userPermission: 'read',
+            secretActorUserId: null,
+            secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+          }
+        : {}),
+    })
+  )
+}
+
+async function executeScopedTool(
+  toolId: string,
+  params: Record<string, unknown>,
+  context: ToolExecutionContext
+): Promise<ToolExecutionResult> {
+  if (context.executionRestriction && toolId !== 'sim_cli')
+    return {
+      success: false,
+      error: 'External Mailer supports approved stored workspace reads through sim_cli only',
+    }
   if (context.organizationId) {
     if (
       context.workspaceId ||
@@ -81,7 +123,11 @@ export async function executeTool(
       const environment = await prepareCopilotEnvironmentContext(
         context.userId,
         target.workspaceId,
-        { includeSecrets: context.requestMode !== 'assistant' }
+        {
+          includeSecrets:
+            Boolean(context.executionRestriction) || context.requestMode !== 'assistant',
+          protectCatalog: Boolean(context.executionRestriction),
+        }
       )
       try {
         const result = await withWorkspaceInvocationScope(
@@ -99,7 +145,9 @@ export async function executeTool(
                     secretMountPolicy: undefined,
                   }
                 : {}),
-              userPermission: target.permission ?? context.userPermission,
+              userPermission: context.executionRestriction
+                ? 'read'
+                : (target.permission ?? context.userPermission),
             })
         )
         return chatOrganizationId && result.resources?.length
@@ -181,6 +229,7 @@ async function executeBoundTool(
           : {}),
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
         operationContext: {
+          executionRestriction: context.executionRestriction,
           userId: context.userId,
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,

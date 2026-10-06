@@ -11,6 +11,7 @@ import {
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import { requireRestrictedOperation } from '@/lib/core/application/execution-restriction'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
@@ -161,6 +162,7 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   principal: Principal,
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
+  requireRestrictedOperation(principal, operation)
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     /**
      * A workspace key refused because the operation does not delegate to one is
@@ -358,6 +360,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   requireAllowedWorkspacePrincipal(principal, operation)
+  requireRestrictedOperation(principal, operation, context.workspaceId)
   assertWorkspaceInvocationScope(context)
 
   switch (principal.kind) {

@@ -271,6 +271,7 @@ export const knowledgeOperations = {
   list: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.list',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'api:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -281,6 +282,7 @@ export const knowledgeOperations = {
   read: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.read',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'api:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -388,6 +390,7 @@ export const knowledgeOperations = {
   search: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -398,6 +401,7 @@ export const knowledgeOperations = {
   listFolders: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.folders.list',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'api:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -440,6 +444,7 @@ export const knowledgeOperations = {
   listDocuments: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.documents.list',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'api:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -450,6 +455,7 @@ export const knowledgeOperations = {
   readDocument: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.documents.read',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -516,6 +522,7 @@ export const knowledgeOperations = {
   listChunks: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.chunks.list',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'search:read',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
@@ -526,6 +533,7 @@ export const knowledgeOperations = {
   readChunk: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.chunks.read',
+      restrictedExternalAccess: 'workspace_read',
       oauthScope: 'api:read',
       minimumRole: 'read',
       workspaceApiKey: 'deny',

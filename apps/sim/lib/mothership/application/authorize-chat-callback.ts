@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, ExternalMailerRestriction } from '@sim/auth/principal'
 import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
@@ -48,6 +48,7 @@ const cancelWorkspaceChat = defineAuthorizedWorkspaceUseCase({
 })
 
 interface CopilotChatCallbackContext {
+  executionRestriction?: ExternalMailerRestriction
   userId: string
   workspaceId?: string
   organizationId?: string

@@ -428,6 +428,8 @@ export interface ImportResolvedSecretTraceProvenanceForValueResult {
 }
 
 export interface CreateResolvedSecretTraceRegistryOptions {
+  /** Redacts catalog literals at model egress without recording them as credential usage. */
+  protectCatalog?: boolean
   personalEncrypted: Record<string, string>
   workspaceEncrypted: Record<string, string>
   personalDecrypted: Record<string, string>
@@ -939,6 +941,7 @@ export class ResolvedSecretTraceProvenanceAccumulator {
  * values cannot alter otherwise public content merely because their bytes happen to match.
  */
 export class ResolvedSecretTraceRegistry {
+  private readonly protectCatalog: boolean
   private readonly catalog = new Map<string, ResolvedSecretTraceCatalogEntry>()
   private catalogBytes = 0
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
@@ -980,8 +983,13 @@ export class ResolvedSecretTraceRegistry {
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
     scope?: ResolvedSecretTraceScopeV1,
-    options: { staged?: boolean; inheritedProtectedPlaintexts?: ReadonlySet<string> } = {}
+    options: {
+      staged?: boolean
+      inheritedProtectedPlaintexts?: ReadonlySet<string>
+      protectCatalog?: boolean
+    } = {}
   ) {
+    this.protectCatalog = options.protectCatalog === true
     this.staged = options.staged === true
     this.inheritedProtectedPlaintexts = options.inheritedProtectedPlaintexts ?? new Set()
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
@@ -1008,6 +1016,7 @@ export class ResolvedSecretTraceRegistry {
   forkForToolCall(): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
       inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+      protectCatalog: this.protectCatalog,
     })
     for (const entry of this.activeEntries.values()) {
       fork.addActiveEntry(
@@ -1028,6 +1037,7 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
       inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+      protectCatalog: this.protectCatalog,
     })
     if (!this.complete) {
       fork.markIncomplete('inherited-incomplete-source', { source: this })
@@ -1055,6 +1065,7 @@ export class ResolvedSecretTraceRegistry {
   forkForPropagatedEntries(): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
       inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+      protectCatalog: this.protectCatalog,
     })
     for (const entry of this.activeEntries.values()) {
       if (this.propagatedEntryKeys.has(activeEntryKey(entry))) {
@@ -1111,6 +1122,7 @@ export class ResolvedSecretTraceRegistry {
 
     const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
       inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+      protectCatalog: this.protectCatalog,
     })
     let matched = false
     const resolve = (candidate: unknown, path: string[]): unknown => {
@@ -1904,13 +1916,18 @@ export class ResolvedSecretTraceRegistry {
   /**
    * Returns committed literals that must be removed before content can cross into a model.
    * Only entries activated by an exact resolver or trusted provenance boundary participate;
-   * configured-but-unused catalog values remain inert. Temporary work in another call is
+   * configured-but-unused catalog values remain inert unless catalog protection is required. Temporary work in another call is
    * intentionally excluded until that call commits a result.
    */
   getModelEgressSnapshot(): ResolvedSecretModelEgressSnapshot {
     if (this.isPermanentlyIncomplete()) return { complete: false }
 
-    const modelEntries = [...this.activeEntries.values()]
+    const modelEntries = [
+      ...this.activeEntries.values(),
+      ...(this.protectCatalog
+        ? [...this.catalog.values()].map((entry) => ({ ...entry, anonymous: true }))
+        : []),
+    ]
     const legacyAliasEntries = modelEntries
       .filter((entry) => entry.name.length > 0)
       .map(
@@ -2672,8 +2689,12 @@ export async function createResolvedSecretTraceRegistry(
   const failedNames = new Set(options.decryptionFailures ?? [])
   const registry = new ResolvedSecretTraceRegistry(
     iterateEffectiveCatalogEntries(options, failedNames),
-    options.scope
+    options.scope,
+    { protectCatalog: options.protectCatalog }
   )
+
+  if (options.protectCatalog && failedNames.size > 0)
+    registry.markIncomplete('constructed-incomplete')
 
   if (options.restoredProvenance !== undefined) {
     await registry.importProvenance(options.restoredProvenance, {

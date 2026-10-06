@@ -30,6 +30,7 @@ import {
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { admitInboxTask } from '@/lib/mothership/inbox/admission'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
@@ -120,6 +121,7 @@ export const POST = withRouteHandler(async (req: Request) => {
     const [result] = await db
       .select({
         id: workspace.id,
+        ownerId: workspace.ownerId,
         inboxEnabled: workspace.inboxEnabled,
         inboxAddress: workspace.inboxAddress,
         webhookSecret: mothershipInboxWebhook.secret,
@@ -236,7 +238,14 @@ export const POST = withRouteHandler(async (req: Request) => {
     const bodyHtml = message.html?.substring(0, 50_000) || null
     const bodyPreview = (bodyText || '')?.substring(0, 200) || null
 
+    const executionAdmission = await admitInboxTask({
+      taskId,
+      senderEmail: fromEmail,
+      workspaceId: result.id,
+      ownerId: result.ownerId,
+    })
     await db.insert(mothershipInboxTask).values({
+      executionAdmission,
       id: taskId,
       workspaceId: result.id,
       fromEmail,

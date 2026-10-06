@@ -14,6 +14,7 @@ export type SimConnection = z.infer<typeof SimConnection>;
 
 export const SimScope = z
   .object({
+    streamId: z.uuid().optional(),
     userId: z.string().min(1),
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),

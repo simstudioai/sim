@@ -42,6 +42,7 @@ function request(headers: Record<string, string> = {}) {
       'content-type': 'application/json',
       'x-api-key': env.INTERNAL_API_SECRET ?? '',
       'x-mothership-user-id': 'actor',
+      'x-mothership-chat-id': chatId,
       'x-mothership-workspace-id': 'workspace',
       ...headers,
     },

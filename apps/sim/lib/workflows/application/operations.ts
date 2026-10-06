@@ -41,6 +41,7 @@ export const workflowOperations = {
   // permission-group-exempt: listing the workflows in a workspace is governed by workspace role; no group hides the workflow module
   list: defineWorkspaceOperation({
     id: 'workflows.list',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -241,6 +242,7 @@ export const workflowOperations = {
   // permission-group-exempt: the workflow folder tree has no hide key; reading it is governed by workspace role
   listFolders: defineWorkspaceOperation({
     id: 'workflows.folders.list',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -430,6 +432,7 @@ export const workflowOperations = {
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   listRuns: defineWorkspaceOperation({
     id: 'workflows.runs.list',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -439,6 +442,7 @@ export const workflowOperations = {
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   readRun: defineWorkspaceOperation({
     id: 'workflows.runs.read',
+    restrictedExternalAccess: 'workspace_read',
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',

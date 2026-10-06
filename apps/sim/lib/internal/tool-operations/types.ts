@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { ExternalMailerRestriction, Principal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { InternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
@@ -14,6 +14,7 @@ export type InternalToolOperationImplementation<P> = (
 
 /** Trusted runtime scope shared by every in-process tool operation. */
 export interface InternalToolOperationContext {
+  executionRestriction?: ExternalMailerRestriction
   workflowId: string
   workspaceId?: string
   organizationId?: string

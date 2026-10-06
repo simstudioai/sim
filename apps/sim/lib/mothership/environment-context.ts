@@ -14,9 +14,11 @@ export interface CopilotEnvironmentContext {
 export async function createCopilotEnvironmentContext(
   userId: string,
   workspaceId: string | undefined,
-  environment: EnvironmentResolutionSnapshot
+  environment: EnvironmentResolutionSnapshot,
+  options: { protectCatalog?: boolean } = {}
 ): Promise<CopilotEnvironmentContext> {
   const resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+    protectCatalog: options.protectCatalog,
     personalEncrypted: environment.personalEncrypted,
     workspaceEncrypted: environment.workspaceEncrypted,
     personalDecrypted: environment.personalDecrypted,
@@ -32,10 +34,11 @@ export async function createCopilotEnvironmentContext(
   }
 }
 
+/** Builds only the server-side redaction registry; it grants no credential-use or mount authority. */
 export async function prepareCopilotEnvironmentContext(
   userId: string,
   workspaceId?: string,
-  options: { includeSecrets?: boolean } = {}
+  options: { includeSecrets?: boolean; protectCatalog?: boolean } = {}
 ): Promise<CopilotEnvironmentContext> {
   if (options.includeSecrets === false) {
     return {
@@ -49,5 +52,5 @@ export async function prepareCopilotEnvironmentContext(
     }
   }
   const environment = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
-  return createCopilotEnvironmentContext(userId, workspaceId, environment)
+  return createCopilotEnvironmentContext(userId, workspaceId, environment, options)
 }

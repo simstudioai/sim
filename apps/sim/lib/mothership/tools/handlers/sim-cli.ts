@@ -32,6 +32,7 @@ export async function executeSimCli(
   }
   try {
     const result = await executeAgentCliRequest(parsed.data, {
+      executionRestriction: context.executionRestriction,
       workspaceId: context.workspaceId,
       organizationId: context.organizationId,
       chatOrganizationId: context.chatOrganizationId,

@@ -6,6 +6,7 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { restoreInboxRestriction } from '@/lib/mothership/inbox/admission'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 
 /** Identity headers are assertions from the authenticated worker, never browser credentials. */
@@ -19,8 +20,15 @@ export function internalCopilotAuth(audience: string, options: { organization?: 
       const workspaceId = request.headers.get('x-mothership-workspace-id')
       const organizationId = request.headers.get('x-mothership-organization-id')
       const chatId = request.headers.get('x-mothership-chat-id')
-      if (!userId || Boolean(workspaceId) === Boolean(organizationId))
+      if (!userId || !chatId || Boolean(workspaceId) === Boolean(organizationId))
         throw new InternalUnauthenticatedError()
+      const executionRestriction = await restoreInboxRestriction({
+        userId,
+        workspaceId: workspaceId ?? undefined,
+        organizationId: organizationId ?? undefined,
+        chatId: chatId ?? undefined,
+        streamId: request.headers.get('x-mothership-stream-id') ?? undefined,
+      })
       if (organizationId) {
         if (!options.organization || !chatId) throw new InternalUnauthenticatedError()
         return createTrustedOrganizationCopilotPrincipal(
@@ -30,6 +38,7 @@ export function internalCopilotAuth(audience: string, options: { organization?: 
       }
       return createTrustedCopilotPrincipal(
         {
+          executionRestriction,
           userId,
           workspaceId: workspaceId!,
           ...(chatId ? { chatId } : {}),

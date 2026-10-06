@@ -9,6 +9,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
 export const chatOperations = {
   continue: defineWorkspaceOperation({
     id: 'chat.continue',
+    restrictedExternalAccess: 'workspace_read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',

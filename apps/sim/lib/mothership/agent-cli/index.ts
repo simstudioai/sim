@@ -1,4 +1,8 @@
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
+import {
+  resolveExecutionRestriction,
+  withExecutionRestriction,
+} from '@/lib/core/application/execution-restriction'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
@@ -42,6 +46,27 @@ export async function executeAgentCliRequest(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
+  const executionRestriction = resolveExecutionRestriction(context.executionRestriction)
+  return withExecutionRestriction(executionRestriction, () =>
+    executeScopedAgentCliRequest(request, { ...context, executionRestriction })
+  )
+}
+
+async function executeScopedAgentCliRequest(
+  request: AgentCliRequest,
+  context: AgentCliExecutionContext
+): Promise<AgentCliRawResult> {
+  if (
+    context.executionRestriction &&
+    ((request.invocation.kind !== 'cli' &&
+      !(
+        request.invocation.kind === 'augmentation' &&
+        ['files read', 'files view'].includes(request.invocation.name)
+      )) ||
+      request.sink ||
+      (request.curate && request.curate !== 'knowledge-documents'))
+  )
+    throw new Error('External Mailer supports approved stored workspace CLI reads only')
   context.signal?.throwIfAborted()
   if (
     request.invocation.kind === 'service' ||
@@ -72,6 +97,7 @@ async function executeBoundAgentCliRequest(
   /** The embedded client's required credential is opaque and never valid on the public API. */
   const apiKey = 'mothership-in-process'
   const invocationIdentity = {
+    executionRestriction: context.executionRestriction,
     userId: context.userId,
     workspaceId: context.workspaceId,
     chatId: context.chatId,

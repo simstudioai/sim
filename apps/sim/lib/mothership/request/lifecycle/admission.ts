@@ -7,12 +7,14 @@ import {
   requireBillingCallbackAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
+import { resolveExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   authorizeCopilotChatCallback,
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
+import { restoreInboxRestriction } from '@/lib/mothership/inbox/admission'
 import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { BillingAdmissionSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
@@ -55,9 +57,28 @@ export async function authorizeLifecycleContinuation(
     | 'messageId'
     | 'requestMode'
     | 'billingAttribution'
+    | 'executionRestriction'
   >
 ) {
+  const restriction = resolveExecutionRestriction(context.executionRestriction)
+  if (restriction) {
+    const restored = await restoreInboxRestriction({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
+      chatId: context.chatId,
+      streamId: context.messageId,
+    })
+    if (
+      !restored ||
+      restored.admissionId !== restriction.admissionId ||
+      restored.inboxTaskId !== restriction.inboxTaskId ||
+      restored.workspaceId !== restriction.workspaceId
+    )
+      throw new OrchestrationError('forbidden', 'Continuation execution admission is unavailable')
+  }
   await authorizeCopilotChatCallback({
+    executionRestriction: restriction,
     userId: context.userId,
     workspaceId: context.workspaceId,
     organizationId: context.organizationId,

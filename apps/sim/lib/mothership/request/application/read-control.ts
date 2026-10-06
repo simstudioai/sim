@@ -11,6 +11,7 @@ export const RUN_CONTROL_AUDIENCE = 'sim:copilot-run-control'
 // permission-group-exempt: observing stop state must remain possible after Copilot access is withheld
 export const readRunControlOperation = defineWorkspaceOperation({
   id: 'mothership.runs.read_control',
+  restrictedExternalAccess: 'workspace_read',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'none',

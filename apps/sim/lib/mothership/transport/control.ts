@@ -8,6 +8,7 @@ import {
 import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
 import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
 import type { SimControlRequest, SimControlResult } from '@/lib/mothership/generated/sim-transport'
+import { restoreInboxRestriction } from '@/lib/mothership/inbox/admission'
 import {
   INTEGRATION_CATALOG_AUDIENCE,
   readIntegrationCatalog,
@@ -31,6 +32,12 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
     return { status: 403, body: '{"error":"Invalid owner scope"}' }
   if ('chatId' in operation.input && operation.input.chatId !== scope.chatId)
     return { status: 403, body: '{"error":"Chat scope mismatch"}' }
+  let executionRestriction
+  try {
+    executionRestriction = await restoreInboxRestriction(scope)
+  } catch {
+    return { status: 403, body: '{"error":"Execution admission unavailable"}' }
+  }
   const principal = scope.organizationId
     ? createTrustedOrganizationCopilotPrincipal(
         {
@@ -52,7 +59,12 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         }
       )
     : createTrustedCopilotPrincipal(
-        { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
+        {
+          ...scope,
+          executionRestriction,
+          workspaceId: scope.workspaceId!,
+          delegationId: `transport:${request.id}`,
+        },
         {
           audience:
             operation.kind === 'integration_catalog'

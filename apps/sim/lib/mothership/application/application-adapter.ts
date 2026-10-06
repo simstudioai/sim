@@ -61,6 +61,9 @@ function requireMatchingPrincipal(
 ): void {
   const delegationId = delegation.createDelegationId(context)
   if (
+    principal.executionRestriction?.admissionId !== context.executionRestriction?.admissionId ||
+    principal.executionRestriction?.workspaceId !== context.executionRestriction?.workspaceId ||
+    principal.executionRestriction?.inboxTaskId !== context.executionRestriction?.inboxTaskId ||
     principal.kind !== 'delegated' ||
     principal.serviceId !== 'copilot' ||
     principal.subjectUserId !== context.userId ||

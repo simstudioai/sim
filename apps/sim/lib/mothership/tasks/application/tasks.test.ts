@@ -215,6 +215,7 @@ function request(path: string, body: string): NextRequest {
     headers: {
       'content-type': 'application/json',
       'x-mothership-user-id': 'u',
+      'x-mothership-chat-id': CHAT_ID,
       'x-mothership-workspace-id': 'w',
     },
   })

@@ -1,6 +1,7 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { withExecutionRestriction } from '@/lib/core/application/execution-restriction'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
@@ -118,6 +119,9 @@ export function recordProjectedUseCaseAuditEntries(
       metadata: {
         ...entry.metadata,
         ...(organizationId ? { organizationId } : {}),
+        ...(principal.kind === 'delegated' && principal.executionRestriction
+          ? { executionRestriction: principal.executionRestriction }
+          : {}),
         operation: operation.id,
         actor: attribution.actor,
       },
@@ -209,32 +213,40 @@ export function defineAuthorizedWorkspaceUseCase<
       ? { delegationAudience: definition.authorizationOptions.delegation.audience }
       : {}),
     async authorize(args) {
-      await authorizePhase(args)
+      await withExecutionRestriction(
+        args.principal.kind === 'delegated' ? args.principal.executionRestriction : undefined,
+        () => authorizePhase(args)
+      )
     },
     async execute(args) {
-      const executionContext = await authorizePhase(args)
-      const { principal, context, request } = executionContext
-      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
-        const result = await withinAuthorizedWorkspaceOperation(() =>
-          definition.execute(executionContext)
-        )
-        const resultContext = { ...executionContext, result }
-        const projectedAudit = definition.projectAudit?.(resultContext)
-        if (projectedAudit !== undefined) {
-          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-          if (auditEntries.length > 0) {
-            recordProjectedUseCaseAuditEntries(
-              definition.operation,
-              context.workspaceId,
-              principal,
-              request,
-              auditEntries
+      return withExecutionRestriction(
+        args.principal.kind === 'delegated' ? args.principal.executionRestriction : undefined,
+        async () => {
+          const executionContext = await authorizePhase(args)
+          const { principal, context, request } = executionContext
+          return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
+            const result = await withinAuthorizedWorkspaceOperation(() =>
+              definition.execute(executionContext)
             )
-          }
+            const resultContext = { ...executionContext, result }
+            const projectedAudit = definition.projectAudit?.(resultContext)
+            if (projectedAudit !== undefined) {
+              const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+              if (auditEntries.length > 0) {
+                recordProjectedUseCaseAuditEntries(
+                  definition.operation,
+                  context.workspaceId,
+                  principal,
+                  request,
+                  auditEntries
+                )
+              }
+            }
+            await definition.afterSuccess?.(resultContext)
+            return result
+          })
         }
-        await definition.afterSuccess?.(resultContext)
-        return result
-      })
+      )
     },
   }
 }

@@ -1,4 +1,5 @@
 import type { Context } from '@opentelemetry/api'
+import type { ExternalMailerRestriction } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage, toError } from '@sim/utils/errors'
@@ -13,6 +14,10 @@ import {
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveExecutionRestriction,
+  withExecutionRestriction,
+} from '@/lib/core/application/execution-restriction'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
@@ -187,7 +192,10 @@ async function ensureModelEgressRegistry(
     const environmentContext =
       options.environmentContext ??
       (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId, {
-        includeSecrets: execContext.requestMode !== 'assistant' && !execContext.organizationId,
+        ...(execContext.executionRestriction ? { protectCatalog: true } : {}),
+        includeSecrets:
+          Boolean(execContext.executionRestriction) ||
+          (execContext.requestMode !== 'assistant' && !execContext.organizationId),
       }))
     registry = environmentContext.resolvedSecretTraceRegistry
     execContext.resolvedSecretTraceRegistry = registry
@@ -238,6 +246,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   onBillingAdmission?: (admission: AttributedBillingRequestEnvelope) => Promise<void>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   environmentContext?: CopilotEnvironmentContext
+  executionRestriction?: ExternalMailerRestriction
   userPermission?: PermissionType
   secretMountPolicy?: SecretMountPolicy
   secretActorUserId?: string | null
@@ -307,6 +316,28 @@ export async function runCopilotLifecycle(
   requestPayload: Record<string, unknown>,
   options: CopilotLifecycleOptions
 ): Promise<OrchestratorResult> {
+  const executionRestriction = resolveExecutionRestriction(
+    options.executionRestriction ?? options.executionContext?.executionRestriction
+  )
+  if (
+    executionRestriction &&
+    (options.organizationId ||
+      options.workflowId ||
+      options.workspaceId !== executionRestriction.workspaceId)
+  )
+    throw new Error('External Mailer admission scope mismatch')
+  return withExecutionRestriction(executionRestriction, () =>
+    runScopedCopilotLifecycle(
+      executionRestriction ? { ...requestPayload, executionRestriction } : requestPayload,
+      { ...options, executionRestriction }
+    )
+  )
+}
+
+async function runScopedCopilotLifecycle(
+  requestPayload: Record<string, unknown>,
+  options: CopilotLifecycleOptions
+): Promise<OrchestratorResult> {
   const {
     userId,
     workflowId,
@@ -346,6 +377,7 @@ export async function runCopilotLifecycle(
     (typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId())
   const runIdentity = await ensureHeadlessRunIdentity({
     requestPayload,
+    executionRestriction: options.executionRestriction,
     userId,
     workflowId,
     workspaceId,
@@ -371,6 +403,7 @@ export async function runCopilotLifecycle(
         ? {
             executionContext: {
               ...options.executionContext,
+              executionRestriction: options.executionRestriction,
               messageId: payloadMsgId,
               executionId: resolvedExecutionId,
               runId: resolvedRunId,
@@ -408,6 +441,7 @@ export async function runCopilotLifecycle(
           billingAttribution: lifecycleOptions.billingAttribution,
           resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
           environmentContext: lifecycleOptions.environmentContext,
+          executionRestriction: lifecycleOptions.executionRestriction,
           userPermission: lifecycleOptions.userPermission,
           secretMountPolicy: lifecycleOptions.secretMountPolicy,
           secretActorUserId: lifecycleOptions.secretActorUserId,
@@ -1566,6 +1600,7 @@ async function buildExecutionContext(
     billingAttribution?: BillingAttributionSnapshot
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     environmentContext?: CopilotEnvironmentContext
+    executionRestriction?: ExternalMailerRestriction
     userPermission?: PermissionType
     secretMountPolicy?: SecretMountPolicy
     secretActorUserId?: string | null
@@ -1602,7 +1637,9 @@ async function buildExecutionContext(
     const activeEnvironmentContext =
       environmentContext ??
       (await prepareCopilotEnvironmentContext(userId, workspaceId, {
-        includeSecrets: requestMode !== 'assistant' && !organizationId,
+        ...(params.executionRestriction ? { protectCatalog: true } : {}),
+        includeSecrets:
+          Boolean(params.executionRestriction) || (requestMode !== 'assistant' && !organizationId),
       }))
     execContext = {
       userId,
@@ -1624,6 +1661,7 @@ async function buildExecutionContext(
     )
     if (requestMode === 'assistant') execContext.secretActorUserId = null
   }
+  execContext.executionRestriction = params.executionRestriction
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined
@@ -1640,6 +1678,7 @@ async function buildExecutionContext(
 }
 
 async function ensureHeadlessRunIdentity(input: {
+  executionRestriction?: ExternalMailerRestriction
   requestPayload: Record<string, unknown>
   userId: string
   workflowId?: string
@@ -1675,6 +1714,8 @@ async function ensureHeadlessRunIdentity(input: {
         typeof input.requestPayload?.provider === 'string' ? input.requestPayload.provider : null,
       requestContext: {
         source: 'headless_lifecycle',
+        executionRestriction: input.executionRestriction ?? null,
+        admissionVersion: 1,
       },
     })
     return { executionId, runId, cancelled: run.status === 'cancelled' }
