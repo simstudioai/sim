@@ -865,6 +865,28 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       ])
     })
 
+    it('lists calls persisted in the same millisecond in the order they were persisted', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const sameMillisecond = new Date()
+      /** Ids that sort in reverse, so neither the clock nor the id can produce this order. */
+      const persisted = ['type-zz', 'click-mm', 'submit-aa'].map(
+        (name) => `${name}-${generateId()}`
+      )
+      for (const toolCallId of persisted) {
+        await db.insert(copilotAsyncToolCalls).values({
+          runId: run.runId,
+          toolCallId,
+          toolName: 'browser_click',
+          args: { ref: 'e1' },
+          createdAt: sameMillisecond,
+          pickupDeadlineAt: sql`now() + interval '1 minute'`,
+        })
+      }
+
+      expect((await inbox(desktop)).items.map((item) => item.toolCallId)).toEqual(persisted)
+    })
+
     it('lists pending calls in persistence order even when their doorbell was never heard', async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)

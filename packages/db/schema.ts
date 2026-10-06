@@ -16,6 +16,7 @@ import {
   json,
   jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
@@ -4451,6 +4452,9 @@ export const copilotRunCheckpoints = pgTable(
   })
 )
 
+/** Orders tool calls by persistence, which follows the order the model emitted them in. */
+export const copilotAsyncToolCallsPersistSeq = pgSequence('copilot_async_tool_calls_persist_seq')
+
 export const copilotAsyncToolCalls = pgTable(
   'copilot_async_tool_calls',
   {
@@ -4484,6 +4488,14 @@ export const copilotAsyncToolCalls = pgTable(
      * is offered to its device. A call still unclaimed after it fails as never started.
      */
     pickupDeadlineAt: timestamp('pickup_deadline_at', { withTimezone: true }),
+    /**
+     * When this call was persisted, as a strictly increasing number: calls from one turn can share
+     * a millisecond, and a device must run them in the order the model emitted them. Null on rows
+     * persisted before the column existed.
+     */
+    persistSeq: bigint('persist_seq', { mode: 'number' }).default(
+      sql`nextval('copilot_async_tool_calls_persist_seq')`
+    ),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     /** One-use download-save admission; never released after an uncertain storage outcome. */

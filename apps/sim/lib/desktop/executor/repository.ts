@@ -84,6 +84,29 @@ const isDesktopToolCallRow = or(
 )
 const INBOX_ROW_LIMIT = 500
 
+/**
+ * Persistence order, which follows the order the model emitted the calls in: calls of one turn
+ * can share a millisecond, so the timestamp alone cannot order them. Rows persisted before the
+ * sequence existed have none and come first, as they are the oldest.
+ */
+const persistOrder = [
+  sql`${copilotAsyncToolCalls.persistSeq} ASC NULLS FIRST`,
+  asc(copilotAsyncToolCalls.createdAt),
+  asc(copilotAsyncToolCalls.toolCallId),
+]
+
+function comparePersistOrder(
+  a: { persistSeq: number | null; createdAt: Date; toolCallId: string },
+  b: { persistSeq: number | null; createdAt: Date; toolCallId: string }
+): number {
+  if (a.persistSeq !== b.persistSeq) {
+    if (a.persistSeq === null) return -1
+    if (b.persistSeq === null) return 1
+    return a.persistSeq - b.persistSeq
+  }
+  return a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
+}
+
 export interface DesktopDeviceRegistration {
   id: string
   userId: string
@@ -178,7 +201,7 @@ export async function touchDesktopDevice(deviceId: string): Promise<void> {
  * out the other: unclaimed calls on its recent open runs that are offered or waiting for the
  * user's decision, and calls it claimed that Sim settled without its result and it has not yet
  * acknowledged (cancel items). A call the device is still running is never listed: it already
- * holds it. Ordered by persistence time, the order the device claims in.
+ * holds it. Ordered by persistence, the order the device claims in.
  */
 export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity, 'sessionId'>) {
   const rowsWhere = (state: SQL | undefined) =>
@@ -192,6 +215,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
         permissionDecision: copilotAsyncToolCalls.permissionDecision,
         claimed: sql<boolean>`${copilotAsyncToolCalls.executionOwnerToken} IS NOT NULL`,
         createdAt: copilotAsyncToolCalls.createdAt,
+        persistSeq: copilotAsyncToolCalls.persistSeq,
         chatId: copilotRuns.chatId,
         chatTitle: copilotChats.title,
         workspaceId: copilotRuns.workspaceId,
@@ -208,7 +232,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           state
         )
       )
-      .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
+      .orderBy(...persistOrder)
       .limit(INBOX_ROW_LIMIT)
   const [waiting, cancelled] = await Promise.all([
     rowsWhere(
@@ -228,10 +252,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
       )
     ),
   ])
-  return [...waiting, ...cancelled].sort(
-    (a, b) =>
-      a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
-  )
+  return [...waiting, ...cancelled].sort(comparePersistOrder)
 }
 
 export type DesktopInboxRow = Awaited<ReturnType<typeof listDesktopInboxRows>>[number]
@@ -428,7 +449,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
         )
       )
     )
-    .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
+    .orderBy(...persistOrder)
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
 }
