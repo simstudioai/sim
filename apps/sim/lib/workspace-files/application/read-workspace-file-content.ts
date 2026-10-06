@@ -14,6 +14,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { secretProvenanceContextOf } from '@/lib/workspace-files/secret-provenance-context'
 
 export interface ReadWorkspaceFileContentInput {
   fileId: string
@@ -43,6 +44,7 @@ async function executeReadWorkspaceFileContent({
     includeDeleted: input.includeDeleted,
     throwOnError: true,
     includeChatUploads: true,
+    includeIssueBodies: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const content = await fetchWorkspaceFileBuffer(file, {
@@ -52,7 +54,7 @@ async function executeReadWorkspaceFileContent({
     ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
         fileId: file.id,
         key: file.key,
-        context: file.storageContext ?? 'workspace',
+        context: secretProvenanceContextOf(file),
       })
     : undefined
   return {
@@ -69,7 +71,11 @@ async function executeReadWorkspaceFileContent({
  */
 export const readWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }) =>
-    resolveActiveWorkspaceFileContext({ ...input, includeChatUploads: true }),
+  resolveContext: ({ principal, input }) =>
+    resolveActiveWorkspaceFileContext({
+      ...input,
+      includeChatUploads: true,
+      issueBodyPrincipal: principal,
+    }),
   execute: executeReadWorkspaceFileContent,
 })

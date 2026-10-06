@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
+import { mothershipIssuesInputSchema } from '@/lib/api/contracts/mothership-issues'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
@@ -17,6 +18,14 @@ export const managementToolContracts = [
     description:
       'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.',
     inputSchema: mothershipDashboardsInputSchema,
+  },
+  {
+    id: 'issues',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'File an issue in the selected workspace when you find a problem worth tracking, or read one back by key. create takes a one-line title and a markdown body with the evidence (dashboard, diff, and mermaid blocks render live) and returns its key; it lands in the Inbox for a person to start. Edit the document afterwards at issues/<KEY>.md with the file tools. get returns the issue status and review summary. When this chat is working on an issue and the work is done, request-review hands it back to its owner with a one-line summary.',
+    inputSchema: mothershipIssuesInputSchema,
   },
   {
     id: 'workspaces',

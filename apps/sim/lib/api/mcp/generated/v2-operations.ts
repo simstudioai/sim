@@ -90,6 +90,7 @@ import {
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
+import { v2CreateIssueContract, v2GetIssueContract } from '@/lib/api/contracts/v2/issues'
 import {
   v2AbortKnowledgeDocumentUploadContract,
   v2AddWorkspaceFilesToKnowledgeBaseContract,
@@ -634,6 +635,14 @@ export const V2_MCP_OPERATIONS = {
       'Create signed URLs for a bounded set of multipart upload part numbers.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/files/uploads/[uploadId]/parts/route').then((route) => route.POST),
+  },
+  createIssue: {
+    contract: v2CreateIssueContract,
+    summary: 'Create Issue',
+    description:
+      'File an issue in a workspace. The body is the issue document as markdown; it lands in the inbox as new until someone starts work on it with Sim. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () => import('@/app/api/v2/issues/route').then((route) => route.POST),
   },
   createKnowledgeBase: {
     contract: v2CreateKnowledgeBaseContract,
@@ -1249,6 +1258,14 @@ export const V2_MCP_OPERATIONS = {
       'Get one version of a file. A version removed by retention, or one that never existed, returns `404`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/files/[fileId]/versions/[version]/route').then((route) => route.GET),
+  },
+  getIssue: {
+    contract: v2GetIssueContract,
+    summary: 'Get Issue',
+    description:
+      'Get one issue by its key, scoped to its workspace. Read the document with Read File Text on its bodyFileId. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () => import('@/app/api/v2/issues/[issueKey]/route').then((route) => route.GET),
   },
   getKnowledgeBase: {
     contract: v2GetKnowledgeBaseContract,

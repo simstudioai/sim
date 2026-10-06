@@ -51,6 +51,11 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
+  issues: {
+    description:
+      'Enable issues: the workspace Issues page, issue documents, and starting Sim chats on an issue. Supports global and organization rollout; disabled by default.',
+    fallback: 'ISSUES',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

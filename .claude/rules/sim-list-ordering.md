@@ -104,7 +104,7 @@ An order duplicated across surfaces is an order that will drift. Export **one** 
 ```ts
 /** Top-down order for every menu listing resource families. */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
-  'integration', 'task', 'dashboard', 'table', 'file', 'filefolder',
+  'integration', 'task', 'dashboard', 'issue', 'table', 'file', 'filefolder',
   'knowledgebase', 'workflow', 'log', 'folder', 'browser', 'terminal', 'generic',
 ]
 

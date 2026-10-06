@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { detachChatFromIssuesInTx } from '@/lib/issues/repository'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import {
   getAccessibleCopilotChatAuth,
@@ -239,21 +240,25 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ success: true })
       }
 
-      const [deletedChat] = await db
-        .update(copilotChats)
-        .set({ deletedAt: new Date() })
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNull(copilotChats.deletedAt)
+      const deletedChat = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(copilotChats)
+          .set({ deletedAt: new Date() })
+          .where(
+            and(
+              eq(copilotChats.id, chatId),
+              eq(copilotChats.userId, userId),
+              eq(copilotChats.type, 'mothership'),
+              isNull(copilotChats.deletedAt)
+            )
           )
-        )
-        .returning({
-          workspaceId: copilotChats.workspaceId,
-          organizationId: copilotChats.organizationId,
-        })
+          .returning({
+            workspaceId: copilotChats.workspaceId,
+            organizationId: copilotChats.organizationId,
+          })
+        if (row) await detachChatFromIssuesInTx(tx, chatId)
+        return row
+      })
 
       if (!deletedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })

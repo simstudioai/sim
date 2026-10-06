@@ -12,6 +12,7 @@ import {
   type PreparedCollabDocState,
   saveCollabDocStateInTx,
 } from '@/lib/collab-doc/collab-state'
+import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
 
 const VERSION = new Date('2026-09-07T10:00:00.123Z')
 
@@ -214,7 +215,7 @@ describe('commitCollabDocState', () => {
       conditions: [
         { type: 'eq', left: workspaceFiles.id, right: 'file-1' },
         { type: 'eq', left: workspaceFiles.workspaceId, right: 'workspace-1' },
-        { type: 'eq', left: workspaceFiles.context, right: 'workspace' },
+        contentWritableWorkspaceFileContextCondition,
         { type: 'isNull', column: workspaceFiles.deletedAt },
       ],
     })

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, issues, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, organization permission groups, and the block, tool, and connector-type catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -48,6 +48,10 @@
     {
       "name": "Skills",
       "description": "Create and manage reusable instruction documents for agents."
+    },
+    {
+      "name": "Issues",
+      "description": "File issues and read their status; Sim works on them in chats."
     },
     {
       "name": "Custom Tools",
@@ -1605,6 +1609,157 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RevokeSkillEditorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/issues": {
+      "post": {
+        "operationId": "createIssue",
+        "summary": "Create Issue",
+        "description": "File an issue in a workspace. The body is the issue document as markdown; it lands in the inbox as new until someone starts work on it with Sim. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "issues.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Issues"],
+        "requestBody": {
+          "required": true,
+          "description": "Title and markdown document of a new issue.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIssueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The issue was filed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateIssueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/issues/{issueKey}": {
+      "get": {
+        "operationId": "getIssue",
+        "summary": "Get Issue",
+        "description": "Get one issue by its key, scoped to its workspace. Read the document with Read File Text on its bodyFileId. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "issues.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Issues"],
+        "parameters": [
+          {
+            "name": "issueKey",
+            "in": "path",
+            "required": true,
+            "description": "Issue key, such as SIM-152.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "Issue key, such as SIM-152."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the issue.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the issue."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The issue.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetIssueResponse"
                 }
               }
             }
@@ -10799,6 +10954,439 @@
             "data": {
               "email": "jane@example.com",
               "revoked": true
+            }
+          }
+        ]
+      },
+      "CreateIssueResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique issue identifier."
+              },
+              "key": {
+                "type": "string",
+                "description": "Workspace-readable key, such as SIM-152."
+              },
+              "title": {
+                "type": "string",
+                "description": "What is going wrong, in one line."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["inbox", "in_progress", "done"],
+                "description": "inbox waits on a person, in_progress has a Sim chat working on it, done is closed."
+              },
+              "inboxKind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["new", "review"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "For inbox issues: new until Sim works on it, review once Sim hands it back."
+              },
+              "closeReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["completed", "dismissed", "duplicate"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Why a done issue closed: completed, dismissed, or duplicate."
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 0
+                  },
+                  {
+                    "type": "number",
+                    "const": 1
+                  },
+                  {
+                    "type": "number",
+                    "const": 2
+                  },
+                  {
+                    "type": "number",
+                    "const": 3
+                  },
+                  {
+                    "type": "number",
+                    "const": 4
+                  }
+                ],
+                "description": "0 is no priority, then low, medium, high, and 4 is urgent."
+              },
+              "ownerId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Member who owns the issue; null until work starts."
+              },
+              "workingChatId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The Sim chat working on the issue, if any."
+              },
+              "reviewSummary": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Sim's one-line result when it asked for review."
+              },
+              "bodyFileId": {
+                "type": "string",
+                "description": "File holding the issue document as markdown. Read and replace it with the file content operations."
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "When the issue was filed (ISO 8601)."
+              },
+              "updatedAt": {
+                "type": "string",
+                "description": "When the issue last changed (ISO 8601)."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When work first started with Sim."
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When the issue was closed."
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "title",
+              "status",
+              "inboxKind",
+              "closeReason",
+              "priority",
+              "ownerId",
+              "workingChatId",
+              "reviewSummary",
+              "bodyFileId",
+              "createdAt",
+              "updatedAt",
+              "startedAt",
+              "completedAt"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create issue response",
+        "description": "The filed issue.",
+        "examples": [
+          {
+            "data": {
+              "id": "6f0b2c4e-1d8a-4c3b-9e7f-2a5d8c1b4e90",
+              "key": "SIM-152",
+              "title": "Order-status escalations spiked this week",
+              "status": "inbox",
+              "inboxKind": "new",
+              "closeReason": null,
+              "priority": 4,
+              "ownerId": null,
+              "workingChatId": null,
+              "reviewSummary": null,
+              "bodyFileId": "wf_V1StGXR8Z5jdHi6BmyT",
+              "createdAt": "2026-09-18T09:02:00.000Z",
+              "updatedAt": "2026-09-18T09:02:00.000Z",
+              "startedAt": null,
+              "completedAt": null
+            }
+          }
+        ]
+      },
+      "CreateIssueRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace to file the issue in."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What is going wrong, in one line."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 1048576,
+            "description": "The issue document as markdown, including any dashboard, diff, or mermaid blocks."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              },
+              {
+                "type": "number",
+                "const": 3
+              },
+              {
+                "type": "number",
+                "const": 4
+              }
+            ],
+            "description": "0 is no priority, then low, medium, high, and 4 is urgent."
+          }
+        },
+        "required": ["workspaceId", "title", "body"],
+        "additionalProperties": false,
+        "title": "Create issue request",
+        "description": "Title and markdown document of a new issue.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "title": "Order-status escalations spiked this week",
+            "body": "## What we are seeing\n\nSeven escalations this week, against a typical two.\n",
+            "priority": 4
+          }
+        ]
+      },
+      "GetIssueResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique issue identifier."
+              },
+              "key": {
+                "type": "string",
+                "description": "Workspace-readable key, such as SIM-152."
+              },
+              "title": {
+                "type": "string",
+                "description": "What is going wrong, in one line."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["inbox", "in_progress", "done"],
+                "description": "inbox waits on a person, in_progress has a Sim chat working on it, done is closed."
+              },
+              "inboxKind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["new", "review"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "For inbox issues: new until Sim works on it, review once Sim hands it back."
+              },
+              "closeReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["completed", "dismissed", "duplicate"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Why a done issue closed: completed, dismissed, or duplicate."
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 0
+                  },
+                  {
+                    "type": "number",
+                    "const": 1
+                  },
+                  {
+                    "type": "number",
+                    "const": 2
+                  },
+                  {
+                    "type": "number",
+                    "const": 3
+                  },
+                  {
+                    "type": "number",
+                    "const": 4
+                  }
+                ],
+                "description": "0 is no priority, then low, medium, high, and 4 is urgent."
+              },
+              "ownerId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Member who owns the issue; null until work starts."
+              },
+              "workingChatId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The Sim chat working on the issue, if any."
+              },
+              "reviewSummary": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Sim's one-line result when it asked for review."
+              },
+              "bodyFileId": {
+                "type": "string",
+                "description": "File holding the issue document as markdown. Read and replace it with the file content operations."
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "When the issue was filed (ISO 8601)."
+              },
+              "updatedAt": {
+                "type": "string",
+                "description": "When the issue last changed (ISO 8601)."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When work first started with Sim."
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When the issue was closed."
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "title",
+              "status",
+              "inboxKind",
+              "closeReason",
+              "priority",
+              "ownerId",
+              "workingChatId",
+              "reviewSummary",
+              "bodyFileId",
+              "createdAt",
+              "updatedAt",
+              "startedAt",
+              "completedAt"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get issue response",
+        "description": "One issue.",
+        "examples": [
+          {
+            "data": {
+              "id": "6f0b2c4e-1d8a-4c3b-9e7f-2a5d8c1b4e90",
+              "key": "SIM-152",
+              "title": "Order-status escalations spiked this week",
+              "status": "inbox",
+              "inboxKind": "new",
+              "closeReason": null,
+              "priority": 4,
+              "ownerId": null,
+              "workingChatId": null,
+              "reviewSummary": null,
+              "bodyFileId": "wf_V1StGXR8Z5jdHi6BmyT",
+              "createdAt": "2026-09-18T09:02:00.000Z",
+              "updatedAt": "2026-09-18T09:02:00.000Z",
+              "startedAt": null,
+              "completedAt": null
             }
           }
         ]

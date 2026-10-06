@@ -6,6 +6,7 @@ export const MothershipResourceType = {
   table: 'table',
   file: 'file',
   dashboard: 'dashboard',
+  issue: 'issue',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
   folder: 'folder',
@@ -112,6 +113,7 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   table: { persisted: true },
   file: { persisted: true },
   dashboard: { persisted: true },
+  issue: { persisted: true },
   workflow: { persisted: true },
   knowledgebase: { persisted: true },
   folder: { persisted: true },
@@ -240,6 +242,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Knowledge Base',
   'Folder',
   'Log',
+  'Issue',
 ])
 
 /**

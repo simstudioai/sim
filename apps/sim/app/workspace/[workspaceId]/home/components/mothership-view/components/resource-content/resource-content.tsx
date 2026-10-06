@@ -39,6 +39,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -46,6 +47,8 @@ import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/m
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { IssuesFeatureGate } from '@/app/workspace/[workspaceId]/issues/components'
+import { IssueView } from '@/app/workspace/[workspaceId]/issues/components/issue-detail'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
@@ -296,6 +299,16 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'dashboard':
       return <DashboardResource key={resource.id} workspaceId={workspaceId} />
+    case 'issue':
+      return (
+        <IssuesFeatureGate>
+          <FileDocRoomProvider>
+            <div className='flex h-full flex-col overflow-hidden'>
+              <IssueView key={resource.id} workspaceId={workspaceId} issueKey={resource.id} />
+            </div>
+          </FileDocRoomProvider>
+        </IssuesFeatureGate>
+      )
     case 'file':
       return (
         <EmbeddedFile
@@ -400,6 +413,8 @@ export function ResourceActions({
       )
     case 'dashboard':
       return <EmbeddedDashboardActions workspaceId={workspaceId} />
+    case 'issue':
+      return <EmbeddedIssueActions workspaceId={workspaceId} issueKey={resource.id} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -538,6 +553,33 @@ function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open dashboard</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface EmbeddedIssueActionsProps {
+  workspaceId: string
+  issueKey: string
+}
+
+function EmbeddedIssueActions({ workspaceId, issueKey }: EmbeddedIssueActionsProps) {
+  const router = useRouter()
+  const issuesEnabled = useFeatureFlag('issues')
+  if (!issuesEnabled) return null
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction
+          variant='subtle'
+          onClick={() => router.push(`/workspace/${workspaceId}/issues/${issueKey}`)}
+          aria-label='Open issue'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open issue</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )

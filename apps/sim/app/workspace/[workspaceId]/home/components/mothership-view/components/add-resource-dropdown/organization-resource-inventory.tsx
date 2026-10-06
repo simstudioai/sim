@@ -3,16 +3,25 @@ import {
   type AvailableResources,
   useAvailableResources,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
+import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Reuses each workspace's canonical inventory without introducing another picker. */
+interface OrganizationResourceInventoryProps {
+  workspaceId: string
+  onChange: (workspaceId: string, inventory: AvailableResources) => void
+  /** Must be a module constant: it keys the inventory's group memo. */
+  excludeTypes?: readonly MothershipResourceType[]
+}
+
 export function OrganizationResourceInventory({
   workspaceId,
   onChange,
-}: {
-  workspaceId: string
-  onChange: (workspaceId: string, inventory: AvailableResources) => void
-}) {
-  const inventory = useAvailableResources(workspaceId, { includeFolderMentions: true })
+  excludeTypes,
+}: OrganizationResourceInventoryProps) {
+  const inventory = useAvailableResources(workspaceId, {
+    includeFolderMentions: true,
+    excludeTypes,
+  })
   useEffect(() => {
     onChange(workspaceId, inventory)
   }, [workspaceId, inventory, onChange])

@@ -11,6 +11,7 @@ import {
   loadCollabDocState,
 } from '@/lib/collab-doc/collab-state'
 import { applyMarkdownToYDoc, markdownToYDoc } from '@/lib/collab-doc/converter'
+import { isIssuesEnabledForWorkspace } from '@/lib/issues/feature-flag'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
@@ -72,9 +73,14 @@ export async function buildFileDocSeed(
   const seedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt++) {
     seedSignal.throwIfAborted()
-    const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+    const record = await getWorkspaceFile(workspaceId, fileId, {
+      throwOnError: true,
+      includeIssueBodies: true,
+    })
     seedSignal.throwIfAborted()
     if (!record) return null
+    if (record.vfsNamespace === 'issues' && !(await isIssuesEnabledForWorkspace(workspaceId)))
+      return null
     const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
     const buffer = await fetchWorkspaceFileBuffer(record, {
       maxBytes: MAX_SEED_BYTES,

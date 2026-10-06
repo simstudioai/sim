@@ -30,6 +30,14 @@ export const AuditAction = {
   DASHBOARD_CREATED: 'dashboard.created',
   DASHBOARD_UPDATED: 'dashboard.updated',
 
+  ISSUE_CREATED: 'issue.created',
+  ISSUE_UPDATED: 'issue.updated',
+  ISSUE_WORK_STARTED: 'issue.work_started',
+  ISSUE_REVIEW_REQUESTED: 'issue.review_requested',
+  ISSUE_CHANGES_REQUESTED: 'issue.changes_requested',
+  ISSUE_CLOSED: 'issue.closed',
+  ISSUE_REOPENED: 'issue.reopened',
+
   CUSTOM_TOOL_CREATED: 'custom_tool.created',
   CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
   CUSTOM_TOOL_DELETED: 'custom_tool.deleted',
@@ -276,6 +284,7 @@ export const AuditResourceType = {
   ENVIRONMENT: 'environment',
   FILE: 'file',
   FOLDER: 'folder',
+  ISSUE: 'issue',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
   OAUTH: 'oauth',

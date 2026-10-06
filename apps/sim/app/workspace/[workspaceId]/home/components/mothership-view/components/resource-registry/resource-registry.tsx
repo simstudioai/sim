@@ -10,6 +10,7 @@ import {
   Folder as FolderIcon,
   Globe,
   Library,
+  ListChecks,
   Search,
   Table as TableIcon,
   Task,
@@ -193,6 +194,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
   },
+  issue: {
+    type: 'issue',
+    label: 'Issues',
+    icon: ListChecks,
+    renderTabIcon: (_resource, className) => (
+      <ListChecks className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={ListChecks} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
@@ -299,6 +309,7 @@ export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
   'dashboard',
+  'issue',
   'table',
   'file',
   'filefolder',

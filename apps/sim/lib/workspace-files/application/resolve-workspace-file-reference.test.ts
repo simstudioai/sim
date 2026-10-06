@@ -58,14 +58,13 @@ describe('workspace file reference application service', () => {
     expect(mocks.resolveStoredReference).toHaveBeenCalledWith(
       file.workspaceId,
       'uploads/source.txt',
-      { includeChatUploads: true, chatId: 'current-chat' }
+      { includeChatUploads: true, includeIssueBodies: true, chatId: 'current-chat' }
     )
     expect(mocks.resolvePermission).toHaveBeenCalled()
   })
 
   it.each([
     fileOperations.rename,
-    fileOperations.updateContent,
     fileOperations.move,
     fileOperations.delete,
     fileOperations.updateShare,

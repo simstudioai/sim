@@ -37,6 +37,11 @@ const examples = {
     { action: 'set', content: 'title: Support\nblocks: []' },
     { action: 'set', content: 'title: Support', expectedRevision: 'r1' },
   ],
+  issues: [
+    { action: 'create', title: 'Refunds route to the wrong team', body: '## Evidence' },
+    { action: 'create', title: 'Slow replies', body: '', priority: 3 },
+    { action: 'get', key: 'SIM-12' },
+  ],
 }
 
 describe('management tool provider contract', () => {

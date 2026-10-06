@@ -13,6 +13,7 @@ import {
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
 
 export const WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
 
@@ -59,7 +60,7 @@ const reconcileWorkspaceFileLiveDoc: OutboxHandler<unknown> = async (rawPayload,
       and(
         eq(workspaceFiles.id, payload.fileId),
         eq(workspaceFiles.workspaceId, payload.workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
+        contentWritableWorkspaceFileContextCondition,
         isNull(workspaceFiles.deletedAt)
       )
     )

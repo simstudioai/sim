@@ -29,6 +29,7 @@ import {
   Database,
   Files,
   Integration,
+  ListChecks,
   MoreHorizontal,
   PanelLeft,
   Pin,
@@ -705,6 +706,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   )
 
   const dashboardsEnabled = useFeatureFlag('dashboards')
+  const issuesEnabled = useFeatureFlag('issues')
   const topNavItems = useMemo(
     () =>
       [
@@ -730,6 +732,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
           restricted: permissionConfig.hideFilesTab,
         },
         {
+          id: 'issues',
+          label: 'Issues',
+          icon: ListChecks,
+          href: `/workspace/${workspaceId}/issues`,
+          hidden: !issuesEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
@@ -750,6 +760,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       accessRequestsEnabled,
       chatEnabled,
       dashboardsEnabled,
+      issuesEnabled,
     ]
   )
 

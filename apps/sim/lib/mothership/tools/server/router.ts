@@ -21,6 +21,7 @@ import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-
 import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/mothership/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
+import { issuesServerTool } from '@/lib/mothership/tools/server/issues'
 import {
   readDocumentServerTool,
   searchWorkspaceServerTool,
@@ -62,6 +63,7 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [dashboardsServerTool.name]: dashboardsServerTool,
+  [issuesServerTool.name]: issuesServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,

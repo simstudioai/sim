@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
@@ -136,6 +136,10 @@ interface FileViewerProps {
    * its own find. See {@link RichMarkdownEditorProps.enableFind}.
    */
   enableFind?: boolean
+  /** Markdown files only: content scrolled above the document. See {@link RichMarkdownEditorProps.header}. */
+  header?: ReactNode
+  /** Markdown files only: content scrolled below the document. */
+  footer?: ReactNode
 }
 
 export function FileViewer(props: FileViewerProps) {
@@ -176,6 +180,8 @@ function FileViewerContent({
   collaborative,
   onDeriveTitleFromHeading,
   enableFind = false,
+  header,
+  footer,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -231,6 +237,8 @@ function FileViewerContent({
           collaborative={collaborative}
           onDeriveTitleFromHeading={onDeriveTitleFromHeading}
           enableFind={enableFind}
+          header={header}
+          footer={footer}
         />
       )
     }

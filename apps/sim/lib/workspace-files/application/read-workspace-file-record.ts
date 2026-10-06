@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext, WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -26,8 +27,18 @@ export interface ReadWorkspaceFileRecordResult {
 function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(operation: O) {
   return defineAuthorizedWorkspaceFileUseCase({
     operation,
-    resolveContext: ({ input }: { input: ReadWorkspaceFileRecordInput }) =>
-      resolveActiveWorkspaceFileContext({ ...input, includeChatUploads: true }),
+    resolveContext: ({
+      principal,
+      input,
+    }: {
+      principal: Principal
+      input: ReadWorkspaceFileRecordInput
+    }) =>
+      resolveActiveWorkspaceFileContext({
+        ...input,
+        includeChatUploads: true,
+        issueBodyPrincipal: principal,
+      }),
     async execute({
       context,
     }: AuthorizedWorkspaceUseCaseContext<
@@ -38,6 +49,7 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
       const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
         throwOnError: true,
         includeChatUploads: true,
+        includeIssueBodies: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       return { file }

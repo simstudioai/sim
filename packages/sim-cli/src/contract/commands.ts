@@ -144,6 +144,9 @@ export const CLI_CONTRACT: CliContract = {
   // endpoint as an NDJSON stream so the reply prints as it generates.
   chat: { hidden: true },
   createCredentialConnection: { hidden: true },
+  // Hidden while issues roll out behind a flag; Sim reaches them through the gated `issues` service.
+  createIssue: { hidden: true },
+  getIssue: { hidden: true },
   createServiceAccountCredential: { hidden: true },
   getBillingStatus: {
     command: 'billing status',

@@ -8,6 +8,7 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveReferencedWorkspaceFileContext } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { secretProvenanceContextOf } from '@/lib/workspace-files/secret-provenance-context'
 
 interface ReadWorkspaceFileArtifactInput {
   workspaceId: string
@@ -25,13 +26,17 @@ export const readWorkspaceFileArtifact = defineAuthorizedWorkspaceFileUseCase({
   }: {
     principal: Principal
     input: ReadWorkspaceFileArtifactInput
-  }) => resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
+  }) =>
+    resolveReferencedWorkspaceFileContext(principal, input, {
+      includeChatUploads: true,
+      includeIssueBodies: true,
+    }),
   async execute({ input, context, principal }) {
     const file = context.file
     const safe = await isOpaqueWorkspaceFileEgressSafe(context.workspaceId, {
       fileId: file.id,
       key: file.key,
-      context: file.storageContext ?? 'workspace',
+      context: secretProvenanceContextOf(file),
       ...(file.contentUpdatedAt ? { contentUpdatedAt: file.contentUpdatedAt } : {}),
     })
     if (!safe) throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)

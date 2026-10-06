@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -21,10 +22,18 @@ export interface ExportWorkspaceFileSnapshotInput {
 /** Exports the visible snapshot without writing or advancing the collaborative document. */
 export const exportWorkspaceFileSnapshot = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.download,
-  resolveContext: ({ input }: { input: ExportWorkspaceFileSnapshotInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ExportWorkspaceFileSnapshotInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ principal, input, context }) {
-    const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+    const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+      throwOnError: true,
+      includeIssueBodies: true,
+    })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     if (!isMarkdownFile(file) && file.type !== 'text/x-markdown') {
       throw new OrchestrationError('validation', 'Only Markdown files support snapshot export')

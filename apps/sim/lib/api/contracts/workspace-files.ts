@@ -162,7 +162,7 @@ export const workspaceFileRecordSchema = z.object({
   contentUpdatedAt: z.coerce.date().nullable().optional(),
   revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
-  vfsNamespace: z.literal('uploads').optional(),
+  vfsNamespace: z.enum(['uploads', 'issues']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 

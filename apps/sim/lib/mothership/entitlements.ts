@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
+import { readIssueAvailability } from '@/lib/issues/application/availability'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
 
 /** The owner of one chat turn: exactly one of a workspace or an organization. */
@@ -47,6 +48,10 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
   [ENTITLEMENTS.dashboards]: {
     workspace: ({ principal, workspaceId }) =>
       readDashboardAvailability.execute({ principal, input: { workspaceId } }),
+  },
+  [ENTITLEMENTS.issues]: {
+    workspace: ({ principal, workspaceId }) =>
+      readIssueAvailability.execute({ principal, input: { workspaceId } }),
   },
 }
 

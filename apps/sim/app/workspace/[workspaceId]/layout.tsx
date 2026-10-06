@@ -5,6 +5,7 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isIssuesEnabled } from '@/lib/issues/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -67,6 +68,7 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    issuesEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -84,6 +86,7 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isIssuesEnabled(hostContext.hostOrganizationId),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -94,6 +97,7 @@ export default async function WorkspaceLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
+          issues: issuesEnabled,
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,

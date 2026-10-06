@@ -59,10 +59,12 @@ describe('workspace file record reads', () => {
       expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
         includeDeleted: undefined,
         includeChatUploads: true,
+        includeIssueBodies: true,
       })
       expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
         throwOnError: true,
         includeChatUploads: true,
+        includeIssueBodies: true,
       })
     }
   )

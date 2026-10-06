@@ -163,6 +163,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/files/uploads/[uploadId]/parts/route'),
   },
   {
+    pattern: '/api/v2/issues',
+    load: () => import('@/app/api/v2/issues/route'),
+  },
+  {
+    pattern: '/api/v2/issues/{issueKey}',
+    load: () => import('@/app/api/v2/issues/[issueKey]/route'),
+  },
+  {
     pattern: '/api/v2/knowledge',
     load: () => import('@/app/api/v2/knowledge/route'),
   },

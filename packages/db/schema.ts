@@ -2474,6 +2474,159 @@ export const dashboard = pgTable(
   })
 )
 
+/**
+ * Last issue number handed out per numbering scope: the workspace's organization, or the
+ * workspace itself when it has none. Keys survive a later move of issues to project scope.
+ */
+export const issueCounter = pgTable('issue_counter', {
+  scopeId: text('scope_id').primaryKey(),
+  lastNumber: integer('last_number').notNull().default(0),
+})
+
+/**
+ * A Sim issue. The body is a workspace file with `context = 'issue'`, so it keeps collaborative
+ * editing, versions and Sim's streamed writes. `in_progress` means a Sim chat is working on it;
+ * `inbox` with a working chat is waiting for review, without one it is new.
+ */
+export const issue = pgTable(
+  'issue',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    numberScopeId: text('number_scope_id').notNull(),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    bodyFileId: text('body_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id),
+    status: text('status').notNull().default('inbox'),
+    closeReason: text('close_reason'),
+    duplicateOfId: text('duplicate_of_id').references((): AnyPgColumn => issue.id, {
+      onDelete: 'set null',
+    }),
+    priority: integer('priority').notNull().default(0),
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
+    workingChatId: uuid('working_chat_id').references(() => copilotChats.id, {
+      onDelete: 'set null',
+    }),
+    /** Sim's one-line result when it asked for review; the Inbox shows it. */
+    reviewSummary: text('review_summary'),
+    createdByActor: jsonb('created_by_actor').notNull(),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    /** Lets an automated filer find its open issue instead of filing the same problem again. */
+    fingerprint: text('fingerprint'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    numberUnique: uniqueIndex('issue_number_scope_unique').on(table.numberScopeId, table.number),
+    /** Keys are looked up per workspace, so a workspace that changed scope never repeats one. */
+    workspaceNumberUnique: uniqueIndex('issue_workspace_number_unique').on(
+      table.workspaceId,
+      table.number
+    ),
+    bodyFileUnique: uniqueIndex('issue_body_file_unique').on(table.bodyFileId),
+    workspaceStatusIdx: index('issue_workspace_status_idx')
+      .on(table.workspaceId, table.status, table.updatedAt)
+      .where(sql`${table.deletedAt} IS NULL`),
+    workingChatIdx: index('issue_working_chat_idx')
+      .on(table.workingChatId)
+      .where(sql`${table.workingChatId} IS NOT NULL`),
+    openFingerprintUnique: uniqueIndex('issue_open_fingerprint_unique')
+      .on(table.workspaceId, table.fingerprint)
+      .where(
+        sql`${table.fingerprint} IS NOT NULL AND ${table.status} <> 'done' AND ${table.deletedAt} IS NULL`
+      ),
+    statusCheck: check(
+      'issue_status_check',
+      sql`${table.status} IN ('inbox', 'in_progress', 'done')`
+    ),
+    closeReasonCheck: check(
+      'issue_close_reason_check',
+      sql`(${table.status} = 'done') = (${table.closeReason} IS NOT NULL) AND (${table.closeReason} IS NULL OR ${table.closeReason} IN ('completed', 'dismissed', 'duplicate'))`
+    ),
+    workingChatCheck: check(
+      'issue_working_chat_check',
+      sql`${table.status} <> 'in_progress' OR ${table.workingChatId} IS NOT NULL`
+    ),
+    priorityCheck: check('issue_priority_check', sql`${table.priority} BETWEEN 0 AND 4`),
+  })
+)
+
+/** The issue's Activity feed: one row per change, including the document edits Sim makes. */
+export const issueEvent = pgTable(
+  'issue_event',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    actor: jsonb('actor'),
+    actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    issueCreatedIdx: index('issue_event_issue_created_idx').on(table.issueId, table.createdAt),
+  })
+)
+
+/** Workspace resources an issue is about: workflows, tables, knowledge bases, files, dashboards. */
+export const issueResource = pgTable(
+  'issue_resource',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.issueId, table.resourceType, table.resourceId] }),
+  })
+)
+
+/** Tickets in external trackers (Linear, Jira) an issue is linked to; title and status are cached. */
+export const issueExternalLink = pgTable(
+  'issue_external_link',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    externalId: text('external_id').notNull(),
+    externalKey: text('external_key').notNull(),
+    url: text('url').notNull(),
+    title: text('title'),
+    status: text('status'),
+    credentialId: text('credential_id'),
+    lastSyncedAt: timestamp('last_synced_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    issueTicketUnique: uniqueIndex('issue_external_link_issue_ticket_unique').on(
+      table.issueId,
+      table.provider,
+      table.externalId
+    ),
+    ticketIdx: index('issue_external_link_ticket_idx').on(table.provider, table.externalId),
+    providerCheck: check(
+      'issue_external_link_provider_check',
+      sql`${table.provider} IN ('linear', 'jira')`
+    ),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -2488,8 +2641,10 @@ export const workspaceFiles = pgTable(
     }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     /**
-     * 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures',
-     * 'general', 'execution'
+     * 'workspace', 'mothership', 'issue', 'copilot', 'chat', 'knowledge-base', 'profile-pictures',
+     * 'general', 'execution'. A file whose context is not 'workspace' belongs to another module
+     * (a chat upload, an issue body): it is never listed, searched or managed as a file, and only
+     * the reads and writes that opt in reach it.
      */
     context: text('context').notNull(),
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
@@ -4108,6 +4263,8 @@ export const copilotChats = pgTable(
     autoAllowedTools: jsonb('auto_allowed_tools').notNull().default('[]'),
     lastSeenAt: timestamp('last_seen_at'),
     pinned: boolean('pinned').notNull().default(false),
+    /** The issue this chat works on; every chat that has worked on an issue keeps the link. */
+    issueId: text('issue_id').references((): AnyPgColumn => issue.id, { onDelete: 'set null' }),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4132,6 +4289,10 @@ export const copilotChats = pgTable(
       table.id
     ),
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
+    issueIdIdx: index('copilot_chats_issue_id_idx')
+      .on(table.issueId)
+      .concurrently()
+      .where(sql`${table.issueId} IS NOT NULL`),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
     userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
 

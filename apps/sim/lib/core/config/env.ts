@@ -600,6 +600,7 @@ export const env = createEnv({
     MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
     PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    ISSUES: z.boolean().optional(),
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     MSHIP_DESKTOP_BACKGROUND_EXECUTOR:     z.boolean().optional(),                 // Fallback for the `mothership-desktop-background-executor` feature flag off AppConfig
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)

@@ -54,6 +54,9 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
 vi.mock('@/lib/dashboards/application/availability', () => ({
   readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
+vi.mock('@/lib/issues/application/availability', () => ({
+  readIssueAvailability: { execute: vi.fn(async () => false) },
+}))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 const mockGetHighestPrioritySubscription =
   billingSubscriptionMockFns.mockGetHighestPrioritySubscription

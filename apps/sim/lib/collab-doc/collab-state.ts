@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { workspaceFileCollabState, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
+import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
 
 /** Matches the decoded size of the persist endpoint's 16 MiB base64 snapshot limit. */
 export const MAX_COLLAB_DOC_STATE_BYTES = 12 * 1024 * 1024
@@ -164,7 +165,7 @@ export async function commitCollabDocState(
           and(
             eq(workspaceFiles.id, fileId),
             eq(workspaceFiles.workspaceId, workspaceId),
-            eq(workspaceFiles.context, 'workspace'),
+            contentWritableWorkspaceFileContextCondition,
             isNull(workspaceFiles.deletedAt)
           )
         )

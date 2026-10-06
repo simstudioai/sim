@@ -47,6 +47,7 @@ import {
   type ReadWorkspaceFileTextResult,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { secretProvenanceContextOf } from '@/lib/workspace-files/secret-provenance-context'
 
 const logger = createLogger('WorkspaceFileVersions')
 
@@ -105,7 +106,10 @@ export interface RevertWorkspaceFileVersionResult {
 }
 
 async function loadActiveFile(context: ActiveWorkspaceFileContext): Promise<WorkspaceFileRecord> {
-  const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+    throwOnError: true,
+    includeIssueBodies: true,
+  })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   return file
 }
@@ -128,7 +132,7 @@ async function readVersionSecretProvenance(
     return getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
       fileId: file.id,
       key: file.key,
-      context: file.storageContext ?? 'workspace',
+      context: secretProvenanceContextOf(file),
       contentUpdatedAt: file.contentUpdatedAt ?? undefined,
     })
   }
@@ -172,8 +176,13 @@ function recordAtVersion(
 
 export const listWorkspaceFileVersions = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.listVersions,
-  resolveContext: ({ input }: { input: ListWorkspaceFileVersionsInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListWorkspaceFileVersionsInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ input, context }): Promise<ListWorkspaceFileVersionsResult> {
     const file = await loadActiveFile(context)
     const { versions, nextKeys } = await queryWorkspaceFileVersions(file, {
@@ -187,8 +196,8 @@ export const listWorkspaceFileVersions = defineAuthorizedWorkspaceFileUseCase({
 
 export const readWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readVersion,
-  resolveContext: ({ input }: { input: FileVersionRef }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: FileVersionRef }) =>
+    resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ input, context }): Promise<ReadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     return { version: await loadVersion(file, input.version) }
@@ -197,8 +206,13 @@ export const readWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
 
 export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readVersionContent,
-  resolveContext: ({ input }: { input: ReadWorkspaceFileVersionTextInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkspaceFileVersionTextInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({
     input,
     context,
@@ -224,8 +238,8 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
 
 export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.downloadVersion,
-  resolveContext: ({ input }: { input: FileVersionRef }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: FileVersionRef }) =>
+    resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
@@ -354,8 +368,13 @@ async function executeRevertWorkspaceFileVersion({
  */
 export const revertWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.revertVersion,
-  resolveContext: ({ input }: { input: RevertWorkspaceFileVersionInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: RevertWorkspaceFileVersionInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   execute: executeRevertWorkspaceFileVersion,
   projectAudit: ({ input, result }) =>
     result.reverted
@@ -388,8 +407,8 @@ export interface DeleteWorkspaceFileVersionResult {
  */
 export const deleteWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.deleteVersion,
-  resolveContext: ({ input }: { input: FileVersionRef }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: FileVersionRef }) =>
+    resolveActiveWorkspaceFileContext({ ...input, issueBodyPrincipal: principal }),
   async execute({ input, context }): Promise<DeleteWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const target = await loadVersion(file, input.version)

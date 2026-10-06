@@ -11,6 +11,7 @@ import {
   type PreparedCollabDocState,
 } from '@/lib/collab-doc/collab-state'
 import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
+import { isIssuesEnabledForWorkspace } from '@/lib/issues/feature-flag'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,
@@ -41,8 +42,13 @@ export async function persistFileDoc(
   docState: Uint8Array,
   expectedVersion?: number
 ): Promise<PersistFileDocResult> {
-  const initialRecord = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+  const initialRecord = await getWorkspaceFile(workspaceId, fileId, {
+    throwOnError: true,
+    includeIssueBodies: true,
+  })
   if (!initialRecord) return { status: 'missing' }
+  if (initialRecord.vfsNamespace === 'issues' && !(await isIssuesEnabledForWorkspace(workspaceId)))
+    return { status: 'missing' }
   if (expectedVersion === undefined) return { status: 'deferred' }
   assertCollabDocStateSize(docState)
   const candidate = new Y.Doc()
@@ -58,7 +64,10 @@ export async function persistFileDoc(
     const record =
       attempt === 0
         ? initialRecord
-        : await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+        : await getWorkspaceFile(workspaceId, fileId, {
+            throwOnError: true,
+            includeIssueBodies: true,
+          })
     if (!record) return { status: 'missing' }
     const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
     const cached = await loadCollabDocState(fileId)

@@ -119,6 +119,11 @@ interface ChipDropdownSingleProps extends ChipDropdownBaseProps {
   multiple?: false
   /** Show `leftIcon` with the chevron instead of the selected label. */
   iconOnly?: boolean
+  /**
+   * Lead the trigger with the selected option's `iconElement` or `icon` (an avatar, a priority
+   * glyph), falling back to `leftIcon` when the selection has none.
+   */
+  showSelectedIcon?: boolean
   /** Currently selected value. */
   value?: string
   /** Called when the user picks a different option from the menu. */
@@ -142,6 +147,11 @@ interface ChipDropdownMultiProps extends ChipDropdownBaseProps {
   onChange?: (values: string[]) => void
   /** Label shown in the trigger and as the reset row when nothing is selected. */
   allLabel?: string
+  /**
+   * Trigger label when something is selected, from the selected count, e.g. `3 linked`.
+   * Defaults to the single selected option's label, or `N selected`.
+   */
+  selectedLabel?: (count: number) => ReactNode
   /**
    * Whether to render the leading "all" reset row inside the menu. Defaults to
    * `true` for filter-style use (empty selection reads as "all"). Set `false`
@@ -268,15 +278,24 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       displayLabel =
         selectedValues.length === 0
           ? allLabel
-          : selectedValues.length === 1
-            ? (options.find((option) => option.value === selectedValues[0])?.label ?? allLabel)
-            : `${selectedValues.length} selected`
+          : props.selectedLabel
+            ? props.selectedLabel(selectedValues.length)
+            : selectedValues.length === 1
+              ? (options.find((option) => option.value === selectedValues[0])?.label ?? allLabel)
+              : `${selectedValues.length} selected`
     } else {
       displayLabel = selectedOption?.label ?? placeholder ?? 'Select...'
     }
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
     const iconClass = cn('size-[16px] shrink-0', !isInverse && 'text-[var(--text-icon)]')
+    const SelectedOptionIcon =
+      !isMultiple && props.showSelectedIcon ? selectedOption?.icon : undefined
+    const selectedIcon =
+      !isMultiple && props.showSelectedIcon
+        ? (selectedOption?.iconElement ??
+          (SelectedOptionIcon ? <SelectedOptionIcon className={iconClass} /> : null))
+        : null
     const iconOnly = !isMultiple && props.iconOnly === true && Boolean(LeftIcon)
     /**
      * The chevron glyph stays at its conventional subtle size, but is rendered
@@ -383,7 +402,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               className
             )}
           >
-            {LeftIcon ? <LeftIcon className={iconClass} /> : null}
+            {selectedIcon ?? (LeftIcon ? <LeftIcon className={iconClass} /> : null)}
             {!iconOnly && renderLabel(displayLabel)}
             <span aria-hidden className={chevronSlotClass}>
               <ChevronDown className='size-[14px]' />

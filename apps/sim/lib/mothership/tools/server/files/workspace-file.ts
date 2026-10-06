@@ -20,7 +20,10 @@ import {
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  parseIssueBodyReference,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
@@ -350,6 +353,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
+          if (parseIssueBodyReference(target.fileName) !== null) {
+            return {
+              success: false,
+              message:
+                'issues/ is reserved for issue documents. File a new issue with the issues tool, or edit an existing issue at issues/<KEY>.md',
+            }
+          }
           const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
           const fileName = leafName
           const content = normalized.content ?? ''
