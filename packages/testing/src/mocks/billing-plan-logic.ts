@@ -26,7 +26,7 @@ export function isEnterprise(plan: Plan): boolean {
   return plan === 'enterprise'
 }
 
-export function isFree(plan: Plan): boolean {
+function isFree(plan: Plan): boolean {
   return !plan || plan === 'free'
 }
 

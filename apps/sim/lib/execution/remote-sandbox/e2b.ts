@@ -359,25 +359,41 @@ class E2BSandboxHandle implements SandboxHandle {
   private killed = false
   private killPromise: Promise<void> | null = null
 
+  /**
+   * @param sessionDeadlineAtMs Earliest time the provider can reap this session sandbox, as set
+   *   by this handle's own create, connect, or timeout request. Session deadlines only ever move
+   *   later — every update path extends and none shortens — so it stays a valid lower bound.
+   */
   constructor(
     private readonly sandbox: E2BSandbox,
     private readonly language: CodeLanguage,
     private readonly providerLimitAtMs?: number,
-    private readonly sessionKey?: string
+    private readonly sessionKey?: string,
+    private sessionDeadlineAtMs?: number
   ) {}
 
   get sandboxId(): string {
     return this.sandbox.sandboxId
   }
 
+  outlives(lifetimeMs: number): boolean {
+    return (
+      this.sessionDeadlineAtMs !== undefined &&
+      this.sessionDeadlineAtMs >= Date.now() + e2bTimeoutMs(lifetimeMs)
+    )
+  }
+
   async extendLifetime(lifetimeMs: number): Promise<void> {
     const timeoutMs = e2bTimeoutMs(lifetimeMs)
     if (this.sessionKey !== undefined) {
+      if (this.outlives(lifetimeMs)) return
       /** Session callers serialize updates so a short job cannot shorten another job's lease. */
       const info = await this.sandbox.getInfo()
       if (info.endAt.getTime() >= Date.now() + timeoutMs) return
     }
+    const requestedAtMs = Date.now()
     await this.sandbox.setTimeout(timeoutMs)
+    if (this.sessionKey !== undefined) this.sessionDeadlineAtMs = requestedAtMs + timeoutMs
   }
 
   async runCode(
@@ -1072,13 +1088,16 @@ export const e2bProvider: SandboxProvider = {
       effectiveLifetimeMs === E2B_MAX_SANDBOX_LIFETIME_MS
         ? lifetimeStartedAtMs + E2B_MAX_SANDBOX_LIFETIME_MS
         : undefined,
-      options?.sessionKey
+      options?.sessionKey,
+      options?.sessionKey && effectiveLifetimeMs !== undefined
+        ? lifetimeStartedAtMs + effectiveLifetimeMs
+        : undefined
     )
   },
 
   async findSessionSandbox(
     key: string,
-    options: { language?: CodeLanguage }
+    options: { language?: CodeLanguage; lifetimeMs?: number }
   ): Promise<SandboxHandle | null> {
     const apiKey = env.E2B_API_KEY
     if (!apiKey) throw new Error('E2B_API_KEY is required when E2B is enabled')
@@ -1097,9 +1116,21 @@ export const e2bProvider: SandboxProvider = {
         'This workbench predates durable execution ownership and requires recovery before reuse'
       )
     }
-    // Connect also sets a timeout, including for running sandboxes. Preserve the active deadline.
-    const timeoutMs = Math.max(5 * 60_000, candidate.endAt.getTime() - Date.now())
+    // Connect also sets a timeout, including for running sandboxes. Preserve the active deadline,
+    // and grant the requested lease in the same request instead of a later getInfo + setTimeout.
+    const requestedAtMs = Date.now()
+    const timeoutMs = Math.max(
+      5 * 60_000,
+      candidate.endAt.getTime() - requestedAtMs,
+      options.lifetimeMs === undefined ? 0 : e2bTimeoutMs(options.lifetimeMs)
+    )
     const sandbox = await Sandbox.connect(candidate.sandboxId, { apiKey, timeoutMs })
-    return new E2BSandboxHandle(sandbox, options.language ?? CodeLanguage.Python, undefined, key)
+    return new E2BSandboxHandle(
+      sandbox,
+      options.language ?? CodeLanguage.Python,
+      undefined,
+      key,
+      options.lifetimeMs === undefined ? undefined : requestedAtMs + timeoutMs
+    )
   },
 }

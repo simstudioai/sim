@@ -43,8 +43,3 @@ export interface GoogleSlidesToolParams {
   folderId?: string
   folderSelector?: string
 }
-
-export type GoogleSlidesResponse =
-  | GoogleSlidesReadResponse
-  | GoogleSlidesWriteResponse
-  | GoogleSlidesCreateResponse

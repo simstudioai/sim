@@ -132,6 +132,7 @@ const EXPECTED_CAPABILITIES: Record<keyof typeof mcpServerOperations, string> = 
   register: 'mcp_tools.use',
   update: 'mcp_tools.use',
   reconfigure: 'mcp_tools.use',
+  changeDestination: 'mcp_tools.use',
   delete: 'mcp_tools.use',
   discoverTools: 'mcp_tools.use',
   executeTool: 'mcp_tools.use',

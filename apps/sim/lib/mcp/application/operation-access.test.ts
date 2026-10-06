@@ -3,7 +3,9 @@ import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loadWorkflow } = vi.hoisted(() => ({ loadWorkflow: vi.fn() }))
-vi.mock('@sim/workflow-persistence', () => ({ loadWorkflowFromNormalizedTablesRaw: loadWorkflow }))
+vi.mock('@sim/workflow-persistence/load', () => ({
+  loadWorkflowFromNormalizedTablesRaw: loadWorkflow,
+}))
 
 import {
   loadMcpOperationAccess,

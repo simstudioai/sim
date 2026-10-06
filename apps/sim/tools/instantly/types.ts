@@ -1,8 +1,8 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type InstantlyScalar = string | number | boolean | null
+type InstantlyScalar = string | number | boolean | null
 
-export interface InstantlyBaseParams {
+interface InstantlyBaseParams {
   apiKey: string
 }
 
@@ -333,16 +333,3 @@ export interface InstantlyLeadListResponse extends ToolResponse {
     name: string | null
   }
 }
-
-export type InstantlyResponse =
-  | InstantlyListLeadsResponse
-  | InstantlyLeadResponse
-  | InstantlyDeleteLeadsResponse
-  | InstantlyUpdateLeadInterestStatusResponse
-  | InstantlyListCampaignsResponse
-  | InstantlyCampaignResponse
-  | InstantlyCampaignActionResponse
-  | InstantlyListEmailsResponse
-  | InstantlyEmailResponse
-  | InstantlyListLeadListsResponse
-  | InstantlyLeadListResponse

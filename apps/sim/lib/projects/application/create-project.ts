@@ -7,11 +7,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { requireProjectPrincipal } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
-import { type CreateProjectInput, createProjectInputSchema } from '@/lib/projects/create-input'
+import type { CreateProjectInput } from '@/lib/projects/create-input'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   createWorkspaceWithProjectInTransaction,
   emitWorkspaceCreatedPlatformEvent,
+  WORKSPACE_USER_FK_CONSTRAINTS,
 } from '@/lib/workspaces/create'
 import {
   getWorkspaceCreationPolicy,
@@ -32,14 +33,8 @@ export const createProject: OperationUseCase<
   operation: projectOperations.create,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.create)
-    requireProjectApiEnabled()
-    const parsed = createProjectInputSchema.safeParse(input)
-    if (!parsed.success)
-      throw new OrchestrationError(
-        'validation',
-        'A scope, Project name and initial environment name are required'
-      )
-    const { organizationId, name, initialEnvironment } = parsed.data
+    await requireProjectApiEnabled()
+    const { organizationId, name, initialEnvironment } = input
     const policy = await getWorkspaceCreationPolicy({
       userId: principal.userId,
       activeOrganizationId: organizationId,
@@ -80,21 +75,16 @@ export const createProject: OperationUseCase<
         )
       if (getPostgresErrorCode(error) === '55P03')
         throw new OrchestrationError(
-          'locked',
+          'conflict',
           'This organization is being updated; retry Project creation'
         )
       if (
         getPostgresErrorCode(error) === '23503' &&
-        getPostgresConstraintName(error) === 'workspace_owner_id_user_id_fk'
-      )
-        throw new OrchestrationError('unauthorized', 'Unauthorized')
-      if (
-        getPostgresErrorCode(error) === '23503' &&
-        getPostgresConstraintName(error) === 'workspace_billed_account_user_id_user_id_fk'
+        WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
       )
         throw new OrchestrationError(
           'conflict',
-          'The billing account changed; retry Project creation'
+          'The owning or billing account changed; retry Project creation'
         )
       throw error
     }

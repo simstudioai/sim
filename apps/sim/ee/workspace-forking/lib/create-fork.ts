@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, projectWorkspace, workflow, workspace } from '@sim/db/schema'
+import { permissions, projectWorkspace, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -9,7 +9,7 @@ import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   collectReferencedDocumentIds,
@@ -511,17 +511,15 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     // starter "New workspace" creates. Any copied resources still land alongside it.
     if (workflowsCopied === 0) {
       const defaultWorkflowId = generateId()
-      await tx.insert(workflow).values(
-        await buildNewWorkflowRow(tx, {
-          id: defaultWorkflowId,
-          userId,
-          workspaceId: childWorkspaceId,
-          folderId: null,
-          name: 'default-agent',
-          description: 'Your first workflow - start building here!',
-          now,
-        })
-      )
+      await insertNewWorkflowRow(tx, {
+        id: defaultWorkflowId,
+        userId,
+        workspaceId: childWorkspaceId,
+        folderId: null,
+        name: 'default-agent',
+        description: 'Your first workflow - start building here!',
+        now,
+      })
       const { workflowState } = buildDefaultWorkflowArtifacts()
       await saveWorkflowToNormalizedTables(
         defaultWorkflowId,

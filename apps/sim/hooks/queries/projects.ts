@@ -22,7 +22,11 @@ export function useProjects(organizationId: string) {
     getNextPageParam: (page) => page.nextCursor,
     staleTime: PROJECT_LIST_STALE_TIME,
     retry: (failureCount, error) =>
-      !(isApiClientError(error) && error.status === 503) && failureCount < 3,
+      failureCount < 1 &&
+      (!isApiClientError(error) ||
+        error.status === 408 ||
+        error.status === 429 ||
+        (error.status >= 500 && error.status !== 503)),
     enabled: Boolean(organizationId),
   })
 }

@@ -204,7 +204,7 @@ import type { ToolResponse } from '@/tools/types'
  * Credential params every Lambda tool declares. The tool's `operation.input` renames
  * these onto the `region`/`accessKeyId`/`secretAccessKey` fields the contract expects.
  */
-export interface LambdaConnectionParams {
+interface LambdaConnectionParams {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string
@@ -648,55 +648,3 @@ export interface LambdaPutRuntimeManagementConfigParams
 export interface LambdaPutRuntimeManagementConfigResponse extends ToolResponse {
   output: AwsLambdaPutRuntimeManagementConfigResponse['output']
 }
-
-export type LambdaResponse =
-  | LambdaInvokeResponse
-  | LambdaListFunctionsResponse
-  | LambdaGetFunctionResponse
-  | LambdaGetFunctionConfigurationResponse
-  | LambdaCreateFunctionResponse
-  | LambdaUpdateFunctionCodeResponse
-  | LambdaUpdateFunctionConfigurationResponse
-  | LambdaDeleteFunctionResponse
-  | LambdaPublishVersionResponse
-  | LambdaListVersionsByFunctionResponse
-  | LambdaCreateAliasResponse
-  | LambdaGetAliasResponse
-  | LambdaUpdateAliasResponse
-  | LambdaDeleteAliasResponse
-  | LambdaListAliasesResponse
-  | LambdaAddPermissionResponse
-  | LambdaRemovePermissionResponse
-  | LambdaGetPolicyResponse
-  | LambdaCreateEventSourceMappingResponse
-  | LambdaGetEventSourceMappingResponse
-  | LambdaUpdateEventSourceMappingResponse
-  | LambdaDeleteEventSourceMappingResponse
-  | LambdaListEventSourceMappingsResponse
-  | LambdaGetFunctionConcurrencyResponse
-  | LambdaPutFunctionConcurrencyResponse
-  | LambdaDeleteFunctionConcurrencyResponse
-  | LambdaGetProvisionedConcurrencyConfigResponse
-  | LambdaPutProvisionedConcurrencyConfigResponse
-  | LambdaDeleteProvisionedConcurrencyConfigResponse
-  | LambdaListProvisionedConcurrencyConfigsResponse
-  | LambdaCreateFunctionUrlConfigResponse
-  | LambdaGetFunctionUrlConfigResponse
-  | LambdaUpdateFunctionUrlConfigResponse
-  | LambdaDeleteFunctionUrlConfigResponse
-  | LambdaListFunctionUrlConfigsResponse
-  | LambdaGetFunctionEventInvokeConfigResponse
-  | LambdaPutFunctionEventInvokeConfigResponse
-  | LambdaDeleteFunctionEventInvokeConfigResponse
-  | LambdaListFunctionEventInvokeConfigsResponse
-  | LambdaListLayersResponse
-  | LambdaListLayerVersionsResponse
-  | LambdaGetLayerVersionResponse
-  | LambdaListTagsResponse
-  | LambdaTagResourceResponse
-  | LambdaUntagResourceResponse
-  | LambdaGetAccountSettingsResponse
-  | LambdaGetFunctionRecursionConfigResponse
-  | LambdaPutFunctionRecursionConfigResponse
-  | LambdaGetRuntimeManagementConfigResponse
-  | LambdaPutRuntimeManagementConfigResponse

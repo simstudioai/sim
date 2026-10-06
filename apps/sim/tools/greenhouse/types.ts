@@ -392,19 +392,3 @@ interface GreenhouseOpening {
   application_id: number | null
   close_reason: { id: number; name: string } | null
 }
-
-/**
- * Union type of all Greenhouse responses
- */
-export type GreenhouseResponse =
-  | GreenhouseListCandidatesResponse
-  | GreenhouseGetCandidateResponse
-  | GreenhouseListJobsResponse
-  | GreenhouseGetJobResponse
-  | GreenhouseListApplicationsResponse
-  | GreenhouseGetApplicationResponse
-  | GreenhouseListUsersResponse
-  | GreenhouseGetUserResponse
-  | GreenhouseListDepartmentsResponse
-  | GreenhouseListOfficesResponse
-  | GreenhouseListJobStagesResponse

@@ -9,10 +9,9 @@ export const IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR =
 export const SANDBOX_RELEASE_GENERATION_ERROR = 'must be a positive safe integer release generation'
 
 export const SANDBOX_PROVIDER_IDS = ['e2b', 'daytona'] as const
-export type SandboxProviderName = (typeof SANDBOX_PROVIDER_IDS)[number]
 
 /** Leaves three decimal digits for a materializer revision in one safe integer. */
-export const MAX_SANDBOX_RELEASE_GENERATION = Math.floor((Number.MAX_SAFE_INTEGER - 999) / 1000)
+const MAX_SANDBOX_RELEASE_GENERATION = Math.floor((Number.MAX_SAFE_INTEGER - 999) / 1000)
 
 const E2B_TEMPLATE_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,62}$/
 const E2B_TEMPLATE_REFERENCE_NAME_PATTERN =
@@ -24,7 +23,7 @@ export function isValidE2BTemplateName(value: string): boolean {
 }
 
 /** Exact E2B refs may include one documented lowercase namespace segment. */
-export function isValidE2BTemplateReferenceName(value: string): boolean {
+function isValidE2BTemplateReferenceName(value: string): boolean {
   return E2B_TEMPLATE_REFERENCE_NAME_PATTERN.test(value)
 }
 

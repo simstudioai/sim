@@ -184,7 +184,7 @@ const usePopoverContext = () => {
   return context
 }
 
-export interface PopoverProps extends PopoverPrimitive.PopoverProps {
+interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)

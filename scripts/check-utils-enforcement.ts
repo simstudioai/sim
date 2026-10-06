@@ -46,8 +46,6 @@ const ALLOWLISTED_FILES = new Set([
   'apps/sim/lib/execution/isolated-vm-worker.cjs',
   // Emits the sandbox-side event filter as plain JS source, which cannot import @sim/utils
   'apps/sim/executor/handlers/pi/cloud/event-filter-source.ts',
-  // Uses crypto.getRandomValues() directly (not crypto.randomUUID) — TSDoc comment triggers false positive
-  'packages/testing/src/factories/id.ts',
 ])
 
 /** `s.slice(0, n)` plus a suffix, by `+` or in a template literal; `\1` is `s` and `\2` is `n`. */

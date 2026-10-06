@@ -186,3 +186,29 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
 
   return encodeSegment(trimmed, paramName)
 }
+
+/** Matches a scheme and authority, which end at the first `/`, `\`, `?`, or `#` in a special-scheme URL. */
+const SCHEME_AND_AUTHORITY = /^[a-z][a-z\d+.-]*:[\\/]*[^\\/?#]*/i
+
+/**
+ * Rejects a request URL whose path carries a dot segment the WHATWG parser
+ * would resolve away. Mirrors the parser: boundary C0 controls and spaces,
+ * then tabs and newlines, are stripped, `\` separates segments like `/`, and
+ * `%2e` counts as a dot.
+ *
+ * @throws If the path contains a `.` or `..` segment in any spelling.
+ */
+export function assertNoDotPathSegments(url: string): void {
+  const path = url
+    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
+    .replace(/[\t\n\r]/g, '')
+    .replace(SCHEME_AND_AUTHORITY, '')
+    .split(/[?#]/, 1)[0]
+  const hasDotSegment = path.split(/[\\/]/).some((segment) => {
+    const decoded = segment.replace(/%2e/gi, '.')
+    return decoded === '.' || decoded === '..'
+  })
+  if (hasDotSegment) {
+    throw new Error('Tool request URL cannot contain "." or ".." path segments')
+  }
+}

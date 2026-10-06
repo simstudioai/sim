@@ -56,6 +56,8 @@ Scrape any URL and return clean, LLM-ready markdown content.
 | --------- | ---- | ----------- |
 | `markdown` | string | Page content as clean markdown |
 | `url` | string | The scraped URL |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Scrape HTML
 
@@ -80,6 +82,8 @@ Scrape any URL and return the raw HTML content of the page.
 | `html` | string | Raw HTML content of the page |
 | `url` | string | The scraped URL |
 | `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf, doc, docx\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Scrape Images
 
@@ -110,6 +114,8 @@ Discover every image asset on a page, with optional dimension and type enrichmen
 |   ↳ `alt` | string | Alt text |
 |   ↳ `enrichment` | json | Optional enrichment \(width, height, mimetype, url, type\) when requested |
 | `url` | string | The scraped URL |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Screenshot
 
@@ -139,6 +145,8 @@ Capture a screenshot of any web page and store it as a downloadable image file.
 | `domain` | string | Domain that was captured |
 | `width` | number | Screenshot width in pixels |
 | `height` | number | Screenshot height in pixels |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Crawl
 
@@ -170,6 +178,8 @@ Crawl an entire website and return each discovered page as clean markdown.
 |   ↳ `markdown` | string | Page content as markdown |
 |   ↳ `metadata` | json | Page metadata \(url, title, crawlDepth, statusCode\) |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Map
 
@@ -192,6 +202,8 @@ Build a sitemap of a domain and return every discovered page URL.
 | `domain` | string | The domain that was mapped |
 | `urls` | array | All page URLs discovered from the sitemap |
 | `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Search
 
@@ -223,6 +235,8 @@ Search the web with natural language and optionally scrape results to markdown.
 |   ↳ `relevance` | string | Relevance rating \(high, medium, low\) |
 |   ↳ `markdown` | json | Scraped markdown for the result \(when markdown scraping is enabled\) |
 | `query` | string | The query that was searched |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Extract
 
@@ -253,6 +267,8 @@ Crawl a website and extract structured data matching a provided JSON schema.
 | `urlsAnalyzed` | array | URLs that were analyzed during extraction |
 | `data` | json | Structured data matching the requested schema |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Extract Product
 
@@ -288,6 +304,8 @@ Detect and extract structured product details from a single product page URL.
 |   ↳ `image_url` | string | Primary product image URL |
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Extract Products
 
@@ -322,6 +340,8 @@ Extract the product catalog from a brand's website by domain (beta).
 |   ↳ `image_url` | string | Primary product image URL |
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Scrape Fonts
 
@@ -351,6 +371,8 @@ Extract the font families, usage stats, and font files used by a domain.
 |   ↳ `percent_words` | number | Percent of words using the font |
 |   ↳ `percent_elements` | number | Percent of elements using the font |
 | `fontLinks` | json | Font family download links keyed by font name \(type, files, category\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Scrape Styleguide
 
@@ -372,6 +394,8 @@ Extract a domain's design system: colors, typography, spacing, shadows, and UI c
 | `status` | string | Extraction status |
 | `domain` | string | The domain that was analyzed |
 | `styleguide` | json | Design system: mode, colors, typography, elementSpacing, shadows, fontLinks, components |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Classify NAICS
 
@@ -398,6 +422,8 @@ Classify a brand into NAICS industry codes from its domain or company name.
 |   ↳ `code` | string | Industry code |
 |   ↳ `name` | string | Industry name |
 |   ↳ `confidence` | string | Match confidence \(high, medium, low\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Classify SIC
 
@@ -429,6 +455,8 @@ Classify a brand into SIC industry codes from its domain or company name.
 |   ↳ `majorGroup` | string | Major group code \(original_sic only\) |
 |   ↳ `majorGroupName` | string | Major group name \(original_sic only\) |
 |   ↳ `office` | string | SEC office \(latest_sec only\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Get Brand
 
@@ -467,6 +495,8 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Get Brand by Name
 
@@ -506,6 +536,8 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Get Brand by Email
 
@@ -544,6 +576,8 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Get Brand by Ticker
 
@@ -583,6 +617,8 @@ Retrieve brand data for a public company by its stock ticker symbol.
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 ### Context.dev Identify Transaction
 
@@ -625,5 +661,7 @@ Identify the brand behind a raw bank/card transaction descriptor and return its 
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
 
 

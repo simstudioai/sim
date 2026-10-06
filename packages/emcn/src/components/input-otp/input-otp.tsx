@@ -22,13 +22,11 @@
  * @see InputOTP - Root component wrapping OTPInput
  * @see InputOTPGroup - Groups slots together
  * @see InputOTPSlot - Individual digit slot
- * @see InputOTPSeparator - Visual separator between groups
  */
 'use client'
 
 import * as React from 'react'
 import { OTPInput, OTPInputContext } from 'input-otp'
-import { Minus } from '../../icons'
 import { cn } from '../../lib/cn'
 
 /**
@@ -94,17 +92,4 @@ const InputOTPSlot = React.forwardRef<
 })
 InputOTPSlot.displayName = 'InputOTPSlot'
 
-/**
- * Visual separator between OTP slot groups.
- */
-const InputOTPSeparator = React.forwardRef<
-  React.ElementRef<'div'>,
-  React.ComponentPropsWithoutRef<'div'>
->(({ ...props }, ref) => (
-  <div ref={ref} role='separator' className='text-[var(--text-muted)]' {...props}>
-    <Minus />
-  </div>
-))
-InputOTPSeparator.displayName = 'InputOTPSeparator'
-
-export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
+export { InputOTP, InputOTPGroup, InputOTPSlot }

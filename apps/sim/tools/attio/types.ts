@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Raw Attio note tag shape (workspace-member or record variant) */
-export interface AttioNoteTag {
+interface AttioNoteTag {
   type?: string
   workspace_member_id?: string
   object?: string
@@ -1246,50 +1246,3 @@ export interface AttioUpdateAttributeParams {
 export interface AttioUpdateAttributeResponse extends ToolResponse {
   output: AttioAttributeOutput
 }
-
-export type AttioResponse =
-  | AttioListRecordsResponse
-  | AttioGetRecordResponse
-  | AttioCreateRecordResponse
-  | AttioUpdateRecordResponse
-  | AttioDeleteRecordResponse
-  | AttioSearchRecordsResponse
-  | AttioAssertRecordResponse
-  | AttioListNotesResponse
-  | AttioGetNoteResponse
-  | AttioCreateNoteResponse
-  | AttioDeleteNoteResponse
-  | AttioListTasksResponse
-  | AttioCreateTaskResponse
-  | AttioUpdateTaskResponse
-  | AttioGetTaskResponse
-  | AttioDeleteTaskResponse
-  | AttioListObjectsResponse
-  | AttioGetObjectResponse
-  | AttioCreateObjectResponse
-  | AttioUpdateObjectResponse
-  | AttioListListsResponse
-  | AttioGetListResponse
-  | AttioCreateListResponse
-  | AttioUpdateListResponse
-  | AttioQueryListEntriesResponse
-  | AttioGetListEntryResponse
-  | AttioCreateListEntryResponse
-  | AttioUpdateListEntryResponse
-  | AttioDeleteListEntryResponse
-  | AttioListMembersResponse
-  | AttioGetMemberResponse
-  | AttioCreateCommentResponse
-  | AttioGetCommentResponse
-  | AttioDeleteCommentResponse
-  | AttioListThreadsResponse
-  | AttioGetThreadResponse
-  | AttioListWebhooksResponse
-  | AttioGetWebhookResponse
-  | AttioCreateWebhookResponse
-  | AttioUpdateWebhookResponse
-  | AttioDeleteWebhookResponse
-  | AttioListAttributesResponse
-  | AttioGetAttributeResponse
-  | AttioCreateAttributeResponse
-  | AttioUpdateAttributeResponse

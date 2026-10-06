@@ -307,19 +307,3 @@ export interface Rb2bLinkedinSlugSearchResponse extends ToolResponse {
     linkedin_url: string | null
   }
 }
-
-export type Rb2bResponse =
-  | Rb2bCreditCheckResponse
-  | Rb2bIpToHemResponse
-  | Rb2bIpToCompanyResponse
-  | Rb2bMaidResponse
-  | Rb2bLinkedinUrlResponse
-  | Rb2bLinkedinSlugResponse
-  | Rb2bBusinessProfileResponse
-  | Rb2bEmailActivityResponse
-  | Rb2bBestPersonalEmailResponse
-  | Rb2bPersonalEmailsResponse
-  | Rb2bHashedEmailsResponse
-  | Rb2bMobilePhoneResponse
-  | Rb2bLinkedinProfileResponse
-  | Rb2bLinkedinSlugSearchResponse

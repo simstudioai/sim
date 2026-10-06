@@ -11,7 +11,7 @@ export type LogfireRegion = 'auto' | 'us' | 'eu'
  * level as an OpenTelemetry severity number but rewrites string comparisons,
  * so `level >= 'error'` works directly in SQL.
  */
-export type LogfireLevel = 'trace' | 'debug' | 'info' | 'notice' | 'warn' | 'error' | 'fatal'
+type LogfireLevel = 'trace' | 'debug' | 'info' | 'notice' | 'warn' | 'error' | 'fatal'
 
 export interface LogfireBaseParams {
   apiKey: string
@@ -24,7 +24,7 @@ export interface LogfireBaseParams {
 }
 
 /** Time-window and paging controls accepted by every `/v2/query` request. */
-export interface LogfireQueryWindowParams {
+interface LogfireQueryWindowParams {
   minTimestamp?: string
   maxTimestamp?: string
   limit?: number
@@ -42,7 +42,7 @@ export interface LogfireColumn {
  * the official SDK renames it to `datatype` before handing results to callers,
  * and {@link LogfireColumn} keeps that friendlier name.
  */
-export interface LogfireApiField {
+interface LogfireApiField {
   name?: string | null
   data_type?: unknown
   nullable?: boolean | null
@@ -195,8 +195,3 @@ export interface LogfireGetTokenInfoResponse extends ToolResponse {
     spendingCapReachedAt: string | null
   }
 }
-
-export type LogfireResponse =
-  | LogfireQueryResponse
-  | LogfireRecordsResponse
-  | LogfireGetTokenInfoResponse

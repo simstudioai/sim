@@ -324,8 +324,6 @@ export interface SupabaseUpsertResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseVectorSearchResponse extends SupabaseBaseResponse {}
 
-export interface SupabaseResponse extends SupabaseBaseResponse {}
-
 export interface SupabaseRpcParams {
   apiKey: string
   projectId: string

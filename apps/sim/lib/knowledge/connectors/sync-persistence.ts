@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, not, or, type SQL, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import {
   EMPTY_ACL,
   validateMirroredDocumentAcl,

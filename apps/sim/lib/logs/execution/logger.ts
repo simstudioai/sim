@@ -44,6 +44,7 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
+import { getJsonByteSize } from '@/lib/logs/execution/json-byte-size'
 import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
 import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -79,6 +80,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
+import { isLiveExecutionState } from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -90,6 +92,7 @@ const logger = createLogger('ExecutionLogger')
  */
 const execDb = dbFor('exec')
 const MAX_EXECUTION_DATA_BYTES = 3 * 1024 * 1024
+const EXECUTION_DATA_SIZE_PROBE_LIMIT = MAX_EXECUTION_DATA_BYTES + 1
 const MAX_TRACE_IO_BYTES = 8 * 1024
 const MAX_WORKFLOW_VALUE_BYTES = 512 * 1024
 const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
@@ -136,80 +139,6 @@ type UsageThresholdEmailContext =
       orgLimit: number
       orgUsageBefore: number
     }
-
-function getJsonByteSize(
-  value: unknown,
-  maxBytes = MAX_EXECUTION_DATA_BYTES + 1
-): number | undefined {
-  const seen = new WeakSet<object>()
-  let bytes = 0
-
-  const add = (amount: number) => {
-    bytes += amount
-    if (bytes > maxBytes) {
-      throw new Error('json_size_limit_reached')
-    }
-  }
-
-  const visit = (item: unknown): void => {
-    if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
-      add(4)
-      return
-    }
-    if (item === null) {
-      add(4)
-      return
-    }
-    if (typeof item === 'string') {
-      add(Buffer.byteLength(JSON.stringify(item), 'utf8'))
-      return
-    }
-    if (typeof item === 'bigint') {
-      add(Buffer.byteLength(JSON.stringify(item.toString()), 'utf8'))
-      return
-    }
-    if (typeof item === 'number' || typeof item === 'boolean') {
-      add(Buffer.byteLength(JSON.stringify(item) ?? 'null', 'utf8'))
-      return
-    }
-    if (typeof item !== 'object') {
-      add(4)
-      return
-    }
-    if (seen.has(item)) {
-      return
-    }
-    seen.add(item)
-
-    if (Array.isArray(item)) {
-      add(2)
-      item.forEach((entry, index) => {
-        if (index > 0) add(1)
-        visit(entry)
-      })
-      return
-    }
-
-    const entries = Object.entries(item)
-    add(2)
-    entries.forEach(([key, entry], index) => {
-      if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') return
-      if (index > 0) add(1)
-      add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
-      visit(entry)
-    })
-  }
-
-  try {
-    visit(value)
-    return bytes
-  } catch (error) {
-    if (getErrorMessage(error) === 'json_size_limit_reached') {
-      return maxBytes + 1
-    }
-    return undefined
-  }
-}
 
 function describeValue(value: unknown): string {
   if (value === null) return 'null'
@@ -347,13 +276,13 @@ function recordStoredByteSize(executionData: ExecutionData): {
   executionData: ExecutionData
   storedBytes?: number
 } {
-  const firstBytes = getJsonByteSize(executionData)
+  const firstBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (firstBytes === undefined) {
     return { executionData }
   }
 
   const withFirstSize = { ...executionData, executionDataStoredBytes: firstBytes }
-  const secondBytes = getJsonByteSize(withFirstSize)
+  const secondBytes = getJsonByteSize(withFirstSize, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (secondBytes === undefined || secondBytes === firstBytes) {
     return { executionData: withFirstSize, storedBytes: secondBytes ?? firstBytes }
   }
@@ -361,7 +290,7 @@ function recordStoredByteSize(executionData: ExecutionData): {
   const withSecondSize = { ...executionData, executionDataStoredBytes: secondBytes }
   return {
     executionData: withSecondSize,
-    storedBytes: getJsonByteSize(withSecondSize) ?? secondBytes,
+    storedBytes: getJsonByteSize(withSecondSize, EXECUTION_DATA_SIZE_PROBE_LIMIT) ?? secondBytes,
   }
 }
 
@@ -415,7 +344,7 @@ export class ExecutionLogger {
     executionData: ExecutionData,
     executionId: string
   ): ExecutionData {
-    const originalBytes = getJsonByteSize(executionData)
+    const originalBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
     if (originalBytes === undefined || originalBytes <= MAX_EXECUTION_DATA_BYTES) {
       return executionData
     }
@@ -777,7 +706,17 @@ export class ExecutionLogger {
     // the log's large values must get the logs policy applied like inline content
     // does. Masking is idempotent, so already-masked spans are unaffected; a ref
     // that can't be materialized/re-stored falls back to a marker.
-    const working = await redactLargeValueRefs(payload, {
+    // A completed run hands over live execution state rather than a JSON clone;
+    // normalize it (Dates to strings, undefined dropped) so masking sees the
+    // same shapes the persisted state will have. Other states are JSON already.
+    const normalizedPayload = !isLiveExecutionState(payload.executionState)
+      ? payload
+      : {
+          ...payload,
+          // utils-lint-allow: JSON normalization of the state, not a deep clone
+          executionState: JSON.parse(JSON.stringify(payload.executionState)),
+        }
+    const working = await redactLargeValueRefs(normalizedPayload, {
       entityTypes: config.entityTypes,
       language: config.language,
       customPatterns: config.customPatterns,

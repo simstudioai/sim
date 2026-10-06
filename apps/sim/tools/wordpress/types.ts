@@ -14,9 +14,9 @@ interface WordPressBaseParams {
 
 export const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
-export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
+type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
 
-export type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
+type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
 
 export interface WordPressCreatePostParams extends WordPressBaseParams {
   title: string
@@ -114,14 +114,6 @@ export interface WordPressListPostsParams extends WordPressBaseParams {
 }
 
 export interface WordPressListPostsResponse extends ToolResponse {
-  output: {
-    posts: WordPressPost[]
-    total: number
-    totalPages: number
-  }
-}
-
-interface WordPressSearchPostsResponse extends ToolResponse {
   output: {
     posts: WordPressPost[]
     total: number
@@ -331,12 +323,6 @@ interface WordPressComment {
 }
 
 export interface WordPressCreateCommentResponse extends ToolResponse {
-  output: {
-    comment: WordPressComment
-  }
-}
-
-interface WordPressGetCommentResponse extends ToolResponse {
   output: {
     comment: WordPressComment
   }
@@ -601,39 +587,3 @@ export interface WordPressSearchContentResponse extends ToolResponse {
     totalPages: number
   }
 }
-
-export type WordPressResponse =
-  | WordPressCreatePostResponse
-  | WordPressUpdatePostResponse
-  | WordPressDeletePostResponse
-  | WordPressGetPostResponse
-  | WordPressListPostsResponse
-  | WordPressSearchPostsResponse
-  | WordPressCreatePageResponse
-  | WordPressUpdatePageResponse
-  | WordPressDeletePageResponse
-  | WordPressGetPageResponse
-  | WordPressListPagesResponse
-  | WordPressUploadMediaResponse
-  | WordPressGetMediaResponse
-  | WordPressListMediaResponse
-  | WordPressDeleteMediaResponse
-  | WordPressCreateCommentResponse
-  | WordPressGetCommentResponse
-  | WordPressListCommentsResponse
-  | WordPressUpdateCommentResponse
-  | WordPressDeleteCommentResponse
-  | WordPressCreateCategoryResponse
-  | WordPressListCategoriesResponse
-  | WordPressGetCategoryResponse
-  | WordPressUpdateCategoryResponse
-  | WordPressDeleteCategoryResponse
-  | WordPressCreateTagResponse
-  | WordPressListTagsResponse
-  | WordPressGetTagResponse
-  | WordPressUpdateTagResponse
-  | WordPressDeleteTagResponse
-  | WordPressGetCurrentUserResponse
-  | WordPressListUsersResponse
-  | WordPressGetUserResponse
-  | WordPressSearchContentResponse

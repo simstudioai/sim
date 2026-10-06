@@ -7,13 +7,13 @@ globs: ["packages/emcn/**"]
 
 # EMCN Components
 
-Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, `Switch`→`ChipSwitch`, date field→`ChipDatePicker`). For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
+Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, date field→`ChipDatePicker`). `ChipSwitch` is a segmented choice between options, not a replacement for `Switch`: a boolean on/off toggle stays `Switch`. For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
 
 ## Chip chrome — single source of truth
 
 Never hand-roll the chip pill from raw class strings (they go stale). Compose from the canonical sources:
 
-- **Surface, typography + content tokens:** `chip/chip-chrome.ts` — `chipFilledSurfaceTokens`, `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells), and the row-state pair `chipHoverSurfaceClass` / `chipActiveSurfaceClass` (hover vs. selected — mutually exclusive, so a selected row holds its surface through hover; every hand-rolled row imports these rather than restating the literals). All are re-exported from the `@sim/emcn` barrel — no subpath import needed.
+- **Surface, typography + content tokens:** `chip/chip-chrome.ts` — `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells), and the row-state pair `chipHoverSurfaceClass` / `chipActiveSurfaceClass` (hover vs. selected — mutually exclusive, so a selected row holds its surface through hover; every hand-rolled row imports these rather than restating the literals). All are re-exported from the `@sim/emcn` barrel — no subpath import needed.
 - **Pill geometry:** `chip/chip.tsx` — `chipVariants` (30px tall, `rounded-lg`, `px-2`, icon↔text `gap-1.5`). Every pill-shaped trigger (`ChipDropdown`, `ChipSelect`, `ChipSwitch`) reuses it for visual parity.
 
 Canonical look: normal font-weight (never `font-medium`/`font-semibold`), value text `--text-body`, icons `--text-icon` at `size-[14px]`, placeholder `--text-muted`, `transition-colors`, **no focus ring** (the caret marks focus). Filled surface is `--surface-5` light / `--surface-4` dark with a `--border` border (`chip-chrome.ts` still spells it through the legacy alias `--border-1`; new code writes `--border`).
@@ -55,6 +55,6 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 - **Discriminated-union props for modes** (e.g. `multiple`, the modal field `type`) instead of near-duplicate components.
 - **Delete legacy variants after migration** — leave no dead paths.
 - **Verify CSS vars exist.** An undefined var resolves to `currentColor`, which draws black borders. Align to the canonical tokens: normal weight, `--text-body`, `--text-icon`.
-- Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
+- Use Radix UI primitives for accessibility. Export the component; export its CVA `variants` once another module composes them (`check:unused-exports` flags an export nothing imports). Document with TSDoc + a usage example.
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.

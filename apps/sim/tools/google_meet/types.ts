@@ -36,14 +36,6 @@ export interface GoogleMeetListParticipantsParams extends BaseGoogleMeetParams {
   pageToken?: string
 }
 
-export type GoogleMeetToolParams =
-  | GoogleMeetCreateSpaceParams
-  | GoogleMeetGetSpaceParams
-  | GoogleMeetEndConferenceParams
-  | GoogleMeetListConferenceRecordsParams
-  | GoogleMeetGetConferenceRecordParams
-  | GoogleMeetListParticipantsParams
-
 export interface GoogleMeetApiSpaceResponse {
   name: string
   meetingUri: string
@@ -155,11 +147,3 @@ export interface GoogleMeetListParticipantsResponse extends ToolResponse {
     totalSize: number | null
   }
 }
-
-export type GoogleMeetResponse =
-  | GoogleMeetCreateSpaceResponse
-  | GoogleMeetGetSpaceResponse
-  | GoogleMeetEndConferenceResponse
-  | GoogleMeetListConferenceRecordsResponse
-  | GoogleMeetGetConferenceRecordResponse
-  | GoogleMeetListParticipantsResponse

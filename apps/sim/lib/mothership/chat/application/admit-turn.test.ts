@@ -151,6 +151,24 @@ describe('organization turn admission through current private-chat authorization
       )
     }
   )
+  it.each([
+    [undefined, false],
+    ['low', true],
+  ] as const)(
+    'records the send effort %s as the chat choice in the admission write: %s',
+    async (effortChoice, recorded) => {
+      queueTableRows(copilotChats, [chat])
+      queueTableRows(member, [{ role: 'member' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ model: null }])
+        .mockResolvedValueOnce([{ id: 'run-1' }])
+        .mockResolvedValueOnce([{ key: 'claim' }])
+      await admitChatTurn.execute({ principal, input: { ...input(), effortChoice } })
+      const config = dbChainMockFns.set.mock.calls[0][0].config.toSQL()
+      expect(config.sql.includes("jsonb_build_object('effort'")).toBe(recorded)
+      expect(config.params.includes('low')).toBe(recorded)
+    }
+  )
   it.each(['agent', 'plan'] as const)(
     'denies switching to %s without current workspace-create permission before any mutation',
     async (mode) => {

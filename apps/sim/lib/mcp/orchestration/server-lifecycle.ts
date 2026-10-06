@@ -18,7 +18,7 @@ import {
 import { detectMcpAuthType, oauthCredsChanged, revokeMcpOauthTokens } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpAuthType } from '@/lib/mcp/types'
-import { generateMcpServerId } from '@/lib/mcp/utils'
+import { generateMcpServerId, isSameMcpServerDestination } from '@/lib/mcp/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('McpServerOrchestration')
@@ -62,6 +62,11 @@ export interface PerformUpdateMcpServerParams extends ActorMetadata {
   workspaceId: string
   userId: string
   serverId: string
+  /**
+   * Whether the caller may point the server at a different host or path.
+   * Deployed workflows pin a server by id, so this is reserved for admins.
+   */
+  allowDestinationChange: boolean
   name?: string
   description?: string | null
   transport?: McpServerTransport
@@ -178,6 +183,22 @@ export async function createMcpServer(
 
     const urlChanged = existingServer ? existingServer.url !== params.url : true
 
+    /**
+     * Server ids are a 32-bit hash of the URL, so a different destination can
+     * collide with an existing row. Deployed workflows pin that id, so an
+     * upsert must never repoint it at another host.
+     */
+    if (
+      existingServer &&
+      (!existingServer.url || !isSameMcpServerDestination(existingServer.url, params.url))
+    ) {
+      return {
+        success: false,
+        error: 'An MCP server with a conflicting id already exists in this workspace',
+        errorCode: 'conflict',
+      }
+    }
+
     if (existingServer?.managedConnectorId) {
       return {
         success: false,
@@ -249,11 +270,10 @@ export async function createMcpServer(
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
+      const checkedUrl = existingServer.url
+      if (!checkedUrl) throw new Error(`MCP server ${serverId} has no URL to re-register against`)
       let updatedFields: string[] = []
-      await db.transaction(async (tx) => {
-        if (shouldClearOauth) {
-          await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
-        }
+      const rewritten = await db.transaction(async (tx) => {
         const updateValues: Partial<typeof mcpServers.$inferInsert> = {
           name: params.name,
           description: params.description,
@@ -301,8 +321,25 @@ export async function createMcpServer(
         updatedFields = Object.entries(updateValues)
           .filter(([key, value]) => key !== 'updatedAt' && value !== undefined)
           .map(([key]) => key)
-        await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
+        /** Matching the checked URL keeps a concurrent admin repoint from being written back. */
+        const [updated] = await tx
+          .update(mcpServers)
+          .set(updateValues)
+          .where(and(eq(mcpServers.id, serverId), eq(mcpServers.url, checkedUrl)))
+          .returning({ id: mcpServers.id })
+        if (!updated) return false
+        if (shouldClearOauth) {
+          await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
+        }
+        return true
       })
+      if (!rewritten) {
+        return {
+          success: false,
+          error: 'The MCP server URL changed while saving; reload and try again',
+          errorCode: 'conflict',
+        }
+      }
 
       const [server] = await db
         .select()
@@ -417,6 +454,19 @@ export async function updateMcpServer(
 
     if (!currentServer) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
+    const guardedUrl = params.allowDestinationChange ? undefined : params.url
+    if (
+      guardedUrl !== undefined &&
+      (!currentServer.url || !isSameMcpServerDestination(currentServer.url, guardedUrl))
+    ) {
+      return {
+        success: false,
+        error: 'Only workspace admins can point an MCP server at a different URL',
+        errorCode: 'forbidden',
+      }
+    }
+    const checkedUrl = guardedUrl !== undefined ? currentServer.url : null
+
     if (
       params.oauthClientId &&
       currentServer.authType !== 'oauth' &&
@@ -474,7 +524,8 @@ export async function updateMcpServer(
           and(
             eq(mcpServers.id, params.serverId),
             eq(mcpServers.workspaceId, params.workspaceId),
-            isNull(mcpServers.deletedAt)
+            isNull(mcpServers.deletedAt),
+            checkedUrl ? eq(mcpServers.url, checkedUrl) : undefined
           )
         )
         .returning()
@@ -487,7 +538,15 @@ export async function updateMcpServer(
       return updated
     })
 
-    if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+    if (!server) {
+      return checkedUrl
+        ? {
+            success: false,
+            error: 'The MCP server URL changed while saving; reload and try again',
+            errorCode: 'conflict',
+          }
+        : { success: false, error: 'Server not found', errorCode: 'not_found' }
+    }
 
     const shouldClearCache =
       urlChanged ||

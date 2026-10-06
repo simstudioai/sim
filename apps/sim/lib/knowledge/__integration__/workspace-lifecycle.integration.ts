@@ -17,9 +17,6 @@ vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: null }))
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { clearCache: vi.fn().mockResolvedValue(undefined) },
 }))
-vi.mock('@/lib/workflows/lifecycle', () => ({
-  archiveWorkflowsForWorkspace: vi.fn().mockResolvedValue(0),
-}))
 
 import {
   createKnowledgeAclFixtureIds,

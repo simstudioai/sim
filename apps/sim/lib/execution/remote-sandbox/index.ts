@@ -135,6 +135,8 @@ async function leaseSandbox(
         created,
         session: status,
         release: async () => {
+          // A deadline that already covers the idle window needs no serialized update.
+          if (created.sandbox.outlives?.(SESSION_SANDBOX_IDLE_MS)) return
           // Cleanup failure cannot relabel a completed mutation as a failed execution.
           try {
             await withSandboxSessionLock(session.key, AbortSignal.timeout(30_000), async () => {

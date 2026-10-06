@@ -5,7 +5,7 @@ import { Button, type ButtonProps } from '../button/button'
 import { chipFilledFillTokens, chipRadiusClass } from '../chip/chip-chrome'
 
 /** The shared 28px geometry and brand-hover treatment of selection action bars. */
-export const bulkActionButtonVariants = cva(
+const bulkActionButtonVariants = cva(
   `${chipRadiusClass} size-[28px] p-0 hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!`,
   {
     variants: {
