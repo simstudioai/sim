@@ -260,6 +260,22 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
   })
 
+  it('refuses a call the user declined before its gate was recorded on the row', async () => {
+    const { runId } = await startRun()
+    const toolCallId = generateId()
+    await db.insert(copilotAsyncToolCalls).values({
+      runId,
+      toolCallId,
+      toolName: 'terminal',
+      args: { operation: 'run', args: { command: 'git push --force' } },
+      status: 'pending',
+      permissionDecision: 'skip',
+    })
+
+    expect((await desktopClaims(toolCallId)).status).toBe(403)
+    expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
+  })
+
   it('refuses a pending desktop call after Stop, and settles it as never started', async () => {
     const { runId, streamId } = await startRun()
     const toolCallId = await agentCalls(runId, 'browser_click', { ref: 'e12' })

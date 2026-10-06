@@ -728,7 +728,10 @@ export async function claimToolExecution(
                     thisCall,
                     eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
                     or(
-                      isNull(copilotAsyncToolCalls.permissionRequestedAt),
+                      and(
+                        isNull(copilotAsyncToolCalls.permissionRequestedAt),
+                        isNull(copilotAsyncToolCalls.permissionDecision)
+                      ),
                       inArray(copilotAsyncToolCalls.permissionDecision, [
                         ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
                       ])
