@@ -210,21 +210,20 @@ interface LiveFileDocMergeResponse {
  * failures to callers that own a retry policy, such as the transactional outbox.
  */
 export async function applyEditToLiveFileDoc(
-  fileId: string,
+  target: FileDocTarget,
   markdown: string,
   order: LiveFileDocMergeOrder = {},
-  signal?: AbortSignal,
-  owner?: EditableFileOwner
+  signal?: AbortSignal
 ): Promise<LiveFileDocMergeResponse> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
     body: JSON.stringify({
-      fileId,
+      fileId: target.fileId,
       markdown,
       version: order.version,
-      ...fileDocOwnerWireFields(owner),
+      ...fileDocOwnerWireFields(target.owner),
     }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
@@ -254,16 +253,15 @@ export async function applyEditToLiveFileDoc(
  * editor. Unlike list notifications this is durability-sensitive and throws so the outbox retries.
  */
 export async function invalidateLiveFileDoc(
-  fileId: string,
+  target: FileDocTarget,
   version: number,
-  signal?: AbortSignal,
-  owner?: EditableFileOwner
+  signal?: AbortSignal
 ): Promise<void> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/invalidate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ fileId, version, ...fileDocOwnerWireFields(owner) }),
+    body: JSON.stringify({ ...target, version, ...fileDocOwnerWireFields(target.owner) }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   await response.body?.cancel().catch(() => {})

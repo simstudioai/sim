@@ -11,8 +11,14 @@ export interface FileDocOwner {
   entityId: string
 }
 
-/** Missing ownership is accepted only for the legacy workspace wire address. */
+/** A document target with explicit ownership; asserted ownership still requires authorization. */
 export interface FileDocTarget {
+  fileId: string
+  owner: FileDocOwner
+}
+
+/** Incoming workspace messages may omit the owner until canonical authorization resolves it. */
+interface FileDocWireTarget {
   fileId: string
   owner?: FileDocOwner
 }
@@ -38,7 +44,7 @@ export function parseFileDocTarget(input: {
   fileId?: unknown
   owner?: unknown
   projectId?: unknown
-}): FileDocTarget | null {
+}): FileDocWireTarget | null {
   if (typeof input.fileId !== 'string' || !input.fileId) return null
   const { fileId } = input
   const candidate =
@@ -67,21 +73,21 @@ export function parseFileDocTarget(input: {
 }
 
 /** Encode owner-qualified targets without renaming deployed Socket.IO or Redis addresses. */
-export function fileDocRoom(target: FileDocTarget): RoomRef {
+export function fileDocRoom(target: FileDocWireTarget): RoomRef {
   return target.owner
     ? OWNER_CODECS[target.owner.entityType].room(target.owner.entityId, target.fileId)
     : { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: target.fileId }
 }
 
 /** Pending admissions use the same compatibility codec as their live document. */
-export function fileDocAdmissionRoom(target: FileDocTarget): string {
+export function fileDocAdmissionRoom(target: FileDocWireTarget): string {
   return target.owner
     ? OWNER_CODECS[target.owner.entityType].admission(target.owner.entityId, target.fileId)
     : `file-doc-admission:${target.fileId}`
 }
 
 /** Workspace ownership is resolved after authorization because legacy room names omit it. */
-export function fileDocTargetFromRoom(room: RoomRef): FileDocTarget | null {
+export function fileDocTargetFromRoom(room: RoomRef): FileDocWireTarget | null {
   if (room.type === ROOM_TYPES.WORKSPACE_FILE_DOC) return { fileId: room.id }
   const project = projectFileDocTarget(room)
   return project
@@ -89,9 +95,7 @@ export function fileDocTargetFromRoom(room: RoomRef): FileDocTarget | null {
     : null
 }
 
-/** Workspace wire addresses omit ownership during rolling deploys; shared owners retain legacy hints. */
-export function fileDocOwnerWireFields(owner?: FileDocOwner) {
-  return owner && owner.entityType !== 'workspace'
-    ? { owner, ...(owner.entityType === 'project' ? { projectId: owner.entityId } : {}) }
-    : {}
+/** Include explicit ownership while retaining the Project hint understood by older relays. */
+export function fileDocOwnerWireFields(owner: FileDocOwner) {
+  return { owner, ...(owner.entityType === 'project' ? { projectId: owner.entityId } : {}) }
 }

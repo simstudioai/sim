@@ -116,6 +116,7 @@ export function useFileDocCollaboration({
       : workspaceId
         ? { owner: { entityType: 'workspace' as const, entityId: workspaceId }, userId }
         : undefined
+    if (!scope) return
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, scope)
     setCanWrite(fileProvider.canWrite)
     const reloadAfterWriteLoss = async () => {

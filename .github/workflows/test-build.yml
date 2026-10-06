@@ -128,7 +128,7 @@ jobs:
   http-e2e:
     name: End-to-end over real HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 40
+    timeout-minutes: 20
     services:
       redis:
         image: redis:8.2-alpine

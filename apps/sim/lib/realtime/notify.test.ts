@@ -5,6 +5,11 @@ import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/no
 
 urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://realtime')
 setEnv({ INTERNAL_API_SECRET: 'secret' })
+const target = {
+  fileId: 'file-1',
+  owner: { entityType: 'workspace', entityId: 'workspace-1' },
+} as const
+
 afterAll(() => {
   resetUrlsMock()
   resetEnvMock()
@@ -13,7 +18,7 @@ afterAll(() => {
 describe('applyEditToLiveFileDoc', () => {
   it('throws when the realtime call fails so the outbox can retry', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket pod down')))
-    await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
+    await expect(applyEditToLiveFileDoc(target, '# hello', { version: 42 })).rejects.toThrow(
       'socket pod down'
     )
   })
@@ -25,7 +30,7 @@ describe('applyEditToLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
     )
 
-    await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
+    await expect(applyEditToLiveFileDoc(target, '# hello', { version: 42 })).rejects.toThrow(
       'status 503'
     )
     expect(cancel).toHaveBeenCalledOnce()
@@ -40,7 +45,7 @@ describe('invalidateLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status }))
     )
 
-    const result = invalidateLiveFileDoc('file-1', 42)
+    const result = invalidateLiveFileDoc(target, 42)
     if (status === 200) {
       await expect(result).resolves.toBeUndefined()
     } else {
@@ -56,7 +61,7 @@ describe('invalidateLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
     )
 
-    await expect(invalidateLiveFileDoc('file-1', 42)).rejects.toThrow('status 503')
+    await expect(invalidateLiveFileDoc(target, 42)).rejects.toThrow('status 503')
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -64,18 +69,18 @@ describe('invalidateLiveFileDoc', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    await invalidateLiveFileDoc('file-1', 42)
+    await invalidateLiveFileDoc(target, 42)
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://realtime/api/file-doc/invalidate',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'x-api-key': 'secret' }),
-        body: JSON.stringify({ fileId: 'file-1', version: 42 }),
+        body: JSON.stringify({ ...target, version: 42 }),
       })
     )
 
     fetchMock.mockResolvedValueOnce({ ok: false, status: 503 })
-    await expect(invalidateLiveFileDoc('file-1', 42)).rejects.toThrow('status 503')
+    await expect(invalidateLiveFileDoc(target, 42)).rejects.toThrow('status 503')
   })
 })

@@ -376,7 +376,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
       source.getText(FILE_DOC_FIELD).insert(0, 'Stale text')
       const acknowledge = vi.fn()
       try {
-        if (timing === 'before append') await invalidateLiveFileDocument('file-1', 2)
+        if (timing === 'before append')
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
         sent.length = 0
         handlers[FILE_DOC_EVENTS.UPDATE](
           {
@@ -389,7 +390,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         )
         if (timing !== 'before append') {
           expect(publish).toHaveBeenCalledTimes(1)
-          await invalidateLiveFileDocument('file-1', 2)
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
           if (timing === 'during append and reseed') {
             mockFetchFileDocSeed.mockResolvedValue({
               ...seedResult('Replacement', 'doc-new'),
@@ -949,19 +950,31 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
     // A newer durable version lands and is recorded as the synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', { version: 100 })).toBe('applied')
+    expect(
+      await applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# newer', {
+        version: 100,
+      })
+    ).toBe('applied')
     mockFetchFileDocMerge.mockClear()
 
     // An older durable version arriving out of order (e.g. a concurrent write on another process) is
     // stale: skipped before any diff is computed, so the live doc never regresses to older content and
     // no diff is published that a later persist could write back.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', { version: 50 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# older, stale',
+        { version: 50 }
+      )
+    ).toBe('stale')
     // The same version is idempotent — also skipped.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', { version: 100 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# same version',
+        { version: 100 }
+      )
+    ).toBe('stale')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
@@ -979,8 +992,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
       .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce(noOpUpdate)
 
-    const first = applyMarkdownToLiveFileDoc('file-1', '# One')
-    const second = applyMarkdownToLiveFileDoc('file-1', '# Two')
+    const first = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# One')
+    const second = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# Two')
     await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1) // second is queued behind the first
 

@@ -91,7 +91,7 @@ const reconcileFileLiveDoc: OutboxHandler<unknown> = async (rawPayload, context)
     file.sizeBytes > PASTE_LIMITS.RICH_MARKDOWN_BYTES
   ) {
     /** Later binary writes do not enqueue reconciliation, so retire the latest unsupported version. */
-    await invalidateLiveFileDoc(payload.fileId, currentVersion, context.signal, payload.owner)
+    await invalidateLiveFileDoc(payload, currentVersion, context.signal)
     return
   }
   if (currentVersion > payload.version) return
@@ -104,11 +104,10 @@ const reconcileFileLiveDoc: OutboxHandler<unknown> = async (rawPayload, context)
   })
   context.signal.throwIfAborted()
   const result = await applyEditToLiveFileDoc(
-    payload.fileId,
+    payload,
     content.toString('utf-8'),
     { version: payload.version },
-    context.signal,
-    payload.owner
+    context.signal
   )
   if (result.status === 'merge-unavailable') {
     return deferOutboxHandler('Live document merge slot is temporarily unavailable')

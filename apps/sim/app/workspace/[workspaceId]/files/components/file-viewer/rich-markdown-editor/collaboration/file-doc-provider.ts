@@ -139,7 +139,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   synced = false
   canWrite = true
-  private readonly owner: FileDocOwner | undefined
+  private readonly owner: FileDocOwner
   private readonly scopedPermissions: boolean
   private readonly membershipKey: string
   /**
@@ -190,15 +190,15 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     private readonly fileId: string,
     readonly doc: Y.Doc,
     readonly awareness: awarenessProtocol.Awareness,
-    scope?: FileDocProviderScope
+    scope: FileDocProviderScope
   ) {
     super()
 
-    this.owner = scope?.owner
-    this.scopedPermissions = Boolean(this.owner && this.owner.entityType !== 'workspace')
+    this.owner = scope.owner
+    this.scopedPermissions = this.owner.entityType !== 'workspace'
     this.canWrite = !this.scopedPermissions
     this.membershipKey = roomName(fileDocRoom({ fileId, owner: this.owner }))
-    this.journal = scope ? new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId }) : null
+    this.journal = new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId })
     this.registerActiveProvider()
 
     // Restore an empty local awareness state if it has been cleared. A fresh
@@ -1083,7 +1083,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (!target || target.fileId !== this.fileId) return false
     if (!target.owner) return !this.scopedPermissions
     return (
-      target.owner.entityType === this.owner?.entityType &&
+      target.owner.entityType === this.owner.entityType &&
       target.owner.entityId === this.owner.entityId
     )
   }

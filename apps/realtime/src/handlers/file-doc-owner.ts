@@ -68,9 +68,9 @@ const OWNER_ADAPTERS: Record<FileDocOwner['entityType'], FileDocOwnerAdapter> = 
   },
 }
 
-/** Only registered scopes can use callbacks; legacy workspace addresses resolve their owner at join. */
-export function fileDocOwnerAdapter(owner?: FileDocOwner): FileDocOwnerAdapter {
-  const type = owner?.entityType ?? 'workspace'
+/** Select callbacks only after the document's canonical owner has been resolved. */
+export function fileDocOwnerAdapter(owner: FileDocOwner): FileDocOwnerAdapter {
+  const type = owner.entityType
   if (!Object.hasOwn(OWNER_ADAPTERS, type)) throw new Error('Unsupported document owner')
   return OWNER_ADAPTERS[type]
 }

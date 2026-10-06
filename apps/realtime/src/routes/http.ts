@@ -216,21 +216,16 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       try {
         const body = await readRequestBody(req)
         const input = JSON.parse(body)
-        const { fileId, markdown, version } = input
+        const { markdown, version } = input
         const target = parseFileDocTarget(input)
         if (!target || typeof markdown !== 'string') {
           return sendError(res, 'Invalid fileId or markdown', 400)
         }
         // `version` (the durable updatedAt this markdown was written with) records that the live doc now
         // incorporates that durable version, so the persist If-Match guard won't flag it as a conflict.
-        const result = await applyMarkdownToLiveFileDoc(
-          fileId,
-          markdown,
-          {
-            version: typeof version === 'number' ? version : undefined,
-          },
-          target.owner
-        )
+        const result = await applyMarkdownToLiveFileDoc(fileDocRoom(target), markdown, {
+          version: typeof version === 'number' ? version : undefined,
+        })
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ applied: result === 'applied', status: result }))
       } catch (error) {
@@ -246,7 +241,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         const { retiredDocId, replacementDocId } = input
         const target = parseFileDocTarget(input)
         if (
-          !target ||
+          !target?.owner ||
           !fileDocOwnerAdapter(target.owner).tracksLifecycle ||
           !isNonEmptyString(retiredDocId) ||
           retiredDocId.length > 128 ||
@@ -256,7 +251,7 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         )
           return sendError(res, 'Invalid file document retirement', 400)
         const result = await retireLiveFileDocument(
-          { ...target, retiredDocId, replacementDocId },
+          { fileId: target.fileId, owner: target.owner, retiredDocId, replacementDocId },
           roomManager.io
         )
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -275,12 +270,12 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         const { version } = input
         const target = parseFileDocTarget(input)
         if (!target) return sendError(res, 'Invalid file target', 400)
-        const { fileId, owner } = target
+        const { fileId } = target
         if (!Number.isSafeInteger(version) || version <= 0) {
           return sendError(res, 'Invalid version', 400)
         }
         const room = fileDocRoom(target)
-        const result = await invalidateLiveFileDocument(fileId, version, owner)
+        const result = await invalidateLiveFileDocument(room, version)
         const payload: FileDocInvalidated = {
           fileId,
           version,

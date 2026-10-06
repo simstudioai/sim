@@ -66,11 +66,14 @@ describe('workspace file live-document outbox', () => {
       expect.objectContaining({ key: 'workspace/workspace-1/file.md', context: 'workspace' })
     )
     expect(mockApplyEditToLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       '# Durable content',
       { version: VERSION.getTime() },
-      expect.any(AbortSignal),
-      { entityType: 'workspace', entityId: 'workspace-1' }
+      expect.any(AbortSignal)
     )
   })
 
@@ -128,10 +131,13 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       VERSION.getTime(),
-      expect.any(AbortSignal),
-      { entityType: 'workspace', entityId: 'workspace-1' }
+      expect.any(AbortSignal)
     )
   })
 
@@ -151,10 +157,13 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       VERSION.getTime(),
-      expect.any(AbortSignal),
-      { entityType: 'workspace', entityId: 'workspace-1' }
+      expect.any(AbortSignal)
     )
   })
 
@@ -175,10 +184,13 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       latestVersion,
-      expect.any(AbortSignal),
-      { entityType: 'workspace', entityId: 'workspace-1' }
+      expect.any(AbortSignal)
     )
   })
 })
