@@ -281,7 +281,7 @@ export function useOrganizationMothershipChats(
   })
 }
 
-export async function fetchMothershipChatHistory(
+async function readMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
@@ -310,16 +310,17 @@ export async function fetchMothershipChatHistory(
 }
 
 /**
- * A chat this tab saw deleted that the server returns again was restored, so it
- * takes queued sends again. Only a read that began after the delete counts: one
- * already in flight can return the chat from before it.
+ * Reads a chat from the server. A chat this tab saw deleted that the server
+ * returns again was restored, so it takes queued sends again. Only a read that
+ * began after the delete counts: one already in flight can return the chat from
+ * before it.
  */
-async function fetchChatHistoryConfirmingRestore(
+export async function fetchMothershipChatHistory(
   chatId: string,
-  signal: AbortSignal
+  signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
   const deletedBeforeRead = Boolean(useMothershipQueueStore.getState().cleared[chatId])
-  const history = await fetchMothershipChatHistory(chatId, signal)
+  const history = await readMothershipChatHistory(chatId, signal)
   if (deletedBeforeRead) useMothershipQueueStore.getState().reopenChat(chatId)
   return history
 }
@@ -327,7 +328,7 @@ async function fetchChatHistoryConfirmingRestore(
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
   return queryOptions({
     queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: chatId ? ({ signal }) => fetchChatHistoryConfirmingRestore(chatId, signal) : skipToken,
+    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
     staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
   })
 }

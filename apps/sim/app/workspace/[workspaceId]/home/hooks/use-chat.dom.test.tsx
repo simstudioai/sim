@@ -2613,6 +2613,38 @@ describe('useChat remount send recovery', () => {
       }
     )
 
+    /** The same holds when the server read is the one a return to the tab makes. */
+    it('queues a follow-up after a return to the tab finds a chat this tab saw deleted', async () => {
+      const history = idleHistory('chat-restored-while-away')
+      const running: MothershipChatHistory = { ...history, activeStreamId: 'turn-after-restore' }
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: running }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/api/mothership/chat/stream')) {
+          if (String(input).includes('batch=true')) {
+            return Response.json({ success: true, events: [], status: 'streaming' })
+          }
+          return new Response(new ReadableStream<Uint8Array>(), {
+            headers: { 'Content-Type': 'text/event-stream' },
+          })
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      useMothershipQueueStore.getState().clearChat(history.id)
+
+      await act(async () => {
+        window.dispatchEvent(new Event('pageshow'))
+      })
+      await waitFor(() => getResult().isSending)
+      await act(async () => {
+        await getResult().sendMessage('Follow-up after coming back')
+      })
+
+      expect(
+        useMothershipQueueStore.getState().queues[history.id]?.map((message) => message.content)
+      ).toEqual(['Follow-up after coming back'])
+    })
+
     /**
      * Another tab deletes the chat while this tab's send waits on the lock. The
      * busy refusal then rewrites the chat's history locally; that is not the
