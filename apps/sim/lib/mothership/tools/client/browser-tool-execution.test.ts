@@ -332,6 +332,35 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
+  it('resolves only once the browser action has settled and its result is handed to delivery', async () => {
+    let finishAction: (result: unknown) => void = () => {}
+    mockExecuteBrowserTool.mockReturnValue(
+      new Promise((resolve) => {
+        finishAction = resolve
+      })
+    )
+    const toolCallId = nextToolCallId()
+    let resolved = false
+    const running = executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {}, CHAT_SCOPE).then(
+      () => {
+        resolved = true
+      }
+    )
+
+    await vi.waitFor(() => expect(mockExecuteBrowserTool).toHaveBeenCalled())
+    await sleep(10)
+    expect(resolved).toBe(false)
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+
+    finishAction({ text: 'page content' })
+    await running
+    // Delivery itself is owned by the retained-completion scheduler, which outlives the turn's
+    // Stop and the page; what the caller waits for is the action, with its report under way.
+    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+      text: 'page content',
+    })
+  })
+
   it('lets a running invocation own the genuine result when the same call is re-delivered', async () => {
     let finishExecution: (result: { text: string }) => void = () => {}
     mockExecuteBrowserTool.mockImplementation(
