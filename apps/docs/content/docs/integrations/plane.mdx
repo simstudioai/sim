@@ -2229,7 +2229,14 @@ List cycles in Plane. Supports API v1 compatibility.
 |   ↳ `updated_by` | string | Updated by |
 |   ↳ `project` | string | Project |
 |   ↳ `workspace` | string | Workspace |
-|   ↳ `owned_by` | string | Owned by |
+|   ↳ `owned_by` | json | Owned by |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `first_name` | string | Asset Id |
+|     ↳ `last_name` | string | Asset Id |
+|     ↳ `email` | string | Email |
+|     ↳ `avatar` | string | Asset Id |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `display_name` | string | Display name |
 |   ↳ `status` | string | Status |
 |   ↳ `deleted_by` | json | Deleted by |
 | `detail` | string | Provider message when no records are returned. |
@@ -2274,7 +2281,7 @@ List labels in Plane. Supports API v1 compatibility.
 | `count` | boolean | No | Defaults to `true`. Set to `false` to omit `total_count` and skip the count query. |
 | `fields` | string | No | Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can't silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `id`, `name`, `parent_id`, `sort_order`. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). |
 | `cursor` | string | No | Cursor from next_cursor. Repeat the original filters, per_page, and order_by when following it. |
-| `expand` | string | No | v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above. |
+| `expand` | string | No | API v1 only. Comma-separated relations: `created_by`, `updated_by`, `workspace`, `project`, `parent`. Expansion replaces each relation ID with an object. Include the relation in `fields` when also requesting sparse fields. |
 | `parent_id__isnull` | boolean | No | API v2: true selects top-level labels, false selects labels with a parent. |
 
 #### Output
@@ -2311,11 +2318,40 @@ List labels in Plane. Supports API v1 compatibility.
 |   ↳ `sort_order` | number | Sort order |
 |   ↳ `external_source` | string | External source |
 |   ↳ `external_id` | string | External id |
-|   ↳ `created_by` | string | Created by |
-|   ↳ `updated_by` | string | Updated by |
-|   ↳ `workspace` | string | Workspace |
-|   ↳ `project` | string | Project |
-|   ↳ `parent` | string | Parent |
+|   ↳ `created_by` | json | Creator ID or expanded user. |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `first_name` | string | Asset Id |
+|     ↳ `last_name` | string | Asset Id |
+|     ↳ `email` | string | Email |
+|     ↳ `avatar` | string | Asset Id |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `display_name` | string | Display name |
+|   ↳ `updated_by` | json | Updater ID or expanded user. |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `first_name` | string | Asset Id |
+|     ↳ `last_name` | string | Asset Id |
+|     ↳ `email` | string | Email |
+|     ↳ `avatar` | string | Asset Id |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `display_name` | string | Display name |
+|   ↳ `workspace` | json | Workspace ID or expanded workspace. |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `name` | string | Asset Id |
+|     ↳ `slug` | string | Slug |
+|   ↳ `project` | json | Project ID or expanded project. |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `identifier` | string | Identifier |
+|     ↳ `name` | string | Asset Id |
+|     ↳ `cover_image` | string | Asset Id |
+|     ↳ `icon_prop` | json | Logo Props |
+|     ↳ `emoji` | string | Asset Id |
+|     ↳ `description` | string | Asset Id |
+|     ↳ `cover_image_url` | string | Asset Id |
+|     ↳ `archived_at` | string | Asset Id |
+|   ↳ `parent` | json | Parent ID or expanded parent reference. |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `sequence_id` | number | Sequence ID |
+|     ↳ `project_id` | string | Asset Id |
 |   ↳ `deleted_by` | json | Deleted by |
 | `detail` | string | Provider message when no records are returned. |
 | `pagination` | object | Cursor pagination information. Bare-array responses have empty pagination. |
@@ -2600,7 +2636,14 @@ List project pages in Plane. Supports API v1 compatibility.
 |   ↳ `description` | json | Description |
 |   ↳ `created_at` | string | Created at |
 |   ↳ `updated_at` | string | Updated at |
-|   ↳ `owned_by` | string | Owned by |
+|   ↳ `owned_by` | json | Owned by |
+|     ↳ `id` | string | Asset Id |
+|     ↳ `first_name` | string | Asset Id |
+|     ↳ `last_name` | string | Asset Id |
+|     ↳ `email` | string | Email |
+|     ↳ `avatar` | string | Asset Id |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `display_name` | string | Display name |
 |   ↳ `anchor` | string | Anchor |
 |   ↳ `workspace` | string | Workspace |
 |   ↳ `projects` | array | Projects |
@@ -2608,6 +2651,7 @@ List project pages in Plane. Supports API v1 compatibility.
 |   ↳ `is_locked` | boolean | Is locked |
 |   ↳ `archived_at` | string | Archived at |
 |   ↳ `parent_id` | string | Parent id |
+|   ↳ `parent` | json | Parent page ID or expanded page object in API v1. |
 |   ↳ `collection_id` | string | Collection id |
 |   ↳ `page_collection_id` | string | Page collection id |
 |   ↳ `color` | string | Color |

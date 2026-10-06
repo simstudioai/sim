@@ -552,7 +552,7 @@ const type071f88Schema = z.object({
 
 const typef949c2Schema = z.union([type071f88Schema, id045d22Schema])
 
-const ownedBy4be915Schema = z.union([assetIdSchema, id045d22Schema])
+const ownedBy4be915Schema = z.union([assetIdSchema, userLiteSchema, id045d22Schema])
 
 const access09c752Schema = z.union([access644595Schema, id045d22Schema, sortOrderdde3e5Schema])
 
@@ -601,6 +601,7 @@ export const planePageContentSchema = z.object({
   is_locked: isLockedSchema.optional(),
   archived_at: archivedAtSchema.optional(),
   parent_id: parentIdSchema.optional(),
+  parent: z.union([parentIdSchema, settings43c814Schema]).optional(),
   collection_id: collectionIdSchema.optional(),
   page_collection_id: pageCollectionIdSchema.optional(),
   color: assetIdSchema.optional(),
@@ -656,6 +657,41 @@ const labels3303c8Schema = z.array(labelsItema42358Schema)
 
 const parent6f1635Schema = z.union([assetIdSchema, id045d22Schema])
 
+const v1UserRelationSchema = z.union([createdBy94a812Schema, userLiteSchema])
+
+const v1WorkspaceRelationSchema = z.union([
+  workspace8d2899Schema,
+  z.object({
+    id: idSchema.optional(),
+    name: nameSchema.optional(),
+    slug: assetIdSchema.optional(),
+  }),
+])
+
+const v1ProjectRelationSchema = z.union([
+  project0bf380Schema,
+  z.object({
+    id: idSchema.optional(),
+    identifier: identifierSchema.optional(),
+    name: nameSchema.optional(),
+    cover_image: coverImageSchema.optional(),
+    icon_prop: iconPropSchema.optional(),
+    emoji: emojiSchema.optional(),
+    description: descriptionSchema.optional(),
+    cover_image_url: coverImageUrlSchema.optional(),
+    archived_at: archivedAtSchema.optional(),
+  }),
+])
+
+const v1ParentRelationSchema = z.union([
+  parent6f1635Schema,
+  z.object({
+    id: idSchema.optional(),
+    sequence_id: sequenceIdSchema.optional(),
+    project_id: projectIdSchema.optional(),
+  }),
+])
+
 export const labelb4435fSchema = z.object({
   id: idSchema.optional(),
   created_at: createdAtSchema.optional(),
@@ -667,11 +703,11 @@ export const labelb4435fSchema = z.object({
   sort_order: sortOrderSchema.optional(),
   external_source: externalSourceSchema.optional(),
   external_id: externalIdSchema.optional(),
-  created_by: createdBy94a812Schema.optional(),
-  updated_by: updatedBy1f6d11Schema.optional(),
-  workspace: workspace8d2899Schema.optional(),
-  project: project0bf380Schema.optional(),
-  parent: parent6f1635Schema.optional(),
+  created_by: v1UserRelationSchema.optional(),
+  updated_by: v1UserRelationSchema.optional(),
+  workspace: v1WorkspaceRelationSchema.optional(),
+  project: v1ProjectRelationSchema.optional(),
+  parent: v1ParentRelationSchema.optional(),
   deleted_by: id045d22Schema.optional(),
 })
 

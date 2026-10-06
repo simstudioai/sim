@@ -898,10 +898,19 @@ const TYPEF949C2_OUTPUT: OutputProperty = {
 }
 
 const OWNEDBY4BE915_OUTPUT: OutputProperty = {
-  type: 'string',
-  description: 'Asset Id',
+  type: 'json',
+  description: 'User ID or expanded user.',
   optional: true,
   nullable: true,
+  properties: {
+    id: ID_OUTPUT,
+    first_name: FIRSTNAME_OUTPUT,
+    last_name: LASTNAME_OUTPUT,
+    email: { type: 'string', description: 'Email', optional: true, nullable: true },
+    avatar: AVATAR_OUTPUT,
+    avatar_url: AVATARURL_OUTPUT,
+    display_name: { type: 'string', description: 'Display name', optional: true, nullable: true },
+  },
 }
 
 const ACCESS09C752_OUTPUT: OutputProperty = {
@@ -985,6 +994,12 @@ export const PLANEPAGECONTENT_OUTPUT: OutputProperty = {
     is_locked: { ...ISLOCKED_OUTPUT, description: 'Is locked' },
     archived_at: { ...ARCHIVEDAT_OUTPUT, description: 'Archived at' },
     parent_id: { ...PARENTID_OUTPUT, description: 'Parent id' },
+    parent: {
+      type: 'json',
+      optional: true,
+      nullable: true,
+      description: 'Parent page ID or expanded page object in API v1.',
+    },
     collection_id: { ...COLLECTIONID_OUTPUT, description: 'Collection id' },
     page_collection_id: { ...PAGECOLLECTIONID_OUTPUT, description: 'Page collection id' },
     color: { ...ASSETID_OUTPUT, description: 'Color' },
@@ -1048,11 +1063,47 @@ export const LABELB4435F_OUTPUT: OutputProperty = {
     sort_order: { ...SORTORDER_OUTPUT, description: 'Sort order' },
     external_source: { ...EXTERNALSOURCE_OUTPUT, description: 'External source' },
     external_id: { ...EXTERNALID_OUTPUT, description: 'External id' },
-    created_by: { ...CREATEDBY94A812_OUTPUT, description: 'Created by' },
-    updated_by: { ...UPDATEDBY1F6D11_OUTPUT, description: 'Updated by' },
-    workspace: { ...WORKSPACE8D2899_OUTPUT, description: 'Workspace' },
-    project: { ...PROJECT0BF380_OUTPUT, description: 'Project' },
-    parent: { ...PARENT6F1635_OUTPUT, description: 'Parent' },
+    created_by: { ...OWNEDBY4BE915_OUTPUT, description: 'Creator ID or expanded user.' },
+    updated_by: { ...OWNEDBY4BE915_OUTPUT, description: 'Updater ID or expanded user.' },
+    workspace: {
+      type: 'json',
+      optional: true,
+      nullable: true,
+      description: 'Workspace ID or expanded workspace.',
+      properties: {
+        id: ID_OUTPUT,
+        name: NAME_OUTPUT,
+        slug: { ...ASSETID_OUTPUT, description: 'Slug' },
+      },
+    },
+    project: {
+      type: 'json',
+      optional: true,
+      nullable: true,
+      description: 'Project ID or expanded project.',
+      properties: {
+        id: ID_OUTPUT,
+        identifier: { ...ASSETID_OUTPUT, description: 'Identifier' },
+        name: NAME_OUTPUT,
+        cover_image: COVERIMAGE_OUTPUT,
+        icon_prop: ICONPROP_OUTPUT,
+        emoji: EMOJI_OUTPUT,
+        description: DESCRIPTION_OUTPUT,
+        cover_image_url: COVERIMAGEURL_OUTPUT,
+        archived_at: ARCHIVEDAT_OUTPUT,
+      },
+    },
+    parent: {
+      type: 'json',
+      optional: true,
+      nullable: true,
+      description: 'Parent ID or expanded parent reference.',
+      properties: {
+        id: ID_OUTPUT,
+        sequence_id: { type: 'number', description: 'Sequence ID', optional: true, nullable: true },
+        project_id: PROJECTID_OUTPUT,
+      },
+    },
     deleted_by: { ...ID045D22_OUTPUT, description: 'Deleted by' },
   },
 }

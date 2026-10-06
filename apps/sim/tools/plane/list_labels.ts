@@ -117,7 +117,7 @@ export const planeListLabelsTool: ToolConfig<PlaneListLabelsParams, PlaneListLab
       required: false,
       visibility: 'user-or-llm',
       description:
-        'v1 compatibility only. Comma-separated list of related fields to expand in response Expanded relations appear beside their ID fields and survive sparse field filtering. Use only the relation names listed above.',
+        'API v1 only. Comma-separated relations: `created_by`, `updated_by`, `workspace`, `project`, `parent`. Expansion replaces each relation ID with an object. Include the relation in `fields` when also requesting sparse fields.',
     },
     parent_id__isnull: {
       type: 'boolean',
