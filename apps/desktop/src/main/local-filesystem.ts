@@ -75,6 +75,22 @@ class LocalFilesystemError extends Error {
   }
 }
 
+function mountNotFound(): LocalFilesystemError {
+  return new LocalFilesystemError(
+    'MOUNT_NOT_FOUND',
+    'That local folder is no longer available. Select it again.'
+  )
+}
+
+/** Operations that read inside one granted folder, named by the request's `uri`. */
+const GRANT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
+  'list',
+  'glob',
+  'read',
+  'grep',
+  'stat',
+])
+
 interface GrantedMount extends LocalFilesystemMount {
   rootPath: string
   bookmark?: string
@@ -421,7 +437,13 @@ export class LocalFilesystemService {
       }
 
       let data: LocalFilesystemData
+      // Reads and searches answer only while their folder is still granted: one forgotten while
+      // they ran must not hand back what they found in it.
+      let grant: GrantedMount | null = null
       try {
+        if (GRANT_SCOPED_OPERATIONS.has(request.operation)) {
+          grant = this.parseUri(this.requiredUri(request)).mount
+        }
         switch (request.operation) {
           case 'mount_directory':
             data = await this.mountDirectory()
@@ -471,6 +493,7 @@ export class LocalFilesystemService {
           this.activeRequests.delete(requestId)
         }
       }
+      if (grant && this.mounts.get(grant.id) !== grant) throw mountNotFound()
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)
@@ -890,12 +913,7 @@ export class LocalFilesystemService {
     }
 
     const mount = this.mounts.get(parsed.hostname)
-    if (!mount) {
-      throw new LocalFilesystemError(
-        'MOUNT_NOT_FOUND',
-        'That local folder is no longer available. Select it again.'
-      )
-    }
+    if (!mount) throw mountNotFound()
 
     const encodedSegments = parsed.pathname.split('/').filter(Boolean)
     const segments = encodedSegments.map((segment) => {

@@ -238,6 +238,13 @@ async function grep(
   const contentMatches: Array<{ path: string; line: number; content: string }> = []
   const matchingFiles = new Set<string>()
   const counts = new Map<string, number>()
+  let scanIncomplete = false
+  const found = () =>
+    outputMode === 'files_with_matches'
+      ? matchingFiles.size
+      : outputMode === 'count'
+        ? counts.size
+        : contentMatches.length
 
   for (const target of targets) {
     const data = await invoke(context, {
@@ -255,6 +262,7 @@ async function grep(
       requestId,
     })
 
+    if ('truncated' in data && data.truncated) scanIncomplete = true
     if ('matches' in data) {
       for (const match of data.matches) {
         contentMatches.push({
@@ -278,27 +286,25 @@ async function grep(
       throw new Error('The desktop app returned an invalid grep result.')
     }
 
-    const currentCount =
-      outputMode === 'files_with_matches'
-        ? matchingFiles.size
-        : outputMode === 'count'
-          ? counts.size
-          : contentMatches.length
-    if (currentCount >= maxResults) break
+    if (found() >= maxResults) break
   }
 
+  // Stopped at the cap or by the desktop's own scan limit: more may match than listed.
+  const truncated = scanIncomplete || found() >= maxResults ? { truncated: true as const } : {}
   if (outputMode === 'files_with_matches') {
-    return { files: [...matchingFiles].sort() }
+    return { files: [...matchingFiles].sort(), ...truncated }
   }
   if (outputMode === 'count') {
     return {
       counts: [...counts.entries()]
         .map(([countPath, count]) => ({ path: countPath, count }))
         .sort((a, b) => a.path.localeCompare(b.path)),
+      ...truncated,
     }
   }
   return {
     matches: contentMatches.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line),
+    ...truncated,
   }
 }
 

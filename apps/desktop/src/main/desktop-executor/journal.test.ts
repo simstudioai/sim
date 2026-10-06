@@ -102,6 +102,29 @@ describe('executor journal', () => {
     expect(JSON.stringify(restored)).toContain('resultOmitted')
   })
 
+  it('budgets results by their encoded size, not their length in characters', async () => {
+    const filePath = await journalPath()
+    const encryption = testEncryption()
+    const journal = createExecutorJournal(filePath, encryption)
+    // Three bytes per character: within the budget by length, three times over it in bytes.
+    const pageText = '€'.repeat(6 * 1024 * 1024)
+    for (const toolCallId of ['call-1', 'call-2', 'call-3']) {
+      await journal.put({
+        toolCallId,
+        state: 'result',
+        executionToken: `token-${toolCallId}`,
+        completion: { status: 'success', message: 'done', data: { pageText } },
+      })
+    }
+
+    const restored = await createExecutorJournal(filePath, encryption).load()
+    expect(restored).toHaveLength(3)
+    const kept = restored.filter(
+      (entry) => entry.state === 'result' && entry.completion.data?.pageText === pageText
+    )
+    expect(kept).toHaveLength(1)
+  })
+
   it('starts empty from a corrupt or foreign file instead of failing', async () => {
     const filePath = await journalPath()
     await writeFile(filePath, '{"version":1,"ciphertext":"not-base64-json"}')

@@ -16,6 +16,8 @@ const logger = createLogger('DesktopExecutorDoorbell')
 /** Sim heartbeats every 30 s; two missed ones mean the connection is gone. */
 const STALE_STREAM_MS = 75_000
 const RECONNECT_MAX_MS = 30_000
+/** A stream that stayed open this long was healthy; its clean end starts backoff afresh. */
+const HEALTHY_STREAM_MS = 60_000
 const HANDSHAKE_TIMEOUT_MS = 15_000
 
 interface DoorbellOptions {
@@ -96,10 +98,16 @@ export class InboxDoorbell {
     let attempt = 0
     const current = () => this.loopGeneration === generation
     while (current()) {
+      const openedAt = Date.now()
       const rotated = await this.connectOnce().then(
         (result) => {
-          attempt = 0
-          return result === 'rotated'
+          if (result === 'rotated') {
+            attempt = 0
+            return true
+          }
+          // A stream something keeps closing right away is a failing connection, not a healthy one.
+          attempt = Date.now() - openedAt >= HEALTHY_STREAM_MS ? 0 : attempt + 1
+          return false
         },
         (error: unknown) => {
           if (this.reconnectNow) {

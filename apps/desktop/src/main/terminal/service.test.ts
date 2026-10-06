@@ -454,6 +454,18 @@ describe('stopping a tool call', () => {
     expect(session.runningToolCallId).toBeNull()
   })
 
+  it('sends no signal or keys for a kill or input stopped before it starts', async () => {
+    const { terminal, session } = cancellableService()
+    session.setBusy(true)
+    const killing = terminal.executeTool('call-kill', 'kill', { signal: 'SIGTERM' })
+    const typing = terminal.executeTool('call-input', 'input', { text: 'yes\n' })
+    await Promise.all([terminal.cancelTool('call-kill'), terminal.cancelTool('call-input')])
+
+    await expect(killing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    await expect(typing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(session.kill).not.toHaveBeenCalled()
+  })
+
   it('leaves the terminal alone for a call it is not running', async () => {
     const { terminal, session, processGroups } = cancellableService()
     const { running } = await startRun(terminal, session, 'call-other')

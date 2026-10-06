@@ -236,6 +236,17 @@ describe('LocalFilesystemService', () => {
     ).toBe(false)
   })
 
+  it('hands back nothing from a folder forgotten while the read ran', async () => {
+    const granted = await mount(service)
+
+    const reading = service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+    const searching = service.handle({ operation: 'grep', uri: granted.uri, pattern: 'hello' })
+    await service.handle({ operation: 'forget_mount', uri: granted.uri })
+
+    await expect(reading).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+    await expect(searching).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+  })
+
   it('rejects unknown mounts and symlinks that escape the selected directory', async () => {
     const granted = await mount(service)
     const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))

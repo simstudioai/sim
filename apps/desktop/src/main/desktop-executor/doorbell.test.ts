@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { DeviceRequestError } from '@/main/desktop-executor/client'
 import { InboxDoorbell, parseServerSentEvents } from '@/main/desktop-executor/doorbell'
@@ -88,6 +89,28 @@ describe('InboxDoorbell', () => {
     await vi.waitFor(() => expect(connections).toHaveLength(2))
     expect(onRing).toHaveBeenCalledTimes(2)
     doorbell.stop()
+  })
+
+  it('backs off when every stream ends as soon as it opens', async () => {
+    const opened: number[] = []
+    const doorbell = new InboxDoorbell({
+      client: {
+        openInboxStream: async () => {
+          opened.push(Date.now())
+          return new ReadableStream<Uint8Array>({ start: (controller) => controller.close() })
+        },
+      },
+      onRing: vi.fn(),
+      onUnregistered: vi.fn(),
+      retryBaseMs: 5,
+    })
+    doorbell.start()
+    await sleep(400)
+    doorbell.stop()
+
+    // A fixed 5 ms retry would open dozens; doubling from 5 ms opens a handful.
+    expect(opened.length).toBeGreaterThan(2)
+    expect(opened.length).toBeLessThan(15)
   })
 
   it('replaces a connection that goes silent past the heartbeat', async () => {

@@ -26,13 +26,13 @@ const DEFAULT_MAX_HELD_CALLS = 32
 const DELIVERY_RETRY_MAX_MS = 30_000
 
 const NOT_STARTED_AFTER_RESTART =
-  'Not run: the Sim desktop app restarted before this action started, so nothing happened on the user’s computer.'
+  'Not run: this action never started, because the Sim desktop app restarted before it began. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user, who can ask again.'
 const OUTCOME_UNKNOWN_AFTER_RESTART =
   'The Sim desktop app restarted while this action was running, so its result was lost. It may already have taken effect: inspect the current state before repeating it, and do not retry it automatically.'
 const STOPPED_BEFORE_START = 'Stopped before the Sim desktop app started this action.'
 const STOPPED_WHILE_RUNNING = 'Stopped while the Sim desktop app was running this action.'
 const NOT_RECORDED =
-  'Not run: the Sim desktop app could not record this action on the user’s computer before starting it, so it did not start it.'
+  'Not run: this action never started, because the Sim desktop app could not record it on the user’s computer first. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user, who can ask again later.'
 const RESULT_TOO_LARGE =
   'The action finished, but its result was too large to send back. Do not repeat a side-effecting action; inspect the current state instead.'
 
@@ -161,8 +161,16 @@ export class DesktopExecutor {
   /** Sign-out: stops every action and forgets every call; the session that owned them is gone. */
   async dispose(): Promise<void> {
     this.disposed = true
-    // An inbox read in flight may still be claiming; let it see `disposed` before clearing.
+    const stopping = this.dropHeld()
+    // A claim still in flight sees `disposed` once Sim answers and is never held; the journal is
+    // cleared only after it, so its `claiming` record does not outlive the session.
     await this.reconciling?.catch(() => {})
+    await Promise.all([stopping, this.dropHeld()])
+    await this.options.journal.clear()
+  }
+
+  /** Releases every held call and stops the actions already running. */
+  private async dropHeld(): Promise<void> {
     const held = [...this.held.values()]
     for (const entry of held) this.release(entry)
     await Promise.allSettled(
@@ -173,7 +181,6 @@ export class DesktopExecutor {
           return this.options.runner.cancel(entry.call)
         })
     )
-    await this.options.journal.clear()
   }
 
   private async reconcileOnce(): Promise<void> {
@@ -234,6 +241,7 @@ export class DesktopExecutor {
       this.noteRequestFailure('Desktop call was not claimed', error, { toolCallId })
       return
     }
+    if (this.disposed) return
     // Best effort: an unrecorded token leaves `claiming`, which recovery treats conservatively.
     await this.record({ toolCallId, state: 'claimed', executionToken: call.executionToken })
     const entry: HeldCall = {

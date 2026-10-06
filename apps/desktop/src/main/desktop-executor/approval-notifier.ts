@@ -25,6 +25,11 @@ export interface ApprovalNotifierDeps {
   }) => ApprovalNotification | null
 }
 
+/**
+ * Creates the notifier the executor feeds each inbox read's approval items to. `update` notifies
+ * once per newly waiting call and closes notifications for calls decided since; `clear` closes
+ * them all, for sign-out.
+ */
 export function createApprovalNotifier(deps: ApprovalNotifierDeps) {
   /** Calls already brought to the user's attention, by notification or by being on screen. */
   const shown = new Map<string, ApprovalNotification | null>()

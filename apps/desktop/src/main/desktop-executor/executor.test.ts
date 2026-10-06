@@ -455,6 +455,31 @@ describe('registration', () => {
     expect(executor.heldCallCount()).toBe(0)
   })
 
+  it('stops running actions at sign-out without waiting on a claim still in flight', async () => {
+    const { sim, journal, runner, executor } = setup()
+    sim.inbox = [callItem('call-1', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
+    const answer = deferred<void>()
+    const claim = sim.client.claim
+    sim.client.claim = async (toolCallId) => {
+      await answer.promise
+      return claim(toolCallId)
+    }
+    sim.inbox = [callItem('call-2', 'chat-b')]
+    const reading = executor.reconcile()
+    await vi.waitFor(() => expect(journal.entries.get('call-2')?.state).toBe('claiming'))
+
+    const signingOut = executor.dispose()
+    await vi.waitFor(() => expect(runner.cancelled).toEqual(['call-1']))
+    answer.resolve()
+    await Promise.all([reading, signingOut])
+
+    expect(runner.started).toEqual(['call-1'])
+    expect(executor.heldCallCount()).toBe(0)
+    expect(journal.entries.size).toBe(0)
+  })
+
   it('does not keep a claim that Sim answers after sign-out', async () => {
     const { sim, journal, runner, executor } = setup({ leaseRenewMs: 10 })
     const answer = deferred<void>()

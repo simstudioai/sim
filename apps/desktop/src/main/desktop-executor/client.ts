@@ -67,6 +67,11 @@ async function errorMessage(response: Response): Promise<string> {
   return typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`
 }
 
+/**
+ * Creates the client for one install id. Each request times out on its own and fails with a
+ * {@link DeviceRequestError}, so the executor decides what to retry; responses are parsed before
+ * they are returned, and a malformed one is a 502.
+ */
 export function createDesktopExecutorClient(
   options: DesktopExecutorClientOptions
 ): DesktopExecutorClient {

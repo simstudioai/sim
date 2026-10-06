@@ -63,4 +63,32 @@ describe('background terminal calls', () => {
     expect((await second).status).toBe('success')
     expect(started).toEqual(['wedged', 'next'])
   })
+
+  it('never starts a terminal operation stopped while it waited for the chat terminal', async () => {
+    vi.useFakeTimers()
+    let releaseWedged: (response: TerminalToolResponse) => void = () => {}
+    const started: string[] = []
+    const runner = runnerWithTerminal((toolCallId) => {
+      started.push(toolCallId)
+      if (toolCallId === 'wedged')
+        return new Promise((resolve) => {
+          releaseWedged = resolve
+        })
+      return Promise.resolve({ ok: true, result: { output: '' } })
+    })
+    const first = runner.run(terminalCall('wedged', 'input'), new AbortController().signal)
+    await vi.advanceTimersByTimeAsync(15_000)
+    await first
+
+    const stop = new AbortController()
+    const second = runner.run(terminalCall('stopped', 'run'), stop.signal)
+    await vi.advanceTimersByTimeAsync(0)
+    stop.abort()
+    const completion = await second
+    releaseWedged({ ok: true, result: {} })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(completion.status).toBe('error')
+    expect(started).toEqual(['wedged'])
+  })
 })

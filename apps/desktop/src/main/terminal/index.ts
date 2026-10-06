@@ -171,7 +171,8 @@ const OS_PROCESS_GROUPS: TerminalProcessGroups = {
  * whatever is running once it does.
  */
 interface StopLatch {
-  stopped: boolean
+  /** Aborts on Stop; work not yet started checks it, and input stops between keystrokes. */
+  readonly signal: AbortSignal
   stopRunning: (() => Promise<void>) | null
 }
 
@@ -181,6 +182,22 @@ function stoppedBeforeStart(): TerminalError {
     'Stopped before the command started, so nothing ran in the terminal.'
   )
 }
+
+function stoppedPartWay(): TerminalError {
+  return new TerminalError(
+    'CANCELLED',
+    'Stopped part way through the input; some of it may already have reached the terminal.'
+  )
+}
+
+/** Operations that change a terminal; a Stop that lands before one starts means it never does. */
+const TERMINAL_CHANGING_OPERATIONS: ReadonlySet<TerminalOperation> = new Set([
+  'close',
+  'handoff',
+  'input',
+  'kill',
+  'run',
+])
 
 /**
  * How long a stopped command gets to exit after each escalation: Ctrl-C first, as the user would
@@ -806,9 +823,10 @@ export class TerminalService {
   ): Promise<TerminalToolResponse> {
     // A Stop can arrive before the command exists (while the shell or tmux is still being
     // resolved); the latch carries it to the moment the command would start.
-    const latch: StopLatch = { stopped: false, stopRunning: null }
+    const halt = new AbortController()
+    const latch: StopLatch = { signal: halt.signal, stopRunning: null }
     const stop = async () => {
-      latch.stopped = true
+      halt.abort()
       await latch.stopRunning?.()
     }
     this.toolStops.set(toolCallId, stop)
@@ -905,6 +923,10 @@ export class TerminalService {
     // A tab either has tmux attached or it does not, and every operation below
     // behaves differently depending on which.
     const tmux = await this.resolveTmux(session)
+    // A Stop that landed while the session resolved: nothing that changes the terminal starts.
+    if (latch.signal.aborted && TERMINAL_CHANGING_OPERATIONS.has(operation)) {
+      throw stoppedBeforeStart()
+    }
 
     switch (operation) {
       case 'cwd':
@@ -922,6 +944,7 @@ export class TerminalService {
           )
         }
         const target = await this.resolvePane(tmux.session, args, session)
+        if (latch.signal.aborted) throw stoppedBeforeStart()
         const killed = await killPane(target, session.env)
         if (!killed.ok) {
           throw new TerminalError(
@@ -936,7 +959,7 @@ export class TerminalService {
         }
       }
       case 'handoff':
-        if (latch.stopped) throw stoppedBeforeStart()
+        if (latch.signal.aborted) throw stoppedBeforeStart()
         latch.stopRunning = async () => this.finishHandoff(session.terminalId)
         return this.handoff(session, args)
       case 'panes': {
@@ -979,8 +1002,8 @@ export class TerminalService {
       }
       case 'input':
         return tmux
-          ? this.inputToTmux(session, tmux.session, args)
-          : this.inputToShell(session, args)
+          ? this.inputToTmux(session, tmux.session, args, latch.signal)
+          : this.inputToShell(session, args, latch.signal)
       case 'kill': {
         const signal =
           args.signal === 'SIGTERM' || args.signal === 'SIGKILL' || args.signal === 'SIGINT'
@@ -991,6 +1014,7 @@ export class TerminalService {
         // whole session rather than stopping the one thing they asked about.
         if (tmux) {
           const target = await this.resolvePane(tmux.session, args, session)
+          if (latch.signal.aborted) throw stoppedBeforeStart()
           await sendKey(target, signal === 'SIGKILL' ? 'C-\\' : 'C-c', session.env)
           return { signal, terminalId: session.terminalId, pane: target }
         }
@@ -1106,15 +1130,18 @@ export class TerminalService {
   private async inputToTmux(
     terminal: TerminalSession,
     session: string,
-    args: TerminalToolArgs
+    args: TerminalToolArgs,
+    signal: AbortSignal
   ): Promise<unknown> {
     const target = await this.resolvePane(session, args, terminal)
+    if (signal.aborted) throw stoppedBeforeStart()
     const keys = requestedKeys(args)
     if (keys.length > 0) {
       for (let index = 0; index < keys.length; index += 1) {
         // Paced like the pty path: a pane redraws between presses, so a batch
         // lands where the same keys pressed by hand would.
         if (index > 0) await sleep(TMUX_KEY_GAP_MS)
+        if (signal.aborted) throw stoppedPartWay()
         await sendKey(target, TMUX_KEY_NAMES[keys[index]] ?? keys[index], terminal.env)
       }
     } else if (typeof args.text === 'string') {
@@ -1122,6 +1149,7 @@ export class TerminalService {
       // Enter is a separate send-keys for the same reason it is a separate pty
       // write: a program reading one chunk treats text plus a carriage return
       // as text, and the message sits unsubmitted.
+      if (signal.aborted) throw stoppedPartWay()
       if (/[\r\n]$/.test(args.text)) await sendKey(target, 'Enter', terminal.env)
     } else {
       throw new TerminalError('INVALID_REQUEST', 'input needs `text`, `key`, or `keys`.')
@@ -1137,7 +1165,11 @@ export class TerminalService {
     }
   }
 
-  private async inputToShell(session: TerminalSession, args: TerminalToolArgs): Promise<unknown> {
+  private async inputToShell(
+    session: TerminalSession,
+    args: TerminalToolArgs,
+    signal: AbortSignal
+  ): Promise<unknown> {
     // Input is only ever delivered to a program that already holds the
     // foreground. At a bare shell prompt these bytes would be a command
     // line, and running commands that way would bypass the capture and
@@ -1152,14 +1184,17 @@ export class TerminalService {
     // lets the model assume its message went through and start waiting on
     // a reply to text still sitting unsubmitted in a composer; the screen
     // is the evidence of what the program actually did with the input.
+    if (signal.aborted) throw stoppedBeforeStart()
     const keys = requestedKeys(args)
     if (keys.length > 0) {
-      await session.pressKeys(keys)
+      await session.pressKeys(keys, signal)
+      if (signal.aborted) throw stoppedPartWay()
       await sleep(INPUT_ECHO_MS)
       return { sent: keys.join(', '), ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
     if (typeof args.text === 'string') {
-      await session.type(args.text)
+      await session.type(args.text, signal)
+      if (signal.aborted) throw stoppedPartWay()
       await sleep(INPUT_ECHO_MS)
       return { sent: args.text, ...(await session.readScrollback(INPUT_SCREEN_LINES)) }
     }
@@ -1183,7 +1218,7 @@ export class TerminalService {
   ): Promise<unknown> {
     const command = typeof args.command === 'string' ? args.command.trim() : ''
     if (!command) throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
-    if (latch.stopped) throw stoppedBeforeStart()
+    if (latch.signal.aborted) throw stoppedBeforeStart()
 
     const started = Date.now()
     this.reapFinishedRuns(terminal.terminalId)
@@ -1206,7 +1241,7 @@ export class TerminalService {
       endWait()
     }
     // A Stop that landed while the run window opened applies now.
-    if (latch.stopped) void latch.stopRunning()
+    if (latch.signal.aborted) void latch.stopRunning()
     const outcome = await Promise.race([
       awaitRun(handle, waitMs),
       stopped.then(() => ({ ...pollRun(handle), done: true })),
@@ -1262,7 +1297,7 @@ export class TerminalService {
       )
     }
 
-    if (latch.stopped) throw stoppedBeforeStart()
+    if (latch.signal.aborted) throw stoppedBeforeStart()
     latch.stopRunning = () => this.stopCommand(session, toolCallId)
     return session.runCommand(command, toolCallId, resolveRunWaitMs(args.waitSeconds))
   }

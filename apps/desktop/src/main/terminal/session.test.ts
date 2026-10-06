@@ -160,4 +160,28 @@ describe('TerminalSession command lifecycle', () => {
       else process.env.SHELL = originalShell
     }
   })
+
+  it('stops pressing a batch of keys once the call is stopped', async () => {
+    vi.useFakeTimers()
+    const session = TerminalSession.create({
+      terminalId: 'terminal-keys',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+    try {
+      const writesBefore = ptyStub.writes.length
+      const stop = new AbortController()
+      const pressing = session.pressKeys(['down', 'down', 'down', 'enter'], stop.signal)
+      expect(ptyStub.writes.length - writesBefore).toBe(1)
+      stop.abort()
+      await vi.runAllTimersAsync()
+      await pressing
+
+      expect(ptyStub.writes.length - writesBefore).toBe(1)
+    } finally {
+      session.dispose()
+    }
+  })
 })

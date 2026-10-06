@@ -46,12 +46,12 @@ const USER_LOCAL_TOOLS: ReadonlySet<string> = new Set(['read', 'grep', 'glob'])
 
 /** The model learns a call never ran because a surface is switched off on this machine. */
 function surfaceOff(surface: string): DesktopToolCompletion {
-  const message = `Not run: ${surface} is switched off in the Sim desktop app's settings, so nothing happened on the user's computer. Continue without it, or ask the user to switch it on.`
+  const message = `Not run: this action never started, because ${surface} is switched off in the Sim desktop app’s settings. Nothing happened on the user’s computer. Do not retry it in this turn; continue without it, or ask the user to switch it on.`
   return { status: 'error', message, data: { error: message, notStarted: true } }
 }
 
 function unsupported(toolName: string): DesktopToolCompletion {
-  const message = `Not run: this version of the Sim desktop app cannot run ${toolName} in the background, so nothing happened on the user's computer.`
+  const message = `Not run: this action never started, because this version of the Sim desktop app cannot run ${toolName} in the background. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user to update the Sim desktop app.`
   return { status: 'error', message, data: { error: message, notStarted: true } }
 }
 
@@ -86,6 +86,12 @@ export interface DesktopToolRunnerDeps {
     handle(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
     vfsRoot(mount: { id: string; name: string }): string
   }
+}
+
+/** Resolves once the signal aborts, which may be never. */
+function untilAborted(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
 }
 
 /** Resolves with the work's result, or with `onTimeout`'s once `timeoutMs` passes first. */
@@ -146,7 +152,10 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     )
   }
 
-  async function runTerminal(call: ClaimedDesktopCall): Promise<DesktopToolCompletion> {
+  async function runTerminal(
+    call: ClaimedDesktopCall,
+    signal: AbortSignal
+  ): Promise<DesktopToolCompletion> {
     if (!deps.preferences().terminalEnabled) return surfaceOff('the terminal')
     const { operation } = call.args
     if (!isTerminalOperation(operation)) {
@@ -159,7 +168,12 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     const timeoutMs = terminalOperationTimeoutMs(operation)
     // An operation reported as unresponsive may still land; the chat's next one waits for it, so
     // two never act on the same terminals at once.
-    await unsettledTerminalWork.get(call.chatId)
+    const previous = unsettledTerminalWork.get(call.chatId)
+    if (previous) await Promise.race([previous, untilAborted(signal)])
+    // Stopped while it waited: the terminal never heard of it, so its own cancel cannot reach it.
+    if (signal.aborted) {
+      return terminalToolFailure('The terminal action was stopped before it started.', 'CANCELLED')
+    }
     const operationDone = deps.terminal.executeTool(call.chatId, call.toolCallId, operation, args)
     const settled = operationDone.then(
       () => undefined,
@@ -195,7 +209,7 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     async run(call, signal) {
       try {
         if (isCurrentBrowserToolName(call.toolName)) return await runBrowser(call, call.toolName)
-        if (call.toolName === 'terminal') return await runTerminal(call)
+        if (call.toolName === 'terminal') return await runTerminal(call, signal)
         if (!deps.accountDataAvailable()) return surfaceOff('local file access')
         if (call.toolName === 'read_local_file') {
           return localFileReadCompletion(await deps.localFiles.read(call))

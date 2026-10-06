@@ -29,10 +29,10 @@ const JOURNAL_VERSION = 1
 /** Results can carry a screenshot, so the bound is the size of a few of them. */
 const MAX_JOURNAL_BYTES = 64 * 1024 * 1024
 /**
- * Result data kept on disk across all entries. Encryption and base64 grow it by about a third,
- * so a journal within this budget always reads back under {@link MAX_JOURNAL_BYTES}.
+ * Result data kept on disk across all entries, in UTF-8 bytes. Encryption and base64 grow it by
+ * about a third, so a journal within this budget always reads back under {@link MAX_JOURNAL_BYTES}.
  */
-const MAX_PERSISTED_RESULT_CHARS = 32 * 1024 * 1024
+const MAX_PERSISTED_RESULT_BYTES = 32 * 1024 * 1024
 const RESULT_NOT_KEPT =
   'The action finished, but its result was too large to keep on this computer. Do not repeat a side-effecting action; inspect the current state instead.'
 
@@ -41,10 +41,10 @@ const RESULT_NOT_KEPT =
  * kept as finished without its data, so the file never grows past what a restart can read.
  */
 function boundedEntries(entries: Map<string, JournalEntry>): JournalEntry[] {
-  let budget = MAX_PERSISTED_RESULT_CHARS
+  let budget = MAX_PERSISTED_RESULT_BYTES
   return [...entries.values()].map((entry) => {
     if (entry.state !== 'result' || entry.completion.data === undefined) return entry
-    const size = JSON.stringify(entry.completion.data).length
+    const size = Buffer.byteLength(JSON.stringify(entry.completion.data), 'utf8')
     if (size <= budget) {
       budget -= size
       return entry

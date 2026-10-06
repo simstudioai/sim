@@ -513,10 +513,11 @@ export class TerminalSession {
    * The pause also lets a menu redraw between presses, which is what makes a
    * batch land on the row a person pressing the same keys would reach.
    */
-  async pressKeys(keys: TerminalControlKey[]): Promise<void> {
+  async pressKeys(keys: TerminalControlKey[], signal?: AbortSignal): Promise<void> {
     for (let index = 0; index < keys.length; index += 1) {
-      if (this.disposed) return
+      if (this.disposed || signal?.aborted) return
       if (index > 0) await this.settleBetweenKeystrokes()
+      if (signal?.aborted) return
       this.sendKey(keys[index])
     }
   }
@@ -527,11 +528,12 @@ export class TerminalSession {
    * gets a chance to redraw between them. See {@link toInputChunks} for why
    * sending it all at once leaves the text unsubmitted.
    */
-  async type(text: string): Promise<void> {
+  async type(text: string, signal?: AbortSignal): Promise<void> {
     const chunks = toInputChunks(text)
     for (let index = 0; index < chunks.length; index += 1) {
-      if (this.disposed) return
+      if (this.disposed || signal?.aborted) return
       if (index > 0) await this.settleBetweenKeystrokes()
+      if (signal?.aborted) return
       this.write(chunks[index])
     }
   }
