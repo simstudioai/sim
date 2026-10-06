@@ -103,7 +103,10 @@ const verifyPlaneSignature = createHmacVerifier({
 export const planeHandler: WebhookProviderHandler = {
   verifyAuth(ctx) {
     let providerConfig = ctx.providerConfig
-    if (providerConfig.previousSubscription) {
+    if (
+      providerConfig.subscriptionActivationPending === true &&
+      providerConfig.previousSubscription
+    ) {
       try {
         const payload: unknown = JSON.parse(ctx.rawBody)
         providerConfig = previousPlaneDeliveryConfig(providerConfig, payload) ?? providerConfig

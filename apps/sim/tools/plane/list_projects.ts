@@ -110,7 +110,7 @@ export const planeListProjectsTool: ToolConfig<PlaneListProjectsParams, PlaneLis
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Page size (max 200).',
+        description: 'Page size. Maximum 200 for API v2 and 100 for API v1.',
       },
       priority: {
         type: 'string',

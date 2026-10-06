@@ -69,19 +69,25 @@ describe('Plane signed webhook delivery', () => {
     ).toBe(401)
   })
 
-  it.each(['webhook-a', 'untracked-webhook'])(
-    'accepts the tracked previous secret only for its subscription: %s',
-    async (webhookId) => {
+  it.each([
+    ['webhook-a', true, 200],
+    ['webhook-a', false, 401],
+    ['webhook-a', undefined, 401],
+    ['untracked-webhook', true, 401],
+  ])(
+    'accepts the tracked previous secret only during pending activation: %s, %s',
+    async (webhookId, pending, expectedStatus) => {
       const raw = JSON.stringify({ ...V2, webhook_id: webhookId })
       const signature = createHmac('sha256', SECRET).update(raw).digest('hex')
       const ctx = authContext(raw, signature, 'replacement-secret')
+      ctx.providerConfig.subscriptionActivationPending = pending
       ctx.providerConfig.previousSubscription = {
         provider: 'plane',
         providerConfig: { externalId: 'webhook-a', webhookSecret: SECRET },
       }
       if (!planeHandler.verifyAuth) throw new Error('Plane authentication is missing')
       const response = await planeHandler.verifyAuth(ctx)
-      expect(response?.status ?? 200).toBe(webhookId === 'webhook-a' ? 200 : 401)
+      expect(response?.status ?? 200).toBe(expectedStatus)
     }
   )
 

@@ -1980,7 +1980,7 @@ List attachments in Plane. Supports API v1 compatibility.
 | `offset` | number | No | Number of rows to skip from the start of the result set. |
 | `order_by` | string | No | Field to order the list by. Prefix with '-' for descending \(e.g. '-created_at'\). Annotation-backed orders sort semantically and ride the default offset page. |
 | `paginate` | string | No | Set to 'cursor' to opt into the COUNT-free keyset cursor envelope \(use for deep traversal\); omit for the default offset envelope with total_count. One of `cursor`. |
-| `per_page` | number | No | Page size \(max 200\). |
+| `per_page` | number | No | API v2 only. Page size \(maximum 200\). |
 | `fields` | string | No | Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `asset_url`, `attributes`, `content_type`, `created_at`, `created_by_id`, `external_id`, `external_source`, `id`, `is_uploaded`, `name`, `size`, `work_item_id`. |
 | `cursor` | string | No | Cursor from next_cursor. Repeat the original filters, per_page, and order_by when following it. |
 
@@ -2063,7 +2063,7 @@ List comments in Plane. Supports API v1 compatibility.
 | `external_source` | string | No | Return comments that came from this system, for example `github` or `zendesk`. |
 | `search` | string | No | Match comments against their plain-text body \(`comment_stripped`\), so HTML markup in `comment_html` never affects whether a term hits. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. Send it explicitly whenever order matters — a thread you render should not depend on the server's unstated default. - `created_at` — oldest first - `-created_at` — newest first - `id` - `-id` |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Number of rows to skip from the start of the result set. Maximum 10000 — for deeper traversal switch to cursor pagination. |
 | `paginate` | string | No | Set to `cursor` to opt into the COUNT-free keyset envelope instead of the default offset envelope. The response then carries `next_cursor` and `has_more`; send the value of `next_cursor` back as `?cursor=` to fetch the next page. See \[Pagination\]\(https://developers.plane.so/api-reference/v2/pagination) for the full envelope. |
 | `count` | boolean | No | Defaults to `true`. Set to `false` to skip the `COUNT\(*\)` and omit `total_count` from the offset envelope. |
@@ -2162,7 +2162,7 @@ List cycles in Plane. Supports API v1 compatibility.
 | `external_source` | string | No | Return only cycles imported from this source, for example `jira`. |
 | `search` | string | No | Free-text search term matched against the cycle. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. - `sort_order` / `-sort_order` — the project's manual cycle ordering - `created_at` / `-created_at` — newest or oldest first - `id` / `-id` |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Number of rows to skip from the start of the result set. Maximum 10000 — past that, switch to cursor pagination. |
 | `paginate` | string | No | Set to `cursor` to opt into the COUNT-free keyset envelope instead of the default offset envelope. The response then carries `next_cursor` and `has_more` rather than `next`, `previous`, and `total_count`; pass `next_cursor` back as `cursor` to walk to the following page. Use it for deep traversal, where offset paging gets expensive. |
 | `count` | boolean | No | Defaults to `true`. Set to `false` to skip the `COUNT\(*\)` behind `total_count` — the field is then omitted from the envelope. Worth doing when you only need the rows. |
@@ -2268,7 +2268,7 @@ List labels in Plane. Supports API v1 compatibility.
 | `external_source` | string | No | Return labels that came from this system, for example `github` or `jira`. |
 | `search` | string | No | A search term matched against the label `name`. Use it to power type-ahead in a picker rather than downloading every page and filtering client-side. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. Defaults to `sort_order`. - `sort_order` , `-sort_order` — the project's own label ordering - `created_at` , `-created_at` — newest or oldest first - `id` , `-id` A value outside this list is not rejected — it silently falls back to the default `sort_order`. Check your spelling: a typo in `order_by` fails silently and shows up as a differently sorted page, not as an error. |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Number of rows to skip from the start of the result set. Maximum 10000. Read the `next` value from the response and send it back as `offset` to walk forward. |
 | `paginate` | string | No | Set to `cursor` to switch from the default offset envelope to the keyset cursor envelope, which skips the `COUNT\(*\)` and returns `next_cursor` and `has_more` instead of `next` and `total_count`. Send the returned `next_cursor` back as `cursor` to fetch the following page. Only `created_at` and `id` are cursor-eligible, because a keyset needs a strictly ordered column and `sort_order` is neither unique nor monotonic. Pair `paginate=cursor` with `order_by=created_at` or `order_by=id` — the default `sort_order` ordering is rejected with `400 ordering_not_cursor_eligible`. Most projects have few enough labels that the default offset envelope is all you need. |
 | `count` | boolean | No | Defaults to `true`. Set to `false` to omit `total_count` and skip the count query. |
@@ -2353,7 +2353,7 @@ List links in Plane. Supports API v1 compatibility.
 | `offset` | number | No | Number of rows to skip from the start of the result set. |
 | `order_by` | string | No | Field to order the list by. Prefix with '-' for descending \(e.g. '-created_at'\). Annotation-backed orders sort semantically and ride the default offset page. |
 | `paginate` | string | No | Set to 'cursor' to opt into the COUNT-free keyset cursor envelope \(use for deep traversal\); omit for the default offset envelope with total_count. One of `cursor`. |
-| `per_page` | number | No | Page size \(max 200\). |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `search` | string | No | A search term. |
 | `title` | string | No | Filter by `title`. |
 | `url` | string | No | Filter by `url`. |
@@ -2437,7 +2437,7 @@ List modules in Plane. Supports API v1 compatibility.
 | `external_source` | string | No | Return only modules that came from this system, for example `github` or `jira`. |
 | `search` | string | No | Free-text match on the module name. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. - `sort_order` , `-sort_order` - `created_at` , `-created_at` - `id` , `-id` Defaults to `sort_order`. |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Number of rows to skip from the start of the result set. Maximum 10000 — go deeper with cursor pagination. |
 | `paginate` | string | No | Set to `cursor` to opt into the COUNT-free keyset envelope, then follow `next_cursor` with `?cursor=`. |
 | `count` | boolean | No | Set to `false` to skip the count query and omit `total_count` from the offset envelope. Defaults to `true`. |
@@ -2550,7 +2550,7 @@ List project pages in Plane. Supports API v1 compatibility.
 | `owned_by_id` | string | No | Filter by `owned_by_id`. |
 | `paginate` | string | No | Set to 'cursor' to opt into the COUNT-free keyset cursor envelope \(use for deep traversal\); omit for the default offset envelope with total_count. One of `cursor`. |
 | `parent_id` | string | No | Filter by `parent_id`. |
-| `per_page` | number | No | Page size \(max 200\). |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `search` | string | No | A search term. |
 | `type` | string | No | - `all` - All - `public` - Public - `private` - Private - `shared` - Shared - `archived` - Archived One of `all`, `archived`, `private`, `public`, `shared`. |
 | `fields` | string | No | Comma-separated list of fields to return. Unrequested keys are **omitted** from each row, not returned as `null`. `id` always comes back. Pass `all` for every requestable field. An unknown name is a `400` that names the valid set, so a typo can't silently cost you the saving. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). Requestable here: `access`, `archived_at`, `collection_id`, `color`, `created_at`, `created_by_id`, `description_html`, `description_stripped`, `external_id`, `external_source`, `id`, `is_global`, `is_locked`, `logo_props`, `name`, `owned_by_id`, `parent_id`, `sort_order`, `view_props`. |
@@ -2670,7 +2670,7 @@ List projects in Plane. Supports API v1 compatibility.
 | `offset` | number | No | Number of rows to skip from the start of the result set. |
 | `order_by` | string | No | Field to order the list by. Prefix with '-' for descending \(e.g. '-created_at'\). Annotation-backed orders sort semantically and ride the default offset page. |
 | `paginate` | string | No | Set to 'cursor' to opt into the COUNT-free keyset cursor envelope \(use for deep traversal\); omit for the default offset envelope with total_count. One of `cursor`. |
-| `per_page` | number | No | Page size \(max 200\). |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `priority` | string | No | - `none` - None - `low` - Low - `medium` - Medium - `high` - High - `urgent` - Urgent One of `high`, `low`, `medium`, `none`, `urgent`. |
 | `priority__in` | json | No | Multiple values may be separated by commas. - `none` - None - `low` - Low - `medium` - Medium - `high` - High - `urgent` - Urgent |
 | `search` | string | No | A search term. |
@@ -2818,7 +2818,7 @@ List states in Plane. Supports API v1 compatibility.
 | `fields` | string | No | Comma-separated list of fields to return on each row. Unrequested keys are **omitted** from the response, not returned as `null`, so absent means "not requested" and `null` means "actually null". `id` always comes back whether or not you name it. Pass `all` for every requestable field. An unknown name is a `400` that lists the valid set and suggests the closest match, so a typo can't silently cost you the saving. Requestable here: `color`, `created_at`, `created_by_id`, `description`, `external_id`, `external_source`, `group`, `id`, `is_default`, `is_triage`, `name`, `sequence`. See \[Sparse fields\]\(https://developers.plane.so/api-reference/v2/sparse-fields). |
 | `group__in` | string | No | Documented filter variant. Return only states in this workflow group. One of `backlog`, `unstarted`, `started`, `completed`, `cancelled`, or `triage`. Use the `group__in` variant to match several groups at once, passing them comma-separated — `?group__in=started,completed`. Filtering by group is the portable way to ask "what counts as in progress here", because every project names its states differently but the groups are fixed. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. - `sequence` , `-sequence` — the project's own workflow order - `created_at` , `-created_at` — when each state was added - `id` , `-id` Order by `sequence` when you are rendering the workflow to a user; it is the order the project itself uses. |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. Most projects have fewer than 20 states, so one page is usually the whole workflow. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Number of rows to skip from the start of the result set. Maximum 10000. Read the `next` value from the response rather than computing offsets yourself. |
 | `paginate` | string | No | Set to `cursor` to opt into the COUNT-free keyset envelope, which returns `next_cursor` and `has_more` instead of `next` and `total_count`. Omit it for the default offset envelope. |
 | `count` | boolean | No | Defaults to `true`. Set to `false` to skip the `COUNT\(*\)` behind `total_count`; the field is then omitted from the response. |
@@ -2981,7 +2981,7 @@ List work items in Plane. Supports API v1 compatibility.
 | `target_date__lte` | string | No | Bound the planned due date. `?target_date__lte=2026-01-31&state_group__in=backlog,unstarted,started` is the "what is about to slip" query. |
 | `search` | string | No | Free-text search over the work item name. |
 | `order_by` | string | No | Field to sort by. Prefix with `-` for descending. Defaults to `-created_at`. - `created_at`, `-created_at` - `updated_at`, `-updated_at` - `sequence_id`, `-sequence_id` - `id`, `-id` - `sort_order`, `-sort_order` — the manual board ordering - `priority`, `-priority` — semantic: `urgent` → `high` → `medium` → `low` → `none`, not alphabetical - `state_group`, `-state_group` — semantic: workflow order, not alphabetical `priority` and `state_group` sort by meaning, which is what you want for a board but is not cursor-eligible. Pair either with `?paginate=cursor` and you get `400 ordering_not_cursor_eligible`; use the default offset pages instead. |
-| `per_page` | number | No | Page size. Defaults to 50, maximum 200. |
+| `per_page` | number | No | Page size. Maximum 200 for API v2 and 100 for API v1. |
 | `offset` | number | No | Rows to skip from the start of the result set. Maximum 10000 — past that, switch to cursor pagination. |
 | `count` | boolean | No | Defaults to `true`. Pass `?count=false` to skip the `COUNT\(*\)` and omit `total_count` from the envelope. Worth doing on large projects when you only need the rows. |
 | `paginate` | string | No | Set to `cursor` to opt into keyset pagination. The envelope changes to `next_cursor` / `has_more` and drops `total_count`. Use it for deep or long-running traversals where offset pages would drift as rows are inserted. Follow the returned `next_cursor` as described in \[Pagination\]\(https://developers.plane.so/api-reference/v2/pagination). |

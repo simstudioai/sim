@@ -101,7 +101,7 @@ export const planeListAttachmentsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page size (max 200).',
+      description: 'API v2 only. Page size (maximum 200).',
     },
     fields: {
       type: 'string',

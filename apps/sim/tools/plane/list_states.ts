@@ -96,8 +96,7 @@ export const planeListStatesTool: ToolConfig<PlaneListStatesParams, PlaneListSta
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Page size. Defaults to 50, maximum 200. Most projects have fewer than 20 states, so one page is usually the whole workflow.',
+      description: 'Page size. Maximum 200 for API v2 and 100 for API v1.',
     },
     offset: {
       type: 'number',
