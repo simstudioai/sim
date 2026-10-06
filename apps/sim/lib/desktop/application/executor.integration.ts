@@ -681,7 +681,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           })
           .from(auditLog)
           .where(eq(auditLog.resourceId, desktop.deviceId))
-          .orderBy(auditLog.createdAt)
       await expect.poll(async () => (await audited()).length).toBe(2)
       const entry = (action: string) => ({
         action,
@@ -695,10 +694,13 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           chatId: run.chatId,
         }),
       })
-      expect(await audited()).toEqual([
-        entry('desktop_tool_call.claimed'),
-        entry('desktop_tool_call.completed'),
-      ])
+      /** Audit writes are not awaited, so their insertion order is not the call order. */
+      expect(await audited()).toEqual(
+        expect.arrayContaining([
+          entry('desktop_tool_call.claimed'),
+          entry('desktop_tool_call.completed'),
+        ])
+      )
       expect(JSON.stringify(await audited())).not.toContain('Clicked Save')
     })
 

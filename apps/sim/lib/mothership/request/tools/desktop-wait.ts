@@ -217,8 +217,9 @@ async function settleOverdueDesktopToolCall(toolCallId: string): Promise<boolean
   if (!call) return false
   if (call.status === ASYNC_TOOL_STATUS.pending) {
     const present = await readDesktopPresence(call.deviceId)
-    // Before its pickup window closes, a call fails early only when its device is known to be away.
-    if (!call.pickupOverdue && present !== false) return false
+    // Before its pickup window closes, a call fails early only when its device is known to be away:
+    // no presence, and no pull recent enough that a lost presence write could explain the gap.
+    if (!call.pickupOverdue && (present !== false || call.recentlySeen)) return false
     const reason = present === false ? 'offline' : 'not_responding'
     const outcome = await settleBoundDesktopToolCall(call, desktopToolNotStarted(reason), {
       kind: 'pending',

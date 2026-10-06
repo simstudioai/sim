@@ -438,6 +438,11 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
     async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
+      /** Its last pull was minutes ago, and its presence lapsed long since. */
+      await db
+        .update(desktopDevices)
+        .set({ lastSeenAt: sql`now() - interval '10 minutes'` })
+        .where(eq(desktopDevices.id, desktop.deviceId))
 
       const startedAt = Date.now()
       const { toolCallId, answer, context } = await agentCalls(run, 'terminal', {
@@ -618,6 +623,34 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
         DesktopCallRevokedError
       )
       expect((await desktop.pull()).items).toEqual([{ kind: 'cancel', toolCallId }])
+    },
+    TURN_WAIT_MS
+  )
+
+  it(
+    'never fails an awake device’s call early because its presence write was lost',
+    async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const redis = getRedisClient()
+      if (!redis) throw new Error('Redis is required')
+      const writes = vi.spyOn(redis, 'set').mockRejectedValue(new Error('Redis unavailable'))
+      try {
+        /** The pull succeeds, but its presence write fails: the key reads as absent. */
+        await desktop.pull()
+      } finally {
+        writes.mockRestore()
+      }
+
+      const { toolCallId, answer, context } = await agentCalls(run, 'browser_click', { ref: 'e1' })
+      await offered(toolCallId)
+      await sleep(POLL_SETTLES_MS)
+      expect((await storedCall(toolCallId)).status).toBe('pending')
+      const { executionToken } = await desktop.claim(toolCallId)
+      await desktop.complete(toolCallId, executionToken, { clicked: true })
+      await answer
+
+      expect(resultOf(context, toolCallId)).toMatchObject({ success: true })
     },
     TURN_WAIT_MS
   )

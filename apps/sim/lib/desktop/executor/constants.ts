@@ -18,6 +18,9 @@ export const DESKTOP_INBOX_RECONCILE_MS = 10_000
  */
 export const DESKTOP_PRESENCE_TTL_SECONDS = 45
 
+/** How often an inbox pull writes the device's `last_seen_at`; at most once per interval. */
+export const DESKTOP_LAST_SEEN_WRITE_SECONDS = 60
+
 /**
  * Only runs started this recently are scanned for inbox items. A turn, including a terminal
  * handoff, ends well inside it, and the bound keeps the inbox query on a narrow index range.

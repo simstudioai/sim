@@ -18,7 +18,11 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
-import { DESKTOP_INBOX_HORIZON_HOURS } from '@/lib/desktop/executor/constants'
+import {
+  DESKTOP_INBOX_HORIZON_HOURS,
+  DESKTOP_LAST_SEEN_WRITE_SECONDS,
+  DESKTOP_PRESENCE_TTL_SECONDS,
+} from '@/lib/desktop/executor/constants'
 import {
   ASYNC_TOOL_STATUS,
   DESKTOP_TOOL_CLAIM_OWNER,
@@ -142,7 +146,7 @@ export async function touchDesktopDevice(deviceId: string): Promise<void> {
     .where(
       and(
         eq(desktopDevices.id, deviceId),
-        sql`${desktopDevices.lastSeenAt} < now() - interval '1 minute'`
+        sql`${desktopDevices.lastSeenAt} < now() - ${DESKTOP_LAST_SEEN_WRITE_SECONDS} * interval '1 second'`
       )
     )
 }
@@ -333,9 +337,16 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
       result: copilotAsyncToolCalls.result,
       pickupOverdue: sql<boolean>`coalesce(${pickupOverdueAt(sql`clock_timestamp()`)}, false)`,
       leaseLapsed: sql<boolean>`coalesce(${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp(), false)`,
+      /**
+       * Whether the device's pulls show it awake, independently of Redis presence: a pull writes
+       * `last_seen_at` at most once per write interval, so a device seen within the presence TTL
+       * plus that interval may still be pulling even when its presence key is missing.
+       */
+      recentlySeen: sql<boolean>`coalesce(${desktopDevices.lastSeenAt} > clock_timestamp() - ${DESKTOP_PRESENCE_TTL_SECONDS + DESKTOP_LAST_SEEN_WRITE_SECONDS} * interval '1 second', false)`,
     })
     .from(copilotAsyncToolCalls)
     .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .leftJoin(desktopDevices, eq(desktopDevices.id, copilotRuns.desktopDeviceId))
     .where(
       and(eq(copilotAsyncToolCalls.toolCallId, toolCallId), isNotNull(copilotRuns.desktopDeviceId))
     )
