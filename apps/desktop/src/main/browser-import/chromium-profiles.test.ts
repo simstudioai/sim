@@ -48,6 +48,10 @@ async function writeLocalState(
   )
 }
 
+// Creating a symlink on Windows needs Developer Mode or elevation, which the
+// test runner cannot assume.
+const NO_SYMLINKS = process.platform === 'win32'
+
 describe('listBrowserProfiles', () => {
   it('returns display names, default profile first, with namespaced ids', async () => {
     await addProfile(CHROME, 'Profile 2')
@@ -81,7 +85,7 @@ describe('listBrowserProfiles', () => {
     expect(profiles.map(({ id }) => id)).toEqual(['chrome:Default'])
   })
 
-  it('refuses a profile directory redirected through a symlink', async () => {
+  it.skipIf(NO_SYMLINKS)('refuses a profile directory redirected through a symlink', async () => {
     const outsideProfile = join(home, 'outside-profile')
     await mkdir(outsideProfile, { recursive: true })
     await writeFile(join(outsideProfile, 'Login Data'), '')
@@ -93,20 +97,23 @@ describe('listBrowserProfiles', () => {
     await expect(listBrowserProfiles(CHROME, home)).resolves.toEqual([])
   })
 
-  it('refuses symlinked, hard-linked, and non-file password databases', async () => {
-    const outsideDatabase = join(home, 'outside-login-data')
-    await writeFile(outsideDatabase, '')
+  it.skipIf(NO_SYMLINKS)(
+    'refuses symlinked, hard-linked, and non-file password databases',
+    async () => {
+      const outsideDatabase = join(home, 'outside-login-data')
+      await writeFile(outsideDatabase, '')
 
-    const userDataDir = userDataDirFor(CHROME, home)
-    for (const directory of ['Default', 'Profile 2', 'Profile 3']) {
-      await mkdir(join(userDataDir, directory), { recursive: true })
+      const userDataDir = userDataDirFor(CHROME, home)
+      for (const directory of ['Default', 'Profile 2', 'Profile 3']) {
+        await mkdir(join(userDataDir, directory), { recursive: true })
+      }
+      await symlink(outsideDatabase, join(userDataDir, 'Default', 'Login Data For Account'))
+      await link(outsideDatabase, join(userDataDir, 'Profile 2', 'Login Data For Account'))
+      await mkdir(join(userDataDir, 'Profile 3', 'Login Data For Account'))
+
+      await expect(listBrowserProfiles(CHROME, home)).resolves.toEqual([])
     }
-    await symlink(outsideDatabase, join(userDataDir, 'Default', 'Login Data For Account'))
-    await link(outsideDatabase, join(userDataDir, 'Profile 2', 'Login Data For Account'))
-    await mkdir(join(userDataDir, 'Profile 3', 'Login Data For Account'))
-
-    await expect(listBrowserProfiles(CHROME, home)).resolves.toEqual([])
-  })
+  )
 })
 
 describe('listAllBrowserProfiles', () => {

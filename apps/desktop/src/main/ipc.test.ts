@@ -371,8 +371,10 @@ describe('registerIpcHandlers', () => {
 
     expect(await handler?.(evilEvent)).toBe(false)
     expect(await handler?.(appEvent)).toBe(false)
-    expect(await handler?.(activeAppEvent)).toBe(process.platform === 'darwin')
-    expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
+    // Only macOS and Windows have a settings URL to open.
+    const hasSettingsPane = process.platform === 'darwin' || process.platform === 'win32'
+    expect(await handler?.(activeAppEvent)).toBe(hasSettingsPane)
+    expect(shell.openExternal).toHaveBeenCalledTimes(hasSettingsPane ? 1 : 0)
   })
 
   it('restricts the OAuth connect handoff to an activated app origin', async () => {
