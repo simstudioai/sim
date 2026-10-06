@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { DesktopLocalFileEntry, DesktopLocalFileResponse } from './local-files'
-import { readImportEntry, sanitizeBrowserToolResultForModel } from './tool-results'
+import {
+  assertImportableManifest,
+  readImportEntry,
+  sanitizeBrowserToolResultForModel,
+} from './tool-results'
 
 describe('browser screenshot model projection', () => {
   it('keeps an image usable when an older desktop omits coordinate metadata', () => {
@@ -124,9 +128,26 @@ describe('import file reads', () => {
     ['ends early', [{ bytes: 'abc', eof: true }]],
     ['grows past its listed size', [{ bytes: 'abcdefg', eof: true }]],
     ['stalls', [{ bytes: '', eof: false }]],
+    ['keeps going past its listed size', [{ bytes: 'abcdef', eof: false }]],
   ])('refuses a file that %s since the manifest listed it', async (_case, parts) => {
     await expect(readImportEntry('call-1', entry, chunks(...parts))).rejects.toThrow(
       'The local file changed or its transfer was incomplete.'
     )
+  })
+})
+
+describe('importable manifests', () => {
+  it('refuses a name Sim cannot store before anything is imported', () => {
+    expect(() =>
+      assertImportableManifest({
+        kind: 'manifest',
+        name: 'Reports',
+        targetWorkspaceId: 'ws-1',
+        entries: [
+          { relativePath: '', kind: 'directory', size: 0, revision: 'r0' },
+          { relativePath: 'q3\\draft.txt', kind: 'file', size: 1, revision: 'r1' },
+        ],
+      })
+    ).toThrow('backslash')
   })
 })

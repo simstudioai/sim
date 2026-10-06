@@ -40,9 +40,15 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(importDesktopEntryContract, request, {})
   if (!parsed.success) return parsed.response
   const query = parsed.data.query
-  const declaredLength = Number(request.headers.get('content-length') ?? 0)
+  const lengthHeader = request.headers.get('content-length')
+  const declaredLength = Number(lengthHeader ?? 0)
   if (!Number.isFinite(declaredLength) || declaredLength > MAX_DESKTOP_IMPORT_FILE_BYTES) {
     return NextResponse.json(withRequestId({ error: TOO_LARGE }), { status: 413 })
+  }
+  if (query.kind === 'file' && lengthHeader === null) {
+    return NextResponse.json(withRequestId({ error: 'A file import must declare its length' }), {
+      status: 411,
+    })
   }
 
   try {
@@ -64,6 +70,13 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(withRequestId({ error: TOO_LARGE }), { status: 413 })
       }
       throw error
+    }
+    // Anything between the device and here that cut the body short must not become a stored file.
+    if (content.length !== declaredLength) {
+      return NextResponse.json(
+        withRequestId({ error: 'The file did not arrive whole; nothing was stored' }),
+        { status: 400 }
+      )
     }
   }
 

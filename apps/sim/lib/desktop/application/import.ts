@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { toRecord } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -5,6 +6,7 @@ import { DesktopDeviceUnrecognizedError } from '@/lib/desktop/executor/errors'
 import { getBoundDesktopCall, getBoundDesktopDevice } from '@/lib/desktop/executor/repository'
 import { ASYNC_TOOL_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import { getAsyncToolCall } from '@/lib/mothership/async-runs/repository'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   ensureWorkspaceFileChildFolder,
   loadActiveWorkspaceContext,
@@ -105,21 +107,25 @@ export const importDesktopEntry = defineAuthorizedWorkspaceFileUseCase({
     const segments = input.relativePath
       ? [input.sourceName, ...input.relativePath.split('/')]
       : [input.sourceName]
-    const folders = input.kind === 'directory' ? segments : segments.slice(0, -1)
+    const folderSegments = input.kind === 'directory' ? segments : segments.slice(0, -1)
     let folderId = context.rootFolderId
-    for (const name of folders) {
-      folderId = await ensureWorkspaceFileChildFolder({
+    const createdFolders: Array<{ id: string; name: string }> = []
+    for (const name of folderSegments) {
+      const folder = await ensureWorkspaceFileChildFolder({
         workspaceId: context.workspaceId,
         userId: context.importingUserId,
         parentId: folderId,
         name,
       })
+      if (folder.created) createdFolders.push({ id: folder.id, name: folder.name })
+      folderId = folder.id
     }
     const name = segments[segments.length - 1] ?? input.sourceName
     if (input.kind === 'directory') {
       if (!folderId) throw new OrchestrationError('validation', 'A directory needs a name')
-      return { kind: 'directory' as const, id: folderId, name }
+      return { kind: 'directory' as const, id: folderId, name, createdFolders }
     }
+    if (!input.content) throw new OrchestrationError('validation', 'A file import needs its bytes')
     const created = await createAuthorizedWorkspaceFile({
       principal,
       input: {
@@ -129,11 +135,30 @@ export const importDesktopEntry = defineAuthorizedWorkspaceFileUseCase({
         folderId,
         exactName: false,
       },
-      content: input.content ?? Buffer.alloc(0),
+      content: input.content,
       workspace: context,
     })
-    return { kind: 'file' as const, id: created.file.id, name: created.file.name, created }
+    return {
+      kind: 'file' as const,
+      id: created.file.id,
+      name: created.file.name,
+      createdFolders,
+      created,
+    }
   },
-  projectAudit: ({ result }) =>
-    result.kind === 'file' ? projectCreateWorkspaceFileAudit(result.created) : [],
+  // Folders an import creates are recorded like folders made by hand; the file records itself.
+  projectAudit: ({ result }) => [
+    ...result.createdFolders.map((folder) => ({
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folder.id,
+      resourceName: folder.name,
+      description: `Created file folder "${folder.name}"`,
+    })),
+    ...(result.kind === 'file' ? [projectCreateWorkspaceFileAudit(result.created)] : []),
+  ],
+  async afterSuccess({ context, result }) {
+    // A new file announces itself; a new folder is announced here, as folder creation does.
+    if (result.createdFolders.length > 0) await notifyWorkspaceFilesChanged(context.workspaceId)
+  },
 })

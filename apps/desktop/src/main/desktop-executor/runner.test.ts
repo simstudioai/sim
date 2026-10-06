@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TerminalToolResponse } from '@sim/terminal-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DeviceRequestError } from '@/main/desktop-executor/client'
 import type {
   ClaimedDesktopCall,
   DesktopImportEntryRequest,
@@ -162,19 +163,27 @@ describe('background imports', () => {
     }
   }
 
-  /** Records what reached Sim, with each file's bytes as text. */
-  function recordingSim(fail?: (request: DesktopImportEntryRequest) => boolean) {
+  /**
+   * A fake Sim import route: records every entry it stores, with each file's bytes as text, and
+   * the token each request presented. `answer` can refuse a request instead.
+   */
+  function recordingSim(answer?: (request: DesktopImportEntryRequest) => Error | null) {
     const stored: Array<{ kind: string; relativePath: string; text?: string }> = []
-    const importEntry = vi.fn(async (request: DesktopImportEntryRequest) => {
-      if (fail?.(request)) throw new Error('Sim refused the entry')
+    const tokens: string[] = []
+    let requests = 0
+    const importEntry = async (request: DesktopImportEntryRequest) => {
+      requests += 1
+      tokens.push(request.call.executionToken)
+      const refusal = answer?.(request)
+      if (refusal) throw refusal
       stored.push({
         kind: request.kind,
         relativePath: request.relativePath,
         ...(request.content ? { text: await request.content.text() } : {}),
       })
       return { id: `id-${stored.length}`, name: request.relativePath || request.sourceName }
-    })
-    return { stored, importEntry }
+    }
+    return { stored, tokens, importEntry, requests: () => requests }
   }
 
   it("stores a folder's tree in Sim, each file with the bytes on disk", async () => {
@@ -191,10 +200,7 @@ describe('background imports', () => {
       { kind: 'directory', relativePath: 'q3' },
       { kind: 'file', relativePath: 'q3/summary.txt', text: 'quarterly numbers' },
     ])
-    expect(sim.importEntry.mock.calls[0]?.[0]).toMatchObject({
-      sourceName: 'Reports',
-      call: { executionToken: 'token-import-1' },
-    })
+    expect(new Set(sim.tokens)).toEqual(new Set(['token-import-1']))
     expect(completion.data).toMatchObject({
       success: true,
       workspaceId: 'ws-1',
@@ -210,7 +216,9 @@ describe('background imports', () => {
   })
 
   it('reports what landed when an import stops part way, and not to retry it', async () => {
-    const sim = recordingSim((request) => request.relativePath === 'q3/summary.txt')
+    const sim = recordingSim((request) =>
+      request.relativePath === 'q3/summary.txt' ? new Error('Sim refused the entry') : null
+    )
     const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
       importCall(await reportsFolder()),
       new AbortController().signal
@@ -229,10 +237,9 @@ describe('background imports', () => {
 
   it('stores nothing more once the call is stopped', async () => {
     const controller = new AbortController()
-    const sim = recordingSim()
-    sim.importEntry.mockImplementationOnce(async (request) => {
+    const sim = recordingSim(() => {
       controller.abort()
-      return { id: 'id-root', name: request.sourceName }
+      return null
     })
     const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
       importCall(await reportsFolder()),
@@ -240,7 +247,28 @@ describe('background imports', () => {
     )
 
     expect(completion.status).toBe('error')
-    expect(sim.importEntry).toHaveBeenCalledTimes(1)
+    expect(sim.stored).toEqual([{ kind: 'directory', relativePath: '' }])
+  })
+
+  it("waits out Sim's rate limit instead of failing the import part way", async () => {
+    let limited = false
+    const sim = recordingSim((request) => {
+      if (request.relativePath !== 'notes.txt' || limited) return null
+      limited = true
+      return new DeviceRequestError(429, 'Too many requests', 10)
+    })
+    const completion = await runner({ imports: { importEntry: sim.importEntry } }).run(
+      importCall(await reportsFolder()),
+      new AbortController().signal
+    )
+
+    expect(completion.status).toBe('success')
+    expect(sim.stored.map((entry) => entry.relativePath)).toEqual([
+      '',
+      'notes.txt',
+      'q3',
+      'q3/summary.txt',
+    ])
   })
 
   it('fails without storing anything when the source cannot be read', async () => {
@@ -251,7 +279,7 @@ describe('background imports', () => {
     )
 
     expect(completion.status).toBe('error')
-    expect(sim.importEntry).not.toHaveBeenCalled()
+    expect(sim.requests()).toBe(0)
     expect(completion.data).toMatchObject({ workspaceId: 'ws-1', partial: false })
   })
 })

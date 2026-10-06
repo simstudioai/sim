@@ -622,21 +622,21 @@ export async function createWorkspaceFileFolder(params: {
 
 /**
  * The active folder `name` directly under `parentId` (the workspace root when null), created
- * when it does not exist yet. Writers that copy a tree in, one entry at a time, merge into a
- * folder that is already there instead of making a numbered sibling.
+ * when it does not exist yet, and whether this call created it. Writers that copy a tree in, one
+ * entry at a time, merge into a folder that is already there instead of making a numbered sibling.
  */
 export async function ensureWorkspaceFileChildFolder(params: {
   workspaceId: string
   userId: string
   parentId: string | null
   name: string
-}): Promise<string> {
+}): Promise<{ id: string; name: string; created: boolean }> {
   const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
   const existing = await findRawWorkspaceFileFolderByName(params.workspaceId, name, params.parentId)
-  if (existing) return existing.id
+  if (existing) return { id: existing.id, name: existing.name, created: false }
   try {
     const created = await createWorkspaceFileFolder({ ...params, name, exactName: true })
-    return created.id
+    return { id: created.id, name: created.name, created: true }
   } catch (error) {
     if (!(error instanceof WorkspaceFileFolderConflictError)) throw error
     const concurrent = await findRawWorkspaceFileFolderByName(
@@ -645,7 +645,7 @@ export async function ensureWorkspaceFileChildFolder(params: {
       params.parentId
     )
     if (!concurrent) throw error
-    return concurrent.id
+    return { id: concurrent.id, name: concurrent.name, created: false }
   }
 }
 

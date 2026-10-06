@@ -230,7 +230,10 @@ export function localFileReadCompletion(response: DesktopLocalFileResponse): Des
   }
 }
 
-/** Refuses an import holding a file larger than desktop imports carry, before anything lands. */
+/**
+ * Refuses, before anything lands, an import Sim could not store whole: a file larger than desktop
+ * imports carry, or a name with a backslash, which Sim's file names cannot hold.
+ */
 export function assertImportableManifest(manifest: DesktopLocalFileManifest): void {
   if (
     manifest.entries.some(
@@ -239,6 +242,14 @@ export function assertImportableManifest(manifest: DesktopLocalFileManifest): vo
   ) {
     throw new Error(
       'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
+    )
+  }
+  const backslashed = [manifest.name, ...manifest.entries.map((entry) => entry.relativePath)].find(
+    (name) => name.includes('\\')
+  )
+  if (backslashed !== undefined) {
+    throw new Error(
+      `Sim cannot store a file or folder whose name contains a backslash: "${backslashed}". Rename it, or import the rest separately.`
     )
   }
 }
@@ -272,7 +283,7 @@ export async function readImportEntry(
     if (
       offset > entry.size ||
       (response.data.eof && offset !== entry.size) ||
-      (!response.data.eof && bytes.length === 0)
+      (!response.data.eof && (bytes.length === 0 || offset >= entry.size))
     ) {
       throw new Error('The local file changed or its transfer was incomplete.')
     }

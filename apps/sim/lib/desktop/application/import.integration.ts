@@ -20,6 +20,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotAsyncToolCalls,
   copilotChats,
   copilotRuns,
@@ -49,6 +50,8 @@ describe('desktop imports', () => {
 
   afterAll(async () => {
     if (userIds.length) {
+      // Audit rows outlive their actor (the foreign key sets null), so they go first.
+      await db.delete(auditLog).where(inArray(auditLog.actorId, userIds))
       await db.delete(workspace).where(inArray(workspace.ownerId, userIds))
       await db.delete(user).where(inArray(user.id, userIds))
     }
@@ -183,6 +186,30 @@ describe('desktop imports', () => {
     const stored = await activeFile(claimed.workspaceId, report.id)
     expect(stored?.folderId).toBe(q3.id)
     expect(stored).toBeDefined()
+  })
+
+  it('records the folders an import creates, and only those', async () => {
+    const claimed = await claimedImport()
+
+    const root = await entry(claimed, 'directory', '')
+    await entry(claimed, 'directory', '')
+
+    const auditedRoot = async () =>
+      (
+        await db
+          .select({ resourceId: auditLog.resourceId, action: auditLog.action })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, claimed.workspaceId))
+      ).filter((row) => row.resourceId === root.id)
+    await expect.poll(auditedRoot).toEqual([{ resourceId: root.id, action: 'folder.created' }])
+  })
+
+  it('refuses a file entry with no bytes instead of storing an empty file', async () => {
+    const claimed = await claimedImport()
+
+    await expect(entry(claimed, 'file', 'empty.txt')).rejects.toMatchObject({
+      code: 'validation',
+    })
   })
 
   it('merges into folders that already exist and never overwrites a file', async () => {

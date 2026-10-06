@@ -44,6 +44,8 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { DeviceRequestError } from '@/main/desktop-executor/client'
 import type { DesktopToolRunner } from '@/main/desktop-executor/executor'
 import type {
   ClaimedDesktopCall,
@@ -54,6 +56,9 @@ import type {
 const logger = createLogger('DesktopExecutorRunner')
 
 const USER_LOCAL_TOOLS: ReadonlySet<string> = new Set(['read', 'grep', 'glob'])
+/** A rate-limited import entry is retried this many times; Sim never stored a refused one. */
+const IMPORT_RATE_LIMIT_ATTEMPTS = 8
+const IMPORT_RATE_LIMIT_MAX_WAIT_MS = 30_000
 
 /** The model learns a call never ran because a surface is switched off on this machine. */
 function surfaceOff(surface: string): DesktopToolCompletion {
@@ -248,6 +253,34 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
    * Imports the call's source into its workspace one entry at a time: each directory as a folder,
    * each file read in chunks and checked against the manifest that listed it.
    */
+  /**
+   * Sends one entry, waiting out Sim's rate limit: a large tree can outrun it, and a 429 means
+   * nothing was stored, so sending the entry again cannot duplicate it.
+   */
+  async function importEntry(
+    request: DesktopImportEntryRequest,
+    signal: AbortSignal
+  ): Promise<DesktopImportedEntry> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await deps.imports.importEntry(request, signal)
+      } catch (error) {
+        if (
+          !(error instanceof DeviceRequestError) ||
+          error.status !== 429 ||
+          attempt >= IMPORT_RATE_LIMIT_ATTEMPTS
+        ) {
+          throw error
+        }
+        await interruptibleSleep(
+          backoffWithJitter(attempt, error.retryAfterMs, { maxMs: IMPORT_RATE_LIMIT_MAX_WAIT_MS }),
+          signal
+        )
+        signal.throwIfAborted()
+      }
+    }
+  }
+
   async function runImport(
     call: ClaimedDesktopCall,
     signal: AbortSignal
@@ -267,12 +300,12 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
         signal.throwIfAborted()
         const target = { call, sourceName: manifest.name, relativePath: entry.relativePath }
         if (entry.kind === 'directory') {
-          const folder = await deps.imports.importEntry({ ...target, kind: 'directory' }, signal)
+          const folder = await importEntry({ ...target, kind: 'directory' }, signal)
           folders.push({ id: folder.id, relativePath: entry.relativePath })
           continue
         }
         const parts = await readImportEntry(call.toolCallId, entry, read, signal)
-        const file = await deps.imports.importEntry(
+        const file = await importEntry(
           { ...target, kind: 'file', content: new Blob(parts) },
           signal
         )
