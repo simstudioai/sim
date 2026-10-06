@@ -1,7 +1,7 @@
 import type { TerminalToolResponse } from '@sim/terminal-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClaimedDesktopCall } from '@/main/desktop-executor/protocol'
-import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
+import { createDesktopToolRunner, type DesktopToolRunnerDeps } from '@/main/desktop-executor/runner'
 
 function terminalCall(toolCallId: string, operation: string): ClaimedDesktopCall {
   return {
@@ -14,7 +14,7 @@ function terminalCall(toolCallId: string, operation: string): ClaimedDesktopCall
   }
 }
 
-function runnerWithTerminal(executeTool: (toolCallId: string) => Promise<TerminalToolResponse>) {
+function runner(overrides: Partial<DesktopToolRunnerDeps> = {}) {
   return createDesktopToolRunner({
     preferences: () => ({ browserEnabled: true, terminalEnabled: true }),
     accountDataAvailable: () => true,
@@ -24,12 +24,19 @@ function runnerWithTerminal(executeTool: (toolCallId: string) => Promise<Termina
       hasSession: () => true,
       restoreScope: vi.fn(),
     },
+    terminal: { executeTool: vi.fn(), cancelTool: vi.fn(async () => true) },
+    localFiles: { read: vi.fn() },
+    localFilesystem: { handle: vi.fn(), vfsRoot: () => 'user-local/x--1' },
+    ...overrides,
+  })
+}
+
+function runnerWithTerminal(executeTool: (toolCallId: string) => Promise<TerminalToolResponse>) {
+  return runner({
     terminal: {
       executeTool: (_scope, toolCallId) => executeTool(toolCallId),
       cancelTool: vi.fn(async () => true),
     },
-    localFiles: { read: vi.fn() },
-    localFilesystem: { handle: vi.fn(), vfsRoot: () => 'user-local/x--1' },
   })
 }
 
@@ -92,5 +99,25 @@ describe('background terminal calls', () => {
 
     expect(completion.status).toBe('error')
     expect(started).toEqual(['wedged'])
+  })
+})
+
+describe('local file calls', () => {
+  it('names a passing storage state, not a setting, when local files are out of reach', async () => {
+    const completion = await runner({ accountDataAvailable: () => false }).run(
+      {
+        toolCallId: 'read-1',
+        toolName: 'read_local_file',
+        args: { path: '~/notes.txt' },
+        chatId: 'chat-b',
+        workspaceId: 'ws-1',
+        executionToken: 'token-read-1',
+      },
+      new AbortController().signal
+    )
+
+    expect(completion.data).toMatchObject({ notStarted: true })
+    expect(completion.message).toContain('cannot reach local files')
+    expect(completion.message).not.toContain('settings')
   })
 })

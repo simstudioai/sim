@@ -51,6 +51,13 @@ function surfaceOff(surface: string): DesktopToolCompletion {
   return { status: 'error', message, data: { error: message, notStarted: true } }
 }
 
+/** Local files are out of reach while the app has no usable account storage, a passing state. */
+function localAccessUnavailable(): DesktopToolCompletion {
+  const message =
+    'Not run: this action never started, because the Sim desktop app cannot reach local files right now (it is signing out, switching account, or its storage is unavailable). Nothing happened on the user’s computer. Do not retry it in this turn; tell the user, who can ask again once the app is ready.'
+  return { status: 'error', message, data: { error: message, notStarted: true } }
+}
+
 function unsupported(toolName: string): DesktopToolCompletion {
   const message = `Not run: this action never started, because this version of the Sim desktop app cannot run ${toolName} in the background. Nothing happened on the user’s computer. Do not retry it in this turn; tell the user to update the Sim desktop app.`
   return { status: 'error', message, data: { error: message, notStarted: true } }
@@ -222,7 +229,7 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
       try {
         if (isCurrentBrowserToolName(call.toolName)) return await runBrowser(call, call.toolName)
         if (call.toolName === 'terminal') return await runTerminal(call, signal)
-        if (!deps.accountDataAvailable()) return surfaceOff('local file access')
+        if (!deps.accountDataAvailable()) return localAccessUnavailable()
         if (call.toolName === 'read_local_file') {
           return localFileReadCompletion(await deps.localFiles.read(call))
         }
