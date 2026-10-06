@@ -127,7 +127,7 @@ export const PlaneBlock: BlockConfig = {
         plane_get_project: [{ text: 'Read project', field: 'projectId', core: true }],
         plane_create_project: [
           { text: 'Create project', field: 'name', core: true },
-          { text: ', with identifier', field: 'identifier' },
+          { text: ', with identifier', field: 'projectIdentifier' },
         ],
         plane_list_states: [{ text: 'List states in project', field: 'projectId', core: true }],
         plane_list_labels: [{ text: 'List labels in project', field: 'projectId', core: true }],
@@ -252,7 +252,7 @@ export const PlaneBlock: BlockConfig = {
       },
     },
     {
-      id: 'identifier',
+      id: 'projectIdentifier',
       title: 'Project Identifier',
       type: 'short-input',
       placeholder: 'e.g., ENG (work items become ENG-1, ENG-2, ...)',
@@ -638,6 +638,7 @@ export const PlaneBlock: BlockConfig = {
           labelIds,
           workItemIds,
           clearFields,
+          projectIdentifier,
           ...rest
         } = params
         const result: Record<string, unknown> = { ...rest }
@@ -657,6 +658,13 @@ export const PlaneBlock: BlockConfig = {
         const fieldsToClear = parsePlaneIdList(clearFields)
         if (fieldsToClear) result.clearFields = fieldsToClear
 
+        if (
+          operation === 'plane_create_project' &&
+          typeof projectIdentifier === 'string' &&
+          projectIdentifier.trim()
+        ) {
+          result.identifier = projectIdentifier
+        }
         if (operation === 'plane_upload_attachment') {
           const normalizedFile = normalizeFileInput(file, { single: true })
           if (!normalizedFile) throw new Error('A file is required to upload an attachment.')
@@ -674,10 +682,8 @@ export const PlaneBlock: BlockConfig = {
     baseUrl: { type: 'string', description: 'Self-hosted Plane URL (defaults to Plane Cloud)' },
     projectId: { type: 'string', description: 'Project ID' },
     workItemId: { type: 'string', description: 'Work item ID' },
-    identifier: {
-      type: 'string',
-      description: 'Work item identifier (e.g., PROJ-123) or new project identifier (e.g., ENG)',
-    },
+    identifier: { type: 'string', description: 'Work item identifier (e.g., PROJ-123)' },
+    projectIdentifier: { type: 'string', description: 'New project identifier (e.g., ENG)' },
     name: { type: 'string', description: 'Work item, project, or label name' },
     description: { type: 'string', description: 'Description (HTML for work items)' },
     stateId: { type: 'string', description: 'State ID' },

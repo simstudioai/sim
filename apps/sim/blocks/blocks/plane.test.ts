@@ -15,6 +15,19 @@ describe('PlaneBlock params', () => {
       identifier: 'ENG',
     })
     expect(
+      params({ operation: 'plane_create_project', projectIdentifier: 'OPS', identifier: 'ENG' })
+    ).toMatchObject({ identifier: 'OPS' })
+    expect(
+      params({ operation: 'plane_create_project', projectIdentifier: '', identifier: 'ENG' })
+    ).toMatchObject({ identifier: 'ENG' })
+    expect(
+      params({
+        operation: 'plane_get_work_item_by_identifier',
+        identifier: 'ENG-1',
+        projectIdentifier: 'OPS',
+      })
+    ).toMatchObject({ identifier: 'ENG-1' })
+    expect(
       params({ operation: 'plane_create_link', url: 'https://x.dev', title: 'X' })
     ).toMatchObject({ url: 'https://x.dev', title: 'X' })
     expect(params({ operation: 'plane_create_label', parentId: 'label-1' })).toMatchObject({
