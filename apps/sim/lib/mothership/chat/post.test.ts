@@ -832,9 +832,8 @@ describe('handleUnifiedChatPost', () => {
       )
       expect(response.status).toBe(200)
       const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
-      const wire = JSON.parse(JSON.stringify(requestPayload))
-      expect(wire.effort).toBe(expected)
-      expect(wire).not.toHaveProperty('modelSelection')
+      expect(requestPayload?.effort).toBe(expected)
+      expect(JSON.stringify(requestPayload)).not.toContain('modelSelection')
     }
   )
 
