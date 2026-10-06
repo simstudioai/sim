@@ -13,13 +13,9 @@ import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('SuperUserImportWorkflow')
 
@@ -131,40 +127,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Create new workflow record
     const newWorkflowId = generateId()
-    const dedupedName = await deduplicateWorkflowName(
-      `[Debug Import] ${sourceWorkflow.name}`,
-      targetWorkspaceId,
-      null
-    )
 
-    await db.transaction((tx) =>
-      insertNewWorkflowRow(tx, {
-        id: newWorkflowId,
-        userId: session.user.id,
-        workspaceId: targetWorkspaceId,
-        folderId: null,
-        name: dedupedName,
-        description: sourceWorkflow.description,
-        variables: sourceWorkflow.variables || {},
-      })
-    )
-
-    // Save using existing persistence logic
-    const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData, {
-      /**
-       * Actorless. The superuser debug import is a platform-operator tool for
-       * reproducing a customer's workflow, not a member authoring one, so no
-       * workspace permission group governs it.
-       */
-      workspaceId: null,
-      subjectUserId: null,
+    const created = await createWorkflowWithState({
+      id: newWorkflowId,
+      userId: session.user.id,
+      workspaceId: targetWorkspaceId,
+      folderId: null,
+      name: `[Debug Import] ${sourceWorkflow.name}`,
+      description: sourceWorkflow.description,
+      variables: sourceWorkflow.variables || {},
+      state: importedData,
+      governance: {
+        /**
+         * Actorless. The superuser debug import is a platform-operator tool for
+         * reproducing a customer's workflow, not a member authoring one, so no
+         * workspace permission group governs it.
+         */
+        workspaceId: null,
+        subjectUserId: null,
+      },
     })
 
-    if (!saveResult.success) {
-      // Clean up the workflow record if save failed
-      await db.delete(workflow).where(eq(workflow.id, newWorkflowId))
+    if (!created.success) {
       return NextResponse.json(
-        { error: `Failed to save workflow state: ${saveResult.error}` },
+        { error: `Failed to save workflow state: ${created.error}` },
         { status: 500 }
       )
     }
