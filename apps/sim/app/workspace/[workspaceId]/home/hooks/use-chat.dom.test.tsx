@@ -2138,6 +2138,100 @@ describe('useChat remount send recovery', () => {
         ?.messages.map((message) => message.id)
     ).toEqual(['saved-user', 'saved-assistant'])
   })
+
+  /**
+   * The tab finalizes on the `complete` event, which reaches it before the server
+   * saves the turn. A transcript read in that gap is the server's in-flight copy;
+   * the tab must read again rather than keep it (live ids, the finished stream
+   * still listed as running) until something else happens to refetch.
+   */
+  it('re-reads a transcript fetched before the server saved the finished turn', async () => {
+    const chatId = 'chat-saved-after-complete'
+    const history: MothershipChatHistory = {
+      id: chatId,
+      mode: 'agent',
+      title: 'Saved late',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    let streamId: string | undefined
+    let completed = false
+    const detailRequests: number[] = []
+    mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+      if (contract.path !== '/api/mothership/chats/[chatId]') {
+        return Promise.resolve({ chats: [] })
+      }
+      if (!completed) return Promise.resolve({ chat: history })
+      detailRequests.push(Date.now())
+      if (detailRequests.length === 1 && streamId) {
+        return Promise.resolve({
+          chat: {
+            ...history,
+            activeStreamId: streamId,
+            messages: [
+              { id: streamId, role: 'user', content: 'Summarize the run' },
+              { id: `live-assistant:${streamId}`, role: 'assistant', content: 'Done.' },
+            ],
+          },
+        })
+      }
+      return Promise.resolve({
+        chat: {
+          ...history,
+          messages: [
+            { id: streamId, role: 'user', content: 'Summarize the run' },
+            { id: 'saved-assistant', role: 'assistant', content: 'Done.' },
+          ],
+        },
+      })
+    })
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+        return fetchStub(input, init)
+      }
+      streamId = JSON.parse(String(init.body)).userMessageId
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            stream = controller
+          },
+        }),
+        { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+      )
+    })
+    const { getResult } = renderUseChatInChat(chatId, history)
+
+    await act(async () => {
+      void getResult().sendMessage('Summarize the run')
+    })
+    await waitFor(() => stream !== undefined)
+    const emit = (event: Omit<MothershipStreamV1EventEnvelope, 'v' | 'ts' | 'stream'>) =>
+      stream?.enqueue(
+        new TextEncoder().encode(
+          `data: ${JSON.stringify({ v: 1, ts: '', stream: { streamId }, ...event })}\n\n`
+        )
+      )
+    emit({ seq: 1, type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
+    completed = true
+    emit({ seq: 2, type: 'complete', payload: { status: 'complete' } })
+    stream?.close()
+
+    await waitFor(
+      () =>
+        queryClient
+          .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+          ?.messages.some((message) => message.id === 'saved-assistant') === true
+    )
+    expect(
+      queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+        ?.activeStreamId
+    ).toBeNull()
+    expect(detailRequests).toHaveLength(2)
+    expect(getResult().isSending).toBe(false)
+  })
+
   describe.each([
     {
       kind: 'browser action',
