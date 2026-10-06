@@ -152,9 +152,10 @@ describe('table row-change log against real PostgreSQL', () => {
       }
     })()
 
-    await Promise.all(appenders)
+    const appended = await Promise.allSettled(appenders)
     appending = false
     await Promise.all([folder, reader])
+    for (const result of appended) if (result.status === 'rejected') throw result.reason
 
     const total = writers * appendsPerWriter
     expect(await readCurrentRowsVersion(tableId)).toBe(total)

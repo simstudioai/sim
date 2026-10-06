@@ -17,14 +17,14 @@
  */
 
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRowChanges } from '@sim/db/schema'
+import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, notInArray, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 
 const logger = createLogger('TableRowChanges')
 
-/** Tables folded per sweep query; the sweep loops until the log is empty or its budget runs out. */
+/** Tables per pending-table page; the sweep pages until the log is empty or its budget runs out. */
 const FOLD_SWEEP_PAGE_SIZE = 500
 
 /**
@@ -100,36 +100,55 @@ export async function foldTableRowChanges(tableId: string): Promise<boolean> {
   })
 }
 
+/** Outcome of one fold sweep. */
 export interface FoldSweepResult {
+  /** Tables whose log rows were folded into their definition row. */
   folded: number
+  /** Tables left for the next sweep because another transaction held their definition row. */
   skipped: number
+  /** Whether the sweep stopped at its budget with tables still unvisited. */
   budgetExhausted: boolean
 }
 
 /**
- * Folds each table with unfolded log rows once, until none is left or `budgetMs` elapses. Rows a
- * table logs after its fold wait for the next sweep.
+ * The next page of distinct table ids in the log after `afterTableId`, by loose index scan: each
+ * step seeks the next id through the `table_id` index, so the cost follows the number of tables,
+ * not the number of log rows a busy table has piled up.
+ */
+async function nextPendingTableIds(afterTableId: string): Promise<string[]> {
+  const rows = await db.execute<{ table_id: string }>(sql`
+    WITH RECURSIVE pending AS (
+      (SELECT table_id FROM user_table_row_changes
+       WHERE table_id > ${afterTableId} ORDER BY table_id LIMIT 1)
+      UNION ALL
+      SELECT (SELECT c.table_id FROM user_table_row_changes c
+              WHERE c.table_id > p.table_id ORDER BY c.table_id LIMIT 1)
+      FROM pending p WHERE p.table_id IS NOT NULL
+    )
+    SELECT table_id FROM pending WHERE table_id IS NOT NULL LIMIT ${FOLD_SWEEP_PAGE_SIZE}`)
+  return rows.map((row) => row.table_id)
+}
+
+/**
+ * Folds each table with unfolded log rows once, in table-id order, until none is left or
+ * `budgetMs` elapses. Rows a table logs after its fold wait for the next sweep.
  */
 export async function foldPendingTableRowChanges(budgetMs: number): Promise<FoldSweepResult> {
   const deadline = Date.now() + budgetMs
-  const visited = new Set<string>()
+  let afterTableId = ''
   let folded = 0
   let skipped = 0
 
   for (;;) {
-    const pending = await db
-      .selectDistinct({ tableId: userTableRowChanges.tableId })
-      .from(userTableRowChanges)
-      .where(visited.size > 0 ? notInArray(userTableRowChanges.tableId, [...visited]) : undefined)
-      .limit(FOLD_SWEEP_PAGE_SIZE)
-    if (pending.length === 0) return { folded, skipped, budgetExhausted: false }
+    const tableIds = await nextPendingTableIds(afterTableId)
+    if (tableIds.length === 0) return { folded, skipped, budgetExhausted: false }
 
-    for (const { tableId } of pending) {
+    for (const tableId of tableIds) {
       if (Date.now() >= deadline) {
         logger.warn('Table row-change fold sweep ran out of budget', { folded, skipped, budgetMs })
         return { folded, skipped, budgetExhausted: true }
       }
-      visited.add(tableId)
+      afterTableId = tableId
       if (await foldTableRowChanges(tableId)) folded++
       else skipped++
     }
