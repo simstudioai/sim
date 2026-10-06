@@ -1,0 +1,780 @@
+---
+title: Plane
+description: Manage Plane work items, comments, attachments, cycles, and modules
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="plane"
+  color="#3F76FF"
+/>
+
+## Usage Instructions
+
+Integrate Plane, the open-source project management tool, into workflows. Create, update, search, and triage work items; post comments and links; upload and download attachments; plan cycles and modules; and look up projects, states, labels, and members. Works with Plane Cloud and self-hosted instances.
+
+
+
+## Actions
+
+### Plane Create Work Item
+
+Create a work item (issue) in a Plane project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `name` | string | Yes | Work item title |
+| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\) |
+| `stateId` | string | No | State ID \(UUID\). Use List States to find state IDs |
+| `priority` | string | No | Priority: urgent, high, medium, low, or none |
+| `assigneeIds` | array | No | User IDs to assign \(UUIDs of active project members\). On update, replaces all assignees |
+| `labelIds` | array | No | Label IDs to apply \(UUIDs from this project\). On update, replaces all labels |
+| `parentId` | string | No | Parent work item ID \(UUID\) to nest this work item under |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `targetDate` | string | No | Target \(due\) date in YYYY-MM-DD format |
+| `estimatePointId` | string | No | Estimate point ID \(UUID\) |
+| `typeId` | string | No | Work item type ID \(UUID\), for projects with work item types enabled |
+| `externalId` | string | No | ID of this item in an external system. With externalSource, Plane rejects duplicates \(HTTP 409\) |
+| `externalSource` | string | No | Name of the external system \(e.g., "github"\), used with externalId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItem` | object | The created work item |
+
+### Plane Get Work Item
+
+Get a Plane work item by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItem` | object | The work item |
+
+### Plane Get Work Item by Identifier
+
+Get a Plane work item by its human-readable identifier (e.g., PROJ-123)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `identifier` | string | Yes | Work item identifier: project identifier and sequence number \(e.g., PROJ-123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItem` | object | The work item |
+
+### Plane List Work Items
+
+List work items in a Plane project with cursor pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `orderBy` | string | No | Sort field, prefixed with "-" for descending \(e.g., -created_at, updated_at, priority, target_date, sequence_id\). Defaults to -created_at |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItems` | array | Work items on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Search Work Items
+
+Search work items across a Plane workspace by title, sequence number, or project identifier
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `query` | string | Yes | Search text matched against work item titles, sequence numbers, and project identifiers |
+| `projectId` | string | No | Limit the search to one project \(UUID\). Searches all projects when omitted |
+| `limit` | number | No | Maximum number of results \(default 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching work items |
+
+### Plane Update Work Item
+
+Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `name` | string | No | New work item title |
+| `description` | string | No | Work item description as HTML \(e.g., "&lt;p&gt;Steps to reproduce&lt;/p&gt;"\) |
+| `stateId` | string | No | State ID \(UUID\). Use List States to find state IDs |
+| `priority` | string | No | Priority: urgent, high, medium, low, or none |
+| `assigneeIds` | array | No | User IDs to assign \(UUIDs of active project members\). On update, replaces all assignees |
+| `labelIds` | array | No | Label IDs to apply \(UUIDs from this project\). On update, replaces all labels |
+| `parentId` | string | No | Parent work item ID \(UUID\) to nest this work item under |
+| `startDate` | string | No | Start date in YYYY-MM-DD format |
+| `targetDate` | string | No | Target \(due\) date in YYYY-MM-DD format |
+| `estimatePointId` | string | No | Estimate point ID \(UUID\) |
+| `typeId` | string | No | Work item type ID \(UUID\), for projects with work item types enabled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItem` | object | The updated work item |
+
+### Plane Delete Work Item
+
+Delete a Plane work item. Only project admins or the work item creator can delete it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the work item was deleted |
+| `id` | string | ID of the deleted work item |
+
+### Plane Create Comment
+
+Add a comment to a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `comment` | string | Yes | Comment body as HTML \(e.g., "&lt;p&gt;Fixed in the latest release&lt;/p&gt;"\) |
+| `access` | string | No | Comment visibility: INTERNAL \(default\) or EXTERNAL |
+| `externalId` | string | No | ID of this comment in an external system. With externalSource, Plane rejects duplicates \(HTTP 409\) |
+| `externalSource` | string | No | Name of the external system \(e.g., "slack"\), used with externalId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The created comment |
+
+### Plane List Comments
+
+List comments on a Plane work item, newest first
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Comments on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Update Comment
+
+Replace the body of a comment on a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `commentId` | string | Yes | Comment ID \(UUID\) |
+| `comment` | string | Yes | New comment body as HTML |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The updated comment |
+
+### Plane Delete Comment
+
+Delete a comment from a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `commentId` | string | Yes | Comment ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the comment was deleted |
+| `id` | string | ID of the deleted comment |
+
+### Plane Add Link
+
+Attach an external URL (pull request, doc, ticket) to a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `url` | string | Yes | URL to link \(must start with http:// or https://\) |
+| `title` | string | No | Display title for the link |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `link` | object | The created link |
+
+### Plane List Links
+
+List the external links attached to a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `links` | array | Links on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Delete Link
+
+Remove an external link from a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `linkId` | string | Yes | Link ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the link was deleted |
+| `id` | string | ID of the deleted link |
+
+### Plane List Attachments
+
+List the uploaded file attachments on a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | Attachments on the work item |
+
+### Plane Upload Attachment
+
+Upload a file and attach it to a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `file` | file | Yes | File to attach to the work item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | object | The uploaded attachment |
+
+### Plane Download Attachment
+
+Download a file attachment from a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `attachmentId` | string | Yes | Attachment ID \(UUID\). Use List Attachments to find attachment IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | The downloaded attachment, stored in execution files |
+
+### Plane Delete Attachment
+
+Delete a file attachment from a Plane work item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `attachmentId` | string | Yes | Attachment ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the attachment was deleted |
+| `id` | string | ID of the deleted attachment |
+
+### Plane List Work Item Activity
+
+List the change history of a Plane work item (state, assignee, field changes)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `workItemId` | string | Yes | Work item ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | Activity entries on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane List Projects
+
+List the projects you can access in a Plane workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `orderBy` | string | No | Sort field, prefixed with "-" for descending \(name, created_at, updated_at, sort_order\). Defaults to your sidebar order |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | Projects on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Get Project
+
+Get a Plane project by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The project |
+
+### Plane Create Project
+
+Create a project in a Plane workspace with the default workflow states. You become its admin
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `name` | string | Yes | Project name \(unique within the workspace\) |
+| `identifier` | string | Yes | Short uppercase identifier used as the work item prefix \(e.g., "ENG" for ENG-42\). Max 12 characters, unique within the workspace |
+| `description` | string | No | Project description |
+| `projectLeadId` | string | No | User ID \(UUID\) of the project lead; must be a workspace member |
+| `defaultAssigneeId` | string | No | User ID \(UUID\) assigned to new work items by default |
+| `timezone` | string | No | IANA timezone for cycles and dates \(e.g., "America/New_York"\). Defaults to UTC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The created project |
+
+### Plane List States
+
+List the workflow states (e.g., Backlog, Todo, In Progress, Done) of a Plane project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `states` | array | States on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane List Labels
+
+List the labels defined in a Plane project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `labels` | array | Labels on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Create Label
+
+Create a label in a Plane project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `name` | string | Yes | Label name \(unique within the project\) |
+| `color` | string | No | Label color as a hex code \(e.g., "#EF4444"\) |
+| `description` | string | No | Label description |
+| `parentId` | string | No | Parent label ID \(UUID\) to group this label under |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | object | The created label |
+
+### Plane List Workspace Members
+
+List the members of a Plane workspace with their roles
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Workspace members |
+
+### Plane List Project Members
+
+List the members of a Plane project (the users that work items can be assigned to)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Project members |
+
+### Plane Get Current User
+
+Get the Plane user that owns the API key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The authenticated user |
+
+### Plane List Cycles
+
+List the cycles (sprints) in a Plane project with work item counts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `cycleView` | string | No | Which cycles to return: all \(default\), current, upcoming, completed, draft, or incomplete. "current" returns a single unpaginated page |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cycles` | array | Cycles on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Add Work Items to Cycle
+
+Add work items to a Plane cycle (sprint). Work items already in another cycle are moved
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `cycleId` | string | Yes | Cycle ID \(UUID\). Completed cycles cannot receive new work items |
+| `workItemIds` | array | Yes | Work item IDs \(UUIDs\) to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItemIds` | array | IDs of all work items now in the cycle, including ones added earlier |
+
+### Plane List Modules
+
+List the active (non-archived) modules in a Plane project with work item counts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `modules` | array | Modules on this page |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `nextPageResults` | boolean | Whether more results exist after this page |
+| `prevPageResults` | boolean | Whether results exist before this page |
+| `count` | number | Number of results on this page |
+| `totalPages` | number | Total number of pages |
+| `totalResults` | number | Total number of results across all pages |
+
+### Plane Add Work Items to Module
+
+Add work items to a Plane module
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Plane personal access token \(Profile Settings &gt; Personal Access Tokens\) |
+| `workspaceSlug` | string | Yes | Workspace slug from the Plane URL \(e.g., "my-team" in app.plane.so/my-team/\) |
+| `baseUrl` | string | No | Plane API host for self-hosted instances \(e.g., https://plane.example.com). Defaults to Plane Cloud \(https://api.plane.so) |
+| `projectId` | string | Yes | Project ID \(UUID\) |
+| `moduleId` | string | Yes | Module ID \(UUID\). |
+| `workItemIds` | array | Yes | Work item IDs \(UUIDs\) to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItemIds` | array | IDs of all work items now in the module, including ones added earlier |
+
+

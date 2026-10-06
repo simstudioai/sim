@@ -48,6 +48,11 @@ interface ErrorExtractorConfig {
    * leaves the original reachable at `output.data`.
    */
   redactData?: (errorInfo?: ErrorInfo) => unknown
+  /**
+   * Set to `false` for an extractor that only runs when a tool names it. The ordered fallback
+   * chain used by tools without an `errorExtractor` skips it, so adding it changes no other tool.
+   */
+  inFallbackChain?: false
 }
 
 const CODA_MAX_VALIDATION_MESSAGES = 5
@@ -97,6 +102,46 @@ function isPitchbookUnauthorized(errorInfo?: ErrorInfo): boolean {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false
   const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
   return errorInfo?.status === 401 || reason === 'UNAUTHORIZED'
+}
+
+const PLANE_MAX_VALIDATION_MESSAGES = 5
+const PLANE_UNPREFIXED_ERROR_KEYS = new Set(['non_field_errors', 'error', 'detail'])
+
+/**
+ * Reads a Plane error body. Plane views return `{ error }`, Django REST Framework raises
+ * `{ detail }` for authentication and throttling, and serializer validation returns a map of
+ * field names to message lists (`non_field_errors` for object-level failures). HTML bodies from a
+ * proxy in front of a self-hosted instance are ignored so the status fallback applies.
+ */
+function extractPlaneErrorMessage(data: unknown): string | undefined {
+  if (typeof data === 'string') {
+    const text = data.trim()
+    return text && !text.startsWith('<') ? text : undefined
+  }
+  if (Array.isArray(data)) {
+    const messages = data.filter((item): item is string => typeof item === 'string')
+    return messages.length > 0
+      ? messages.slice(0, PLANE_MAX_VALIDATION_MESSAGES).join('; ')
+      : undefined
+  }
+  if (!data || typeof data !== 'object') return undefined
+  const record = data as Record<string, unknown>
+  for (const key of ['error', 'detail', 'message']) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  const messages: string[] = []
+  for (const [field, value] of Object.entries(record)) {
+    const fieldMessages = (Array.isArray(value) ? value : [value]).filter(
+      (item): item is string => typeof item === 'string' && item.trim().length > 0
+    )
+    for (const message of fieldMessages) {
+      messages.push(PLANE_UNPREFIXED_ERROR_KEYS.has(field) ? message : `${field}: ${message}`)
+    }
+  }
+  return messages.length > 0
+    ? messages.slice(0, PLANE_MAX_VALIDATION_MESSAGES).join('; ')
+    : undefined
 }
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
@@ -612,6 +657,14 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     examples: ['Generic HTTP errors'],
     extract: (errorInfo) => errorInfo?.statusText,
   },
+  {
+    id: 'plane-errors',
+    description:
+      'Plane API errors: an `error`, `detail`, or `message` string, or Django REST Framework field validation errors (`{ field: ["message"] }`)',
+    examples: ['Plane'],
+    inFallbackChain: false,
+    extract: (errorInfo) => extractPlaneErrorMessage(errorInfo?.data),
+  },
 ]
 
 const EXTRACTOR_MAP = new Map<string, ErrorExtractorConfig>(ERROR_EXTRACTORS.map((e) => [e.id, e]))
@@ -658,6 +711,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
+    if (extractor.inFallbackChain === false) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {
@@ -700,4 +754,5 @@ export const ErrorExtractorId = {
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
+  PLANE_ERRORS: 'plane-errors',
 } as const

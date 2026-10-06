@@ -404,4 +404,54 @@ describe('Error Extractors', () => {
       )
     })
   })
+
+  describe('plane-errors', () => {
+    it('extracts a Plane view error string', () => {
+      const errorInfo: ErrorInfo = {
+        status: 404,
+        data: { error: 'The requested resource does not exist.' },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLANE_ERRORS)).toBe(
+        'The requested resource does not exist.'
+      )
+    })
+
+    it('extracts a Django REST Framework detail', () => {
+      const errorInfo: ErrorInfo = { status: 401, data: { detail: 'Given API token is not valid' } }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLANE_ERRORS)).toBe(
+        'Given API token is not valid'
+      )
+    })
+
+    it('joins serializer validation errors with their field names', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: {
+          non_field_errors: ['Start date cannot exceed target date'],
+          name: ['This field is required.'],
+          error: ['html content is not valid'],
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLANE_ERRORS)).toBe(
+        'Start date cannot exceed target date; name: This field is required.; html content is not valid'
+      )
+    })
+
+    it('is not part of the fallback chain for tools without an extractor', () => {
+      const errorInfo: ErrorInfo = { status: 400, data: { name: ['This field is required.'] } }
+
+      expect(extractErrorMessage(errorInfo)).toBe('Request failed with status 400')
+    })
+
+    it('ignores an HTML proxy page so the status fallback applies', () => {
+      const errorInfo: ErrorInfo = { status: 502, data: '<html><body>Bad Gateway</body></html>' }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PLANE_ERRORS)).toBe(
+        'Request failed with status 502'
+      )
+    })
+  })
 })

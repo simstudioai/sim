@@ -1,0 +1,70 @@
+import { toArray, toRecord } from '@sim/utils/object'
+import { ErrorExtractorId } from '@/tools/error-extractors'
+import type { PlaneAddWorkItemsResponse, PlaneAddWorkItemsToCycleParams } from '@/tools/plane/types'
+import {
+  PLANE_CONNECTION_PARAMS,
+  PLANE_PROJECT_ID_PARAM,
+  parsePlaneIdList,
+  planeHeaders,
+  planePathSegment,
+  planeProjectUrl,
+} from '@/tools/plane/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const planeAddWorkItemsToCycleTool: ToolConfig<
+  PlaneAddWorkItemsToCycleParams,
+  PlaneAddWorkItemsResponse
+> = {
+  id: 'plane_add_work_items_to_cycle',
+  name: 'Plane Add Work Items to Cycle',
+  description:
+    'Add work items to a Plane cycle (sprint). Work items already in another cycle are moved',
+  version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PLANE_ERRORS,
+
+  params: {
+    ...PLANE_CONNECTION_PARAMS,
+    ...PLANE_PROJECT_ID_PARAM,
+    cycleId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Cycle ID (UUID). Completed cycles cannot receive new work items',
+    },
+    workItemIds: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Work item IDs (UUIDs) to add',
+      items: { type: 'string', description: 'Work item ID (UUID)' },
+    },
+  },
+
+  request: {
+    url: (params) =>
+      planeProjectUrl(params, `cycles/${planePathSegment(params.cycleId)}/cycle-issues/`),
+    method: 'POST',
+    headers: planeHeaders,
+    body: (params) => {
+      const issues = parsePlaneIdList(params.workItemIds) ?? []
+      if (issues.length === 0) throw new Error('Provide at least one work item ID')
+      return { issues }
+    },
+  },
+
+  transformResponse: async (response) => {
+    const data = await response.json()
+    const ids = toArray(data)
+      .map((entry) => toRecord(entry).issue)
+      .filter((id): id is string => typeof id === 'string')
+    return { success: true, output: { workItemIds: [...new Set(ids)] } }
+  },
+
+  outputs: {
+    workItemIds: {
+      type: 'array',
+      description: 'IDs of all work items now in the cycle, including ones added earlier',
+      items: { type: 'string', description: 'Work item ID (UUID)' },
+    },
+  },
+}

@@ -1375,6 +1375,7 @@ const ASHBY_TOOL_IDS = ['ashby_upload_candidate_file', 'ashby_upload_resume'] as
 const MICROSOFT_DATAVERSE_TOOL_IDS = ['microsoft_dataverse_upload_file'] as const
 
 const SERVICENOW_TOOL_IDS = ['servicenow_upload_attachment'] as const
+const PLANE_TOOL_IDS = ['plane_upload_attachment'] as const
 
 const PIPEDRIVE_TOOL_IDS = ['pipedrive_get_files'] as const
 
@@ -1771,6 +1772,9 @@ registerFamily(handlerLoaders, MICROSOFT_DATAVERSE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, SERVICENOW_TOOL_IDS, async () => {
   return (await import('@/lib/internal/servicenow/execute-tool')).executeServiceNowTool
+})
+registerFamily(handlerLoaders, PLANE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/plane/execute-tool')).executePlaneTool
 })
 registerFamily(handlerLoaders, PIPEDRIVE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/pipedrive/execute-tool')).executePipedriveTool

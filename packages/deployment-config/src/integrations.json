@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -18168,6 +18168,153 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "plane",
+      "slug": "plane",
+      "name": "Plane",
+      "description": "Manage Plane work items, comments, attachments, cycles, and modules",
+      "longDescription": "Integrate Plane, the open-source project management tool, into workflows. Create, update, search, and triage work items; post comments and links; upload and download attachments; plan cycles and modules; and look up projects, states, labels, and members. Works with Plane Cloud and self-hosted instances.",
+      "bgColor": "#3F76FF",
+      "iconName": "PlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/plane",
+      "operations": [
+        {
+          "name": "Create Work Item",
+          "description": "Create a work item (issue) in a Plane project"
+        },
+        {
+          "name": "Get Work Item",
+          "description": "Get a Plane work item by its ID"
+        },
+        {
+          "name": "Get Work Item by Identifier",
+          "description": "Get a Plane work item by its human-readable identifier (e.g., PROJ-123)"
+        },
+        {
+          "name": "List Work Items",
+          "description": "List work items in a Plane project with cursor pagination"
+        },
+        {
+          "name": "Search Work Items",
+          "description": "Search work items across a Plane workspace by title, sequence number, or project identifier"
+        },
+        {
+          "name": "Update Work Item",
+          "description": "Update fields on a Plane work item. Only the fields you provide are changed; assignees and labels are replaced when provided"
+        },
+        {
+          "name": "Delete Work Item",
+          "description": "Delete a Plane work item. Only project admins or the work item creator can delete it"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a Plane work item"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a Plane work item, newest first"
+        },
+        {
+          "name": "Update Comment",
+          "description": "Replace the body of a comment on a Plane work item"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a Plane work item"
+        },
+        {
+          "name": "Add Link",
+          "description": "Attach an external URL (pull request, doc, ticket) to a Plane work item"
+        },
+        {
+          "name": "List Links",
+          "description": "List the external links attached to a Plane work item"
+        },
+        {
+          "name": "Delete Link",
+          "description": "Remove an external link from a Plane work item"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the uploaded file attachments on a Plane work item"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload a file and attach it to a Plane work item"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a file attachment from a Plane work item"
+        },
+        {
+          "name": "Delete Attachment",
+          "description": "Delete a file attachment from a Plane work item"
+        },
+        {
+          "name": "List Work Item Activity",
+          "description": "List the change history of a Plane work item (state, assignee, field changes)"
+        },
+        {
+          "name": "List Projects",
+          "description": "List the projects you can access in a Plane workspace"
+        },
+        {
+          "name": "Get Project",
+          "description": "Get a Plane project by its ID"
+        },
+        {
+          "name": "Create Project",
+          "description": "Create a project in a Plane workspace with the default workflow states. You become its admin"
+        },
+        {
+          "name": "List States",
+          "description": "List the workflow states (e.g., Backlog, Todo, In Progress, Done) of a Plane project"
+        },
+        {
+          "name": "List Labels",
+          "description": "List the labels defined in a Plane project"
+        },
+        {
+          "name": "Create Label",
+          "description": "Create a label in a Plane project"
+        },
+        {
+          "name": "List Workspace Members",
+          "description": "List the members of a Plane workspace with their roles"
+        },
+        {
+          "name": "List Project Members",
+          "description": "List the members of a Plane project (the users that work items can be assigned to)"
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get the Plane user that owns the API key"
+        },
+        {
+          "name": "List Cycles",
+          "description": "List the cycles (sprints) in a Plane project with work item counts"
+        },
+        {
+          "name": "Add Work Items to Cycle",
+          "description": "Add work items to a Plane cycle (sprint). Work items already in another cycle are moved"
+        },
+        {
+          "name": "List Modules",
+          "description": "List the active (non-archived) modules in a Plane project with work item counts"
+        },
+        {
+          "name": "Add Work Items to Module",
+          "description": "Add work items to a Plane module"
+        }
+      ],
+      "operationCount": 32,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing", "automation"]
     },
     {
       "type": "planetscale",
