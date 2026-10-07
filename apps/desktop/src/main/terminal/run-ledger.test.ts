@@ -114,6 +114,34 @@ describe('the tmux run ledger', () => {
     expect(createRunLedger(dir).list()).toEqual([{ ...RUN, state: 'stop' }])
   })
 
+  it('reads a record saved before runs had a state as the state it meant', () => {
+    const dir = scratch()
+    mkdirSync(dir, { recursive: true })
+    const { state: _state, ...saved } = RUN
+    const legacy = {
+      'run-started': { delivered: false },
+      'run-delivered': { delivered: true },
+      'run-stop': { delivered: false, mustStop: true },
+      // A stop wins over an acknowledgement.
+      'run-stop-delivered': { delivered: true, mustStop: true },
+    }
+    for (const [runId, fields] of Object.entries(legacy)) {
+      writeFileSync(join(dir, `${runId}.json`), JSON.stringify({ ...saved, runId, ...fields }))
+    }
+
+    const states = Object.fromEntries(
+      createRunLedger(dir)
+        .list()
+        .map((record) => [record.runId, record.state])
+    )
+    expect(states).toEqual({
+      'run-started': 'started',
+      'run-delivered': 'delivered',
+      'run-stop': 'stop',
+      'run-stop-delivered': 'stop',
+    })
+  })
+
   it('finds the run a call started, a previous process recorded it or this one', () => {
     const dir = scratch()
     // Recovery may hand the model the result of a previous process's call.

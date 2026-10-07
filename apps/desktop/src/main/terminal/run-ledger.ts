@@ -52,16 +52,31 @@ export interface RunLedger {
 /** Run tags are generated ids; anything else in the directory is not a record. */
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/
 
+/** A record as saved: the current shape, or the earlier one with `delivered` and `mustStop`. */
+type SavedRecord = Partial<RunRecord> & { delivered?: unknown; mustStop?: unknown }
+
+/**
+ * The record's state. A record from before `state` existed (a released build wrote them) is read
+ * as the state it meant: `mustStop` as `stop`, which wins, then `delivered` as `delivered`.
+ */
+function stateOf(saved: SavedRecord): RunState | null {
+  if (RUN_STATES.includes(saved.state as RunState)) return saved.state as RunState
+  if (typeof saved.delivered !== 'boolean') return null
+  if (saved.mustStop === true) return 'stop'
+  return saved.delivered ? 'delivered' : 'started'
+}
+
 function parseRecord(text: string): RunRecord | null {
   try {
-    const parsed = JSON.parse(text) as Partial<RunRecord>
+    const parsed = JSON.parse(text) as SavedRecord
+    const state = stateOf(parsed)
     if (
       typeof parsed.runId === 'string' &&
       RUN_ID.test(parsed.runId) &&
       typeof parsed.pane === 'string' &&
       /^%\d+$/.test(parsed.pane) &&
       typeof parsed.callId === 'string' &&
-      RUN_STATES.includes(parsed.state as RunState) &&
+      state &&
       typeof parsed.socket === 'string' &&
       parsed.socket.startsWith('/')
     ) {
@@ -70,7 +85,7 @@ function parseRecord(text: string): RunRecord | null {
         pane: parsed.pane,
         socket: parsed.socket,
         callId: parsed.callId,
-        state: parsed.state as RunState,
+        state,
       }
     }
   } catch {
