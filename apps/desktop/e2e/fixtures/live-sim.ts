@@ -108,7 +108,11 @@ class HeldRequest {
   private releaseHeld: (() => void) | undefined
   private released = false
 
-  constructor(readonly matches: (method: string, path: string) => boolean) {
+  constructor(
+    readonly matches: (method: string, path: string) => boolean,
+    /** Deliver the request to Sim on release even if its client gave up, as a late request would arrive. */
+    readonly deliverIfAbandoned = false
+  ) {
     this.reached = new Promise((resolve) => {
       this.reach = resolve
     })
@@ -214,8 +218,11 @@ export class SimProxy {
   }
 
   /** Holds the next request that matches until the returned handle releases it. */
-  hold(matches: (method: string, path: string) => boolean): HeldRequest {
-    const held = new HeldRequest(matches)
+  hold(
+    matches: (method: string, path: string) => boolean,
+    options: { deliverIfAbandoned?: boolean } = {}
+  ): HeldRequest {
+    const held = new HeldRequest(matches, options.deliverIfAbandoned)
     this.holds.push(held)
     return held
   }
@@ -258,7 +265,7 @@ export class SimProxy {
     const held = this.holds.find((candidate) => candidate.matches(method, url.pathname))
     if (held) {
       this.holds = this.holds.filter((candidate) => candidate !== held)
-      if (!(await held.hold(entry, response))) return
+      if (!(await held.hold(entry, response)) && !held.deliverIfAbandoned) return
     }
     if (this.chatBodyRewrite && method === 'POST' && url.pathname === '/api/mothership/chat') {
       const parsed: Record<string, unknown> = JSON.parse(body.toString('utf8'))
@@ -271,14 +278,20 @@ export class SimProxy {
     const { 'transfer-encoding': _chunked, ...forwarded } = request.headers
     const headers: IncomingHttpHeaders = { ...forwarded, 'content-length': String(body.length) }
     await new Promise<void>((resolve, reject) => {
+      const clientGone = response.destroyed
       const upstream = httpRequest(target, { method, headers }, (upstreamResponse) => {
         entry.status = upstreamResponse.statusCode
-        response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
-        upstreamResponse.pipe(response)
         upstreamResponse.on('end', resolve)
         upstreamResponse.on('error', reject)
+        // A request delivered after its client gave up is answered to no one.
+        if (clientGone) {
+          upstreamResponse.resume()
+          return
+        }
+        response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
+        upstreamResponse.pipe(response)
       })
-      response.on('close', () => upstream.destroy())
+      if (!clientGone) response.on('close', () => upstream.destroy())
       upstream.on('error', reject)
       upstream.end(body)
     })

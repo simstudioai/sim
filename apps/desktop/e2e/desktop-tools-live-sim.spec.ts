@@ -548,7 +548,8 @@ test.describe('desktop tools against a live Sim', () => {
     })
     const page = await openApp(user, 'Stop chat')
     const chatId = user.chats['Stop chat']
-    const lateClaim = proxy.hold(isDesktopClaim)
+    // Delivered to Sim on release even should Electron have given up on it meanwhile.
+    const lateClaim = proxy.hold(isDesktopClaim, { deliverIfAbandoned: true })
     // Should Electron give up on the held claim first, the read reports its own failure; hold that
     // too, so the call's outcome is Stop's.
     const report = proxy.hold(isToolReport)
@@ -559,7 +560,8 @@ test.describe('desktop tools against a live Sim', () => {
     await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     lateClaim.release()
     report.release()
-    // The claim held across Stop, and the same claim replayed afterwards, are both refused.
+    // The claim held across Stop reaches Sim after it and is refused, and so is a replay of it.
+    await expect.poll(() => claim.status, { timeout: 15_000 }).toBe(410)
     const [call] = await db.toolCalls(chatId)
     const replay = await page.evaluate(
       (toolCallId) =>
