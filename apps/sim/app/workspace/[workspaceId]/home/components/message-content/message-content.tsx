@@ -1015,6 +1015,12 @@ function MessageContentInner({
     setTrailingPendingTag(pending)
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
+  /**
+   * When the turn last showed new output (or mounted): the start of the current
+   * wait. A ref, not state — every stream chunk moves it, and it is only read on
+   * the renders that show the shimmer.
+   */
+  const waitStartedAtRef = useRef(Date.now())
 
   const segments = useMemo<MessageSegment[]>(
     () =>
@@ -1055,6 +1061,7 @@ function MessageContentInner({
     }
 
     setIsStreamIdle(false)
+    waitStartedAtRef.current = Date.now()
     const timeout = setTimeout(() => setIsStreamIdle(true), STREAM_IDLE_DELAY_MS)
     return () => clearTimeout(timeout)
   }, [visibleStreamActivityKey, isStreaming])
@@ -1214,7 +1221,10 @@ function MessageContentInner({
               showShimmer ? 'opacity-100' : 'opacity-0'
             )}
           >
-            <PendingTagIndicator label={thinkingLabel} />
+            <PendingTagIndicator
+              label={thinkingLabel}
+              waitingSince={showShimmer ? waitStartedAtRef.current : undefined}
+            />
           </div>
         </div>
       ) : // The settled tail takes the slot's place in the SAME render and at the

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { PrepareFileEdit, Wait as WaitTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
@@ -6,14 +6,8 @@ import {
   getToolStatusDisplayTitle,
   getWaitCountdownTitle,
 } from '@/lib/mothership/tools/tool-display'
+import { useElapsedMs } from '@/app/workspace/[workspaceId]/home/hooks/use-elapsed-ms'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
-
-/**
- * How often the countdown re-reads the clock. Comfortably under a second so
- * the displayed number turns over close to when it actually should, rather
- * than drifting by most of a second against an interval that started late.
- */
-const COUNTDOWN_TICK_MS = 250
 
 /** Present participle for each `prepare_file_edit` operation, read from the streaming args. */
 const FILE_EDIT_VERBS: Readonly<Record<string, string>> = {
@@ -23,32 +17,6 @@ const FILE_EDIT_VERBS: Readonly<Record<string, string>> = {
   update: 'Writing',
   rename: 'Renaming',
   delete: 'Deleting',
-}
-
-/**
- * Milliseconds elapsed since the call started, while `active`.
- *
- * Anchors to `startedAt` so a row that mounts partway through a pause resumes
- * mid-countdown instead of restarting; falls back to activation time when the
- * caller has no start to give.
- */
-function useElapsedMs(
-  active: boolean,
-  startedAt: number | undefined,
-  toolCallId: string | undefined
-): number {
-  const [sample, setSample] = useState({ toolCallId, elapsedMs: 0 })
-
-  useEffect(() => {
-    if (!active) return
-    const anchor = startedAt ?? Date.now()
-    const tick = () => setSample({ toolCallId, elapsedMs: Date.now() - anchor })
-    tick()
-    const interval = setInterval(tick, COUNTDOWN_TICK_MS)
-    return () => clearInterval(interval)
-  }, [active, startedAt, toolCallId])
-
-  return active && sample.toolCallId === toolCallId ? sample.elapsedMs : 0
 }
 
 /**
