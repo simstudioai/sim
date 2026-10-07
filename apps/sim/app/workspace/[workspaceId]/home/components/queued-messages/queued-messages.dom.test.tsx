@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,31 +13,36 @@ import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/qu
 const mounted: Array<() => void> = []
 
 /** jsdom has no ResizeObserver; the queue measures its width with one. */
-class ResizeObserverMock {
-  observe = vi.fn()
-  unobserve = vi.fn()
-  disconnect = vi.fn()
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+/** The queue as the chat composer drives it: Edit opens the entry, Cancel edit closes it. */
+function EditableQueue({ admissionUnknown }: { admissionUnknown: boolean }) {
+  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  return (
+    <QueuedMessages
+      messageQueue={[{ id: 'held-first', content: 'inspect the workspace', admissionUnknown }]}
+      editingQueuedId={editingQueuedId}
+      dispatchingHeadId={null}
+      onRemove={() => {}}
+      onSendNow={async () => {}}
+      onEdit={setEditingQueuedId}
+      onCancelEdit={() => setEditingQueuedId(null)}
+    />
+  )
 }
 
 function renderQueue(admissionUnknown: boolean) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  const onEdit = vi.fn()
   act(() => {
-    root.render(
-      <QueuedMessages
-        messageQueue={[{ id: 'held-first', content: 'inspect the workspace', admissionUnknown }]}
-        editingQueuedId={null}
-        dispatchingHeadId={null}
-        onRemove={() => {}}
-        onSendNow={async () => {}}
-        onEdit={onEdit}
-        onCancelEdit={() => {}}
-      />
-    )
+    root.render(<EditableQueue admissionUnknown={admissionUnknown} />)
   })
   mounted.push(() => {
     act(() => root.unmount())
@@ -47,7 +52,9 @@ function renderQueue(admissionUnknown: boolean) {
     'button[aria-label="Edit queued message"], button[aria-label^="May already be sent"]'
   )
   if (!editButton) throw new Error('Edit button not rendered')
-  return { editButton, onEdit }
+  /** An entry open for editing shows its Cancel edit control in place of Edit. */
+  const isEditing = () => container.querySelector('button[aria-label="Cancel edit"]') !== null
+  return { editButton, isEditing }
 }
 
 describe('QueuedMessages edit button', () => {
@@ -56,7 +63,7 @@ describe('QueuedMessages edit button', () => {
   })
 
   it('keeps a message that may already be sent from being edited, and says why', () => {
-    const { editButton, onEdit } = renderQueue(true)
+    const { editButton, isEditing } = renderQueue(true)
 
     /** Still focusable and hoverable, so its tooltip can explain why. */
     expect(editButton.disabled).toBe(false)
@@ -65,13 +72,13 @@ describe('QueuedMessages edit button', () => {
       'May already be sent; editing could send a second message'
     )
     act(() => editButton.click())
-    expect(onEdit).not.toHaveBeenCalled()
+    expect(isEditing()).toBe(false)
   })
 
-  it('edits an ordinary queued message', () => {
-    const { editButton, onEdit } = renderQueue(false)
+  it('opens an ordinary queued message for editing', () => {
+    const { editButton, isEditing } = renderQueue(false)
 
     act(() => editButton.click())
-    expect(onEdit).toHaveBeenCalledWith('held-first')
+    expect(isEditing()).toBe(true)
   })
 })
