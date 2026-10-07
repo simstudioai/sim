@@ -1244,7 +1244,7 @@ describe('Project file content against PostgreSQL and the local object store', (
   )
 
   check(
-    'shared files and folders retain their original creator after account deletion and materialize attributable history',
+    'shared content survives creator departure and deletion without changing stored history or its payer',
     async () => {
       const f = await fixture()
       const directory = await createProjectFileFolder.execute({
@@ -1255,6 +1255,29 @@ describe('Project file content against PostgreSQL and the local object store', (
         principal: f.principal,
         input: { ...createInput(f.projectId), folderId: directory.folder.id },
       })
+      await updateProjectFileContent.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: created.file.id,
+          content: 'Documented before departure',
+          encoding: 'utf-8',
+          expectedUpdatedAt: created.file.contentUpdatedAt,
+        },
+      })
+      await db
+        .delete(member)
+        .where(and(eq(member.organizationId, f.organizationId), eq(member.userId, f.editorId)))
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.entityId, f.workspaceId), eq(permissions.userId, f.editorId)))
+      await expect(
+        readProjectFileContent.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: created.file.id },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      expect((await rows(f.projectId))[0].userId).toBe(f.editorId)
       await db.delete(user).where(eq(user.id, f.editorId))
       const principal = createSessionPrincipal({ userId: f.ownerId })
       const read = await readProjectFileContent.execute({
@@ -1263,14 +1286,13 @@ describe('Project file content against PostgreSQL and the local object store', (
       })
       expect(read.file).toMatchObject({
         uploadedBy: null,
-        originalCreatorUserId: f.editorId,
         folderPath: 'Authored',
       })
       const [retainedFolder] = await db
         .select()
         .from(folder)
         .where(eq(folder.id, directory.folder.id))
-      expect(retainedFolder).toMatchObject({ userId: null, originalCreatorUserId: f.editorId })
+      expect(retainedFolder).toMatchObject({ userId: null, projectId: f.projectId })
       await updateProjectFileContent.execute({
         principal,
         input: {
@@ -1286,6 +1308,17 @@ describe('Project file content against PostgreSQL and the local object store', (
         .from(workspaceFileVersion)
         .where(eq(workspaceFileVersion.fileId, created.file.id))
       expect(history.find((version) => version.version === 1)?.authorUserIds).toEqual([f.editorId])
+      const [maintained] = await rows(f.projectId)
+      expect(maintained).toMatchObject({
+        id: created.file.id,
+        userId: null,
+        projectId: f.projectId,
+        folderId: directory.folder.id,
+      })
+      expect(await readFile(join(localStorageRoot, maintained.key), 'utf8')).toBe(
+        'Maintained by another editor'
+      )
+      expect(await ledger(f.organizationId)).toBe(maintained.sizeBytes)
     }
   )
 

@@ -36,7 +36,6 @@ export const projectFileRecordSchema = workspaceFileRecordSchema
   .extend({
     owner: z.object({ entityType: z.literal('project'), entityId: nonEmptyIdSchema }),
     uploadedBy: nonEmptyIdSchema.nullable(),
-    originalCreatorUserId: nonEmptyIdSchema.nullable(),
   })
 export type ProjectFileRecord = z.output<typeof projectFileRecordSchema>
 

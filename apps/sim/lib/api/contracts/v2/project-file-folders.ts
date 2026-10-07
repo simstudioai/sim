@@ -30,9 +30,6 @@ export const v2ProjectFileFolderSchema = projectFileFolderRecordSchema.extend({
   path: z.string().describe('Display path with slash characters in folder names escaped.'),
   sortOrder: z.number().describe('Position within its parent folder.'),
   userId: nonEmptyIdSchema.nullable().describe('Creator identifier, when the account exists.'),
-  originalCreatorUserId: nonEmptyIdSchema
-    .nullable()
-    .describe('Retained original creator identifier.'),
   createdAt: z.iso.datetime().describe('Time the folder was created.'),
   updatedAt: z.iso.datetime().describe('Time the folder was last changed.'),
   deletedAt: z.iso.datetime().nullable().describe('Archive time, or null for an active folder.'),

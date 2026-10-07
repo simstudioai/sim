@@ -116,12 +116,12 @@ export async function queryFileBrowserItems(
     input.scope === 'archived' ? sql`deleted_at is not null` : sql`deleted_at is null`
   const base = sql`with recursive
     owned_folders as (
-      select id, name, parent_id, user_id, original_creator_user_id, created_at, updated_at, deleted_at
+      select id, name, parent_id, user_id, created_at, updated_at, deleted_at
       from ${folder} where ${fileFolderOwnerCondition(owner)}
     ),
     owned_files as (
       select id, original_name as name, folder_id as parent_id, size_bytes as size,
-        content_type, user_id, original_creator_user_id, uploaded_at, updated_at,
+        content_type, user_id, uploaded_at, updated_at,
         case when strpos(original_name, '.') > 0 then lower(regexp_replace(original_name, '^.*[.]', '')) else '' end as extension
       from ${workspaceFiles} where ${fileOwnerCondition(owner)} and ${activeFiles}
     ),
@@ -146,18 +146,17 @@ export async function queryFileBrowserItems(
         coalesce(${JSON.stringify(FILE_BROWSER_MIME_LABELS)}::jsonb ->> mime,
           case when mime like 'audio/%' then 'Audio' when mime like 'video/%' then 'Video'
             when mime like 'image/%' then 'Image' when extension <> '' then upper(extension) else coalesce(content_type, 'File') end) as type,
-        user_id, original_creator_user_id, trunc(extract(epoch from uploaded_at) * 1000) as created_ms,
+        user_id, trunc(extract(epoch from uploaded_at) * 1000) as created_ms,
         trunc(extract(epoch from updated_at) * 1000) as updated_ms, extension, mime
       from effective_files
       union all
       select folders.id, 'folder'::text, folders.name, folders.parent_id, coalesce(sizes.size, 0)::bigint, 'Folder'::text,
-        folders.user_id, folders.original_creator_user_id, trunc(extract(epoch from folders.created_at) * 1000),
+        folders.user_id, trunc(extract(epoch from folders.created_at) * 1000),
         trunc(extract(epoch from folders.updated_at) * 1000), ''::text, ''::text
       from owned_folders folders left join folder_sizes sizes on sizes.root_id = folders.id where ${selectedFolders}
     ),
     authored as (
-      select items.*, coalesce(items.user_id, items.original_creator_user_id) as creator_id,
-        case when users.id is not null then users.name when coalesce(items.user_id, items.original_creator_user_id) is not null then 'Deleted user' else null end as creator_name,
+      select items.*, items.user_id as creator_id, users.name as creator_name,
         users.image as creator_image, users.id is null as creator_deleted
       from items left join "user" users on users.id = items.user_id
     )`

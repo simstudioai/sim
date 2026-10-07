@@ -110,7 +110,6 @@ async function fixture() {
     projectId: projectId,
     key: `project/${projectId}/context.md`,
     userId,
-    originalCreatorUserId: userId,
     context: 'project',
     originalName: 'Canonical.md',
     contentType: 'text/markdown',

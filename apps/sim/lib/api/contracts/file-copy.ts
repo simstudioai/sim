@@ -29,9 +29,6 @@ export const copiedFileSchema = projectFileRecordSchema
     uploadedBy: projectFileRecordSchema.shape.uploadedBy.describe(
       'User who performed the copy, when available.'
     ),
-    originalCreatorUserId: projectFileRecordSchema.shape.originalCreatorUserId.describe(
-      'Original creator identifier retained after account deletion.'
-    ),
     folderId: projectFileRecordSchema.shape.folderId.describe(
       'Containing folder identifier, or null at the owner root.'
     ),
@@ -56,9 +53,6 @@ export const copiedFileFolderSchema = projectFileFolderRecordSchema.extend({
   id: projectFileFolderRecordSchema.shape.id.describe('Identifier of the new folder.'),
   userId: projectFileFolderRecordSchema.shape.userId.describe(
     'User who performed the copy, when available.'
-  ),
-  originalCreatorUserId: projectFileFolderRecordSchema.shape.originalCreatorUserId.describe(
-    'Original creator identifier retained after account deletion.'
   ),
   name: projectFileFolderRecordSchema.shape.name.describe('Name of the copied folder.'),
   parentId: projectFileFolderRecordSchema.shape.parentId.describe(

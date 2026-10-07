@@ -22,7 +22,6 @@ export const projectFileFolderRecordSchema = workspaceFileFolderSchema
   .extend({
     owner: z.object({ entityType: z.literal('project'), entityId: nonEmptyIdSchema }),
     userId: nonEmptyIdSchema.nullable(),
-    originalCreatorUserId: nonEmptyIdSchema.nullable(),
   })
 export type ProjectFileFolderRecord = z.output<typeof projectFileFolderRecordSchema>
 

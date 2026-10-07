@@ -114,7 +114,6 @@ async function fixture() {
       context: 'project',
       workspaceId: null,
       userId: options.userId ?? ownerId,
-      originalCreatorUserId: options.userId ?? ownerId,
       folderId: options.folderId,
       key: `project/${projectId}/${id}`,
       originalName: name,
@@ -124,7 +123,7 @@ async function fixture() {
     })
     return id
   }
-  const addFolder = async (name: string, parentId?: string) => {
+  const addFolder = async (name: string, parentId?: string, userId = ownerId) => {
     const id = generateId()
     owned.folderIds.push(id)
     await db.insert(folder).values({
@@ -133,8 +132,7 @@ async function fixture() {
       workspaceId: null,
       resourceType: 'file',
       name,
-      userId: ownerId,
-      originalCreatorUserId: ownerId,
+      userId,
       parentId,
     })
     return id
@@ -251,28 +249,33 @@ describe('Project browser real mixed collection', () => {
     }
   )
   check(
-    'creator choices expose only canonical Project items and retain deleted attribution',
+    'deleted creators leave filter choices while retained files and folders paginate last',
     async () => {
       const f = await fixture()
       const other = await fixture()
       await other.addFile('unrelated.png', 1, { userId: other.creatorId })
       const deleted = await f.addFile('deleted.txt', 1, { userId: f.creatorId })
+      const deletedFolder = await f.addFolder('deleted-folder', undefined, f.creatorId)
+      const live = await f.addFile('live.txt', 1)
       await db.delete(user).where(eq(user.id, f.creatorId))
-      const page = await f.list({
-        creatorIds: [f.creatorId],
-        sortBy: 'owner',
-        sortOrder: 'desc',
-        limit: 1,
-      })
-      expect(page.items.map((item) => item.id)).toEqual([deleted])
-      expect(page.items[0].creator).toEqual({
-        id: f.creatorId,
-        name: 'Deleted user',
-        image: null,
-        deleted: true,
-      })
-      expect(page.creators.map((creator) => creator.id)).toEqual([f.creatorId])
+      const page = await f.list()
+      expect(page.items.find((item) => item.id === deleted)?.creator).toBeNull()
+      expect(page.items.find((item) => item.id === deletedFolder)?.creator).toBeNull()
+      expect(page.files.find((file) => file.id === deleted)?.uploadedBy).toBeNull()
+      expect(page.creators.map((creator) => creator.id)).toEqual([f.ownerId])
       expect(page.creators.some((creator) => creator.id === other.creatorId)).toBe(false)
+      expect((await f.list({ creatorIds: [f.creatorId] })).files).toEqual([])
+      for (const sortOrder of ['asc', 'desc'] as const) {
+        const ids: string[] = []
+        let after: FileBrowserQuery['after']
+        for (let index = 0; index < 4; index++) {
+          const page = await f.list({ sortBy: 'owner', sortOrder, limit: 1, after })
+          ids.push(...page.items.map((item) => item.id))
+          if (!page.nextKeys) break
+          after = page.nextKeys
+        }
+        expect(ids).toEqual([live, deletedFolder, deleted])
+      }
     }
   )
   check('live read revocation denies both item rows and creator metadata', async () => {

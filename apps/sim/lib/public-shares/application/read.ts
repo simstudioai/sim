@@ -64,7 +64,6 @@ function present(snapshot: PublicFileShareSnapshot) {
       contentType: file.contentType,
       sizeBytes: file.sizeBytes,
       uploadedBy: file.userId,
-      originalCreatorUserId: file.originalCreatorUserId,
       updatedAt: file.updatedAt,
     },
   }

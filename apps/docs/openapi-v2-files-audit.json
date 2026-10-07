@@ -6970,18 +6970,6 @@
                       "required": ["entityType", "entityId"],
                       "additionalProperties": false,
                       "description": "Canonical destination owner of the copied file."
-                    },
-                    "originalCreatorUserId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "description": "Original creator identifier retained after account deletion."
                     }
                   },
                   "required": [
@@ -6996,8 +6984,7 @@
                     "updatedAt",
                     "contentUpdatedAt",
                     "revision",
-                    "owner",
-                    "originalCreatorUserId"
+                    "owner"
                   ],
                   "additionalProperties": false
                 },
@@ -7090,18 +7077,6 @@
                       "required": ["entityType", "entityId"],
                       "additionalProperties": false,
                       "description": "Canonical destination owner of the copied folder."
-                    },
-                    "originalCreatorUserId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "description": "Original creator identifier retained after account deletion."
                     }
                   },
                   "required": [
@@ -7114,8 +7089,7 @@
                     "deletedAt",
                     "createdAt",
                     "updatedAt",
-                    "owner",
-                    "originalCreatorUserId"
+                    "owner"
                   ],
                   "additionalProperties": false
                 },
@@ -7497,18 +7471,6 @@
             ],
             "description": "Creator identifier, when available."
           },
-          "originalCreatorUserId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Original creator identifier retained after account deletion."
-          },
           "revision": {
             "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
             "type": "string"
@@ -7525,8 +7487,7 @@
           "updatedAt",
           "deletedAt",
           "owner",
-          "uploadedBy",
-          "originalCreatorUserId"
+          "uploadedBy"
         ],
         "additionalProperties": false,
         "title": "Project file"
@@ -8417,18 +8378,6 @@
                   "required": ["entityType", "entityId"],
                   "additionalProperties": false,
                   "description": "Canonical Project owner of the folder."
-                },
-                "originalCreatorUserId": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Retained original creator identifier."
                 }
               },
               "required": [
@@ -8441,8 +8390,7 @@
                 "deletedAt",
                 "createdAt",
                 "updatedAt",
-                "owner",
-                "originalCreatorUserId"
+                "owner"
               ],
               "additionalProperties": false
             },
@@ -8554,18 +8502,6 @@
                 "required": ["entityType", "entityId"],
                 "additionalProperties": false,
                 "description": "Canonical Project owner of the folder."
-              },
-              "originalCreatorUserId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Retained original creator identifier."
               }
             },
             "required": [
@@ -8578,8 +8514,7 @@
               "deletedAt",
               "createdAt",
               "updatedAt",
-              "owner",
-              "originalCreatorUserId"
+              "owner"
             ],
             "additionalProperties": false,
             "description": "Response data."
@@ -8739,18 +8674,6 @@
                     "required": ["entityType", "entityId"],
                     "additionalProperties": false,
                     "description": "Canonical Project owner of the folder."
-                  },
-                  "originalCreatorUserId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Retained original creator identifier."
                   }
                 },
                 "required": [
@@ -8763,8 +8686,7 @@
                   "deletedAt",
                   "createdAt",
                   "updatedAt",
-                  "owner",
-                  "originalCreatorUserId"
+                  "owner"
                 ],
                 "additionalProperties": false,
                 "description": "Restored Project folder."

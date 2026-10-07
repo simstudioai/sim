@@ -443,7 +443,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
         type: { label: item.type, icon: <Icon className='size-[14px]' /> },
         created: timeCell(item.createdAt),
         owner: {
-          label: item.creator?.name ?? '—',
+          label: item.creator?.name ?? 'Deleted user',
           icon: item.creator ? (
             <Avatar size='xs' name={item.creator.name} src={item.creator.image} aria-hidden />
           ) : undefined,

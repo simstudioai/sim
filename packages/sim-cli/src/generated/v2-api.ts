@@ -139,7 +139,6 @@ type AbortProjectFileUploadResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -1709,7 +1708,6 @@ type CompleteProjectFileUploadResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -1842,7 +1840,6 @@ export type CopyFileItemsResponse = {
         entityType: 'workspace' | 'project'
         entityId: string
       }
-      originalCreatorUserId: string | null
     }>
     folders: Array<{
       id: string
@@ -1858,7 +1855,6 @@ export type CopyFileItemsResponse = {
         entityType: 'workspace' | 'project'
         entityId: string
       }
-      originalCreatorUserId: string | null
     }>
   }
 }
@@ -2886,7 +2882,6 @@ type CreateProjectFileResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -2921,7 +2916,6 @@ export type CreateProjectFileFolderResponse = {
       entityType: 'project'
       entityId: string
     }
-    originalCreatorUserId: string | null
   }
 }
 
@@ -2957,7 +2951,6 @@ type CreateProjectFileUploadResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -6558,7 +6551,6 @@ type GetProjectFileMetadataResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -6617,7 +6609,6 @@ type GetProjectFileUploadResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -9561,7 +9552,6 @@ export type ListProjectFileFoldersResponse = {
       entityType: 'project'
       entityId: string
     }
-    originalCreatorUserId: string | null
   }>
   nextCursor: string | null
 }
@@ -9611,7 +9601,6 @@ type ListProjectFilesResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -12179,7 +12168,6 @@ type RenameProjectFileResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -12706,7 +12694,6 @@ type RestoreProjectFileResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -12740,7 +12727,6 @@ export type RestoreProjectFileFolderResponse = {
         entityType: 'project'
         entityId: string
       }
-      originalCreatorUserId: string | null
     }
     restoredItems: {
       files: number
@@ -13003,7 +12989,6 @@ type RevertProjectFileVersionResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -14307,7 +14292,6 @@ type UpdateProjectFileContentResponseRef0 = {
     entityId: string
   }
   uploadedBy: string | null
-  originalCreatorUserId: string | null
   revision?: string
 }
 
@@ -14344,7 +14328,6 @@ export type UpdateProjectFileFolderResponse = {
       entityType: 'project'
       entityId: string
     }
-    originalCreatorUserId: string | null
   }
 }
 

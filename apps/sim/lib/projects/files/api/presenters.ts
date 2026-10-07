@@ -24,7 +24,6 @@ export function toV2ProjectFile(
       ? buildFolderPath(parseWorkspaceFileFolderDisplayPath(file.folderPath))
       : '/',
     uploadedBy: file.uploadedBy,
-    originalCreatorUserId: file.originalCreatorUserId,
     uploadedAt: file.uploadedAt.toISOString(),
     updatedAt: file.updatedAt.toISOString(),
     deletedAt: file.deletedAt?.toISOString() ?? null,
