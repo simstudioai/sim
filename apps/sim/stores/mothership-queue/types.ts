@@ -1,11 +1,14 @@
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-/** Durable predecessor and request identity for an outgoing message. */
+/**
+ * Durable predecessor of an outgoing message (the stream its Send-now stops).
+ * The id the message goes out under is the entry's `resumeUserMessageId`; only
+ * the stored handoff record (`QueuedSendHandoffState`) carries its own copy.
+ */
 export interface QueuedSendHandoffSeed {
   id: string
   chatId?: string
   supersededStreamId: string | null
-  userMessageId?: string
   stopRequired?: boolean
 }
 

@@ -57,15 +57,6 @@ const initialState = {
 }
 
 /**
- * The earlier attempt's id a queued message goes out under, if it reuses one:
- * its Stop handoff's, else the withdrawn send's. `startSendMessage` picks the id
- * in the same order.
- */
-export function reusedRequestId(message: QueuedMothershipMessage): string | undefined {
-  return message.queuedSendHandoff?.userMessageId ?? message.resumeUserMessageId
-}
-
-/**
  * `admissionUnknown` is decided where a send chooses its id (`startSendMessage`)
  * and carried on the entry. A writer that has no say (a session saved before the
  * flag existed, a send handed over from another surface) leaves it out; an entry
@@ -73,7 +64,7 @@ export function reusedRequestId(message: QueuedMothershipMessage): string | unde
  * write goes through this, so no path can queue such a message as editable.
  */
 function withAdmissionGuard(message: QueuedMothershipMessage): QueuedMothershipMessage {
-  if (reusedRequestId(message) === undefined || message.admissionUnknown !== undefined) {
+  if (message.resumeUserMessageId === undefined || message.admissionUnknown !== undefined) {
     return message
   }
   return { ...message, admissionUnknown: true }
@@ -93,6 +84,14 @@ function withCurrentWaitFields(value: unknown): unknown {
   const record = toRecordOrNull(value)
   if (!record) return value
   const { retryRequired, heldUntilOnline, sendRetries, notBefore, ...rest } = record
+  /* An entry saved when its Stop handoff carried the reused id: that id is the
+     entry's `resumeUserMessageId` now. */
+  const seed = toRecordOrNull(rest.queuedSendHandoff)
+  if (seed && typeof seed.userMessageId === 'string') {
+    const { userMessageId: seedRequestId, ...seedRest } = seed
+    rest.queuedSendHandoff = seedRest
+    if (rest.resumeUserMessageId === undefined) rest.resumeUserMessageId = seedRequestId
+  }
   return {
     ...rest,
     ...(retryRequired === true && rest.hold === undefined
@@ -214,9 +213,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             } = next[index]
             next[index] = {
               ...rest,
-              ...(queuedSendHandoff?.stopRequired
-                ? { queuedSendHandoff: { ...queuedSendHandoff, userMessageId: undefined } }
-                : {}),
+              ...(queuedSendHandoff?.stopRequired ? { queuedSendHandoff } : {}),
               content: patch.content,
               fileAttachments: patch.fileAttachments,
               contexts: patch.contexts,
