@@ -71,7 +71,18 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - name: Checkout code
+      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
+      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
+      # The mirror is one disk per repository that job steps can write to, so fork pull requests
+      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
+      # setup action's caches.
+      - &checkout-mirror
+        name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - &checkout-plain
+        name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup workspace
@@ -175,8 +186,8 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - *checkout-mirror
+      - *checkout-plain
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -213,8 +224,14 @@ jobs:
     outputs:
       changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        if: github.event_name == 'pull_request'
+      - name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - name: Checkout code
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 2
       - name: Diff against the pull request's base
@@ -261,8 +278,8 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - *checkout-mirror
+      - *checkout-plain
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -423,7 +440,16 @@ jobs:
       # Worth stating because the failure was invisible for so long: the migration
       # audit read the resulting `git diff` failure as "no migrations changed" and
       # exited 0, so it had never actually run on a push build.
-      - name: Checkout code
+      # Same mirror/plain split as the integration job's checkout.
+      - &checkout-mirror-depth2
+        name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - &checkout-plain-depth2
+        name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 2
@@ -573,10 +599,8 @@ jobs:
         shard: [1, 2]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          fetch-depth: 2
+      - *checkout-mirror-depth2
+      - *checkout-plain-depth2
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -627,8 +651,8 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - *checkout-mirror
+      - *checkout-plain
 
       - name: Setup workspace
         uses: ./.github/actions/setup
