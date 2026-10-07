@@ -2883,11 +2883,6 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * Send-now on a message that may already be a turn checks the chat's history
-   * first, as the queue drain does: if the server shows the id accepted, the
-   * message is already in the chat and sending it again could run a second turn.
-   */
-  /**
    * Send-now reads the history before it stops the running turn. A message the
    * user removes during that read is no longer theirs to send, so the running
    * turn must not be stopped for it.
@@ -2937,6 +2932,156 @@ describe('useChat remount send recovery', () => {
     expect(getResult().isSending).toBe(true)
   })
 
+  /**
+   * The drain may already be reading the history for the message the user then
+   * sends by hand. When the drain's read lands first it dispatches the message,
+   * and Send-now must leave that dispatch alone rather than stop the turn it
+   * just started.
+   */
+  it('does not stop the turn the drain started for a Send-now waiting on the same history read', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-a',
+      mode: 'agent',
+      title: 'A',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const answers: Array<() => void> = []
+    mockRequestJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answers.push(() => resolve({ chat: history }))
+        })
+    )
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+    })
+    const { getResult } = renderUseChatInChat('chat-a', history)
+    await waitFor(() => answers.length > 0)
+
+    await act(async () => {
+      void getResult().sendNow('resumed')
+    })
+    await act(async () => {
+      for (const answer of answers) answer()
+      await sleep(100)
+    })
+
+    expect(state.abortBodies).toHaveLength(0)
+    expect(state.postBodies).toHaveLength(1)
+    expect(state.postBodies[0]).toMatchObject({ userMessageId: 'earlier-attempt' })
+    expect(getResult().isSending).toBe(true)
+  })
+
+  /**
+   * A Send-now belongs to the chat it was pressed in. If the user moves to
+   * another chat during its history read (which the move may cancel), the turn
+   * running there is not the one it was meant to stop.
+   */
+  it("does not stop another chat's turn for a Send-now whose chat was left during its history read", async () => {
+    const chat = (id: string): MothershipChatHistory => ({
+      id,
+      mode: 'agent',
+      title: id,
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    })
+    let answerHistory: (() => void) | undefined
+    mockRequestJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerHistory = () => resolve({ chat: chat('chat-a') })
+        })
+    )
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+      hold: 'user',
+    })
+    const { getResult, navigate } = renderUseChatInChat('chat-a', chat('chat-a'))
+    await act(async () => {
+      void getResult().sendNow('resumed')
+    })
+    await waitFor(() => answerHistory !== undefined)
+    const answerChatA = answerHistory
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: chat('chat-b') }))
+
+    navigate('chat-b', chat('chat-b'))
+    await act(async () => {
+      void getResult().sendMessage('Chat B request')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      answerChatA?.()
+      await sleep(100)
+    })
+
+    expect(state.abortBodies).toHaveLength(0)
+    expect(state.postBodies).toHaveLength(1)
+    expect(getResult().isSending).toBe(true)
+    expect(useMothershipQueueStore.getState().queues['chat-a']?.map((queued) => queued.id)).toEqual(
+      ['resumed']
+    )
+  })
+
+  /** A surface that unmounts during the read leaves the running turn to whoever owns it next. */
+  it('does not stop the running turn for a Send-now whose surface unmounted during its history read', async () => {
+    const { getResult, unmount } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+    let answerHistory: (() => void) | undefined
+    mockRequestJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerHistory = () =>
+            resolve({
+              chat: {
+                id: 'chat-a',
+                mode: 'agent',
+                title: 'A',
+                messages: [],
+                activeStreamId: null,
+                resources: [],
+              },
+            })
+        })
+    )
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+    })
+    await act(async () => {
+      void getResult().sendNow('resumed')
+    })
+    await waitFor(() => answerHistory !== undefined)
+    const abortsBeforeUnmount = state.abortBodies.length
+
+    unmount()
+    await act(async () => {
+      answerHistory?.()
+      await sleep(100)
+    })
+
+    expect(state.abortBodies).toHaveLength(abortsBeforeUnmount)
+    expect(state.postBodies).toHaveLength(1)
+  })
+
+  /**
+   * Send-now on a message that may already be a turn checks the chat's history
+   * first, as the queue drain does: if the server shows the id accepted, the
+   * message is already in the chat and sending it again could run a second turn.
+   */
   it('drops a Send-now whose id the server already accepted instead of resending it', async () => {
     const cached: MothershipChatHistory = {
       id: 'chat-send-now-accepted',

@@ -5068,7 +5068,7 @@ export function useChat(
   )
 
   /** Holds back a message the verdict says must wait, or discards one already sent. */
-  const applyHeldResend = useCallback(
+  const applyResendVerdict = useCallback(
     (chatKey: string, msg: QueuedMothershipMessage, verdict: 'wait' | 'drop') => {
       /** Sent by hand meanwhile: that dispatch owns the entry now. */
       if (queuedMessageDispatchIds.has(msg.id)) return
@@ -5109,7 +5109,7 @@ export function useChat(
         if (queueState.editing[activeChatKey] === msg.id) continue
         const verdict = await checkResend(activeChatKey, msg)
         if (verdict !== 'send') {
-          applyHeldResend(activeChatKey, msg, verdict)
+          applyResendVerdict(activeChatKey, msg, verdict)
           continue
         }
 
@@ -5127,7 +5127,7 @@ export function useChat(
         void queueDispatchLoopRef.current()
       }
     })
-  }, [dispatchQueuedMessage, hasPendingChatAdmission, checkResend, applyHeldResend])
+  }, [dispatchQueuedMessage, hasPendingChatAdmission, checkResend, applyResendVerdict])
   queueDispatchLoopRef.current = runQueueDispatchLoop
 
   const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {
@@ -5159,11 +5159,13 @@ export function useChat(
          hold it back here; the user asked to send it, and the server deduplicates it
          while the earlier attempt's claim lasts. */
       if ((await checkResend(chatKey, msg)) === 'drop') {
-        applyHeldResend(chatKey, msg, 'drop')
+        applyResendVerdict(chatKey, msg, 'drop')
         return
       }
       /* The read took time. Only what is still this view's queued, unedited and
-         undispatched message may stop the running turn and go out. */
+         undispatched message may stop the running turn and go out. An entry that
+         needed the read cannot be in the editor (editing refuses one possibly
+         sent); the editing check covers an entry that skipped it. */
       const afterRead = useMothershipQueueStore.getState()
       if (
         chatKeyRef.current !== chatKey ||
@@ -5226,7 +5228,7 @@ export function useChat(
       scopeKey,
       hasPendingChatAdmission,
       checkResend,
-      applyHeldResend,
+      applyResendVerdict,
     ]
   )
 
