@@ -17,6 +17,7 @@ describe('MCP tool-change event stream', () => {
     vi.useFakeTimers()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+    mcpPubsubMockFns.mockReady.mockReset().mockResolvedValue(undefined)
   })
 
   afterEach(() => {

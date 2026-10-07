@@ -291,6 +291,38 @@ describe('createSSEStream', () => {
     ])
   })
 
+  it('authorizes the events that arrived before it opened once', async () => {
+    let live: () => void = () => {}
+    let publish: (eventName: string, data: Record<string, unknown>) => void = () => {}
+    const revalidate = vi.fn(async () => {})
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      revalidate,
+      subscriptions: [
+        {
+          subscribe: (send) => {
+            publish = send
+            return () => {}
+          },
+          ready: () =>
+            new Promise<void>((resolve) => {
+              live = resolve
+            }),
+        },
+      ],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+    for (let n = 1; n <= 10; n += 1) publish('changed', { n })
+
+    live()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(revalidate).toHaveBeenCalledTimes(1)
+    expect(chunks).toHaveLength(11)
+    expect(chunks.at(-1)).toBe('event: changed\ndata: {"n":10}\n\n')
+  })
+
   it('clears its timers when it closes before it opens', async () => {
     const controller = new AbortController()
     createSSEStream(
