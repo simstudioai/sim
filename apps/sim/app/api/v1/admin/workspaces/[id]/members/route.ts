@@ -49,15 +49,10 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -395,26 +390,8 @@ export const DELETE = withRouteHandler(
       }
 
       await db.transaction(async (tx) => {
-        await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-          tx,
-          workspaceId,
-          departingUserId: userId,
-        })
-
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-            tx,
-            workspaceIds: [workspaceId],
-            departingUserId: userId,
-          })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
-          throw new WorkspaceBillingAccountRemovalError()
-        }
-
-        await tx.delete(permissions).where(eq(permissions.id, existingPermission.id))
-
-        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, userId)
+        const result = await revokeWorkspaceAccessTx(tx, { workspaceId, userId: userId })
+        if (!result.revoked) throw new WorkspaceBillingAccountRemovalError()
       })
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)

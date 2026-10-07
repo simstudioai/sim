@@ -6876,15 +6876,8 @@
                       ]
                     },
                     "uploadedBy": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
+                      "type": "string",
+                      "minLength": 1,
                       "description": "User who performed the copy, when available."
                     },
                     "folderId": {
@@ -7000,15 +6993,8 @@
                       "description": "Identifier of the new folder."
                     },
                     "userId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
+                      "type": "string",
+                      "minLength": 1,
                       "description": "User who performed the copy, when available."
                     },
                     "name": {
@@ -7460,16 +7446,9 @@
             "description": "Canonical owner of the shared file."
           },
           "uploadedBy": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Creator identifier, when available."
+            "type": "string",
+            "minLength": 1,
+            "description": "Creator or successor identifier."
           },
           "revision": {
             "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
@@ -8301,16 +8280,9 @@
                   "description": "Stable folder identifier."
                 },
                 "userId": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Creator identifier, when the account exists."
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Creator or successor identifier."
                 },
                 "name": {
                   "type": "string",
@@ -8425,16 +8397,9 @@
                 "description": "Stable folder identifier."
               },
               "userId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Creator identifier, when the account exists."
+                "type": "string",
+                "minLength": 1,
+                "description": "Creator or successor identifier."
               },
               "name": {
                 "type": "string",
@@ -8597,16 +8562,9 @@
                     "description": "Stable folder identifier."
                   },
                   "userId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Creator identifier, when the account exists."
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Creator or successor identifier."
                   },
                   "name": {
                     "type": "string",
@@ -9214,17 +9172,10 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "email",
-                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current email address of the creator, or null after account deletion.",
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -9358,17 +9309,10 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "email",
-                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current email address of the creator, or null after account deletion.",
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -10379,17 +10323,10 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "email",
-                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current email address of the creator, or null after account deletion.",
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -11194,17 +11131,10 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "email",
-                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current email address of the creator, or null after account deletion.",
+            "type": "string",
+            "format": "email",
+            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+            "description": "Current email address of the uploader.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {

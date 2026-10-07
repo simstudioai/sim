@@ -404,7 +404,7 @@ export async function reassignOrganizationProjects(
  * Existing ownership paths can hold workspace rows first; refuse contention instead
  * of inverting locks.
  */
-async function tryLockProjects(tx: DbTransaction, projectIds: string[]): Promise<void> {
+export async function tryLockProjects(tx: DbTransaction, projectIds: string[]): Promise<void> {
   const keys = projectIds.map(projectLockKey)
   if (!(await tryAcquireAdvisoryXactLocks(tx, 'project', keys)))
     throw new ProjectConflictError('Project is changing; retry the ownership change')

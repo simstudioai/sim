@@ -17,6 +17,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listProjectFileItems } from '@/lib/projects/files/application'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
 import type { FileBrowserQuery } from '@/lib/workspace-files/browser-query'
 
 interface BrowserFixture {
@@ -88,13 +89,22 @@ async function fixture() {
   if (!membership) throw new Error('Fixture Project missing')
   const projectId = membership.projectId
   owned.projectId = projectId
-  await db.insert(permissions).values({
-    id: generateId(),
-    userId: readerId,
-    entityType: 'workspace',
-    entityId: workspaceId,
-    permissionType: 'read',
-  })
+  await db.insert(permissions).values([
+    {
+      id: generateId(),
+      userId: ownerId,
+      entityType: 'workspace',
+      entityId: workspaceId,
+      permissionType: 'admin',
+    },
+    {
+      id: generateId(),
+      userId: readerId,
+      entityType: 'workspace',
+      entityId: workspaceId,
+      permissionType: 'read',
+    },
+  ])
   const reader = createSessionPrincipal({ userId: readerId })
   const list = (input: Partial<FileBrowserQuery> = {}) =>
     listProjectFileItems.execute({
@@ -249,7 +259,7 @@ describe('Project browser real mixed collection', () => {
     }
   )
   check(
-    'deleted creators leave filter choices while retained files and folders paginate last',
+    'creator handoff updates filter choices and preserves file and folder pagination',
     async () => {
       const f = await fixture()
       const other = await fixture()
@@ -257,11 +267,15 @@ describe('Project browser real mixed collection', () => {
       const deleted = await f.addFile('deleted.txt', 1, { userId: f.creatorId })
       const deletedFolder = await f.addFolder('deleted-folder', undefined, f.creatorId)
       const live = await f.addFile('live.txt', 1)
-      await db.delete(user).where(eq(user.id, f.creatorId))
+      await deleteUserAccount(f.creatorId)
       const page = await f.list()
-      expect(page.items.find((item) => item.id === deleted)?.creator).toBeNull()
-      expect(page.items.find((item) => item.id === deletedFolder)?.creator).toBeNull()
-      expect(page.files.find((file) => file.id === deleted)?.uploadedBy).toBeNull()
+      expect(page.items.find((item) => item.id === deleted)?.creator).toMatchObject({
+        id: f.ownerId,
+      })
+      expect(page.items.find((item) => item.id === deletedFolder)?.creator).toMatchObject({
+        id: f.ownerId,
+      })
+      expect(page.files.find((file) => file.id === deleted)?.uploadedBy).toBe(f.ownerId)
       expect(page.creators.map((creator) => creator.id)).toEqual([f.ownerId])
       expect(page.creators.some((creator) => creator.id === other.creatorId)).toBe(false)
       expect((await f.list({ creatorIds: [f.creatorId] })).files).toEqual([])
@@ -274,7 +288,7 @@ describe('Project browser real mixed collection', () => {
           if (!page.nextKeys) break
           after = page.nextKeys
         }
-        expect(ids).toEqual([live, deletedFolder, deleted])
+        expect(ids).toEqual([deletedFolder, deleted, live])
       }
     }
   )
