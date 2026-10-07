@@ -574,9 +574,8 @@ export class IdempotencyService {
   /**
    * Runs `operation` once per key while its claim lease and stored result last. A caller that
    * finds another holder's live claim polls until that holder finishes and returns (or rethrows)
-   * its outcome, so use this when
-   * the caller's own response depends on the result (e.g. Stripe must not get a 2xx before
-   * the first attempt settles).
+   * its outcome, so use this when the caller's own response depends on the result (e.g. Stripe
+   * must not get a 2xx before the first attempt settles).
    */
   async executeWithIdempotency<T>(
     provider: string,
