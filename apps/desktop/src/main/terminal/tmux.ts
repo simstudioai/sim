@@ -435,19 +435,19 @@ export async function startRun(
 /**
  * Whether the run's pane is still the run's: `ours`, or `gone` when tmux has no such pane or the
  * pane under that id is not tagged as this run's (the user closed it, or a restarted tmux server
- * handed the id to one of the user's own panes). `unknown` when tmux could not be asked, or the
- * run is untracked: such a pane is neither touched nor given up on.
+ * handed the id to one of the user's own panes). `unknown` when tmux could not be asked, or an
+ * untracked run's pane still exists, since nothing proves whose it is: such a pane is neither
+ * touched nor given up on.
  */
 export async function runPaneState(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv
 ): Promise<'ours' | 'gone' | 'unknown'> {
   if (!handle.pane) return 'gone'
-  if (handle.runId === null) return 'unknown'
-  const shown = await runTmux(
-    ['display-message', '-p', '-t', handle.pane, `#{${RUN_ID_OPTION}}`],
-    env
-  )
+  // An untracked run's pane can still be found missing, with a format every tmux knows.
+  const format = handle.runId === null ? '#{pane_id}' : `#{${RUN_ID_OPTION}}`
+  const shown = await runTmux(['display-message', '-p', '-t', handle.pane, format], env)
+  if (shown.ok && handle.runId === null) return 'unknown'
   if (shown.ok) return shown.stdout.trim() === handle.runId ? 'ours' : 'gone'
   return /can't find|no server running/i.test(shown.stderr) ? 'gone' : 'unknown'
 }

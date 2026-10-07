@@ -110,6 +110,11 @@ interface FakeTmuxState {
 
   /** Commands the fake answers only after this many milliseconds, like a busy tmux server. */
   delay?: Record<string, number>
+
+  /** Commands the fake holds until the file named here exists, like a busy tmux server. */
+  hold?: Record<string, string>
+  /** Commands the fake is holding right now. */
+  held?: string[]
 }
 
 const FAKE_TMUX = `
@@ -129,6 +134,14 @@ const escaped = (text) =>
 
 if (state.delay && state.delay[args[0]]) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, state.delay[args[0]])
+
+if (state.hold && state.hold[args[0]]) {
+  state.held = [...(state.held ?? []), args[0]]
+  save()
+  while (!fs.existsSync(state.hold[args[0]])) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+  }
+  state.held = state.held.filter((command) => command !== args[0])
 }
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
@@ -310,6 +323,12 @@ describe('stopping a tmux run touches only its own pane', () => {
     // No pane is touched by an id that a restarted server might have handed to the user.
     expect(tmux.read().log).toEqual([])
     expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
+
+    // Once its pane is gone, it can be let go.
+    const state = tmux.read()
+    delete state.panes[run.pane]
+    tmux.write(state)
+    expect(await runPaneState(run, tmux.env)).toBe('gone')
   })
 
   it('lets a tagged run start only once its pane is tagged', async () => {
@@ -356,15 +375,18 @@ describe('stopping a tmux run touches only its own pane', () => {
   it('holds a command until tmux has finished tagging its pane', async () => {
     const tmux = fakeTmux({ exec: true })
     dirs.push(tmux.dir)
-    tmux.write({ ...tmux.read(), delay: { 'set-option': 2_000 } })
+    const release = join(tmux.dir, 'release')
+    tmux.write({ ...tmux.read(), hold: { 'set-option': release } })
     const marker = join(tmux.dir, 'ran')
 
     const starting = startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env)
-    await sleep(1_200)
-    // The pane exists and its script is running, but the tag is not on it yet.
-    expect(Object.keys(tmux.read().panes)).toHaveLength(1)
+    // The pane is open and the tagging call is in flight, held by tmux.
+    await expect.poll(() => tmux.read().held ?? [], { timeout: 10_000 }).toEqual(['set-option'])
+    // Time enough for an ungated command to have run.
+    await sleep(1_000)
     expect(existsSync(marker)).toBe(false)
 
+    writeFileSync(release, '')
     const run = await starting
     if ('error' in run) throw new Error(run.error)
     await expect.poll(() => existsSync(marker), { timeout: 10_000 }).toBe(true)

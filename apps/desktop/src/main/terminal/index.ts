@@ -1301,7 +1301,11 @@ export class TerminalService {
     if (latch.signal.aborted) void latch.stopRunning()
     const outcome = await Promise.race([
       awaitRun(handle, waitMs),
-      stopped.then(() => ({ ...pollRun(handle), done: true })),
+      // A stopped run's closed pane never writes its status. An untracked run is never stopped,
+      // so it is still going unless its status says otherwise.
+      stopped.then(() =>
+        handle.runId === null ? pollRun(handle) : { ...pollRun(handle), done: true }
+      ),
     ]).finally(() => {
       this.awaitedRuns.delete(handle)
       if (this.releasedAwaitedRuns.delete(handle)) handle.dispose()
