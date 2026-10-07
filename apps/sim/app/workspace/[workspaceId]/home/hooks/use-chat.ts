@@ -5162,7 +5162,18 @@ export function useChat(
         applyHeldResend(chatKey, msg, 'drop')
         return
       }
-      if (queuedMessageDispatchIds.has(msg.id)) return
+      /* The read took time. Only what is still this view's queued, unedited and
+         undispatched message may stop the running turn and go out. */
+      const afterRead = useMothershipQueueStore.getState()
+      if (
+        chatKeyRef.current !== chatKey ||
+        !surfaceMountedRef.current ||
+        queuedMessageDispatchIds.has(msg.id) ||
+        afterRead.editing[chatKey] === msg.id ||
+        !afterRead.queues[chatKey]?.some((queued) => queued.id === msg.id)
+      ) {
+        return
+      }
       const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().

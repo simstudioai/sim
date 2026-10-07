@@ -2887,6 +2887,56 @@ describe('useChat remount send recovery', () => {
    * first, as the queue drain does: if the server shows the id accepted, the
    * message is already in the chat and sending it again could run a second turn.
    */
+  /**
+   * Send-now reads the history before it stops the running turn. A message the
+   * user removes during that read is no longer theirs to send, so the running
+   * turn must not be stopped for it.
+   */
+  it('does not stop the running turn for a Send-now removed while its history is read', async () => {
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+    let answerHistory: (() => void) | undefined
+    mockRequestJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerHistory = () =>
+            resolve({
+              chat: {
+                id: 'chat-a',
+                mode: 'agent',
+                title: 'A',
+                messages: [],
+                activeStreamId: null,
+                resources: [],
+              },
+            })
+        })
+    )
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+    })
+
+    await act(async () => {
+      void getResult().sendNow('resumed')
+    })
+    await waitFor(() => answerHistory !== undefined)
+    await act(async () => {
+      getResult().removeFromQueue('resumed')
+      answerHistory?.()
+      await sleep(100)
+    })
+
+    expect(state.abortBodies).toHaveLength(0)
+    expect(state.postBodies).toHaveLength(1)
+    expect(getResult().isSending).toBe(true)
+  })
+
   it('drops a Send-now whose id the server already accepted instead of resending it', async () => {
     const cached: MothershipChatHistory = {
       id: 'chat-send-now-accepted',
