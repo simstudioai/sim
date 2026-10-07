@@ -89,7 +89,7 @@ export interface DesktopExecutorOptions {
   onResultDelivered?: (toolCallId: string) => void
   /**
    * Called once Sim is done with a call without taking its real result: it settled the call
-   * first, refused the result, or was sent one that stands in for it. The model never learns of
+   * first, refused the result, or recorded one that stands in for it. The model never learns of
    * anything the action handed back as still going, so nothing will come back to it.
    */
   onResultNotDelivered?: (toolCallId: string) => void
@@ -419,7 +419,7 @@ export class DesktopExecutor {
     sendingSince: number
   ): Promise<void> {
     let pending = completion
-    let delivered = false
+    let notDelivered = true
     for (let attempt = 1; !this.disposed; attempt++) {
       try {
         const outcome = await this.options.client.complete({
@@ -429,8 +429,11 @@ export class DesktopExecutor {
         })
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
         // Superseded: Sim settled the call first, so this result never reached the model.
-        delivered = outcome !== 'superseded' && isDeliveredResult(pending)
+        const delivered = outcome !== 'superseded' && isDeliveredResult(pending)
         if (delivered) this.options.onResultDelivered?.(toolCallId)
+        // A stand-in Sim already holds leaves open which result it took first: a send from before
+        // a restart may have carried the real one.
+        notDelivered = !delivered && outcome !== 'duplicate'
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.
@@ -488,7 +491,7 @@ export class DesktopExecutor {
       }
     }
     if (this.disposed) return
-    if (!delivered) this.options.onResultNotDelivered?.(toolCallId)
+    if (notDelivered) this.options.onResultNotDelivered?.(toolCallId)
     await this.forget(toolCallId)
   }
 

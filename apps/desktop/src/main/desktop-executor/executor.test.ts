@@ -536,6 +536,20 @@ describe('restarting', () => {
     expect(runner.started).toEqual([])
     await vi.waitFor(() => expect(journal.entries.size).toBe(0))
   })
+
+  it('leaves open whether the model has a result when Sim already held one for the call', async () => {
+    const { sim, journal, executor, delivered, notDelivered } = setup()
+    // The previous run's send of the real result may have landed just before the app went down.
+    sim.completionOutcome = 'duplicate'
+    await journal.put({ toolCallId: 'started-1', state: 'started', executionToken: 't-started' })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+    expect(sim.completions).toHaveLength(1)
+    expect(delivered).toEqual([])
+    expect(notDelivered).toEqual([])
+  })
 })
 
 describe('delivery', () => {

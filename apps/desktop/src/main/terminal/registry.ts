@@ -413,13 +413,13 @@ export class TerminalRegistry {
   /**
    * Stops what a call's `run` handed back as still going once Sim is done with the call without
    * its result reaching the model: a plain shell's command, or a tmux run, this process's or a
-   * previous one's.
+   * previous one's. A run recorded as handed back is the model's, and is left going.
    */
   async stopUndeliveredRun(callId: string): Promise<void> {
     await Promise.allSettled(
       [...this.entries.values()].map((entry) => entry.service.stopAgentCommand(callId))
     )
-    await this.stopRecordedRuns({ callId })
+    await this.stopRecordedRuns({ callId, keep: (run) => run.state === 'delivered' })
   }
 
   /**
