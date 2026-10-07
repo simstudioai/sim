@@ -1,4 +1,5 @@
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -3607,7 +3608,12 @@ describe('runCopilotLifecycle', () => {
       if (!streamContext) throw new Error('The turn did not start its stream')
       return streamContext
     }
-    return { bodies, lifecycle, resumedWithLostImport, context }
+    /** The reasons the turn logged for force-failing its calls. */
+    const forceFailures = () =>
+      getMockLogger('CopilotLifecycle')
+        .error.mock.calls.map(([message]) => String(message))
+        .filter((message) => message.endsWith('force-failing'))
+    return { bodies, lifecycle, resumedWithLostImport, context, forceFailures }
   }
 
   it('waits on a chat-view import while its lease is renewed, and fails it once the lease lapses', async () => {
@@ -3625,6 +3631,9 @@ describe('runCopilotLifecycle', () => {
       await vi.advanceTimersByTimeAsync(52_000)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution has no live lease past its budget; force-failing',
+      ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
@@ -3646,6 +3655,9 @@ describe('runCopilotLifecycle', () => {
       await vi.advanceTimersByTimeAsync(32_000)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution has no live lease past its budget; force-failing',
+      ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
@@ -3660,9 +3672,18 @@ describe('runCopilotLifecycle', () => {
       const turn = runImportTurn()
       await vi.advanceTimersByTimeAsync(CLIENT_TOOL_RESULT_TIMEOUT_MS - 1_000)
       expect(turn.bodies).toHaveLength(1)
+      const leaseReads =
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mock.calls.length
       await vi.advanceTimersByTimeAsync(2_000)
+      // At the cap the call is given up without reading its lease.
+      expect(
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mock.calls.length
+      ).toBe(leaseReads)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution reached the client tool result cap; force-failing',
+      ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
@@ -3682,6 +3703,9 @@ describe('runCopilotLifecycle', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution lease could not be read for a whole lease; force-failing',
+      ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
@@ -3702,6 +3726,9 @@ describe('runCopilotLifecycle', () => {
       await vi.advanceTimersByTimeAsync(20_000)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution lease could not be read for a whole lease; force-failing',
+      ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()

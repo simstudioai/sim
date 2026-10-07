@@ -158,18 +158,18 @@ describe('an import keeps its lease while it runs', () => {
   const LEASE_MS = 60_000
   /**
    * The server's side of the lease, by the rules the lease route applies: the claim (which the
-   * desktop makes as it starts building the manifest) takes a lease, and a renewal extends it only
-   * while it is live; a refused renewal answers 410.
+   * desktop makes before it scans, within its 8 s authorization timeout) takes a lease, and a
+   * renewal extends it only while it is live; a refused renewal answers 410.
    */
   let server: {
     leaseUntil: number
     claimed: boolean
     stopped: boolean
     renewalsReceived: number
-    transient: number[]
-    /** How long the server takes to answer the next renewal it receives. */
-    nextAnswerDelayMs: number
+    /** How the server answers the renewals it receives next: a failure that may pass, or as usual. */
+    answers: (number | 'usual')[]
   }
+  let claimMs: number
   let scanMs: number
   let finishUpload: () => void
   const leaseLive = () => Date.now() < server.leaseUntil
@@ -183,13 +183,14 @@ describe('an import keeps its lease while it runs', () => {
       claimed: false,
       stopped: false,
       renewalsReceived: 0,
-      transient: [],
-      nextAnswerDelayMs: 0,
+      answers: [],
     }
+    claimMs = 0
     scanMs = 0
     mocks.invoke.mockImplementation(async (request: { operation: string }) => {
       if (request.operation !== 'manifest')
         return { ok: true, data: { kind: 'chunk', bytes: new Uint8Array([65, 66, 67]), eof: true } }
+      await sleep(claimMs)
       server.claimed = true
       server.leaseUntil = Date.now() + LEASE_MS
       await sleep(scanMs)
@@ -204,14 +205,10 @@ describe('an import keeps its lease while it runs', () => {
     mocks.json.mockImplementation(async (contract: unknown) => {
       if (contract !== renewDesktopToolLeaseContract) return { folder: { id: 'created-folder' } }
       server.renewalsReceived += 1
-      const delayMs = server.nextAnswerDelayMs
-      server.nextAnswerDelayMs = 0
-      const transient = server.transient.shift()
-      const refused = server.stopped || !server.claimed || !leaseLive()
-      if (!transient && !refused) server.leaseUntil = Date.now() + LEASE_MS
-      await sleep(delayMs)
-      if (transient) return answer(transient)
-      if (refused) return answer(410)
+      const transient = server.answers.shift()
+      if (typeof transient === 'number') return answer(transient)
+      if (server.stopped || !server.claimed || !leaseLive()) return answer(410)
+      server.leaseUntil = Date.now() + LEASE_MS
       return { renewed: true }
     })
   })
@@ -233,11 +230,8 @@ describe('an import keeps its lease while it runs', () => {
     expect(leaseLive()).toBe(false)
   })
 
-  it('a refusal of a renewal sent before the claim does not stop it, however late it arrives', async () => {
-    // The first renewal goes out before the desktop claims the call; its 410 arrives only after
-    // the manifest confirmed the claim.
-    server.nextAnswerDelayMs = 5_000
-    scanMs = 1_000
+  it('keeps renewing when the desktop takes most of its authorization timeout to claim', async () => {
+    claimMs = 7_000
     const run = executeNativeFileTool('tool', 'import_local_files')
     await vi.advanceTimersByTimeAsync(90_000)
     expect(leaseLive()).toBe(true)
@@ -259,9 +253,12 @@ describe('an import keeps its lease while it runs', () => {
   })
 
   it('keeps renewing through failures that may pass', async () => {
-    server.transient = [401, 429, 503]
+    // Beats at 20 s, 60 s and 100 s fail; the beats between them renew. Stopping at any of the
+    // failures would let the lease lapse by 140 s.
+    server.answers = [401, 'usual', 429, 'usual', 503]
     const run = executeNativeFileTool('tool', 'import_local_files')
-    await vi.advanceTimersByTimeAsync(90_000)
+    await vi.advanceTimersByTimeAsync(150_000)
+    expect(server.renewalsReceived).toBe(7)
     expect(leaseLive()).toBe(true)
     finishUpload()
     await run

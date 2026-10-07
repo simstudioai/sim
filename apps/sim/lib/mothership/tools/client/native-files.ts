@@ -112,24 +112,19 @@ export async function importNativeFiles(
 }
 
 /**
- * Renews an import's lease from the moment its manifest is requested, every heartbeat, the way a
+ * Renews an import's lease every heartbeat from the moment its manifest is requested, the way a
  * desktop renews a bound call, so a slow directory scan cannot outlast the lease the claim took.
- * The claim lands while the manifest is being built, so a refusal (410) counts only once the
- * manifest confirmed the claim: then the call was stopped, settled, or its lease lapsed, and
+ * The desktop claims the call before it scans, within its authorization timeout, which is well
+ * inside one heartbeat: every renewal follows the claim, and the claim's own lease covers the
+ * first beat. A refusal (410) means the call was stopped, settled, or its lease lapsed, and
  * renewing stops. Any other failure may pass, and the next beat tries again.
  */
-function keepImportLeased(toolCallId: string): { claimed(): void; stop(): void } {
-  let claimed = false
-  let stopped = false
-  const renew = () => {
-    if (stopped) return
-    // Whether the claim was confirmed when this renewal was sent: a refusal of one sent before it
-    // may arrive after, and says nothing about the running import.
-    const sentAfterClaim = claimed
+function keepImportLeased(toolCallId: string): { stop(): void } {
+  const timer = setInterval(() => {
     requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
       (error) => {
-        if (sentAfterClaim && error instanceof ApiClientError && error.status === 410) {
-          stop()
+        if (error instanceof ApiClientError && error.status === 410) {
+          clearInterval(timer)
           return
         }
         logger.warn('Could not renew the import lease; trying again next beat', {
@@ -138,20 +133,8 @@ function keepImportLeased(toolCallId: string): { claimed(): void; stop(): void }
         })
       }
     )
-  }
-  const timer = setInterval(renew, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
-  const stop = () => {
-    stopped = true
-    clearInterval(timer)
-  }
-  renew()
-  return {
-    claimed() {
-      claimed = true
-      renew()
-    },
-    stop,
-  }
+  }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
+  return { stop: () => clearInterval(timer) }
 }
 
 /** The server claims imports before reading their manifest, preventing replayed uploads. */
@@ -192,7 +175,6 @@ export async function executeNativeFileTool(
     if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
     let completion
     if (response.data.kind === 'manifest') {
-      lease?.claimed()
       completion = localFileImportCompletion(
         await importNativeFiles(toolCallId, response.data, signal)
       )
