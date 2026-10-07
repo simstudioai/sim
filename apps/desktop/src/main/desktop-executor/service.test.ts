@@ -195,7 +195,7 @@ describe('results recovery will hand to the model', () => {
       await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
       sim.registrations[0]?.(true)
       await vi.waitFor(() => expect(sim.requests).toContain('POST /api/desktop/tool/complete'))
-      await vi.waitFor(() => expect(recovered).toHaveBeenCalled())
+      await vi.waitFor(async () => expect(await createExecutorJournal(path).load()).toEqual([]))
 
       expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
       await desktopExecutor.signOut()
