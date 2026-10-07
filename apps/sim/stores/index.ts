@@ -2,6 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { stopAllDesktopTools } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('Stores')
 
@@ -58,5 +59,6 @@ export async function clearUserData(options: ClearUserDataOptions = {}): Promise
   }
 
   if (!cleanupFailed) logger.info('User data cleared successfully')
+  useSettingsDirtyStore.getState().reset()
   return inMemoryResetSucceeded
 }

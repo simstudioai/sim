@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Badge,
   Button,
+  Chip,
   ChipCopyInput,
   ChipInput,
   ChipModalTabs,
@@ -361,19 +362,23 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
   const [newExpiry, setNewExpiry] = useState('')
   const [approvalReference, setApprovalReference] = useState('')
   const [generatedKey, setGeneratedKey] = useState<string | null>(null)
-  const discardDraft = useCallback(() => {
+  const resetForm = () => {
     setNewName('')
     setNewExpiry('')
     setApprovalReference('')
-  }, [])
+  }
   useSettingsUnsavedGuard({
-    isDirty: Boolean(newName.trim() || newExpiry || approvalReference.trim()),
+    isDirty: Boolean(newName.trim() || newExpiry || approvalReference.trim() || generatedKey),
     navigationBlocked: generateLicense.isPending,
-    onDiscard: discardDraft,
+    onDiscard: () => {
+      resetForm()
+      setGeneratedKey(null)
+    },
   })
 
-  const handleGenerate = useCallback(() => {
-    if (!newName.trim() || !approvalReference.trim() || generateLicense.isPending) return
+  const handleGenerate = () => {
+    if (!newName.trim() || !approvalReference.trim() || generateLicense.isPending || generatedKey)
+      return
     generateLicense.mutate(
       {
         name: newName.trim(),
@@ -383,18 +388,11 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       {
         onSuccess: (result) => {
           setGeneratedKey(result.license_key)
-          discardDraft()
+          resetForm()
         },
       }
     )
-  }, [
-    newName,
-    newExpiry,
-    approvalReference,
-    generateLicense.mutate,
-    generateLicense.isPending,
-    discardDraft,
-  ])
+  }
 
   return (
     <div className='flex flex-col gap-5'>
@@ -405,10 +403,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           <ChipInput
             disabled={generateLicense.isPending}
             value={newName}
-            onChange={(e) => {
-              setNewName(e.target.value)
-              setGeneratedKey(null)
-            }}
+            onChange={(e) => setNewName(e.target.value)}
             placeholder='e.g. Acme Corp'
             className='w-[200px]'
           />
@@ -437,7 +432,12 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           variant='primary'
           className='h-[32px]'
           onClick={handleGenerate}
-          disabled={generateLicense.isPending || !newName.trim() || !approvalReference.trim()}
+          disabled={
+            generateLicense.isPending ||
+            Boolean(generatedKey) ||
+            !newName.trim() ||
+            !approvalReference.trim()
+          }
         >
           {generateLicense.isPending ? 'Generating...' : 'Generate'}
         </Button>
@@ -448,7 +448,10 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           <p className='text-[var(--text-secondary)] text-caption'>
             License key (only shown once):
           </p>
-          <ChipCopyInput value={generatedKey} copyLabel='Copy license key' />
+          <div className='flex items-center gap-2'>
+            <ChipCopyInput value={generatedKey} copyLabel='Copy license key' className='flex-1' />
+            <Chip onClick={() => setGeneratedKey(null)}>Done</Chip>
+          </div>
         </div>
       )}
 

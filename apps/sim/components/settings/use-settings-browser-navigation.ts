@@ -207,7 +207,10 @@ export function useSettingsBrowserNavigation() {
   useEffect(installBrowserNavigationGuard, [])
   useEffect(() => {
     if (!shouldBlock) return
-    const preventUnload = (event: BeforeUnloadEvent) => event.preventDefault()
+    const preventUnload = (event: BeforeUnloadEvent) => {
+      const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+      if (isDirty || navigationBlocked) event.preventDefault()
+    }
     window.addEventListener('beforeunload', preventUnload)
     return () => window.removeEventListener('beforeunload', preventUnload)
   }, [shouldBlock])
