@@ -163,6 +163,17 @@ jobs:
         with:
           provider: ${{ vars.CI_PROVIDER }}
 
+      - name: Verify landing homepage boundary
+        working-directory: apps/sim
+        run: bun --no-env-file scripts/test-landing-e2e.ts
+        env:
+          LANDING_BRIDGE_REPORT_PATH: test-results/landing-bridge.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: landing-bridge
+          path: apps/sim/test-results/landing-bridge*.json
+
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
         working-directory: packages/db

@@ -1,0 +1,54 @@
+---
+title: "claude-opus-5-5"
+description: "Sim model reference for claude-opus-5-5 on Anthropic."
+---
+
+[Anthropic](/models/anthropic)
+
+Model ID: `claude-opus-5-5`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 4,
+  "cachedInput": 0.2,
+  "output": 20,
+  "updatedAt": "2026-09-22"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 512
+  },
+  "forcedToolUse": false,
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 128000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "default": "medium",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -1,0 +1,55 @@
+---
+title: "gpt-6-astra"
+description: "Sim model reference for gpt-6-astra on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `gpt-6-astra`
+
+Context window: 1050000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 10,
+  "cachedInput": 1,
+  "output": 50,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 20,
+      "cachedInput": 2,
+      "output": 75
+    }
+  ],
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

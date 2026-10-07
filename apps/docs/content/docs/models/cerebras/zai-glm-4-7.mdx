@@ -1,0 +1,41 @@
+---
+title: "cerebras/zai-glm-4.7"
+description: "Sim model reference for cerebras/zai-glm-4.7 on Cerebras."
+---
+
+[Cerebras](/models/cerebras)
+
+Model ID: `cerebras/zai-glm-4.7`
+
+Context window: 131072 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 2.25,
+  "output": 2.75,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "maxOutputTokens": 40000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

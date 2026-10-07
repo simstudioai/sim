@@ -1,5 +1,5 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
-export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
+export { Badge, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
 export { BulkActionButton } from './bulk-action-button/bulk-action-button'
 export { Button } from './button/button'
@@ -16,7 +16,6 @@ export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
   chipActiveSurfaceClass,
-  chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
@@ -126,7 +125,6 @@ export {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-  ModalTitle,
   ModalTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   type NativeSurfaceOcclusionPrepareDetail,
@@ -162,13 +160,7 @@ export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
 export { SimWordmark } from './sim-wordmark/sim-wordmark'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
-export {
-  LogoPage,
-  PAGE_CONTENT_WIDTH,
-  PAGE_GUTTER,
-  StatusPageContent,
-  type StatusPageContentProps,
-} from './status-page/status-page'
+export { LogoPage, StatusPageContent } from './status-page/status-page'
 export { Switch } from './switch/switch'
 export {
   TabStrip,

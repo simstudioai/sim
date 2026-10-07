@@ -1,8 +1,8 @@
 'use client'
 
 import { Chip, StatusPageContent } from '@sim/emcn'
+import { LogoShell } from '@/components/logo-shell'
 import { season } from '@/app/_styles/fonts/season/season'
-import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import '@/app/_styles/globals.css'
 
 interface GlobalErrorProps {

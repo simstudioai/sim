@@ -1,15 +1,11 @@
 /**
  * Shared types for the integrations catalog. Mirrors the JSON shape written by
  * `scripts/generate-docs.ts` → `writeIntegrationsJson()`, which is the
- * serialized projection of `BlockConfig` consumed by landing + workspace UIs.
+ * serialized projection of `BlockConfig` consumed by workspace UIs and docs.
  */
 
 import type { IntegrationMetadata } from '@sim/deployment-config/integration-metadata'
-import type { IntegrationLandingContent } from '@/app/(landing)/integrations/data/types'
 import type { BlockConfig, IntegrationTag } from '@/blocks/types'
-
-/** Normalized authentication mode surfaced in the catalog. */
-export type AuthType = IntegrationMetadata['authType']
 
 /** Trigger entry enriched from the trigger registry at generation time. */
 interface TriggerInfo {
@@ -24,15 +20,9 @@ interface OperationInfo {
   description: string
 }
 
-/** Single FAQ item rendered on a per-integration landing page. */
-export interface FAQItem {
-  question: string
-  answer: string
-}
-
 /**
  * Public catalog entry: shared identity and authentication metadata plus
- * descriptions, operations, triggers, and landing content.
+ * descriptions, operations, and triggers.
  */
 export interface Integration extends IntegrationMetadata {
   description: BlockConfig['description']
@@ -51,31 +41,4 @@ export interface Integration extends IntegrationMetadata {
   /** Triggers enriched with details from the trigger registry. */
   triggers: TriggerInfo[]
   triggerCount: number
-  /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
-  landingContent?: IntegrationLandingContent
-}
-
-/**
- * The fields the `/integrations` catalog grid actually renders and searches
- * by, plus a precomputed, lowercased `searchFields` index (name, description,
- * every operation's name and description, every trigger's name) in place of
- * the full `operations`/`triggers` arrays. Shipping the full `Integration[]`
- * to that page's client component embeds every integration's complete field
- * set - including data the grid never renders (`tags`, `docsUrl`,
- * `landingContent`, ...) - in the initial HTML/RSC payload.
- *
- * `searchFields` stays an array, one entry per source field, rather than a
- * single joined string: matching must still require the query to fall
- * entirely within one field (as the original per-field `Integration[]`
- * search did), not span a field boundary a single concatenated string would
- * silently allow.
- */
-export interface IntegrationSummary {
-  type: Integration['type']
-  slug: string
-  name: Integration['name']
-  description: Integration['description']
-  bgColor: Integration['bgColor']
-  integrationType: Integration['integrationType']
-  searchFields: readonly string[]
 }

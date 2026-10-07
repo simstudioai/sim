@@ -1,0 +1,50 @@
+---
+title: "muse-spark-1.1"
+description: "Sim model reference for muse-spark-1.1 on Meta."
+---
+
+[Meta](/models/meta)
+
+Model ID: `muse-spark-1.1`
+
+Context window: 1048576 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 1.25,
+  "cachedInput": 0.15,
+  "output": 4.25,
+  "updatedAt": "2026-07-09"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ]
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const ssoProvidersQuerySchema = z.object({
@@ -179,5 +178,3 @@ export const getAuthProvidersContract = defineRouteContract({
     schema: authProviderStatusResponseSchema,
   },
 })
-
-export type AuthProviderStatusResponse = ContractJsonResponse<typeof getAuthProvidersContract>

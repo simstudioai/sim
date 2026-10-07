@@ -1,0 +1,45 @@
+---
+title: "o1"
+description: "Sim model reference for o1 on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `o1`
+
+Context window: 200000 tokens.
+
+Lifecycle: legacy.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 15,
+  "cachedInput": 7.5,
+  "output": 60,
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 100000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

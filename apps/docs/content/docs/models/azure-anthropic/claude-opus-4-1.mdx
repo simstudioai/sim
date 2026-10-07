@@ -1,0 +1,54 @@
+---
+title: "azure-anthropic/claude-opus-4-1"
+description: "Sim model reference for azure-anthropic/claude-opus-4-1 on Azure Anthropic."
+---
+
+[Azure Anthropic](/models/azure-anthropic)
+
+Model ID: `azure-anthropic/claude-opus-4-1`
+
+Context window: 200000 tokens.
+
+Lifecycle: legacy.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 15,
+  "cachedInput": 1.5,
+  "output": 75,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 1024
+  },
+  "temperature": {
+    "min": 0,
+    "max": 1
+  },
+  "maxOutputTokens": 32000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "default": "high",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

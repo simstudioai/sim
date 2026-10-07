@@ -4,13 +4,8 @@ import { useRef } from 'react'
 import { Chip, ComposerActionButton, cn } from '@sim/emcn'
 import { ArrowUp } from '@sim/emcn/icons'
 import { GithubIcon, GmailIcon, GoogleDriveIcon, SlackIcon } from '@/components/icons'
-import {
-  LANDING_STAGE_RADIUS,
-  LANDING_STAGE_WINDOW_RADIUS,
-  LANDING_WINDOW_SHADOW,
-} from '@/app/(landing)/components/landing-layout'
-import { CodeWindowGraphic } from '@/app/(landing)/components/shared/code-window-graphic'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
+import { CodeWindowGraphic } from '@/emails/broadcasts/desktop-cli-search/code-window-graphic'
 
 const SOURCES = [
   { name: 'Slack', icon: SlackIcon },
@@ -32,7 +27,7 @@ export function NewsletterVisual({ kind }: NewsletterVisualProps) {
       inert
       className={cn(
         'relative flex w-[600px] items-center overflow-hidden bg-[var(--surface-3)] p-7',
-        LANDING_STAGE_RADIUS,
+        'rounded-[12px]',
         kind === 'cli' ? 'h-[366px]' : 'h-[310px]'
       )}
     >
@@ -66,8 +61,8 @@ function SearchNewsletterVisual({ query }: SearchNewsletterVisualProps) {
     <div
       className={cn(
         'flex flex-col gap-6 bg-[var(--surface-2)] px-6 py-8',
-        LANDING_STAGE_WINDOW_RADIUS,
-        LANDING_WINDOW_SHADOW
+        'rounded-[8px]',
+        'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'
       )}
     >
       <h2 className='text-center text-2xl text-[var(--text-primary)]'>Search your company.</h2>

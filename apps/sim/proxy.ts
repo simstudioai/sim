@@ -6,7 +6,7 @@ import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
-import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
+import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 import { isNonCanonicalSimHost } from './lib/core/utils/urls'
@@ -238,8 +238,7 @@ function handleRootPathRedirects(
     return null
   }
 
-  if (!isHosted && !isDev) {
-    // Self-hosted production: Always redirect based on session.
+  if (!isHosted) {
     if (hasActiveSession) {
       return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
     }
@@ -364,7 +363,13 @@ export function proxy(request: NextRequest) {
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
-  if (redirect) return applyIndexingPolicy(request, redirect)
+  if (redirect) {
+    redirect.headers.set('Cache-Control', 'private, no-store')
+    redirect.headers.set('Vary', 'Cookie')
+    return applyIndexingPolicy(request, redirect)
+  }
+
+  if (url.pathname === '/') return applyIndexingPolicy(request, NextResponse.next())
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     const { rawCallbackUrl } = resolveAuthRedirect({

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useConsentManager } from '@c15t/nextjs/headless'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import Link from 'next/link'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -41,14 +41,14 @@ function CookiePreferencesBody() {
         <ConsentPreferences onChange={commit} disabled={saving} />
         <p className='text-[var(--text-muted)] text-small'>
           Your choice applies to this browser and is kept for 365 days. The{' '}
-          <Link
-            href='/cookie-policy'
+          <a
+            href={`${SIM_SITE_URL}/cookie-policy`}
             target='_blank'
             rel='noopener noreferrer'
             className={CONSENT_LINK_CLASS}
           >
             Cookie Policy
-          </Link>{' '}
+          </a>{' '}
           lists what each category covers.
         </p>
       </div>

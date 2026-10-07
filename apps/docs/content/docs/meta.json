@@ -21,6 +21,7 @@
     "platform/self-hosting",
     "---Reference---",
     "integrations",
+    "models",
     "./quick-reference/index",
     "./keyboard-shortcuts/index"
   ],

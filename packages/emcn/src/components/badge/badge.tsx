@@ -68,9 +68,7 @@ const ICON_SIZES: Record<string, string> = {
   lg: 'size-3',
 }
 
-export interface BadgeProps
-  extends HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {
+interface BadgeProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {
   /** Displays a dot indicator before content (only for color variants) */
   dot?: boolean
   /** Icon component to render before content */

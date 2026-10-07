@@ -179,41 +179,6 @@ export function BlockTileView({
   )
 }
 
-export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
-  type: string
-  Icon: ComponentType<{ className?: string }>
-  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
-  iconClassName?: string
-}
-
-/** Shared compact core-block icon used by workflow discovery surfaces. */
-export function WorkflowTypeIcon({
-  type,
-  Icon,
-  className,
-  iconClassName,
-  ...props
-}: WorkflowTypeIconProps) {
-  const typeAccent = getWorkflowTypeAccent(type)
-
-  return (
-    <ChipTag
-      variant={typeAccent.variant}
-      tone={typeAccent.tone}
-      className={cn('size-[16px] shrink-0 justify-center p-0', className)}
-      data-workflow-type-icon={type}
-      {...props}
-    >
-      <Icon
-        className={cn(
-          'size-[10px] transition-transform duration-100 group-hover:scale-110',
-          iconClassName
-        )}
-      />
-    </ChipTag>
-  )
-}
-
 export interface WorkflowTypeTagProps {
   type: string
   typeLabel?: string
@@ -271,6 +236,41 @@ export function WorkflowTypeTag({
     >
       <Icon className='size-[14px] shrink-0' />
       {label}
+    </ChipTag>
+  )
+}
+
+interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  type: string
+  Icon: ComponentType<{ className?: string }>
+  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
+  iconClassName?: string
+}
+
+/** Shared compact core-block icon used by workflow discovery surfaces. */
+function WorkflowTypeIcon({
+  type,
+  Icon,
+  className,
+  iconClassName,
+  ...props
+}: WorkflowTypeIconProps) {
+  const typeAccent = getWorkflowTypeAccent(type)
+
+  return (
+    <ChipTag
+      variant={typeAccent.variant}
+      tone={typeAccent.tone}
+      className={cn('size-[16px] shrink-0 justify-center p-0', className)}
+      data-workflow-type-icon={type}
+      {...props}
+    >
+      <Icon
+        className={cn(
+          'size-[10px] transition-transform duration-100 group-hover:scale-110',
+          iconClassName
+        )}
+      />
     </ChipTag>
   )
 }

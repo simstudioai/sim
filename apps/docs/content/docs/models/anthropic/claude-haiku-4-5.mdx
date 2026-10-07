@@ -1,0 +1,55 @@
+---
+title: "claude-haiku-4-5"
+description: "Sim model reference for claude-haiku-4-5 on Anthropic."
+---
+
+[Anthropic](/models/anthropic)
+
+Model ID: `claude-haiku-4-5`
+
+Context window: 200000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 1,
+  "cachedInput": 0.1,
+  "output": 5,
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 4096
+  },
+  "temperature": {
+    "min": 0,
+    "max": 1
+  },
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 64000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "default": "high",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

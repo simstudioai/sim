@@ -1,0 +1,49 @@
+---
+title: "groq/openai/gpt-oss-120b"
+description: "Sim model reference for groq/openai/gpt-oss-120b on Groq."
+---
+
+[Groq](/models/groq)
+
+Model ID: `groq/openai/gpt-oss-120b`
+
+Context window: 131072 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.15,
+  "cachedInput": 0.075,
+  "output": 0.6,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "toolUsageControl": true,
+  "maxOutputTokens": 65536,
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

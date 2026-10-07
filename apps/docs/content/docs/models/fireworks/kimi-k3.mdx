@@ -1,0 +1,42 @@
+---
+title: "fireworks/kimi-k3"
+description: "Sim model reference for fireworks/kimi-k3 on Fireworks."
+---
+
+[Fireworks](/models/fireworks)
+
+Model ID: `fireworks/kimi-k3`
+
+Context window: 1048576 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 3,
+  "cachedInput": 0.3,
+  "output": 15,
+  "updatedAt": "2026-07-29"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "toolUsageControl": true,
+  "maxOutputTokens": 1048576
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

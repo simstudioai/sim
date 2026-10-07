@@ -1,0 +1,53 @@
+---
+title: "azure-anthropic/claude-sonnet-5"
+description: "Sim model reference for azure-anthropic/claude-sonnet-5 on Azure Anthropic."
+---
+
+[Azure Anthropic](/models/azure-anthropic)
+
+Model ID: `azure-anthropic/claude-sonnet-5`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 2,
+  "cachedInput": 0.2,
+  "output": 10,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 1024
+  },
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 128000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "default": "high",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

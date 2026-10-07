@@ -126,20 +126,6 @@ export const stringRecordSchema = z
     return record
   })
 
-export function flattenFieldErrors<TFields extends string>(
-  error: z.ZodError
-): Partial<Record<TFields, string>> {
-  const result: Partial<Record<TFields, string>> = {}
-  for (const issue of error.issues) {
-    const field = issue.path[0]
-    if (typeof field !== 'string') continue
-    if (result[field as TFields] === undefined) {
-      result[field as TFields] = issue.message
-    }
-  }
-  return result
-}
-
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
 

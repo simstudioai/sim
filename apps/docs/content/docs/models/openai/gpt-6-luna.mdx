@@ -1,0 +1,63 @@
+---
+title: "gpt-6-luna"
+description: "Sim model reference for gpt-6-luna on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `gpt-6-luna`
+
+Context window: 1050000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.1,
+  "cachedInput": 0.01,
+  "output": 0.5,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 0.2,
+      "cachedInput": 0.02,
+      "output": 0.75
+    }
+  ],
+  "updatedAt": "2026-09-22"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "verbosity": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -14,6 +14,7 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
+import { AuthLegalFooter } from '@/app/(auth)/components/auth-legal-footer'
 
 const logger = createLogger('SSOForm')
 const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
@@ -286,24 +287,7 @@ function SSOFormContent({
       )}
 
       <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-normal text-[var(--text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
-        By signing in, you agree to our{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
-        >
-          Privacy Policy
-        </Link>
+        <AuthLegalFooter action='signing in' />
       </div>
     </>
   )

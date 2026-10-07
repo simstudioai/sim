@@ -1,0 +1,45 @@
+---
+title: "o3"
+description: "Sim model reference for o3 on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `o3`
+
+Context window: 200000 tokens.
+
+Lifecycle: legacy.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 2,
+  "cachedInput": 0.5,
+  "output": 8,
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 100000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

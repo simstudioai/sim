@@ -1,6 +1,5 @@
 import { ahrefsAnalytics } from '@c15t/scripts/ahrefs-analytics'
 import { gtag } from '@c15t/scripts/google-tag'
-import { xPixel } from '@c15t/scripts/x-pixel'
 import { FREEBUFF_TAG_SRC, installFreebuffStub } from '@/lib/analytics/freebuff'
 
 export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
@@ -18,9 +17,7 @@ export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
  * visitor who accepts measurement but declines marketing gets a cookieless
  * ping rather than conversion tracking.
  */
-export const GOOGLE_ADS_ID = 'AW-17916292239' as const
-export const X_PIXEL_ID = 'q5xbl' as const
-export const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn' as const
+const GOOGLE_ADS_ID = 'AW-17916292239' as const
 
 const AHREFS_ANALYTICS_KEY = 'WJ9yWTBAiQKZAE/2TyU/yA' as const
 
@@ -75,6 +72,3 @@ export const GLOBAL_CONSENT_SCRIPTS = [
     onBeforeLoad: installFreebuffStub,
   },
 ] as const
-
-/** Marketing-page integrations that should not load on a direct workspace visit. */
-export const X_PIXEL_SCRIPT = xPixel({ pixelId: X_PIXEL_ID })

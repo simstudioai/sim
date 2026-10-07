@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -8,8 +7,7 @@ import {
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
-import { LANDING_ROUTES } from './lib/landing/routes'
-import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
+import referenceRedirects from './lib/navigation/reference-redirects.json'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -276,16 +274,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        /** Generated footer artwork uses content hashes, so URLs are immutable. */
-        source: '/landing/footer-artwork/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
-      {
-        /** Generated hero artwork uses content hashes, so URLs are immutable. */
-        source: '/landing/hero-artwork/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
-      {
         source: '/.well-known/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -335,9 +323,9 @@ const nextConfig: NextConfig = {
         // COEP stays on by default - a new route is cross-origin isolated unless
         // it is named here. The exemptions are the app surfaces that embed
         // credentialed third parties (Drive Picker, Vercel resources) and the
-        // marketing surface, which must opt out wholesale: see LANDING_ROUTES.
+        // Public HTML at the root has its own response policy.
         // The trailing `|$` exempts the root path.
-        source: `/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|${LANDING_ROUTES.join('|')}|$).*)`,
+        source: `/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|$).*)`,
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -431,244 +419,32 @@ const nextConfig: NextConfig = {
     ]
   },
   async redirects() {
-    const redirects = []
-
-    // Social link redirects (used in emails to avoid spam filter issues)
-    redirects.push(
-      {
-        source: '/discord',
-        destination: 'https://discord.gg/Hr4UWYEcTT',
-        permanent: false,
-      },
-      {
-        source: '/slack',
-        destination:
-          'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
-        permanent: false,
-      },
-      {
-        source: '/x',
-        destination: 'https://x.com/simdotai',
-        permanent: false,
-      },
-      {
-        source: '/linkedin',
-        destination: 'https://www.linkedin.com/company/simdotai/',
-        permanent: false,
-      },
-      {
-        source: '/github',
-        destination: 'https://github.com/simstudioai/sim',
-        permanent: false,
-      },
-      {
-        source: '/team',
-        destination: 'https://cal.com/team/sim/demo',
-        permanent: false,
-      }
-    )
-
-    /**
-     * Legacy `/building` and `/studio` URLs map to `/blog`. Posts since moved to
-     * `/library` get their own rules ahead of the wildcard (first match wins)
-     * so they land there in one hop instead of chaining through `/blog`.
-     */
-    for (const legacyPrefix of ['building', 'studio']) {
-      for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
-        redirects.push({
-          source: `/${legacyPrefix}/${slug}`,
-          destination: `${SIM_SITE_URL}/library/${slug}`,
+    return [
+      ...[
+        { source: '/discord', destination: 'https://discord.gg/Hr4UWYEcTT', permanent: false },
+        {
+          source: '/slack',
+          destination:
+            'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+          permanent: false,
+        },
+        { source: '/x', destination: 'https://x.com/simdotai', permanent: false },
+        {
+          source: '/linkedin',
+          destination: 'https://www.linkedin.com/company/simdotai/',
+          permanent: false,
+        },
+        { source: '/github', destination: 'https://github.com/simstudioai/sim', permanent: false },
+        { source: '/team', destination: 'https://cal.com/team/sim/demo', permanent: false },
+        { source: '/academy/:path*', destination: 'https://docs.sim.ai/academy', permanent: true },
+        {
+          source: '/workspace/:workspaceId/task/:chatId',
+          destination: '/workspace/:workspaceId/chat/:chatId',
           permanent: true,
-        })
-      }
-      redirects.push({
-        source: `/${legacyPrefix}/:path*`,
-        destination: `${SIM_SITE_URL}/blog/:path*`,
-        permanent: true,
-      })
-    }
-
-    // The scheduled-tasks marketing page is retired with the feature. The URL is
-    // indexed, so send it to the surface that still carries scheduled execution
-    // (the workflow Schedule trigger) instead of letting it 404.
-    redirects.push({
-      source: '/scheduled-tasks',
-      destination: '/workflows',
-      permanent: true,
-    })
-
-    /**
-     * The marketing Academy course/lesson pages were removed; content is
-     * consolidated into the docs site instead. Old course/lesson slugs have
-     * no equivalent path there, so every sub-path collapses to the new
-     * landing page rather than forwarding to a path that may not exist.
-     */
-    redirects.push({
-      source: '/academy/:path*',
-      destination: 'https://docs.sim.ai/academy',
-      permanent: true,
-    })
-
-    // Move root feeds to blog namespace
-    redirects.push(
-      {
-        source: '/rss.xml',
-        destination: '/blog/rss.xml',
-        permanent: true,
-      },
-      {
-        source: '/sitemap-images.xml',
-        destination: '/blog/sitemap-images.xml',
-        permanent: true,
-      }
-    )
-
-    // Legacy chat URL support: the workspace chat route was renamed from
-    // `/workspace/:workspaceId/task/:chatId` to `/workspace/:workspaceId/chat/:chatId`.
-    // Preserve existing bookmarks and deeplinks.
-    redirects.push({
-      source: '/workspace/:workspaceId/task/:chatId',
-      destination: '/workspace/:workspaceId/chat/:chatId',
-      permanent: true,
-    })
-
-    // Legacy integration slug: the incident.io block's display name was fixed
-    // from `incidentio` to `incident.io`, which moved its catalog slug.
-    // Preserve the previously indexed landing URL.
-    redirects.push({
-      source: '/integrations/incidentio',
-      destination: '/integrations/incident-io',
-      permanent: true,
-    })
-
-    /**
-     * Legacy integration slug: the SAP block's display name was fixed from
-     * `SAP S/4HANA` to `SAP S4HANA`, which moved its catalog slug. Preserves
-     * the previously indexed landing URL.
-     */
-    redirects.push({
-      source: '/integrations/sap-s-4hana',
-      destination: '/integrations/sap-s4hana',
-      permanent: true,
-    })
-
-    /**
-     * Legacy integration slug: the Cal.com block's display name briefly
-     * shipped as `CalCom` before being fixed to `Cal Com`/`Cal.com`, which
-     * moved its catalog slug from `calcom` to `cal-com`.
-     */
-    redirects.push({
-      source: '/integrations/calcom',
-      destination: '/integrations/cal-com',
-      permanent: true,
-    })
-
-    /**
-     * The partner program page was removed; routes existing links/bookmarks
-     * to contact instead of leaving a dead, previously-indexed URL.
-     */
-    redirects.push({
-      source: '/partners',
-      destination: '/contact',
-      permanent: true,
-    })
-
-    for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
-      redirects.push({
-        source: `/blog/${slug}`,
-        destination: `/library/${slug}`,
-        permanent: true,
-      })
-    }
-
-    for (const [retired, kept] of Object.entries(LIBRARY_MERGED_SLUGS)) {
-      redirects.push({
-        source: `/library/${retired}`,
-        destination: `/library/${kept}`,
-        permanent: true,
-      })
-    }
-
-    /**
-     * The comparison route was renamed from `/comparison` to `/comparisons`
-     * for naming consistency with `/integrations/[slug]` (plural category,
-     * singular item). Preserve previously indexed URLs for the hub page and
-     * every competitor detail page.
-     */
-    redirects.push(
-      {
-        source: '/comparison',
-        destination: '/comparisons',
-        permanent: true,
-      },
-      {
-        source: '/comparison/:path*',
-        destination: '/comparisons/:path*',
-        permanent: true,
-      }
-    )
-
-    /**
-     * Stray crawler/artifact URLs picked up in an external SEO audit — no
-     * page ever existed at these paths, but they were indexed or linked
-     * somewhere with junk characters/casing. Send them home instead of 404.
-     */
-    redirects.push(
-      {
-        source: '/$',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/&',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/Sim',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/homepage',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/logo',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/en-US',
-        destination: '/',
-        permanent: true,
-      }
-    )
-
-    /**
-     * Indexed 404s from an external SEO audit. The capability paths read as
-     * tool/feature pages and map to the integrations catalog; the rest have no
-     * closer successor than the homepage.
-     *
-     * `/security` is deliberately excluded: security.txt advertises it as the
-     * RFC 9116 `Policy` URI, so a permanent redirect to marketing would both
-     * mislead that link and shadow a real policy page added later.
-     */
-    redirects.push(
-      ...['read', 'research', 'scrape'].map((slug) => ({
-        source: `/${slug}`,
-        destination: '/integrations',
-        permanent: true,
-      })),
-      ...['actions', 'crawl', 'fast'].map((slug) => ({
-        source: `/${slug}`,
-        destination: '/',
-        permanent: true,
-      }))
-    )
-
-    return redirects
+        },
+      ],
+      ...referenceRedirects,
+    ]
   },
   async rewrites() {
     return [

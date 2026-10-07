@@ -1,0 +1,41 @@
+---
+title: "vertex/gemini-2.0-flash"
+description: "Sim model reference for vertex/gemini-2.0-flash on Vertex AI."
+---
+
+[Vertex AI](/models/vertex)
+
+Model ID: `vertex/gemini-2.0-flash`
+
+Context window: 1048576 tokens.
+
+Lifecycle: deprecated.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.15,
+  "cachedInput": 0.025,
+  "output": 0.6,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

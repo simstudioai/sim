@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { LogoShell } from '@/app/(landing)/components/logo-shell'
+import { LogoShell } from '@/components/logo-shell'
 
 interface DesktopHandoffShellProps {
   title: string

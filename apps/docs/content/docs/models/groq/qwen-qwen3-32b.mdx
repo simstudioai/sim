@@ -1,0 +1,47 @@
+---
+title: "groq/qwen/qwen3-32b"
+description: "Sim model reference for groq/qwen/qwen3-32b on Groq."
+---
+
+[Groq](/models/groq)
+
+Model ID: `groq/qwen/qwen3-32b`
+
+Context window: 131072 tokens.
+
+Lifecycle: deprecated.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.29,
+  "output": 0.59,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "toolUsageControl": true,
+  "maxOutputTokens": 40960,
+  "thinking": {
+    "levels": [
+      "enabled"
+    ],
+    "default": "enabled"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

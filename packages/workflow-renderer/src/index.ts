@@ -2,7 +2,6 @@ export {
   BlockTileView,
   type BlockTileViewProps,
   hasWorkflowTypeRole,
-  WorkflowTypeIcon,
   WorkflowTypeTag,
 } from '@sim/workflow-renderer/workflow-type'
 export {
@@ -54,11 +53,9 @@ export {
   type CanvasSentenceSegment,
   CanvasSentenceView,
 } from './workflow-block/canvas-sentence-view'
-export { InlineChip } from './workflow-block/inline-chip'
 export { normalizeCursorSourceHandleId } from './workflow-block/source-handle'
 export { SubBlockRowView } from './workflow-block/sub-block-row-view'
 export {
-  CONNECTION_KNOB_PEAK_PX,
   WorkflowBlockBorder,
   type WorkflowBorderPort,
 } from './workflow-block/workflow-block-border'

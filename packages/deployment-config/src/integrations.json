@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-06",
+  "updatedAt": "2026-10-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -23781,36 +23781,7 @@
       "oauthServiceId": "slack",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "webhooks", "automation"],
-      "landingContent": {
-        "install": {
-          "heading": "Add Sim to your Slack workspace",
-          "intro": "Sim connects to Slack through Slack’s official OAuth flow. The “Add to Slack” button lives inside your Sim account (after sign-in). Connect from there and the Sim bot is installed in your Slack workspace. The steps below show exactly how to reach it.",
-          "steps": [
-            {
-              "title": "Create your free Sim account",
-              "body": "Sign up at sim.ai. No credit card required."
-            },
-            {
-              "title": "Add a Slack block",
-              "body": "Open a workflow, drag in a Slack block, and open its credential dropdown."
-            },
-            {
-              "title": "Connect Slack",
-              "body": "Click Connect Slack, choose your workspace, and approve the requested permissions. This installs the Sim bot in your Slack workspace."
-            },
-            {
-              "title": "Invite the bot and build",
-              "body": "Invite the Sim bot to the channels it should act in, pick a Slack action, wire it into your agent, and run."
-            }
-          ]
-        },
-        "privacy": {
-          "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
-          "href": "/privacy"
-        },
-        "aiDisclaimer": "A paid Slack plan is required to use Sim's AI agent in Slack's app container. Other Sim features continue to work on free Slack plans. Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
-      }
+      "tags": ["messaging", "webhooks", "automation"]
     },
     {
       "type": "smartlead",

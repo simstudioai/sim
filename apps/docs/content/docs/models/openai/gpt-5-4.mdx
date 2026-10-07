@@ -1,0 +1,62 @@
+---
+title: "gpt-5.4"
+description: "Sim model reference for gpt-5.4 on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `gpt-5.4`
+
+Context window: 1050000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 2.5,
+  "cachedInput": 0.25,
+  "output": 15,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 5,
+      "cachedInput": 0.5,
+      "output": 22.5
+    }
+  ],
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ]
+  },
+  "verbosity": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.
