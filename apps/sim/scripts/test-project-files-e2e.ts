@@ -359,6 +359,7 @@ process.once('SIGINT', interrupt)
 process.once('SIGTERM', interrupt)
 
 const suites = [
+  ['delivery', 'FILE_DELIVERY', 'test-file-delivery-e2e.ts'],
   ['browser', 'PROJECT_FILE_BROWSER', 'test-project-file-browser-e2e.ts'],
   ['history', 'PROJECT_FILE_HISTORY', 'test-project-file-history-e2e.ts'],
   ['rendered', 'PROJECT_FILE_RENDERED', 'test-project-file-rendered-e2e.ts'],
@@ -414,6 +415,8 @@ try {
     })
   )
   for (const [name, prefix, script] of suites) {
+    const selectedSuites = process.env.PROJECT_FILES_E2E_SUITES?.split(',')
+    if (selectedSuites && !selectedSuites.includes(name)) continue
     assert.equal(interrupted, false, 'Acceptance run interrupted')
     await check(`Existing ${name} acceptance suite`, async () => {
       const fixture = await seed(name)

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getPublicFileContentContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -14,7 +14,8 @@ import {
   readPublicFileShareContent,
 } from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
-import { createFileResponse } from '@/app/api/files/utils'
+import { FILE_CACHE_CONTROL } from '@/lib/uploads/server/delivery'
+import { createConditionalFileResponse } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 const logger = createLogger('PublicFileContentAPI')
@@ -32,17 +33,28 @@ export const GET = withRouteHandler(
         credential: await publicFileShareCredential(request.cookies.getAll(), getClientIp(request)),
       })
       if (!auth.authorized) return publicFileAuthDenied(auth)
+      if (request.method === 'HEAD') {
+        return new NextResponse(null, {
+          headers: {
+            'Cache-Control': FILE_CACHE_CONTROL.revalidate,
+            'X-Content-Type-Options': 'nosniff',
+          },
+        })
+      }
       const result = await readPublicFileShareContent({
         grant: auth.grant,
         preview: parsed.data.query.preview === '1',
         request,
       })
-      return createFileResponse({
-        buffer: result.buffer,
-        contentType: result.contentType,
-        filename: result.file.originalName,
-        cacheControl: 'private, no-cache, must-revalidate',
-      })
+      return createConditionalFileResponse(
+        {
+          buffer: result.buffer,
+          contentType: result.contentType,
+          filename: result.file.originalName,
+          cacheControl: FILE_CACHE_CONTROL.revalidate,
+        },
+        request.headers.get('if-none-match')
+      )
     } catch (error) {
       logger.error('Error serving public shared file:', error)
       return publicFileBinaryErrorResponse(error, 'Failed to serve file')

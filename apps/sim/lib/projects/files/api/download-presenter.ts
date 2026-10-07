@@ -1,4 +1,4 @@
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
+import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/delivery'
 
 /** Serves the authorized archive through a buffer view, without cloning its bounded payload. */
 export function presentProjectFileDownload(result: {
@@ -6,15 +6,12 @@ export function presentProjectFileDownload(result: {
   fileName: string
   contentType: string
 }) {
-  return {
-    body: new Uint8Array(
-      result.buffer.buffer as ArrayBuffer,
-      result.buffer.byteOffset,
-      result.buffer.byteLength
-    ),
+  return presentFileDelivery({
+    body: result.buffer,
+    filename: result.fileName,
     contentType: result.contentType,
     contentLength: result.buffer.length,
-    contentDisposition: `attachment; ${encodeFilenameForHeader(result.fileName)}`,
-    headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' },
-  }
+    attachment: true,
+    cacheControl: FILE_CACHE_CONTROL.noStore,
+  })
 }

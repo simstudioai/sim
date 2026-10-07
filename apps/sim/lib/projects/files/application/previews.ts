@@ -60,7 +60,7 @@ const resolveInlineRecord = defineAuthorizedProjectFileUseCase({
 })
 
 /** Resolves a private object under its Project before reading, then fences its current head again. */
-export const readProjectInlineFile = defineAuthorizedProjectFileUseCase({
+const readInlineFile = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readInline,
   async prepare({ principal, input }: { principal: Principal; input: InlineInput }) {
     const file = await resolveInlineRecord.execute({ principal, input })
@@ -101,6 +101,14 @@ export const readProjectInlineFile = defineAuthorizedProjectFileUseCase({
   },
   afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
 })
+
+/** HEAD resolves the canonical image without fetching its bytes. */
+export const readProjectInlineFile = {
+  ...readInlineFile,
+  async authorize(args: Parameters<typeof readInlineFile.authorize>[0]) {
+    await resolveInlineRecord.execute(args)
+  },
+}
 
 interface CsvPreviewInput extends ProjectFileTarget {
   fileId: string

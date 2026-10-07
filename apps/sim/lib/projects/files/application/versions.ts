@@ -246,7 +246,7 @@ export const readProjectFileVersion = defineAuthorizedProjectFileUseCase({
   },
 })
 
-export const readProjectFileVersionContent = defineAuthorizedProjectFileUseCase({
+const readVersionContent = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readVersionContent,
   async prepare({
     principal,
@@ -273,6 +273,14 @@ export const readProjectFileVersionContent = defineAuthorizedProjectFileUseCase(
   },
   afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
 })
+
+/** HEAD validates retention and the selected version under the same operation without storage I/O. */
+export const readProjectFileVersionContent = {
+  ...readVersionContent,
+  async authorize(args: Parameters<typeof readVersionContent.authorize>[0]) {
+    await snapshotRead.execute(args)
+  },
+}
 
 export const revertProjectFileVersion = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.revertVersion,

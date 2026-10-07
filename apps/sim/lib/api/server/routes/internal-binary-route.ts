@@ -107,7 +107,10 @@ export function defineInternalBinaryRoute<
         if (request.method === 'HEAD' && options.headSafe === false) {
           if (!options.useCase.authorize) throw new Error('Missing HEAD authorization phase')
           await options.useCase.authorize({ principal, input, request })
-          return new NextResponse(null, { status: successStatus })
+          return new NextResponse(null, {
+            status: successStatus,
+            headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' },
+          })
         }
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
@@ -135,7 +138,14 @@ export function defineInternalBinaryRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (response.status >= 400) {
+      response.headers.set('Cache-Control', 'private, no-store')
+      response.headers.set('X-Content-Type-Options', 'nosniff')
+    }
+    return response
+  }
 }
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {

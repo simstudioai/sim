@@ -39,6 +39,7 @@ import {
 } from '@/lib/workspace-files/application/file-delivery-observer'
 import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   extractWorkspaceFileRecordText,
@@ -89,7 +90,7 @@ export interface ReadWorkspaceFileVersionTextResult extends ReadWorkspaceFileTex
   version: WorkspaceFileVersionRecord
 }
 
-export interface DownloadWorkspaceFileVersionResult extends DownloadWorkspaceFileStreamResult {
+interface DownloadWorkspaceFileVersionResult extends DownloadWorkspaceFileStreamResult {
   version: WorkspaceFileVersionRecord
 }
 
@@ -219,7 +220,7 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
   },
 })
 
-export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
+const downloadVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.downloadVersion,
   resolveContext: ({ input }: { input: FileVersionRef }) =>
     resolveActiveWorkspaceFileContext(input),
@@ -230,6 +231,24 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
     const result = await readFileVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )
+    await finishFileDelivery({
+      async authorize() {
+        await downloadVersion.authorize({ principal, input })
+        const currentFile = await loadActiveFile(context)
+        const current = await loadVersion(currentFile, input.version)
+        if (
+          current.key !== version.key ||
+          (version.isCurrent &&
+            currentFile.contentUpdatedAt?.getTime() !== file.contentUpdatedAt?.getTime())
+        )
+          throw new OrchestrationError('conflict', 'The selected version changed during download')
+      },
+      receipt: {
+        owner: { entityType: 'workspace', entityId: context.workspaceId },
+        files: result.receipt?.files.filter((entry) => entry.id !== file.id) ?? [],
+      },
+      stream: result.stream,
+    })
     return { ...result, file, version }
   },
   projectAudit: ({ result }) => ({
@@ -246,6 +265,16 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
     },
   }),
 })
+
+/** Historical HEAD checks the retained version without opening its storage object. */
+export const downloadWorkspaceFileVersion = {
+  ...downloadVersion,
+  async authorize(args: Parameters<typeof downloadVersion.authorize>[0]) {
+    await downloadVersion.authorize(args)
+    const context = await resolveActiveWorkspaceFileContext(args.input)
+    await loadVersion(await loadActiveFile(context), args.input.version)
+  },
+}
 
 async function executeRevertWorkspaceFileVersion({
   input,

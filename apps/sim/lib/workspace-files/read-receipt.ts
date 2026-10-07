@@ -17,7 +17,7 @@ export interface FileReadReceipt {
 /** A private immutable description of the canonical bytes consumed by a composite read. */
 export function createFileReadReceipt(
   owner: EditableFileOwner,
-  files: readonly WorkspaceFileRow[]
+  files: readonly Pick<WorkspaceFileRow, 'id' | 'key' | 'contentUpdatedAt'>[]
 ): FileReadReceipt {
   return Object.freeze({
     owner: Object.freeze({ ...owner }),

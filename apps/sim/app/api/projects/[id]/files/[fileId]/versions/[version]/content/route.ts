@@ -10,6 +10,7 @@ import { readProjectFileVersionContent } from '@/lib/projects/files/application'
 export const GET = defineInternalBinaryRoute({
   contract: readProjectFileVersionContentContract,
   auth: internalSessionAuth,
+  headSafe: false,
   operation: readProjectFileVersionContent.operation,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated historical byte delivery follows the workspace download policy',

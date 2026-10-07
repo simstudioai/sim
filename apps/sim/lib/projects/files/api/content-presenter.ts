@@ -1,8 +1,11 @@
 import type { OwnedFileRecord } from '@/lib/uploads/contexts/workspace'
-import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
-import { encodeFilenameForHeader, getSecureFileHeaders } from '@/app/api/files/utils'
+import {
+  bufferedRepresentationEtag,
+  FILE_CACHE_CONTROL,
+  presentFileDelivery,
+} from '@/lib/uploads/server/delivery'
 
-/** Presents authorized bytes without allowing shared caches or active uploaded documents. */
+/** Presents authorized bytes with a representation validator independent of optimistic write revisions. */
 export function presentProjectFileContent({
   file,
   content,
@@ -10,23 +13,13 @@ export function presentProjectFileContent({
   file: OwnedFileRecord
   content: Buffer
 }) {
-  const secure = getSecureFileHeaders(file.name, file.type)
-  const headers = new Headers({
-    'Cache-Control': 'private, no-store',
-    'X-Content-Type-Options': 'nosniff',
-  })
-  const revision = workspaceFileRevision(file)
-  if (revision) headers.set('ETag', `"${revision}"`)
-  if (secure.contentType === 'image/svg+xml')
-    headers.set(
-      'Content-Security-Policy',
-      "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-    )
-  return {
-    body: new Uint8Array(content),
-    contentType: secure.contentType,
+  const result = presentFileDelivery({
+    body: content,
+    filename: file.name,
+    contentType: file.type,
     contentLength: content.length,
-    contentDisposition: `${secure.disposition}; ${encodeFilenameForHeader(file.name)}`,
-    headers,
-  }
+    cacheControl: FILE_CACHE_CONTROL.noStore,
+  })
+  result.headers.set('ETag', bufferedRepresentationEtag(content))
+  return result
 }

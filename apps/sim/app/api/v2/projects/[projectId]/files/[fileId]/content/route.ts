@@ -24,6 +24,7 @@ export const GET = defineV2BinaryRoute({
   mapInput: ({ params }) => ({ projectId: params.projectId, fileId: params.fileId }),
   useCase: readProjectFileContent,
   present: presentProjectFileContent,
+  headSafe: false,
 })
 
 export const PUT = defineV2JsonRoute({

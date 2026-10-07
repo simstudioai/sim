@@ -20,10 +20,10 @@ import { NextResponse } from 'next/server'
 import { adminV1ExportWorkspaceContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { exportWorkspaceToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,

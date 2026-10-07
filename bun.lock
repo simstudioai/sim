@@ -394,6 +394,7 @@
       "devDependencies": {
         "@next/env": "16.3.6",
         "@opentelemetry/context-async-hooks": "2.10.0",
+        "@playwright/test": "1.61.1",
         "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@tailwindcss/postcss": "^4.3.3",

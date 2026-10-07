@@ -5,6 +5,7 @@ import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
 import { PROXY_CLIENT_MAX_BODY_BYTES } from './lib/core/config/request-limits'
 import {
+  FILE_DELIVERY_CSP_PATH_PATTERN,
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
@@ -424,11 +425,12 @@ const nextConfig: NextConfig = {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
           },
-          {
-            key: 'Content-Security-Policy',
-            value: getMainCSPPolicy(),
-          },
         ],
+      },
+      {
+        // File routes preserve their representation CSP in withRouteHandler.
+        source: `/((?!workspace|chat|login|signup|${FILE_DELIVERY_CSP_PATH_PATTERN.slice(1)}$|$).*)`,
+        headers: [{ key: 'Content-Security-Policy', value: getMainCSPPolicy() }],
       },
     ]
   },

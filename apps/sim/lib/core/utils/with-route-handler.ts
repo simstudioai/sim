@@ -5,10 +5,13 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
+import { FILE_DELIVERY_CSP_PATH_PATTERN, getMainCSPPolicy } from '@/lib/core/security/csp'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+
+const fileDeliveryPath = new RegExp(`^${FILE_DELIVERY_CSP_PATH_PATTERN}$`)
 
 const logger = createLogger('RouteHandler')
 
@@ -70,6 +73,12 @@ function applyResponseHeaders(
 ): void {
   if (!response?.headers) return
   response.headers.set('x-request-id', requestId)
+  if (
+    fileDeliveryPath.test(request.nextUrl?.pathname ?? '') &&
+    !response.headers.has('Content-Security-Policy')
+  ) {
+    response.headers.set('Content-Security-Policy', getMainCSPPolicy())
+  }
   const rateLimit = getRateLimitHeaders(request)
   if (!rateLimit) return
   for (const [name, value] of Object.entries(rateLimit)) {

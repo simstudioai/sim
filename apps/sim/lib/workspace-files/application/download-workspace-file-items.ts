@@ -1,4 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { db } from '@sim/db'
+import { compareStrings } from '@sim/utils/string'
 import {
   type AuthorizedWorkspaceUseCaseContext,
   capabilityGovernedPrincipalUserId,
@@ -27,6 +29,11 @@ import {
   normalizeFileDownloadSelection,
 } from '@/lib/workspace-files/download-selection'
 import { MAX_ZIP_DOWNLOAD_BYTES, MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import {
+  createFileReadReceipt,
+  type FileReadReceipt,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 export interface DownloadWorkspaceFileItemsInput {
   workspaceId: string
@@ -117,6 +124,7 @@ async function executeDownloadWorkspaceFileItems({
     .filter((file) => !needsRenderedArtifact(file.type, file.name))
     .reduce((sum, file) => sum + file.size, 0)
   const renderedDocuments = new Map<string, Buffer>()
+  const receipts: FileReadReceipt[] = []
   const pendingNames: string[] = []
   let renderedBytes = 0
 
@@ -125,9 +133,14 @@ async function executeDownloadWorkspaceFileItems({
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
-        maxBytes: allowance,
-      })
+      const { buffer, receipt } = await fetchAuthorizedServableWorkspaceFileBuffer(
+        file,
+        principal,
+        {
+          maxBytes: allowance,
+        }
+      )
+      receipts.push(receipt)
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
@@ -147,6 +160,56 @@ async function executeDownloadWorkspaceFileItems({
     throw new OrchestrationError('conflict', docNotReadyMessage(pendingNames))
   }
 
+  await downloadWorkspaceFileItems.authorize({ principal, input })
+  if (context.fileId === undefined) {
+    const actingUserId = capabilityGovernedPrincipalUserId(principal)
+    if (actingUserId) {
+      // permission-group-enforced: files.bulk_download — publication must use the current archive capability.
+      await assertWorkspaceCapability(
+        actingUserId,
+        context.workspaceId,
+        'files.bulk_download',
+        context.workspaceOrganizationId
+      )
+    }
+  }
+  const [currentFiles, currentFolders] = await Promise.all([
+    listWorkspaceFiles(context.workspaceId, { hydrateFolderPaths: false, throwOnError: true }),
+    listWorkspaceFileFolders(context.workspaceId),
+  ])
+  const currentPaths = buildWorkspaceFileFolderPathMap(currentFolders)
+  const currentSelection = expandFileDownloadFolders(selection, currentFolders, currentPaths)
+  const currentSelectedFiles = currentFiles.filter(
+    (file) =>
+      requestedFileIds.has(file.id) ||
+      (file.folderId != null && currentSelection.has(file.folderId))
+  )
+  const identity = (selected: WorkspaceFileRecord[], paths: Map<string, string>) =>
+    JSON.stringify(
+      [...selected]
+        .sort((a, b) => compareStrings(a.id, b.id))
+        .map((file) => [
+          file.id,
+          file.key,
+          file.name,
+          file.folderId,
+          file.folderId ? paths.get(file.folderId) : null,
+        ])
+    )
+  if (identity(currentSelectedFiles, currentPaths) !== identity(filesToZip, folderPaths))
+    throw new OrchestrationError('conflict', 'File selection changed while preparing the download')
+  receipts.push(
+    createFileReadReceipt(
+      { entityType: 'workspace', entityId: context.workspaceId },
+      filesToZip.map((file) => ({
+        ...file,
+        contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt,
+      }))
+    )
+  )
+  await db.transaction(async (tx) => {
+    for (const receipt of receipts) await recheckFileReadReceipt(tx, receipt)
+  })
   return { filesToZip, folderPaths, renderedDocuments, declaredBytes }
 }
 

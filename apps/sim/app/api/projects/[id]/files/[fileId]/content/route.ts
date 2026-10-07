@@ -16,6 +16,7 @@ import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orch
 export const GET = defineInternalBinaryRoute({
   contract: readProjectFileContentContract,
   auth: internalSessionAuth,
+  headSafe: false,
   operation: readProjectFileContent.operation,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated internal file byte delivery follows the workspace download policy',

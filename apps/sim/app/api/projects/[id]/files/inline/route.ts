@@ -11,6 +11,7 @@ import { readProjectInlineFile } from '@/lib/projects/files/application'
 export const GET = defineInternalBinaryRoute({
   contract: getInlineProjectFileContract,
   auth: internalSessionAuth,
+  headSafe: false,
   operation: readProjectInlineFile.operation,
   rateLimit: internalRateLimits.none({ reason: 'Authenticated embedded file delivery' }),
   errorPolicy: internalOrchestrationErrorPolicy,

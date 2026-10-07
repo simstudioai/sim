@@ -1,9 +1,9 @@
 import { v2DownloadFileVersionContract } from '@/lib/api/contracts/v2/file-versions'
 import { defineV2BinaryRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,10 +29,13 @@ export const GET = defineV2BinaryRoute({
     version: params.version,
   }),
   useCase: downloadWorkspaceFileVersion,
-  present: ({ file, stream, contentType, contentLength }) => ({
-    body: stream,
-    contentType,
-    contentDisposition: `attachment; ${encodeFilenameForHeader(file.name)}`,
-    contentLength,
-  }),
+  present: ({ file, stream, contentType, contentLength }) =>
+    presentFileDelivery({
+      body: stream,
+      filename: file.name,
+      contentType,
+      contentLength,
+      attachment: true,
+      cacheControl: FILE_CACHE_CONTROL.noStore,
+    }),
 })
