@@ -36,7 +36,7 @@ import {
 } from '@/app/api/files/uploads/finalizers'
 import type { InternalUploadPurpose } from '@/app/api/files/uploads/purposes'
 
-usersQueriesMockFns.mockFindUserEmailsByIds.mockImplementation(
+usersQueriesMockFns.mockGetUserEmailsByIds.mockImplementation(
   async () => new Map([['user-1', 'ada@example.com']])
 )
 

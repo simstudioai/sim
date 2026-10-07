@@ -33,14 +33,9 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
-import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -278,28 +273,19 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      await db.transaction(async (tx) => {
-        await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-          tx,
+      const removed = await db.transaction(async (tx) => {
+        const result = await revokeWorkspaceAccessTx(tx, {
           workspaceId,
-          departingUserId: existingMember.userId,
+          userId: existingMember.userId,
+          expectedPermissionId: existingMember.id,
         })
-
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-            tx,
-            workspaceIds: [workspaceId],
-            departingUserId: existingMember.userId,
-          })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
+        if (!result.revoked) {
+          if (result.reason === 'membership-changed') return false
           throw new WorkspaceBillingAccountRemovalError()
         }
-
-        await tx.delete(permissions).where(eq(permissions.id, memberId))
-
-        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, existingMember.userId)
-        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, existingMember.userId)
+        return true
       })
+      if (!removed) return notFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,

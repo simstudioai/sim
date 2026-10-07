@@ -160,7 +160,7 @@ export interface WorkspaceFileRecord {
   /** Intrinsic image pixel dimensions, populated lazily on first view. Null/absent for non-images. */
   width?: number | null
   height?: number | null
-  uploadedBy: string | null
+  uploadedBy: string
   folderId?: string | null
   folderPath?: string | null
   deletedAt?: Date | null

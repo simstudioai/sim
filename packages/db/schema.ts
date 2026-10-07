@@ -235,8 +235,9 @@ export const folder = pgTable(
     }),
     resourceType: folderResourceTypeEnum('resource_type').notNull(),
     name: text('name').notNull(),
-    /** Durable file folders outlive their creator; other folder types retain their cascade. */
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     parentId: text('parent_id').references((): AnyPgColumn => folder.id, {
       onDelete: 'set null',
@@ -248,10 +249,6 @@ export const folder = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (table) => ({
-    creatorLifetimeCheck: check(
-      'folder_creator_lifetime_check',
-      sql`${table.userId} IS NOT NULL OR (${table.resourceType} = 'file' AND num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1)`
-    ),
     ownerCheck: check(
       'folder_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND (${table.projectId} IS NULL OR ${table.resourceType} = 'file')`
@@ -2496,8 +2493,9 @@ export const workspaceFiles = pgTable(
     /** Direct owner, independent of creator, caller, and billing payer. */
     projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     key: text('key').notNull(),
-    /** Durable shared files outlive their creator; other contexts retain their cascade. */
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
@@ -2575,10 +2573,6 @@ export const workspaceFiles = pgTable(
     secretProvenanceVersion: integer('secret_provenance_version'),
   },
   (table) => ({
-    creatorLifetimeCheck: check(
-      'workspace_files_creator_lifetime_check',
-      sql`${table.userId} IS NOT NULL OR (${table.context} IN ('workspace', 'project') AND num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND ${table.organizationId} IS NULL)`
-    ),
     ownerCheck: check(
       'workspace_files_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.projectId}, ${table.organizationId}) <= 1`
