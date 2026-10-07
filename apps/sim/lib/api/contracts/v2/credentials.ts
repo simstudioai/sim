@@ -779,3 +779,105 @@ export const v2DeleteCredentialContract = defineRouteContract({
     schema: v2DataResponse(v2CredentialDeleteDataSchema),
   },
 })
+
+const v2CredentialMemberParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema
+      .max(255)
+      .describe('Credential whose sharing grants are managed.'),
+  })
+  .strict()
+
+const v2CredentialMemberScopeSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the credential.'),
+  })
+  .strict()
+
+const v2CredentialMemberSchema = z.object({
+  id: nonEmptyIdSchema.describe(
+    'Membership identifier; inherited grants have a derived identifier.'
+  ),
+  userId: nonEmptyIdSchema.describe('User holding the credential grant.'),
+  role: workspaceCredentialRoleSchema.describe('Effective credential role.'),
+  status: z
+    .enum(['active', 'pending', 'revoked'])
+    .describe('Explicit grant status, or active for inherited administrators.'),
+  joinedAt: v2TimestampSchema
+    .nullable()
+    .describe('When the explicit grant started; null for an inherited-only grant.'),
+  userName: z.string().nullable().describe('Member display name.'),
+  userEmail: z.string().nullable().describe('Member email.'),
+  userImage: z.string().nullable().describe('Member avatar URL.'),
+  roleSource: z
+    .enum(['explicit', 'workspace-admin'])
+    .describe('Whether workspace administrator access supplies the grant.'),
+})
+
+const v2ListCredentialMembersQuerySchema = v2CredentialMemberScopeSchema
+  .extend({
+    ...v2PaginationFields({ description: 'Maximum credential members to return per page.' }),
+    ...v2SortFields(['email', 'name'], { sortBy: 'email', sortOrder: 'asc' }),
+  })
+  .strict()
+
+export const v2ListCredentialMembersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/credentials/[credentialId]/members',
+  params: v2CredentialMemberParamsSchema,
+  query: v2ListCredentialMembersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2CredentialMemberSchema) },
+})
+
+const v2UpsertCredentialMemberBodySchema = z
+  .object({
+    userId: nonEmptyIdSchema
+      .max(255)
+      .describe('Existing workspace member to grant or change access for.'),
+    role: workspaceCredentialRoleSchema.describe(
+      'Credential role to grant; workspace administrators cannot be demoted.'
+    ),
+  })
+  .strict()
+
+export const v2UpsertCredentialMemberContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/credentials/[credentialId]/members',
+  params: v2CredentialMemberParamsSchema,
+  query: v2CredentialMemberScopeSchema,
+  body: v2UpsertCredentialMemberBodySchema,
+  response: {
+    mode: 'json',
+    status: [200, 201],
+    schema: v2DataResponse(
+      z.object({
+        userId: nonEmptyIdSchema.describe('User whose explicit grant was saved.'),
+        role: workspaceCredentialRoleSchema.describe('Saved explicit credential role.'),
+        created: z.boolean().describe('Whether a new explicit grant was created.'),
+      })
+    ),
+  },
+})
+
+const v2RemoveCredentialMemberParamsSchema = v2CredentialMemberParamsSchema
+  .extend({
+    userId: nonEmptyIdSchema.max(255).describe('User whose explicit grant will be revoked.'),
+  })
+  .strict()
+export const v2RemoveCredentialMemberContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/credentials/[credentialId]/members/[userId]',
+  params: v2RemoveCredentialMemberParamsSchema,
+  query: v2CredentialMemberScopeSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z.object({
+        userId: nonEmptyIdSchema.describe('User whose explicit grant was revoked.'),
+        revoked: z
+          .literal(true)
+          .describe('The grant is revoked; inherited workspace administrator access is preserved.'),
+      })
+    ),
+  },
+})

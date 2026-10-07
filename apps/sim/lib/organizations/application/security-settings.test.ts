@@ -45,8 +45,8 @@ import {
   removeOrganizationDomain,
   verifyOrganizationDomain,
 } from '@/lib/organizations/application/domain-settings'
+import { organizationSecurityOperations } from '@/lib/organizations/application/operations'
 import { revokeOrganizationSessions } from '@/lib/organizations/application/revoke-sessions'
-import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
 
 const mocks = {
   ...hoisted,
@@ -161,7 +161,12 @@ describe('organization domain Settings operations', () => {
     mocks.enterprise.mockResolvedValue(false)
     await expect(
       listOrganizationDomains.execute({ principal: delegated, input: { organizationId: 'org' } })
-    ).resolves.toEqual({ isEnterprise: false, domains: [], truncated: false })
+    ).resolves.toEqual({
+      isEnterprise: false,
+      domains: [],
+      truncated: false,
+      nextCursorKeys: null,
+    })
   })
   it.each(['remove', 'verify'] as const)(
     'invalidates the SSO requirement after a committed domain %s',

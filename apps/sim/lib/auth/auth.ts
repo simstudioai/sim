@@ -1454,7 +1454,7 @@ export const auth = betterAuth({
      * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
      * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
      * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
-     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * section visible and SSO entitlement passing while sign-in silently had no
      * SSO provider behind it.
      */
     ...(isSsoEnabled

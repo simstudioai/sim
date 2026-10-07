@@ -37,6 +37,10 @@ export const FORBIDDEN_DETAIL_CODES = [
   'ORGANIZATION_ADMIN_REQUIRED',
   /** The organization has no usable enterprise subscription. */
   'ENTERPRISE_PLAN_REQUIRED',
+  /** Verify DNS ownership before configuring a provider for this domain. */
+  'SSO_DOMAIN_NOT_VERIFIED',
+  /** The acting user has reached the configured identity-provider ceiling. */
+  'SSO_PROVIDER_LIMIT_REACHED',
   /** The organization has no usable organization plan of any tier. */
   'ORGANIZATION_PLAN_REQUIRED',
   /** Audit logging is switched off for this deployment. */

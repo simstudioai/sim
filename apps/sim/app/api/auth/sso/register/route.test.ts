@@ -11,17 +11,18 @@ import {
 } from '@sim/testing'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHasSSOAccess } = vi.hoisted(() => ({
-  mockHasSSOAccess: vi.fn(),
-}))
-
 /** Queues the caller's org membership row(s) for the admin/owner check. */
 function queueMembers(rows: Array<Record<string, unknown>>) {
+  queueTableRows(schemaMock.member, rows)
   queueTableRows(schemaMock.member, rows)
 }
 
@@ -41,17 +42,7 @@ function queueProviders(
   queueTableRows(schemaMock.ssoProvider, domainRows)
 }
 
-vi.mock('@/lib/billing', () => ({
-  hasSSOAccess: mockHasSSOAccess,
-}))
-
-vi.mock('@sim/utils/sso-domain', () => ({
-  normalizeSSODomain: (input: unknown): string | null => {
-    if (typeof input !== 'string') return null
-    const value = input.trim().toLowerCase()
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value) ? value : null
-  },
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -90,8 +81,8 @@ describe('POST /api/auth/sso/register', () => {
      * var, so the suite switch (`ENTERPRISE_ENABLED`) can register SSO too.
      */
     setEnvFlags({ isSsoEnabled: true })
-    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
-    mockHasSSOAccess.mockResolvedValue(true)
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 'session-1' } })
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
     mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
@@ -116,9 +107,11 @@ describe('POST /api/auth/sso/register', () => {
   })
 
   it('rejects callers without an Enterprise plan', async () => {
-    mockHasSSOAccess.mockResolvedValue(false)
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(false)
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'SSO requires an Enterprise plan' })
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 

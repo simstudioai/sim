@@ -8,17 +8,27 @@ import { generateId } from '@sim/utils/id'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+} from '@/lib/api/list-query'
+import {
   buildChallengeHost,
   checkDomainTxtRecord,
   generateVerificationToken,
 } from '@/lib/auth/sso/domain-verification'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
-import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
+import { organizationSecurityOperations } from '@/lib/organizations/application/operations'
 import {
   addOrganizationDomainBodySchema,
   MAX_ORGANIZATION_DOMAINS,
@@ -43,15 +53,19 @@ function domainValue(
   return {
     ...row,
     verificationToken:
-      principal.kind === 'session' && includeToken && row.status === 'pending'
+      (principal.kind === 'session' ||
+        principal.kind === 'personal_api_key' ||
+        principal.kind === 'oauth_access_token') &&
+      includeToken &&
+      row.status === 'pending'
         ? row.verificationToken
         : null,
   }
 }
 async function requireDomainEnterprise(organizationId: string) {
   if (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(organizationId)))
-    throw new OrchestrationError(
-      'forbidden',
+    throw new ForbiddenOperationError(
+      'ENTERPRISE_PLAN_REQUIRED',
       'Domain verification is available on Enterprise plans only'
     )
 }
@@ -87,12 +101,44 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
     context,
   }: {
     principal: Principal
-    input: OrganizationInput
+    input: OrganizationInput & {
+      limit?: number
+      sortBy?: 'domain'
+      sortOrder?: ListSortOrder
+      cursorKeys?: CursorKey[]
+    }
     context: { role: string }
   }) {
     const isEnterprise =
       !isBillingEnabled || (await isOrganizationOnEnterprisePlan(input.organizationId))
-    if (!isEnterprise) return { isEnterprise: false, domains: [], truncated: false }
+    if (!isEnterprise)
+      return { isEnterprise: false, domains: [], truncated: false, nextCursorKeys: null }
+    if (input.limit !== undefined) {
+      const sortKeys = [
+        textKey(ssoDomain.domain, (row: DomainRow) => row.domain),
+        textKey(ssoDomain.id, (row: DomainRow) => row.id),
+      ]
+      const rows = await db
+        .select()
+        .from(ssoDomain)
+        .where(
+          and(
+            eq(ssoDomain.organizationId, input.organizationId),
+            resumeKeyset(sortKeys, input.cursorKeys, input.sortOrder ?? 'asc')
+          )
+        )
+        .orderBy(...listOrderBy(keysetColumns(sortKeys), input.sortOrder ?? 'asc'))
+        .limit(input.limit + 1)
+      const page = keysetPage(sortKeys, rows, input.limit)
+      return {
+        isEnterprise: true,
+        truncated: false,
+        nextCursorKeys: page.nextCursorKeys,
+        domains: page.data.map((row) =>
+          domainValue(row, principal, context.role === 'owner' || context.role === 'admin')
+        ),
+      }
+    }
     const query = db
       .select()
       .from(ssoDomain)
@@ -107,6 +153,7 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
     return {
       isEnterprise: true,
       truncated,
+      nextCursorKeys: null,
       domains: (truncated ? rows.slice(0, MAX_ORGANIZATION_DOMAINS) : rows).map((row) =>
         domainValue(row, principal, context.role === 'owner' || context.role === 'admin')
       ),

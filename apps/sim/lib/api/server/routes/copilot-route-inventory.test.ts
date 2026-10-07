@@ -43,6 +43,24 @@ it('inventories private operation admission without executing route requests', a
       {
         "audience": null,
         "method": "GET",
+        "operation": "credentials.members.list",
+        "path": "/api/v2/credentials/[credentialId]/members",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "credentials.members.upsert",
+        "path": "/api/v2/credentials/[credentialId]/members",
+      },
+      {
+        "audience": null,
+        "method": "DELETE",
+        "operation": "credentials.members.remove",
+        "path": "/api/v2/credentials/[credentialId]/members/[userId]",
+      },
+      {
+        "audience": null,
+        "method": "GET",
         "operation": "files.versions.list",
         "path": "/api/v2/files/[fileId]/versions",
       },
@@ -267,6 +285,48 @@ it('inventories private operation admission without executing route requests', a
         "method": "POST",
         "operation": "permission_groups.members.bulk_add",
         "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.read_requirement",
+        "path": "/api/v2/organizations/[organizationId]/sso/policy",
+      },
+      {
+        "audience": null,
+        "method": "PATCH",
+        "operation": "organization.sso.set_requirement",
+        "path": "/api/v2/organizations/[organizationId]/sso/policy",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.providers.list",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "organization.sso.providers.save",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.providers.list",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+      },
+      {
+        "audience": null,
+        "method": "DELETE",
+        "operation": "organization.sso.providers.delete",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "organization.sso.set_primary_provider",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary",
       },
       {
         "audience": null,
