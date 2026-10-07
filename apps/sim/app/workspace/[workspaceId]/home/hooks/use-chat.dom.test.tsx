@@ -2290,6 +2290,46 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
+   * Send-now on a resumed message whose Stop of the running turn does not
+   * settle sends nothing. That says nothing about the earlier attempt the
+   * message resumes, so it must stay uneditable.
+   */
+  it('keeps a resumed message uneditable when its Send-now Stop does not settle', async () => {
+    state.abortSettlements = [false, false, false, false]
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+    await act(async () => {
+      await getResult().sendMessage('handed over from another surface', undefined, undefined, {
+        resumeUserMessageId: 'withdrawn-attempt',
+      })
+    })
+    await waitFor(() => useMothershipQueueStore.getState().queues['chat-a']?.length === 1)
+
+    await act(async () => {
+      await getResult()
+        .sendNow()
+        .catch(() => {})
+      await sleep(200)
+    })
+    const queued = useMothershipQueueStore.getState().queues['chat-a']?.[0]
+    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+    await act(async () => {
+      edited = getResult().editQueuedMessage(queued?.id ?? '')
+    })
+
+    expect(state.postBodies).toHaveLength(1)
+    expect(queued).toMatchObject({
+      content: 'handed over from another surface',
+      resumeUserMessageId: 'withdrawn-attempt',
+      admissionUnknown: true,
+    })
+    expect(edited).toBeUndefined()
+  })
+
+  /**
    * A held message the server then refuses as busy is known not to be a turn
    * there: the server answers a retry of an admitted id as a duplicate, never
    * as busy. The user can edit it again.

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import type { MothershipQueueState, QueuedMothershipMessage } from '@/stores/mothership-queue/types'
@@ -61,6 +62,25 @@ function withAdmissionGuard(message: QueuedMothershipMessage): QueuedMothershipM
     return message
   }
   return { ...message, admissionUnknown: true }
+}
+
+function isQueuedMessage(value: unknown): value is QueuedMothershipMessage {
+  const record = toRecordOrNull(value)
+  return record !== null && typeof record.id === 'string' && typeof record.content === 'string'
+}
+
+/**
+ * Queues saved to this tab's session, guarded on the way back in: an entry
+ * saved before `admissionUnknown` existed would otherwise be editable.
+ */
+function restoredQueues(persisted: unknown): Record<string, QueuedMothershipMessage[]> {
+  const queues: Record<string, QueuedMothershipMessage[]> = {}
+  for (const [chatKey, queue] of Object.entries(toRecord(toRecord(persisted).queues))) {
+    if (!Array.isArray(queue)) continue
+    const messages = queue.filter(isQueuedMessage).map(withAdmissionGuard)
+    if (messages.length > 0) queues[chatKey] = messages
+  }
+  return queues
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -263,6 +283,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         // edit text is component-local and empty after reload, so a persisted
         // editing flag would render an in-edit row with nothing bound.
         partialize: (state) => ({ queues: state.queues }),
+        merge: (persisted, current) => ({ ...current, queues: restoredQueues(persisted) }),
       }
     ),
     { name: 'mothership-queue-store' }
