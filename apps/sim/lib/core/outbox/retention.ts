@@ -10,11 +10,8 @@ const logger = createLogger('OutboxRetention')
 /** How long a completed event stays readable for operators after it was enqueued. */
 export const COMPLETED_OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60_000
 /**
- * Most rows deleted per type per run. The processor runs on every fifth minute's maintenance tick
- * and on any other minute with due work, so scheduled prune capacity is 1,000 rows × 288–1,440
- * runs a day per type: a steady trickle whose WAL and dead tuples autovacuum absorbs. Recovery
- * enqueues only inside a run (at most 200), so prune capacity stays five times its pace at any run
- * count.
+ * Most rows deleted per type per run. Recovery enqueues only inside a run, at most 200 per run, so
+ * a 1,000-row prune keeps five times its pace however often the processor runs.
  */
 export const OUTBOX_PRUNE_BATCH_SIZE = 1_000
 

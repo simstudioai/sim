@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type ScheduledPassResult, startScheduledPass } from '@/lib/core/async-jobs/scheduled-pass'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import {
@@ -10,13 +11,8 @@ import {
   dispatchWorkspaceFileSearchIndexJobs,
   hasWorkspaceFileSearchDispatchWork,
 } from '@/lib/workspace-files/search/dispatcher'
-import type { workspaceFileSearchDispatchTask } from '@/background/workspace-file-search-dispatch'
 
 const logger = createLogger('WorkspaceFileSearchDispatchEnqueue')
-
-export type WorkspaceFileSearchDispatchEnqueueResult =
-  | { triggered: true; backend: 'trigger-dev' | 'inline'; jobId: string | null }
-  | { triggered: false; backend: null; jobId: null }
 
 /**
  * Starts no dispatcher run when there is nothing to dispatch. A failed check starts one anyway, so
@@ -37,31 +33,16 @@ async function hasDispatchWork(): Promise<boolean> {
  * Durably hands a dispatcher run to Trigger.dev and returns after acceptance. The inline branch is
  * development-only and detaches from the HTTP response because the local server is long-lived.
  */
-export async function enqueueWorkspaceFileSearchDispatch(): Promise<WorkspaceFileSearchDispatchEnqueueResult> {
-  if (!(await hasDispatchWork())) {
-    return { triggered: false, backend: null, jobId: null }
-  }
-
-  if (!isTriggerDevEnabled) {
-    runDetached('workspace-file-search-dispatch', dispatchWorkspaceFileSearchIndexJobs)
-    return { triggered: true, backend: 'inline', jobId: null }
-  }
-
-  const [{ tasks }, { resolveTriggerRegion }] = await Promise.all([
-    import('@trigger.dev/sdk'),
-    import('@/lib/core/async-jobs/region'),
-  ])
-  const scheduleWindow = Math.floor(Date.now() / FILE_SEARCH_DISPATCH_INTERVAL_MS)
-  const handle = await tasks.trigger<typeof workspaceFileSearchDispatchTask>(
-    'workspace-file-search-dispatch',
-    undefined,
-    {
-      idempotencyKey: `workspace-file-search-dispatch:${scheduleWindow}`,
-      idempotencyKeyTTL: '5m',
-      maxDuration: FILE_SEARCH_DISPATCH_MAX_DURATION_SECONDS,
-      region: await resolveTriggerRegion(),
-      ttl: '5m',
-    }
-  )
-  return { triggered: true, backend: 'trigger-dev', jobId: handle.id }
+export async function enqueueWorkspaceFileSearchDispatch(): Promise<ScheduledPassResult> {
+  return startScheduledPass({
+    due: await hasDispatchWork(),
+    triggerAvailable: () => isTriggerDevEnabled,
+    startInline: () =>
+      runDetached('workspace-file-search-dispatch', dispatchWorkspaceFileSearchIndexJobs),
+    trigger: {
+      taskId: 'workspace-file-search-dispatch',
+      intervalMs: FILE_SEARCH_DISPATCH_INTERVAL_MS,
+      options: { maxDuration: FILE_SEARCH_DISPATCH_MAX_DURATION_SECONDS, ttl: '5m' },
+    },
+  })
 }

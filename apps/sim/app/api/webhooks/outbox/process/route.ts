@@ -20,15 +20,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
     const accepted = await enqueueOutboxProcessor()
-    if (accepted.backend === null) {
+    if (!accepted.triggered) {
       return NextResponse.json({ success: true, requestId, triggered: false })
     }
     if (accepted.backend === 'trigger-dev') {
       logger.info('Outbox processor accepted', { jobId: accepted.jobId })
-      return NextResponse.json(
-        { success: true, requestId, triggered: true, ...accepted },
-        { status: 202 }
-      )
+      return NextResponse.json({ success: true, requestId, ...accepted }, { status: 202 })
     }
     return NextResponse.json({ success: true, requestId, ...accepted.output })
   } catch (error) {

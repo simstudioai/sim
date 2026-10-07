@@ -34,12 +34,12 @@ const BACKENDS = [
   {
     name: 'Trigger.dev',
     isTriggerDevEnabled: true,
-    started: { backend: 'trigger-dev', jobId: 'run-1' },
+    started: { triggered: true, backend: 'trigger-dev', jobId: 'run-1' },
   },
   {
     name: 'self-hosted inline',
     isTriggerDevEnabled: false,
-    started: { backend: 'inline', output: INLINE_OUTPUT },
+    started: { triggered: true, backend: 'inline', jobId: null, output: INLINE_OUTPUT },
   },
 ] as const
 
@@ -66,6 +66,20 @@ describe('outbox processor enqueue', () => {
     expect(keys[2]).not.toBe(keys[0])
   })
 
+  it('keys the run by the window its tick was gated in when the work check outlasts it', async () => {
+    mocks.hasDueWork.mockImplementationOnce(async () => {
+      vi.advanceTimersByTime(60_000)
+      return true
+    })
+    await enqueueOutboxProcessor()
+    expect(mocks.trigger).toHaveBeenCalledWith('process-outbox', undefined, {
+      idempotencyKey: 'process-outbox:29826034',
+      idempotencyKeyTTL: '5m',
+      maxDuration: 900,
+      region: 'us-east-1',
+    })
+  })
+
   it('fails closed on an enqueue error without starting concurrent inline work', async () => {
     mocks.trigger.mockRejectedValueOnce(new Error('Trigger unavailable'))
     await expect(enqueueOutboxProcessor()).rejects.toThrow('Trigger unavailable')
@@ -80,7 +94,12 @@ describe('outbox processor enqueue', () => {
       reapedBackgroundWork: 1,
     }
     mocks.processor.mockResolvedValueOnce(output)
-    await expect(enqueueOutboxProcessor()).resolves.toEqual({ backend: 'inline', output })
+    await expect(enqueueOutboxProcessor()).resolves.toEqual({
+      triggered: true,
+      backend: 'inline',
+      jobId: null,
+      output,
+    })
     expect(mocks.trigger).not.toHaveBeenCalled()
   })
 
@@ -89,7 +108,11 @@ describe('outbox processor enqueue', () => {
     async ({ isTriggerDevEnabled }) => {
       setEnvFlags({ isTriggerDevEnabled })
       mocks.hasDueWork.mockResolvedValue(false)
-      await expect(enqueueOutboxProcessor()).resolves.toEqual({ backend: null, triggered: false })
+      await expect(enqueueOutboxProcessor()).resolves.toEqual({
+        triggered: false,
+        backend: null,
+        jobId: null,
+      })
     }
   )
 
