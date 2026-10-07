@@ -669,9 +669,10 @@ describe('agent commands in tmux', () => {
     }
   })
 
-  it('forgets a run that finished before its terminal closed', async () => {
+  it('closes and then forgets a run that finished before its terminal closed', async () => {
     tmuxFake.on = true
     tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
     const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
     const ledgerDir = join(scratch, 'terminal-runs')
     try {
@@ -684,9 +685,14 @@ describe('agent commands in tmux', () => {
       const [[, statusPath = ''] = []] = [...tmuxFake.statusPaths]
       writeFileSync(statusPath, '0')
 
+      const [pane = ''] = [...tmuxFake.statusPaths.keys()]
+      // Its dead pane is still open, as with `remain-on-exit`.
+      expect(tmuxFake.open.has(pane)).toBe(true)
+
       terminal.closeTerminal(activeTerminalId as string)
 
-      expect(createRunLedger(ledgerDir).list()).toEqual([])
+      await vi.waitFor(() => expect(createRunLedger(ledgerDir).list()).toEqual([]))
+      expect(tmuxFake.open.has(pane)).toBe(false)
     } finally {
       tmuxFake.on = false
       rmSync(scratch, { recursive: true, force: true })

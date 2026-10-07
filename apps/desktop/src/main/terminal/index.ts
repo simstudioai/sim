@@ -537,8 +537,12 @@ export class TerminalService {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
     for (const handle of pending) {
-      // A finished run needs no record; an untracked one is never stopped, so is not kept either.
-      if (isRunComplete(handle)) this.forgetRun(handle)
+      // A finished run's pane may still be open (`remain-on-exit`): it is closed, while still the
+      // run's, before the record goes. Without the shell's environment the record stays, and the
+      // next sweep closes it. An untracked run is never stopped, so it is not kept either.
+      if (isRunComplete(handle) && env) {
+        void closeRunPane(handle, env).finally(() => this.forgetRun(handle))
+      }
       if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
     }
