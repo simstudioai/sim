@@ -18,8 +18,10 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
 import {
+  chatViewDesktopLeaseOwnerToken,
   getDesktopToolClaimOwner,
   isDesktopToolCall,
+  isLeasedChatViewDesktopTool,
   isLocalReadToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
 
@@ -52,7 +54,7 @@ function refusedClaimResponse(
  * that they have not allowed.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+  const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return createUnauthorizedResponse()
   }
@@ -114,11 +116,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 409 }
         )
       if (toolCall.status !== 'pending') return alreadyStarted()
+      // The import's lease is held by this session; the chat view renews it while the import runs.
       const { outcome } = await claimDesktopToolCall({
         toolCallId: toolCall.toolCallId,
         runId: toolCall.runId,
         userId,
         claimedBy: DESKTOP_TOOL_CLAIM_OWNER.files,
+        ...(principal && isLeasedChatViewDesktopTool(toolCall.toolName)
+          ? { chatView: { ownerToken: chatViewDesktopLeaseOwnerToken(principal.sessionId) } }
+          : {}),
       })
       if (outcome !== 'claimed') return refusedClaimResponse(outcome, alreadyStarted)
     } else if (

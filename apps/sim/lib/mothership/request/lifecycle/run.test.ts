@@ -3545,6 +3545,83 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
+  it('waits on a chat-view import while its lease is renewed, and fails it once the lease lapses', async () => {
+    vi.useFakeTimers()
+    try {
+      const bodies: Record<string, unknown>[] = []
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = 'Tool execution hung'
+        }
+      )
+      // Renewed once past the default budget, then the renewals stop and the lease lapses.
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+        .mockResolvedValueOnce(50_000)
+        .mockResolvedValue(null)
+      mockRunStreamLoop.mockImplementationOnce(
+        async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.toolCalls.set('tool-import', {
+            id: 'tool-import',
+            name: 'import_local_files',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-import', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-import'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.accumulatedContent = 'Done.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'import', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+
+      // Past the default budget (60 s + 30 s grace) the lease is still live: no force-fail.
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      // Once the lease the renewals kept alive runs out, the import is failed as lost.
+      await vi.advanceTimersByTimeAsync(52_000)
+      const result = await lifecycle
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-import',
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1' })
+      )
+      expect(bodies[1].results).toEqual([
+        expect.objectContaining({ callId: 'tool-import', success: false }),
+      ])
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('force-fails each hung tool on its own budget while awaiting a long approval', async () => {
     vi.useFakeTimers()
     try {

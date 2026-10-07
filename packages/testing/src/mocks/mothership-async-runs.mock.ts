@@ -35,6 +35,10 @@ export const mothershipAsyncRunsMockFns = {
   mockClaimToolExecution: vi.fn(),
   mockClaimDesktopToolCall: vi.fn(),
   mockRenewSimToolExecutionLease: vi.fn(),
+  /** No chat-view lease by default: a pending call keeps its plain wait budget. */
+  mockGetChatViewDesktopLeaseRemainingMs: vi.fn(
+    async (_toolCallId: string): Promise<number | null> => null
+  ),
   mockRevokeExpiredSimToolExecutions: vi.fn(),
   mockSettleSimToolExecution: vi.fn(),
   mockSettleClientWorkflowToolExecution: vi.fn(),
@@ -96,6 +100,8 @@ export const mothershipAsyncRunsMock = {
   claimToolExecution: mothershipAsyncRunsMockFns.mockClaimToolExecution,
   claimDesktopToolCall: mothershipAsyncRunsMockFns.mockClaimDesktopToolCall,
   renewSimToolExecutionLease: mothershipAsyncRunsMockFns.mockRenewSimToolExecutionLease,
+  getChatViewDesktopLeaseRemainingMs:
+    mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs,
   revokeExpiredSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExpiredSimToolExecutions,
   settleSimToolExecution: mothershipAsyncRunsMockFns.mockSettleSimToolExecution,
   settleClientWorkflowToolExecution:

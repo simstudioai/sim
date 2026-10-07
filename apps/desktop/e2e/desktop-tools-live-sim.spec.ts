@@ -11,6 +11,7 @@ import {
   test,
 } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import {
@@ -34,6 +35,10 @@ import {
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const config = liveSimConfig()
 const PICKUP_GRACE_MS = 15_000
+/** Longer than the default tool budget (60 s) plus the resume grace (30 s). */
+const LONG_IMPORT_MS = 120_000
+/** The execution lease a running import holds and renews (`SIM_TOOL_EXECUTION_LEASE_SECONDS`). */
+const LEASE_MS = 60_000
 /** How long a held request may take to arrive once the step that sends it ran. */
 const ARRIVAL_MS = 60_000
 /** First requests to a route compile it, which takes minutes on a cold dev app. */
@@ -470,6 +475,69 @@ test.describe('desktop tools against a live Sim', () => {
     expect(call).toMatchObject({ toolName: 'import_local_files', status: 'cancelled' })
     expect(await db.workspaceFolderNames(user.workspaceId)).not.toContain('later')
     expect(await db.workspaceFileNames(user.workspaceId)).toEqual(['a.txt'])
+  })
+
+  /** An import whose first upload the proxy holds until released, as a large file's would take. */
+  async function slowImport(user: SeededUser, title: string, marker: string) {
+    const source = importSource()
+    let callId = ''
+    agent.script(marker, (turn) => {
+      callId = turn.toolCall({
+        toolName: 'import_local_files',
+        args: { path: source, targetWorkspaceId: user.workspaceId },
+      })
+      turn.pause()
+    })
+    const page = await openApp(user, title)
+    const firstUpload = proxy.hold(isUploadStart)
+    await send(page, `${marker} import my reports`)
+    await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
+    return { page, firstUpload, callId: () => callId }
+  }
+
+  test('an import that runs longer than the default tool budget still completes', async () => {
+    test.setTimeout(420_000)
+    const user = await db.seedUser(['Long import chat', 'Other chat'])
+    const chatId = user.chats['Long import chat']
+    const { page, firstUpload, callId } = await slowImport(
+      user,
+      'Long import chat',
+      '[long-import]'
+    )
+    // The import is alive and working past the 60 s default budget and its 30 s grace, while the
+    // user is in another chat: its lease is renewed by the import, not by the chat view.
+    await openChat(page, user, 'Other chat')
+    await page.waitForTimeout(LONG_IMPORT_MS)
+    expect(agent.resultFor(callId())).toBeUndefined()
+    firstUpload.release()
+
+    await agent.waitForResume(() => Boolean(agent.resultFor(callId())), 120_000)
+    const result = agent.resultFor(callId())
+    expect(JSON.stringify(result?.data)).not.toContain('outcomeUnknown')
+    expect(result?.success).toBe(true)
+    await expect
+      .poll(() => db.workspaceFileNames(user.workspaceId), { timeout: 30_000 })
+      .toEqual(['a.txt', 'b.txt'])
+    expect(await callState(chatId)).toMatch(/^completed/)
+  })
+
+  test('a long import whose window crashed settles as outcome unknown about one lease later', async () => {
+    test.setTimeout(420_000)
+    const user = await db.seedUser(['Crashing import chat'])
+    const { callId } = await slowImport(user, 'Crashing import chat', '[crash-import]')
+    await sleep(LONG_IMPORT_MS)
+    expect(agent.resultFor(callId())).toBeUndefined()
+    // A crash reports nothing on its way out, unlike a closed window: only the lapse of the
+    // lease the page was renewing tells Sim the import is gone.
+    const crashedAt = Date.now()
+    await app?.evaluate(({ webContents }) => {
+      for (const contents of webContents.getAllWebContents())
+        if (contents.getURL().includes('/workspace/')) contents.forcefullyCrashRenderer()
+    })
+    await agent.waitForResume(() => Boolean(agent.resultFor(callId())), 150_000)
+    const result = agent.resultFor(callId())
+    expect(result?.data).toMatchObject({ outcomeUnknown: true })
+    expect((result?.at ?? 0) - crashedAt).toBeLessThan(LEASE_MS + 20_000)
   })
 
   test('signing out ends a desktop tool still running', async () => {

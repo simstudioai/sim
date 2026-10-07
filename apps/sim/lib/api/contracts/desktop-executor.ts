@@ -136,11 +136,21 @@ export const claimDesktopToolContract = defineRouteContract({
   error: z.object({ error: z.string() }),
 })
 
-const renewDesktopToolLeaseBodySchema = z.object({
-  deviceId: desktopDeviceIdSchema,
-  toolCallId: desktopToolCallIdSchema,
-  executionToken: z.string().min(1).max(128),
-})
+/**
+ * A device renews a call of a run bound to it under its execution token; the chat view renews an
+ * import it claimed (`chatView`), as the session that claimed it.
+ */
+const renewDesktopToolLeaseBodySchema = z.union([
+  z.object({
+    deviceId: desktopDeviceIdSchema,
+    toolCallId: desktopToolCallIdSchema,
+    executionToken: z.string().min(1).max(128),
+  }),
+  z.object({
+    toolCallId: desktopToolCallIdSchema,
+    chatView: z.literal(true),
+  }),
+])
 export type RenewDesktopToolLeaseBody = z.input<typeof renewDesktopToolLeaseBodySchema>
 
 export const renewDesktopToolLeaseResponseSchema = z.object({ renewed: z.literal(true) })

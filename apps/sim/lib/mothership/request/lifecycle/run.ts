@@ -16,7 +16,11 @@ import {
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
-import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import {
+  createRunSegment,
+  getChatViewDesktopLeaseRemainingMs,
+  updateRunStatus,
+} from '@/lib/mothership/async-runs/repository'
 import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
 import {
   type CopilotEnvironmentContext,
@@ -87,6 +91,9 @@ import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
+
+/** After a renewed lease's end, the wait looks once more before it calls the call lost. */
+const LEASE_RECHECK_SLACK_MS = 1_000
 
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
@@ -1395,11 +1402,24 @@ async function runCheckpointLoop(
           maximumWaitBudgetMs = Math.max(maximumWaitBudgetMs, waitBudgetMs)
         }
 
-        const expiredTools = Array.from(pendingWatchdogs.entries()).filter(
+        const overdueTools = Array.from(pendingWatchdogs.entries()).filter(
           ([toolCallId, watchdog]) =>
             watchdog.deadlineAt <= now &&
             context.pendingToolPromises.get(toolCallId) === watchdog.promise
         )
+        // A desktop import the chat view is running renews its lease while it works: its budget
+        // runs to the end of that lease, and only a lapsed lease fails it.
+        const leases = await Promise.all(
+          overdueTools.map(([toolCallId]) =>
+            getChatViewDesktopLeaseRemainingMs(toolCallId).catch(() => null)
+          )
+        )
+        const expiredTools = overdueTools.filter(([, watchdog], index) => {
+          const remainingMs = leases[index]
+          if (typeof remainingMs !== 'number' || remainingMs <= 0) return true
+          watchdog.deadlineAt = Date.now() + remainingMs + LEASE_RECHECK_SLACK_MS
+          return false
+        })
         if (expiredTools.length > 0) {
           await Promise.all(
             expiredTools.map(async ([toolCallId, watchdog]) => {

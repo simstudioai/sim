@@ -87,3 +87,20 @@ export const STOPPED_BEFORE_START_MESSAGE =
 /** What the model learns about a desktop call that Stop cancelled after the desktop picked it up. */
 export const STOPPED_WHILE_RUNNING_MESSAGE =
   'Stopped by the user while the Sim desktop app was running this action. It may already have taken effect; inspect the current state before repeating it.'
+
+/**
+ * The lease owner token of a desktop call the chat view claims under a session: only that session
+ * renews the lease.
+ */
+export function chatViewDesktopLeaseOwnerToken(sessionId: string): string {
+  return `chat-view:${sessionId}`
+}
+
+/**
+ * Desktop calls the chat view keeps alive with a renewed lease while they run: imports, which
+ * take as long as their files do (up to 1,000 entries of up to 64 MB each). Reads finish in
+ * seconds and keep the default budget.
+ */
+export function isLeasedChatViewDesktopTool(toolName: string): boolean {
+  return toolName === 'import_local_files'
+}

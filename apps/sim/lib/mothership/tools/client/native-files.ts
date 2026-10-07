@@ -15,11 +15,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { renewDesktopToolLeaseContract } from '@/lib/api/contracts/desktop-executor'
 import {
   createWorkspaceFileFolderContract,
   listWorkspaceFileFoldersContract,
 } from '@/lib/api/contracts/workspace-file-folders'
 import { getDesktopBridge } from '@/lib/desktop'
+import { SIM_TOOL_EXECUTION_HEARTBEAT_MS } from '@/lib/mothership/async-runs/execution-lease'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import {
   reportClientToolCompletion,
@@ -109,6 +111,25 @@ export async function importNativeFiles(
   }
 }
 
+/**
+ * Renews an import's lease every heartbeat until stopped, or until the server refuses (the call
+ * was stopped, settled, or its lease already lapsed), the way a desktop renews a bound call.
+ */
+function keepImportLeased(toolCallId: string): { stop(): void } {
+  const timer = setInterval(() => {
+    requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
+      (error) => {
+        logger.warn('Could not renew the import lease; it will lapse', {
+          toolCallId,
+          error: getErrorMessage(error),
+        })
+        clearInterval(timer)
+      }
+    )
+  }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
+  return { stop: () => clearInterval(timer) }
+}
+
 /** The server claims imports before reading their manifest, preventing replayed uploads. */
 export async function executeNativeFileTool(
   toolCallId: string,
@@ -141,12 +162,23 @@ export async function executeNativeFileTool(
       throw new Error(response.error)
     }
     if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
-    const completion =
-      response.data.kind === 'manifest'
-        ? localFileImportCompletion(await importNativeFiles(toolCallId, response.data, signal))
-        : localFileReadCompletion(response)
-    // Cancelled by the user's Stop or by signing out: whoever cancelled it settles the call, as for
-    // browser actions and granted-folder reads. A failure reported here would race Stop's record.
+    let completion
+    if (response.data.kind === 'manifest') {
+      // The import's claim took a lease under this session: keep it renewed while files transfer,
+      // so the turn waits for the import however long it takes, and no longer than a lease once
+      // this page stops renewing (closed, crashed, or signed out).
+      const lease = keepImportLeased(toolCallId)
+      try {
+        completion = localFileImportCompletion(
+          await importNativeFiles(toolCallId, response.data, signal)
+        )
+      } finally {
+        lease.stop()
+      }
+    } else completion = localFileReadCompletion(response)
+    // Cancelled by the user's Stop: Stop settles the call. Cancelled by signing out: nobody reports
+    // it, and the server's resume watchdog settles it once its budget or lease runs out. Either way
+    // a failure reported here would race the settlement that decides the call.
     if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
