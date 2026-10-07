@@ -1,6 +1,6 @@
 import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { projectWorkspace, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
@@ -13,7 +13,7 @@ import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-as
 export async function resolveCopilotProjectScope(
   principal: ResourceDelegatedPrincipal,
   assertedOrganizationId?: string
-): Promise<{ organizationId?: string; projectId?: string }> {
+): Promise<{ organizationId: string | null; workspaceId?: string }> {
   if (principal.serviceId !== 'copilot')
     throw new OrchestrationError('forbidden', 'Project access requires Copilot delegation')
   const userId = principal.subjectUserId
@@ -47,10 +47,8 @@ export async function resolveCopilotProjectScope(
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      projectId: projectWorkspace.projectId,
     })
     .from(workspace)
-    .innerJoin(projectWorkspace, eq(projectWorkspace.workspaceId, workspace.id))
     .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .limit(1)
   if (
@@ -66,5 +64,5 @@ export async function resolveCopilotProjectScope(
     context.workspaceOrganizationId,
     db
   )
-  return { projectId: context.projectId }
+  return { organizationId: context.workspaceOrganizationId, workspaceId }
 }

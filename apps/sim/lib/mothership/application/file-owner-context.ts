@@ -9,7 +9,7 @@ import {
 import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import type { FileOwnerContext } from '@/lib/mothership/generated/file-owner'
 import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/file-owner-protocol'
-import { listProjects } from '@/lib/projects/application'
+import { getCurrentWorkspaceProject } from '@/lib/projects/application'
 import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 
 /** Adds current owner hints to admitted authoring turns using the worker's generated contract. */
@@ -37,10 +37,12 @@ export async function withFileOwnerContext(
   if (context.workspaceId) {
     const discoveryContext = { ...context, toolCallId: `file-context:${generateId()}` }
     try {
-      const result = await executeCopilotProjectDiscovery(discoveryContext, listProjects, {
-        limit: 1,
-      })
-      const project = result.projects[0]
+      const result = await executeCopilotProjectDiscovery(
+        discoveryContext,
+        getCurrentWorkspaceProject,
+        {}
+      )
+      const project = result.project
       if (project) {
         const owner = { entityType: 'project' as const, entityId: project.id }
         const capability = await getCopilotFileOwnerAdapter(owner).capabilities?.(

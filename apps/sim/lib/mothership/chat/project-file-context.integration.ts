@@ -18,7 +18,7 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
@@ -66,12 +66,17 @@ function identityCheck(name: string, run: () => Promise<void>) {
   })
 }
 
-const fixtures: { userId: string; workspaceId: string; fileId: string }[] = []
+const fixtures: {
+  userId: string
+  workspaceId: string
+  fileId: string
+  originWorkspaceId?: string
+}[] = []
 beforeEach(() => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
   vi.stubEnv('PROJECT_FILES_ENABLED', 'true')
 })
-async function fixture() {
+async function fixture(crossProject = false) {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
@@ -103,8 +108,26 @@ async function fixture() {
     .where(eq(projectWorkspace.workspaceId, workspaceId))
   if (!binding) throw new Error('Project binding missing')
   const projectId = binding.projectId
-  fixtures.push({ userId, workspaceId, fileId })
-  await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
+  const originWorkspaceId = crossProject ? generateId() : workspaceId
+  if (crossProject) {
+    await insertWorkspaceFixture(db, {
+      id: originWorkspaceId,
+      ownerId: userId,
+      billedAccountUserId: userId,
+      name: 'Origin in another Project',
+    })
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId,
+      entityType: 'workspace',
+      entityId: originWorkspaceId,
+      permissionType: 'read',
+    })
+  }
+  fixtures.push({ userId, workspaceId, fileId, originWorkspaceId })
+  await db
+    .insert(copilotChats)
+    .values({ id: chatId, userId, workspaceId: originWorkspaceId, type: 'mothership' })
   await db.insert(workspaceFiles).values({
     id: fileId,
     projectId: projectId,
@@ -128,44 +151,111 @@ async function fixture() {
       invocation: { kind: 'chat', chatId },
     }),
   }
-  return { userId, workspaceId, projectId, chatId, fileId, owner, context }
+  return {
+    userId,
+    workspaceId: originWorkspaceId,
+    targetWorkspaceId: workspaceId,
+    projectId,
+    chatId,
+    fileId,
+    owner,
+    context,
+  }
 }
 
 describe('Project resource context and opening use canonical metadata and current authority', () => {
-  it('opens a Project file with resource-only admission and returns an owner without workspace inference', async () => {
-    const f = await fixture()
-    registerHandler('open_resource', createServerToolHandler('open_resource'))
-    const result = await executeTool(
-      'open_resource',
-      { resources: [{ type: 'file', id: f.fileId, owner: f.owner }] },
-      f.context
-    )
-    expect(result.success, result.error).toBe(true)
-    expect(result.resources).toEqual([
-      { type: 'file', id: f.fileId, title: 'Canonical.md', owner: f.owner },
-    ])
-    await db.delete(permissions).where(eq(permissions.userId, f.userId))
-    const revoked = await executeTool(
-      'open_resource',
-      { resources: [{ type: 'file', id: f.fileId, owner: f.owner }] },
-      f.context
-    )
-    expect(revoked.success).toBe(false)
-    expect(revoked.resources).toBeUndefined()
-  })
-
-  it('file and selection context retain their owner through authorized resolution and message persistence', async () => {
-    const f = await fixture()
-    const selected = {
-      kind: 'file_selection' as const,
-      fileId: f.fileId,
-      owner: f.owner,
-      label: 'Selection',
-      fileName: 'Forged.md',
-      text: 'User-selected text',
-      startLine: 2,
+  identityCheck(
+    'opens a different Project from the chat origin and rechecks reconstructed resume admission',
+    async () => {
+      const f = await fixture(true)
+      registerHandler('open_resource', createServerToolHandler('open_resource'))
+      const result = await executeTool(
+        'open_resource',
+        { resources: [{ type: 'file', id: f.fileId, owner: f.owner }] },
+        f.context
+      )
+      expect(result.success, result.error).toBe(true)
+      expect(result.resources).toEqual([
+        { type: 'file', id: f.fileId, title: 'Canonical.md', owner: f.owner },
+      ])
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, f.userId), eq(permissions.entityId, f.targetWorkspaceId)))
+      const resumed = {
+        ...f.context,
+        toolCallId: generateId(),
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: f.userId,
+          invocation: { kind: 'chat' as const, chatId: f.chatId },
+        }),
+      }
+      const revoked = await executeTool(
+        'open_resource',
+        { resources: [{ type: 'file', id: f.fileId, owner: f.owner }] },
+        resumed
+      )
+      expect(revoked.success).toBe(false)
+      expect(revoked.resources).toBeUndefined()
     }
-    for (const requestMode of [undefined, 'execute', 'assistant', 'build'])
+  )
+
+  identityCheck(
+    'cross-Project file and selection context retain their owner through authorized resolution and message persistence',
+    async () => {
+      const f = await fixture(true)
+      const selected = {
+        kind: 'file_selection' as const,
+        fileId: f.fileId,
+        owner: f.owner,
+        label: 'Selection',
+        fileName: 'Forged.md',
+        text: 'User-selected text',
+        startLine: 2,
+      }
+      for (const requestMode of [undefined, 'execute', 'assistant', 'build'])
+        expect(
+          await processContextsServer(
+            [selected],
+            f.userId,
+            '',
+            f.workspaceId,
+            f.chatId,
+            undefined,
+            undefined,
+            requestMode
+          )
+        ).toEqual([])
+      const planned = await processContextsServer(
+        [selected],
+        f.userId,
+        '',
+        f.workspaceId,
+        f.chatId,
+        undefined,
+        undefined,
+        'plan'
+      )
+      expect(planned).toHaveLength(1)
+      const contexts = await processContextsServer(
+        [{ kind: 'file', fileId: f.fileId, label: 'File', owner: f.owner }, selected],
+        f.userId,
+        '',
+        f.workspaceId,
+        f.chatId,
+        undefined,
+        undefined,
+        'agent'
+      )
+      expect(contexts).toHaveLength(2)
+      for (const context of contexts)
+        expect(context).toMatchObject({
+          resource: { type: 'file', id: f.fileId, title: 'Canonical.md', owner: f.owner },
+        })
+      expect(contexts[1]?.content).toContain('Canonical.md')
+      expect(copyPersistedMessageContext(selected)).toMatchObject({ owner: f.owner })
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, f.userId), eq(permissions.entityId, f.targetWorkspaceId)))
       expect(
         await processContextsServer(
           [selected],
@@ -175,51 +265,11 @@ describe('Project resource context and opening use canonical metadata and curren
           f.chatId,
           undefined,
           undefined,
-          requestMode
+          'agent'
         )
       ).toEqual([])
-    const planned = await processContextsServer(
-      [selected],
-      f.userId,
-      '',
-      f.workspaceId,
-      f.chatId,
-      undefined,
-      undefined,
-      'plan'
-    )
-    expect(planned).toHaveLength(1)
-    const contexts = await processContextsServer(
-      [{ kind: 'file', fileId: f.fileId, label: 'File', owner: f.owner }, selected],
-      f.userId,
-      '',
-      f.workspaceId,
-      f.chatId,
-      undefined,
-      undefined,
-      'agent'
-    )
-    expect(contexts).toHaveLength(2)
-    for (const context of contexts)
-      expect(context).toMatchObject({
-        resource: { type: 'file', id: f.fileId, title: 'Canonical.md', owner: f.owner },
-      })
-    expect(contexts[1]?.content).toContain('Canonical.md')
-    expect(copyPersistedMessageContext(selected)).toMatchObject({ owner: f.owner })
-    await db.delete(permissions).where(eq(permissions.userId, f.userId))
-    expect(
-      await processContextsServer(
-        [selected],
-        f.userId,
-        '',
-        f.workspaceId,
-        f.chatId,
-        undefined,
-        undefined,
-        'agent'
-      )
-    ).toEqual([])
-  })
+    }
+  )
 
   it('persists Project effect identity and cannot remove it using another owner', async () => {
     const f = await fixture()
@@ -649,6 +699,8 @@ afterAll(async () => {
   for (const f of fixtures) {
     await db.delete(workspaceFiles).where(eq(workspaceFiles.id, f.fileId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
+    if (f.originWorkspaceId && f.originWorkspaceId !== f.workspaceId)
+      await deleteWorkspaceFixture(db, eq(workspace.id, f.originWorkspaceId))
     await db.delete(user).where(eq(user.id, f.userId))
   }
   await db.$client.end()

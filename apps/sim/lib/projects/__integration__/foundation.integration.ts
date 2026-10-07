@@ -1653,7 +1653,7 @@ describe('Project discovery delegation', () => {
   )
 
   check(
-    'lists the containing Project without granting other Project or lifecycle access',
+    'keeps discovery inside the origin organization without granting lifecycle access',
     async () => {
       const first = await fixture()
       const second = await fixture()

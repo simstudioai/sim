@@ -36,7 +36,12 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-project-cli-writes-'))
 setUploadDirServer(storageRoot)
-const fixtures: { userId: string; workspaceId: string; projectId: string }[] = []
+const fixtures: {
+  userId: string
+  workspaceId: string
+  projectId: string
+  originWorkspaceId?: string
+}[] = []
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 
@@ -64,7 +69,7 @@ function check(name: string, run: () => Promise<void>) {
   })
 }
 
-async function fixture() {
+async function fixture(crossProject = false) {
   const userId = generateId()
   const workspaceId = generateId()
   await db.insert(user).values({
@@ -94,19 +99,38 @@ async function fixture() {
     .from(projectWorkspace)
     .where(eq(projectWorkspace.workspaceId, workspaceId))
   if (!binding) throw new Error('Project fixture missing')
-  const ids = { userId, workspaceId, projectId: binding.projectId }
+  const originWorkspaceId = crossProject ? generateId() : workspaceId
+  if (crossProject) {
+    await insertWorkspaceFixture(db, {
+      id: originWorkspaceId,
+      ownerId: userId,
+      billedAccountUserId: userId,
+      name: 'Different origin Project',
+    })
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId,
+      entityType: 'workspace',
+      entityId: originWorkspaceId,
+      permissionType: 'read',
+    })
+  }
+  const ids = { userId, workspaceId, projectId: binding.projectId, originWorkspaceId }
   fixtures.push(ids)
   const context: AgentCliExecutionContext = {
     userId,
-    workspaceId,
+    workspaceId: originWorkspaceId,
     requestMode: 'agent',
     copilotToolExecution: true,
     toolCallId: generateId(),
     copilotResourceAdmission: createCopilotResourceAdmission({
       userId,
-      invocation: { kind: 'workspace', workspaceId },
+      invocation: { kind: 'workspace', workspaceId: originWorkspaceId },
     }),
-    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], { userId, workspaceId }),
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+      userId,
+      workspaceId: originWorkspaceId,
+    }),
   }
   return { ...ids, context }
 }
@@ -173,9 +197,9 @@ describe('private native Project writes against PostgreSQL and local storage', (
   })
 
   check(
-    'clean inline text persists exact-empty provenance and shared revision conflicts do not overwrite bytes',
+    'cross-Project inline writes preserve provenance and revision conflicts do not overwrite bytes',
     async () => {
-      const f = await fixture()
+      const f = await fixture(true)
       const created = await create(f.projectId, f.context)
       expect(created.exitCode, created.stderr).toBe(0)
       const [file] = await rows(f.projectId)
@@ -291,6 +315,8 @@ afterAll(async () => {
     await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
     await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
+    if (f.originWorkspaceId && f.originWorkspaceId !== f.workspaceId)
+      await deleteWorkspaceFixture(db, eq(workspace.id, f.originWorkspaceId))
     await db.delete(user).where(eq(user.id, f.userId))
   }
   await rm(storageRoot, { recursive: true, force: true })

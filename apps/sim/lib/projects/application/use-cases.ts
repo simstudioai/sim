@@ -92,7 +92,7 @@ export const listProjects: OperationUseCase<
     const scope =
       principal.kind === 'resource_delegated'
         ? await resolveCopilotProjectScope(principal, input.organizationId)
-        : { organizationId: input.organizationId, projectId: undefined }
+        : { organizationId: input.organizationId }
     return db.transaction(async (tx) => {
       /** Driven from the caller's grants and admin organization, so cost tracks their reach. */
       const candidates = await tx.execute<{ id: string }>(sql`
@@ -113,8 +113,7 @@ export const listProjects: OperationUseCase<
         JOIN ${project}
           ON ${project.id} = ${projectWorkspace.projectId} AND ${project.archivedAt} IS NULL
         WHERE TRUE
-          ${scope.organizationId ? sql`AND ${project.organizationId} = ${scope.organizationId}` : sql``}
-          ${scope.projectId ? sql`AND ${project.id} = ${scope.projectId}` : sql``}
+          ${scope.organizationId !== undefined ? sql`AND ${project.organizationId} IS NOT DISTINCT FROM ${scope.organizationId}` : sql``}
           ${input.cursor ? sql`AND ${projectWorkspace.projectId} > ${input.cursor}` : sql``}
         ORDER BY 1
         LIMIT ${input.limit + 1}
@@ -241,6 +240,41 @@ export const getWorkspaceProject: OperationUseCase<
           )
         ),
       }
+    }, READ_SNAPSHOT)
+  },
+}
+
+/** Discovers the canonical invocation workspace's parent without depending on discovery ordering. */
+export const getCurrentWorkspaceProject: OperationUseCase<
+  typeof projectOperations.list,
+  Record<string, never>,
+  { project: ReturnType<typeof presentProject> | null }
+> = {
+  operation: projectOperations.list,
+  async execute({ principal }) {
+    requireProjectPrincipal(principal, projectOperations.list)
+    await requireProjectApiEnabled()
+    if (principal.kind !== 'resource_delegated')
+      throw new OrchestrationError('forbidden', 'Current Project discovery requires an invocation')
+    const scope = await resolveCopilotProjectScope(principal)
+    const workspaceId = scope.workspaceId
+    if (!workspaceId) return { project: null }
+    return db.transaction(async (tx) => {
+      const [membership] = await tx
+        .select({ projectId: projectWorkspace.projectId })
+        .from(projectWorkspace)
+        .where(eq(projectWorkspace.workspaceId, workspaceId))
+        .limit(1)
+      if (!membership) return { project: null }
+      const [context] = await authorizeProjectsForRead(tx, principal, [membership.projectId])
+      if (
+        !context ||
+        context.record.archivedAt ||
+        context.record.organizationId !== scope.organizationId ||
+        !context.environments.some((environment) => environment.id === workspaceId)
+      )
+        throw new OrchestrationError('not_found', 'Project not found')
+      return { project: presentProject(context) }
     }, READ_SNAPSHOT)
   },
 }

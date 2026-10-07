@@ -1,5 +1,11 @@
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import { copilotChats, type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
+import {
+  copilotChats,
+  permissions,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
@@ -7,6 +13,7 @@ import { requireResourceDelegation } from '@/lib/core/application/resource-deleg
 import {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
+  requireCurrentHumanRole,
   requireUserCredentialCapabilities,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -91,10 +98,7 @@ export async function requireCurrentCopilotProjectInvocation(
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   scope: Awaited<ReturnType<typeof resolveCopilotProjectScope>>
 ) {
-  if (
-    (scope.projectId && scope.projectId !== access.record.id) ||
-    (scope.organizationId && scope.organizationId !== access.record.organizationId)
-  ) {
+  if (scope.organizationId !== access.record.organizationId) {
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
   }
   let workspaceId: string | null
@@ -141,14 +145,39 @@ export async function requireCurrentCopilotProjectInvocation(
   } else {
     workspaceId = principal.invocation.workspaceId
   }
-  if (!workspaceId || !access.visible.some((row) => row.id === workspaceId)) {
+  if (!workspaceId || workspaceId !== scope.workspaceId) {
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
   }
+  const [origin] = await tx
+    .select({
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+    .for('share')
+    .limit(1)
+  if (!origin || origin.workspaceOrganizationId !== scope.organizationId)
+    throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
+  // Hold origin grants without upgrading the target's existing SHARE locks.
+  await tx
+    .select({ id: permissions.id })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, principal.subjectUserId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .for('share')
+  await requireCurrentHumanRole(principal.subjectUserId, origin, 'read', { executor: tx })
   await assertWorkspaceCapability(
     principal.subjectUserId,
     workspaceId,
     'copilot.use',
-    access.record.organizationId,
+    origin.workspaceOrganizationId,
     tx
   )
 }

@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import type {
   OAuthAccessTokenPrincipal,
@@ -40,12 +41,14 @@ import {
 } from '@/lib/api/server/routes/copilot-request'
 import type { DbTransaction } from '@/lib/db/types'
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
+import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
+import { withFileOwnerContext } from '@/lib/mothership/application/file-owner-context'
 import {
   type CopilotExecutionContext,
   createCopilotResourceAdmission,
 } from '@/lib/mothership/auth/application-delegation'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import { renameProject } from '@/lib/projects/application'
+import { listProjects, renameProject } from '@/lib/projects/application'
 import {
   createProjectFileFolder,
   getProjectFileMetadata,
@@ -58,6 +61,7 @@ import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/applica
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { createFileCopyAuthorizer } from '@/lib/workspace-files/application/copy-authorization'
+import { copyFileItems } from '@/lib/workspace-files/application/copy-file-items'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -242,8 +246,13 @@ afterAll(async () => {
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
   for (const f of fixtures) {
-    await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
-    await db.delete(folder).where(eq(folder.projectId, f.projectId))
+    const memberships = await db
+      .select({ projectId: projectWorkspace.projectId })
+      .from(projectWorkspace)
+      .where(inArray(projectWorkspace.workspaceId, f.workspaces))
+    const projectIds = [f.projectId, ...memberships.map((row) => row.projectId)]
+    await db.delete(workspaceFiles).where(inArray(workspaceFiles.projectId, projectIds))
+    await db.delete(folder).where(inArray(folder.projectId, projectIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, f.workspaces))
     await db.delete(organization).where(eq(organization.id, f.organizationId))
     await db.delete(user).where(inArray(user.id, f.users))
@@ -1318,29 +1327,26 @@ describe('compound copy owner authority', () => {
     }
   )
 
-  check(
-    'copy cannot escape the current workspace Project despite access to both owners',
-    async () => {
-      const f = await fixture()
-      const other = await fixture()
-      for (const workspaceId of other.workspaces) await grant(f.ownerId, workspaceId, 'admin')
-      const input = {
-        ...selection(f),
-        destination: {
-          owner: { entityType: 'project' as const, entityId: other.projectId },
-          folderId: null,
-        },
-      }
-      const principal = { ...copyPrincipal(f, input), subjectUserId: f.ownerId }
-      const authorize = await createFileCopyAuthorizer(principal, input)
-      await expect(db.transaction(authorize)).rejects.toMatchObject({ code: 'not_found' })
-      expect(
-        await db.transaction(
-          await createFileCopyAuthorizer(createSessionPrincipal({ userId: f.ownerId }), input)
-        )
-      ).toMatchObject({ destination: { owner: input.destination.owner } })
+  check('copy cannot escape the origin organization despite access to both owners', async () => {
+    const f = await fixture()
+    const other = await fixture()
+    for (const workspaceId of other.workspaces) await grant(f.ownerId, workspaceId, 'admin')
+    const input = {
+      ...selection(f),
+      destination: {
+        owner: { entityType: 'project' as const, entityId: other.projectId },
+        folderId: null,
+      },
     }
-  )
+    const principal = { ...copyPrincipal(f, input), subjectUserId: f.ownerId }
+    const authorize = await createFileCopyAuthorizer(principal, input)
+    await expect(db.transaction(authorize)).rejects.toMatchObject({ code: 'not_found' })
+    expect(
+      await db.transaction(
+        await createFileCopyAuthorizer(createSessionPrincipal({ userId: f.ownerId }), input)
+      )
+    ).toMatchObject({ destination: { owner: input.destination.owner } })
+  })
 
   check('copy rechecks organization chat actor and mode at commit', async () => {
     const f = await fixture()
@@ -1517,6 +1523,198 @@ describe('compound copy owner authority', () => {
       }
       const results = await outcomes
       expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled'])
+    }
+  )
+})
+
+describe('Mothership origin navigation and independent Project authority', () => {
+  async function target(f: Awaited<ReturnType<typeof fixture>>) {
+    const workspaceId = generateId()
+    f.workspaces.push(workspaceId)
+    await insertWorkspaceFixture(db, {
+      id: workspaceId,
+      name: 'Independent target',
+      organizationId: f.organizationId,
+      ownerId: f.ownerId,
+      billedAccountUserId: f.ownerId,
+      workspaceMode: 'organization',
+    })
+    const [binding] = await db
+      .select()
+      .from(projectWorkspace)
+      .where(eq(projectWorkspace.workspaceId, workspaceId))
+    if (!binding) throw new Error('Target Project missing')
+    await grant(f.readerId, workspaceId, 'admin')
+    return { workspaceId, projectId: binding.projectId }
+  }
+
+  function context(f: Awaited<ReturnType<typeof fixture>>): CopilotExecutionContext {
+    return {
+      userId: f.readerId,
+      workspaceId: f.workspaces[0],
+      requestMode: 'agent',
+      toolCallId: generateId(),
+      copilotToolExecution: true,
+      copilotResourceAdmission: createCopilotResourceAdmission({
+        userId: f.readerId,
+        invocation: { kind: 'workspace', workspaceId: f.workspaces[0] },
+      }),
+    }
+  }
+
+  check('origin A discovers accessible B while current-parent hints remain A', async () => {
+    const f = await fixture()
+    const b = await target(f)
+    const execution = context(f)
+    const listed = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
+    expect(listed.projects.map((row) => row.id).sort()).toEqual([f.projectId, b.projectId].sort())
+    const peer = createServer((_request, response) => {
+      response.setHeader('X-Mothership-File-Owner-Protocol', '1')
+      response.end()
+    })
+    await new Promise<void>((resolve) => peer.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = peer.address()
+      if (!address || typeof address === 'string') throw new Error('Protocol peer unavailable')
+      for (const [workspaceId, projectId] of [
+        [f.workspaces[0], f.projectId],
+        [b.workspaceId, b.projectId],
+      ]) {
+        const current = {
+          ...execution,
+          workspaceId,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.readerId,
+            invocation: { kind: 'workspace', workspaceId },
+          }),
+        }
+        const hints = await withFileOwnerContext(
+          {},
+          current,
+          `http://127.0.0.1:${address.port}`,
+          '/api/mothership'
+        )
+        expect(hints.project).toMatchObject({ id: projectId })
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        peer.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
+    await db
+      .delete(permissions)
+      .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, b.workspaceId)))
+    const revoked = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
+    expect(revoked.projects.map((row) => row.id)).toEqual([f.projectId])
+  })
+
+  check(
+    'origin A reads and writes B and authorizes A to B copy with independent live grants',
+    async () => {
+      const f = await fixture()
+      const b = await target(f)
+      const principal = delegated(f.readerId, b.projectId, f.workspaces[0])
+      const result = await createProjectFileFolder.execute({
+        principal,
+        input: { projectId: b.projectId, name: 'Target folder' },
+      })
+      expect(
+        (
+          await listProjectFileFolders.execute({ principal, input: { projectId: b.projectId } })
+        ).folders.map((row) => row.id)
+      ).toContain(result.folder.id)
+      const { folder: source } = await createProjectFileFolder.execute({
+        principal: createSessionPrincipal({ userId: f.ownerId }),
+        input: { projectId: f.projectId, name: 'Copy me' },
+      })
+      const input = {
+        source: {
+          owner: { entityType: 'project' as const, entityId: f.projectId },
+          fileIds: [],
+          folderIds: [source.id],
+        },
+        destination: {
+          owner: { entityType: 'project' as const, entityId: b.projectId },
+          folderId: null,
+        },
+      }
+      const copy = {
+        ...principal,
+        audience: 'sim:files:copy',
+        scope: { kind: 'file_copy' as const, ...input },
+      }
+      const copied = await copyFileItems.execute({ principal: copy, input })
+      expect(copied.folders).toHaveLength(1)
+      expect(
+        (
+          await listProjectFileFolders.execute({ principal, input: { projectId: b.projectId } })
+        ).folders.map((row) => row.id)
+      ).toContain(copied.folders[0].id)
+      const authorize = await createFileCopyAuthorizer(copy, input)
+      expect(await db.transaction(authorize)).toMatchObject({
+        source: { canWrite: false },
+        destination: { canWrite: true },
+      })
+      await grant(f.readerId, b.workspaceId, 'read')
+      await expect(db.transaction(authorize)).rejects.toMatchObject({ code: 'forbidden' })
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, b.workspaceId)))
+      await expect(
+        listProjectFileFolders.execute({ principal, input: { projectId: b.projectId } })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  )
+
+  check(
+    'origin access and copilot capability are rechecked after preparation independently of B',
+    async () => {
+      for (const revoke of ['permission', 'copilot', 'files'] as const) {
+        const f = await fixture()
+        const b = await target(f)
+        const input = {
+          source: {
+            owner: { entityType: 'project' as const, entityId: b.projectId },
+            fileIds: [generateId()],
+            folderIds: [],
+          },
+          destination: {
+            owner: { entityType: 'project' as const, entityId: b.projectId },
+            folderId: null,
+          },
+        }
+        const principal = {
+          ...delegated(f.readerId, b.projectId, f.workspaces[0]),
+          audience: 'sim:files:copy',
+          scope: { kind: 'file_copy' as const, ...input },
+        }
+        const authorize = await createFileCopyAuthorizer(principal, input)
+        await db.transaction(authorize)
+        if (revoke === 'permission') {
+          await db
+            .delete(permissions)
+            .where(
+              and(eq(permissions.userId, f.readerId), eq(permissions.entityId, f.workspaces[0]))
+            )
+        } else {
+          const groupId = generateId()
+          await db.insert(permissionGroup).values({
+            id: groupId,
+            organizationId: f.organizationId,
+            createdBy: f.ownerId,
+            name: 'Revoked capability',
+            membershipMode: 'inherit',
+            config: revoke === 'copilot' ? { hideCopilot: true } : { hideFilesTab: true },
+          })
+          await db.insert(permissionGroupWorkspace).values({
+            id: generateId(),
+            permissionGroupId: groupId,
+            workspaceId: revoke === 'copilot' ? f.workspaces[0] : b.workspaceId,
+            organizationId: f.organizationId,
+          })
+        }
+        await expect(db.transaction(authorize)).rejects.toMatchObject({ code: 'forbidden' })
+      }
     }
   )
 })
