@@ -442,37 +442,35 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests run the live desktop suite only when they touch what it exercises.
+  # Pull requests run the live desktop suite only when they touch what it exercises. The diff
+  # comes from git against the pull request's base, so it needs no API access.
   desktop-live-changes:
     name: Detect desktop tool changes
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
-      changed: ${{ github.event_name != 'pull_request' || steps.filter.outputs.desktop == 'true' }}
+      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed == 'true' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
-        id: filter
+        if: github.event_name == 'pull_request'
         with:
-          filters: |
-            desktop:
-              - '.github/workflows/test-build.yml'
-              - '.github/scripts/stop-session.sh'
-              - 'apps/desktop/**'
-              - 'apps/realtime/**'
-              - 'apps/sim/app/api/copilot/**'
-              - 'apps/sim/app/api/desktop/**'
-              - 'apps/sim/app/api/mothership/**'
-              - 'apps/sim/app/workspace/*/home/**'
-              - 'apps/sim/lib/auth/**'
-              - 'apps/sim/lib/desktop/**'
-              - 'apps/sim/lib/mothership/**'
-              - 'apps/sim/stores/**'
-              - 'packages/browser-protocol/**'
-              - 'packages/db/**'
-              - 'packages/desktop-bridge/**'
-              - 'packages/terminal-protocol/**'
-              - 'bun.lock'
+          fetch-depth: 2
+      - name: Diff desktop tool paths
+        id: diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --quiet --depth=1 origin "$BASE"
+          paths='^(\.github/workflows/test-build\.yml|\.github/scripts/stop-session\.sh|bun\.lock'
+          paths="$paths|apps/desktop/|apps/realtime/|packages/(browser-protocol|db|desktop-bridge|terminal-protocol)/"
+          paths="$paths|apps/sim/app/api/(auth|copilot|desktop|mothership)/|apps/sim/app/workspace/[^/]+/(home|chat)/"
+          paths="$paths|apps/sim/lib/(auth|desktop|mothership)/|apps/sim/stores/)"
+          if git diff --name-only "$BASE" HEAD | grep -qE "$paths"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
