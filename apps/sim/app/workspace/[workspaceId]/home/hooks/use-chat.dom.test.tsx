@@ -2053,31 +2053,92 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * A follow-up sent on the new-chat surface while the first message's Stop is
-   * pending waits in that surface's queue until the first message's chat is
-   * known. If the Stop fails and the surface remounts first, the queue key dies
-   * with the mount: the next new-chat surface must show the follow-up (and may
-   * send it), not leave it under the dead key, neither sent nor visible.
+   * The first POST on the new-chat surface never answers; later POSTs open a
+   * turn in the chat the first message created. The abort endpoint and the
+   * stream lookup fail, as they would for a Stop that cannot reach the server.
    */
-  it('keeps a follow-up queued behind a failed chatless Stop when the surface remounts', async () => {
+  function stubFirstPostPendingThenAdmitted() {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url === '/api/mothership/chat' && init?.method === 'POST') {
         state.postBodies.push(JSON.parse(String(init.body)))
-        return new Promise<Response>((_, reject) => {
-          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
-        })
+        if (state.postBodies.length === 1) {
+          return new Promise<Response>((_, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true,
+            })
+          })
+        }
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close()
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'x-mothership-chat-id': DEDUPED_CHAT_ID,
+            },
+          }
+        )
       }
       if (url.includes('/api/copilot/chat/abort')) {
         state.abortBodies.push(JSON.parse(String(init?.body)))
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
-      if (url.includes('/api/mothership/chat/stream')) {
+      if (url.includes('/api/mothership/chat/stream') && state.postBodies.length === 1) {
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
       return fetchStub(input, init)
     })
-    const first = renderUseChat()
+  }
+
+  /**
+   * A follow-up typed on the new-chat surface while the first message waits for
+   * the server is queued behind it. If the surface remounts then, the first
+   * message is withdrawn and both must reach the next mount in the order they
+   * were written: the first message (under its own id), then the follow-up.
+   */
+  it('sends a withdrawn first message before its follow-up when the new-chat surface remounts', async () => {
+    stubFirstPostPendingThenAdmitted()
+    const first = renderHomeLikeSurface()
+    await act(async () => {
+      void first.getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      void first.getResult().sendMessage('follow-up while admission pending')
+    })
+    await waitFor(() => allQueuedMessages().length === 1)
+    first.unmount()
+
+    const second = renderHomeLikeSurface()
+    await waitFor(() => state.postBodies.length >= 3, 4_000)
+    await act(async () => {
+      await sleep(300)
+    })
+
+    const afterRemount = state.postBodies.slice(1)
+    expect(afterRemount.map((body) => body.message)).toEqual([
+      'inspect the workspace',
+      'follow-up while admission pending',
+    ])
+    expect(afterRemount[0].userMessageId).toBe(state.postBodies[0].userMessageId)
+    expect(afterRemount[1].chatId).toBe(DEDUPED_CHAT_ID)
+    expect(second.claimedByOwnListener()).toBe(0)
+    expect(allQueuedMessages()).toHaveLength(0)
+  })
+
+  /**
+   * After a Stop of the first message, only the follow-up was the user's
+   * intent: the Stop's POST is left to the server, nothing withdraws it, and the
+   * next mount sends just the follow-up, once.
+   */
+  it('sends only the follow-up after a failed Stop when the new-chat surface remounts', async () => {
+    stubFirstPostPendingThenAdmitted()
+    const first = renderHomeLikeSurface()
     await act(async () => {
       void first.getResult().sendMessage('inspect the workspace')
     })
@@ -2092,15 +2153,16 @@ describe('useChat remount send recovery', () => {
     })
     first.unmount()
 
-    const second = renderUseChat()
-    await waitFor(
-      () =>
-        second
-          .getResult()
-          .messageQueue.some((message) => message.content === 'Sent while the Stop was failing') ||
-        state.postBodies.some((body) => body.message === 'Sent while the Stop was failing'),
-      4_000
-    )
+    renderHomeLikeSurface()
+    await waitFor(() => state.postBodies.length >= 2, 4_000)
+    await act(async () => {
+      await sleep(500)
+    })
+
+    expect(state.postBodies.slice(1).map((body) => body.message)).toEqual([
+      'Sent while the Stop was failing',
+    ])
+    expect(allQueuedMessages()).toHaveLength(0)
   })
 
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
