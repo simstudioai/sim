@@ -41,6 +41,7 @@ import {
 import {
   claimDesktopToolCall,
   type DesktopToolCallClaim,
+  getAsyncToolCall,
   renewSimToolExecutionLease,
 } from '@/lib/mothership/async-runs/repository'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
@@ -50,6 +51,7 @@ import {
   settleClientToolCall,
 } from '@/lib/mothership/request/tools/client-settlement.server'
 import {
+  chatViewDesktopLeaseOwnerToken,
   getDesktopExecutorClaimOwner,
   isDesktopToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
@@ -329,9 +331,19 @@ interface DesktopCallTokenInput extends DeviceInput {
   executionToken: string
 }
 
-/** Keeps a running call owned; failing here always means the device must stop the action. */
+/** A desktop call the chat view is running, renewed by the session that claimed it. */
+interface ChatViewCallInput {
+  toolCallId: string
+  chatView: true
+}
+
+/**
+ * Keeps a running call owned; failing here always means the device must stop the action. A
+ * device renews a call of a run bound to it under its execution token. The chat view renews an
+ * import it claimed on an unbound run: only the session that claimed it, while it runs.
+ */
 export const renewDesktopToolLease = defineAuthorizedCredentialUserUseCase({
-  // permission-group-exempt: extends only a lease this device's token already holds.
+  // permission-group-exempt: extends only a lease this device's token, or this session, already holds.
   operation: defineOperation({
     id: 'desktop.executor.calls.renew',
     principalKinds: ['session'],
@@ -342,8 +354,24 @@ export const renewDesktopToolLease = defineAuthorizedCredentialUserUseCase({
     input,
   }: {
     principal: SessionPrincipal
-    input: DesktopCallTokenInput
+    input: DesktopCallTokenInput | ChatViewCallInput
   }) {
+    if ('chatView' in input) {
+      const call = await getAsyncToolCall(input.toolCallId)
+      const renewed =
+        call !== null &&
+        (await renewSimToolExecutionLease(
+          {
+            toolCallId: call.toolCallId,
+            runId: call.runId,
+            userId: principal.userId,
+            ownerToken: chatViewDesktopLeaseOwnerToken(principal.sessionId),
+          },
+          { chatView: true }
+        ))
+      if (!renewed) throw new DesktopCallRevokedError()
+      return { renewed: true as const }
+    }
     await requireBoundDevice(principal, input.deviceId)
     await markDesktopPresent(input.deviceId)
     const call = await getBoundDesktopCall(

@@ -15,11 +15,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { renewDesktopToolLeaseContract } from '@/lib/api/contracts/desktop-executor'
 import {
   createWorkspaceFileFolderContract,
   listWorkspaceFileFoldersContract,
 } from '@/lib/api/contracts/workspace-file-folders'
 import { getDesktopBridge } from '@/lib/desktop'
+import { SIM_TOOL_EXECUTION_HEARTBEAT_MS } from '@/lib/mothership/async-runs/execution-lease'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import {
   reportClientToolCompletion,
@@ -109,6 +111,32 @@ export async function importNativeFiles(
   }
 }
 
+/**
+ * Renews an import's lease every heartbeat from the moment its manifest is requested, the way a
+ * desktop renews a bound call, so a slow directory scan cannot outlast the lease the claim took.
+ * The desktop claims the call before it scans, within its authorization timeout, which is well
+ * inside one heartbeat: every renewal follows the claim, and the claim's own lease covers the
+ * first beat. A refusal (410) means the call was stopped, settled, or its lease lapsed, and
+ * renewing stops. Any other failure may pass, and the next beat tries again.
+ */
+function keepImportLeased(toolCallId: string): { stop(): void } {
+  const timer = setInterval(() => {
+    requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
+      (error) => {
+        if (error instanceof ApiClientError && error.status === 410) {
+          clearInterval(timer)
+          return
+        }
+        logger.warn('Could not renew the import lease; trying again next beat', {
+          toolCallId,
+          error: getErrorMessage(error),
+        })
+      }
+    )
+  }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
+  return { stop: () => clearInterval(timer) }
+}
+
 /** The server claims imports before reading their manifest, preventing replayed uploads. */
 export async function executeNativeFileTool(
   toolCallId: string,
@@ -131,6 +159,10 @@ export async function executeNativeFileTool(
       )
   }
   window.addEventListener('pagehide', onPageHide)
+  // An import's claim takes a lease under this session: keep it renewed while the import runs, so
+  // the turn waits for it however long it takes, and no longer than a lease once this page stops
+  // renewing (closed, crashed, or signed out).
+  const lease = toolName === 'import_local_files' ? keepImportLeased(toolCallId) : null
   try {
     const response = await invoke(
       { operation: toolName === 'read_local_file' ? 'read' : 'manifest', toolCallId },
@@ -141,12 +173,15 @@ export async function executeNativeFileTool(
       throw new Error(response.error)
     }
     if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
-    const completion =
-      response.data.kind === 'manifest'
-        ? localFileImportCompletion(await importNativeFiles(toolCallId, response.data, signal))
-        : localFileReadCompletion(response)
-    // Cancelled by the user's Stop or by signing out: whoever cancelled it settles the call, as for
-    // browser actions and granted-folder reads. A failure reported here would race Stop's record.
+    let completion
+    if (response.data.kind === 'manifest') {
+      completion = localFileImportCompletion(
+        await importNativeFiles(toolCallId, response.data, signal)
+      )
+    } else completion = localFileReadCompletion(response)
+    // Cancelled by the user's Stop: Stop settles the call. Cancelled by signing out: nobody reports
+    // it, and the server's resume watchdog settles it once its budget or lease runs out. Either way
+    // a failure reported here would race the settlement that decides the call.
     if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
@@ -174,6 +209,7 @@ export async function executeNativeFileTool(
     )
     settled = true
   } finally {
+    lease?.stop()
     window.removeEventListener('pagehide', onPageHide)
   }
 }
