@@ -31,6 +31,22 @@ const UNKNOWN_FILE_SECONDS = 6
 const MIN_FILE_SECONDS = 1
 const DURATIONS_FILE = 'vitest.integration-durations.json'
 
+/**
+ * The committed weights, or none when the file is absent. A file that does not parse stops the run
+ * with the fix in the message rather than a bare SyntaxError.
+ */
+function readDurations(file: string): Record<string, unknown> {
+  if (!existsSync(file)) return {}
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch (error) {
+    throw new Error(
+      `${DURATIONS_FILE} is not valid JSON. Regenerate it with scripts/update-integration-durations.ts.`,
+      { cause: error }
+    )
+  }
+}
+
 function findRepoRoot(from: string): string {
   let dir = from
   while (!existsSync(path.join(dir, 'bun.lock'))) {
@@ -58,18 +74,14 @@ class DurationBalancedSequencer extends BaseSequencer {
   override async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
     const { index, count } = this.ctx.config.shard ?? { index: 1, count: 1 }
     const root = findRepoRoot(this.ctx.config.root)
-    const durationsPath = path.join(root, DURATIONS_FILE)
-    const durations: Record<string, number> = existsSync(durationsPath)
-      ? JSON.parse(readFileSync(durationsPath, 'utf8'))
-      : {}
+    const durations = readDurations(path.join(root, DURATIONS_FILE))
 
     const weighted = files.map((spec) => {
       const key = path.relative(root, spec.moduleId).split(path.sep).join('/')
-      return {
-        spec,
-        key,
-        seconds: Math.max(durations[key] ?? UNKNOWN_FILE_SECONDS, MIN_FILE_SECONDS),
-      }
+      const recorded = durations[key]
+      const seconds =
+        typeof recorded === 'number' && Number.isFinite(recorded) ? recorded : UNKNOWN_FILE_SECONDS
+      return { spec, key, seconds: Math.max(seconds, MIN_FILE_SECONDS) }
     })
     weighted.sort((a, b) => b.seconds - a.seconds || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 
