@@ -99,8 +99,6 @@ const STATIC_SCRIPT_SRC = [
   'https://*.google.com',
   'https://apis.google.com',
   'https://challenges.cloudflare.com',
-  // Cal.com booking embed (landing /demo) — embed.js is served from app.cal.com
-  'https://app.cal.com',
   ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
   ...(isHosted
     ? [
@@ -111,9 +109,6 @@ const STATIC_SCRIPT_SRC = [
         'https://www.googleadservices.com',
         'https://googleads.g.doubleclick.net',
         'https://analytics.ahrefs.com',
-        // X (Twitter) conversion pixel (landing pages) — the base code injects
-        // uwt.js as a <script> tag from static.ads-twitter.com
-        'https://static.ads-twitter.com',
         // Freebuff Ads conversion tag — freebuff-tag.js
         'https://freebuff.com',
       ]
@@ -139,9 +134,6 @@ const STATIC_CONNECT_SRC = [
   'https://github.com/*',
   'https://status.sim.ai',
   'https://challenges.cloudflare.com',
-  // Cal.com booking embed (landing /demo) — embed XHR/availability calls
-  'https://app.cal.com',
-  'https://cal.com',
   ...(isReactGrabEnabled ? ['https://www.react-grab.com'] : []),
   ...(isDev ? ['ws://localhost:4722'] : []),
   ...(isHosted
@@ -158,10 +150,6 @@ const STATIC_CONNECT_SRC = [
         'https://*.g.doubleclick.net',
         // Google Ads conversion tag — conversion beacons
         'https://www.googleadservices.com',
-        // X (Twitter) conversion pixel — uwt.js sends conversion beacons here
-        // via fetch/sendBeacon. The t.co image-pixel fallback is already
-        // covered by the `https:` wildcard in img-src.
-        'https://analytics.twitter.com',
         // Freebuff Ads conversion tag — beacons to /api/advertisers/conversions/client
         'https://freebuff.com',
       ]
@@ -172,9 +160,6 @@ const STATIC_FRAME_SRC = [
   "'self'",
   'blob:',
   'https://challenges.cloudflare.com',
-  // Cal.com booking embed (landing /demo) — the booking iframe
-  'https://app.cal.com',
-  'https://cal.com',
   'https://drive.google.com',
   'https://docs.google.com',
   'https://*.google.com',

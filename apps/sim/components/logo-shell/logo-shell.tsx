@@ -6,7 +6,7 @@ import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 /**
  * Logo-only page frame shared by status pages and public interfaces. Interfaces
  * default to light tokens; status pages inherit the active theme. The home link
- * uses document navigation so marketing initializes its own theme store.
+ * uses document navigation across the independently served website boundary.
  *
  * Children decide their own layout: pass `center` for a single centered column
  * (404 message, simple gates); omit it for full-width content (the live chat
