@@ -690,18 +690,6 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 ModalHeader.displayName = 'ModalHeader'
 
 /**
- * Modal title component.
- */
-const ModalTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={className} {...props} />
-))
-
-ModalTitle.displayName = 'ModalTitle'
-
-/**
  * Modal description component.
  */
 const ModalDescription = React.forwardRef<
@@ -884,7 +872,6 @@ export {
   ModalTrigger,
   ModalContent,
   ModalHeader,
-  ModalTitle,
   ModalDescription,
   ModalBody,
   ModalTabs,

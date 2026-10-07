@@ -1,0 +1,49 @@
+---
+title: "kie/claude-opus-5-5"
+description: "Sim model reference for kie/claude-opus-5-5 on Kie."
+---
+
+[Kie](/models/kie)
+
+Model ID: `kie/claude-opus-5-5`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 1.6,
+  "output": 8,
+  "updatedAt": "2026-09-28"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "forcedToolUse": false,
+  "maxOutputTokens": 128000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "default": "medium",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

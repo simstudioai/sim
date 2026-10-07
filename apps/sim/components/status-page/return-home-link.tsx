@@ -2,7 +2,7 @@
 
 import { ChipLink } from '@sim/emcn'
 
-/** A document navigation initializes the landing theme when leaving an app status page. */
+/** Leave the app router when navigating to the independently served homepage. */
 export function ReturnHomeLink() {
   return (
     <ChipLink

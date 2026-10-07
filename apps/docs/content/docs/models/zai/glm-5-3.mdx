@@ -1,0 +1,49 @@
+---
+title: "glm-5.3"
+description: "Sim model reference for glm-5.3 on Z.ai."
+---
+
+[Z.ai](/models/zai)
+
+Model ID: `glm-5.3`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 1.4,
+  "cachedInput": 0.26,
+  "output": 4.4,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 1
+  },
+  "toolUsageControl": true,
+  "maxOutputTokens": 131072,
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "high",
+      "max"
+    ]
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

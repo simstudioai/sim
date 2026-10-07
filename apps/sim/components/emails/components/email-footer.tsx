@@ -1,4 +1,5 @@
 import { Container, Img, Link, Section } from '@react-email/components'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { baseStyles, colors, spacing } from '@/components/emails/_styles'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -196,7 +197,7 @@ export function EmailFooter({
               </td>
               <td style={baseStyles.footerText}>
                 <Link
-                  href={`${baseUrl}/privacy`}
+                  href={brand.privacyUrl || `${SIM_SITE_URL}/privacy`}
                   style={baseStyles.footerLink}
                   rel='noopener noreferrer'
                 >
@@ -204,7 +205,7 @@ export function EmailFooter({
                 </Link>{' '}
                 •{' '}
                 <Link
-                  href={`${baseUrl}/terms`}
+                  href={brand.termsUrl || `${SIM_SITE_URL}/terms`}
                   style={baseStyles.footerLink}
                   rel='noopener noreferrer'
                 >

@@ -1,0 +1,63 @@
+---
+title: "gpt-6-sol"
+description: "Sim model reference for gpt-6-sol on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `gpt-6-sol`
+
+Context window: 1050000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 2,
+  "cachedInput": 0.2,
+  "output": 10,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 4,
+      "cachedInput": 0.4,
+      "output": 15
+    }
+  ],
+  "updatedAt": "2026-09-22"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
+  },
+  "verbosity": {
+    "values": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -1,0 +1,42 @@
+---
+title: "azure/gpt-4.1-nano"
+description: "Sim model reference for azure/gpt-4.1-nano on Azure OpenAI."
+---
+
+[Azure OpenAI](/models/azure-openai)
+
+Model ID: `azure/gpt-4.1-nano`
+
+Context window: 1047576 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.1,
+  "cachedInput": 0.025,
+  "output": 0.4,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "maxOutputTokens": 32768
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

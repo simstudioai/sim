@@ -1,0 +1,43 @@
+---
+title: "deepseek-r1"
+description: "Sim model reference for deepseek-r1 on DeepSeek."
+---
+
+[DeepSeek](/models/deepseek)
+
+Model ID: `deepseek-r1`
+
+Context window: 128000 tokens.
+
+Lifecycle: deprecated.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.55,
+  "cachedInput": 0.14,
+  "output": 2.19,
+  "updatedAt": "2026-04-01"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "thinking": {
+    "levels": [
+      "enabled"
+    ],
+    "default": "enabled"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

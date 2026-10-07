@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 
-export const PAGE_CONTENT_WIDTH = 'mx-auto w-full max-w-[1728px]'
-export const PAGE_GUTTER = 'px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'
-
-export interface StatusPageContentProps {
+interface StatusPageContentProps {
   title: string
   description: string
   children: ReactNode
@@ -76,3 +73,7 @@ export function LogoPage({
     </div>
   )
 }
+
+const PAGE_CONTENT_WIDTH = 'mx-auto w-full max-w-[1728px]'
+
+const PAGE_GUTTER = 'px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'

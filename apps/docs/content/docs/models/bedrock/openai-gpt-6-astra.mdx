@@ -1,0 +1,44 @@
+---
+title: "bedrock/openai.gpt-6-astra"
+description: "Sim model reference for bedrock/openai.gpt-6-astra on AWS Bedrock."
+---
+
+[AWS Bedrock](/models/bedrock)
+
+Model ID: `bedrock/openai.gpt-6-astra`
+
+Context window: 1050000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 11,
+  "output": 55,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 22,
+      "output": 82.5
+    }
+  ],
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

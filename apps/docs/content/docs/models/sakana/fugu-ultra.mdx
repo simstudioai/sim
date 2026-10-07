@@ -1,0 +1,45 @@
+---
+title: "fugu-ultra"
+description: "Sim model reference for fugu-ultra on Sakana AI."
+---
+
+[Sakana AI](/models/sakana)
+
+Model ID: `fugu-ultra`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 5,
+  "cachedInput": 0.5,
+  "output": 30,
+  "tiers": [
+    {
+      "aboveInputTokens": 272000,
+      "input": 10,
+      "cachedInput": 1,
+      "output": 45
+    }
+  ],
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

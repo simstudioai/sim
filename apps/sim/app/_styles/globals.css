@@ -634,19 +634,6 @@ html[data-sim-desktop-title-bar="inset"]
 }
 
 /**
- * Landing loop animation styles (keyframes defined in the `@keyframes` blocks above)
- */
-.landing-loop-animated-dash {
-  animation: dash-animation 1.5s linear infinite;
-  will-change: stroke-dashoffset;
-  transform: translateZ(0);
-}
-
-.react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
-  animation: dash-animation 1.5s linear infinite !important;
-}
-
-/**
  * React Flow selection box styling
  * Uses brand-secondary color for selection highlighting
  */
@@ -752,31 +739,6 @@ html[data-sim-desktop-title-bar="inset"]
 
     /* Utility */
     --white: #ffffff;
-
-    /* Landing / marketing - text (static dark-section colors) */
-    --landing-text: #ececec;
-    --landing-text-muted: #999999;
-    --landing-text-subtle: #f6f6f6;
-    --landing-text-dark: #1c1c1c;
-    --landing-text-secondary: #666666;
-    --landing-text-body: #cdcdcd;
-    --landing-text-icon: #939393;
-
-    /* Landing / marketing - surfaces */
-    --landing-bg: #1c1c1c;
-    --landing-bg-elevated: #2a2a2a;
-    --landing-bg-card: #232323;
-    --landing-bg-section: #f6f6f6;
-    --landing-bg-subtle: #fafafa;
-    --landing-bg-surface: #1e1e1e;
-    --landing-bg-hover: #f0f0f0;
-    --landing-bg-skeleton: #e8e8e8;
-
-    /* Landing / marketing - borders */
-    --landing-border: #2a2a2a;
-    --landing-border-light: #e5e5e5;
-    --landing-border-strong: #3d3d3d;
-    --landing-border-subtle: #d4d4d4;
 
     /* Code editor (theme-aware) */
     --code-bg: #f5f5f5;

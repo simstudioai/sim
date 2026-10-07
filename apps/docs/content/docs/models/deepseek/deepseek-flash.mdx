@@ -1,0 +1,56 @@
+---
+title: "deepseek-flash"
+description: "Sim model reference for deepseek-flash on DeepSeek."
+---
+
+[DeepSeek](/models/deepseek)
+
+Model ID: `deepseek-flash`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.3,
+  "cachedInput": 0.006,
+  "output": 1.2,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "reasoningEffort": {
+    "values": [
+      "low",
+      "high",
+      "max"
+    ]
+  },
+  "thinking": {
+    "levels": [
+      "none",
+      "enabled"
+    ],
+    "default": "enabled"
+  },
+  "maxOutputTokens": 384000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

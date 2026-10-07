@@ -1,0 +1,41 @@
+---
+title: "deepseek-v3"
+description: "Sim model reference for deepseek-v3 on DeepSeek."
+---
+
+[DeepSeek](/models/deepseek)
+
+Model ID: `deepseek-v3`
+
+Context window: 128000 tokens.
+
+Lifecycle: deprecated.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.28,
+  "cachedInput": 0.028,
+  "output": 0.42,
+  "updatedAt": "2026-04-01"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -1,0 +1,41 @@
+---
+title: "nvidia/nemotron-3-ultra-550b-a55b"
+description: "Sim model reference for nvidia/nemotron-3-ultra-550b-a55b on NVIDIA NIM."
+---
+
+[NVIDIA NIM](/models/nvidia)
+
+Model ID: `nvidia/nemotron-3-ultra-550b-a55b`
+
+Context window: 1048576 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.5,
+  "output": 2.2,
+  "updatedAt": "2026-07-09"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "maxOutputTokens": 8192
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -2,8 +2,8 @@
 
 import { useConsentManager, useHeadlessConsentUI } from '@c15t/nextjs/headless'
 import { Chip } from '@sim/emcn'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import Link from 'next/link'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'
 
 /** Shared expo-out easing and timings, matching the toast stack's motion. */
@@ -74,9 +74,9 @@ export function ConsentBanner() {
               Necessary cookies keep Sim working. Optional cookies help us understand usage, measure
               campaigns, and personalize ads on other sites. You can change or withdraw consent at
               any time in Privacy settings or through our{' '}
-              <Link href='/cookie-policy' className={CONSENT_LINK_CLASS}>
+              <a href={`${SIM_SITE_URL}/cookie-policy`} className={CONSENT_LINK_CLASS}>
                 Cookie Policy
-              </Link>
+              </a>
               .
             </p>
           </div>

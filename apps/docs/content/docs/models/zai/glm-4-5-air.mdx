@@ -1,0 +1,48 @@
+---
+title: "glm-4.5-air"
+description: "Sim model reference for glm-4.5-air on Z.ai."
+---
+
+[Z.ai](/models/zai)
+
+Model ID: `glm-4.5-air`
+
+Context window: 128000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.2,
+  "output": 1.1,
+  "updatedAt": "2026-07-10"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "temperature": {
+    "min": 0,
+    "max": 1
+  },
+  "toolUsageControl": true,
+  "maxOutputTokens": 98304,
+  "thinking": {
+    "levels": [
+      "disabled",
+      "enabled"
+    ],
+    "default": "enabled"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

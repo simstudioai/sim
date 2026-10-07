@@ -1,0 +1,53 @@
+---
+title: "claude-fable-5"
+description: "Sim model reference for claude-fable-5 on Anthropic."
+---
+
+[Anthropic](/models/anthropic)
+
+Model ID: `claude-fable-5`
+
+Context window: 1000000 tokens.
+
+Lifecycle: legacy.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 10,
+  "cachedInput": 1,
+  "output": 50,
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 512
+  },
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 128000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "default": "high",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

@@ -1,0 +1,42 @@
+---
+title: "gemini-2.0-flash"
+description: "Sim model reference for gemini-2.0-flash on Google."
+---
+
+[Google](/models/google)
+
+Model ID: `gemini-2.0-flash`
+
+Context window: 1048576 tokens.
+
+Lifecycle: deprecated.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.1,
+  "cachedInput": 0.025,
+  "output": 0.4,
+  "updatedAt": "2026-06-11"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "maxOutputTokens": 8192
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

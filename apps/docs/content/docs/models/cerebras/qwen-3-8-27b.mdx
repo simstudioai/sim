@@ -1,0 +1,49 @@
+---
+title: "cerebras/qwen-3.8-27b"
+description: "Sim model reference for cerebras/qwen-3.8-27b on Cerebras."
+---
+
+[Cerebras](/models/cerebras)
+
+Model ID: `cerebras/qwen-3.8-27b`
+
+Context window: 131072 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.99,
+  "output": 1.49,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "reasoningEffort": {
+    "values": [
+      "none",
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "maxOutputTokens": 40960
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

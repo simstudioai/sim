@@ -1,0 +1,41 @@
+---
+title: "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+description: "Sim model reference for nvidia/llama-3.1-nemotron-ultra-253b-v1 on NVIDIA NIM."
+---
+
+[NVIDIA NIM](/models/nvidia)
+
+Model ID: `nvidia/llama-3.1-nemotron-ultra-253b-v1`
+
+Context window: 131072 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.6,
+  "output": 1.8,
+  "updatedAt": "2026-07-09"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "maxOutputTokens": 8192
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

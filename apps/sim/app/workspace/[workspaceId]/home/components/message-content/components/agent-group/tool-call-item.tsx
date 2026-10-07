@@ -40,7 +40,7 @@ export interface ToolCallItemProps {
   renderStatus?: (status: ToolActivityPresentation) => ReactNode
 }
 
-export interface ToolActivityPresentation extends ActivityStatusProps {
+interface ToolActivityPresentation extends ActivityStatusProps {
   /** Keep the action in progress while its containing activity group remains open. */
   activeLabel: string
 }

@@ -207,8 +207,6 @@
     "apps/sim/lib/billing/client/upgrade.ts": 3,
     "apps/sim/lib/billing/core/subscription.ts": 1,
     "apps/sim/lib/billing/subscriptions/utils.ts": 7,
-    "apps/sim/lib/content/mdx.tsx": 15,
-    "apps/sim/lib/content/registry-factory.ts": 3,
     "apps/sim/lib/core/config/redis.ts": 1,
     "apps/sim/lib/core/idempotency/service.ts": 7,
     "apps/sim/lib/core/security/redaction.ts": 6,

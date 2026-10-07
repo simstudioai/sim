@@ -1,0 +1,43 @@
+---
+title: "bedrock/anthropic.claude-sonnet-4-6"
+description: "Sim model reference for bedrock/anthropic.claude-sonnet-4-6 on AWS Bedrock."
+---
+
+[AWS Bedrock](/models/bedrock)
+
+Model ID: `bedrock/anthropic.claude-sonnet-4-6`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 3.3,
+  "cachedInput": 0.33,
+  "output": 16.5,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 1
+  },
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 64000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

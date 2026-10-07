@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/integrations/constants'
 import { getBrandConfig } from '@/ee/whitelabeling/branding'
 
 /**

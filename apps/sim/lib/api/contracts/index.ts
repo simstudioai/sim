@@ -1,6 +1,6 @@
 /**
  * Deliberately NOT re-exported from this barrel: `./tools` (per-integration tool
- * contracts), `./selectors`, `./v1` (admin API), and `./demo-requests`. All of their
+ * contracts), `./selectors`, and `./v1` (admin API). All of their
  * consumers import those files directly, and re-exporting them here shipped their Zod
  * schema construction (~60 KB gzip) to every route that touches any contract — schema
  * objects are built at module scope, so `export *` defeats tree-shaking for them.

@@ -1,0 +1,53 @@
+---
+title: "azure-anthropic/claude-fable-5-1"
+description: "Sim model reference for azure-anthropic/claude-fable-5-1 on Azure Anthropic."
+---
+
+[Azure Anthropic](/models/azure-anthropic)
+
+Model ID: `azure-anthropic/claude-fable-5-1`
+
+Context window: 1000000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 10,
+  "cachedInput": 0.25,
+  "output": 50,
+  "updatedAt": "2026-09-14"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "promptCaching": {
+    "minimumCacheableTokens": 512
+  },
+  "forcedToolUse": false,
+  "nativeStructuredOutputs": true,
+  "maxOutputTokens": 128000,
+  "thinking": {
+    "levels": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "default": "high",
+    "streamed": "summary"
+  }
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

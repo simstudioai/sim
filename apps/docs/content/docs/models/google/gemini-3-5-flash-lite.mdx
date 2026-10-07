@@ -1,0 +1,51 @@
+---
+title: "gemini-3.5-flash-lite"
+description: "Sim model reference for gemini-3.5-flash-lite on Google."
+---
+
+[Google](/models/google)
+
+Model ID: `gemini-3.5-flash-lite`
+
+Context window: 1048576 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 0.3,
+  "cachedInput": 0.03,
+  "output": 2.5,
+  "updatedAt": "2026-07-21"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "temperature": {
+    "min": 0,
+    "max": 2
+  },
+  "thinking": {
+    "levels": [
+      "minimal",
+      "low",
+      "medium",
+      "high"
+    ],
+    "default": "minimal"
+  },
+  "maxOutputTokens": 65536
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

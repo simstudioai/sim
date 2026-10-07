@@ -33,8 +33,6 @@
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",
-        // scripts/generate-docs.ts imports this through pathToFileURL.
-        "app/(landing)/integrations/data/landing-content.ts",
         // Mirrored from the sibling worker's contracts:sync, not app-owned.
         "lib/mothership/generated/account.ts",
         "lib/mothership/generated/local-files.ts"
@@ -53,11 +51,7 @@
         "lib/api/contracts/tools/communication/index.ts": ["files"],
         "lib/api/contracts/tools/databases/index.ts": ["files"],
         "lib/api/contracts/tools/media/index.ts": ["files"],
-        "lib/api/contracts/v1/index.ts": ["files"],
-        "app/(landing)/components/shared/two-block-workflow-preview/index.ts": ["files"],
-        "app/(landing)/customers/components/customer-story-card/index.ts": ["files"],
-        "app/(landing)/customers/components/customer-story-media/index.ts": ["files"],
-        "app/(landing)/customers/components/customer-story-page/index.ts": ["files"]
+        "lib/api/contracts/v1/index.ts": ["files"]
       },
       "ignoreDependencies": [
         // docker/app.Dockerfile invokes this binary to rebuild isolated-vm.

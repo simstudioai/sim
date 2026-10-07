@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/integrations/constants'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { getBrandConfig } from '@/ee/whitelabeling'
 

@@ -3,15 +3,10 @@
  * @vitest-environment-options {"url":"https://www.sim.ai","referrer":"https://example.com/referral?email=private@example.com#secret"}
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  trackGoogleAdsConversion,
-  trackGoogleEvent,
-  trackGooglePageView,
-} from '@/lib/analytics/google'
+import { trackGoogleEvent, trackGooglePageView } from '@/lib/analytics/google'
 import { getGooglePageLocation } from '@/lib/consent/google-context'
 import {
   type ConsentScriptCallbackInfo,
-  GOOGLE_ADS_ID,
   GOOGLE_ANALYTICS_ID,
   getGlobalConsentScripts,
 } from '@/lib/consent/scripts'
@@ -157,7 +152,7 @@ describe('consent scripts', () => {
     )
   })
 
-  it('keeps signup and Ads conversion context current after a virtual navigation', () => {
+  it('keeps signup context current after a virtual navigation', () => {
     window.history.replaceState({}, '', '/?utm_source=google')
     getGlobalConsentScripts()[0]?.onBeforeLoad?.(CALLBACK_INFO)
     window.history.pushState({}, '', '/signup?utm_campaign=agents&token=secret')
@@ -165,7 +160,6 @@ describe('consent scripts', () => {
 
     trackGooglePageView('/signup')
     trackGoogleEvent('sign_up', { method: 'email' })
-    trackGoogleAdsConversion('demo_booked')
 
     expect(window.dataLayer.filter((row) => Array.isArray(row) && row[0] === 'set').at(-1)).toEqual(
       [
@@ -182,11 +176,6 @@ describe('consent scripts', () => {
       'sign_up',
       { method: 'email', send_to: GOOGLE_ANALYTICS_ID },
     ])
-    expect(window.dataLayer).toContainEqual([
-      'event',
-      'conversion',
-      expect.objectContaining({ send_to: `${GOOGLE_ADS_ID}/Xt8wCK7b1e4cEL_Zk99C` }),
-    ])
     expect(
       window.dataLayer.filter(
         (row) => Array.isArray(row) && row[0] === 'event' && row[1] === 'page_view'
@@ -202,22 +191,18 @@ describe('consent scripts', () => {
       expect.objectContaining({ page_referrer: 'https://example.com/' }),
     ])
 
-    window.history.pushState({}, '', '/pricing?secret=token')
-    trackGooglePageView('/pricing')
-    window.history.pushState({}, '', '/demo?token=secret#account')
-    trackGooglePageView('/demo')
-    trackGoogleEvent('get_a_demo', {
-      page_path: '/demo',
-      form_name: 'sim_demo',
-      booking_status: 'scheduled',
-    })
+    window.history.pushState({}, '', '/login?secret=token')
+    trackGooglePageView('/login')
+    window.history.pushState({}, '', '/signup?token=secret#account')
+    trackGooglePageView('/signup')
+    trackGoogleEvent('sign_up', { method: 'email' })
 
     expect(window.dataLayer.filter((row) => Array.isArray(row) && row[0] === 'set').at(-1)).toEqual(
       [
         'set',
         expect.objectContaining({
-          page_location: 'https://www.sim.ai/demo',
-          page_referrer: 'https://www.sim.ai/pricing',
+          page_location: 'https://www.sim.ai/signup',
+          page_referrer: 'https://www.sim.ai/login',
         }),
       ]
     )

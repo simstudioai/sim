@@ -1,0 +1,44 @@
+---
+title: "gpt-5.2-pro"
+description: "Sim model reference for gpt-5.2-pro on OpenAI."
+---
+
+[OpenAI](/models/openai)
+
+Model ID: `gpt-5.2-pro`
+
+Context window: 400000 tokens.
+
+Lifecycle: Current.
+
+## Pricing
+
+Catalog metadata, including units, tiers, and last verification date:
+
+```json
+{
+  "input": 21,
+  "output": 168,
+  "updatedAt": "2026-09-04"
+}
+```
+
+## Capabilities
+
+Provider defaults with model overrides:
+
+```json
+{
+  "toolUsageControl": true,
+  "reasoningEffort": {
+    "values": [
+      "medium",
+      "high",
+      "xhigh"
+    ]
+  },
+  "maxOutputTokens": 128000
+}
+```
+
+Select this model in an [Agent block](/agents). Credentials and availability depend on your deployment.

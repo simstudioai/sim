@@ -9,12 +9,6 @@ export const SITE_URL = SIM_SITE_URL
 /** Host of the canonical marketing site, e.g. `www.sim.ai`. */
 export const CANONICAL_SITE_HOST = new URL(SITE_URL).host
 
-/** Resolves a site-relative href against {@link SITE_URL}; absolute URLs pass through. */
-export function toSiteUrl(href: string): string {
-  if (hasHttpProtocol(href)) return href
-  return href === '/' ? SITE_URL : `${SITE_URL}${href}`
-}
-
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
