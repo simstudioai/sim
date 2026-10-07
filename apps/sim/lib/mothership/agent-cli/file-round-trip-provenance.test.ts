@@ -191,15 +191,29 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
     },
   ])
   queueTableRows(workspaceFiles, [file])
+  const sidecar = {
+    id: file.id,
+    key: file.key,
+    context: file.context,
+    fileContentUpdatedAt: REVISION,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: REVISION,
+    ...provenance,
+    entries: provenance.status === 'exact' ? provenance.entries : [],
+  }
+  queueTableRows(workspaceFiles, [sidecar])
   queueTableRows(workspaceFiles, [
     {
-      fileContentUpdatedAt: REVISION,
-      secretProvenanceVersion: 1,
-      provenanceContentUpdatedAt: REVISION,
-      ...provenance,
-      entries: provenance.status === 'exact' ? provenance.entries : [],
+      workspaceId: WORKSPACE,
+      fileId: file.id,
+      ownership: file,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner',
     },
   ])
+  queueTableRows(workspaceFiles, [file])
+  queueTableRows(workspaceFiles, [sidecar])
 }
 
 function execute(argv: string[], trace: ResolvedSecretTraceRegistry, sink?: string) {
