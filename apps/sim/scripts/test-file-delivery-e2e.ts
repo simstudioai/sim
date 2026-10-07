@@ -155,6 +155,9 @@ await check(
     assert.equal(await response.text(), source)
     assert.match(response.headers.get('content-security-policy') ?? '', /sandbox/)
     assert.equal(response.headers.get('cache-control'), 'private, no-store')
+    const metadataResponse = await request(`${detail}/metadata`, { headers }, true)
+    assert.equal(metadataResponse.status, 200)
+    const metadata = toRecord(toRecord(await metadataResponse.json()).data)
     const updated = await request(
       `${detail}/content`,
       {
@@ -163,7 +166,7 @@ await check(
         body: JSON.stringify({
           content: `${source}\n`,
           encoding: 'utf-8',
-          expectedRevision: required(file.revision),
+          expectedRevision: required(metadata.revision),
         }),
       },
       true
