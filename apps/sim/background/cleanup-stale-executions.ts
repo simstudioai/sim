@@ -794,7 +794,6 @@ export async function runCleanupStaleExecutions() {
 
 export const cleanupStaleExecutionsTask = task({
   id: 'cleanup-stale-executions',
-  maxDuration: 1800,
   queue: { concurrencyLimit: 1 },
   run: () => runCleanupStaleExecutions(),
 })

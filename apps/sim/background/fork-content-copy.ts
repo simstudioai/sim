@@ -1,5 +1,4 @@
 import { task } from '@trigger.dev/sdk'
-import { STALE_ACTIVE_MS } from '@/ee/workspace-forking/lib/background-work/store'
 import {
   type ForkContentCopyPayload,
   runForkContentCopy,
@@ -21,12 +20,6 @@ import {
 export const forkContentCopyTask = task({
   id: 'fork-content-copy',
   machine: 'large-2x',
-  /**
-   * Ends inside {@link STALE_ACTIVE_MS}, after which the outbox cron marks the fork's status
-   * row failed, so a run never keeps copying under a status that already says it failed. The
-   * five-minute margin absorbs queue wait, since the row's clock starts at fork time.
-   */
-  maxDuration: STALE_ACTIVE_MS / 1000 - 5 * 60,
   retry: { maxAttempts: 1 },
   queue: {
     name: 'fork-content-copy',

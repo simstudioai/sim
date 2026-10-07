@@ -53,7 +53,7 @@ const BACKGROUND_WORK_PAGE_SIZE_MAX = 100
  * sweeps these via {@link reapStaleBackgroundWork}, marking them `failed` so the UI
  * surfaces the failure instead of spinning forever.
  */
-export const STALE_ACTIVE_MS = 30 * 60 * 1000
+const STALE_ACTIVE_MS = 30 * 60 * 1000
 
 /** Terminal rows older than this are pruned by the cron so the audit trail stays bounded. */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
