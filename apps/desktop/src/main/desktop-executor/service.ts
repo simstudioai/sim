@@ -154,6 +154,14 @@ export function createDesktopExecutorService(
             )
           )
       )
+      // The journal reads an unreadable file as empty, so this is for a load that throws anyway:
+      // it holds none, and the executor still starts.
+      .catch((error: unknown) => {
+        logger.warn('Could not read the executor journal for pending results', {
+          error: getErrorMessage(error),
+        })
+        return new Set<string>()
+      })
     return pendingSnapshot
   }
   /** Bumped on sign-out, so work started for the previous session cannot resume it. */
