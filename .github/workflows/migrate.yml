@@ -1,4 +1,4 @@
-name: Database Migrations
+name: migrate
 
 on:
   workflow_call:
@@ -7,6 +7,17 @@ on:
         description: Target environment (production, staging, or dev)
         required: true
         type: string
+    secrets:
+      DATABASE_URL:
+        required: false
+      STAGING_DATABASE_URL:
+        required: false
+      DEV_DATABASE_URL:
+        required: false
+      MIGRATION_DATABASE_URL:
+        required: false
+      STAGING_MIGRATION_DATABASE_URL:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -23,7 +34,7 @@ permissions:
 
 jobs:
   migrate:
-    name: Apply Database Migrations
+    name: migrate
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
     timeout-minutes: 300
@@ -31,25 +42,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          persist-credentials: false
 
-      - name: Cache Bun dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      - name: Setup workspace
+        uses: ./.github/actions/setup
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            **/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: ''
 
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An

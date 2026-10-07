@@ -1,4 +1,4 @@
-name: companion-pr-check
+name: companion
 
 # Soft, NON-BLOCKING warning: when a PR targeting staging/main declares a
 # cross-repo "Companion:" PR, surface whether that companion is merged yet, so
@@ -40,6 +40,7 @@ permissions:
 
 jobs:
   companion:
+    name: companion
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:

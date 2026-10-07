@@ -4,10 +4,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
-const tasks = readFileSync(
-  new URL('../.github/workflows/deploy-trigger-dev.yml', import.meta.url),
-  'utf8'
-)
+const tasks = readFileSync(new URL('../.github/workflows/trigger-dev.yml', import.meta.url), 'utf8')
 
 /** Evaluate the checked-in job condition for concrete GitHub job outcomes. */
 function eligible(job: string, branch: string, results: Record<string, string> = {}) {
@@ -17,11 +14,11 @@ function eligible(job: string, branch: string, results: Record<string, string> =
   const needs = Object.fromEntries(
     Object.entries({
       migrate: 'success',
-      'build-amd64': 'success',
+      'image-amd64': 'success',
       'migrate-dev': 'success',
-      'build-dev': 'success',
-      'prepare-trigger': 'success',
-      'promote-images': 'success',
+      'image-dev': 'success',
+      'trigger-upload': 'success',
+      promote: 'success',
       ...results,
     }).map(([name, result]) => [name, { result, outputs: { promoted: 'true' } }])
   )
@@ -66,9 +63,9 @@ ${script}`,
 
 describe('dev deployment independence', () => {
   it('promotes dev images with the skipped Trigger jobs and no cutover waiter', () => {
-    expect(eligible('prepare-trigger', 'dev')).toBe(false)
-    expect(eligible('promote-trigger', 'dev')).toBe(false)
-    expect(eligible('promote-images', 'dev', { 'prepare-trigger': 'skipped' })).toBe(true)
+    expect(eligible('trigger-upload', 'dev')).toBe(false)
+    expect(eligible('trigger-promote', 'dev')).toBe(false)
+    expect(eligible('promote', 'dev', { 'trigger-upload': 'skipped' })).toBe(true)
   })
 
   it('does not roll tasks back when an older push is retried', () => {

@@ -1,7 +1,7 @@
-name: Sticky Disk GC
+name: disk-gc
 
 # node_modules sticky disks are keyed on hashFiles('bun.lock') by design — see the
-# "Mount node_modules" comment in test-build.yml. A sticky disk is a mutable volume
+# cache-key comment in .github/actions/setup/action.yml. A sticky disk is a mutable volume
 # and `bun install --frozen-lockfile` adds what the lockfile needs without pruning
 # what it dropped, so branches on different lockfiles must not share one. That
 # design is correct and is preserved here.
@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   gc:
-    name: Reclaim idle node_modules sticky disks
+    name: gc
     # GitHub-hosted on purpose, not a Blacksmith runner: the CLI is a pure API
     # client, and collection has to keep working during a Blacksmith outage or a
     # CI_PROVIDER break-glass switch — exactly when disks sit idle and still bill.
@@ -120,7 +120,7 @@ jobs:
           # because the key interpolates ${{ github.event_name }} and a
           # workflow_dispatch disk already exists that an enumerated list would have
           # skipped forever. `-fork` is a separate optional segment rather than part
-          # of that class: test-build.yml appends it after the event name, so a fork
+          # of that class: the setup action appends it after the event name, so a fork
           # key reads `pull_request-fork` and a character class cannot span the
           # hyphen. Without it, fork disks would never be collected.
           #
