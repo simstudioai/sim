@@ -145,6 +145,9 @@ export async function executeNativeFileTool(
       response.data.kind === 'manifest'
         ? localFileImportCompletion(await importNativeFiles(toolCallId, response.data, signal))
         : localFileReadCompletion(response)
+    // Cancelled by the user's Stop or by signing out: whoever cancelled it settles the call, as for
+    // browser actions and granted-folder reads. A failure reported here would race Stop's record.
+    if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
       completion.status,
@@ -153,6 +156,7 @@ export async function executeNativeFileTool(
     )
     settled = true
   } catch (error) {
+    if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.error,

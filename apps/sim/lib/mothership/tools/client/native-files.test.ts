@@ -125,3 +125,28 @@ it('returns local visual observations through the existing completion path', asy
   expect(mocks.complete).toHaveBeenCalledWith('tool', 'success', expect.any(String), data)
   expect(mocks.upload).not.toHaveBeenCalled()
 })
+
+it('an import the user stopped leaves its outcome to Stop instead of reporting a failure', async () => {
+  const stop = new AbortController()
+  mocks.invoke.mockResolvedValueOnce({ ok: true, data: manifest })
+  mocks.upload.mockImplementationOnce(async () => {
+    stop.abort('user_stop:client_stopGeneration')
+    throw new DOMException('The operation was aborted.', 'AbortError')
+  })
+  await executeNativeFileTool('tool', 'import_local_files', stop.signal)
+  expect(mocks.complete).not.toHaveBeenCalled()
+  expect(mocks.exit).not.toHaveBeenCalled()
+})
+
+it('a read the user stopped while the desktop was reading reports nothing', async () => {
+  const stop = new AbortController()
+  mocks.invoke.mockImplementationOnce(async () => {
+    stop.abort('user_stop:client_stopGeneration')
+    return {
+      ok: true,
+      data: { kind: 'read', path: '/notes.txt', representation: 'text', text: 'notes' },
+    }
+  })
+  await executeNativeFileTool('tool', 'read_local_file', stop.signal)
+  expect(mocks.complete).not.toHaveBeenCalled()
+})
