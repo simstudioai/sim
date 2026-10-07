@@ -391,12 +391,13 @@ export class TerminalRegistry {
    * At launch, for the same user: leaves a previous process's tmux run going only when the model
    * has, or will get, the result that handed it back as still going: Sim acknowledged it
    * (`delivered`), or the executor's journal holds it for recovery to send (`pendingResults`).
-   * Every other run is stopped, as is one a stop for everything could not confirm.
+   * Every other run is stopped, as is one a stop for everything could not confirm (`stop`).
    */
   stopUncollectableRuns(pendingResults: ReadonlySet<string>): Promise<void> {
     return this.stopRecordedRuns({
       excludeLive: true,
-      keep: (run) => !run.mustStop && (run.delivered || pendingResults.has(run.callId)),
+      keep: (run) =>
+        run.state === 'delivered' || (run.state === 'started' && pendingResults.has(run.callId)),
     })
   }
 
@@ -405,11 +406,8 @@ export class TerminalRegistry {
    * be left to the model across a restart.
    */
   markRunDelivered(callId: string): void {
-    const ledger = this.runLedger
-    if (!ledger) return
-    for (const run of ledger.list()) {
-      if (run.callId === callId) ledger.markDelivered(run.runId)
-    }
+    const runId = this.runLedger?.runOf(callId)
+    if (runId) this.runLedger?.advance(runId, 'delivered')
   }
 
   /**
@@ -429,14 +427,15 @@ export class TerminalRegistry {
     if (!ledger) return
     await Promise.allSettled(
       ledger.list({ excludeLive: options.excludeLive }).map(async (run) => {
-        const keeping = options.keep?.(run) ?? false
-        const state = keeping
-          ? await recordedRunState(run, process.env)
-          : await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
+        let keeping = options.keep?.(run) ?? false
+        let state = keeping ? await recordedRunState(run, process.env) : 'ours'
+        // A kept run whose command already ended leaves only its dead pane (`remain-on-exit`).
+        if (state === 'finished') keeping = false
+        if (!keeping) state = await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
         if (state === 'gone') ledger.forget(run.runId)
         // A run this sweep meant to stop but could not confirm stays meant to stop, so no later
         // sweep keeps it.
-        else if (!keeping) ledger.markMustStop(run.runId)
+        else if (!keeping) ledger.advance(run.runId, 'stop')
       })
     )
   }

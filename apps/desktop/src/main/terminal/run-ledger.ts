@@ -18,26 +18,32 @@ import type { RecordedRun } from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminalRunLedger')
 
-/** A recorded run, with the call it belongs to and whether that call's result went back. */
+/**
+ * Where a recorded run stands, moving only forward:
+ * - `started`: its call has not handed its result to the model;
+ * - `delivered`: the model has the result that handed the run back as still going (with its
+ *   pane), so a restart must leave the run be;
+ * - `stop`: a stop for everything (sign-out, Terminal off) could not confirm the run ended, so
+ *   it is stopped whatever comes after, a late `delivered` included.
+ */
+export type RunState = 'started' | 'delivered' | 'stop'
+
+const RUN_STATES: readonly RunState[] = ['started', 'delivered', 'stop']
+
+/** A recorded run, with the call it belongs to and where it stands. */
 export interface RunRecord extends RecordedRun {
   /** The tool call that started the run, to match it against the executor's journal. */
   callId: string
-  /**
-   * True once the run's call handed back its result while the run went on (`running`, with its
-   * pane): from then on the model can come back to the pane, so a restart must leave it be.
-   */
-  delivered: boolean
-  /** A stop for everything (sign-out, Terminal off) could not confirm this run ended. */
-  mustStop?: boolean
+  state: RunState
 }
 
 export interface RunLedger {
   /** Saves a run's record; false when it could not be saved, so the run must not start. */
   record(run: RunRecord): boolean
-  /** Notes that the run's call has handed back its result, with the run still going. */
-  markDelivered(runId: string): void
-  /** Notes that the run must be stopped, whatever a later launch would otherwise decide. */
-  markMustStop(runId: string): void
+  /** Moves a run forward to `state`; a run already there or past it stays as it is. */
+  advance(runId: string, state: RunState): void
+  /** The recorded run a tool call started, if the ledger still holds one. */
+  runOf(callId: string): string | undefined
   forget(runId: string): void
   /** Every recorded run; `excludeLive` leaves out runs this process recorded. */
   list(options?: { excludeLive?: boolean }): RunRecord[]
@@ -55,7 +61,7 @@ function parseRecord(text: string): RunRecord | null {
       typeof parsed.pane === 'string' &&
       /^%\d+$/.test(parsed.pane) &&
       typeof parsed.callId === 'string' &&
-      typeof parsed.delivered === 'boolean' &&
+      RUN_STATES.includes(parsed.state as RunState) &&
       typeof parsed.socket === 'string' &&
       parsed.socket.startsWith('/')
     ) {
@@ -64,8 +70,7 @@ function parseRecord(text: string): RunRecord | null {
         pane: parsed.pane,
         socket: parsed.socket,
         callId: parsed.callId,
-        delivered: parsed.delivered,
-        ...(parsed.mustStop === true ? { mustStop: true } : {}),
+        state: parsed.state as RunState,
       }
     }
   } catch {
@@ -86,24 +91,45 @@ function remove(path: string): void {
 export function createRunLedger(dir: string): RunLedger {
   /** Runs recorded by this process, still going as far as it knows. */
   const live = new Set<string>()
+  /** Each recorded run by the call that started it: read from the directory once, then kept. */
+  let byCall: Map<string, string> | null = null
   const pathFor = (runId: string) => join(dir, `${runId}.json`)
 
-  /** Rewrites a saved record; `change` returns null to leave it as it is. */
-  const update = (runId: string, change: (record: RunRecord) => RunRecord | null): void => {
-    if (!RUN_ID.test(runId)) return
-    let record: RunRecord | null = null
+  /** Every saved record; anything else in the directory is removed. */
+  const readAll = (): RunRecord[] => {
+    let names: string[]
     try {
-      record = parseRecord(readFileSync(pathFor(runId), 'utf8'))
+      names = readdirSync(dir)
     } catch {
-      record = null
+      return []
     }
-    const changed = record ? change(record) : null
-    if (!changed) return
-    try {
-      writeJsonFileAtomicallySync(pathFor(runId), changed)
-    } catch (error) {
-      logger.warn('Could not update a tmux run record', { error: getErrorMessage(error) })
+    const runs: RunRecord[] = []
+    for (const name of names) {
+      // A write that never finished leaves only its temporary file behind.
+      if (name.endsWith('.tmp')) {
+        remove(join(dir, name))
+        continue
+      }
+      if (!name.endsWith('.json')) continue
+      let record: RunRecord | null = null
+      try {
+        record = parseRecord(readFileSync(join(dir, name), 'utf8'))
+      } catch {
+        record = null
+      }
+      if (!record || `${record.runId}.json` !== name) {
+        // Nothing could act on it safely; it only takes up space.
+        remove(join(dir, name))
+        continue
+      }
+      runs.push(record)
     }
+    return runs
+  }
+
+  const index = (): Map<string, string> => {
+    byCall ??= new Map(readAll().map((run) => [run.callId, run.runId]))
+    return byCall
   }
 
   return {
@@ -112,53 +138,40 @@ export function createRunLedger(dir: string): RunLedger {
       try {
         writeJsonFileAtomicallySync(pathFor(run.runId), run)
         live.add(run.runId)
+        index().set(run.callId, run.runId)
         return true
       } catch (error) {
         logger.warn('Could not record a tmux run', { error: getErrorMessage(error) })
         return false
       }
     },
-    markDelivered(runId) {
-      // Left undelivered, a restart stops the run: the conservative side.
-      update(runId, (record) => (record.delivered ? null : { ...record, delivered: true }))
+    advance(runId, state) {
+      if (!RUN_ID.test(runId)) return
+      let record: RunRecord | null = null
+      try {
+        record = parseRecord(readFileSync(pathFor(runId), 'utf8'))
+      } catch {
+        record = null
+      }
+      if (!record || RUN_STATES.indexOf(state) <= RUN_STATES.indexOf(record.state)) return
+      try {
+        writeJsonFileAtomicallySync(pathFor(runId), { ...record, state })
+      } catch (error) {
+        // Left behind, a restart stops the run: the conservative side.
+        logger.warn('Could not update a tmux run record', { error: getErrorMessage(error) })
+      }
     },
-    markMustStop(runId) {
-      update(runId, (record) => (record.mustStop ? null : { ...record, mustStop: true }))
+    runOf(callId) {
+      return index().get(callId)
     },
     forget(runId) {
       live.delete(runId)
+      for (const [callId, indexed] of byCall ?? []) if (indexed === runId) byCall?.delete(callId)
       if (RUN_ID.test(runId)) remove(pathFor(runId))
     },
     list(options = {}) {
-      let names: string[]
-      try {
-        names = readdirSync(dir)
-      } catch {
-        return []
-      }
-      const runs: RunRecord[] = []
-      for (const name of names) {
-        // A write that never finished leaves only its temporary file behind.
-        if (name.endsWith('.tmp')) {
-          remove(join(dir, name))
-          continue
-        }
-        if (!name.endsWith('.json')) continue
-        let record: RunRecord | null = null
-        try {
-          record = parseRecord(readFileSync(join(dir, name), 'utf8'))
-        } catch {
-          record = null
-        }
-        if (!record || `${record.runId}.json` !== name) {
-          // Nothing could act on it safely; it only takes up space.
-          remove(join(dir, name))
-          continue
-        }
-        if (options.excludeLive && live.has(record.runId)) continue
-        runs.push(record)
-      }
-      return runs
+      const runs = readAll()
+      return options.excludeLive ? runs.filter((run) => !live.has(run.runId)) : runs
     },
   }
 }

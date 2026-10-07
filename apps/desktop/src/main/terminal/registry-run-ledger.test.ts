@@ -6,11 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 /**
- * Each recorded run's pane as tmux has it: running, stopped by Sim, already gone, or one tmux
- * cannot answer for. A pane not listed is running.
+ * Each recorded run's pane as tmux has it: running, dead after its command ended
+ * (`remain-on-exit`), stopped by Sim, already gone, or one tmux cannot answer for. A pane not
+ * listed is running.
  */
 const { panes } = vi.hoisted(() => ({
-  panes: new Map<string, 'running' | 'stopped' | 'gone' | 'unknown'>(),
+  panes: new Map<string, 'running' | 'dead' | 'stopped' | 'gone' | 'unknown'>(),
 }))
 
 vi.mock('@/main/terminal/tmux', async () => {
@@ -21,18 +22,22 @@ vi.mock('@/main/terminal/tmux', async () => {
     ...actual,
     recordedRunState: async (run: { runId: string }) => {
       const pane = state(run.runId)
-      return pane === 'running' ? 'ours' : pane === 'unknown' ? 'unknown' : 'gone'
+      if (pane === 'running') return 'ours'
+      if (pane === 'dead') return 'finished'
+      return pane === 'unknown' ? 'unknown' : 'gone'
     },
     stopRecordedRun: async (run: { runId: string }) => {
       if (state(run.runId) === 'unknown') return 'unknown'
-      if (state(run.runId) === 'running') panes.set(run.runId, 'stopped')
+      if (state(run.runId) === 'running' || state(run.runId) === 'dead') {
+        panes.set(run.runId, 'stopped')
+      }
       return 'gone'
     },
   }
 })
 
 import { TerminalRegistry } from '@/main/terminal/registry'
-import { createRunLedger } from '@/main/terminal/run-ledger'
+import { createRunLedger, type RunState } from '@/main/terminal/run-ledger'
 
 const dirs: string[] = []
 
@@ -42,8 +47,8 @@ function ledgerDir(): string {
   return join(dir, 'terminal-runs')
 }
 
-function run(runId: string, pane: string, delivered = false) {
-  return { runId, pane, socket: '/tmp/tmux-501/default', callId: `call-${runId}`, delivered }
+function run(runId: string, pane: string, state: RunState = 'started') {
+  return { runId, pane, socket: '/tmp/tmux-501/default', callId: `call-${runId}`, state }
 }
 
 afterEach(() => {
@@ -70,12 +75,15 @@ describe('stopping recorded tmux runs', () => {
     const dir = ledgerDir()
     const previous = createRunLedger(dir)
     // Sim took its result: the model has the pane.
-    previous.record(run('handed-back', '%1', true))
+    previous.record(run('handed-back', '%1', 'delivered'))
     previous.record(run('never-handed-back', '%2'))
     // Its result is in the journal, unacknowledged: recovery will hand the pane to the model.
     previous.record(run('on-its-way', '%3'))
-    previous.record(run('handed-back-and-gone', '%4', true))
+    previous.record(run('handed-back-and-gone', '%4', 'delivered'))
     panes.set('handed-back-and-gone', 'gone')
+    // Handed back, but its command has since ended: only its dead pane is left.
+    previous.record(run('handed-back-and-done', '%5', 'delivered'))
+    panes.set('handed-back-and-done', 'dead')
     const ledger = createRunLedger(dir)
 
     await new TerminalRegistry(undefined, undefined, ledger).stopUncollectableRuns(
@@ -85,6 +93,7 @@ describe('stopping recorded tmux runs', () => {
     expect(Object.fromEntries(panes)).toEqual({
       'never-handed-back': 'stopped',
       'handed-back-and-gone': 'gone',
+      'handed-back-and-done': 'stopped',
     })
     expect(
       ledger
@@ -96,7 +105,7 @@ describe('stopping recorded tmux runs', () => {
 
   it('keeps meaning to stop a run a stop for everything could not confirm', async () => {
     const dir = ledgerDir()
-    createRunLedger(dir).record(run('unconfirmed', '%1', true))
+    createRunLedger(dir).record(run('unconfirmed', '%1', 'delivered'))
     panes.set('unconfirmed', 'unknown')
     const ledger = createRunLedger(dir)
     // Sign-out could not confirm the run ended.
@@ -110,7 +119,7 @@ describe('stopping recorded tmux runs', () => {
     expect(ledger.list()).toEqual([])
   })
 
-  it('notes a run as handed back once its call result is durable', () => {
+  it('notes the run of a call whose result reached the model as handed back', () => {
     const dir = ledgerDir()
     const ledger = createRunLedger(dir)
     ledger.record(run('watched', '%1'))
@@ -118,9 +127,9 @@ describe('stopping recorded tmux runs', () => {
 
     new TerminalRegistry(undefined, undefined, ledger).markRunDelivered('call-watched')
 
-    expect(
-      Object.fromEntries(ledger.list().map((record) => [record.runId, record.delivered]))
-    ).toEqual({ watched: true, other: false })
+    expect(Object.fromEntries(ledger.list().map((record) => [record.runId, record.state]))).toEqual(
+      { watched: 'delivered', other: 'started' }
+    )
   })
 
   it("at launch, stops the previous process's runs and none this one has started", async () => {

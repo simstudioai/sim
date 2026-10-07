@@ -10,6 +10,7 @@ import {
   listPanes,
   parseFormatLines,
   pollRun,
+  recordedRunState,
   resolveAttachment,
   runPaneState,
   startRun,
@@ -188,7 +189,16 @@ interface FakeTmuxState {
   socket: string
   nextWindow: number
   nextPane: number
-  panes: Record<string, { window: string; options: Record<string, string>; command?: string }>
+  panes: Record<
+    string,
+    {
+      window: string
+      options: Record<string, string>
+      command?: string
+      /** Its command has ended, and `remain-on-exit` keeps the pane open. */
+      dead?: boolean
+    }
+  >
   /** Every command that reached a pane: `send-keys %1 C-c`, `kill-pane %1`. */
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
@@ -205,6 +215,8 @@ interface FakeTmuxState {
   clients?: Array<{ pid: string; tty: string; session: string }>
   /** A session's panes as `list-panes` reports them, with fields others can set. */
   listed?: Array<{ windowName: string; command: string; cwd: string }>
+  /** list-panes writes its output in two pieces, split inside a multi-byte character. */
+  splitWrites?: boolean
   /** Every `-F` format the fake was asked for, in order. */
   formats?: string[]
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
@@ -286,16 +298,17 @@ switch (args[0]) {
     save()
     // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
-    const name = args[args.length - 1].slice(2, -1)
-    const value = !pane
-      ? ''
-      : name === 'pane_id'
+    const field = (name) =>
+      name === 'pane_id'
         ? target()
         : name === 'socket_path'
           ? state.socket
         : name === 'pane_start_command'
           ? (pane.command ?? '')
+        : name === 'pane_dead'
+          ? (pane.dead ? '1' : '0')
           : (pane.options[name] ?? '')
+    const value = pane ? args[args.length - 1].replace(/#\\{([^}]+)\\}/g, (_, name) => field(name)) : ''
     process.stdout.write(value + '\\n')
     break
   }
@@ -305,6 +318,7 @@ switch (args[0]) {
     const format = args[args.indexOf('-F') + 1]
     state.formats = [...(state.formats ?? []), format]
     save()
+    let output = ''
     ;(state.listed ?? []).forEach((pane, index) => {
       const fields = {
         session_name: 'work',
@@ -320,8 +334,18 @@ switch (args[0]) {
           fields[name].split(from).join(to)
         )
         .replace(/#\\{([a-z_]+)\\}/g, (_, name) => fields[name])
-      process.stdout.write(line + '\\n')
+      output += line + '\\n'
     })
+    const bytes = Buffer.from(output)
+    if (!state.splitWrites) {
+      process.stdout.write(bytes)
+      break
+    }
+    // The first piece ends inside a character, and arrives well before the rest.
+    const cut = bytes.findIndex((byte) => byte >= 0x80) + 1
+    fs.writeSync(1, bytes.subarray(0, cut))
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
+    fs.writeSync(1, bytes.subarray(cut))
     break
   }
   case 'list-clients': {
@@ -398,7 +422,7 @@ describe("listing a session's panes", () => {
     tmux.write({
       ...tmux.read(),
       listed: [
-        { windowName: 'build\nlogs', command: 'make', cwd: '/tmp/a\nuser:0.0' },
+        { windowName: 'build\nlogs', command: 'make\nuser:0.9', cwd: '/tmp/a\nuser:0.0' },
         { windowName: 'zsh', command: 'zsh', cwd: '/tmp' },
       ],
     })
@@ -407,12 +431,24 @@ describe("listing a session's panes", () => {
       {
         target: 'work:0.0',
         windowName: 'build<NL>logs',
-        command: 'make',
+        command: 'make<NL>user:0.9',
         cwd: '/tmp/a<NL>user:0.0',
         active: true,
       },
       { target: 'work:0.1', windowName: 'zsh', command: 'zsh', cwd: '/tmp', active: false },
     ])
+  })
+
+  it('reads a character tmux wrote in two pieces as one', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    tmux.write({
+      ...tmux.read(),
+      splitWrites: true,
+      listed: [{ windowName: 'café ✓', command: 'zsh', cwd: '/tmp' }],
+    })
+
+    expect((await listPanes('work', tmux.env))[0]?.windowName).toBe('café ✓')
   })
 
   it('frames each call with a marker of its own', async () => {
@@ -481,6 +517,19 @@ describe('stopping a run another process started, from its record', () => {
     expect(tmux.read().panes).toEqual({})
   })
 
+  it('reads a pane kept open after its command ended as finished, and closes it without keys', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    const state = tmux.read()
+    const pane = state.panes[record.pane]
+    if (pane) pane.dead = true
+    tmux.write(state)
+
+    expect(await recordedRunState(record, tmux.env)).toBe('finished')
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([`kill-pane ${record.pane}`])
+  })
+
   it('never touches a pane that took the recorded id after tmux restarted', async () => {
     const tmux = fakeTmux()
     const { run, record } = await recorded(tmux)
@@ -532,29 +581,25 @@ describe('stopping a run another process started, from its record', () => {
     expect(existsSync(marker)).toBe(false)
   })
 
-  it('forgets the saved record of a run that then could not start', async () => {
+  it('closes the tagged pane of a run that then could not start', async () => {
     const tmux = fakeTmux()
     dirs.push(tmux.dir)
-    const saved = new Set<string>()
     let runDir = ''
 
     const result = await startRun('agent', 'sleep 600', null, tmux.env, {
       beforeStart: (run) => {
         // The run's directory turns read-only, so its go file cannot be written.
         const command = tmux.read().panes[run.pane]?.command ?? ''
-        const script = /"([^"]+)\/run\.sh"/.exec(command)?.[1] ?? ''
-        runDir = script
+        runDir = /"([^"]+)\/run\.sh"/.exec(command)?.[1] ?? ''
         chmodSync(runDir, 0o500)
-        saved.add(run.runId)
         return true
       },
-      abandon: (runId) => saved.delete(runId),
     })
 
     if (runDir) chmodSync(runDir, 0o700)
     if (runDir) dirs.push(runDir)
     expect(result).toMatchObject({ error: expect.stringContaining('could not be started') })
-    expect([...saved]).toEqual([])
+    expect(tmux.read().panes).toEqual({})
   })
 
   it('acts on no pane that took the recorded id between the last check and the action', async () => {

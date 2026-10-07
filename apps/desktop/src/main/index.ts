@@ -607,13 +607,9 @@ function main(): void {
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
     onBusyChange: (busy) => sleepBlocker.setBusy(busy),
-    // A result the model has (not one reported as not started or outcome unknown) makes a tmux
-    // run it handed back as still going collectable across a restart.
-    onResultDelivered: (toolCallId, completion) => {
-      if (completion.data?.outcomeUnknown !== true && completion.data?.notStarted !== true) {
-        terminal.markRunDelivered(toolCallId)
-      }
-    },
+    // A result the model has makes a tmux run it handed back as still going collectable across a
+    // restart.
+    onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,
@@ -817,13 +813,10 @@ function main(): void {
       }
     }
 
-    // The same user's tmux runs from a previous process: a run whose call never handed back its
-    // result (or whose result the journal will report as unknown) has nothing left to collect what
-    // it does, so it is stopped, while its pane still carries its tag. A run already handed back as
-    // still going, with its pane, is left to the model, which may come back to it. Read before the
-    // executor starts, since its recovery rewrites the journal.
-    const pendingResults = desktopExecutor.pendingResults()
-    void pendingResults.then((pending) => terminal.stopUncollectableRuns(pending))
+    // The same user's tmux runs from a previous process: one whose pane the model has, or will get
+    // from recovery, is left to the model, which may come back to it; any other has nothing left
+    // to collect what it does, so it is stopped, while its pane still carries its tag.
+    void desktopExecutor.pendingResults().then((pending) => terminal.stopUncollectableRuns(pending))
 
     if (!accountDataAvailable()) {
       logger.warn(
@@ -974,7 +967,6 @@ function main(): void {
       ensureAppSession().cookies.on('changed', (_event, cookie, _cause, removed) => {
         if (!removed && isSessionCookieName(cookie.name)) desktopExecutor.refreshRegistration()
       })
-      await pendingResults
       desktopExecutor.start()
     }
     await ensureMainWindow()

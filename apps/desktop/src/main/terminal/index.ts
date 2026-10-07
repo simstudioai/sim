@@ -1310,8 +1310,7 @@ export class TerminalService {
       ...(ledger
         ? {
             beforeStart: (run: RecordedRun) =>
-              ledger.record({ ...run, callId: toolCallId, delivered: false }),
-            abandon: (runId: string) => ledger.forget(runId),
+              ledger.record({ ...run, callId: toolCallId, state: 'started' }),
           }
         : {}),
     })

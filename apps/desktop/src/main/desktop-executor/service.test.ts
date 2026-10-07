@@ -64,6 +64,7 @@ function fakeSim(protocolVersion = 1) {
       })
     }
     if (path === '/api/desktop/tool/lease') return Response.json({ renewed: true })
+    if (path === '/api/desktop/tool/complete') return Response.json({ outcome: 'recorded' })
     return new Promise<Response>((_resolve, reject) =>
       init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
     )
@@ -115,6 +116,18 @@ describe('results recovery will hand to the model', () => {
       completion: { status: 'error', message: 'x', data: { notStarted: true } },
     })
     await journal.put({
+      toolCallId: 'stopped',
+      state: 'result',
+      executionToken: 't6',
+      completion: { status: 'cancelled', message: 'Stopped.' },
+    })
+    await journal.put({
+      toolCallId: 'too-large',
+      state: 'result',
+      executionToken: 't7',
+      completion: { status: 'error', message: 'x', data: { resultOmitted: true } },
+    })
+    await journal.put({
       toolCallId: 'handed-back',
       state: 'result',
       executionToken: 't5',
@@ -123,6 +136,39 @@ describe('results recovery will hand to the model', () => {
     const { desktopExecutor } = await service(1, userData)
 
     expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
+  })
+
+  it('counts an unreadable journal as holding none', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+    // A directory where the journal file should be: every read of it fails.
+    await mkdir(join(userData, 'desktop-executor-journal.json'))
+    const { desktopExecutor } = await service(1, userData)
+
+    expect([...(await desktopExecutor.pendingResults())]).toEqual([])
+  })
+
+  it('names what the journal held before recovery sent it, even when asked after', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+    const path = join(userData, 'desktop-executor-journal.json')
+    await createExecutorJournal(path).put({
+      toolCallId: 'handed-back',
+      state: 'result',
+      executionToken: 't1',
+      completion: { status: 'success', message: 'running', data: { status: 'running' } },
+    })
+    const { sim, desktopExecutor } = await service(1, userData)
+    desktopExecutor.start()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    sim.registrations[0]?.(true)
+
+    // Recovery hands the result to Sim and drops it from the journal.
+    await vi.waitFor(async () => {
+      expect(sim.requests).toContain('POST /api/desktop/tool/complete')
+      expect(await createExecutorJournal(path).load()).toEqual([])
+    })
+
+    expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
+    await desktopExecutor.signOut()
   })
 })
 
