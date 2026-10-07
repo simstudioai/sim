@@ -57,10 +57,9 @@ import { FORK_CONTENT_COPY_EVENT } from '@/ee/workspace-forking/application/cont
  * the dependencies of handlers it will not call. Event types come from dependency-free modules
  * (or ones the processor already loads), so naming them here costs nothing.
  *
- * Each group's `events` must equal its loaded map's keys: a type missing here is never served and
- * dead-letters as unhandled (`handlers.test.ts` enforces this). Each `load` destructures its
- * import so the unused-export audit can see which export it reads; `(await import(x)).y` marks
- * every export of the module as used.
+ * `handlers.test.ts` checks every group against its module. Each `load` destructures its import
+ * so the unused-export audit can see which export it reads; `(await import(x)).y` marks every
+ * export of the module as used.
  */
 export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
   {
