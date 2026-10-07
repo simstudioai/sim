@@ -3,16 +3,12 @@ import { workspaceFile, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm'
-import {
-  decrementStorageUsageForBillingContextInTx,
-  resolveStorageBillingContext,
-} from '@/lib/billing/storage'
+import { prepareFileAccountingInTx } from '@/lib/billing/storage/accounting'
 import { DEFAULT_DELETE_CHUNK_SIZE, selectRowsByIdChunks } from '@/lib/cleanup/batch-delete'
 import type { CleanupBudgets } from '@/lib/cleanup/limits'
 import { type CleanupOwnerScope, cleanupOwnerCondition } from '@/lib/cleanup/resource-scope'
 import { cleanupArchivedWorkspaceFileFolders } from '@/lib/file-retention/folders'
 import type { FileArchiveCleanup, FileRetentionOptions } from '@/lib/file-retention/types'
-import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
@@ -268,8 +264,10 @@ async function deleteExpiredBillableWorkspaceFileRows(
     for (const batch of chunkArray(workspaceRows, DEFAULT_DELETE_CHUNK_SIZE)) {
       try {
         const deletedCount = await db.transaction(async (tx) => {
-          await lockWorkspaceProject(tx, workspaceId)
-          const billingContext = await resolveStorageBillingContext(workspaceId, tx)
+          const accounting = await prepareFileAccountingInTx(tx, {
+            entityType: 'workspace',
+            entityId: workspaceId,
+          })
           await releaseWorkspaceFileVersionsForPurgeInTx(
             tx,
             batch.map(({ id }) => id),
@@ -302,7 +300,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
             (total, row) => total + getWorkspaceFileSize(row),
             0
           )
-          await decrementStorageUsageForBillingContextInTx(tx, billingContext, deletedBytes)
+          await accounting.mutation.applyDelta(-deletedBytes)
           return deletedRows.length
         })
         result.deleted += deletedCount

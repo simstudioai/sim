@@ -11,6 +11,7 @@ import { sql as query } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { prepareFileAccountingInTx } from '@/lib/billing/storage/accounting'
 import {
   type ProjectStorageBillingContext,
   resolveProjectStorageBillingContext,
@@ -21,10 +22,7 @@ import {
   changeProjectAndWorkspaceStoragePayersInTx,
   changeProjectStoragePayersInTx,
 } from '@/lib/billing/storage/payer-transfer'
-import {
-  incrementStorageUsageForBillingContextInTx,
-  prepareProjectStorageMutationInTx,
-} from '@/lib/billing/storage/tracking'
+import { prepareFileStorageMutationInTx } from '@/lib/billing/storage/tracking'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
@@ -164,7 +162,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         plan: 'team_25000',
         customStorageLimitGB: 2,
       })
-      const prepared = await prepareProjectStorageMutationInTx(tx, organizationContext)
+      const prepared = await prepareFileStorageMutationInTx(tx, organizationContext)
       await prepared.applyDelta(40)
       await tx.execute(query`UPDATE project SET organization_id = NULL WHERE id = 'project-b'`)
       const personalContext = await resolveProjectStorageBillingContext(
@@ -177,7 +175,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         plan: 'pro_4000',
         customStorageLimitGB: null,
       })
-      const personalPrepared = await prepareProjectStorageMutationInTx(tx, personalContext)
+      const personalPrepared = await prepareFileStorageMutationInTx(tx, personalContext)
       await personalPrepared.applyDelta(20)
     })
     const [organizationPayer] = await sql`SELECT storage_used_bytes::integer AS bytes
@@ -289,7 +287,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       const releaseWrite = createDeferred<void>()
       const teardownPid = createDeferred<number>()
       const write = database.transaction(async (tx) => {
-        const prepared = await prepareProjectStorageMutationInTx(tx, {
+        const prepared = await prepareFileStorageMutationInTx(tx, {
           ...context(),
           organizationId: null,
           billingEntity: { type: 'user', id: 'user-a' },
@@ -333,23 +331,30 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
   check(
     'two Projects and a workspace share one locked quota without committing rejected file rows',
     async () => {
-      const workspaceContext: StorageBillingContext = {
-        ...context('project-a', 60),
-        workspaceId: 'workspace-a',
-      }
+      await sql`INSERT INTO member (id, organization_id, user_id, role)
+        VALUES ('payer-owner', 'organization-a', 'user-b', 'owner')`
+      await sql`INSERT INTO subscription (id, plan, reference_id, status, metadata)
+        VALUES ('payer-plan', 'team', 'organization-a', 'active', ${JSON.stringify({ customStorageLimitGB: 60 / 1024 ** 3 })})`
       const attempts = await Promise.allSettled([
         ...['project-a', 'project-b'].map((projectId) =>
           database.transaction(async (tx) => {
-            const prepared = await prepareProjectStorageMutationInTx(tx, context(projectId, 60))
+            const { mutation: prepared } = await prepareFileAccountingInTx(tx, {
+              entityType: 'project',
+              entityId: projectId,
+            })
             await tx.execute(query`INSERT INTO workspace_files (id, project_id, context, size_bytes)
           VALUES (${projectId}, ${projectId}, 'project', 40)`)
             await prepared.applyDelta(40)
           })
         ),
         database.transaction(async (tx) => {
+          const { mutation } = await prepareFileAccountingInTx(tx, {
+            entityType: 'workspace',
+            entityId: 'workspace-a',
+          })
           await tx.execute(query`INSERT INTO workspace_files (id, workspace_id, context, size_bytes)
           VALUES ('workspace-file', 'workspace-a', 'workspace', 40)`)
-          await incrementStorageUsageForBillingContextInTx(tx, workspaceContext, 40)
+          await mutation.applyDelta(40)
         }),
       ])
       expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
@@ -361,15 +366,90 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         await sql`SELECT storage_used_bytes::integer AS bytes FROM organization WHERE id = 'organization-a'`
       expect(payer.bytes).toBe(40)
       expect(await sql`SELECT id FROM workspace_files`).toHaveLength(1)
+      const [workspaceUsage] =
+        await sql`SELECT storage_used_bytes::integer AS bytes FROM workspace WHERE id = 'workspace-a'`
+      const [workspaceHeads] =
+        await sql`SELECT COALESCE(sum(size_bytes), 0)::integer AS bytes FROM workspace_files WHERE workspace_id = 'workspace-a'`
+      expect(workspaceUsage.bytes).toBe(workspaceHeads.bytes)
     }
   )
+
+  for (const entityType of ['workspace', 'project'] as const) {
+    check(
+      `${entityType} admits exact limit, zero and shrinking over quota with consistent ledgers`,
+      async () => {
+        const entityId = entityType === 'workspace' ? 'workspace-a' : 'project-a'
+        await sql`INSERT INTO member (id, organization_id, user_id, role)
+        VALUES ('payer-owner', 'organization-a', 'user-b', 'owner')`
+        await sql`INSERT INTO subscription (id, plan, reference_id, status, metadata)
+        VALUES ('payer-plan', 'team', 'organization-a', 'active', ${JSON.stringify({ customStorageLimitGB: 60 / 1024 ** 3 })})`
+        await database.transaction(async (tx) => {
+          const { billing, mutation } = await prepareFileAccountingInTx(tx, {
+            entityType,
+            entityId,
+          })
+          expect(billing.billingEntity).toEqual({ type: 'organization', id: 'organization-a' })
+          expect(await mutation.applyDelta(60)).toBe(60)
+        })
+        await expect(
+          database.transaction(async (tx) => {
+            const { mutation } = await prepareFileAccountingInTx(tx, { entityType, entityId })
+            await tx.execute(
+              query`INSERT INTO workspace_files (id, context, size_bytes) VALUES ('rejected', ${entityType}, 1)`
+            )
+            await mutation.applyDelta(1)
+          })
+        ).rejects.toBeInstanceOf(StorageLimitExceededError)
+        expect(await sql`SELECT id FROM workspace_files`).toEqual([])
+        await sql`UPDATE organization SET storage_used_bytes = 100 WHERE id = 'organization-a'`
+        for (const [delta, expected] of [
+          [0, 100],
+          [-20, 80],
+        ] as const) {
+          await database.transaction(async (tx) => {
+            const { mutation } = await prepareFileAccountingInTx(tx, { entityType, entityId })
+            expect(await mutation.applyDelta(delta)).toBe(expected)
+          })
+        }
+        expect(
+          await sql`SELECT storage_used_bytes::integer AS bytes FROM organization WHERE id = 'organization-a'`
+        ).toEqual([{ bytes: 80 }])
+        expect(
+          await sql`SELECT storage_used_bytes::integer AS bytes FROM workspace WHERE id = 'workspace-a'`
+        ).toEqual([{ bytes: entityType === 'workspace' ? 40 : 0 }])
+      }
+    )
+  }
+
+  check('rejects a stale workspace payer snapshot without charging either ledger', async () => {
+    const snapshot: StorageBillingContext = {
+      workspaceId: 'workspace-a',
+      billedAccountUserId: 'user-a',
+      billingEntity: { type: 'organization', id: 'organization-a' },
+      plan: 'team',
+      customStorageLimitGB: 1,
+    }
+    await sql`UPDATE workspace SET organization_id = 'organization-b' WHERE id = 'workspace-a'`
+    await expect(
+      database.transaction(async (tx) => {
+        const mutation = await prepareFileStorageMutationInTx(tx, snapshot)
+        await mutation.applyDelta(20)
+      })
+    ).rejects.toThrow(/payer changed/)
+    expect(
+      await sql`SELECT storage_used_bytes::integer AS bytes FROM organization ORDER BY id`
+    ).toEqual([{ bytes: 0 }, { bytes: 0 }])
+    expect(await sql`SELECT storage_used_bytes::integer AS bytes FROM workspace`).toEqual([
+      { bytes: 0 },
+    ])
+  })
 
   check(
     'rejects stale owner snapshots and invalid deltas before a charge can survive',
     async () => {
       await sql`UPDATE project SET owner_id = 'user-b' WHERE id = 'project-a'`
       await expect(
-        database.transaction((tx) => prepareProjectStorageMutationInTx(tx, context()))
+        database.transaction((tx) => prepareFileStorageMutationInTx(tx, context()))
       ).rejects.toThrow(/changed/)
       await sql`UPDATE project SET owner_id = 'user-a' WHERE id = 'project-a'`
       for (const delta of [
@@ -380,14 +460,14 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       ]) {
         await expect(
           database.transaction(async (tx) => {
-            const prepared = await prepareProjectStorageMutationInTx(tx, context())
+            const prepared = await prepareFileStorageMutationInTx(tx, context())
             await prepared.applyDelta(delta)
           })
         ).rejects.toThrow(/Invalid/)
       }
       await expect(
         database.transaction(async (tx) => {
-          const prepared = await prepareProjectStorageMutationInTx(tx, context())
+          const prepared = await prepareFileStorageMutationInTx(tx, context())
           await prepared.applyDelta(1)
           await prepared.applyDelta(1)
         })
@@ -402,7 +482,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
     'keeps current-head deltas separate from retained history and rolls back failed finalization',
     async () => {
       await database.transaction(async (tx) => {
-        const prepared = await prepareProjectStorageMutationInTx(tx, context())
+        const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(
           query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 100, NULL)`
         )
@@ -410,7 +490,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         await prepared.applyDelta(100)
       })
       await database.transaction(async (tx) => {
-        const prepared = await prepareProjectStorageMutationInTx(tx, context())
+        const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(
           query`UPDATE workspace_files SET size_bytes = 40, deleted_at = now() WHERE id = 'file'`
         )
@@ -418,7 +498,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       })
       await expect(
         database.transaction(async (tx) => {
-          const prepared = await prepareProjectStorageMutationInTx(tx, context())
+          const prepared = await prepareFileStorageMutationInTx(tx, context())
           await prepared.applyDelta(10)
           throw new Error('finalization failed')
         })
@@ -427,7 +507,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         await sql`SELECT storage_used_bytes::integer AS bytes FROM organization WHERE id = 'organization-a'`
       expect(payer.bytes).toBe(40)
       await database.transaction(async (tx) => {
-        const prepared = await prepareProjectStorageMutationInTx(tx, context())
+        const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(query`DELETE FROM workspace_files WHERE id = 'file'`)
         await prepared.applyDelta(-40)
       })
@@ -506,11 +586,66 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
     }
   )
 
+  check(
+    'a workspace payer transfer waits for prepared finalization and moves its committed head once',
+    async () => {
+      await sql`INSERT INTO project_workspace (project_id, workspace_id) VALUES ('project-a', 'workspace-a')`
+      const written = createDeferred<void>()
+      const release = createDeferred<void>()
+      const waiting = createDeferred<number>()
+      const write = database.transaction(async (tx) => {
+        const { mutation } = await prepareFileAccountingInTx(tx, {
+          entityType: 'workspace',
+          entityId: 'workspace-a',
+        })
+        await tx.execute(query`INSERT INTO workspace_files (id, workspace_id, context, size_bytes)
+        VALUES ('workspace-file', 'workspace-a', 'workspace', 40)`)
+        await mutation.applyDelta(40)
+        written.resolve()
+        await release.promise
+      })
+      await Promise.race([written.promise, write])
+      const transfer = database.transaction(async (tx) => {
+        const [backend] = await tx.execute<{ pid: number }>(query`SELECT pg_backend_pid() AS pid`)
+        waiting.resolve(backend.pid)
+        return changeProjectAndWorkspaceStoragePayersInTx(tx, {
+          projectChanges: [],
+          workspaceChanges: [
+            {
+              workspaceId: 'workspace-a',
+              billedAccountUserId: 'user-b',
+              organizationId: 'organization-b',
+              expectedCurrentPayer: {
+                billedAccountUserId: 'user-a',
+                organizationId: 'organization-a',
+              },
+            },
+          ],
+        })
+      })
+      try {
+        await waitForDatabaseLock(await waiting.promise)
+      } finally {
+        release.resolve()
+      }
+      await Promise.all([write, transfer])
+      expect(
+        await sql`SELECT id, storage_used_bytes::integer AS bytes FROM organization ORDER BY id`
+      ).toEqual([
+        { id: 'organization-a', bytes: 0 },
+        { id: 'organization-b', bytes: 40 },
+      ])
+      expect(
+        await sql`SELECT storage_used_bytes::integer AS bytes FROM workspace WHERE id = 'workspace-a'`
+      ).toEqual([{ bytes: 40 }])
+    }
+  )
+
   check('reconciliation waits for a Project write and keeps the committed charge', async () => {
     const changed = createDeferred<void>()
     const release = createDeferred<void>()
     const write = database.transaction(async (tx) => {
-      const prepared = await prepareProjectStorageMutationInTx(tx, context())
+      const prepared = await prepareFileStorageMutationInTx(tx, context())
       await tx.execute(
         query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
       )
@@ -547,7 +682,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       const changed = createDeferred<void>()
       const release = createDeferred<void>()
       const write = database.transaction(async (tx) => {
-        const prepared = await prepareProjectStorageMutationInTx(tx, context())
+        const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(
           query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
         )

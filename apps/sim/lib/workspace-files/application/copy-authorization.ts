@@ -48,7 +48,7 @@ type CopyPrincipal =
 
 type ProjectAccess = Awaited<ReturnType<typeof loadProjectAccess>>
 
-export type FileCopyOwnerContext =
+type FileCopyOwnerContext =
   | ProjectFileAuthorizationContext
   | {
       owner: { entityType: 'workspace'; entityId: string }

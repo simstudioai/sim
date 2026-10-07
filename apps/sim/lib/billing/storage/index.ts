@@ -1,3 +1,4 @@
+export { prepareFileAccountingInTx } from './accounting'
 export {
   resolveStorageBillingContext,
   type StorageBillingContext,

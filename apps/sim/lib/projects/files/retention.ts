@@ -4,7 +4,7 @@ import { and, asc, count, eq, gt, inArray, isNotNull, lt, min, or, sql } from 'd
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { getPlanType } from '@/lib/billing/plan-helpers'
 import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
-import { prepareProjectStorageMutationInTx } from '@/lib/billing/storage/tracking'
+import { prepareFileStorageMutationInTx } from '@/lib/billing/storage/tracking'
 import {
   consumeRowBudget,
   DEFAULT_DELETE_CHUNK_SIZE,
@@ -43,7 +43,7 @@ async function prepareRetention(tx: DbTransaction, projectId: string, job: FileR
     tx
   )
   if (isBillingEnabled && owner.organizationId && billing.plan === null) return null
-  const mutation = await prepareProjectStorageMutationInTx(tx, billing)
+  const mutation = await prepareFileStorageMutationInTx(tx, billing)
   const plan = isBillingEnabled ? getPlanType(billing.plan) : 'enterprise'
   const config = CLEANUP_CONFIG[job]
   let hours: number | null = config.defaults[plan]

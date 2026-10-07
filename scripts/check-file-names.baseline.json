@@ -125,7 +125,6 @@
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-secret-provenance.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-secret-provenance.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-storage-accounting.test.ts",
-  "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-storage-billing.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox.test.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox.ts",
   "stutter\tapps/sim/lib/uploads/contexts/workspace/workspace-file-versions.ts",

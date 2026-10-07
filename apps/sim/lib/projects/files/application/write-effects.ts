@@ -1,12 +1,7 @@
 import type { WorkspaceFileRow } from '@sim/db/schema'
-import {
-  type ProjectStorageBillingContext,
-  resolveProjectStorageBillingContext,
-} from '@/lib/billing/storage/context'
-import {
-  maybeNotifyStorageLimitForBillingContext,
-  prepareProjectStorageMutationInTx,
-} from '@/lib/billing/storage/tracking'
+import { prepareFileAccountingInTx } from '@/lib/billing/storage/accounting'
+import type { ProjectStorageBillingContext } from '@/lib/billing/storage/context'
+import { maybeNotifyStorageLimitForBillingContext } from '@/lib/billing/storage/tracking'
 import type { DbTransaction } from '@/lib/db/types'
 import type { ProjectFileAuthorizationContext } from '@/lib/projects/files/application/authorization'
 import {
@@ -65,13 +60,5 @@ export async function prepareProjectFileAccounting(
   tx: DbTransaction,
   context: ProjectFileAuthorizationContext
 ) {
-  const billing = await resolveProjectStorageBillingContext(
-    {
-      projectId: context.projectId,
-      ownerId: context.ownerUserId,
-      organizationId: context.organizationId,
-    },
-    tx
-  )
-  return { billing, mutation: await prepareProjectStorageMutationInTx(tx, billing) }
+  return prepareFileAccountingInTx(tx, { entityType: 'project', entityId: context.projectId })
 }

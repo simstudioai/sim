@@ -40,11 +40,10 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import {
-  decrementStorageUsageForBillingContextInTx,
-  incrementStorageUsageForBillingContextInTx,
   maybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext,
+  prepareFileAccountingInTx,
 } from '@/lib/billing/storage'
+import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import {
   CollabDocStateConflictError,
   type PreparedCollabDocState,
@@ -718,7 +717,6 @@ export async function uploadWorkspaceFile(
   const effectiveName = pageRestore?.name ?? normalizedFileName
   const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
   const exactName = options?.exactName ?? false
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
   let lastError: unknown
   const maxAttempts = exactName ? 1 : MAX_UPLOAD_UNIQUE_RETRIES
@@ -744,12 +742,16 @@ export async function uploadWorkspaceFile(
       let finalized: {
         inserted: WorkspaceFileRow
         updatedUsage: number | undefined
+        billing: StorageBillingContext
       }
       try {
         finalized = await db.transaction(async (tx) => {
+          const accounting = await prepareFileAccountingInTx(tx, {
+            entityType: 'workspace',
+            entityId: workspaceId,
+          })
           let activeFolderId = folderId
           if (options?.folderPath !== undefined) {
-            await lockWorkspaceProject(tx, workspaceId)
             await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
             const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
             const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
@@ -767,19 +769,15 @@ export async function uploadWorkspaceFile(
             exactName: true,
             secretProvenance: options?.secretProvenance,
           })
-          const usage = await incrementStorageUsageForBillingContextInTx(
-            tx,
-            storageBillingContext,
-            effectiveBuffer.length
-          )
-          return { inserted, updatedUsage: usage }
+          const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
+          return { inserted, updatedUsage: usage, billing: accounting.billing }
         })
       } catch (finalizationError) {
         await discardStagedFileContent(uploadResult)
         throw finalizationError
       }
 
-      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
+      void maybeNotifyStorageLimitForBillingContext(finalized.billing, finalized.updatedUsage)
 
       logger.info(
         `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
@@ -998,13 +996,15 @@ export async function registerUploadedWorkspaceFile(params: {
 
   const folderId = params.folderId ?? null
 
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
     const fileId = `wf_${generateShortId()}`
     const displayName = await allocateUniqueWorkspaceFileName(workspaceId, effectiveName, folderId)
 
     const finalized = await db.transaction(async (tx) => {
-      await lockWorkspaceProject(tx, workspaceId)
+      const accounting = await prepareFileAccountingInTx(tx, {
+        entityType: 'workspace',
+        entityId: workspaceId,
+      })
       await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
       const activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
@@ -1041,11 +1041,7 @@ export async function registerUploadedWorkspaceFile(params: {
         return { kind: 'existing', file: raceWinner } as const
       }
 
-      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBillingContext,
-        effectiveSize
-      )
+      const updatedUsage = await accounting.mutation.applyDelta(effectiveSize)
       await replaceWorkspaceFileSecretProvenanceInTx(
         tx,
         inserted.id,
@@ -1053,7 +1049,7 @@ export async function registerUploadedWorkspaceFile(params: {
         secretProvenance
       )
       await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, inserted.id)
-      return { kind: 'created', file: inserted, updatedUsage } as const
+      return { kind: 'created', file: inserted, updatedUsage, billing: accounting.billing } as const
     })
 
     if (finalized.kind === 'name-conflict') {
@@ -1064,7 +1060,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
 
     if (finalized.kind === 'created') {
-      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
+      void maybeNotifyStorageLimitForBillingContext(finalized.billing, finalized.updatedUsage)
     }
 
     await commitPageRestoreRewrite()
@@ -2471,7 +2467,6 @@ export async function updateWorkspaceFileContent(
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   try {
     const staged = await stageFileContent({
@@ -2487,12 +2482,17 @@ export async function updateWorkspaceFileContent(
       file: WorkspaceFileRow
       sizeDiff: number
       updatedUsage: number | undefined
+      billing: StorageBillingContext
       liveDocEventId: string | undefined
       storageCleanupEventIds: string[]
       currentVersion: number
     }
     try {
       finalized = await db.transaction(async (tx) => {
+        const accounting = await prepareFileAccountingInTx(tx, {
+          entityType: 'workspace',
+          entityId: workspaceId,
+        })
         const committed = await commitFileContentInTx(tx, {
           owner: { entityType: 'workspace', entityId: workspaceId },
           fileId,
@@ -2505,20 +2505,7 @@ export async function updateWorkspaceFileContent(
           sizeDiff,
           storageCleanupEventIds,
         } = committed
-        let updatedUsage: number | undefined
-        if (sizeDiff > 0) {
-          updatedUsage = await incrementStorageUsageForBillingContextInTx(
-            tx,
-            storageBillingContext,
-            sizeDiff
-          )
-        } else if (sizeDiff < 0) {
-          await decrementStorageUsageForBillingContextInTx(
-            tx,
-            storageBillingContext,
-            Math.abs(sizeDiff)
-          )
-        }
+        const updatedUsage = await accounting.mutation.applyDelta(sizeDiff)
 
         const liveDocEventId =
           options.syncLiveDoc !== false &&
@@ -2535,6 +2522,7 @@ export async function updateWorkspaceFileContent(
           file: updatedFile,
           sizeDiff,
           updatedUsage,
+          billing: accounting.billing,
           liveDocEventId,
           storageCleanupEventIds,
           currentVersion: committed.currentVersion,
@@ -2547,7 +2535,7 @@ export async function updateWorkspaceFileContent(
 
     if (finalized.sizeDiff !== 0) {
       void maybeNotifyStorageLimitForBillingContext(
-        storageBillingContext,
+        finalized.billing,
         finalized.updatedUsage,
         finalized.sizeDiff < 0
       )
@@ -2757,7 +2745,6 @@ export async function purgeCreatedWorkspaceFile(params: {
   expectedFolderId: string | null
   expectedUpdatedAt: Date
 }): Promise<boolean> {
-  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
   const expectedFolder =
     params.expectedFolderId === null
       ? isNull(workspaceFiles.folderId)
@@ -2774,7 +2761,10 @@ export async function purgeCreatedWorkspaceFile(params: {
     isNull(workspaceFiles.deletedAt)
   )
   const cleanupEventIds = await db.transaction(async (tx) => {
-    await lockWorkspaceProject(tx, params.workspaceId)
+    const accounting = await prepareFileAccountingInTx(tx, {
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+    })
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,
@@ -2795,11 +2785,7 @@ export async function purgeCreatedWorkspaceFile(params: {
       .returning({ id: workspaceFiles.id })
     if (!deleted) throw new Error('Locked archive-created file could not be deleted')
 
-    await decrementStorageUsageForBillingContextInTx(
-      tx,
-      storageBillingContext,
-      getWorkspaceFileSize(lockedFile)
-    )
+    await accounting.mutation.applyDelta(-getWorkspaceFileSize(lockedFile))
     const keys = new Set([lockedFile.key, ...versionKeys])
     return enqueueWorkspaceFileStorageCleanups(tx, [...keys])
   })

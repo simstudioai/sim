@@ -35,7 +35,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
-import { prepareProjectStorageMutationInTx } from '@/lib/billing/storage/tracking'
+import { prepareFileStorageMutationInTx } from '@/lib/billing/storage/tracking'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import { createProjectFileUploadSession } from '@/lib/projects/files/application/uploads'
@@ -326,7 +326,7 @@ describe('Private Project teardown and durable object cleanup', () => {
         { projectId: f.projectId, ownerId: f.userId, organizationId: null },
         tx
       )
-      const accounting = await prepareProjectStorageMutationInTx(tx, context)
+      const accounting = await prepareFileStorageMutationInTx(tx, context)
       await tx
         .update(workspaceFiles)
         .set({ sizeBytes: 10 })

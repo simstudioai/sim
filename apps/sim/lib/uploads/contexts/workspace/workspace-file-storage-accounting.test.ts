@@ -117,13 +117,10 @@ workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementatio
 )
 const mockResolveRestoredFolderId = folderQueriesMockFns.mockResolveRestoredFolderId
 
-const mockDecrementStorageUsageForBillingContextInTx =
-  billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx
-const mockIncrementStorageUsageForBillingContextInTx =
-  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockApplyFileStorageDelta = billingStorageMockFns.mockApplyFileStorageDelta
 const mockMaybeNotifyStorageLimitForBillingContext =
   billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
-const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+const mockPrepareFileAccountingInTx = billingStorageMockFns.mockPrepareFileAccountingInTx
 
 const mockInitializeWorkspaceFileSecretProvenanceInTx =
   workspaceFileSecretProvenanceMockFns.mockInitializeWorkspaceFileSecretProvenanceInTx
@@ -180,7 +177,10 @@ describe('workspace file metadata and storage accounting', () => {
   let stagedKey = ''
   beforeEach(() => {
     resetDbChainMock()
-    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockPrepareFileAccountingInTx.mockResolvedValue({
+      billing: STORAGE_CONTEXT,
+      mutation: { applyDelta: mockApplyFileStorageDelta },
+    })
     mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)
     mockAssertWorkspaceFileFolderTarget.mockResolvedValue(null)
     mockHasCloudStorage.mockReturnValue(false)
@@ -198,9 +198,8 @@ describe('workspace file metadata and storage accounting', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({ archivedAt: null })
     mockFileNameExistsInWorkspaceFolder.mockResolvedValue(false)
     mockResolveRestoredFolderId.mockResolvedValue(null)
-    mockIncrementStorageUsageForBillingContextInTx.mockReset().mockResolvedValue(10)
+    mockApplyFileStorageDelta.mockReset().mockResolvedValue(10)
     mockInitializeWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
-    mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockEnqueueWorkspaceFileStorageCleanups.mockImplementation(async (_executor, keys: string[]) =>
@@ -267,9 +266,7 @@ describe('workspace file metadata and storage accounting', () => {
 
   it('cleans up a newly uploaded object when atomic metadata finalization rolls back', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
-    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
-      new Error('payer update failed')
-    )
+    mockApplyFileStorageDelta.mockRejectedValueOnce(new Error('payer update failed'))
 
     await expect(
       uploadWorkspaceFile(
@@ -313,18 +310,14 @@ describe('workspace file metadata and storage accounting', () => {
     expect(eq).toHaveBeenCalledWith(workspaceFiles.originalName, FILE_ROW.originalName)
     expect(eq).toHaveBeenCalledWith(workspaceFiles.folderId, extractedRow.folderId)
     expect(eq).toHaveBeenCalledWith(workspaceFiles.updatedAt, FILE_ROW.updatedAt)
-    expect(mockDecrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      expect.any(Object),
-      STORAGE_CONTEXT,
-      FILE_ROW.size
-    )
+    expect(mockApplyFileStorageDelta).toHaveBeenCalledWith(-FILE_ROW.size)
     expect(mockEnqueueWorkspaceFileStorageCleanups).toHaveBeenCalledWith(expect.any(Object), [
       FILE_ROW.key,
     ])
     expect(dbChainMockFns.delete.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]
+      mockApplyFileStorageDelta.mock.invocationCallOrder[0]
     )
-    expect(mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockApplyFileStorageDelta.mock.invocationCallOrder[0]).toBeLessThan(
       mockEnqueueWorkspaceFileStorageCleanups.mock.invocationCallOrder[0]
     )
     expect(mockProcessWorkspaceFileStorageCleanupsNow).toHaveBeenCalledWith(
@@ -348,7 +341,7 @@ describe('workspace file metadata and storage accounting', () => {
       })
     ).resolves.toBe(false)
 
-    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
     expect(mockEnqueueWorkspaceFileStorageCleanups).not.toHaveBeenCalled()
     expect(mockProcessWorkspaceFileStorageCleanupsNow).not.toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
@@ -380,7 +373,7 @@ describe('workspace file metadata and storage accounting', () => {
     ])
 
     expect([first.created, second.created].sort()).toEqual([false, true])
-    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledTimes(1)
+    expect(mockApplyFileStorageDelta).toHaveBeenCalledTimes(1)
     expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledTimes(1)
     expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(
       expect.any(Object),
@@ -418,7 +411,7 @@ describe('workspace file metadata and storage accounting', () => {
       { status: 'exact', entries: [] }
     )
     expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
-    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
   })
 
   it('does not delete an object when a registration race finds a different operation', async () => {
@@ -438,7 +431,7 @@ describe('workspace file metadata and storage accounting', () => {
       })
     ).rejects.toThrow('already registered to a different workspace file operation')
 
-    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
@@ -460,7 +453,7 @@ describe('workspace file metadata and storage accounting', () => {
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.returning).not.toHaveBeenCalled()
-    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
     expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
 
@@ -475,7 +468,7 @@ describe('workspace file metadata and storage accounting', () => {
     await deleteWorkspaceFile(FILE_ROW.workspaceId, FILE_ROW.id)
     await deleteWorkspaceFile(FILE_ROW.workspaceId, FILE_ROW.id)
 
-    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
   })
 
   it('re-roots a restored file whose folder has since been archived', async () => {
@@ -523,11 +516,7 @@ describe('workspace file metadata and storage accounting', () => {
         persistMetadata: false,
       })
     )
-    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      expect.any(Object),
-      STORAGE_CONTEXT,
-      3
-    )
+    expect(mockApplyFileStorageDelta).toHaveBeenCalledWith(3)
     expect(mockApplyWorkspaceFileSecretProvenancePolicyInTx).toHaveBeenCalledWith(
       expect.any(Object),
       FILE_ROW.id,
@@ -606,9 +595,7 @@ describe('workspace file metadata and storage accounting', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
 
-    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
-      new Error('Storage limit exceeded')
-    )
+    mockApplyFileStorageDelta.mockRejectedValueOnce(new Error('Storage limit exceeded'))
 
     await expect(
       updateWorkspaceFileContent(
@@ -649,11 +636,7 @@ describe('workspace file metadata and storage accounting', () => {
         MD_ROW.id,
         PREPARED_COLLAB_STATE
       )
-      expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-        transaction,
-        STORAGE_CONTEXT,
-        content.length - MD_ROW.sizeBytes
-      )
+      expect(mockApplyFileStorageDelta).toHaveBeenCalledWith(content.length - MD_ROW.sizeBytes)
       expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(
         transaction,
         expect.objectContaining({ fileId: MD_ROW.id })
@@ -729,8 +712,7 @@ describe('workspace file metadata and storage accounting', () => {
       expect(mockSaveCollabDocStateInTx).toHaveBeenCalledWith(transaction, MD_ROW.id, preparedState)
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(mockApplyWorkspaceFileSecretProvenancePolicyInTx).not.toHaveBeenCalled()
-      expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
-      expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+      expect(mockApplyFileStorageDelta).not.toHaveBeenCalled()
       expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
       expect(mockProcessWorkspaceFileLiveDocReconciliationNow).not.toHaveBeenCalled()
       expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
@@ -783,9 +765,7 @@ describe('workspace file metadata and storage accounting', () => {
       { ...MD_ROW, key: replacementKey, sizeBytes: 13 },
     ])
 
-    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
-      new Error('accounting unavailable')
-    )
+    mockApplyFileStorageDelta.mockRejectedValueOnce(new Error('accounting unavailable'))
 
     await expect(
       updateWorkspaceFileContent(
@@ -808,11 +788,7 @@ describe('workspace file metadata and storage accounting', () => {
       MD_ROW.id,
       PREPARED_COLLAB_STATE
     )
-    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      transaction,
-      STORAGE_CONTEXT,
-      8
-    )
+    expect(mockApplyFileStorageDelta).toHaveBeenCalledWith(8)
     expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
     expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
     expect(mockEnqueueWorkspaceFileStorageCleanups).toHaveBeenCalledWith(

@@ -2,15 +2,8 @@ import { isUtf8 } from 'node:buffer'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import {
-  resolveProjectStorageBillingContext,
-  resolveStorageBillingContext,
-} from '@/lib/billing/storage/context'
-import {
-  incrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext,
-  prepareProjectStorageMutationInTx,
-} from '@/lib/billing/storage/tracking'
+import { prepareFileAccountingInTx } from '@/lib/billing/storage/accounting'
+import { maybeNotifyStorageLimitForBillingContext } from '@/lib/billing/storage/tracking'
 import {
   type AuthorizingUseCase,
   recordProjectedUseCaseAuditEntries,
@@ -18,7 +11,6 @@ import {
 } from '@/lib/core/application/authorized-workspace-use-case'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbTransaction } from '@/lib/db/types'
 import { notifyFileListChanged } from '@/lib/realtime/notify'
 import { assertFileFolderTarget } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -38,7 +30,6 @@ import { isMarkdownFile, isRenderableDocumentName } from '@/lib/uploads/utils/fi
 import {
   type CopyFileItemsInput,
   createFileCopyAuthorizer,
-  type FileCopyOwnerContext,
 } from '@/lib/workspace-files/application/copy-authorization'
 import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operation'
 import {
@@ -49,28 +40,6 @@ import {
 } from '@/lib/workspace-files/copy'
 import { rewriteCopiedFileReferences } from '@/lib/workspace-files/copy-references'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
-
-async function prepareAccounting(
-  tx: DbTransaction,
-  destination: FileCopyOwnerContext,
-  bytes: number
-) {
-  if ('projectId' in destination) {
-    const billing = await resolveProjectStorageBillingContext(
-      {
-        projectId: destination.projectId,
-        ownerId: destination.ownerUserId,
-        organizationId: destination.organizationId,
-      },
-      tx
-    )
-    const mutation = await prepareProjectStorageMutationInTx(tx, billing)
-    return { billing, apply: () => mutation.applyDelta(bytes) }
-  }
-  const billing = await resolveStorageBillingContext(destination.workspaceId, tx)
-  const usage = await incrementStorageUsageForBillingContextInTx(tx, billing, bytes)
-  return { billing, apply: async () => usage }
-}
 
 /** Atomic source-read/destination-write copy; staging never holds authorization or accounting locks. */
 export const copyFileItems: AuthorizingUseCase<
@@ -184,7 +153,7 @@ export const copyFileItems: AuthorizingUseCase<
         }
         return await db.transaction(async (tx) => {
           const context = await authorize(tx)
-          const accounting = await prepareAccounting(tx, context.destination, stagedBytes)
+          const accounting = await prepareFileAccountingInTx(tx, context.destination.owner)
           await lockFileDirectories(tx, [context.source.owner, context.destination.owner])
           const current = await snapshotFileCopyInTx(tx, {
             ...input.source,
@@ -198,7 +167,12 @@ export const copyFileItems: AuthorizingUseCase<
             staged,
             identities,
           })
-          return { context, result, billing: accounting.billing, usage: await accounting.apply() }
+          return {
+            context,
+            result,
+            billing: accounting.billing,
+            usage: await accounting.mutation.applyDelta(stagedBytes),
+          }
         })
       } catch (error) {
         const cleanups = await Promise.allSettled(
