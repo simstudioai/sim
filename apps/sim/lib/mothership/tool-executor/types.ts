@@ -1,6 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import type { CopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
@@ -35,8 +34,6 @@ export interface ToolExecutionContext {
   boundWorkflowExecutionId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
-  /** In-process authoring admission; never supplied by model arguments or checkpoint JSON. */
-  copilotResourceAdmission?: CopilotResourceAdmission
   /** Trusted lifecycle classification stamped by the server, never from model parameters. */
   copilotInteractionMode?: 'interactive' | 'headless'
   requestMode?: string

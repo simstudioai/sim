@@ -7,10 +7,10 @@ const PROJECT_LIST_STALE_TIME = 30_000
 const projectKeys = {
   all: ['projects'] as const,
   lists: () => [...projectKeys.all, 'list'] as const,
-  list: (organizationId?: string) => [...projectKeys.lists(), organizationId ?? null] as const,
+  list: (organizationId: string) => [...projectKeys.lists(), organizationId] as const,
 }
 
-export function useProjects(organizationId?: string, options?: { enabled?: boolean }) {
+export function useProjects(organizationId: string) {
   return useInfiniteQuery({
     queryKey: projectKeys.list(organizationId),
     initialPageParam: null as string | null,
@@ -27,6 +27,6 @@ export function useProjects(organizationId?: string, options?: { enabled?: boole
         error.status === 408 ||
         error.status === 429 ||
         (error.status >= 500 && error.status !== 503)),
-    enabled: organizationId !== '' && (options?.enabled ?? true),
+    enabled: Boolean(organizationId),
   })
 }

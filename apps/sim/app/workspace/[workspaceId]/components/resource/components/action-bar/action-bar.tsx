@@ -11,7 +11,7 @@ import {
   Tooltip,
   Trash,
 } from '@sim/emcn'
-import { Download, Duplicate } from '@sim/emcn/icons'
+import { Download } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
@@ -40,7 +40,6 @@ export interface ResourceActionBarProps {
   selectedCount: number
   /** Omit on lists with nothing to download (tables, knowledge bases). */
   onDownload?: () => void
-  onCopy?: () => void
   /** Both `onMove` and `moveOptions` are required for the move menu to appear. */
   onMove?: (optionValue: string) => void
   moveOptions?: MoveOptionNode[]
@@ -72,7 +71,6 @@ export interface ResourceActionBarProps {
 export function ResourceActionBar({
   selectedCount,
   onDownload,
-  onCopy,
   onMove,
   moveOptions,
   onDelete,
@@ -110,14 +108,6 @@ export function ResourceActionBar({
               icon={Download}
               label='Download'
               onClick={onDownload}
-              disabled={actionsDisabled}
-            />
-          )}
-          {onCopy && (
-            <ActionButton
-              icon={Duplicate}
-              label='Copy to...'
-              onClick={onCopy}
               disabled={actionsDisabled}
             />
           )}

@@ -48,7 +48,7 @@
         // API conventions require exported named wire schemas and aliases, including before client adoption.
         "lib/api/contracts/projects.ts": ["exports", "types"],
         "lib/api/contracts/file-copy.ts": ["exports", "types"],
-        "lib/api/contracts/mothership-file-copy.ts": ["exports", "types"],
+        "lib/api/contracts/file-copy-input.ts": ["exports", "types"],
         "lib/api/contracts/project-file*.ts": ["exports", "types"],
         "lib/api/contracts/v2/project-file*.ts": ["exports", "types"],
         "lib/api/contracts/v2/uploads.ts": ["types"],

@@ -14,7 +14,7 @@ export async function requireProjectApiEnabled(): Promise<void> {
 }
 
 /** Deployment-wide cutover follows ownership backfill and compatible storage/worker rollout. */
-export async function isProjectFileApiEnabled(): Promise<boolean> {
+async function isProjectFileApiEnabled(): Promise<boolean> {
   return (
     (await isFeatureEnabled('projects')) && (envBoolean(getEnv('PROJECT_FILES_ENABLED')) ?? false)
   )

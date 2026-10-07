@@ -26,7 +26,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/preview/use-file-preview-sessions'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface FilePreviewControllerDeps {
   workspaceId?: string

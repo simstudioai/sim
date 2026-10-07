@@ -1,11 +1,5 @@
-import type {
-  DelegatedPrincipal,
-  Principal,
-  ResourceDelegatedPrincipal,
-  ResourceDelegationScope,
-} from '@sim/auth/principal'
+import type { DelegatedPrincipal } from '@sim/auth/principal'
 import {
-  type ApplicationOperation,
   type OperationUseCase,
   requireAllowedWorkspacePrincipal,
   type WorkspaceOperation,
@@ -13,14 +7,10 @@ import {
 import {
   type CopilotDelegationConfiguration,
   type CopilotExecutionContext,
-  type CopilotResourceDelegationConfiguration,
   type CopilotResourceScope,
   createCopilotApplicationPrincipal,
-  createCopilotResourceApplicationPrincipal,
   requireTrustedCopilotExecutionContext,
-  requireTrustedCopilotResourceExecutionContext,
   type TrustedCopilotExecutionContext,
-  type TrustedCopilotResourceExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
 
 type CopilotApplicationPrincipalFactory = (args: {
@@ -29,7 +19,6 @@ type CopilotApplicationPrincipalFactory = (args: {
 }) => DelegatedPrincipal
 
 interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeInput = undefined> {
-  mode?: 'workspace'
   domain: string
   delegation: CopilotDelegationConfiguration
   operations: Readonly<Record<string, O>>
@@ -40,43 +29,7 @@ interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeIn
   createPrincipal?: CopilotApplicationPrincipalFactory
 }
 
-interface CopilotResourceOperation extends ApplicationOperation {
-  readonly principalKinds: readonly Principal['kind'][]
-  readonly delegatedServices?: readonly ResourceDelegatedPrincipal['serviceId'][]
-  readonly delegationAudience?: string
-}
-
-type CopilotResourceAdapterOptions<O extends CopilotResourceOperation, ScopeInput = undefined> = {
-  mode: 'resource'
-  domain: string
-  delegation: CopilotResourceDelegationConfiguration
-  operations: Readonly<Record<string, O>>
-} & (
-  | {
-      resourceScope: ResourceDelegationScope
-      projectResourceScope?: never
-    }
-  | {
-      resourceScope?: never
-      projectResourceScope(
-        input: ScopeInput,
-        context: TrustedCopilotResourceExecutionContext
-      ): ResourceDelegationScope
-    }
-)
-
 type ScopeArguments<ScopeInput> = [ScopeInput] extends [undefined] ? [] : [scope: ScopeInput]
-
-type CopilotApplicationExecutor<O extends ApplicationOperation, ScopeInput> = <
-  Selected extends O,
-  I,
-  R,
->(
-  context: CopilotExecutionContext | undefined,
-  useCase: OperationUseCase<Selected, I, R>,
-  input: I,
-  ...scopeArguments: ScopeArguments<ScopeInput>
-) => Promise<R>
 
 const RESOURCE_SCOPE_KEYS = ['fileId', 'tableId', 'chatId', 'executionId'] as const
 
@@ -137,11 +90,11 @@ function requireMatchingPrincipal(
   }
 }
 
-function registeredCopilotOperations<O extends ApplicationOperation>(options: {
-  domain: string
-  delegation: { audience: string; ttlMs: number }
-  operations: Readonly<Record<string, O>>
-}): Set<O> {
+/** Adapts trusted Copilot calls to a domain's existing application use cases. */
+export function createCopilotApplicationAdapter<
+  O extends WorkspaceOperation,
+  ScopeInput = undefined,
+>(options: CopilotApplicationAdapterOptions<O, ScopeInput>) {
   if (!options.domain.trim()) throw new Error('Copilot application adapter requires a domain')
   if (!options.delegation.audience.trim()) {
     throw new Error('Copilot application adapter requires a delegation audience')
@@ -164,13 +117,7 @@ function registeredCopilotOperations<O extends ApplicationOperation>(options: {
     }
     operationIds.add(operation.id)
   }
-  return new Set<O>(operations)
-}
-
-function createWorkspaceApplicationAdapter<O extends WorkspaceOperation, ScopeInput>(
-  options: CopilotApplicationAdapterOptions<O, ScopeInput>
-): CopilotApplicationExecutor<O, ScopeInput> {
-  const registeredOperations = registeredCopilotOperations(options)
+  const registeredOperations = new Set<O>(operations)
 
   return function executeCopilotApplicationUseCase<Selected extends O, I, R>(
     context: CopilotExecutionContext | undefined,
@@ -205,69 +152,4 @@ function createWorkspaceApplicationAdapter<O extends WorkspaceOperation, ScopeIn
 
     return useCase.execute({ principal, input })
   }
-}
-
-function createResourceApplicationAdapter<O extends CopilotResourceOperation, ScopeInput>(
-  options: CopilotResourceAdapterOptions<O, ScopeInput>
-): CopilotApplicationExecutor<O, ScopeInput> {
-  const registeredOperations = registeredCopilotOperations(options)
-  return function executeCopilotResourceUseCase<Selected extends O, I, R>(
-    context: CopilotExecutionContext | undefined,
-    useCase: OperationUseCase<Selected, I, R>,
-    input: I,
-    ...scopeArguments: ScopeArguments<ScopeInput>
-  ): Promise<R> {
-    if (!registeredOperations.has(useCase.operation)) {
-      throw new Error(`Unregistered Copilot ${options.domain} operation: ${useCase.operation.id}`)
-    }
-    const operation = useCase.operation
-    if (
-      !operation.principalKinds.includes('resource_delegated') ||
-      !operation.delegatedServices?.includes('copilot')
-    ) {
-      throw new Error(`Operation ${operation.id} does not admit Copilot resource delegation`)
-    }
-    if (operation.delegationAudience !== options.delegation.audience) {
-      throw new Error(`Operation ${operation.id} has a different delegation audience`)
-    }
-    const trustedContext = requireTrustedCopilotResourceExecutionContext(context)
-    let scope: ResourceDelegationScope
-    if (options.projectResourceScope) {
-      if (scopeArguments.length !== 1) {
-        throw new Error(`Copilot ${options.domain} execution requires trusted scope input`)
-      }
-      scope = options.projectResourceScope(scopeArguments[0], trustedContext)
-    } else {
-      if (scopeArguments.length !== 0) {
-        throw new Error(`Copilot ${options.domain} execution does not accept resource scope input`)
-      }
-      scope = options.resourceScope
-    }
-    const principal = createCopilotResourceApplicationPrincipal(trustedContext, {
-      ...options.delegation,
-      scope,
-    })
-    return useCase.execute({ principal, input })
-  }
-}
-
-/** Adapts admitted Copilot calls to registered operations without changing their owner policy. */
-export function createCopilotApplicationAdapter<
-  O extends CopilotResourceOperation,
-  ScopeInput = undefined,
->(options: CopilotResourceAdapterOptions<O, ScopeInput>): CopilotApplicationExecutor<O, ScopeInput>
-export function createCopilotApplicationAdapter<
-  O extends WorkspaceOperation,
-  ScopeInput = undefined,
->(
-  options: CopilotApplicationAdapterOptions<O, ScopeInput>
-): CopilotApplicationExecutor<O, ScopeInput>
-export function createCopilotApplicationAdapter<ScopeInput = undefined>(
-  options:
-    | CopilotApplicationAdapterOptions<WorkspaceOperation, ScopeInput>
-    | CopilotResourceAdapterOptions<CopilotResourceOperation, ScopeInput>
-) {
-  return options.mode === 'resource'
-    ? createResourceApplicationAdapter(options)
-    : createWorkspaceApplicationAdapter(options)
 }

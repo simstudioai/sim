@@ -24,6 +24,7 @@ import {
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { EditorContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/editor-context-menu'
@@ -35,11 +36,9 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-panel'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
-import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
 import { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { useFileViewerStore } from '@/stores/file-viewer/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -396,8 +395,8 @@ function useMonacoTheme(): string {
 }
 
 interface TextEditorProps {
-  file: ViewerFileRecord
-  workspaceId: string | undefined
+  file: WorkspaceFileRecord
+  workspaceId: string
   canEdit: boolean
   previewMode: PreviewMode
   autoFocus?: boolean
@@ -449,14 +448,6 @@ export const TextEditor = memo(function TextEditor({
     hasSelection: boolean
   } | null>(null)
 
-  const source = useFileContentSource()
-  const projectOwner = source.owner?.entityType === 'project' ? source.owner : undefined
-  const projectId = projectOwner?.entityId
-  const downloadScope = projectId
-    ? { owner: { entityType: 'project' as const, entityId: projectId } }
-    : workspaceId
-      ? { workspaceId }
-      : null
   const monacoLanguage = resolveMonacoLanguage(file)
   const monacoTheme = useMonacoTheme()
   const addToChat = useAddToChat()
@@ -478,7 +469,6 @@ export const TextEditor = memo(function TextEditor({
         : sel.endLineNumber
     return {
       kind: 'file_selection',
-      ...(projectOwner ? { owner: projectOwner } : {}),
       fileId: file.id,
       fileName: file.name,
       label: buildFileSelectionLabel(file.name, startLine, endLine),
@@ -486,11 +476,11 @@ export const TextEditor = memo(function TextEditor({
       startLine,
       endLine,
     }
-  }, [file.id, file.name, projectOwner])
+  }, [file.id, file.name])
 
   const handleAddSelectionToChat = () => {
     const context = buildSelectionContext()
-    if (context && (workspaceId || projectOwner)) addToChat(context)
+    if (context) addToChat(context)
   }
 
   const {
@@ -522,24 +512,19 @@ export const TextEditor = memo(function TextEditor({
   useImperativeHandle<FileDownloadSource | null, FileDownloadSource | null>(
     downloadSourceRef,
     () =>
-      isContentLoading || hasContentError || !downloadScope
+      isContentLoading || hasContentError
         ? null
         : {
             fileId: file.id,
-            ...downloadScope,
+            workspaceId,
             getContent: () => contentRef.current,
           },
-    [file.id, workspaceId, projectId, isContentLoading, hasContentError]
+    [file.id, workspaceId, isContentLoading, hasContentError]
   )
 
   // Enable once content has loaded — the container (and Monaco) only mount after
   // the `isContentLoading` early return below, so the bridge must (re-)attach then.
-  useSelectionCopyBridge(
-    containerRef,
-    buildSelectionContext,
-    projectOwner ?? workspaceId,
-    !isContentLoading
-  )
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId, !isContentLoading)
 
   useEffect(() => {
     if (lastEditorValueRef.current === content) return
@@ -879,14 +864,10 @@ export const TextEditor = memo(function TextEditor({
             onClose={closeContextMenu}
             hasSelection={contextMenu.hasSelection}
             canEdit={!isEditorReadOnly}
-            onAddToChat={
-              workspaceId || projectOwner
-                ? () => {
-                    handleAddSelectionToChat()
-                    closeContextMenu()
-                  }
-                : undefined
-            }
+            onAddToChat={() => {
+              handleAddSelectionToChat()
+              closeContextMenu()
+            }}
             onCut={() => {
               monacoEditorRef.current?.focus()
               monacoEditorRef.current?.trigger(

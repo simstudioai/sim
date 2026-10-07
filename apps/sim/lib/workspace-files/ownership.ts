@@ -7,12 +7,6 @@ export interface FileOwner {
   entityId: string
 }
 
-/** An asserted file target; application authorization verifies its persisted owner. */
-export interface OwnedFileTarget {
-  owner: FileOwner
-  fileId: string
-}
-
 /** Owners whose durable files support the shared Files editor and folder lifecycle. */
 export interface EditableFileOwner {
   entityType: 'workspace' | 'project'

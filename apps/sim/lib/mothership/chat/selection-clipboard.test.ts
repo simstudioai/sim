@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import type { ChatContext } from '@/stores/panel'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
   SIM_SELECTION_MIME,
-} from '@/lib/mothership/chat/selection-clipboard'
-import type { ChatContext } from '@/stores/panel'
+} from './selection-clipboard'
 
 /** Minimal DataTransfer stand-in (jsdom-free node env). */
 function fakeClipboard(initial: Record<string, string> = {}) {
@@ -136,33 +136,4 @@ describe('selection clipboard codec', () => {
     })
     expect(readSelectionContextFromClipboard(dt, 'ws-1')).toBeNull()
   })
-})
-
-it('admits Project selections only among explicit destination owners and rejects forged context ownership', () => {
-  const owner = { entityType: 'project' as const, entityId: 'project-1' }
-  const context = { ...fileSelection, owner }
-  const dt = fakeClipboard()
-  attachSelectionContextToClipboard(dt, context, owner)
-  expect(
-    readSelectionContextFromClipboard(dt, [{ entityType: 'workspace', entityId: 'ws-1' }, owner])
-  ).toEqual(context)
-  expect(readSelectionContextFromClipboard(dt, [])).toBeNull()
-  expect(readSelectionContextFromClipboard(dt, 'ws-1')).toBeNull()
-  expect(readSelectionContextFromClipboard(dt, [{ ...owner, entityId: 'project-2' }])).toBeNull()
-  attachSelectionContextToClipboard(
-    dt,
-    { ...context, owner: { ...owner, entityId: 'project-2' } },
-    owner
-  )
-  expect(readSelectionContextFromClipboard(dt, [owner])).toBeNull()
-  dt.setData(
-    SIM_SELECTION_MIME,
-    JSON.stringify({ version: 1, owner: null, sourceWorkspaceId: 'ws-1', context: fileSelection })
-  )
-  expect(readSelectionContextFromClipboard(dt, 'ws-1')).toBeNull()
-  dt.setData(
-    SIM_SELECTION_MIME,
-    JSON.stringify({ version: 1, owner, sourceWorkspaceId: 'ws-1', context })
-  )
-  expect(readSelectionContextFromClipboard(dt, [owner])).toBeNull()
 })

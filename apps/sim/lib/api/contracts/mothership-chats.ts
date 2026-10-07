@@ -1,9 +1,7 @@
 import { z } from 'zod'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
-import {
-  mothershipResourceRemovalSchema,
-  mothershipResourceSchema,
-} from '@/lib/api/contracts/mothership-resources'
+import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -245,8 +243,11 @@ const reorderMothershipChatResourcesBodySchema = z.object({
   resources: z.array(mothershipResourceSchema),
 })
 
-const removeMothershipChatResourceBodySchema = mothershipResourceRemovalSchema.safeExtend({
+const removeMothershipChatResourceBodySchema = z.object({
+  workspaceId: workspaceIdSchema.optional(),
   chatId: z.string().min(1),
+  resourceType: mothershipResourceSchema.shape.type,
+  resourceId: z.string().min(1),
 })
 
 export const addMothershipChatResourceContract = defineRouteContract({

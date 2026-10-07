@@ -2,7 +2,6 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
-import { ResourceAddress } from "./resources";
 
 export const ObservationMediaType = z.enum([
   "image/png",
@@ -16,7 +15,6 @@ export const ArtifactObservation = z.object({
   mediaType: ObservationMediaType,
   data: z.string().min(1).max(11_200_000),
   resourceId: z.string().optional(),
-  resource: ResourceAddress.optional(),
   pageCount: z.number().int().min(1).max(20).optional(),
 });
 export type ArtifactObservation = z.infer<typeof ArtifactObservation>;

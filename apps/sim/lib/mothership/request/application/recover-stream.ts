@@ -11,7 +11,6 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
-import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
@@ -192,10 +191,6 @@ export const readChatStream = defineAuthorizedChatUseCase({
           executionId: run.executionId,
           workflowId: run.workflowId ?? undefined,
           goRoute: config.data.goRoute,
-          copilotResourceAdmission:
-            config.data.resourceAuthoringVersion === 1
-              ? createCopilotResourceAdmission({ userId, invocation: { kind: 'chat', chatId } })
-              : undefined,
           billingAttribution,
           userPermission: userPermission ?? undefined,
           interactive: true,

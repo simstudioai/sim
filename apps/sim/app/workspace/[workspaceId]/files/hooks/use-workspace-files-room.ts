@@ -1,8 +1,28 @@
 'use client'
 
-import { useFileListRoom } from '@/hooks/use-file-list-room'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { useQueryClient } from '@tanstack/react-query'
+import { useWorkspaceInvalidationRoom } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
+import { dashboardKeys } from '@/hooks/queries/dashboards'
+import {
+  invalidateWorkspaceFileBrowsers,
+  WORKSPACE_FILE_BROWSER_INVALIDATION_KEY,
+} from '@/hooks/queries/workspace-file-folders'
 
-/** Workspace callers share the owner-aware list controller without changing their room identity. */
+/**
+ * Keeps the file browser live: joins the workspace-files room so a `workspace-files-changed`
+ * broadcast (fanned out by the file mutation API) invalidates the browser queries and every viewer
+ * refetches without waiting for staleness. Thin binding over {@link useWorkspaceInvalidationRoom}.
+ */
 export function useWorkspaceFilesRoom(workspaceId: string): void {
-  useFileListRoom(workspaceId ? { entityType: 'workspace', entityId: workspaceId } : null)
+  const queryClient = useQueryClient()
+  useWorkspaceInvalidationRoom(
+    workspaceId,
+    ROOM_TYPES.WORKSPACE_FILES,
+    () => {
+      invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.workspace(workspaceId) })
+    },
+    WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
+  )
 }

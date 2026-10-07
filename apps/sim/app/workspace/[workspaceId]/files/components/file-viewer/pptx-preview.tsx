@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { PptxSandboxHost } from '@/app/workspace/[workspaceId]/files/components/file-viewer/pptx-sandbox-host'
 import {
   PREVIEW_LOADING_OVERLAY,
@@ -9,7 +10,6 @@ import {
   PreviewLoadingFrame,
   resolvePreviewError,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
-import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import { useDocPreviewBinary } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary'
 
 const logger = createLogger('PptxPreview')
@@ -22,8 +22,8 @@ export const PptxPreview = memo(function PptxPreview({
   file,
   workspaceId,
 }: {
-  file: ViewerFileRecord
-  workspaceId: string | undefined
+  file: WorkspaceFileRecord
+  workspaceId: string
 }) {
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data

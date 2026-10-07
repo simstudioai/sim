@@ -17,9 +17,9 @@ import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
-import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 export interface ToolResourceContext {
   workspaceId?: string

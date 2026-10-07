@@ -1,6 +1,5 @@
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
-import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 
 /**
  * Available panel tabs
@@ -79,11 +78,10 @@ export type ChatContext =
        */
       columnIds?: string[]
     } & WorkspaceOwned)
-  | ({ kind: 'file'; fileId: string; label: string; owner?: FileOperationOwner } & WorkspaceOwned)
+  | ({ kind: 'file'; fileId: string; label: string } & WorkspaceOwned)
   | ({ kind: 'dashboard'; dashboardId: string; label: string } & WorkspaceOwned)
   | ({
       kind: 'file_selection'
-      owner?: FileOperationOwner
       fileId: string
       label: string
       /** Name of the file the selection came from. See `tableName` above. */

@@ -28,7 +28,6 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { presentChatResourceForBrowser } from '@/lib/mothership/resources/presentation'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
@@ -94,9 +93,7 @@ export const GET = withRouteHandler(
           mode: chat.mode,
           messages: effectiveMessages,
           activeStreamId: liveStreamId,
-          resources: Array.isArray(chat.resources)
-            ? chat.resources.map(presentChatResourceForBrowser)
-            : [],
+          resources: Array.isArray(chat.resources) ? chat.resources : [],
           effort: chat.effort,
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,

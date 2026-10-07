@@ -14,7 +14,6 @@ export {
 export { projectFileOperations } from './operations'
 export { readProjectFileCsvPreview, readProjectInlineFile } from './previews'
 export {
-  getProjectFileCapabilities,
   getProjectFileMetadata,
   listProjectFileItems,
   listProjectFiles,

@@ -1,8 +1,6 @@
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import type { CopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ServerToolContext {
@@ -20,11 +18,6 @@ export interface ServerToolContext {
   toolCallId?: string
   /** True only for contexts built by the authenticated Copilot execution pipeline. */
   copilotToolExecution?: boolean
-  copilotInteractionMode?: 'interactive' | 'headless'
-  copilotResourceAdmission?: CopilotResourceAdmission
-  mcpBlockId?: string
-  executorDelegationOrigin?: ExecutorDelegationOrigin
-  boundWorkflowExecutionId?: string
   billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
   chatId?: string

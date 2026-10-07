@@ -243,38 +243,3 @@ export const getWorkspaceProject: OperationUseCase<
     }, READ_SNAPSHOT)
   },
 }
-
-/** Discovers the canonical invocation workspace's parent without depending on discovery ordering. */
-export const getCurrentWorkspaceProject: OperationUseCase<
-  typeof projectOperations.list,
-  Record<string, never>,
-  { project: ReturnType<typeof presentProject> | null }
-> = {
-  operation: projectOperations.list,
-  async execute({ principal }) {
-    requireProjectPrincipal(principal, projectOperations.list)
-    await requireProjectApiEnabled()
-    if (principal.kind !== 'resource_delegated')
-      throw new OrchestrationError('forbidden', 'Current Project discovery requires an invocation')
-    const scope = await resolveCopilotProjectScope(principal)
-    const workspaceId = scope.workspaceId
-    if (!workspaceId) return { project: null }
-    return db.transaction(async (tx) => {
-      const [membership] = await tx
-        .select({ projectId: projectWorkspace.projectId })
-        .from(projectWorkspace)
-        .where(eq(projectWorkspace.workspaceId, workspaceId))
-        .limit(1)
-      if (!membership) return { project: null }
-      const [context] = await authorizeProjectsForRead(tx, principal, [membership.projectId])
-      if (
-        !context ||
-        context.record.archivedAt ||
-        context.record.organizationId !== scope.organizationId ||
-        !context.environments.some((environment) => environment.id === workspaceId)
-      )
-        throw new OrchestrationError('not_found', 'Project not found')
-      return { project: presentProject(context) }
-    }, READ_SNAPSHOT)
-  },
-}

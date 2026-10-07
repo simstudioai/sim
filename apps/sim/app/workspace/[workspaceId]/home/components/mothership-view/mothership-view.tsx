@@ -5,10 +5,7 @@ import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import {
-  getChatResourceSelectionId,
-  getChatResourceWorkspaceId,
-} from '@/lib/mothership/resources/types'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
@@ -34,7 +31,6 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useProjectFile } from '@/hooks/queries/project-files'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
@@ -134,15 +130,7 @@ export const MothershipView = memo(
     ref
   ) {
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
-    const activeProjectId =
-      active?.type === 'file' && active.owner?.entityType === 'project'
-        ? active.owner.entityId
-        : undefined
-    const activeWorkspaceId = active ? getChatResourceWorkspaceId(active, workspaceId) : workspaceId
-    const projectFile = useProjectFile(
-      activeProjectId,
-      active?.id === 'streaming-file' ? undefined : active?.id
-    )
+    const activeWorkspaceId = active?.workspaceId ?? workspaceId
     const inheritedPermissions = useUserPermissionsContext()
     const permissions = useWorkspacePermissionsQuery(organizationId ? activeWorkspaceId : undefined)
     const scopedPermissions = useUserPermissions(
@@ -150,11 +138,9 @@ export const MothershipView = memo(
       permissions.isPending,
       permissions.error?.message ?? null
     )
-    const canEdit = activeProjectId
-      ? Boolean(projectFile.data?.capabilities.canWrite)
-      : organizationId
-        ? Boolean(activeWorkspaceId) && !permissions.error && scopedPermissions.canEdit
-        : inheritedPermissions.canEdit
+    const canEdit = organizationId
+      ? Boolean(activeWorkspaceId) && !permissions.error && scopedPermissions.canEdit
+      : inheritedPermissions.canEdit
     const { removeResource } = useMothershipResources()
     const browserOverlayControllerRef = useRef<BrowserPanelOverlayController | null>(null)
     const fileDownloadSourceRef = useRef<FileDownloadSource | null>(null)
@@ -214,11 +200,7 @@ export const MothershipView = memo(
         enabled: Boolean(activeWorkspaceId) && active?.type === 'file',
       }
     )
-    const activeFile = activeProjectId
-      ? projectFile.data?.file
-      : active?.type === 'file'
-        ? files?.find((f) => f.id === active.id)
-        : undefined
+    const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
     const isActivePreviewable =
@@ -234,7 +216,7 @@ export const MothershipView = memo(
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
-      !(isActiveCsv && (activeProjectId ? projectFile.isPending : filesLoading)) &&
+      !(isActiveCsv && filesLoading) &&
       !(activeFile && isCsvStreamOnly(activeFile)) &&
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.
@@ -258,9 +240,7 @@ export const MothershipView = memo(
             activeId={active ? getChatResourceSelectionId(active) : null}
             activityIds={activityResourceIds}
             actions={
-              activeProjectId && active ? (
-                <ResourceActions resource={active} downloadSourceRef={fileDownloadSourceRef} />
-              ) : active && active.type !== 'search' && activeWorkspaceId ? (
+              active && active.type !== 'search' && activeWorkspaceId ? (
                 <ResourceWorkspaceHost
                   workspaceId={activeWorkspaceId}
                   organizationId={organizationId}
@@ -363,11 +343,6 @@ function ScopedResourceContent({
 }) {
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
-  if (
-    (props.resource.type === 'file' || props.resource.type === 'filefolder') &&
-    props.resource.owner?.entityType === 'project'
-  )
-    return <ResourceContent {...props} />
   if (!workspaceId) {
     if (props.resource.type === 'generic') return <GenericResourceContent />
     if (props.resource.type === 'browser')

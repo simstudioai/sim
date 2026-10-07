@@ -2,7 +2,6 @@ import type { z } from 'zod'
 import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 import * as credentials from '@/lib/api/contracts/v2/credentials'
 import * as customTools from '@/lib/api/contracts/v2/custom-tools'
-import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import * as files from '@/lib/api/contracts/v2/files'
 import * as knowledge from '@/lib/api/contracts/v2/knowledge'
 import * as chunks from '@/lib/api/contracts/v2/knowledge-chunks'
@@ -10,18 +9,13 @@ import * as tags from '@/lib/api/contracts/v2/knowledge-tags'
 import * as logs from '@/lib/api/contracts/v2/logs'
 import * as logStats from '@/lib/api/contracts/v2/logs-stats'
 import * as mcpServers from '@/lib/api/contracts/v2/mcp-servers'
-import { v2UnzipProjectFileContract } from '@/lib/api/contracts/v2/project-file-extraction'
-import { v2CompleteProjectFileUploadContract } from '@/lib/api/contracts/v2/project-file-uploads'
-import * as projectFiles from '@/lib/api/contracts/v2/project-files'
 import * as sandboxes from '@/lib/api/contracts/v2/sandboxes'
 import * as secrets from '@/lib/api/contracts/v2/secrets'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
-import { buildFolderPath, parseFolderPath } from '@/lib/folders/paths'
+import { parseFolderPath } from '@/lib/folders/paths'
 import type { ResourceAddress, ResourceChange } from '@/lib/mothership/generated/resources'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 
 interface EffectContext {
   params: Record<string, string>
@@ -44,7 +38,7 @@ function refresh(type: ResourceKind, id?: string): ResourceChange[] {
 
 function upsert(
   type: ResourceKind,
-  value: { id: string; name?: string; folderPath?: string; owner?: ResourceAddress['owner'] },
+  value: { id: string; name?: string; folderPath?: string },
   readOnly = false
 ): ResourceChange[] {
   return [
@@ -54,16 +48,10 @@ function upsert(
       resource: {
         type,
         id: value.id,
-        ...(value.owner ? { owner: value.owner } : {}),
         ...(value.name ? { title: value.name } : {}),
         ...(type === 'file' && value.name && value.folderPath !== undefined
           ? {
-              path: value.owner
-                ? fileOwnerVfsPath(
-                    value.owner,
-                    `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`
-                  )
-                : `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`,
+              path: `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`,
             }
           : {}),
       },
@@ -156,48 +144,6 @@ function settingsMutations(
 }
 
 const EFFECT_ROUTES: EffectRoute[] = [
-  after(v2UnzipProjectFileContract, (_result, { params }) => [
-    {
-      op: 'refresh',
-      resource: { type: 'file', owner: { entityType: 'project', entityId: params.projectId } },
-    },
-    {
-      op: 'refresh',
-      resource: {
-        type: 'filefolder',
-        owner: { entityType: 'project', entityId: params.projectId },
-      },
-    },
-  ]),
-  after(v2CompleteProjectFileUploadContract, ({ data }) =>
-    data.file ? upsert('file', data.file) : []
-  ),
-  after(v2CopyFileItemsContract, ({ data }) => [
-    ...data.files.flatMap((file) =>
-      upsert('file', {
-        ...file,
-        folderPath: buildFolderPath(
-          file.folderPath ? parseWorkspaceFileFolderDisplayPath(file.folderPath) : []
-        ),
-      })
-    ),
-    ...(data.folders[0]
-      ? [
-          {
-            op: 'refresh' as const,
-            resource: { type: 'filefolder' as const, owner: data.folders[0].owner },
-          },
-        ]
-      : []),
-  ]),
-  {
-    ...after(projectFiles.v2GetProjectFileMetadataContract, ({ data }) =>
-      upsert('file', data, true)
-    ),
-    readOnly: true,
-  },
-  after(projectFiles.v2CreateProjectFileContract, ({ data }) => upsert('file', data)),
-  after(projectFiles.v2UpdateProjectFileContentContract, ({ data }) => upsert('file', data)),
   ...settingsMutations('secrets', [secrets.v2SetSecretContract, secrets.v2DeleteSecretContract]),
   ...settingsMutations('credentials', [
     credentials.v2CreateCredentialConnectionContract,

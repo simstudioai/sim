@@ -11,10 +11,8 @@
  */
 
 import { z } from "zod";
-import { FileOperationOwner } from "./file-owner";
 import { ArtifactObservations } from "./observations";
 import { ResourceChanges } from "./resources";
-import { fileCopyDestinationSchema, fileCopySourceSchema } from "./sim-file-copy.generated";
 
 /** Relative sink paths resolve under the chat workbench home. */
 export const AgentCliSandboxFileSink = z.object({
@@ -50,7 +48,6 @@ export const AgentCliServiceInvocation = z.object({
   kind: z.literal("service"),
   name: z.enum([
     "list_workspaces",
-    "list_user_projects",
     "search_workspace",
     "read_document",
     "settings",
@@ -63,38 +60,20 @@ export const AgentCliServiceInvocation = z.object({
 });
 export type AgentCliServiceInvocation = z.infer<typeof AgentCliServiceInvocation>;
 
-export const AgentCliFileCopyInvocation = z.strictObject({
-  kind: z.literal("file-copy"),
-  argv: AgentCliCliInvocation.shape.argv,
-  source: fileCopySourceSchema,
-  destination: fileCopyDestinationSchema,
-});
-export type AgentCliFileCopyInvocation = z.infer<typeof AgentCliFileCopyInvocation>;
-
 export const AgentCliInvocation = z.discriminatedUnion("kind", [
   AgentCliCliInvocation,
-  AgentCliFileCopyInvocation,
   AgentCliAugmentationInvocation,
   AgentCliStdoutInvocation,
   AgentCliServiceInvocation,
 ]);
 export type AgentCliInvocation = z.infer<typeof AgentCliInvocation>;
 
-export const AgentCliRequest = z
-  .object({
-    fileOwner: FileOperationOwner.optional(),
-    workspaceId: z.uuid().optional(),
-    invocation: AgentCliInvocation,
-    sink: AgentCliSandboxFileSink.optional(),
-    curate: z.enum(["block", "knowledge-documents"]).optional(),
-  })
-  .superRefine((request, context) => {
-    if (request.invocation.kind === "file-copy" && (request.fileOwner || request.workspaceId))
-      context.addIssue({
-        code: "custom",
-        message: "File copy carries both owners in its invocation; omit envelope fileOwner and workspaceId.",
-      });
-  });
+export const AgentCliRequest = z.object({
+  workspaceId: z.uuid().optional(),
+  invocation: AgentCliInvocation,
+  sink: AgentCliSandboxFileSink.optional(),
+  curate: z.enum(["block", "knowledge-documents"]).optional(),
+});
 export type AgentCliRequest = z.infer<typeof AgentCliRequest>;
 
 export const AgentCliRawResult = z.object({

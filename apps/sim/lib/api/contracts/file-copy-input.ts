@@ -1,13 +1,10 @@
 import { z } from 'zod'
-import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 
 const copyIdSchema = z.string().trim().min(1).max(200)
-const copyOwnerSchema = FileOperationOwner.extend({
-  entityType: FileOperationOwner.shape.entityType.describe('Resource scope that owns these files.'),
-  entityId: FileOperationOwner.shape.entityId.describe(
-    'Identifier of the owning workspace or Project.'
-  ),
+const copyOwnerSchema = z.strictObject({
+  entityType: z.enum(['workspace', 'project']).describe('Resource scope that owns these files.'),
+  entityId: z.string().min(1).max(200).describe('Identifier of the owning workspace or Project.'),
 })
 const copyIdsSchema = z
   .array(copyIdSchema)

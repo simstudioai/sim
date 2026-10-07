@@ -71,7 +71,6 @@ import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-pers
 import {
   getChatResourceKey,
   getChatResourceSelectionId,
-  hasValidChatResourceOwner,
   isAddressableResource,
   isEphemeralResource,
   type MothershipResourceUpdate,
@@ -270,8 +269,7 @@ export interface UseChatReturn {
   removeResource: (
     resourceType: MothershipResourceType,
     resourceId: string,
-    workspaceId?: string,
-    owner?: MothershipResource['owner']
+    workspaceId?: string
   ) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
@@ -1320,8 +1318,8 @@ export function useChat(
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
       // The single fan-in for tab creation, so the invariant lives here.
-      if (!isAddressableResource(resourceUpdate) || !hasValidChatResourceOwner(resourceUpdate)) {
-        logger.warn('Ignored a resource with an invalid address', {
+      if (!isAddressableResource(resourceUpdate)) {
+        logger.warn('Ignored a resource with no id', {
           type: resourceUpdate.type,
           title: resourceUpdate.title,
         })
@@ -1379,21 +1377,11 @@ export function useChat(
   )
 
   const removeResource = useCallback(
-    (
-      resourceType: MothershipResourceType,
-      resourceId: string,
-      resourceWorkspaceId?: string,
-      resourceOwner?: MothershipResource['owner']
-    ) => {
-      const removed = {
-        type: resourceType,
-        id: resourceId,
-        workspaceId: resourceWorkspaceId,
-        owner: resourceOwner,
-      }
-      if (!hasValidChatResourceOwner(removed)) return
-      const removedKey = getChatResourceKey(removed)
-      const matches = (resource: MothershipResource) => getChatResourceKey(resource) === removedKey
+    (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
+      const matches = (resource: MothershipResource) =>
+        resource.type === resourceType &&
+        resource.id === resourceId &&
+        resource.workspaceId === resourceWorkspaceId
       if (resourceType === 'table') tableViewContextsRef.current.views.delete(resourceId)
       setResources((prev) => prev.filter((r) => !matches(r)))
       setActiveResourceId((prev) =>
@@ -1402,7 +1390,6 @@ export function useChat(
           type: resourceType,
           id: resourceId,
           workspaceId: resourceWorkspaceId,
-          owner: resourceOwner,
           title: '',
         })
           ? null
@@ -1432,8 +1419,7 @@ export function useChat(
         resourceId,
         persistenceScopeId,
         Boolean(existing && persistChatId),
-        resourceWorkspaceId,
-        resourceOwner
+        resourceWorkspaceId
       )
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
@@ -1445,7 +1431,6 @@ export function useChat(
             resourceType,
             resourceId,
             workspaceId: resourceWorkspaceId,
-            owner: resourceOwner,
           },
         })
         await refreshResourceHistory(persistChatId)
@@ -1933,15 +1918,13 @@ export function useChat(
 
     void recoverPendingClientWorkflowTools(mappedMessages)
 
-    const streamingResources = chatHistory.resources.filter((r) => r.id === 'streaming-file')
-    for (const resource of streamingResources) {
+    const hasPersistedStreamingFile = chatHistory.resources.some((r) => r.id === 'streaming-file')
+    if (hasPersistedStreamingFile) {
       requestJson(removeMothershipChatResourceContract, {
         body: {
           chatId: chatHistory.id,
-          resourceType: resource.type,
-          resourceId: resource.id,
-          owner: resource.owner,
-          workspaceId: resource.workspaceId,
+          resourceType: 'file',
+          resourceId: 'streaming-file',
         },
       }).catch(() => {})
     }
@@ -2011,13 +1994,7 @@ export function useChat(
         r.id !== 'streaming-file' &&
         !serverKeys.has(getChatResourceKey(r)) &&
         (isEphemeralResource(r) ||
-          resourcePersistenceQueue.hasPendingUpsert(
-            chatHistory.id,
-            r.type,
-            r.id,
-            r.workspaceId,
-            r.owner
-          ))
+          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id, r.workspaceId))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)
@@ -2077,7 +2054,7 @@ export function useChat(
       if (workflowResources.length > 0) {
         void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
-    } else if (resourcesRef.current.length > 0 || streamingResources.length > 0) {
+    } else if (resourcesRef.current.length > 0 || hasPersistedStreamingFile) {
       activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)

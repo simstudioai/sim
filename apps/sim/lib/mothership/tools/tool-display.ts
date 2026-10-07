@@ -630,7 +630,6 @@ const TOOL_TITLES: Record<string, string> = {
   list_file_folders: 'Listing folders',
   list_integration_tools: 'Listing integration tools',
   list_user_workspaces: 'Listing workspaces',
-  list_user_projects: 'Listing projects',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
   save_upload: 'Saving upload',

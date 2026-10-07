@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  fileCopyDestinationSchema,
-  fileCopyInputSchema,
-} from '@/lib/api/contracts/mothership-file-copy'
+import { fileCopyDestinationSchema, fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { noInputSchema, nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
 import { projectFileFolderRecordSchema } from '@/lib/api/contracts/project-file-folders'
 import { projectFileRecordSchema } from '@/lib/api/contracts/project-files'

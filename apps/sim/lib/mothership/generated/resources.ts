@@ -2,7 +2,6 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
-import { FileOwner } from "./file-owner";
 import {
   nativeSearchQueriesSchema,
   workspaceKnowledgeSearchDataSchema,
@@ -41,7 +40,6 @@ export const SearchResource = z.object({
 export type SearchResource = z.infer<typeof SearchResource>;
 
 export const ResourceAddress = z.object({
-  owner: FileOwner.optional(),
   workspaceId: z.uuid().optional(),
   workspaceName: z.string().optional(),
   type: ResourceType,
@@ -92,7 +90,6 @@ export const ResourceChange = z.discriminatedUnion("op", [
     resource: z.union([
       z.object({
         type: ResourceType,
-        owner: FileOwner.optional(),
         workspaceId: z.uuid().optional(),
         id: z.string().regex(/\S/).optional(),
       }),

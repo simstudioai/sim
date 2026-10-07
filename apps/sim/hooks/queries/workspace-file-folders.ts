@@ -11,11 +11,12 @@ import {
   updateWorkspaceFileFolderContract,
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
+import { extractWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
 } from '@/lib/workspace-files/folder-display-path'
-import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 export type { WorkspaceFileFolderApi }
@@ -81,6 +82,25 @@ export function useCreateWorkspaceFileFolder() {
         body: { name: variables.name, parentId: variables.parentId },
       })
       return data.folder
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useExtractWorkspaceFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: { workspaceId: string; fileId: string; fileName: string }) =>
+      requestJson(extractWorkspaceFileContract, {
+        params: { id: variables.workspaceId, fileId: variables.fileId },
+      }),
+    onSuccess: (data, variables) => {
+      toast.success(`Unzipped "${variables.fileName}" into "${data.folderName}"`)
+    },
+    onError: (error) => {
+      toast.error(toError(error).message)
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)

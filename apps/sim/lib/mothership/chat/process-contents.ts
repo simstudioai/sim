@@ -28,6 +28,7 @@ import {
   createCopilotChatPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/auth/table-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
@@ -49,11 +50,8 @@ import {
   safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
-import type { ChatFileIngress } from '@/lib/mothership/file-owners/types'
-import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
-import type { ResourceAddress } from '@/lib/mothership/generated/resources'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
@@ -70,7 +68,7 @@ import type { ColumnDefinition } from '@/lib/table/types'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { getBuiltinSkillById } from '@/lib/workflows/skills/builtin-skills'
-import type { OwnedFileTarget } from '@/lib/workspace-files/ownership'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getBlockRegistry } from '@/blocks/registry'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -104,7 +102,6 @@ interface AgentContext {
   content: string
   /** A CLI-readable file address; other resources carry canonical references in content. */
   path?: string
-  resource?: ResourceAddress
 }
 
 const logger = createLogger('ProcessContents')
@@ -148,8 +145,7 @@ export async function processContextsServer(
   currentWorkspaceId?: string,
   chatId?: string,
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  organizationId?: string,
-  requestMode?: string
+  organizationId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   if (contexts.length > MAX_CHAT_CONTEXTS) {
@@ -321,7 +317,6 @@ export async function processContextsServer(
         tag: ctx.label ? `@${ctx.label}` : '@',
         content: result.content,
         path: result.path,
-        resource: result.resource,
       }
     }
     if (ctx.kind === 'file_selection' && ctx.fileId && workspaceId) {
@@ -410,24 +405,6 @@ export async function processContextsServer(
 
   const resolveContext = async (ctx: ChatContext): Promise<AgentContext | null> => {
     try {
-      if ((ctx.kind === 'file' || ctx.kind === 'file_selection') && ctx.owner !== undefined) {
-        const parsed = FileOperationOwner.safeParse(ctx.owner)
-        if (!parsed.success) return null
-        if (getCopilotFileOwnerAdapter(parsed.data).resourceScope === 'owner') {
-          if (ctx.workspaceId) return null
-          return await resolveOwnedFileContext(
-            { owner: parsed.data, fileId: ctx.fileId },
-            { userId, workspaceId: currentWorkspaceId, chatId, requestMode },
-            ctx
-          )
-        }
-        if (
-          (ctx.workspaceId && ctx.workspaceId !== parsed.data.entityId) ||
-          (!organizationId && currentWorkspaceId !== parsed.data.entityId)
-        )
-          return null
-        ctx = { ...ctx, workspaceId: parsed.data.entityId }
-      }
       // Global code-owned templates do not require an arbitrary workspace.
       const builtin =
         ctx.kind === 'skill' && organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
@@ -1056,10 +1033,21 @@ async function resolveFileResource(
   userId: string,
   chatId?: string
 ): Promise<AgentContext | null> {
-  return resolveOwnedFileContext(
-    { owner: { entityType: 'workspace', entityId: workspaceId }, fileId },
-    { userId, workspaceId, chatId }
-  )
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: '',
+    path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+  }
 }
 
 /**
@@ -1094,39 +1082,30 @@ async function resolveFileSelectionResource(
   chatId?: string
 ): Promise<AgentContext | null> {
   if (!userId) throw new Error('File selection context requires a user ID')
-  return resolveOwnedFileContext(
-    { owner: { entityType: 'workspace', entityId: workspaceId }, fileId },
-    { userId, workspaceId, chatId },
-    { kind: 'file_selection', fileId, fileName: label, text, label, startLine, endLine }
-  )
-}
-
-/** Reads canonical owner metadata while selection text remains the user's quoted snapshot. */
-export async function resolveOwnedFileContext(
-  target: OwnedFileTarget,
-  ingress: ChatFileIngress,
-  selected?: Extract<ChatContext, { kind: 'file' | 'file_selection' }>
-): Promise<AgentContext> {
-  const file = await getCopilotFileOwnerAdapter(target.owner).readChatMetadata(ingress, target)
-  let content = ''
-  if (selected?.kind === 'file_selection') {
-    const snippet = truncateSelectionText(selected.text)
-    const { startLine, endLine } = selected
-    const range =
-      startLine && endLine && endLine !== startLine
-        ? ` (lines ${startLine}-${endLine})`
-        : startLine
-          ? ` (line ${startLine})`
-          : ''
-    const fence = codeFenceFor(snippet)
-    content = `Selected passage from ${file.name}${range}:\n\n${fence}\n${snippet}\n${fence}`
-  }
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
+  const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+  const snippet = truncateSelectionText(text)
+  const lineRange =
+    startLine && endLine && endLine !== startLine
+      ? ` (lines ${startLine}-${endLine})`
+      : startLine
+        ? ` (line ${startLine})`
+        : ''
+  const fence = codeFenceFor(snippet)
+  const content = `Selected passage from ${record.name}${lineRange}:\n\n${fence}\n${snippet}\n${fence}`
   return {
-    type: selected?.kind ?? 'active_resource',
-    tag: selected?.label ? `@${selected.label}` : '@active_resource',
+    type: 'file_selection',
+    tag: label ? `@${label}` : '@',
     content,
-    path: file.path,
-    resource: { type: 'file', id: file.id, title: file.name, path: file.path, owner: file.owner },
+    path,
   }
 }
 
