@@ -349,14 +349,15 @@ describe('Project upload sessions with real leases, storage, and accounting', ()
     'Copilot retries bind the current invocation and preserve unknown provenance when no trusted source was supplied',
     async () => {
       const f = await fixture()
+      const issuedAt = new Date()
       const principal: ResourceDelegatedPrincipal = {
         kind: 'resource_delegated',
         serviceId: 'copilot',
         subjectUserId: f.editorId,
         delegationId: generateId(),
         audience: 'sim:project-files',
-        issuedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
+        issuedAt,
+        expiresAt: new Date(issuedAt.getTime() + 60_000),
         invocation: { kind: 'workspace', workspaceId: f.workspaceId },
         scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
       }
@@ -365,11 +366,12 @@ describe('Project upload sessions with real leases, storage, and accounting', ()
         input: input(f.projectId),
       })
       await put(session, Buffer.from('file'))
+      const retryIssuedAt = new Date()
       const fresh = {
         ...principal,
         delegationId: generateId(),
-        issuedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
+        issuedAt: retryIssuedAt,
+        expiresAt: new Date(retryIssuedAt.getTime() + 60_000),
       }
       const result = await application.completeProjectFileUploadSession.execute({
         principal: fresh,
