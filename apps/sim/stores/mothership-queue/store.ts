@@ -41,10 +41,13 @@ const sessionStorageAdapter = {
   },
 }
 
+/** Numbers each delete, so a restore or read can tell the delete it saw from a later one. */
+let deleteCount = 0
+
 const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
-  cleared: {} as Record<string, true>,
+  cleared: {} as Record<string, number>,
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -67,13 +70,15 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         ...initialState,
 
         enqueue: (chatKey, message) =>
-          set((state) => ({
-            cleared: omitKey(state.cleared, chatKey),
-            queues: setQueueForChat(state.queues, chatKey, [
-              ...(state.queues[chatKey] ?? []),
-              message,
-            ]),
-          })),
+          set((state) => {
+            if (state.cleared[chatKey]) return state
+            return {
+              queues: setQueueForChat(state.queues, chatKey, [
+                ...(state.queues[chatKey] ?? []),
+                message,
+              ]),
+            }
+          }),
 
         insertAt: (chatKey, index, message) =>
           set((state) => {
@@ -99,6 +104,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               retryRequired: _retry,
               heldUntilOnline: _held,
               heldSurface: _surface,
+              busyRetries: _busyRetries,
+              notBefore: _notBefore,
               ...rest
             } = next[index]
             next[index] = {
@@ -144,7 +151,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (!fromQueue && fromEditing === undefined) return state
 
             const queues = omitKey(state.queues, fromKey)
-            if (fromQueue && fromQueue.length > 0) {
+            /** A chat deleted meanwhile takes nothing: its queue is gone with it. */
+            if (fromQueue && fromQueue.length > 0 && !state.cleared[toKey]) {
               // Merge defensively in case a stale bucket survived in
               // sessionStorage. FIFO: existing first, then the resolved stream.
               const existing = state.queues[toKey] ?? []
@@ -201,8 +209,16 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
             editing: omitKey(state.editing, chatKey),
-            cleared: { ...state.cleared, [chatKey]: true },
+            cleared: { ...state.cleared, [chatKey]: ++deleteCount },
           })),
+
+        reopenChat: (chatKey, deleteToken) =>
+          set((state) => {
+            const current = state.cleared[chatKey]
+            if (current === undefined) return state
+            if (deleteToken !== undefined && deleteToken !== current) return state
+            return { cleared: omitKey(state.cleared, chatKey) }
+          }),
 
         reset: () => set(initialState),
       }),

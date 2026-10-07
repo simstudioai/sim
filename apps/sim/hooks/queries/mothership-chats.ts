@@ -281,7 +281,7 @@ export function useOrganizationMothershipChats(
   })
 }
 
-export async function fetchMothershipChatHistory(
+async function readMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
@@ -307,6 +307,22 @@ export async function fetchMothershipChatHistory(
   }
 
   return parseChatHistory(await copilotRes.json())
+}
+
+/**
+ * Reads a chat from the server. A chat this tab saw deleted that the server
+ * returns again was restored, so it takes queued sends again. Only a read that
+ * began after the delete counts: one already in flight can return the chat from
+ * before it.
+ */
+export async function fetchMothershipChatHistory(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<MothershipChatHistory> {
+  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
+  const history = await readMothershipChatHistory(chatId, signal)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().reopenChat(chatId, deleteSeen)
+  return history
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
@@ -365,6 +381,12 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
+    /** The delete this restore undoes; one that lands while it is in flight stays. */
+    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
+    onSuccess: (_data, chatId, context) => {
+      if (context?.deleteSeen === undefined) return
+      useMothershipQueueStore.getState().reopenChat(chatId, context.deleteSeen)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
