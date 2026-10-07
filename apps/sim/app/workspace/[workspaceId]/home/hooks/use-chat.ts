@@ -93,7 +93,9 @@ import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import {
-  leaseDesktopTool,
+  type DesktopToolSession,
+  type DesktopToolTurn,
+  desktopToolSession,
   stopDesktopTools,
 } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -518,10 +520,10 @@ function startClientBrowserTool(
   toolArgs: Record<string, unknown>,
   scopeId: string,
   eventTs?: string,
-  turnStreamId?: string
+  desktopTurn?: DesktopToolTurn
 ): void {
   if (!isCurrentBrowserToolName(toolName)) return
-  const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
+  const lease = desktopTurn?.lease()
   void executeBrowserToolOnClient(
     toolCallId,
     toolName,
@@ -1003,6 +1005,8 @@ export function useChat(
   const chatIdRef = useRef<string | undefined>(initialChatId)
   /** Cleared on unmount, so late async work cannot act on a surface the user left. */
   const surfaceMountedRef = useRef(true)
+  const desktopToolsRef = useRef<DesktopToolSession | null>(null)
+  const desktopTools = (desktopToolsRef.current ??= desktopToolSession())
   useEffect(() => {
     surfaceMountedRef.current = true
     return () => {
@@ -1654,7 +1658,7 @@ export function useChat(
       toolCallId: string,
       toolName: string,
       toolArgs: Record<string, unknown>,
-      turnStreamId: string | undefined
+      desktopTurn: DesktopToolTurn | undefined
     ) => {
       if (
         !isNativeFileTool(toolName) &&
@@ -1666,7 +1670,7 @@ export function useChat(
         return
       }
       handledClientLocalFilesystemToolIds.add(toolCallId)
-      const lease = turnStreamId ? leaseDesktopTool(turnStreamId) : undefined
+      const lease = desktopTurn?.lease()
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
@@ -2297,7 +2301,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const turnStreamId = streamIdRef.current
+      const desktopTurn = streamIdRef.current ? desktopTools.turn(streamIdRef.current) : undefined
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
@@ -2318,7 +2322,7 @@ export function useChat(
         eventTs?: string
       ) => {
         const scopeId = activityScopeId()
-        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, turnStreamId)
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, desktopTurn)
       }
       const startClientTerminalToolForStream = (
         toolCallId: string,
@@ -2351,7 +2355,7 @@ export function useChat(
         removeResource,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
-          startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, turnStreamId),
+          startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,
         startBrowserAgentRun: startBrowserAgentRunForStream,
