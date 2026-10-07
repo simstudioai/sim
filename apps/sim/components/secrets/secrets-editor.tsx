@@ -400,9 +400,11 @@ export function SecretsEditor({
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
-  const hasChangesRef = useRef(false)
-  const hasSavedPersonalRef = useRef(false)
-  const hasSavedWorkspaceRef = useRef(false)
+  const acknowledgedPersonalRef = useRef<{
+    data: typeof personalEnvData
+    hasPersonal: boolean
+  } | null>(null)
+  const acknowledgedWorkspaceRef = useRef<typeof variables>(undefined)
 
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -496,8 +498,6 @@ export function SecretsEditor({
     return personalInvalid || workspaceInvalid
   }, [envVars, newWorkspaceRows])
 
-  hasChangesRef.current = hasChanges
-
   const guard = useSettingsUnsavedGuard({
     isDirty: hasChanges,
     navigationBlocked: isListSaving,
@@ -505,11 +505,10 @@ export function SecretsEditor({
   })
 
   useEffect(() => {
-    if (hasChangesRef.current) return
-    if (hasSavedPersonalRef.current) {
-      hasSavedPersonalRef.current = false
-      return
-    }
+    if (hasChanges || isListSaving) return
+    const acknowledged = acknowledgedPersonalRef.current
+    if (acknowledged?.data === personalEnvData && acknowledged?.hasPersonal === hasPersonal) return
+    acknowledgedPersonalRef.current = { data: personalEnvData, hasPersonal }
 
     const existingVars = Object.values(personalEnvData || {})
     const initialVars = [
@@ -521,17 +520,15 @@ export function SecretsEditor({
     ]
     initialVarsRef.current = structuredClone(initialVars)
     setEnvVars(structuredClone(initialVars))
-  }, [personalEnvData, hasPersonal])
+  }, [personalEnvData, hasPersonal, hasChanges, isListSaving])
 
   useEffect(() => {
-    if (!variables || hasChangesRef.current) return
-    if (hasSavedWorkspaceRef.current) {
-      hasSavedWorkspaceRef.current = false
+    if (!variables || hasChanges || isListSaving || acknowledgedWorkspaceRef.current === variables)
       return
-    }
+    acknowledgedWorkspaceRef.current = variables
     setWorkspaceDraft((current) => ({ ...current, variables }))
     initialWorkspaceVarsRef.current = variables
-  }, [variables])
+  }, [variables, hasChanges, isListSaving])
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -821,15 +818,19 @@ export function SecretsEditor({
       mutations.push(save({ upsert: toUpsert, remove: toDelete }))
     }
 
-    hasSavedPersonalRef.current = personalChanged
-    hasSavedWorkspaceRef.current = Boolean(workspaceChanged)
-
     try {
       const results = await Promise.allSettled(mutations)
       const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
       if (firstFailure) throw firstFailure.reason
 
-      initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
+      if (personalChanged) acknowledgedPersonalRef.current = { data: personalEnvData, hasPersonal }
+      if (workspaceChanged) acknowledgedWorkspaceRef.current = variables
+      const savedWorkspaceVars = applyVariableEdits(
+        before,
+        mergedWorkspaceVars,
+        variables ?? before
+      )
+      initialWorkspaceVarsRef.current = savedWorkspaceVars
       const savedPersonalRows = Object.entries(personalVariablesToSave).map(([key, value]) => ({
         key,
         value,
@@ -864,7 +865,7 @@ export function SecretsEditor({
         newWorkspaceRows.filter((row) => row.key && row.value).map((row) => [row.id, row])
       )
       setWorkspaceDraft((current) => {
-        const variables = { ...mergedWorkspaceVars }
+        const variables = { ...savedWorkspaceVars }
         for (const submitted of submittedRows.values()) {
           if (Object.hasOwn(workspaceVars, submitted.key))
             setRecordValue(variables, submitted.key, workspaceVars[submitted.key])
@@ -885,8 +886,6 @@ export function SecretsEditor({
         toast.success('Secrets saved')
       }
     } catch (error) {
-      hasSavedPersonalRef.current = false
-      hasSavedWorkspaceRef.current = false
       logger.error('Failed to save environment variables:', error)
       toast.error(getErrorMessage(error, 'Failed to save secrets'))
     }

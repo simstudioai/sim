@@ -66,7 +66,7 @@ Each grep lists candidates; review every match against the expected ones named b
    - Editable pages: confirm Save/Discard go through `saveDiscardActions()` and
      dirty is wired via `useSettingsUnsavedGuard` (called before early-return
      gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
-     `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' 'apps/sim/components/settings/'`
+     `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' 'apps/sim/components/settings/' ':(exclude,glob)**/*.test.*'`
      should only hit the centralized `use-settings-browser-navigation.ts`.
 5. Fix each finding with the smallest structural change that satisfies the checklist;
    do not touch handlers, state, queries, or gate returns. A pixel-size fix swaps

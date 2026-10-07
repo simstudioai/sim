@@ -150,6 +150,38 @@ describe('native settings navigation', () => {
     expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
   })
 
+  it.each(['back', 'forward', 'go'] as const)(
+    'preserves a draft during programmatic hash-only %s',
+    async (method) => {
+      act(() => root.render(<LinkedEditor />))
+      const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!field || !setter) throw new Error('Missing draft input')
+      window.history.pushState({ router: 'hash' }, '', '/editor#first')
+      if (method === 'forward') {
+        nativeGo.call(window.history, -1)
+        await settle()
+      }
+      act(() => {
+        setter.call(field, 'authored')
+        field.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      if (method === 'go') window.history.go(-1)
+      else window.history[method]()
+      await settle()
+      expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
+      expect(window.location.hash).toBe(method === 'forward' ? '#first' : '')
+      expect(field.value).toBe('authored')
+      expect(useSettingsDirtyStore.getState().isDirty).toBe(true)
+      if (method !== 'forward') {
+        window.history.back()
+        await settle()
+        expect(window.location.pathname).toBe('/editor')
+        expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
+      }
+    }
+  )
+
   it('keeps Back and Forward on the edited page until discard is confirmed', async () => {
     render(true)
     nativeGo.call(window.history, -1)

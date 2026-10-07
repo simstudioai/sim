@@ -250,6 +250,152 @@ describe('shared secrets editor', () => {
     expect(left).toBe(true)
   })
 
+  it.each(['personal', 'shared'])(
+    'resumes a skipped %s refresh after reverting the draft',
+    async (scope) => {
+      const original = { TOKEN: 'original' }
+      const refreshed = { TOKEN: 'remote', REMOTE: 'new' }
+      const props = (variables: Record<string, string>) =>
+        scope === 'shared'
+          ? { variables }
+          : {
+              personal: {
+                variables: Object.fromEntries(
+                  Object.entries(variables).map(([key, value]) => [key, { key, value }])
+                ),
+                save: mocks.save,
+              },
+            }
+      const selector =
+        scope === 'shared'
+          ? 'input[name^="workspace_env_value_TOKEN"]'
+          : 'input[name^="env_variable_value_"]'
+      await render(props(original))
+      const field = container.querySelector<HTMLInputElement>(selector)
+      if (!field) throw new Error('Missing secret value')
+      await change(field, 'draft')
+      await render(props(refreshed))
+      const retained = container.querySelector<HTMLInputElement>(selector)
+      if (!retained) throw new Error('Missing retained draft')
+      expect(retained.value).toBe('draft')
+      await change(retained, 'original')
+      const values = [...container.querySelectorAll<HTMLInputElement>('input[name*="value"]')].map(
+        (input) => input.value
+      )
+      expect(values).toContain('remote')
+      expect(values).toContain('new')
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(true)
+    }
+  )
+
+  it.each(['personal', 'shared'])(
+    'consumes a fresh %s snapshot received before Save without hiding remote keys',
+    async (scope) => {
+      const empty = {}
+      const original = { TOKEN: 'original' }
+      const refreshed = { TOKEN: 'remote', REMOTE: 'new' }
+      const personalOriginal = { TOKEN: { key: 'TOKEN', value: 'original' } }
+      const personalRefreshed = {
+        TOKEN: { key: 'TOKEN', value: 'remote' },
+        REMOTE: { key: 'REMOTE', value: 'new' },
+      }
+      const props = (fresh: boolean) =>
+        scope === 'shared'
+          ? { variables: fresh ? refreshed : original }
+          : {
+              variables: empty,
+              personal: {
+                variables: fresh ? personalRefreshed : personalOriginal,
+                save: mocks.save,
+              },
+            }
+      const selector =
+        scope === 'shared'
+          ? 'input[name^="workspace_env_value_TOKEN"]'
+          : 'input[name^="env_variable_value_"]'
+      await render(props(false))
+      const field = container.querySelector<HTMLInputElement>(selector)
+      if (!field) throw new Error('Missing secret value')
+      await change(field, 'submitted')
+      await render(props(true))
+      await act(async () => button('Save').click())
+      expect(container.querySelector<HTMLInputElement>(selector)?.value).toBe('submitted')
+      const values = [...container.querySelectorAll<HTMLInputElement>('input[name*="value"]')].map(
+        (input) => input.value
+      )
+      expect(values).toContain('new')
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(true)
+    }
+  )
+
+  it.each([
+    { scope: 'personal', refresh: 'during Save' },
+    { scope: 'shared', refresh: 'during Save' },
+    { scope: 'personal', refresh: 'after Save' },
+    { scope: 'shared', refresh: 'after Save' },
+  ])(
+    'acknowledges fresh $scope values received $refresh without rolling back the save',
+    async ({ scope, refresh }) => {
+      const request = createDeferred<void>()
+      const original = { TOKEN: 'original' }
+      const canonical = { TOKEN: 'submitted', REMOTE: 'canonical' }
+      const emptyShared = {}
+      const personalOriginal = { TOKEN: { key: 'TOKEN', value: 'original' } }
+      const personalCanonical = {
+        TOKEN: { key: 'TOKEN', value: 'submitted' },
+        REMOTE: { key: 'REMOTE', value: 'canonical' },
+      }
+      const props = (fresh: boolean, isSaving: boolean) =>
+        scope === 'shared'
+          ? { variables: fresh ? canonical : original, isSaving, save: () => request.promise }
+          : {
+              variables: emptyShared,
+              isSaving,
+              personal: {
+                variables: fresh ? personalCanonical : personalOriginal,
+                save: () => request.promise,
+              },
+            }
+      const selector =
+        scope === 'shared'
+          ? 'input[name^="workspace_env_value_TOKEN"]'
+          : 'input[name^="env_variable_value_"]'
+      await render(props(false, false))
+      const field = container.querySelector<HTMLInputElement>(selector)
+      if (!field) throw new Error('Missing secret value')
+      await change(field, 'submitted')
+      act(() => button('Save').click())
+      await render(props(refresh === 'during Save', true))
+      await act(async () => request.resolve())
+      await render(props(refresh === 'during Save', false))
+      expect(container.querySelector<HTMLInputElement>(selector)?.value).toBe('submitted')
+      if (refresh === 'after Save') await render(props(true, false))
+      const values = [...container.querySelectorAll<HTMLInputElement>('input[name*="value"]')].map(
+        (input) => input.value
+      )
+      expect(values).toContain('canonical')
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(true)
+    }
+  )
+
   it('keeps an edited personal secret and its navigation protection through a refresh', async () => {
     const personal = { variables: { TOKEN: { key: 'TOKEN', value: 'original' } }, save: mocks.save }
     await render({ personal })

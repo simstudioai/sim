@@ -638,7 +638,7 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
     available && active
   )
   const configure = useConfigureScimConnection()
-  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
+  const navigationBlocked = useSettingsDirtyStore((state) => state.navigationBlocked)
 
   if (!available) return null
 
@@ -683,13 +683,9 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
               id='scim-enabled'
               checked={enabled}
               onCheckedChange={(checked) => {
-                if (checked) void updateEnabled(true)
-                else
-                  requestLeave(() => {
-                    void updateEnabled(false)
-                  })
+                void updateEnabled(checked)
               }}
-              disabled={isLoading || configure.isPending}
+              disabled={isLoading || configure.isPending || navigationBlocked}
             />
           </div>
 
@@ -703,12 +699,14 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
           )}
         </div>
       </SettingsSection>
-      {connection && enabled && (
-        <ConnectionDetails
-          organizationId={organizationId}
-          connection={connection}
-          active={active}
-        />
+      {connection && (
+        <div hidden={!enabled} className='flex flex-col gap-7'>
+          <ConnectionDetails
+            organizationId={organizationId}
+            connection={connection}
+            active={active && enabled}
+          />
+        </div>
       )}
     </div>
   )

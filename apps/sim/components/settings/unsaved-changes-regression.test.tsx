@@ -630,7 +630,7 @@ it.each(['Source workflow ID', 'Target workspace ID'])(
   }
 )
 
-async function renderScim() {
+function seedScim() {
   const shape = getDeploymentShape()
   seedDeploymentShape({ ...shape, features: { ...shape.features, scim: true } })
   client.setQueryData(scimKeys.connection('org-a'), {
@@ -653,8 +653,90 @@ async function renderScim() {
   client.setQueryData(scimKeys.activity('org-a'), [])
   client.setQueryData(permissionGroupKeys.list('org-a'), [])
   client.setQueryData(permissionGroupKeys.orgWorkspaces('org-a'), [])
+}
+
+async function renderScim() {
+  seedScim()
   await render(<ScimSection organizationId='org-a' active onOpenDomains={() => {}} />)
 }
+
+it('preserves hidden SSO and SCIM drafts when provisioning is disabled and re-enabled', async () => {
+  seedScim()
+  client.setQueryData(ssoKeys.providerList('org-a'), { providers: [] })
+  client.setQueryData(domainKeys.list('org-a'), { domains: [] })
+  client.setQueryData(organizationKeys.billing('org-a'), {
+    data: { subscriptionPlan: 'enterprise' },
+  })
+  let persisted = client.getQueryData<{ connection: { status: string } }>(
+    scimKeys.connection('org-a')
+  )
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT' && persisted) {
+        const body = JSON.parse(String(init.body)) as { status: string }
+        persisted = { connection: { ...persisted.connection, status: body.status } }
+      }
+      return Promise.resolve(jsonResponse(persisted))
+    })
+  )
+  await render(<SSO organizationId='org-a' />, '?sso-tab=domains')
+  click('Domains')
+  edit('#sso-add-domain', 'draft.example.com')
+  click('Provisioning')
+  select('Token expiry', 'Expires in 90 days')
+  const toggle = container.querySelector<HTMLButtonElement>('#scim-enabled')
+  if (!toggle) throw new Error('Missing provisioning switch')
+  await act(async () => {
+    toggle.click()
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  expect(persisted?.connection.status).toBe('disabled')
+  expectLeave(false)
+  click('Domains')
+  expect(input('#sso-add-domain').value).toBe('draft.example.com')
+  click('Provisioning')
+  await act(async () => {
+    toggle.click()
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  expect(persisted?.connection.status).toBe('active')
+  expect(container.querySelector('button[aria-label="Token expiry"]')?.textContent).toContain(
+    'Expires in 90 days'
+  )
+  expectLeave(false)
+})
+
+it('blocks provisioning toggles while token issuance is pending', async () => {
+  await renderScim()
+  const request = createDeferred<Response>()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((_url: string, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? request.promise
+        : Promise.resolve(jsonResponse(client.getQueryData(scimKeys.connection('org-a'))))
+    )
+  )
+  click('Issue token')
+  await act(async () => {
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  const toggle = container.querySelector<HTMLButtonElement>('#scim-enabled')
+  if (!toggle) throw new Error('Missing provisioning switch')
+  expect(toggle.disabled).toBe(true)
+  expectLeave(false)
+  await act(async () => {
+    request.resolve(jsonResponse({ error: 'Unavailable' }, 503))
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  expect(toggle.disabled).toBe(false)
+  expectLeave(true)
+})
 
 it('protects the only retrievable SCIM token until its modal is dismissed', async () => {
   await renderScim()

@@ -24,9 +24,7 @@ function installBrowserNavigationGuard() {
   const originalPush = history.pushState
   const originalReplace = history.replaceState
   const originalGo = history.go
-  const navigation = (
-    window as Window & { navigation?: { currentEntry: { index: number } | null } }
-  ).navigation
+  const navigation = window.navigation as typeof window.navigation | undefined
   const initialState = toRecord(history.state)
   let generation =
     typeof initialState[HISTORY_GENERATION] === 'string'
@@ -45,38 +43,56 @@ function installBrowserNavigationGuard() {
   let allowTraversal = false
   let warnedUnindexed = false
   let currentUrl = new URL(window.location.href)
+  const trackedRoutes = new Map<number, string>()
+  const route = (url: URL) => url.pathname + url.search
 
   const stamp = (data: unknown, index: number, entryGeneration = generation) =>
     data == null || isRecordLike(data)
       ? { ...toRecord(data), [HISTORY_INDEX]: index, [HISTORY_GENERATION]: entryGeneration }
       : data
 
+  originalReplace.call(history, stamp(history.state, currentIndex), '', window.location.href)
+  trackedRoutes.set(currentIndex, route(currentUrl))
+
   history.pushState = (data: unknown, unused, url) => {
-    const nextGeneration = currentIndex === null ? generateId() : generation
-    const nextIndex = (currentIndex ?? -1) + 1
+    const previousIndex = entryIndex(history.state)
+    const nextGeneration = previousIndex === null ? generateId() : generation
+    const nextIndex = (previousIndex ?? -1) + 1
     originalPush.call(history, stamp(data, nextIndex, nextGeneration), unused, url)
+    if (generation !== nextGeneration) trackedRoutes.clear()
     generation = nextGeneration
     currentIndex = nextIndex
     currentUrl = new URL(window.location.href)
+    for (const index of trackedRoutes.keys()) {
+      if (index > nextIndex || index < nextIndex - history.length + 1) trackedRoutes.delete(index)
+    }
+    trackedRoutes.set(nextIndex, route(currentUrl))
   }
   history.replaceState = (data: unknown, unused, url) => {
-    originalReplace.call(
-      history,
-      currentIndex === null ? data : stamp(data, currentIndex),
-      unused,
-      url
-    )
+    const index = entryIndex(history.state)
+    originalReplace.call(history, index === null ? data : stamp(data, index), unused, url)
+    currentIndex = index
     currentUrl = new URL(window.location.href)
+    if (index !== null) trackedRoutes.set(index, route(currentUrl))
   }
-  history.replaceState(history.state, '', window.location.href)
 
   history.go = (delta) => {
     if (!delta) {
       originalGo.call(history, delta)
       return
     }
+    const sourceIndex = entryIndex(history.state)
+    const targetIndex = sourceIndex === null ? null : sourceIndex + delta
+    const target = navigation?.entries().find((entry) => entry.index === targetIndex)
+    const targetRoute = navigation
+      ? target?.sameDocument && target.url
+        ? route(new URL(target.url))
+        : undefined
+      : targetIndex === null
+        ? undefined
+        : trackedRoutes.get(targetIndex)
     const { isDirty, navigationBlocked, requestLeave } = useSettingsDirtyStore.getState()
-    if (!isDirty && !navigationBlocked) {
+    if (targetRoute === route(new URL(window.location.href)) || (!isDirty && !navigationBlocked)) {
       originalGo.call(history, delta)
       return
     }
@@ -94,6 +110,7 @@ function installBrowserNavigationGuard() {
     (event) => {
       const index = entryIndex(event.state)
       const destinationUrl = new URL(window.location.href)
+      if (index !== null) trackedRoutes.set(index, route(destinationUrl))
       if (
         allowTraversal &&
         (index === null || currentIndex === null || index - currentIndex === pendingDelta)
