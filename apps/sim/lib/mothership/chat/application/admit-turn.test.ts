@@ -23,6 +23,7 @@ import {
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { admitChatTurn, turnDesktopDevice } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 
 const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
@@ -121,6 +122,22 @@ describe('organization turn admission through current private-chat authorization
       ],
       expect.objectContaining({ streamId }),
       expect.anything()
+    )
+  })
+  /**
+   * Another attempt with this id re-took the claim after this one's in-progress
+   * TTL ran out. That attempt may admit the turn, so this one must not, and the
+   * route answers it as a duplicate.
+   */
+  it('refuses to admit a send whose claim another attempt took', async () => {
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ model: null }])
+      .mockResolvedValueOnce([{ id: 'run-1', organizationId: 'org-1', workspaceId: null }])
+      .mockResolvedValueOnce([])
+    await expect(admitChatTurn.execute({ principal, input: input() })).rejects.toBeInstanceOf(
+      ChatSendSupersededError
     )
   })
   it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {

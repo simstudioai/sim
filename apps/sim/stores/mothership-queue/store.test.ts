@@ -30,7 +30,7 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
-    it('treats a Send-now whose Stop settled as possibly sent under its handoff id', () => {
+    it('reads a reused handoff id as possibly sent unless the entry says otherwise', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'sent',
         content: 'original',
@@ -51,6 +51,8 @@ describe('useMothershipQueueStore', () => {
           userMessageId: 'not-sent-yet',
           stopRequired: true,
         },
+        /** A fresh id still waiting on its Stop, as the hook records it. */
+        admissionUnknown: false,
       })
       useMothershipQueueStore.getState().replaceAt('chat-A', 'sent', { content: 'edited' })
       useMothershipQueueStore.getState().replaceAt('chat-A', 'waiting', { content: 'edited' })
