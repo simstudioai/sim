@@ -611,10 +611,12 @@ jobs:
   # One status for every check above: the single check to require on a branch ruleset, so adding,
   # sharding or renaming a job never means editing the ruleset. Skipped is a pass (the desktop live
   # suite skips on pull requests that cannot affect it); a failure or a cancellation is not.
+  # `always()`, not `!cancelled()`: a skipped job satisfies a required check, so a gate that skips
+  # on a cancelled run would report a cancelled head commit as passing.
   ci:
     name: ci
     needs: [integration, e2e, desktop-changes, desktop-live, lint, test, build]
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     runs-on: *runner-2vcpu
     timeout-minutes: 5
     steps:
