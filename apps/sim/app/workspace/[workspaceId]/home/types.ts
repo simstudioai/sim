@@ -26,14 +26,18 @@ export interface FileAttachmentForApi {
 /** Assistant searches as the signed-in person and uses their connected accounts. */
 export type ChatRequestMode = MothershipChat['mode']
 
-export interface QueuedMessage {
-  id: string
+/** What a chat send carries, whether it goes out now, waits in the queue or is handed over. */
+export interface SendPayload {
   content: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
+}
+
+export interface QueuedMessage extends SendPayload {
+  id: string
   /**
    * An earlier attempt at this message got no answer, so the server may
    * already hold it as sent. It goes out exactly as written, under that
