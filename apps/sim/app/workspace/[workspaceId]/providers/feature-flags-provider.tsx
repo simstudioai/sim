@@ -6,6 +6,7 @@ export interface WorkspaceFeatureFlags {
   dashboards: boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
+  'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
 }
 

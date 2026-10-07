@@ -698,6 +698,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   }
 
   const channels: Record<string, ChannelSpec> = {
+    'computer-use:get-activity': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: null,
+      handler: () => deps.computerUse?.getActivity() ?? null,
+    },
     'computer-use:status': {
       kind: 'invoke',
       gate: 'app-origin',

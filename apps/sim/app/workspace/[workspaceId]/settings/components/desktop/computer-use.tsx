@@ -5,8 +5,8 @@ import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useComputerUseAvailability } from '@/hooks/queries/computer-use'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
 export function ComputerUseSettings() {
@@ -20,18 +20,18 @@ export function ComputerUseSettings() {
 
 function ComputerUseSettingsControls() {
   const bridge = getDesktopBridge()?.computerUse
-  const availability = useComputerUseAvailability(Boolean(bridge))
+  const enabled = useFeatureFlag('mothership-computer-use')
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
   useEffect(() => {
-    if (!bridge || !availability.data?.enabled) return
+    if (!bridge || !enabled) return
     void bridge
       .listAppPermissions()
       .then(setApps)
       .catch(() => toast.error('Could not load approved apps'))
-  }, [bridge, availability.data?.enabled, status?.activeAction])
-  if (!bridge || !availability.data?.enabled || status?.supported === false) return null
+  }, [bridge, enabled, status?.activeAction])
+  if (!bridge || !enabled || status?.supported === false) return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
     try {
@@ -79,7 +79,7 @@ function ComputerUseSettingsControls() {
               <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
             ) : (
               <Chip
-                disabled={pending || !status}
+                disabled={pending || !status?.enabled}
                 onClick={() =>
                   void update(async () => setStatus(await bridge.requestPermission(permission)))
                 }

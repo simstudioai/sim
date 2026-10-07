@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const requestAvailability = vi.hoisted(() => vi.fn())
@@ -51,14 +52,50 @@ describe('desktop surface availability', () => {
         terminalEnabled: false,
       })
       requestAvailability.mockResolvedValueOnce({ enabled: rollout })
-      const result = await getDesktopChatCapabilities('chat-1')
+      const result = await getDesktopChatCapabilities('chat-1', true)
       expect(result.desktopCapabilities?.computerUse ?? false).toBe(expected)
     }
   )
-  it('fails closed when the computer rollout cannot be resolved', async () => {
+  it('leaves ordinary chat capabilities independent of computer use while rollout is off', async () => {
+    const getStatus = vi.fn(() => new Promise(() => {}))
     installBridge({
-      computerUse: { getStatus: vi.fn(async () => ({ supported: true, enabled: true })) },
+      computerUse: { getStatus },
+      localFiles: vi.fn(),
+      terminal: { getTabs: vi.fn(async () => ({ tabs: [] })) },
+      browserAgent: { getKnownSessions: vi.fn(async () => ({ sessions: [] })) },
     })
+    requestAvailability.mockResolvedValue({ enabled: false })
+    const result = await getDesktopChatCapabilities('chat-1', false)
+    expect(requestAvailability).not.toHaveBeenCalled()
+    expect(getStatus).not.toHaveBeenCalled()
+    expect(result.desktopCapabilities).toMatchObject({
+      localFiles: true,
+      browser: true,
+      terminal: true,
+    })
+  })
+
+  it('does not touch native computer use before the current rollout is confirmed', async () => {
+    const rollout = createDeferred<{ enabled: boolean }>()
+    const getStatus = vi.fn(async () => ({ supported: true, enabled: true }))
+    installBridge({ computerUse: { getStatus } })
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+      terminalEnabled: false,
+    })
+    requestAvailability.mockReturnValueOnce(rollout.promise)
+    const result = getDesktopChatCapabilities('chat-1', true)
+    await vi.waitFor(() => expect(requestAvailability).toHaveBeenCalledOnce())
+    expect(getStatus).not.toHaveBeenCalled()
+    rollout.resolve({ enabled: false })
+    expect((await result).desktopCapabilities?.computerUse).toBeUndefined()
+    expect(getStatus).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the computer rollout cannot be resolved', async () => {
+    const getStatus = vi.fn(async () => ({ supported: true, enabled: true }))
+    installBridge({ computerUse: { getStatus } })
     setDesktopPreferencesSnapshot({
       ...ENABLED_PREFERENCES,
       browserEnabled: false,
@@ -66,8 +103,9 @@ describe('desktop surface availability', () => {
     })
     requestAvailability.mockRejectedValueOnce(new Error('offline'))
     expect(
-      (await getDesktopChatCapabilities('chat-1')).desktopCapabilities?.computerUse
+      (await getDesktopChatCapabilities('chat-1', true)).desktopCapabilities?.computerUse
     ).toBeUndefined()
+    expect(getStatus).not.toHaveBeenCalled()
   })
 
   beforeEach(() => {
@@ -95,12 +133,12 @@ describe('desktop surface availability', () => {
       browserEnabled: false,
       terminalEnabled: false,
     })
-    expect(await getDesktopChatCapabilities('org-chat')).toMatchObject({
+    expect(await getDesktopChatCapabilities('org-chat', false)).toMatchObject({
       desktopCapabilities: { localFiles: true },
     })
     installBridge({})
     expect(
-      (await getDesktopChatCapabilities('org-chat')).desktopCapabilities?.localFiles
+      (await getDesktopChatCapabilities('org-chat', false)).desktopCapabilities?.localFiles
     ).toBeUndefined()
   })
 
@@ -112,7 +150,7 @@ describe('desktop surface availability', () => {
     })
     const offerFrom = async (bridge: Record<string, unknown>) => {
       installBridge({ localFiles: vi.fn(), ...bridge })
-      const { desktopCapabilities } = await getDesktopChatCapabilities('chat-1')
+      const { desktopCapabilities } = await getDesktopChatCapabilities('chat-1', true)
       return { deviceId: desktopCapabilities?.deviceId, executor: desktopCapabilities?.executor }
     }
     const unset = { deviceId: undefined, executor: undefined }
@@ -160,7 +198,7 @@ describe('desktop surface availability', () => {
       browserEnabled: false,
     })
 
-    const capabilities = await getDesktopChatCapabilities('chat-1')
+    const capabilities = await getDesktopChatCapabilities('chat-1', true)
 
     expect(capabilities.desktopCapabilities?.terminals).toEqual([
       {

@@ -176,7 +176,8 @@ export interface DesktopChatCapabilities {
  * in a plain web browser the model never sees the features.
  */
 export async function getDesktopChatCapabilities(
-  scopeId: string
+  scopeId: string,
+  computerUseEnabled: boolean
 ): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
@@ -186,14 +187,16 @@ export async function getDesktopChatCapabilities(
   const localFilesystem = hasLocalFilesystem()
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
-  const computerUse = bridge?.computerUse
-    ? await Promise.all([
-        bridge.computerUse.getStatus(),
-        requestJson(computerUseAvailabilityContract, { signal: AbortSignal.timeout(5000) }),
-      ])
-        .then(([status, rollout]) => status.supported && status.enabled && rollout.enabled)
-        .catch(() => false)
-    : false
+  const computerUse =
+    computerUseEnabled && bridge?.computerUse
+      ? await requestJson(computerUseAvailabilityContract, { signal: AbortSignal.timeout(5000) })
+          .then(async (rollout) => {
+            if (!rollout.enabled) return false
+            const status = await bridge.computerUse?.getStatus()
+            return status?.supported === true && status.enabled
+          })
+          .catch(() => false)
+      : false
   // Sent every request so the agent knows what is already running without
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.

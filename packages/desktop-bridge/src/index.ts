@@ -83,6 +83,8 @@ export class ComputerUseError extends Error {
 
 /** Optional so a new web deployment remains compatible with older desktop shells. */
 interface SimDesktopComputerUseApi {
+  /** Current activity without starting the helper; absent in older shells. */
+  getActivity?(): Promise<ComputerUseActivity | null>
   getStatus(): Promise<ComputerUseStatus>
   setEnabled(enabled: boolean): Promise<ComputerUseStatus>
   requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>

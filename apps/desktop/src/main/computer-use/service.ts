@@ -57,6 +57,10 @@ export class ComputerUseService {
     return this.deps.supported && this.deps.config.get('computerUseEnabled') === true
   }
 
+  getActivity(): ComputerUseActivity | null {
+    return this.activity
+  }
+
   async getStatus(): Promise<ComputerUseStatus> {
     const status: ComputerUseStatus = {
       supported: this.deps.supported,
@@ -64,7 +68,7 @@ export class ComputerUseService {
       permissions: { accessibility: false, screenCapture: false },
       activeAction: this.activity,
     }
-    if (!status.supported) return status
+    if (!status.enabled) return status
     const native = await this.deps.native.request('status', {})
     if (native.kind !== 'status') throw new Error('Computer Use permission status is unavailable.')
     status.permissions = {

@@ -5,7 +5,6 @@ import { act, type ReactNode } from 'react'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +29,7 @@ vi.mock(
   })
 )
 
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop'
 
 const PREFERENCES = {
@@ -57,14 +57,20 @@ async function render(device: { deviceId: string } | null) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  })
   await act(async () =>
     root?.render(
-      <QueryClientProvider client={queryClient}>
+      <FeatureFlagsProvider
+        flags={{
+          dashboards: false,
+          'table-row-ttl': false,
+          'mothership-model-selector': false,
+          'mothership-plan-mode': false,
+          'mothership-desktop-background-executor': false,
+          'mothership-computer-use': false,
+        }}
+      >
         <Desktop />
-      </QueryClientProvider>
+      </FeatureFlagsProvider>
     )
   )
   return container

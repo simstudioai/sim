@@ -92,14 +92,19 @@ describe('native computer use authority and lifecycle', () => {
     expect(native.request).not.toHaveBeenCalled()
   })
 
-  it('reports native permissions separately from the opt-in switch', async () => {
-    const { service } = setup(false)
-    expect(await service.getStatus()).toEqual({
-      supported: true,
-      enabled: false,
+  it('keeps the helper dormant until device opt-in and stops it when switched off', async () => {
+    const { service, native } = setup(false)
+    expect(await service.getStatus()).toMatchObject({ enabled: false, activeAction: null })
+    expect(native.request).not.toHaveBeenCalled()
+    expect(await service.setEnabled(true)).toMatchObject({
+      enabled: true,
       permissions: { accessibility: true, screenCapture: false },
-      activeAction: null,
     })
+    expect(native.request).toHaveBeenCalledOnce()
+    native.request.mockClear()
+    expect(await service.setEnabled(false)).toMatchObject({ enabled: false })
+    expect(native.stop).toHaveBeenCalledOnce()
+    expect(native.request).not.toHaveBeenCalled()
   })
 
   it('does not read app state when the user denies app access', async () => {
