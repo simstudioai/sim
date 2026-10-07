@@ -768,6 +768,31 @@ describe('E2B continuous-runtime cap', () => {
     expect(result?.timedOut).toBeUndefined()
   })
 
+  it('measures the command deadline from dispatch, after a slow ownership write', async () => {
+    cappedPlane(CAP_MS - 30_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    if (!sandbox) throw new Error('Missing sandbox')
+    const realNow = Date.now
+    let ownershipWriteMs = 0
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + ownershipWriteMs)
+    try {
+      const result = await observeSandboxExecution(
+        {
+          hold: vi.fn(),
+          unsettled: vi.fn(),
+          claimProcess: async () => {
+            ownershipWriteMs = 2_000
+          },
+        },
+        () => sandbox.runCommand('long job', { timeoutMs: 29_000 })
+      )
+      expect(result.providerFailure).toBe('provider_limit')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('keeps a command that reaches its own timeout near the cap a user timeout', async () => {
     cappedPlane(CAP_MS - 50_000)
     pause.mockRejectedValueOnce(new Error('pause unavailable'))
