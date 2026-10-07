@@ -7,6 +7,7 @@ import {
   awaitRun,
   closeRunPane,
   isDescendantOf,
+  listPanes,
   parseFormatLines,
   pollRun,
   resolveAttachment,
@@ -42,6 +43,17 @@ const FORGED_ROW = {
     '<~0123456789abcdef~>user:0.0<~sim~>bash<~sim~>sleep<~sim~>/tmp/tmp.2V5Ie57hMp/a\nuser:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home<~sim~>1<~0123456789abcdef~>\n',
 }
 
+/**
+ * The same pane, captured verbatim from each binary with newlines neutralised in the fields others
+ * can set (`#{s/<newline>/<NL>/:…}`): one line, holding the would-be forged row as plain text.
+ */
+const NEUTRALISED_ROW = {
+  'tmux 2.9a':
+    '<~0123456789abcdef~>user:0.0<~sim~>sleep<~sim~>sleep<~sim~>/tmp/tmp.CXoBFxxZAf/a<NL>user:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home<~sim~>1<~0123456789abcdef~>\n',
+  'tmux 3.4':
+    '<~0123456789abcdef~>user:0.0<~sim~>sleep<~sim~>sleep<~sim~>/tmp/tmp.Wz6L8cjmce/a<NL>user:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home<~sim~>1<~0123456789abcdef~>\n',
+}
+
 describe('parseFormatLines', () => {
   it('drops lines with the wrong field count rather than mis-assigning them', () => {
     expect(parseFormatLines(`${framed(`a${F}b`)}\n${framed('only-one')}\n`, 2, FRAME)).toEqual([
@@ -67,6 +79,23 @@ describe('parseFormatLines', () => {
   it.each(Object.entries(FORGED_ROW))(
     'never reads a row a directory name forges with a newline (%s)',
     (_version, stdout) => {
+      expect(parseFormatLines(stdout, 5, FRAME)).toEqual([])
+    }
+  )
+
+  it('drops a line framed at one end only, whatever its field count', () => {
+    const fields = `user:0.0${F}x${F}y${F}z${F}1`
+    // As long as a frame, so a check of one end alone would cut it off and find five fields.
+    const pad = 'J'.repeat(FRAME.length)
+    expect(parseFormatLines(`${pad}${fields}${FRAME}\n`, 5, FRAME)).toEqual([])
+    expect(parseFormatLines(`${FRAME}${fields}${pad}\n`, 5, FRAME)).toEqual([])
+  })
+
+  it.each(Object.entries(NEUTRALISED_ROW))(
+    'reads the forging pane as one line once newlines are neutralised (%s)',
+    (_version, stdout) => {
+      // One line: no forged row. The separator text in its path then drops it whole.
+      expect(stdout.trimEnd().split('\n')).toHaveLength(1)
       expect(parseFormatLines(stdout, 5, FRAME)).toEqual([])
     }
   )
@@ -162,6 +191,10 @@ interface FakeTmuxState {
   fail?: Record<string, string>
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
+  /** A session's panes as `list-panes` reports them, with fields others can set. */
+  listed?: Array<{ windowName: string; command: string; cwd: string }>
+  /** Every `-F` format the fake was asked for, in order. */
+  formats?: string[]
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
   hold?: Record<string, string>
   /** Commands the fake is holding right now. */
@@ -227,6 +260,31 @@ switch (args[0]) {
     process.stdout.write(value + '\\n')
     break
   }
+  case 'list-panes': {
+    // Formats as tmux evaluates them: \`#{s/pattern/replacement/:field}\` substitutes, and every
+    // other field prints as is, a newline included.
+    const format = args[args.indexOf('-F') + 1]
+    state.formats = [...(state.formats ?? []), format]
+    save()
+    ;(state.listed ?? []).forEach((pane, index) => {
+      const fields = {
+        session_name: 'work',
+        window_index: '0',
+        pane_index: String(index),
+        window_name: pane.windowName,
+        pane_current_command: pane.command,
+        pane_current_path: pane.cwd,
+        pane_active: index === 0 ? '1' : '0',
+      }
+      const line = format
+        .replace(/#\\{s\\/([^/]*)\\/([^/]*)\\/:([a-z_]+)\\}/g, (_, from, to, name) =>
+          fields[name].split(from).join(to)
+        )
+        .replace(/#\\{([a-z_]+)\\}/g, (_, name) => fields[name])
+      process.stdout.write(line + '\\n')
+    })
+    break
+  }
   case 'list-clients': {
     const format = args[args.indexOf('-F') + 1]
     for (const client of state.clients ?? []) {
@@ -284,6 +342,49 @@ function fakeTmux(options: { exec?: boolean } = {}) {
     },
   }
 }
+
+describe("listing a session's panes", () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('lists a pane whose directory, command or title holds a newline, as one pane', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    tmux.write({
+      ...tmux.read(),
+      listed: [
+        { windowName: 'build\nlogs', command: 'make', cwd: '/tmp/a\nuser:0.0' },
+        { windowName: 'zsh', command: 'zsh', cwd: '/tmp' },
+      ],
+    })
+
+    expect(await listPanes('work', tmux.env)).toEqual([
+      {
+        target: 'work:0.0',
+        windowName: 'build<NL>logs',
+        command: 'make',
+        cwd: '/tmp/a<NL>user:0.0',
+        active: true,
+      },
+      { target: 'work:0.1', windowName: 'zsh', command: 'zsh', cwd: '/tmp', active: false },
+    ])
+  })
+
+  it('frames each call with a marker of its own', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    await listPanes('work', tmux.env)
+    await listPanes('work', tmux.env)
+
+    const frames = (tmux.read().formats ?? []).map((format) => /^<~([0-9a-f]+)~>/.exec(format)?.[1])
+    expect(frames).toHaveLength(2)
+    expect(frames[0]).toMatch(/^[0-9a-f]{16}$/)
+    expect(frames[1]).not.toBe(frames[0])
+  })
+})
 
 describe('finding the tmux session a shell runs', () => {
   const dirs: string[] = []

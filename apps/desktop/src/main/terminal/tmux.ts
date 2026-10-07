@@ -49,11 +49,21 @@ const RUN_POLL_INTERVAL_MS = 250
 const FIELD = '<~sim~>'
 
 /**
- * A `-F` format for these fields whose every record starts and ends with a marker made fresh for
- * this one call. tmux prints a newline inside a field as is, so a directory named
- * `a\nuser:0.0<~sim~>…` would otherwise end one record early and forge another. Nobody outside
- * this call knows the marker, so no field can forge a framed record, and the halves of a record a
- * newline split are each unframed and dropped.
+ * A field someone other than the user can set: a directory name (`pane_current_path`), a program's
+ * name (`pane_current_command`), or a window title a program sets (`window_name`). tmux prints a
+ * newline inside a field as is, and a newline would end the record early and let the rest read as
+ * a record of its own, so tmux replaces each newline with `<NL>` before printing.
+ */
+function untrusted(field: string): string {
+  return `#{s/\n/<NL>/:${field}}`
+}
+
+/**
+ * A `-F` format whose every record starts and ends with a marker made fresh for this call; only
+ * lines framed whole by it are read, so a line that is not a whole record is dropped rather than
+ * misread. The marker is a second line of defence, not a secret (another user can read a process's
+ * arguments on many systems), which is why newlines are neutralised at the source too
+ * ({@link untrusted}).
  */
 function framedFormat(fields: string[]): { format: string; frame: string } {
   const frame = `<~${generateRandomHex(16)}~>`
@@ -125,11 +135,14 @@ export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCom
       finish({ ok: false, stdout, stderr: 'tmux did not respond' })
     }, TMUX_TIMEOUT_MS)
 
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString()
+    // Decoded as streams, so a character split across two chunks arrives whole.
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
     })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
+    child.stderr?.on('data', (chunk: string) => {
+      stderr += chunk
     })
     child.on('error', (error) => {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') tmuxBinaryMissing = true
@@ -254,9 +267,9 @@ export async function listPanes(
 ): Promise<TerminalPaneState[]> {
   const { format, frame } = framedFormat([
     '#{session_name}:#{window_index}.#{pane_index}',
-    '#{window_name}',
-    '#{pane_current_command}',
-    '#{pane_current_path}',
+    untrusted('window_name'),
+    untrusted('pane_current_command'),
+    untrusted('pane_current_path'),
     '#{pane_active}',
   ])
   const result = await runTmux(['list-panes', '-s', '-t', session, '-F', format], env)
