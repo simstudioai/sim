@@ -62,8 +62,8 @@ export interface DesktopExecutorServiceDeps {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Whether any chat has desktop work claimed on this machine changed. */
   onBusyChange?: (busy: boolean) => void
-  /** A call's result is in the journal, so it reaches Sim even across a restart. */
-  onResultRecorded?: (toolCallId: string, completion: DesktopToolCompletion) => void
+  /** Sim has taken a call's result as the call's own, so the model has it. */
+  onResultDelivered?: (toolCallId: string, completion: DesktopToolCompletion) => void
 }
 
 export interface DesktopExecutorService {
@@ -72,11 +72,11 @@ export interface DesktopExecutorService {
   refreshRegistration(): void
   getDevice(): DesktopExecutorDevice | null
   /**
-   * The calls the journal shows as never handed back with a real result: claimed or started with
-   * none, or settled as not started or outcome unknown. Read before recovery reports them; null
-   * when the journal cannot be read.
+   * The calls whose real result (not one reported as not started or outcome unknown) is in the
+   * journal and not yet acknowledged, so recovery will hand it to the model. Read before recovery
+   * changes the journal; empty when it cannot be read.
    */
-  unresolvedCalls(): Promise<Set<string> | null>
+  pendingResults(): Promise<Set<string>>
   /** Stores one entry of a claimed import, as this device's registered session. */
   importEntry(
     request: DesktopImportEntryRequest,
@@ -248,7 +248,7 @@ export function createDesktopExecutorService(
         onUnregistered: handleUnrecognized,
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
         ...(deps.onBusyChange ? { onBusyChange: deps.onBusyChange } : {}),
-        ...(deps.onResultRecorded ? { onResultRecorded: deps.onResultRecorded } : {}),
+        ...(deps.onResultDelivered ? { onResultDelivered: deps.onResultDelivered } : {}),
       })
       await executor.recover()
       // Signed out while recovering: sign-out already disposed this executor.
@@ -453,23 +453,21 @@ export function createDesktopExecutorService(
     getDevice() {
       return device
     },
-    async unresolvedCalls() {
+    async pendingResults() {
+      const pending = new Set<string>()
       try {
-        const unresolved = new Set<string>()
         for (const entry of await journal.load()) {
-          const data = entry.state === 'result' ? entry.completion.data : undefined
-          if (
-            entry.state !== 'result' ||
-            data?.outcomeUnknown === true ||
-            data?.notStarted === true
-          ) {
-            unresolved.add(entry.toolCallId)
-          }
+          if (entry.state !== 'result') continue
+          const data = entry.completion.data
+          if (data?.outcomeUnknown === true || data?.notStarted === true) continue
+          pending.add(entry.toolCallId)
         }
-        return unresolved
-      } catch {
-        return null
+      } catch (error) {
+        logger.warn('Could not read the executor journal for pending results', {
+          error: getErrorMessage(error),
+        })
       }
+      return pending
     },
     importEntry(request, signal) {
       if (!client) throw new Error('The Sim desktop app is not signed in to Sim.')

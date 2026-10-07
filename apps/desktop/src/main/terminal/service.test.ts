@@ -84,6 +84,10 @@ vi.mock('@/main/terminal/tmux', async () => {
     closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
       if (!tmuxFake.on) return actual.closeRunPane(...args)
       if (tmuxFake.unanswered) return
+      // An untracked run's pane is proven its own only from the run's files, read after tmux
+      // has answered, as the real check does.
+      await sleep(10)
+      if (args[0].runId === null && !existsSync(args[0].statusPath)) return
       tmuxFake.open.delete(args[0].pane)
       tmuxFake.gone.add(args[0].pane)
     },
@@ -752,6 +756,27 @@ describe('agent commands in tmux', () => {
       tmuxFake.on = false
       tmuxFake.gone.clear()
       rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it("closes a finished untracked run's pane when its terminal closes", async () => {
+    tmuxFake.on = true
+    tmuxFake.untracked = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-old-tmux', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      writeFileSync(statusPath, '0')
+
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await vi.waitFor(() => expect(tmuxFake.open.has(pane)).toBe(false))
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.untracked = false
     }
   })
 

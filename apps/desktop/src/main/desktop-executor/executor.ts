@@ -68,10 +68,10 @@ export interface DesktopExecutorOptions {
   /** Called whenever the number of held calls changes between zero and more. */
   onBusyChange?: (busy: boolean) => void
   /**
-   * Called once a call's result is in the journal: from then on it reaches Sim, now or after a
-   * restart, so anything it hands back (a pane still running) can be counted on.
+   * Called once Sim has taken a call's result as the call's own (recorded, or a duplicate of one
+   * it recorded): the model has it, so anything it hands back (a pane still running) is in use.
    */
-  onResultRecorded?: (toolCallId: string, completion: DesktopToolCompletion) => void
+  onResultDelivered?: (toolCallId: string, completion: DesktopToolCompletion) => void
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
@@ -380,9 +380,7 @@ export class DesktopExecutor {
   ): Promise<void> {
     if (this.disposed) return
     // Best effort: unrecorded, a crash reports the call from its `started` entry as outcome unknown.
-    if (await this.record({ toolCallId, state: 'result', executionToken, completion })) {
-      this.options.onResultRecorded?.(toolCallId, completion)
-    }
+    await this.record({ toolCallId, state: 'result', executionToken, completion })
     const sendingSince = Date.now()
     try {
       await this.sendResult(toolCallId, executionToken, completion, sendingSince)
@@ -408,6 +406,8 @@ export class DesktopExecutor {
           completion: pending,
         })
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
+        // Superseded: Sim settled the call first, so this result never reached the model.
+        if (outcome !== 'superseded') this.options.onResultDelivered?.(toolCallId, pending)
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.

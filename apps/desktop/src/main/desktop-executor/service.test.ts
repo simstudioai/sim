@@ -96,8 +96,8 @@ async function service(protocolVersion = 1, userDataPath?: string) {
   return { sim, desktopExecutor, busy }
 }
 
-describe('calls never handed back with a result', () => {
-  it('names claimed and started calls, and results that are not started or unknown', async () => {
+describe('results recovery will hand to the model', () => {
+  it('names the calls whose real result the journal holds for recovery to send', async () => {
     const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
     const journal = createExecutorJournal(join(userData, 'desktop-executor-journal.json'))
     await journal.put({ toolCallId: 'claimed', state: 'claimed', executionToken: 't1' })
@@ -122,12 +122,7 @@ describe('calls never handed back with a result', () => {
     })
     const { desktopExecutor } = await service(1, userData)
 
-    expect([...((await desktopExecutor.unresolvedCalls()) ?? [])].sort()).toEqual([
-      'claimed',
-      'not-started',
-      'started',
-      'unknown',
-    ])
+    expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
   })
 })
 

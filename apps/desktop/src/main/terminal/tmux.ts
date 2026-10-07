@@ -456,7 +456,9 @@ export async function startRun(
     : null
   const socket = shown?.ok && shown.stdout.trim().startsWith('/') ? shown.stdout.trim() : null
   if (runId && options.beforeStart && !(socket && options.beforeStart({ runId, pane, socket }))) {
-    // Without the go file the wrapper exits by itself.
+    // The pane was tagged a moment ago, so it is closed as the run's; without the go file its
+    // command never starts in any case.
+    await runTmux(ifTagged(pane, runId, `kill-pane -t ${pane}`), env)
     dispose()
     return { error: 'The command could not be recorded for a later stop, so it was not run.' }
   }

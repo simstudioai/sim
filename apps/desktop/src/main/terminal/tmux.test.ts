@@ -391,6 +391,8 @@ describe('stopping a run another process started, from its record', () => {
     })
 
     expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+    // The pane it opened and tagged is closed with it.
+    expect(tmux.read().panes).toEqual({})
     await sleep(1_500)
     expect(existsSync(marker)).toBe(false)
   })

@@ -538,13 +538,16 @@ export class TerminalService {
     if (!pending) return
     for (const handle of pending) {
       // A finished run's pane may still be open (`remain-on-exit`): it is closed, while still the
-      // run's, before the record goes. Without the shell's environment the record stays, and the
-      // next sweep closes it. An untracked run is never stopped, so it is not kept either.
+      // run's, before the record goes, and its files go only after that check, which an untracked
+      // run needs them for. Without the shell's environment the record stays, and the next sweep
+      // closes it. An untracked run is never stopped, so it is not kept either.
       if (isRunComplete(handle) && env) {
-        void closeRunPane(handle, env).then(async () => {
-          // A pane tmux could not answer for keeps its record, for the next sweep to close.
-          if ((await runPaneState(handle, env)) === 'gone') this.forgetRun(handle)
-        })
+        void closeRunPane(handle, env)
+          .then(async () => {
+            if ((await runPaneState(handle, env)) === 'gone') this.forgetRun(handle)
+          })
+          .finally(() => this.releaseRun(handle))
+        continue
       }
       if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
@@ -1351,8 +1354,8 @@ export class TerminalService {
       handle.dispose()
     }
     // Still going, it stays tracked, and nothing polls the status file again: `read` captures
-    // the pane instead. Its record is marked handed back only once that result is durable
-    // (the executor's journal); see `TerminalRegistry.markRunDelivered`.
+    // the pane instead. Its record is marked handed back only once that result reaches the model;
+    // see `TerminalRegistry.markRunDelivered`.
 
     const { text, truncated } = elideOutput(outcome.output)
     return {

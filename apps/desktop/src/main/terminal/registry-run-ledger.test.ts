@@ -69,23 +69,29 @@ describe('stopping recorded tmux runs', () => {
   it("at launch, leaves the same user's runs the model can come back to, and stops the rest", async () => {
     const dir = ledgerDir()
     const previous = createRunLedger(dir)
+    // Sim took its result: the model has the pane.
     previous.record(run('handed-back', '%1', true))
     previous.record(run('never-handed-back', '%2'))
-    // Handed back, but the call's journal still shows no result: the model never got it.
-    previous.record(run('lost-on-the-way', '%3', true))
+    // Its result is in the journal, unacknowledged: recovery will hand the pane to the model.
+    previous.record(run('on-its-way', '%3'))
     previous.record(run('handed-back-and-gone', '%4', true))
     panes.set('handed-back-and-gone', 'gone')
     const ledger = createRunLedger(dir)
-    const unresolved = new Set(['call-lost-on-the-way'])
 
-    await new TerminalRegistry(undefined, undefined, ledger).stopUncollectableRuns(unresolved)
+    await new TerminalRegistry(undefined, undefined, ledger).stopUncollectableRuns(
+      new Set(['call-on-its-way'])
+    )
 
     expect(Object.fromEntries(panes)).toEqual({
       'never-handed-back': 'stopped',
-      'lost-on-the-way': 'stopped',
       'handed-back-and-gone': 'gone',
     })
-    expect(ledger.list().map((record) => record.runId)).toEqual(['handed-back'])
+    expect(
+      ledger
+        .list()
+        .map((record) => record.runId)
+        .sort()
+    ).toEqual(['handed-back', 'on-its-way'])
   })
 
   it('keeps meaning to stop a run a stop for everything could not confirm', async () => {

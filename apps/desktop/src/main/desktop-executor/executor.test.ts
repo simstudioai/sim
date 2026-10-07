@@ -168,8 +168,8 @@ function setup(
   const runner = new FakeRunner()
   const onUnregistered = vi.fn()
   const busy: boolean[] = []
-  /** Calls whose result the executor reported as journaled, in order. */
-  const journaled: string[] = []
+  /** Calls whose result the executor reported as reaching the model, in order. */
+  const delivered: string[] = []
   const executor = new DesktopExecutor({
     client: sim.client,
     journal,
@@ -179,13 +179,13 @@ function setup(
     onUnregistered,
     onBusyChange: (value) => busy.push(value),
     onApprovals: (items) => approvals.push(items),
-    onResultRecorded: (toolCallId) => journaled.push(toolCallId),
+    onResultDelivered: (toolCallId) => delivered.push(toolCallId),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
     ...(options.deliveryAwakeLimitMs !== undefined
       ? { deliveryAwakeLimitMs: options.deliveryAwakeLimitMs }
       : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered, busy, approvals, journaled }
+  return { sim, journal, runner, executor, onUnregistered, busy, approvals, delivered }
 }
 
 describe('claiming', () => {
@@ -206,20 +206,22 @@ describe('claiming', () => {
     expect(executor.heldCallCount()).toBe(0)
   })
 
-  it('reports a result as durable only once the journal holds it', async () => {
-    const { sim, journal, runner, executor, journaled } = setup()
+  it('reports a result as reaching the model only once Sim takes it as the call own', async () => {
+    const { sim, journal, runner, executor, delivered } = setup()
     runner.immediate = DONE
-    journal.failOn = 'result'
-    sim.inbox = [callItem('call-unjournaled', 'chat-a')]
+    // Sim settled this call first: the result never reached the model.
+    sim.completionOutcome = 'superseded'
+    sim.inbox = [callItem('call-superseded', 'chat-a')]
     await executor.reconcile()
     await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
-    expect(journaled).toEqual([])
+    expect(delivered).toEqual([])
 
-    journal.failOn = null
-    sim.inbox = [callItem('call-journaled', 'chat-a')]
+    // Taken by Sim, even with nothing written locally (no OS encryption, say).
+    sim.completionOutcome = 'recorded'
+    journal.failOn = 'result'
+    sim.inbox = [callItem('call-recorded', 'chat-a')]
     await executor.reconcile()
-    await vi.waitFor(() => expect(sim.completions).toHaveLength(2))
-    expect(journaled).toEqual(['call-journaled'])
+    await vi.waitFor(() => expect(delivered).toEqual(['call-recorded']))
   })
 
   it('claims a whole backlog at once, before any of it runs', async () => {

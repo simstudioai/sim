@@ -388,21 +388,21 @@ export class TerminalRegistry {
   }
 
   /**
-   * At launch, for the same user: stops a previous process's tmux run whose call never handed back
-   * its result, or whose result the executor's journal (`unresolvedCalls`, null when unreadable)
-   * shows as never reaching the model. A run handed back as still going, with its pane, is left
-   * to the model, which may come back to it.
+   * At launch, for the same user: leaves a previous process's tmux run going only when the model
+   * has, or will get, the result that handed it back as still going: Sim acknowledged it
+   * (`delivered`), or the executor's journal holds it for recovery to send (`pendingResults`).
+   * Every other run is stopped, as is one a stop for everything could not confirm.
    */
-  stopUncollectableRuns(unresolvedCalls: ReadonlySet<string> | null): Promise<void> {
+  stopUncollectableRuns(pendingResults: ReadonlySet<string>): Promise<void> {
     return this.stopRecordedRuns({
       excludeLive: true,
-      keep: (run) => run.delivered && !run.mustStop && !unresolvedCalls?.has(run.callId),
+      keep: (run) => !run.mustStop && (run.delivered || pendingResults.has(run.callId)),
     })
   }
 
   /**
-   * Notes that a call's result is durable (in the executor's journal), so a tmux run it handed
-   * back as still going may be left to the model across a restart.
+   * Notes that a call's result reached the model, so a tmux run it handed back as still going may
+   * be left to the model across a restart.
    */
   markRunDelivered(callId: string): void {
     const ledger = this.runLedger
