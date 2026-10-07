@@ -103,6 +103,8 @@ type StripeOperation = `${UpdatableResource}.${'retrieve' | 'update'}`
 
 interface SubscriptionUpdateParams {
   cancel_at_period_end?: boolean
+  /** A Unix timestamp schedules the cancellation; `''` clears it. Only `cancel_at` changes. */
+  cancel_at?: number | ''
   metadata?: Record<string, string>
   items?: Array<{ id: string; quantity?: number; price?: string }>
 }
@@ -169,6 +171,13 @@ export function createInMemoryStripe() {
     ) {
       previousAttributes.cancel_at_period_end = current.cancel_at_period_end
       next.cancel_at_period_end = params.cancel_at_period_end
+    }
+    if (params.cancel_at !== undefined) {
+      const cancelAt = params.cancel_at === '' ? null : params.cancel_at
+      if (cancelAt !== current.cancel_at) {
+        previousAttributes.cancel_at = current.cancel_at
+        next.cancel_at = cancelAt
+      }
     }
     if (params.metadata) {
       previousAttributes.metadata = current.metadata
@@ -288,8 +297,11 @@ export function createInMemoryStripe() {
     events,
     addSubscription(
       subscription: Pick<InMemoryStripeSubscription, 'id' | 'customer'> &
-        Partial<Pick<InMemoryStripeSubscription, 'status' | 'cancel_at_period_end'>> & {
+        Partial<
+          Pick<InMemoryStripeSubscription, 'status' | 'cancel_at_period_end' | 'cancel_at'>
+        > & {
           quantity?: number
+          priceId?: string
         }
     ) {
       const now = Math.floor(Date.now() / 1000)
@@ -299,7 +311,7 @@ export function createInMemoryStripe() {
         customer: subscription.customer,
         status: subscription.status ?? 'active',
         cancel_at_period_end: subscription.cancel_at_period_end ?? false,
-        cancel_at: null,
+        cancel_at: subscription.cancel_at ?? null,
         canceled_at: null,
         ended_at: null,
         trial_start: null,
@@ -314,7 +326,10 @@ export function createInMemoryStripe() {
               quantity: subscription.quantity ?? 1,
               current_period_start: now,
               current_period_end: now + 30 * 24 * 60 * 60,
-              price: { id: `price_${subscription.id}`, recurring: { interval: 'month' } },
+              price: {
+                id: subscription.priceId ?? `price_${subscription.id}`,
+                recurring: { interval: 'month' },
+              },
             },
           ],
         },
@@ -342,11 +357,11 @@ export function createInMemoryStripe() {
       gates.set(operation, [...(gates.get(operation) ?? []), { reached, released }])
       return { reached: arrival, release }
     },
-    /** Makes the next update to `resource` apply in Stripe, then fail on the client. */
     /** Makes the next call to `operation` fail before Stripe processes it, as an outage does. */
     failNextRequest(operation: StripeOperation, error = new Error('Stripe is unavailable')) {
       failuresOnArrival.set(operation, [...(failuresOnArrival.get(operation) ?? []), error])
     },
+    /** Makes the next update to `resource` apply in Stripe, then fail on the client. */
     failNextUpdateAfterApplying(resource: UpdatableResource, error = new Error('socket hang up')) {
       failuresAfterApply.set(resource, [...(failuresAfterApply.get(resource) ?? []), error])
     },

@@ -68,7 +68,7 @@ export const outboxServiceMockFns = {
     )
   }),
   mockFindDeadLetteredEvents: vi.fn(),
-  mockListRetryableOutboxEvents: vi.fn(),
+  mockListInflightOutboxEvents: vi.fn(),
   mockReadOutboxEventPayload: vi.fn(),
   mockPatchRetryableOutboxEvents: vi.fn(),
   mockHasInflightOutboxEvent: vi.fn(),
@@ -79,7 +79,7 @@ export const outboxServiceMockFns = {
 
 /**
  * Static mock module for `@/lib/core/outbox/service`. Covers every runtime export;
- * `MAX_BULK_ENQUEUE_EVENTS` and `INFLIGHT_OUTBOX_STATUSES` carry the real values.
+ * `MAX_BULK_ENQUEUE_EVENTS` carries the real value.
  *
  * @example
  * ```ts
@@ -88,7 +88,6 @@ export const outboxServiceMockFns = {
  */
 export const outboxServiceMock = {
   MAX_BULK_ENQUEUE_EVENTS: 1_000,
-  INFLIGHT_OUTBOX_STATUSES: ['pending', 'processing'] as const,
   deferOutboxHandler: outboxServiceMockFns.mockDeferOutboxHandler,
   continueOutboxHandler: outboxServiceMockFns.mockContinueOutboxHandler,
   withOutboxHandlerTimeout: outboxServiceMockFns.mockWithOutboxHandlerTimeout,
@@ -101,7 +100,7 @@ export const outboxServiceMock = {
   outboxEventHasSourceOperationId: outboxServiceMockFns.mockOutboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId: outboxServiceMockFns.mockOutboxPayloadHasSourceOperationId,
   findDeadLetteredEvents: outboxServiceMockFns.mockFindDeadLetteredEvents,
-  listRetryableOutboxEvents: outboxServiceMockFns.mockListRetryableOutboxEvents,
+  listInflightOutboxEvents: outboxServiceMockFns.mockListInflightOutboxEvents,
   readOutboxEventPayload: outboxServiceMockFns.mockReadOutboxEventPayload,
   patchRetryableOutboxEvents: outboxServiceMockFns.mockPatchRetryableOutboxEvents,
   hasInflightOutboxEvent: outboxServiceMockFns.mockHasInflightOutboxEvent,

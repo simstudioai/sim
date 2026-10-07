@@ -55,7 +55,7 @@ const mockGetHighestPriorityPersonalSubscription =
 
 /** The subscription row as the activation re-reads it under its lock. */
 function testExecutor(onSubscriptionLock: () => void = () => {}) {
-  const lockedRow = { cancelAtPeriodEnd: false, seats: 1 }
+  const lockedRow = { cancelAtPeriodEnd: false, seats: 1, stripeSubscriptionId: 'stripe_sub' }
   return {
     select: () => ({
       from: () => ({

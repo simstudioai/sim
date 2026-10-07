@@ -28,6 +28,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const ADMIN_API_KEY = vi.hoisted(() => {
   const key = 'integration-fixture-admin-key'
   process.env.ADMIN_API_KEY = key
+  process.env.STRIPE_PRICE_TEAM_25_MO = 'price_team_pro_tier_month'
+  process.env.STRIPE_PRICE_TEAM_100_MO = 'price_team_max_tier_month'
   return key
 })
 
@@ -46,6 +48,7 @@ vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { requestDashboardSubscriptionCancellation } from '@/lib/admin/subscription-lifecycle'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
+import { CREDIT_TIERS } from '@/lib/billing/constants'
 import {
   pauseProSubscriptionForOrgCoverage,
   restoreUserProSubscription,
@@ -58,6 +61,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import {
   enqueueCancelAtPeriodEndSync,
+  enqueueSubscriptionSeatsSync,
   reconcileSubscriptionSyncFromStripe,
   recordCustomerRestoreAfterHook,
 } from '@/lib/billing/webhooks/subscription-sync'
@@ -339,15 +343,43 @@ async function storedSubscription(subscriptionId: string) {
 }
 
 /** Resolves once another backend is blocked on a lock, i.e. the racing transaction is parked. */
-async function untilAnotherTransactionWaitsOnALock() {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const [row] = await connection<{ waiting: number }[]>`
-      select count(*)::int as waiting from pg_stat_activity
-      where datname = current_database() and wait_event_type = 'Lock'`
-    if (row.waiting > 0) return
-    await new Promise<void>((resolve) => setImmediate(resolve))
+type TestTransaction = Parameters<Parameters<typeof testDatabase.transaction>[0]>[0]
+
+/**
+ * Starts a transaction that takes its locks in `holdLocks`, then parks until released and runs
+ * `finish`. `untilBlocking` resolves once another backend is waiting on one of its locks.
+ */
+function startParkedTransaction(
+  holdLocks: (tx: TestTransaction) => Promise<void>,
+  finish: (tx: TestTransaction) => Promise<void> = async () => {}
+) {
+  let release: () => void = () => {}
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let reportPid: (pid: number) => void = () => {}
+  const holderPid = new Promise<number>((resolve) => {
+    reportPid = resolve
+  })
+  const done = testDatabase.transaction(async (tx) => {
+    await holdLocks(tx)
+    const [row] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
+    reportPid(row.pid)
+    await released
+    await finish(tx)
+  })
+  async function untilBlocking() {
+    const pid = await holderPid
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const [row] = await connection<{ blocked: number }[]>`
+        select count(*)::int as blocked from pg_stat_activity
+        where ${pid}::int = any(pg_blocking_pids(pid))`
+      if (row.blocked > 0) return
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    throw new Error('No transaction ever waited on the parked one')
   }
-  throw new Error('The racing transaction never waited on a lock')
+  return { done, release, untilBlocking }
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -461,6 +493,30 @@ describe('cancel_at_period_end sync', () => {
     await deliver(cancelled)
 
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+  })
+
+  it('treats clearing a scheduled cancel_at in Stripe as a change made in Stripe', async () => {
+    const pro = await createProUserInPaidOrganization()
+    const scheduledEnd = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at: scheduledEnd })
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at: '' })
+    const restore = stripe.events.at(-1) as Stripe.Event
+    expect(Object.keys(restore.data.previous_attributes ?? {})).toEqual(['cancel_at'])
+    await deliver(restore)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(new Set(await cancelValuesOfRetryableSyncs(pro.subscriptionId))).toEqual(
+      new Set([false])
+    )
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
   })
 
   it('lets a change made in Stripe while a sync is pending win over the pending value', async () => {
@@ -687,6 +743,44 @@ describe('cancel_at_period_end sync', () => {
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
   })
 
+  it('requeues with the pending value when the plugin has overwritten the row', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await deadLetter(pauseSync)
+    await testDatabase.transaction(async (tx) => {
+      await tx
+        .select({ id: subscription.id })
+        .from(subscription)
+        .where(eq(subscription.id, pro.subscriptionId))
+        .for('update')
+      await enqueueCancelAtPeriodEndSync(tx, {
+        stripeSubscriptionId: pro.stripeSubscriptionId,
+        subscriptionId: pro.subscriptionId,
+        cancelAtPeriodEnd: true,
+        reason: 'admin-cancel-at-period-end',
+      })
+    })
+    const adminSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    beforeReconcile = async () => {
+      beforeReconcile = undefined
+      await requeueFromAdminApi(pauseSync)
+    }
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    await expect(processEvent(adminSync)).resolves.toBe('completed')
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+  })
+
   it('does not revive an older value when a retry path resets its sync without re-committing', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
@@ -795,11 +889,7 @@ describe('Team activation', () => {
     })
     stripe.addSubscription({ id: stripeSubscriptionId, customer: `cus_${subscriptionId}` })
 
-    let releaseCancel: () => void = () => {}
-    const cancelHeld = new Promise<void>((resolve) => {
-      releaseCancel = resolve
-    })
-    const cancelling = testDatabase.transaction(async (tx) => {
+    const cancelling = startParkedTransaction(async (tx) => {
       await tx
         .update(subscription)
         .set({ cancelAtPeriodEnd: true })
@@ -810,7 +900,6 @@ describe('Team activation', () => {
         cancelAtPeriodEnd: true,
         reason: 'admin-cancel-at-period-end',
       })
-      await cancelHeld
     })
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
@@ -820,9 +909,9 @@ describe('Team activation', () => {
         workspaceIdsToAttach: [],
       })
     )
-    await untilAnotherTransactionWaitsOnALock()
-    releaseCancel()
-    await cancelling
+    await cancelling.untilBlocking()
+    cancelling.release()
+    await cancelling.done
     await expect(activating).resolves.toMatchObject({ success: true })
     expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
 
@@ -847,28 +936,27 @@ describe('operator retry', () => {
     )
     await deadLetter(pauseSync)
 
-    let releaseWriter: () => void = () => {}
-    const writerHeld = new Promise<void>((resolve) => {
-      releaseWriter = resolve
-    })
-    const writing = testDatabase.transaction(async (tx) => {
-      await tx
-        .update(subscription)
-        .set({ cancelAtPeriodEnd: false })
-        .where(eq(subscription.id, pro.subscriptionId))
-      await writerHeld
-      await enqueueCancelAtPeriodEndSync(tx, {
-        stripeSubscriptionId: pro.stripeSubscriptionId,
-        subscriptionId: pro.subscriptionId,
-        cancelAtPeriodEnd: false,
-        reason: 'member-left-paid-org',
-      })
-    })
+    const writing = startParkedTransaction(
+      async (tx) => {
+        await tx
+          .update(subscription)
+          .set({ cancelAtPeriodEnd: false })
+          .where(eq(subscription.id, pro.subscriptionId))
+      },
+      async (tx) => {
+        await enqueueCancelAtPeriodEndSync(tx, {
+          stripeSubscriptionId: pro.stripeSubscriptionId,
+          subscriptionId: pro.subscriptionId,
+          cancelAtPeriodEnd: false,
+          reason: 'member-left-paid-org',
+        })
+      }
+    )
     const requeuing = requeueFromAdminApi(pauseSync)
-    await untilAnotherTransactionWaitsOnALock()
-    releaseWriter()
+    await writing.untilBlocking()
+    writing.release()
 
-    await expect(Promise.all([writing, requeuing])).resolves.toBeDefined()
+    await expect(Promise.all([writing.done, requeuing])).resolves.toBeDefined()
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
   })
@@ -889,33 +977,32 @@ describe('operator retry', () => {
     )
     await deadLetter(cancelSync)
 
-    let releaseWriter: () => void = () => {}
-    const writerHeld = new Promise<void>((resolve) => {
-      releaseWriter = resolve
-    })
-    const writing = testDatabase.transaction(async (tx) => {
-      await tx
-        .update(subscription)
-        .set({ cancelAtPeriodEnd: false })
-        .where(eq(subscription.id, org.subscriptionId))
-      await writerHeld
-      await enqueueCancelAtPeriodEndSync(tx, {
-        stripeSubscriptionId: org.stripeSubscriptionId,
-        subscriptionId: org.subscriptionId,
-        cancelAtPeriodEnd: false,
-        reason: 'pro-to-team-conversion',
-      })
-    })
+    const writing = startParkedTransaction(
+      async (tx) => {
+        await tx
+          .update(subscription)
+          .set({ cancelAtPeriodEnd: false })
+          .where(eq(subscription.id, org.subscriptionId))
+      },
+      async (tx) => {
+        await enqueueCancelAtPeriodEndSync(tx, {
+          stripeSubscriptionId: org.stripeSubscriptionId,
+          subscriptionId: org.subscriptionId,
+          cancelAtPeriodEnd: false,
+          reason: 'pro-to-team-conversion',
+        })
+      }
+    )
     const retrying = requestDashboardSubscriptionCancellation({
       organizationId: org.organizationId,
       operationId,
       timing: 'period_end',
       actor,
     })
-    await untilAnotherTransactionWaitsOnALock()
-    releaseWriter()
+    await writing.untilBlocking()
+    writing.release()
 
-    await expect(Promise.all([writing, retrying])).resolves.toBeDefined()
+    await expect(Promise.all([writing.done, retrying])).resolves.toBeDefined()
     expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)
   })
 })
@@ -1007,6 +1094,42 @@ describe('Team seat sync', () => {
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
   })
 
+  it('pushes the latest plan when an earlier seat sync lands in Stripe after a newer one', async () => {
+    const [smallTeam, largeTeam] = CREDIT_TIERS.map((tier) => `team_${tier.credits}`)
+    const org = await createOrganizationWithPlan('team', 1)
+    await testDatabase
+      .update(subscription)
+      .set({ plan: smallTeam })
+      .where(eq(subscription.id, org.subscriptionId))
+    async function commitPlan(plan: string) {
+      await testDatabase.transaction(async (tx) => {
+        await tx.update(subscription).set({ plan }).where(eq(subscription.id, org.subscriptionId))
+        await enqueueSubscriptionSeatsSync(tx, {
+          subscriptionId: org.subscriptionId,
+          seats: 1,
+          reason: 'plan-change',
+        })
+      })
+      return latestOutboxEventId(
+        OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+        org.subscriptionId
+      )
+    }
+
+    const smallSync = await commitPlan(smallTeam)
+    const stalePush = stripe.holdNextRequest('subscriptions.update')
+    const pushingSmall = processEvent(smallSync)
+    await stalePush.reached
+    const largeSync = await commitPlan(largeTeam)
+    await expect(processEvent(largeSync)).resolves.toBe('completed')
+    stalePush.release()
+    await expect(pushingSmall).resolves.toBe('completed')
+
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].price.id).toBe(
+      'price_team_max_tier_month'
+    )
+  })
+
   it('does not revive an older seat count when its dead-lettered sync is requeued', async () => {
     const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
     const org = await createOrganizationWithPlan('team', 1)
@@ -1044,26 +1167,52 @@ describe('webhook reconcile cost', () => {
     'Relation Name'?: string
     'Shared Hit Blocks': number
     'Shared Read Blocks': number
+    'Actual Rows': number
     Plans?: QueryPlan[]
+  }
+
+  /** EXPLAIN ANALYZE inside a rolled-back transaction, so a measured UPDATE changes nothing. */
+  async function explainWithoutEffects(query: string, parameters: unknown[]) {
+    const rollback = new Error('rollback')
+    let plan: QueryPlan | undefined
+    await connection
+      .begin(async (sql) => {
+        const [explained] = await sql.unsafe(
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
+          parameters as never[]
+        )
+        plan = (explained['QUERY PLAN'] as { Plan: QueryPlan }[])[0].Plan
+        throw rollback
+      })
+      .catch((error: unknown) => {
+        if (error !== rollback) throw error
+      })
+    if (!plan) throw new Error(`No plan for ${query}`)
+    return plan
   }
   const planNodes = (plan: QueryPlan): QueryPlan[] => [
     plan,
     ...(plan.Plans ?? []).flatMap(planNodes),
   ]
 
-  it('reads only the syncs that can still run, however many have completed', async () => {
+  it('reads only in-flight syncs, however many have completed or dead-lettered', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
-    await connection`
-      INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at, processed_at)
-      SELECT ${generateId()} || ':' || n, ${OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END},
-        json_build_object(
-          'subscriptionId', ${pro.subscriptionId}::text,
-          'cancelAtPeriodEnd', n % 2 = 0,
-          'committedAt', n
-        ),
-        'completed', now(), now(), now()
-      FROM generate_series(1, 20000) AS n`
+    for (const [status, count] of [
+      ['completed', 20000],
+      ['dead_letter', 50],
+    ] as const) {
+      await connection`
+        INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at, processed_at)
+        SELECT ${generateId()} || ':' || n, ${OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END},
+          json_build_object(
+            'subscriptionId', ${pro.subscriptionId}::text,
+            'cancelAtPeriodEnd', false,
+            'committedAt', n
+          ),
+          ${status}, now(), now(), now()
+        FROM generate_series(1, ${count}::integer) AS n`
+    }
     await connection`ANALYZE outbox_event`
 
     const issued: { query: string; parameters: unknown[] }[] = []
@@ -1083,27 +1232,26 @@ describe('webhook reconcile cost', () => {
     database.current = drizzle(traced, { schema })
     try {
       await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+      stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: true })
+      await deliver(stripe.events.at(-1) as Stripe.Event)
     } finally {
       database.current = testDatabase
       await traced.end()
     }
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    expect(new Set(await cancelValuesOfRetryableSyncs(pro.subscriptionId))).toEqual(new Set([true]))
 
-    const outboxReads = issued.filter(({ query }) => /from "outbox_event"/i.test(query))
-    expect(outboxReads.length).toBeGreaterThan(0)
-    for (const { query, parameters } of outboxReads) {
-      const [explained] = await connection.unsafe(
-        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
-        parameters as never[]
-      )
-      const plan = (explained['QUERY PLAN'] as { Plan: QueryPlan }[])[0].Plan
-      const nodes = planNodes(plan)
+    const outboxQueries = issued.filter(({ query }) => /"outbox_event"/i.test(query))
+    expect(outboxQueries.some(({ query }) => /^update/i.test(query))).toBe(true)
+    for (const { query, parameters } of outboxQueries) {
+      const plan = await explainWithoutEffects(query, parameters)
       expect(
-        nodes.some(
+        planNodes(plan).some(
           (node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'outbox_event'
         )
       ).toBe(false)
-      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(100)
+      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(200)
+      if (/^select/i.test(query)) expect(plan['Actual Rows']).toBeLessThanOrEqual(1)
     }
   })
 })

@@ -11,7 +11,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueCancelAtPeriodEndSync,
   lockSubscriptionForSyncRetry,
-  recommitSubscriptionSync,
+  recordCancelAtPeriodEnd,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
@@ -338,11 +338,7 @@ export async function requestDashboardSubscriptionCancellation({
             and(eq(outboxEvent.id, existingOperation.id), eq(outboxEvent.status, 'dead_letter'))
           )
         if (existingOperation.eventType === OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END) {
-          await recommitSubscriptionSync(
-            tx,
-            OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
-            existingOperation.subscriptionId
-          )
+          await recordCancelAtPeriodEnd(tx, existingOperation.subscriptionId, true)
         }
         return {
           operationId,

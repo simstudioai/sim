@@ -243,7 +243,7 @@ async function convertPersonalSubscriptionToTeam(
  * the caller's earlier read is still cleared and recorded.
  */
 async function activateTeamSubscription(
-  sub: { id: string; stripeSubscriptionId: string | null },
+  sub: { id: string },
   targetPlan: string,
   { planChanged }: { planChanged: boolean },
   tx: DbOrTx
@@ -252,6 +252,7 @@ async function activateTeamSubscription(
     .select({
       cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd,
       seats: subscriptionTable.seats,
+      stripeSubscriptionId: subscriptionTable.stripeSubscriptionId,
     })
     .from(subscriptionTable)
     .where(eq(subscriptionTable.id, sub.id))
@@ -271,10 +272,10 @@ async function activateTeamSubscription(
     })
   }
 
-  if (!sub.stripeSubscriptionId) return
-  if (locked?.cancelAtPeriodEnd) {
+  if (!locked?.stripeSubscriptionId) return
+  if (locked.cancelAtPeriodEnd) {
     await enqueueCancelAtPeriodEndSync(tx, {
-      stripeSubscriptionId: sub.stripeSubscriptionId,
+      stripeSubscriptionId: locked.stripeSubscriptionId,
       subscriptionId: sub.id,
       cancelAtPeriodEnd: false,
       reason: 'pro-to-team-conversion',

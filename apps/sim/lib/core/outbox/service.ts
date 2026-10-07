@@ -417,7 +417,7 @@ export async function readOutboxEventPayload(eventId: string): Promise<unknown> 
 }
 
 /** Statuses of an event whose side effect may still run. */
-export const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
 /**
  * Statuses an event can still run from: in flight, or dead-lettered, which every operator retry
  * path resets to `pending`. A `completed` event never runs again.
@@ -443,42 +443,48 @@ function eventsForSubject(
 }
 
 /**
- * The `pending`, `processing`, or `dead_letter` events of the given types for one subject. Pass
- * the caller's transaction to read under its locks.
+ * The `pending` or `processing` events of the given types for one subject. Pass the caller's
+ * transaction to read under its locks.
  */
-export async function listRetryableOutboxEvents(
+export async function listInflightOutboxEvents(
   executor: Pick<typeof db, 'select'>,
   eventTypes: readonly string[],
-  subject: OutboxPayloadSubject
-): Promise<{ id: string; eventType: string; status: string; payload: unknown }[]> {
-  return executor
-    .select({
-      id: outboxEvent.id,
-      eventType: outboxEvent.eventType,
-      status: outboxEvent.status,
-      payload: outboxEvent.payload,
-    })
+  subject: OutboxPayloadSubject,
+  limit?: number
+): Promise<{ id: string; eventType: string; payload: unknown }[]> {
+  const query = executor
+    .select({ id: outboxEvent.id, eventType: outboxEvent.eventType, payload: outboxEvent.payload })
     .from(outboxEvent)
-    .where(eventsForSubject(eventTypes, subject, RETRYABLE_OUTBOX_STATUSES))
+    .where(eventsForSubject(eventTypes, subject, INFLIGHT_OUTBOX_STATUSES))
+  return limit === undefined ? query : query.limit(limit)
 }
 
 /**
  * Shallow-merges `patch` into the payload of every `pending`, `processing`, or `dead_letter`
- * event of the type for one subject. Callers serialize writers for the subject with their
- * domain lock.
+ * event of the type for one subject, skipping events whose payload already contains
+ * `unlessPayloadContains`. One UPDATE; nothing is read into memory. Callers serialize writers
+ * for the subject with their domain lock.
  */
 export async function patchRetryableOutboxEvents(
   executor: Pick<typeof db, 'update'>,
   eventType: string,
   subject: OutboxPayloadSubject,
-  patch: Record<string, unknown>
+  patch: Record<string, unknown>,
+  unlessPayloadContains?: Record<string, unknown>
 ): Promise<number> {
   const patched = await executor
     .update(outboxEvent)
     .set({
       payload: sql`(coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)::json`,
     })
-    .where(eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES))
+    .where(
+      and(
+        eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES),
+        unlessPayloadContains
+          ? sql`not (${outboxEvent.payload}::jsonb @> ${JSON.stringify(unlessPayloadContains)}::jsonb)`
+          : undefined
+      )
+    )
     .returning({ id: outboxEvent.id })
   return patched.length
 }
@@ -494,12 +500,8 @@ export async function hasInflightOutboxEvent(
   payloadKey: string,
   payloadValue: string
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
-    .where(eventsForSubject([eventType], { payloadKey, payloadValue }, INFLIGHT_OUTBOX_STATUSES))
-    .limit(1)
-  return Boolean(row)
+  const events = await listInflightOutboxEvents(db, [eventType], { payloadKey, payloadValue }, 1)
+  return events.length > 0
 }
 
 /**

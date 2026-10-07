@@ -9,8 +9,7 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueOutboxEvent,
-  INFLIGHT_OUTBOX_STATUSES,
-  listRetryableOutboxEvents,
+  listInflightOutboxEvents,
   patchRetryableOutboxEvents,
   readOutboxEventPayload,
 } from '@/lib/core/outbox/service'
@@ -100,9 +99,10 @@ async function readDatabaseClock(executor: DbOrTx): Promise<number> {
  * lock (`FOR UPDATE`, or the `UPDATE` itself), per the lock order on
  * {@link lockSubscriptionForSyncRetry}.
  *
- * A Sim commit is stamped with the clock under that lock. A value taken from Stripe passes
- * `observedAt`, the clock read just before Stripe was read, so it orders by when it was observed:
- * a slower reconcile of an earlier Stripe read cannot outrank a later one.
+ * A Sim commit is stamped with the clock under that lock and rewrites every such event. A value
+ * taken from Stripe passes `observedAt`, the clock read just before Stripe was read, so it orders
+ * by when it was observed (a slower reconcile of an earlier Stripe read cannot outrank a later
+ * one), and rewrites only the events that do not already carry it.
  */
 async function commitIntent<T extends SyncIntentFields>(
   tx: DbOrTx,
@@ -115,7 +115,13 @@ async function commitIntent<T extends SyncIntentFields>(
     observedAt === undefined
       ? await withCommittedAt(tx, fields)
       : { ...fields, committedAt: observedAt }
-  await patchRetryableOutboxEvents(tx, eventType, subscriptionSubject(subscriptionId), committed)
+  await patchRetryableOutboxEvents(
+    tx,
+    eventType,
+    subscriptionSubject(subscriptionId),
+    committed,
+    observedAt === undefined ? undefined : fields
+  )
   return committed
 }
 
@@ -153,8 +159,9 @@ export async function enqueueSubscriptionSeatsSync(
 }
 
 /**
- * Records a `cancelAtPeriodEnd` value written in this transaction without enqueuing a sync, for
- * a writer that left the row's value unchanged: no sync that can still run keeps an older value.
+ * Records a `cancelAtPeriodEnd` value written in this transaction without enqueuing a sync, for a
+ * writer whose value an existing sync will push or Stripe already holds. It is written onto every
+ * sync that can still run (including one just reset to pending), so none keeps an older value.
  * The caller must hold the subscription row lock.
  */
 export async function recordCancelAtPeriodEnd(
@@ -188,9 +195,11 @@ export async function lockSubscriptionForSyncRetry(
 }
 
 /**
- * Re-commits the subscription's current DB value onto its sync events that can still run, for a
- * dead-lettered event that was just reset to `pending`: the retry then carries the latest value
- * rather than the one it failed with. The caller holds the lock from
+ * Re-commits the latest committed value onto the subscription's sync events that can still run,
+ * for a dead-lettered event that was just reset to `pending`: the retry then carries the latest
+ * value rather than the one it failed with. That is the newest in-flight value; the row is only a
+ * fallback when nothing in flight records one, because until the reconcile step runs the row can
+ * hold the Stripe plugin's stale webhook payload. The caller holds the lock from
  * {@link lockSubscriptionForSyncRetry}, taken before the reset.
  */
 export async function recommitSubscriptionSync(
@@ -205,14 +214,19 @@ export async function recommitSubscriptionSync(
     .limit(1)
   if (!current) return
 
-  await commitIntent(
-    tx,
-    eventType,
-    subscriptionId,
-    eventType === CANCEL_SYNC
-      ? { cancelAtPeriodEnd: Boolean(current.cancelAtPeriodEnd) }
-      : { seats: current.seats ?? 1 }
-  )
+  const pending = await readSyncIntents(tx, subscriptionId)
+  if (eventType === CANCEL_SYNC) {
+    const intent = pending.cancelAtPeriodEnd
+    await commitIntent(tx, eventType, subscriptionId, {
+      cancelAtPeriodEnd:
+        intent.status === 'value' ? intent.value : Boolean(current.cancelAtPeriodEnd),
+    })
+    return
+  }
+  const intent = pending.seats
+  await commitIntent(tx, eventType, subscriptionId, {
+    seats: intent.status === 'value' ? intent.value : (current.seats ?? 1),
+  })
 }
 
 /**
@@ -304,16 +318,14 @@ type InflightIntent<T> =
   | { status: 'legacy' }
   | { status: 'value'; value: T; committedAt: number }
 
-const INFLIGHT_STATUSES: ReadonlySet<string> = new Set(INFLIGHT_OUTBOX_STATUSES)
-
 function latestIntent<T>(
-  events: { eventType: string; status: string; payload: unknown }[],
+  events: { eventType: string; payload: unknown }[],
   eventType: SubscriptionSyncEventType,
   readValue: (payload: Record<string, unknown>) => T | undefined
 ): InflightIntent<T> {
   let latest: { committedAt: number; value: T } | undefined
   for (const event of events) {
-    if (event.eventType !== eventType || !INFLIGHT_STATUSES.has(event.status)) continue
+    if (event.eventType !== eventType) continue
     const payload = toRecord(event.payload)
     const value = readValue(payload)
     if (typeof payload.committedAt !== 'number' || value === undefined) return { status: 'legacy' }
@@ -324,9 +336,13 @@ function latestIntent<T>(
   return latest ? { status: 'value', ...latest } : { status: 'none' }
 }
 
-/** One indexed read of the subscription's sync events that can still run. */
+/**
+ * One indexed read of the subscription's in-flight syncs. Dead letters are not intents: they are
+ * failed syncs awaiting an operator, kept current by every commit so a retry pushes the latest
+ * value, but never a reason to override Stripe.
+ */
 async function readSyncIntents(executor: DbOrTx, subscriptionId: string) {
-  const events = await listRetryableOutboxEvents(
+  const events = await listInflightOutboxEvents(
     executor,
     [CANCEL_SYNC, SEATS_SYNC],
     subscriptionSubject(subscriptionId)
@@ -338,19 +354,19 @@ async function readSyncIntents(executor: DbOrTx, subscriptionId: string) {
     seats: latestIntent(events, SEATS_SYNC, (payload) =>
       typeof payload.seats === 'number' ? payload.seats : undefined
     ),
-    /** Whether a cancel sync that can still run carries a value other than `value`. */
-    cancelSyncCarriesOtherThan: (value: boolean) =>
-      events.some(
-        (event) =>
-          event.eventType === CANCEL_SYNC && toRecord(event.payload).cancelAtPeriodEnd !== value
-      ),
   }
 }
 
-/** True when the event records a `cancel_at_period_end` change made in Stripe, not by Sim's sync. */
+/**
+ * True when the event records a cancellation change made in Stripe, not by Sim's sync. A change
+ * to `cancel_at` counts too: Better Auth's restore clears `cancel_at` when it is set, and Stripe
+ * may then list only `cancel_at` among the previous attributes.
+ */
 function isCancellationChangedInStripe(event: Stripe.Event): boolean {
   const previousAttributes = toRecord(event.data.previous_attributes)
-  if (!('cancel_at_period_end' in previousAttributes)) return false
+  if (!('cancel_at_period_end' in previousAttributes) && !('cancel_at' in previousAttributes)) {
+    return false
+  }
   const idempotencyKey = event.request?.idempotency_key
   const issuedBySimSync =
     idempotencyKey?.startsWith(CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX) ||
@@ -393,7 +409,8 @@ function cancelAtPeriodEndSource(
  * Decided under the subscription row lock that every committing writer holds:
  * - `cancelAtPeriodEnd`: while a cancel sync is in flight, its committed value wins over
  *   snapshots and over echoes of Sim's own writes. A change made in Stripe itself (customer
- *   portal, dashboard, Better Auth's cancel/restore endpoints) wins and is committed onto every
+ *   portal, dashboard, Better Auth's cancel/restore endpoints), recognised by a non-Sim request
+ *   changing `cancel_at_period_end` or `cancel_at`, wins and is committed onto every
  *   sync that can still run, unless Sim committed a newer value after Stripe was read. With no
  *   sync in flight Stripe wins, read live so out-of-order delivery cannot regress it.
  * - Precedence across the two systems is arrival order, not wall-clock order: a Stripe-side
@@ -453,9 +470,7 @@ export async function reconcileSubscriptionSyncFromStripe(event: Stripe.Event): 
       } else if (cancel.source === 'stripe') {
         if (liveCancelAtPeriodEnd === undefined) return false
         cancelAtPeriodEnd = liveCancelAtPeriodEnd
-        if (intents.cancelSyncCarriesOtherThan(cancelAtPeriodEnd)) {
-          await commitIntent(tx, CANCEL_SYNC, row.id, { cancelAtPeriodEnd }, liveReadAt)
-        }
+        await commitIntent(tx, CANCEL_SYNC, row.id, { cancelAtPeriodEnd }, liveReadAt)
       }
       const seats = intents.seats.status === 'value' ? intents.seats.value : current.seats
 

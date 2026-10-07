@@ -299,11 +299,13 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
 
     const latest = await getSubscriptionSeatSyncState(payload.subscriptionId)
     const latestSeats = (await readRecordedSyncValue(ctx.eventId))?.seats ?? (latest?.seats || 1)
-    if (latestSeats !== desiredSeats) {
-      logger.info('Subscription seats changed during Stripe sync; retrying latest value', {
+    if (latestSeats !== desiredSeats || latest?.plan !== row.plan) {
+      logger.info('Subscription plan or seats changed during Stripe sync; retrying latest', {
         eventId: ctx.eventId,
         subscriptionId: payload.subscriptionId,
         stripeSubscriptionId: row.stripeSubscriptionId,
+        attemptedPlan: row.plan,
+        latestPlan: latest?.plan,
         attemptedSeats: desiredSeats,
         latestSeats,
         attempt,
@@ -323,7 +325,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
     return
   }
 
-  throw new Error(`Subscription seats changed while syncing ${payload.subscriptionId}`)
+  throw new Error(`Subscription plan or seats changed while syncing ${payload.subscriptionId}`)
 }
 
 const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoicePayload> = async (
