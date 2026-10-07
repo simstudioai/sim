@@ -9,6 +9,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
+  mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
@@ -116,12 +117,13 @@ async function executeDownloadWorkspaceFileStream({
           contentUpdatedAt: file.contentUpdatedAt ?? undefined,
         })
       : undefined
+  await reportWorkspaceFileDelivery(secretProvenance)
   const result = await streamWorkspaceFileRecord(
     file,
     principal,
     input.includeSecretProvenance ? secretProvenance : undefined
   )
-  await finishFileDelivery({
+  const currentProvenance = await finishFileDelivery({
     authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
     receipt:
       result.receipt ??
@@ -130,8 +132,14 @@ async function executeDownloadWorkspaceFileStream({
       ]),
     stream: result.stream,
   })
-  await reportWorkspaceFileDelivery(secretProvenance)
-  return result
+  const deliveredProvenance = secretProvenance
+    ? mergeWorkspaceFileSecretProvenance(secretProvenance, currentProvenance)
+    : currentProvenance
+  await reportWorkspaceFileDelivery(deliveredProvenance)
+  return {
+    ...result,
+    ...(input.includeSecretProvenance ? { secretProvenance: deliveredProvenance } : {}),
+  }
 }
 
 /**

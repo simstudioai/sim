@@ -15,9 +15,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  markWorkspaceFileSecretProvenanceUnknown,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 
 const uploadRoot = mkdtempSync(join(tmpdir(), 'sim-delivery-test-'))
@@ -154,6 +159,45 @@ check(
     expect(first.value?.length).toBeLessThan(size)
     await reader.cancel()
     expect(source?.destroyed).toBe(true)
+  }
+)
+
+check(
+  'same-revision provenance downgrade reaches the returned stream and delivery observer',
+  async () => {
+    const f = await fixture()
+    const file = await uploadWorkspaceFile(
+      f.workspaceId,
+      f.editorId,
+      Buffer.from('classification race'),
+      'race.txt',
+      'text/plain',
+      { notifyWorkspaceChange: false, secretProvenance: { status: 'exact', entries: [] } }
+    )
+    const open = storage.downloadFileStream
+    vi.spyOn(storage, 'downloadFileStream').mockImplementationOnce(async (options) => {
+      const source = await open(options)
+      await markWorkspaceFileSecretProvenanceUnknown(f.workspaceId, [file.id])
+      return source
+    })
+    const observed: (WorkspaceFileSecretProvenance | undefined)[] = []
+    const result = await observeWorkspaceFileDelivery(
+      async (provenance) => {
+        observed.push(provenance)
+      },
+      () =>
+        downloadWorkspaceFileStream.execute({
+          principal: f.principal,
+          input: { fileId: file.id, includeSecretProvenance: true },
+        })
+    )
+    await result.stream.cancel()
+    const [current] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, file.id))
+    expect(current.contentUpdatedAt).toEqual(file.contentUpdatedAt)
+    expect({ returned: result.secretProvenance, observed: observed.at(-1) }).toEqual({
+      returned: { status: 'unknown' },
+      observed: { status: 'unknown' },
+    })
   }
 )
 
