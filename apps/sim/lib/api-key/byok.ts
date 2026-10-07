@@ -298,6 +298,13 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Baseten ${model}`)
   }
 
+  if (provider === 'nebius') {
+    const byokResult = await getBYOKKey(workspaceId, 'nebius', { failClosed: true })
+    if (byokResult) return byokResult
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: false }
+    throw new Error(`API key is required for Nebius ${model}`)
+  }
+
   if (provider === 'ollama-cloud') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')
