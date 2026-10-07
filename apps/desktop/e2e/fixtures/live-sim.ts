@@ -89,6 +89,8 @@ interface ProxiedRequest {
   path: string
   at: number
   status?: number
+  /** When the client gave up on the response before it finished (a reader that let go). */
+  clientClosedAt?: number
 }
 
 /**
@@ -233,6 +235,9 @@ export class SimProxy {
     const method = request.method ?? 'GET'
     const entry: ProxiedRequest = { method, path: url.pathname, at: Date.now() }
     this.requests.push(entry)
+    response.once('close', () => {
+      if (!response.writableFinished) entry.clientClosedAt = Date.now()
+    })
     if (url.pathname === '/__e2e/sign-in') {
       const cookie = url.searchParams.get('cookie') ?? ''
       response.writeHead(302, {

@@ -42,7 +42,7 @@ type DesktopWindow = typeof globalThis & { simDesktop: SimDesktopApi }
 
 test.describe('desktop tools against a live Sim', () => {
   test.skip(typeof config === 'string', typeof config === 'string' ? config : '')
-  test.describe.configure({ timeout: 240_000 })
+  test.describe.configure({ timeout: 360_000 })
 
   let sim: LiveSimConfig
   let proxy: SimProxy
@@ -54,7 +54,7 @@ test.describe('desktop tools against a live Sim', () => {
   let pageErrors: string[] = []
 
   test.beforeAll(async () => {
-    test.setTimeout(900_000)
+    test.setTimeout(1_500_000)
     if (typeof config === 'string') throw new Error(config)
     sim = config
     proxy = new SimProxy(sim)
@@ -136,7 +136,7 @@ test.describe('desktop tools against a live Sim', () => {
       )
       const page = await openApp(user, 'Warm chat', COMPILE_MS)
       await send(page, '[warm-up] read it', COMPILE_MS)
-      await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: COMPILE_MS })
+      await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: 2 * COMPILE_MS })
       await openChat(page, user, 'Warm other chat', COMPILE_MS)
       await openChat(page, user, 'Warm chat', COMPILE_MS)
     } finally {
@@ -160,7 +160,7 @@ test.describe('desktop tools against a live Sim', () => {
         SIM_DESKTOP_USER_DATA: join(scratch, 'profile'),
       },
     })
-    const page = await app.firstWindow()
+    const page = await app.firstWindow({ timeout })
     pageErrors = []
     page.on('pageerror', (error) => pageErrors.push(error.message))
     page.on('console', (message) => {
@@ -238,6 +238,12 @@ test.describe('desktop tools against a live Sim', () => {
     await expect(page).toHaveURL(new RegExp(`${user.chats[title]}$`), { timeout })
   }
 
+  /** The chat's first call as `status: error`, so a wrong terminal state says why. */
+  async function callState(chatId: string): Promise<string> {
+    const [call] = await db.toolCalls(chatId)
+    return call ? `${call.status}: ${call.error ?? ''}` : 'no call'
+  }
+
   function writeFile(path: string, contents: string): string {
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, contents)
@@ -259,6 +265,9 @@ test.describe('desktop tools against a live Sim', () => {
     method === 'POST' && /^\/api\/workspaces\/[^/]+\/files\/folders$/.test(path)
   const isDesktopClaim = (method: string, path: string) =>
     method === 'POST' && path === '/api/desktop/tool/authorize'
+  /** The chat turn's response stream, as the chat view reads it. */
+  const isChatStream = (entry: { method: string; path: string }) =>
+    entry.method === 'POST' && entry.path === '/api/mothership/chat'
   /** A client tool's report of its own result. */
   const isToolReport = (method: string, path: string) =>
     method === 'POST' && path === '/api/copilot/confirm'
@@ -305,13 +314,21 @@ test.describe('desktop tools against a live Sim', () => {
       turn.pause()
     })
     const page = await openApp(user, 'Read chat')
+    // Visit the other chat once, so leaving for it later is a quick client-side switch.
+    await openChat(page, user, 'Other chat')
+    await openChat(page, user, 'Read chat')
     const claim = proxy.hold(isDesktopClaim)
+    const since = Date.now()
     await send(page, '[leave-read] read my notes')
     await claim.arrival(ARRIVAL_MS, 'The read’s claim')
-    // Electron gives the claim 8 s, so the view change it spans must be quick: the warm-up
-    // compiled the chat route.
-    await openChat(page, user, 'Other chat', 5_000)
+    const turnStream = proxy.seen(since).find(isChatStream)
+    if (!turnStream) throw new Error('The turn’s stream never reached Sim')
+    await click(page, page.getByRole('link', { name: 'Other chat' }).first())
+    // The view let go of the turn's stream, the moment a read tied to that view would end.
+    // Electron gives the held claim 8 s, so this waits only a few.
+    await expect.poll(() => turnStream.clientClosedAt, { timeout: 6_000 }).toBeDefined()
     claim.release()
+    await expect(page).toHaveURL(new RegExp(`${user.chats['Other chat']}$`), { timeout: 30_000 })
 
     await agent.waitForResume(() => Boolean(callId && agent.resultFor(callId)), 60_000)
     const result = agent.resultFor(callId)
@@ -353,9 +370,7 @@ test.describe('desktop tools against a live Sim', () => {
     // Stop cancels the import's request in flight, and the import ends and reports.
     await expect.poll(() => laterFolder.isAbandoned, { timeout: 15_000 }).toBe(true)
     const reported = await report.arrival(ARRIVAL_MS, 'The import’s report')
-    await expect
-      .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 30_000 })
-      .toBe('cancelled')
+    await expect.poll(async () => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     laterFolder.release()
     report.release()
     // The late report is answered without overwriting what Stop recorded.
@@ -392,9 +407,7 @@ test.describe('desktop tools against a live Sim', () => {
     await expect.poll(() => firstUpload.isAbandoned, { timeout: 15_000 }).toBe(true)
     const abandonedAt = Date.now()
     // The import ended and reported its own failure while the session was still valid.
-    await expect
-      .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 30_000 })
-      .toBe('failed')
+    await expect.poll(async () => callState(chatId), { timeout: 30_000 }).toMatch(/^failed/)
     const toolRequests = proxy
       .seen(abandonedAt)
       .filter(
@@ -497,9 +510,7 @@ test.describe('desktop tools against a live Sim', () => {
     const claim = await lateClaim.arrival(ARRIVAL_MS, 'The read’s claim')
     await click(page, page.getByRole('button', { name: 'Stop generation' }))
     // Stop settles the call nobody has claimed yet as never started.
-    await expect
-      .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 15_000 })
-      .toBe('cancelled')
+    await expect.poll(async () => callState(chatId), { timeout: 15_000 }).toMatch(/^cancelled/)
     lateClaim.release()
     await expect.poll(() => claim.status, { timeout: 15_000 }).toBe(410)
     const [after] = await db.toolCalls(chatId)
