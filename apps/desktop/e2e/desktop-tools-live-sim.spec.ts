@@ -12,6 +12,7 @@ import {
 } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import {
   type LiveSimConfig,
   liveSimConfig,
@@ -546,10 +547,7 @@ test.describe('desktop tools against a live Sim', () => {
       expect(registration.status).toBe(200)
       expect(await registration.json()).toMatchObject({ enabled: false })
       proxy.rewriteChatBody((body) => {
-        const desktop =
-          typeof body.desktopCapabilities === 'object' && body.desktopCapabilities !== null
-            ? body.desktopCapabilities
-            : {}
+        const desktop = toRecord(body.desktopCapabilities)
         // The app offers its own install when it speaks the executor protocol; otherwise offer
         // the device registered above, as such a desktop would.
         body.desktopCapabilities = { deviceId, executor: 1, ...desktop }
