@@ -210,7 +210,7 @@
     "apps/sim/lib/content/mdx.tsx": 15,
     "apps/sim/lib/content/registry-factory.ts": 3,
     "apps/sim/lib/core/config/redis.ts": 1,
-    "apps/sim/lib/core/idempotency/service.ts": 7,
+    "apps/sim/lib/core/idempotency/service.ts": 6,
     "apps/sim/lib/core/security/redaction.ts": 6,
     "apps/sim/lib/core/utils/display-filters.ts": 11,
     "apps/sim/lib/core/utils/response-format.ts": 10,

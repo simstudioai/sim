@@ -80,7 +80,10 @@ export interface IdempotencyExecutionOptions {
  */
 export type IdempotentExecution<T> = { outcome: 'resolved'; result: T } | { outcome: 'in-progress' }
 
-type InProgressPolicy = 'wait' | 'skip'
+/** An in-progress outcome carries the wait on the live holder, so each caller decides whether to take it. */
+type ClaimedExecution<T> =
+  | { outcome: 'resolved'; result: T }
+  | { outcome: 'in-progress'; wait: () => Promise<T> }
 
 export interface AtomicClaimResult {
   claimed: boolean
@@ -578,7 +581,7 @@ export class IdempotencyService {
     provider: string,
     identifier: string,
     operation: () => Promise<T>,
-    additionalContext?: Record<string, any>,
+    additionalContext?: Record<string, unknown>,
     options?: IdempotencyExecutionOptions
   ): Promise<T> {
     const execution = await this.execute(
@@ -586,10 +589,9 @@ export class IdempotencyService {
       identifier,
       operation,
       additionalContext,
-      options,
-      'wait'
+      options
     )
-    return execution.result
+    return execution.outcome === 'resolved' ? execution.result : execution.wait()
   }
 
   /**
@@ -605,33 +607,25 @@ export class IdempotencyService {
     additionalContext?: Record<string, unknown>,
     options?: IdempotencyExecutionOptions
   ): Promise<IdempotentExecution<T>> {
-    return this.execute(provider, identifier, operation, additionalContext, options, 'skip')
+    const execution = await this.execute(
+      provider,
+      identifier,
+      operation,
+      additionalContext,
+      options
+    )
+    if (execution.outcome === 'resolved') return execution
+    logger.info(`Skipping duplicate of in-progress operation: ${provider}:${identifier}`)
+    return { outcome: 'in-progress' }
   }
 
-  private execute<T>(
-    provider: string,
-    identifier: string,
-    operation: () => Promise<T>,
-    additionalContext: Record<string, unknown> | undefined,
-    options: IdempotencyExecutionOptions | undefined,
-    inProgressPolicy: 'wait'
-  ): Promise<{ outcome: 'resolved'; result: T }>
-  private execute<T>(
-    provider: string,
-    identifier: string,
-    operation: () => Promise<T>,
-    additionalContext: Record<string, unknown> | undefined,
-    options: IdempotencyExecutionOptions | undefined,
-    inProgressPolicy: InProgressPolicy
-  ): Promise<IdempotentExecution<T>>
   private async execute<T>(
     provider: string,
     identifier: string,
     operation: () => Promise<T>,
     additionalContext: Record<string, unknown> | undefined,
-    options: IdempotencyExecutionOptions | undefined,
-    inProgressPolicy: InProgressPolicy
-  ): Promise<IdempotentExecution<T>> {
+    options: IdempotencyExecutionOptions | undefined
+  ): Promise<ClaimedExecution<T>> {
     const claimResult = await this.atomicallyClaim(provider, identifier, additionalContext, options)
 
     if (!claimResult.claimed) {
@@ -651,32 +645,24 @@ export class IdempotencyService {
             observedResult: existingResult,
             observedValue: claimResult.observedValue,
           })
-          return this.execute(
-            provider,
-            identifier,
-            operation,
-            additionalContext,
-            options,
-            inProgressPolicy
-          )
+          return this.execute(provider, identifier, operation, additionalContext, options)
         }
         logger.info(`Previous operation failed for: ${claimResult.normalizedKey}`)
         throw new Error(existingResult.error || 'Previous operation failed')
       }
 
       if (existingResult?.status === 'in-progress') {
-        if (inProgressPolicy === 'skip') {
-          logger.info(`Skipping duplicate of in-progress operation: ${claimResult.normalizedKey}`)
-          return { outcome: 'in-progress' }
-        }
-        logger.info(`Waiting for in-progress operation: ${claimResult.normalizedKey}`)
-        const result = await this.waitForResult<T>(
-          claimResult.normalizedKey,
-          claimResult.storageMethod,
+        const { normalizedKey, storageMethod } = claimResult
+        const deadline =
           existingResult.inProgressExpiresAt ??
-            (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
-        )
-        return { outcome: 'resolved', result }
+          (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
+        return {
+          outcome: 'in-progress',
+          wait: () => {
+            logger.info(`Waiting for in-progress operation: ${normalizedKey}`)
+            return this.waitForResult<T>(normalizedKey, storageMethod, deadline)
+          },
+        }
       }
 
       if (existingResult) {
