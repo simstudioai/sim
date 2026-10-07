@@ -64,6 +64,7 @@ describe('Mothership owner-scoped event stream', () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
     authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'user-1', role: 'member' })
     subscribe.mockReturnValue(unsubscribe)
+    mothershipChatStatusMockFns.mockReady.mockReset().mockResolvedValue(undefined)
   })
   afterEach(() => {
     vi.useRealTimers()

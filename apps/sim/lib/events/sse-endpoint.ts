@@ -170,11 +170,17 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
        * waits here while the stream has not opened or an earlier event is still being written.
        */
       let writes: Promise<void> = Promise.resolve()
+      /** Settles when the stream opens, or when it closes first. */
+      let opening: Promise<void> = Promise.resolve()
+      /** The one authorization every event that arrived before the stream opened waits for. */
+      let preOpenAuthorization: Promise<void> | undefined
       let opened = false
       let pendingEvents = 0
       const send = (eventName: string, data: Record<string, unknown>) => {
         if (cleaned) return
         const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
+        // Defensive: the opening and the writes queued before it settle in the same run of
+        // microtasks, so an event sent from a microtask in between must still queue behind them.
         if (opened && pendingEvents === 0 && !config.revalidate) {
           enqueue(payload)
           return
@@ -184,11 +190,14 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
           return
         }
         pendingEvents += 1
-        // Authorized as soon as it arrives, so concurrent events share one check, but written only
-        // after every event before it.
+        // Authorized as soon as the stream is open, so events in flight together share one check:
+        // those that arrived before it opened share one that starts when it opens, and later ones
+        // share whichever check is in flight. Each is written only after every event before it.
         const authorized = opened
           ? revalidate()
-          : writes.then(() => (cleaned ? undefined : revalidate()))
+          : (preOpenAuthorization ??= opening.then(() => (cleaned ? undefined : revalidate())))
+        // Defensive: a rejection is handled once the write chain reaches this event, which can be
+        // after the authorization settles; this keeps it from surfacing as unhandled meanwhile.
         authorized.catch(noop)
         writes = writes
           .then(() => authorized)
@@ -211,7 +220,7 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         // heartbeat cannot open it first: the deadline is shorter than the heartbeat interval.
         // Closing settles it too, so a stream closed before it opened is not kept alive by a
         // subscription that never becomes ready.
-        writes = Promise.race([
+        opening = Promise.race([
           Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())),
           new Promise<void>((resolve) => {
             const deadline = setTimeout(resolve, OPEN_DEADLINE_MS)
@@ -227,6 +236,7 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
           },
           () => close('subscription_failed')
         )
+        writes = opening
         for (const subscription of config.subscriptions) {
           teardowns.push(subscription.subscribe(send))
         }

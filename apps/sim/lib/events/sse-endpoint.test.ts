@@ -291,6 +291,44 @@ describe('createSSEStream', () => {
     ])
   })
 
+  it('writes every event queued before it opened once one authorization passes', async () => {
+    let live: () => void = () => {}
+    let publish: (eventName: string, data: Record<string, unknown>) => void = () => {}
+    const authorizations: Array<() => void> = []
+    const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
+      label: 'test',
+      revalidate: () =>
+        new Promise<void>((resolve) => {
+          authorizations.push(resolve)
+        }),
+      subscriptions: [
+        {
+          subscribe: (send) => {
+            publish = send
+            return () => {}
+          },
+          ready: () =>
+            new Promise<void>((resolve) => {
+              live = resolve
+            }),
+        },
+      ],
+    })
+    const chunks: string[] = []
+    void collect(response.body as ReadableStream<Uint8Array>, chunks)
+    for (let n = 1; n <= 10; n += 1) publish('changed', { n })
+    live()
+    await vi.advanceTimersByTimeAsync(0)
+
+    authorizations[0]()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(chunks).toEqual([
+      OPENED_COMMENT,
+      ...Array.from({ length: 10 }, (_, index) => `event: changed\ndata: {"n":${index + 1}}\n\n`),
+    ])
+  })
+
   it('clears its timers when it closes before it opens', async () => {
     const controller = new AbortController()
     createSSEStream(
