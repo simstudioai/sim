@@ -212,13 +212,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             cleared: { ...state.cleared, [chatKey]: ++deleteCount },
           })),
 
-        reopenChat: (chatKey, deleteToken) =>
-          set((state) => {
-            const current = state.cleared[chatKey]
-            if (current === undefined) return state
-            if (deleteToken !== undefined && deleteToken !== current) return state
-            return { cleared: omitKey(state.cleared, chatKey) }
-          }),
+        liftDelete: (chatKey, deleteToken) =>
+          set((state) =>
+            state.cleared[chatKey] === deleteToken
+              ? { cleared: omitKey(state.cleared, chatKey) }
+              : state
+          ),
+
+        reopenRestoredChat: (chatKey) =>
+          set((state) =>
+            state.cleared[chatKey] === undefined
+              ? state
+              : { cleared: omitKey(state.cleared, chatKey) }
+          ),
 
         reset: () => set(initialState),
       }),

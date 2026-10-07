@@ -321,7 +321,7 @@ export async function fetchMothershipChatHistory(
 ): Promise<MothershipChatHistory> {
   const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
   const history = await readMothershipChatHistory(chatId, signal)
-  if (deleteSeen !== undefined) useMothershipQueueStore.getState().reopenChat(chatId, deleteSeen)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
   return history
 }
 
@@ -385,7 +385,7 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
     onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
     onSuccess: (_data, chatId, context) => {
       if (context?.deleteSeen === undefined) return
-      useMothershipQueueStore.getState().reopenChat(chatId, context.deleteSeen)
+      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })

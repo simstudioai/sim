@@ -19,7 +19,7 @@
  * request it aborted was accepted.
  */
 
-import { act, type ReactNode, StrictMode, useEffect, useState } from 'react'
+import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -102,6 +102,36 @@ import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-eve
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+
+/** Captured before any test fakes timers, so the act budget below runs in real time. */
+const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
+/** Well under the 10s test timeout: the scope must end before the runner abandons the test. */
+const ACT_BUDGET_MS = 6_000
+
+/**
+ * React's `act`, with async callbacks bounded. A callback that never settles (a
+ * regressed send stuck reconnecting) used to run into the test timeout while
+ * still inside React's act scope, and the renders of every later test queued
+ * behind it ("Hook result is not ready"). Failing the act after a budget ends
+ * the scope, so one regression is one red test. Sync callbacks stay synchronous.
+ */
+function act(callback: () => unknown): Promise<void> {
+  return reactAct((): undefined | Promise<void> => {
+    const result = callback()
+    if (!(result instanceof Promise)) return undefined
+    let budget: ReturnType<typeof setTimeout> | undefined
+    const budgetSpent = new Promise<never>((_, reject) => {
+      budget = realSetTimeout(
+        () => reject(new Error(`act callback still pending after ${ACT_BUDGET_MS}ms`)),
+        ACT_BUDGET_MS
+      )
+    })
+    return Promise.race([result.then(() => undefined), budgetSpent]).finally(() =>
+      realClearTimeout(budget)
+    )
+  })
+}
 
 authClientMockFns.mockUseSession.mockImplementation(() => ({
   data: { user: { id: 'test-viewer' } },

@@ -92,15 +92,15 @@ describe('useMothershipQueueStore', () => {
     it('lifts only the delete a restore saw, never a later one', () => {
       useMothershipQueueStore.getState().clearChat('chat-X')
       const seen = useMothershipQueueStore.getState().cleared['chat-X']
-      useMothershipQueueStore.getState().reopenChat('chat-X')
+      useMothershipQueueStore.getState().reopenRestoredChat('chat-X')
       useMothershipQueueStore.getState().clearChat('chat-X')
 
-      useMothershipQueueStore.getState().reopenChat('chat-X', seen)
+      useMothershipQueueStore.getState().liftDelete('chat-X', seen)
       useMothershipQueueStore.getState().enqueue('chat-X', message('after-stale-restore'))
       expect(useMothershipQueueStore.getState().queues['chat-X']).toBeUndefined()
 
       const latest = useMothershipQueueStore.getState().cleared['chat-X']
-      useMothershipQueueStore.getState().reopenChat('chat-X', latest)
+      useMothershipQueueStore.getState().liftDelete('chat-X', latest)
       useMothershipQueueStore.getState().enqueue('chat-X', message('after-restore'))
       expect(useMothershipQueueStore.getState().queues['chat-X']?.map((m) => m.id)).toEqual([
         'after-restore',
