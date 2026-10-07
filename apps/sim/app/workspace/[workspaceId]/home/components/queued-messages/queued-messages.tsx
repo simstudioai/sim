@@ -75,6 +75,11 @@ export function QueuedMessages({
             const isEditing = msg.id === editingQueuedId
             const isDispatching = msg.id === dispatchingHeadId
             const editBlocked = isDispatching || msg.admissionUnknown === true
+            const editLabel = isDispatching
+              ? 'Sending now'
+              : msg.admissionUnknown
+                ? 'May already be sent; editing could send a second message'
+                : 'Edit queued message'
             return (
               <div
                 key={msg.id}
@@ -141,31 +146,24 @@ export function QueuedMessages({
                     <>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
+                          {/* aria-disabled, not disabled: a disabled button gets no hover or
+                              focus, so the tooltip saying why could never open. */}
                           <button
-                            aria-label={
-                              isDispatching
-                                ? 'Sending now'
-                                : msg.admissionUnknown
-                                  ? 'May already be sent; editing could send a second message'
-                                  : 'Edit queued message'
-                            }
+                            aria-label={editLabel}
+                            aria-disabled={editBlocked}
                             type='button'
-                            disabled={editBlocked}
                             onClick={(e) => {
                               e.stopPropagation()
+                              if (editBlocked) return
                               onEdit(msg.id)
                             }}
-                            className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover-hover:bg-transparent disabled:hover-hover:text-[var(--text-icon)]'
+                            className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)] aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover-hover:bg-transparent aria-disabled:hover-hover:text-[var(--text-icon)]'
                           >
                             <Pencil className='size-[13px]' />
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {isDispatching
-                            ? 'Sending now'
-                            : msg.admissionUnknown
-                              ? 'May already be sent; editing could send a second message'
-                              : 'Edit queued message'}
+                          {editLabel}
                         </Tooltip.Content>
                       </Tooltip.Root>
 
