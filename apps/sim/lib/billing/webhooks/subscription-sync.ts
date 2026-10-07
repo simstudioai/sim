@@ -9,6 +9,7 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueOutboxEvent,
+  INFLIGHT_OUTBOX_STATUSES,
   listRetryableOutboxEvents,
   patchRetryableOutboxEvents,
 } from '@/lib/core/outbox/service'
@@ -90,7 +91,8 @@ async function withCommittedAt<T extends SyncIntentFields>(
  * onto every event of that type that can still run: pending, processing, or dead-lettered (each
  * operator retry path resets dead letters to pending). No event that can run again ever carries
  * an older value for the webhook reconcile to restore. The caller must hold the subscription row
- * lock (`FOR UPDATE`, or the `UPDATE` itself).
+ * lock (`FOR UPDATE`, or the `UPDATE` itself), per the lock order on
+ * {@link lockSubscriptionForSyncRetry}.
  */
 async function commitIntent<T extends SyncIntentFields>(
   tx: DbOrTx,
@@ -150,9 +152,32 @@ export async function recordCancelAtPeriodEnd(
 }
 
 /**
- * Re-commits the subscription's current DB value onto its in-flight sync events, for a
+ * Takes the subscription row lock for an operator retry of one of its sync events; call it
+ * before touching the event, then {@link recommitSubscriptionSync} after resetting it.
+ *
+ * Lock order for every writer of a subscription's synced fields and their outbox events:
+ * organization mutation lock (where taken) → subscription row → outbox rows. Committing a value
+ * rewrites the subscription's retryable sync events, dead letters included, so a retry that
+ * locked a dead-lettered event before the subscription would deadlock against any concurrent
+ * writer.
+ */
+export async function lockSubscriptionForSyncRetry(
+  tx: DbOrTx,
+  subscriptionId: string
+): Promise<void> {
+  await tx
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(eq(subscription.id, subscriptionId))
+    .for('update')
+    .limit(1)
+}
+
+/**
+ * Re-commits the subscription's current DB value onto its sync events that can still run, for a
  * dead-lettered event that was just reset to `pending`: the retry then carries the latest value
- * rather than the one it failed with. Takes the subscription row lock itself.
+ * rather than the one it failed with. The caller holds the lock from
+ * {@link lockSubscriptionForSyncRetry}, taken before the reset.
  */
 export async function recommitSubscriptionSync(
   tx: DbOrTx,
@@ -163,7 +188,6 @@ export async function recommitSubscriptionSync(
     .select({ cancelAtPeriodEnd: subscription.cancelAtPeriodEnd, seats: subscription.seats })
     .from(subscription)
     .where(eq(subscription.id, subscriptionId))
-    .for('update')
     .limit(1)
   if (!current) return
 
@@ -229,7 +253,7 @@ export function cancelAtPeriodEndSyncIdempotencyKey(eventId: string): string {
  */
 type InflightIntent<T> = { status: 'none' } | { status: 'legacy' } | { status: 'value'; value: T }
 
-const INFLIGHT_STATUSES = new Set(['pending', 'processing'])
+const INFLIGHT_STATUSES: ReadonlySet<string> = new Set(INFLIGHT_OUTBOX_STATUSES)
 
 function latestIntent<T>(
   events: { eventType: string; status: string; payload: unknown }[],

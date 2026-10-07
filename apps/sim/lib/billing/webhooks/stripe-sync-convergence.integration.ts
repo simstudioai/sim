@@ -43,6 +43,7 @@ vi.mock('@sim/db', () => ({
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
+import { requestDashboardSubscriptionCancellation } from '@/lib/admin/subscription-lifecycle'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import {
   pauseProSubscriptionForOrgCoverage,
@@ -132,6 +133,7 @@ beforeAll(async () => {
     'organization',
     'workspace',
     'permissions',
+    'audit_log',
   ]) {
     await connection.unsafe(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`)
   }
@@ -281,6 +283,18 @@ async function storedSubscription(subscriptionId: string) {
     .where(eq(subscription.id, subscriptionId))
   if (!row) throw new Error(`Subscription ${subscriptionId} not found`)
   return row
+}
+
+/** Resolves once another backend is blocked on a lock, i.e. the racing transaction is parked. */
+async function untilAnotherTransactionWaitsOnALock() {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const [row] = await connection<{ waiting: number }[]>`
+      select count(*)::int as waiting from pg_stat_activity
+      where datname = current_database() and wait_event_type = 'Lock'`
+    if (row.waiting > 0) return
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+  throw new Error('The racing transaction never waited on a lock')
 }
 
 describe('cancel_at_period_end sync', () => {
@@ -618,18 +632,6 @@ describe('cancel_at_period_end sync', () => {
 })
 
 describe('Team activation', () => {
-  /** Resolves once another backend is blocked on a lock, i.e. the racing transaction is parked. */
-  async function untilAnotherTransactionWaitsOnALock() {
-    for (let attempt = 0; attempt < 200; attempt++) {
-      const [row] = await connection<{ waiting: number }[]>`
-        select count(*)::int as waiting from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`
-      if (row.waiting > 0) return
-      await new Promise<void>((resolve) => setImmediate(resolve))
-    }
-    throw new Error('The racing transaction never waited on a lock')
-  }
-
   it('records the cleared cancellation when a cancel is committed while it activates Team', async () => {
     const owner = await createUser('owner')
     const subscriptionId = generateId()
@@ -685,6 +687,89 @@ describe('Team activation', () => {
     )
     await expect(processEvent(cancelSync)).resolves.toBe('completed')
     expect(stripe.subscription(stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+})
+
+describe('operator retry', () => {
+  it('requeues a dead-lettered sync while a writer commits a new value for the subscription', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await deadLetter(pauseSync)
+
+    let releaseWriter: () => void = () => {}
+    const writerHeld = new Promise<void>((resolve) => {
+      releaseWriter = resolve
+    })
+    const writing = testDatabase.transaction(async (tx) => {
+      await tx
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(subscription.id, pro.subscriptionId))
+      await writerHeld
+      await enqueueCancelAtPeriodEndSync(tx, {
+        stripeSubscriptionId: pro.stripeSubscriptionId,
+        subscriptionId: pro.subscriptionId,
+        cancelAtPeriodEnd: false,
+        reason: 'member-left-paid-org',
+      })
+    })
+    const requeuing = requeueFromAdminApi(pauseSync)
+    await untilAnotherTransactionWaitsOnALock()
+    releaseWriter()
+
+    await expect(Promise.all([writing, requeuing])).resolves.toBeDefined()
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+  })
+
+  it('retries a dead-lettered dashboard cancellation while a writer commits a new value', async () => {
+    const org = await createOrganizationWithPlan('team')
+    const operationId = generateId()
+    const actor = { id: null, name: 'Admin', email: null }
+    await requestDashboardSubscriptionCancellation({
+      organizationId: org.organizationId,
+      operationId,
+      timing: 'period_end',
+      actor,
+    })
+    const cancelSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      org.subscriptionId
+    )
+    await deadLetter(cancelSync)
+
+    let releaseWriter: () => void = () => {}
+    const writerHeld = new Promise<void>((resolve) => {
+      releaseWriter = resolve
+    })
+    const writing = testDatabase.transaction(async (tx) => {
+      await tx
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(subscription.id, org.subscriptionId))
+      await writerHeld
+      await enqueueCancelAtPeriodEndSync(tx, {
+        stripeSubscriptionId: org.stripeSubscriptionId,
+        subscriptionId: org.subscriptionId,
+        cancelAtPeriodEnd: false,
+        reason: 'pro-to-team-conversion',
+      })
+    })
+    const retrying = requestDashboardSubscriptionCancellation({
+      organizationId: org.organizationId,
+      operationId,
+      timing: 'period_end',
+      actor,
+    })
+    await untilAnotherTransactionWaitsOnALock()
+    releaseWriter()
+
+    await expect(Promise.all([writing, retrying])).resolves.toBeDefined()
+    expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)
   })
 })
 

@@ -407,7 +407,7 @@ export async function findDeadLetteredEvents(
 }
 
 /** Statuses of an event whose side effect may still run. */
-const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+export const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
 /**
  * Statuses an event can still run from: in flight, or dead-lettered, which every operator retry
  * path resets to `pending`. A `completed` event never runs again.

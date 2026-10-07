@@ -14,6 +14,7 @@ import {
 } from '@/lib/billing/enterprise-outbox-events'
 import {
   isSubscriptionSyncEventType,
+  lockSubscriptionForSyncRetry,
   recommitSubscriptionSync,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -68,7 +69,17 @@ export const POST = withRouteHandler(
       const deliveryRevision = metadataIntent?.success
         ? metadataIntent.data.deliveryRevision + 1
         : null
+      const subscriptionId = toRecord(existing?.payload).subscriptionId
+      const subscriptionSync =
+        existing &&
+        isSubscriptionSyncEventType(existing.eventType) &&
+        typeof subscriptionId === 'string'
+          ? { eventType: existing.eventType, subscriptionId }
+          : null
       const result = await db.transaction(async (tx) => {
+        if (subscriptionSync) {
+          await lockSubscriptionForSyncRetry(tx, subscriptionSync.subscriptionId)
+        }
         const requeued = await tx
           .update(outboxEvent)
           .set({
@@ -86,13 +97,12 @@ export const POST = withRouteHandler(
           })
           .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
           .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })
-        const subscriptionId = toRecord(existing?.payload).subscriptionId
-        if (
-          requeued.length > 0 &&
-          isSubscriptionSyncEventType(requeued[0].eventType) &&
-          typeof subscriptionId === 'string'
-        ) {
-          await recommitSubscriptionSync(tx, requeued[0].eventType, subscriptionId)
+        if (subscriptionSync && requeued.length > 0) {
+          await recommitSubscriptionSync(
+            tx,
+            subscriptionSync.eventType,
+            subscriptionSync.subscriptionId
+          )
         }
         return requeued
       })

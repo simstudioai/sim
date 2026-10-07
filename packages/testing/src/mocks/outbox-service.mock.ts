@@ -78,7 +78,7 @@ export const outboxServiceMockFns = {
 
 /**
  * Static mock module for `@/lib/core/outbox/service`. Covers every runtime export;
- * `MAX_BULK_ENQUEUE_EVENTS` carries the real value.
+ * `MAX_BULK_ENQUEUE_EVENTS` and `INFLIGHT_OUTBOX_STATUSES` carry the real values.
  *
  * @example
  * ```ts
@@ -87,6 +87,7 @@ export const outboxServiceMockFns = {
  */
 export const outboxServiceMock = {
   MAX_BULK_ENQUEUE_EVENTS: 1_000,
+  INFLIGHT_OUTBOX_STATUSES: ['pending', 'processing'] as const,
   deferOutboxHandler: outboxServiceMockFns.mockDeferOutboxHandler,
   continueOutboxHandler: outboxServiceMockFns.mockContinueOutboxHandler,
   withOutboxHandlerTimeout: outboxServiceMockFns.mockWithOutboxHandlerTimeout,

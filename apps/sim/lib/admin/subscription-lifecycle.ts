@@ -10,6 +10,7 @@ import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/util
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueCancelAtPeriodEndSync,
+  lockSubscriptionForSyncRetry,
   recommitSubscriptionSync,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -261,6 +262,24 @@ export async function requestDashboardSubscriptionCancellation({
       : 'admin-dashboard-cancel-at-period-end')
   const cancellation = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
+    const isThisOperation = and(
+      sql`${outboxEvent.payload} ->> 'operationId' = ${operationId}`,
+      sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+    )
+
+    const [retriedSync] = await tx
+      .select({ subscriptionId: sql<string | null>`${outboxEvent.payload} ->> 'subscriptionId'` })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END),
+          isThisOperation
+        )
+      )
+      .limit(1)
+    if (retriedSync?.subscriptionId) {
+      await lockSubscriptionForSyncRetry(tx, retriedSync.subscriptionId)
+    }
 
     const [existingOperation] = await tx
       .select({
@@ -277,8 +296,7 @@ export async function requestDashboardSubscriptionCancellation({
             OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
             OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY,
           ]),
-          sql`${outboxEvent.payload} ->> 'operationId' = ${operationId}`,
-          sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+          isThisOperation
         )
       )
       .for('update')

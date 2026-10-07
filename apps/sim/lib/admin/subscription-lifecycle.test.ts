@@ -103,6 +103,7 @@ describe('admin subscription cancellation', () => {
 
   it('requeues the same dead-lettered period-end cancellation operation', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: activeSubscription.id }])
+    queueTableRows(outboxEvent, [{ subscriptionId: 'sub-row-1' }])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
@@ -124,6 +125,10 @@ describe('admin subscription cancellation', () => {
       expect.objectContaining({ status: 'pending', attempts: 0, lastError: null })
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
+    expect(billingSubscriptionSyncMockFns.mockLockSubscriptionForSyncRetry).toHaveBeenCalledWith(
+      expect.anything(),
+      'sub-row-1'
+    )
     expect(billingSubscriptionSyncMockFns.mockRecommitSubscriptionSync).toHaveBeenCalledWith(
       expect.anything(),
       'stripe.sync-cancel-at-period-end',
@@ -136,6 +141,7 @@ describe('admin subscription cancellation', () => {
   })
 
   it('replays an immediate cancellation after the webhook removed active entitlement', async () => {
+    queueTableRows(outboxEvent, [])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
@@ -159,6 +165,7 @@ describe('admin subscription cancellation', () => {
   })
 
   it('rejects reuse of a cancellation operation id with different timing', async () => {
+    queueTableRows(outboxEvent, [])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
