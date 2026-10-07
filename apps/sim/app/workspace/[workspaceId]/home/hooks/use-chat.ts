@@ -4365,7 +4365,7 @@ export function useChat(
          chatless surface, whose key dies with the mount, goes to the
          cross-surface lanes. */
       /** The new-chat queue may have moved to its chat while the POST was out. */
-      const { chatKey: requeueKey, index: requeueIndex } = liveQueuePosition(activeChatKey, 0)
+      const { chatKey: requeueKey, index: requeueIndex } = liveQueuePosition(activeChatKey, [])
       const chatless = requeueKey.startsWith(PENDING_CHAT_KEY_PREFIX)
       if (result.reason === 'withdrawn' && chatless) {
         handOffWithdrawnSend({ ...payload, userMessageId: result.userMessageId })
@@ -4906,8 +4906,10 @@ export function useChat(
       const dispatchChatKey = chatKeyRef.current
       const queueAtStart =
         useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
-      let originalIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
-      if (originalIndex === -1) {
+      const startIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
+      /** What was queued ahead of it, which it goes back behind if it is restored. */
+      let aheadIds = queueAtStart.slice(0, Math.max(0, startIndex)).map((queued) => queued.id)
+      if (startIndex === -1) {
         queuedMessageDispatchIds.delete(msg.id)
         return
       }
@@ -4936,7 +4938,7 @@ export function useChat(
            admitted, which moved this queue to that chat. */
         const { chatKey: restoreKey, index: restoreIndex } = liveQueuePosition(
           dispatchChatKey,
-          originalIndex
+          aheadIds
         )
         const chatless = restoreKey.startsWith(PENDING_CHAT_KEY_PREFIX)
         const savedHandoff = readQueuedSendHandoffState()
@@ -5009,7 +5011,7 @@ export function useChat(
         if (currentIndex === -1) {
           return
         }
-        originalIndex = currentIndex
+        aheadIds = queueAtSend.slice(0, currentIndex).map((queued) => queued.id)
 
         // Re-read live: the user may have applied an in-place edit (`replaceAt`)
         // between dispatch scheduling and this send.

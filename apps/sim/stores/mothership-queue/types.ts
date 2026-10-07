@@ -59,8 +59,8 @@ export type QueuedMessageEditPatch = Pick<
 /** A new-chat queue's move to its chat's key. */
 export interface QueueMigration {
   key: string
-  /** Messages the chat's queue already held, which stay ahead of the moved ones. */
-  behind: number
+  /** Ids of the messages the chat's queue already held, which stay ahead of the moved ones. */
+  ahead: string[]
 }
 
 export interface MothershipQueueState {

@@ -200,7 +200,7 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().enqueue('pending::moved', message('moved'))
       useMothershipQueueStore.getState().migrate('pending::moved', 'chat-Y')
 
-      const position = liveQueuePosition('pending::moved', 0)
+      const position = liveQueuePosition('pending::moved', [])
       useMothershipQueueStore.getState().insertAt(position.chatKey, position.index, message('late'))
 
       expect(position).toEqual({ chatKey: 'chat-Y', index: 2 })
@@ -209,6 +209,23 @@ describe('useMothershipQueueStore', () => {
         'older-2',
         'late',
         'moved',
+      ])
+    })
+
+    it('keeps a late write in order when messages ahead of it were removed meanwhile', () => {
+      useMothershipQueueStore.getState().enqueue('chat-Z', message('older'))
+      useMothershipQueueStore.getState().enqueue('pending::sent', message('later'))
+      useMothershipQueueStore.getState().migrate('pending::sent', 'chat-Z')
+      useMothershipQueueStore.getState().remove('chat-Z', 'older')
+
+      const position = liveQueuePosition('pending::sent', [])
+      useMothershipQueueStore
+        .getState()
+        .insertAt(position.chatKey, position.index, message('follow-up'))
+
+      expect(useMothershipQueueStore.getState().queues['chat-Z']?.map((m) => m.id)).toEqual([
+        'follow-up',
+        'later',
       ])
     })
 
