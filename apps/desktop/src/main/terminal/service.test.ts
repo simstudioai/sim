@@ -106,6 +106,8 @@ const { stubSessions } = vi.hoisted(() => ({
       setInterruptible(interruptible: boolean): void
       /** Ends the running command the way its process exiting would. */
       finishRun(exitCode: number): void
+      /** Returns the run as still going, its command left running, as a wait that ran out does. */
+      handBack(): void
       kill: ReturnType<typeof vi.fn>
       readonly runningToolCallId: string | null
     }
@@ -158,6 +160,11 @@ vi.mock('@/main/terminal/session', async () => {
             state.interruptible = interruptible
           },
           finishRun,
+          handBack: () => {
+            const resolve = state.resolveRun
+            state.resolveRun = null
+            resolve?.({ status: 'running', exitCode: null, terminalId })
+          },
           runCommand: (_command: string, toolCallId: string) =>
             new Promise((resolve) => {
               state.busy = true
@@ -570,6 +577,22 @@ describe('stopping a tool call', () => {
 
     expect(session.kill).toHaveBeenCalledWith('SIGINT')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+  })
+
+  it('stops the command a run handed back as still going, once asked for that call', async () => {
+    const { terminal, session } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-handed-back')
+    session.handBack()
+    await expect(running).resolves.toMatchObject({ ok: true, result: { status: 'running' } })
+    // The call is over, so a Stop for it in flight finds nothing.
+    await expect(terminal.cancelTool('call-handed-back')).resolves.toBe(false)
+
+    await terminal.stopAgentCommand('call-other')
+    expect(session.kill).not.toHaveBeenCalled()
+
+    await terminal.stopAgentCommand('call-handed-back')
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.runningToolCallId).toBeNull()
   })
 
   it('leaves a command the user started alone at sign-out', async () => {

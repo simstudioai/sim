@@ -64,6 +64,8 @@ export interface DesktopExecutorServiceDeps {
   onBusyChange?: (busy: boolean) => void
   /** Sim has taken a call's real result as the call's own, so the model has it. */
   onResultDelivered?: (toolCallId: string) => void
+  /** Sim is done with a call whose real result the model never got. */
+  onResultNotDelivered?: (toolCallId: string) => void
 }
 
 export interface DesktopExecutorService {
@@ -275,6 +277,7 @@ export function createDesktopExecutorService(
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
         ...(deps.onBusyChange ? { onBusyChange: deps.onBusyChange } : {}),
         ...(deps.onResultDelivered ? { onResultDelivered: deps.onResultDelivered } : {}),
+        ...(deps.onResultNotDelivered ? { onResultNotDelivered: deps.onResultNotDelivered } : {}),
       })
       // Recovery rewrites the journal, so what it held before is read first.
       await pendingResultsSnapshot()

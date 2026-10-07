@@ -170,6 +170,8 @@ function setup(
   const busy: boolean[] = []
   /** Calls whose result the executor reported as reaching the model, in order. */
   const delivered: string[] = []
+  /** Calls Sim finished with without their real result reaching the model, in order. */
+  const notDelivered: string[] = []
   const executor = new DesktopExecutor({
     client: sim.client,
     journal,
@@ -180,12 +182,23 @@ function setup(
     onBusyChange: (value) => busy.push(value),
     onApprovals: (items) => approvals.push(items),
     onResultDelivered: (toolCallId) => delivered.push(toolCallId),
+    onResultNotDelivered: (toolCallId) => notDelivered.push(toolCallId),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
     ...(options.deliveryAwakeLimitMs !== undefined
       ? { deliveryAwakeLimitMs: options.deliveryAwakeLimitMs }
       : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered, busy, approvals, delivered }
+  return {
+    sim,
+    journal,
+    runner,
+    executor,
+    onUnregistered,
+    busy,
+    approvals,
+    delivered,
+    notDelivered,
+  }
 }
 
 describe('claiming', () => {
@@ -207,13 +220,13 @@ describe('claiming', () => {
   })
 
   it('reports a result as reaching the model only once Sim takes it as the call own', async () => {
-    const { sim, journal, runner, executor, delivered } = setup()
+    const { sim, journal, runner, executor, delivered, notDelivered } = setup()
     runner.immediate = DONE
     // Sim settled this call first: the result never reached the model.
     sim.completionOutcome = 'superseded'
     sim.inbox = [callItem('call-superseded', 'chat-a')]
     await executor.reconcile()
-    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-superseded']))
     expect(delivered).toEqual([])
 
     // Taken by Sim, even with nothing written locally (no OS encryption, say).
@@ -222,10 +235,40 @@ describe('claiming', () => {
     sim.inbox = [callItem('call-recorded', 'chat-a')]
     await executor.reconcile()
     await vi.waitFor(() => expect(delivered).toEqual(['call-recorded']))
+    expect(notDelivered).toEqual(['call-superseded'])
+  })
+
+  it('reports a result Sim settled first, while a failed send waited to retry, as never reaching the model', async () => {
+    const { sim, runner, executor, delivered, notDelivered } = setup()
+    // The terminal handed back a command still going, and the first send of that result fails.
+    runner.immediate = { status: 'success', message: 'running', data: { status: 'running' } }
+    sim.completeErrors = [new DeviceRequestError(503, 'unavailable')]
+    sim.inbox = [callItem('call-1', 'chat-a', 'terminal')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
+
+    // The user pressed Stop meanwhile, so Sim settled the call before the retry reached it.
+    sim.completionOutcome = 'superseded'
+    sim.inbox = [{ kind: 'cancel', toolCallId: 'call-1' }]
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-1']))
+    expect(delivered).toEqual([])
+  })
+
+  it('reports a result Sim refused as never reaching the model', async () => {
+    const { sim, runner, executor, notDelivered } = setup()
+    runner.immediate = DONE
+    sim.completeErrors = [new DeviceRequestError(403, 'forbidden')]
+    sim.inbox = [callItem('call-refused', 'chat-a')]
+
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-refused']))
   })
 
   it('reports no result that stands in for what the action produced as reaching the model', async () => {
-    const { sim, runner, executor, delivered } = setup()
+    const { sim, runner, executor, delivered, notDelivered } = setup()
     const standIns: DesktopToolCompletion[] = [
       { status: 'cancelled', message: 'Stopped.' },
       { status: 'error', message: 'Too large.', data: { resultOmitted: true } },
@@ -243,6 +286,7 @@ describe('claiming', () => {
     sim.inbox = [callItem('real', 'chat-a')]
     await executor.reconcile()
     await vi.waitFor(() => expect(delivered).toEqual(['real']))
+    expect(notDelivered).toEqual(['stand-in-0', 'stand-in-1', 'stand-in-2', 'stand-in-3'])
   })
 
   it('claims a whole backlog at once, before any of it runs', async () => {

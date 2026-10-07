@@ -938,6 +938,13 @@ export class TerminalService {
     await Promise.allSettled(stops)
   }
 
+  /** Stops the command a plain shell's `run` handed back as still going, if it still is. */
+  async stopAgentCommand(toolCallId: string): Promise<void> {
+    await Promise.allSettled(
+      [...this.sessions.values()].map((session) => this.stopCommand(session, toolCallId))
+    )
+  }
+
   /** Waits for the command a run started to end, up to `ms`. */
   private async commandEnds(
     session: TerminalSession,
