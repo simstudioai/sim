@@ -291,13 +291,16 @@ describe('createSSEStream', () => {
     ])
   })
 
-  it('authorizes the events that arrived before it opened once', async () => {
+  it('writes every event queued before it opened once one authorization passes', async () => {
     let live: () => void = () => {}
     let publish: (eventName: string, data: Record<string, unknown>) => void = () => {}
-    const revalidate = vi.fn(async () => {})
+    const authorizations: Array<() => void> = []
     const response = createSSEStream(new NextRequest(new URL('https://sim.test/api/test/stream')), {
       label: 'test',
-      revalidate,
+      revalidate: () =>
+        new Promise<void>((resolve) => {
+          authorizations.push(resolve)
+        }),
       subscriptions: [
         {
           subscribe: (send) => {
@@ -314,13 +317,16 @@ describe('createSSEStream', () => {
     const chunks: string[] = []
     void collect(response.body as ReadableStream<Uint8Array>, chunks)
     for (let n = 1; n <= 10; n += 1) publish('changed', { n })
-
     live()
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(revalidate).toHaveBeenCalledTimes(1)
-    expect(chunks).toHaveLength(11)
-    expect(chunks.at(-1)).toBe('event: changed\ndata: {"n":10}\n\n')
+    authorizations[0]()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(chunks).toEqual([
+      OPENED_COMMENT,
+      ...Array.from({ length: 10 }, (_, index) => `event: changed\ndata: {"n":${index + 1}}\n\n`),
+    ])
   })
 
   it('clears its timers when it closes before it opens', async () => {
