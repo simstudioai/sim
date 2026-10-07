@@ -136,17 +136,6 @@ const setQueueForChat = (
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
 /**
- * The queue key a write captured before an `await` should use now: the key a
- * new-chat queue migrated to once its chat became known, if it did.
- */
-export function liveQueueKey(chatKey: string): string {
-  const { migratedTo } = useMothershipQueueStore.getState()
-  let key = chatKey
-  for (let hops = 0; hops < 8 && migratedTo[key] !== undefined; hops++) key = migratedTo[key].key
-  return key
-}
-
-/**
  * Where a message goes back into its queue after a write captured before an
  * `await`: in the queue's live key, right after the last message still there
  * that was ahead of it (`aheadIds`, plus whatever a chat's queue already held
@@ -158,20 +147,21 @@ export function liveQueuePosition(
   aheadIds: readonly string[]
 ): { chatKey: string; index: number } {
   const { migratedTo, queues } = useMothershipQueueStore.getState()
-  const ahead = new Set(aheadIds)
-  let key = chatKey
-  for (let hops = 0; hops < 8; hops++) {
-    const migration = migratedTo[key]
-    if (!migration) break
-    for (const id of migration.ahead) ahead.add(id)
-    key = migration.key
-  }
+  /** One lookup: only a new-chat key moves, and only to its chat's key, which never does. */
+  const migration = migratedTo[chatKey]
+  const key = migration?.key ?? chatKey
+  const ahead = new Set([...aheadIds, ...(migration?.ahead ?? [])])
   const queue = queues[key] ?? []
   let index = 0
   queue.forEach((message, position) => {
     if (ahead.has(message.id)) index = position + 1
   })
   return { chatKey: key, index }
+}
+
+/** The queue key a write captured before an `await` should use now (see `liveQueuePosition`). */
+export function liveQueueKey(chatKey: string): string {
+  return liveQueuePosition(chatKey, []).chatKey
 }
 
 export const useMothershipQueueStore = create<MothershipQueueState>()(
@@ -259,7 +249,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (fromKey === toKey) return state
             const migratedTo = {
               ...state.migratedTo,
-              [fromKey]: {
+              /** The first move is the real one; a repeat must not rewrite what was ahead. */
+              [fromKey]: state.migratedTo[fromKey] ?? {
                 key: toKey,
                 ahead: (state.queues[toKey] ?? []).map((message) => message.id),
               },

@@ -2866,9 +2866,12 @@ describe('useChat remount send recovery', () => {
         .catch(() => {})
     })
     await waitFor(() => state.postBodies.length === 2)
-    await act(async () => {
-      await sleep(200)
-    })
+    /** The refusal goes back to a queue; the assertions below say which one. */
+    await waitFor(() =>
+      Object.values(useMothershipQueueStore.getState().queues).some((queue) =>
+        queue.some((message) => message.content === 'Follow-up')
+      )
+    )
 
     const queues = useMothershipQueueStore.getState().queues
     expect(queues[DEDUPED_CHAT_ID]?.map((message) => message.content)).toEqual(['Follow-up'])

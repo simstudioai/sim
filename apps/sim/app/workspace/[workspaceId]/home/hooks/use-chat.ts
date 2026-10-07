@@ -5077,7 +5077,7 @@ export function useChat(
       }
       clearQueuedSendHandoffState(msg.id)
       clearQueuedSendHandoffClaim(msg.id)
-      useMothershipQueueStore.getState().remove(liveQueueKey(chatKey), msg.id)
+      useMothershipQueueStore.getState().remove(chatKey, msg.id)
       return true
     },
     [queryClient]
