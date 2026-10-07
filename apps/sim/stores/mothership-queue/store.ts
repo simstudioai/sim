@@ -147,7 +147,10 @@ export function liveQueuePosition(
   aheadIds: readonly string[]
 ): { chatKey: string; index: number } {
   const { migratedTo, queues } = useMothershipQueueStore.getState()
-  /** One lookup: only a new-chat key moves, and only to its chat's key, which never does. */
+  /* One lookup: only a new-chat key moves, and only to its chat's key, which never
+     does. \`useChat\` migrates only from its pending sentinel key to the resolved chat
+     id (the chat-resolution effect and the detached chat resolution), never from a
+     chat key. */
   const migration = migratedTo[chatKey]
   const key = migration?.key ?? chatKey
   const ahead = new Set([...aheadIds, ...(migration?.ahead ?? [])])

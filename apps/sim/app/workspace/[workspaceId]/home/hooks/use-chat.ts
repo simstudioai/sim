@@ -182,7 +182,11 @@ import {
   writeQueuedSendHandoffState,
 } from './send-handoff'
 import {
+  acceptedMessageIds,
+  needsResendCheck,
+  type ResendVerdict,
   requeuedFields,
+  resendVerdict,
   sendPayload,
   sendRetry,
   type WithdrawalReason,
@@ -718,13 +722,11 @@ export function getWorkflowCopilotUseChatOptions(
   }
 }
 
-/** Ids of the sends a chat's history shows the server accepted: its user messages and running turn. */
-function acceptedMessageIds(history: MothershipChatHistory): Set<string> {
-  const ids = new Set(
-    history.messages.filter((message) => message.role === 'user').map((message) => message.id)
-  )
-  if (history.activeStreamId) ids.add(history.activeStreamId)
-  return ids
+/** Removes a queued send and the handoff state and claim kept for it. */
+function discardQueuedSend(chatKey: string, id: string): void {
+  clearQueuedSendHandoffState(id)
+  clearQueuedSendHandoffClaim(id)
+  useMothershipQueueStore.getState().remove(chatKey, id)
 }
 
 export function useChat(
@@ -5051,36 +5053,34 @@ export function useChat(
   )
 
   /**
-   * Whether the queue drain must not send a message that may already have been
-   * admitted, checked against its chat's history (read fresh). The server
-   * deduplicates a resend only while the earlier attempt's claim lasts, which a
-   * long outage, online or off, outlives. An entry the history shows is dropped.
-   * One whose history cannot be read waits on a growing delay instead: the read
-   * failing says nothing about whether the attempt ran.
+   * The resend verdict for a queued message, reading its chat's history fresh
+   * only when the message may already be a turn there (`needsResendCheck`).
    */
-  const mustNotResend = useCallback(
-    async (chatKey: string, msg: QueuedMothershipMessage): Promise<boolean> => {
-      const requestId = reusedRequestId(msg)
-      if (!msg.admissionUnknown || !requestId || chatKey.startsWith(PENDING_CHAT_KEY_PREFIX))
-        return false
+  const checkResend = useCallback(
+    async (chatKey: string, msg: QueuedMothershipMessage): Promise<ResendVerdict> => {
+      if (!needsResendCheck(msg) || chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) return 'send'
       const history = await queryClient
         .fetchQuery({ ...mothershipChatHistoryQueryOptions(chatKey), staleTime: 0 })
-        .catch(() => undefined)
-      if (history && !acceptedMessageIds(history).has(requestId)) return false
-      /** Sent by hand meanwhile: that dispatch owns the entry now. */
-      if (queuedMessageDispatchIds.has(msg.id)) return true
-      if (!history) {
-        useMothershipQueueStore
-          .getState()
-          .deferRetry(chatKey, msg.id, sendRetry((msg.retry?.attempt ?? 0) + 1))
-        return true
-      }
-      clearQueuedSendHandoffState(msg.id)
-      clearQueuedSendHandoffClaim(msg.id)
-      useMothershipQueueStore.getState().remove(chatKey, msg.id)
-      return true
+        .catch(() => null)
+      return resendVerdict(msg, history)
     },
     [queryClient]
+  )
+
+  /** Holds back a message the verdict says must wait, or discards one already sent. */
+  const applyResendVerdict = useCallback(
+    (chatKey: string, msg: QueuedMothershipMessage, verdict: 'wait' | 'drop') => {
+      /** Sent by hand meanwhile: that dispatch owns the entry now. */
+      if (queuedMessageDispatchIds.has(msg.id)) return
+      if (verdict === 'drop') {
+        discardQueuedSend(chatKey, msg.id)
+        return
+      }
+      useMothershipQueueStore
+        .getState()
+        .deferRetry(chatKey, msg.id, sendRetry((msg.retry?.attempt ?? 0) + 1))
+    },
+    []
   )
 
   const runQueueDispatchLoop = useCallback(async () => {
@@ -5107,7 +5107,11 @@ export function useChat(
         // Pause draining if the head is bound to the composer; dispatching now
         // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
-        if (await mustNotResend(activeChatKey, msg)) continue
+        const verdict = await checkResend(activeChatKey, msg)
+        if (verdict !== 'send') {
+          applyResendVerdict(activeChatKey, msg, verdict)
+          continue
+        }
 
         await dispatchQueuedMessage(msg, { epoch: action.epoch })
       }
@@ -5123,7 +5127,7 @@ export function useChat(
         void queueDispatchLoopRef.current()
       }
     })
-  }, [dispatchQueuedMessage, hasPendingChatAdmission, mustNotResend])
+  }, [dispatchQueuedMessage, hasPendingChatAdmission, checkResend, applyResendVerdict])
   queueDispatchLoopRef.current = runQueueDispatchLoop
 
   const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {
@@ -5139,9 +5143,7 @@ export function useChat(
     if (queuedMessageDispatchIds.has(id)) {
       userRemovedDuringDispatch.add(id)
     }
-    clearQueuedSendHandoffState(id)
-    clearQueuedSendHandoffClaim(id)
-    useMothershipQueueStore.getState().remove(chatKeyRef.current, id)
+    discardQueuedSend(chatKeyRef.current, id)
   }, [])
 
   const sendQueuedMessageImmediately = useCallback(
@@ -5152,6 +5154,28 @@ export function useChat(
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
+      /* Sent by hand, it still must not run a second turn: if the history shows it
+         accepted, it is already in the chat. A history that cannot be read does not
+         hold it back here; the user asked to send it, and the server deduplicates it
+         while the earlier attempt's claim lasts. */
+      if ((await checkResend(chatKey, msg)) === 'drop') {
+        applyResendVerdict(chatKey, msg, 'drop')
+        return
+      }
+      /* The read took time. Only what is still this view's queued, unedited and
+         undispatched message may stop the running turn and go out. An entry that
+         needed the read cannot be in the editor (editing refuses one possibly
+         sent); the editing check covers an entry that skipped it. */
+      const afterRead = useMothershipQueueStore.getState()
+      if (
+        chatKeyRef.current !== chatKey ||
+        !surfaceMountedRef.current ||
+        queuedMessageDispatchIds.has(msg.id) ||
+        afterRead.editing[chatKey] === msg.id ||
+        !afterRead.queues[chatKey]?.some((queued) => queued.id === msg.id)
+      ) {
+        return
+      }
       const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
@@ -5203,6 +5227,8 @@ export function useChat(
       organizationId,
       scopeKey,
       hasPendingChatAdmission,
+      checkResend,
+      applyResendVerdict,
     ]
   )
 
@@ -5264,9 +5290,7 @@ export function useChat(
       if (queuedMessageDispatchIds.has(queued.id)) continue
       const requestId = reusedRequestId(queued)
       if (!requestId || !accepted.has(requestId)) continue
-      clearQueuedSendHandoffState(queued.id)
-      clearQueuedSendHandoffClaim(queued.id)
-      useMothershipQueueStore.getState().remove(chatHistory.id, queued.id)
+      discardQueuedSend(chatHistory.id, queued.id)
     }
   }, [chatHistory, messageQueue])
 

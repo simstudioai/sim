@@ -21,6 +21,13 @@ describe('useMothershipQueueStore rehydration', () => {
               { id: 'for-network', content: 'b', retryRequired: true, heldUntilOnline: true },
               { id: 'retrying', content: 'c', sendRetries: 2, notBefore: 1_000 },
               { id: 'plain', content: 'd' },
+              { id: 'main-shape', content: 'e', retryRequired: false },
+              {
+                id: 'new-shape',
+                content: 'f',
+                hold: 'online',
+                retry: { attempt: 1, notBefore: 5 },
+              },
             ],
           },
         },
@@ -35,6 +42,8 @@ describe('useMothershipQueueStore rehydration', () => {
       { id: 'for-network', content: 'b', hold: 'online' },
       { id: 'retrying', content: 'c', retry: { attempt: 2, notBefore: 1_000 } },
       { id: 'plain', content: 'd' },
+      { id: 'main-shape', content: 'e' },
+      { id: 'new-shape', content: 'f', hold: 'online', retry: { attempt: 1, notBefore: 5 } },
     ])
   })
 
