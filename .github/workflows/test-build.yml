@@ -242,11 +242,12 @@ jobs:
           server_log="$report_dir/scim-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          E2E_APP=scim setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
+          app_tag="scim-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            bash ../../.github/scripts/stop-session.sh "$server_pid" scim || status=1
+            bash ../../.github/scripts/stop-session.sh "$server_pid" "$app_tag" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
             if [ "$status" -ne 0 ]; then
@@ -295,11 +296,12 @@ jobs:
           server_log="$report_dir/cli-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          E2E_APP=cli setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          app_tag="cli-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            bash ../../.github/scripts/stop-session.sh "$server_pid" cli || status=1
+            bash ../../.github/scripts/stop-session.sh "$server_pid" "$app_tag" || status=1
             wait "$server_pid" 2>/dev/null || true
             if [ "$status" -ne 0 ]; then
               tail -n 200 "$server_log"
@@ -346,11 +348,12 @@ jobs:
           server_log="$report_dir/stop-after-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          E2E_APP=stop-after setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          app_tag="stop-after-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            bash ../../.github/scripts/stop-session.sh "$server_pid" stop-after || status=1
+            bash ../../.github/scripts/stop-session.sh "$server_pid" "$app_tag" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
             if [ "$status" -ne 0 ]; then
@@ -397,11 +400,12 @@ jobs:
           server_log="$report_dir/desktop-inbox-next.log"
           mkdir -p "$report_dir"
           rm -rf .next/dev
-          E2E_APP=desktop-inbox setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
+          app_tag="desktop-inbox-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          E2E_APP="$app_tag" setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             status=$?
-            bash ../../.github/scripts/stop-session.sh "$server_pid" desktop-inbox || status=1
+            bash ../../.github/scripts/stop-session.sh "$server_pid" "$app_tag" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
             if [ "$status" -ne 0 ]; then

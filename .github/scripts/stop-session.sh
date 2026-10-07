@@ -3,8 +3,11 @@
 #
 # Usage: stop-session.sh <session-leader-pid> <app-tag>
 #
-# Start the app as `E2E_APP=<app-tag> setsid <command> &`. Its processes are the members of the
-# leader's session, plus any process that inherited `E2E_APP=<app-tag>` but left the session.
+# Start the app as `E2E_APP=<app-tag> setsid <command> &`, with a tag no other process of this
+# user carries (CI uses `<app>-<run id>-<attempt>-<shell pid>`). Its processes are the members of
+# the leader's session, plus any process whose environment holds exactly `E2E_APP=<app-tag>` but
+# left the session. This script, its ancestors and its own children are never signalled, even
+# when they carry the tag.
 # `next dev` needs both: its server and workers stay in the session, while its telemetry flush is
 # spawned detached, in a session of its own, and writes .next/dev/trace after `next dev` exits.
 # The next app in the job wipes that directory, so it must not start while any of them runs.
@@ -20,11 +23,55 @@ leader=$1
 tag=$2
 grace_seconds=10
 
+# Sets `state` and `parent` from /proc/<pid>/stat without forking, so a scan stays cheap, and
+# fails once the process is gone. The command name can hold spaces and parentheses, so the
+# fields are read after its last ")".
+read_stat() {
+  local stat rest
+  read -r stat < "/proc/$1/stat" 2>/dev/null || return 1
+  rest=${stat##*") "}
+  state=${rest%% *}
+  rest=${rest#* }
+  parent=${rest%% *}
+}
+
+ancestors=" "
+pid=$$
+while read_stat "$pid" && [ "$parent" -gt 0 ]; do
+  ancestors+="$parent "
+  pid=$parent
+  [ "$pid" -eq 1 ] && break
+done
+
+# This script, an ancestor of it, or one of its own subshells and commands, which inherit the tag
+# when the caller exported it. When a process on the walk exits mid-walk, the candidate has been
+# reparented, so the walk restarts from it; ancestry that still won't resolve counts as not ours,
+# so an app process is never spared by accident.
+is_own() {
+  local candidate=$1 pid attempt
+  [[ "$ancestors" == *" $candidate "* ]] && return 0
+  for attempt in 1 2 3; do
+    pid=$candidate
+    while [ "$pid" -gt 1 ]; do
+      [ "$pid" -eq $$ ] && return 0
+      read_stat "$pid" || continue 2
+      pid=$parent
+    done
+    return 1
+  done
+  return 1
+}
+
 app_pids() {
+  local pid
   {
-    ps -s "$leader" -o pid=,stat= 2>/dev/null | awk '$2 !~ /^Z/ { print $1 }'
-    grep -lzx "E2E_APP=$tag" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3
-  } | sort -u
+    ps -s "$leader" -o pid= 2>/dev/null
+    grep -Flzx "E2E_APP=$tag" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3
+  } | sort -u | while read -r pid; do
+    read_stat "$pid" || continue
+    [ "$state" = Z ] && continue
+    is_own "$pid" || echo "$pid"
+  done
 }
 
 signal_app() {
@@ -44,7 +91,10 @@ leader_running() {
 list_app() {
   local pids
   pids=$(app_pids | paste -sd, -)
-  [ -z "$pids" ] || ps -p "$pids" -o pid,sid,stat,etimes,args 2>/dev/null | cut -c1-200 || true
+  [ -z "$pids" ] && return
+  ps -p "$pids" -o pid,sid,stat,etimes,args 2>/dev/null |
+    awk '/next\/dist\/telemetry\/detached-flush\.js/ { print "(expected telemetry flush) " $0; next } { print }' |
+    cut -c1-220 || true
 }
 
 # Centiseconds since boot: monotonic, and independent of the locale's decimal separator.
@@ -54,14 +104,20 @@ now_cs() {
   echo "${uptime/./}"
 }
 
-# Re-sends the signal every 0.1s while the check holds, until the shared deadline.
-# Succeeds once the check stops holding.
+# Re-sends the signal every 0.1s while the check holds, until the shared deadline. Succeeds
+# once the check has stopped holding on two scans 0.1s apart, so a process missed by one scan
+# (spawned, or mid-reparenting, while it ran) is still caught.
 signal_while() {
-  local signal=$1
+  local signal=$1 clear=0
   shift
   while ((10#$(now_cs) < deadline)); do
-    "$@" || return 0
-    signal_app "$signal"
+    if "$@"; then
+      clear=0
+      signal_app "$signal"
+    else
+      clear=$((clear + 1))
+      ((clear >= 2)) && return 0
+    fi
     sleep 0.1
   done
   ! "$@"
