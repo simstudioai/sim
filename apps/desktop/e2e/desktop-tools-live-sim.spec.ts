@@ -539,7 +539,9 @@ test.describe('desktop tools against a live Sim', () => {
           typeof body.desktopCapabilities === 'object' && body.desktopCapabilities !== null
             ? body.desktopCapabilities
             : {}
-        body.desktopCapabilities = { ...desktop, deviceId, executor: 1 }
+        // The app offers its own install when it speaks the executor protocol; otherwise offer
+        // the device registered above, as such a desktop would.
+        body.desktopCapabilities = { deviceId, executor: 1, ...desktop }
       })
 
       let callId = ''
@@ -570,11 +572,20 @@ test.describe('desktop tools against a live Sim', () => {
       const [call] = await db.toolCalls(user.chats['Round trip'])
       expect(call).toMatchObject({ toolName: 'read_local_file', status: 'completed' })
       expect(call.persistSeq).not.toBeNull()
-      // From launch on, only the foreground claim reaches the desktop routes: no registry, inbox,
-      // lease or completion.
-      const desktopRoutes = proxy.seen(since, '/api/desktop/').map((entry) => entry.path)
-      expect(desktopRoutes.length).toBeGreaterThan(0)
-      expect(new Set(desktopRoutes)).toEqual(new Set(['/api/desktop/tool/authorize']))
+      // From launch on, the app only registers and claims the foreground call: no inbox, doorbell,
+      // executor claim, lease or completion. It registers once signed out (refused) and again on
+      // sign-in, which Sim answers as not enabled and does not record.
+      const registeredSignedIn = () =>
+        proxy
+          .seen(since, '/api/desktop/devices')
+          .some((entry) => entry.method === 'POST' && entry.status === 200)
+      await expect.poll(registeredSignedIn, { timeout: 30_000 }).toBe(true)
+      expect(await db.desktopDeviceCount(user.userId)).toBe(0)
+      const desktopRequests = proxy.seen(since, '/api/desktop/')
+      const desktopRoutes = new Set(desktopRequests.map((entry) => entry.path))
+      expect(desktopRoutes).toContain('/api/desktop/tool/authorize')
+      desktopRoutes.delete('/api/desktop/devices')
+      expect(desktopRoutes).toEqual(new Set(['/api/desktop/tool/authorize']))
       expect(proxy.rewrittenChatBodies).toBeGreaterThan(0)
       expect(monitor.lines.length).toBeGreaterThan(0)
       expect(monitor.publishesTo('desktop:inbox')).toEqual([])

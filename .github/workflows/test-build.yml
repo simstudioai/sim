@@ -516,15 +516,19 @@ jobs:
           # Bundle only: `bun run build` also fetches the macOS node-pty prebuilds for packaging,
           # which a Linux run does not use.
           (cd apps/desktop && bun run scripts/build.ts)
+          # Each app runs in its own session, and stop-session.sh returns once all of it has exited.
           (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
-            exec bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
+            exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
           realtime_pid=$!
-          (cd apps/sim && exec node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+          (cd apps/sim && exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
             --port 3021 > "$report_dir/desktop-tools-next.log" 2>&1) &
           server_pid=$!
           finish() {
-            kill "$server_pid" "$realtime_pid" 2>/dev/null || true
+            status=$?
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" || status=1
             wait "$server_pid" "$realtime_pid" 2>/dev/null || true
+            exit "$status"
           }
           trap finish EXIT
           started=$SECONDS
