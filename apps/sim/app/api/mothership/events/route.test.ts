@@ -174,6 +174,34 @@ describe('Mothership owner-scoped event stream', () => {
     expect(chunks).toEqual([])
   })
 
+  it.each(['workspaceId=ws-1', 'organizationId=org-1'])(
+    'opens the %s stream once chat status events reach this process',
+    async (query) => {
+      let live: () => void = () => {}
+      mothershipChatStatusMockFns.mockReady.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          live = resolve
+        })
+      )
+      const response = await GET(request(query))
+      let first: string | undefined
+      if (!response.body) throw new Error('The event stream has no body')
+      void response.body
+        .getReader()
+        .read()
+        .then(({ value }) => {
+          first = new TextDecoder().decode(value)
+        })
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(first).toBeUndefined()
+
+      live()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(first).toBe(OPENED_COMMENT)
+    }
+  )
+
   it('preserves workspace status events and excludes organization events', async () => {
     const abort = new AbortController()
     const response = await GET(request('workspaceId=ws-1', abort.signal))

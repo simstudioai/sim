@@ -8,6 +8,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { noop } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import type { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -164,14 +165,17 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         })
         return authorization
       }
-      /** Settles when the stream announces itself; events wait for it so none opens it early. */
-      let opening: Promise<void> = Promise.resolve()
+      /**
+       * The stream's writes in order: the opening, then each event once it is authorized. An event
+       * waits here while the stream has not opened or an earlier event is still being written.
+       */
+      let writes: Promise<void> = Promise.resolve()
       let opened = false
       let pendingEvents = 0
       const send = (eventName: string, data: Record<string, unknown>) => {
         if (cleaned) return
         const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
-        if (opened && !config.revalidate) {
+        if (opened && pendingEvents === 0 && !config.revalidate) {
           enqueue(payload)
           return
         }
@@ -180,19 +184,24 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
           return
         }
         pendingEvents += 1
+        // Authorized as soon as it arrives, so concurrent events share one check, but written only
+        // after every event before it.
         const authorized = opened
           ? revalidate()
-          : opening.then(() => (cleaned ? undefined : revalidate()))
-        void authorized.then(
-          () => {
-            pendingEvents -= 1
-            enqueue(payload)
-          },
-          () => {
-            pendingEvents -= 1
-            close('authorization_lost')
-          }
-        )
+          : writes.then(() => (cleaned ? undefined : revalidate()))
+        authorized.catch(noop)
+        writes = writes
+          .then(() => authorized)
+          .then(
+            () => {
+              pendingEvents -= 1
+              enqueue(payload)
+            },
+            () => {
+              pendingEvents -= 1
+              close('authorization_lost')
+            }
+          )
       }
 
       try {
@@ -200,11 +209,16 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         // one as soon as it opens. A client reads its state once the stream opens, so it opens once
         // every subscription receives events, or at the deadline when one is in an outage. A
         // heartbeat cannot open it first: the deadline is shorter than the heartbeat interval.
-        opening = Promise.race([
+        // Closing settles it too, so a stream closed before it opened is not kept alive by a
+        // subscription that never becomes ready.
+        writes = Promise.race([
           Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())),
           new Promise<void>((resolve) => {
             const deadline = setTimeout(resolve, OPEN_DEADLINE_MS)
-            teardowns.push(() => clearTimeout(deadline))
+            teardowns.push(() => {
+              clearTimeout(deadline)
+              resolve()
+            })
           }),
         ]).then(
           () => {
