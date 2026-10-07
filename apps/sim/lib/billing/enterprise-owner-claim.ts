@@ -11,6 +11,10 @@ import { getEmailSubject, renderEnterpriseOwnerInvitationEmail } from '@/compone
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
+  ENTERPRISE_OWNER_ACTIVATION_EVENT_TYPE,
+  ENTERPRISE_OWNER_CLAIM_EVENT_TYPE,
+} from '@/lib/billing/enterprise-owner-claim-events'
+import {
   assertEnterpriseInvitationEligibility,
   EnterpriseProvisioningError,
   getEnterpriseIssuanceSeatRequirement,
@@ -42,8 +46,6 @@ import {
 } from '@/lib/workspaces/create'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
-export const ENTERPRISE_OWNER_CLAIM_EVENT_TYPE = 'enterprise.invite-owner'
-export const ENTERPRISE_OWNER_ACTIVATION_EVENT_TYPE = 'enterprise.activate-owner-claim'
 export const ENTERPRISE_OWNER_CLAIM_EXPIRY_DAYS = INVITATION_EXPIRY_DAYS
 
 const logger = createLogger('EnterpriseOwnerClaim')

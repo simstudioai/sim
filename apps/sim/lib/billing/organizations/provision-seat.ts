@@ -16,7 +16,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 

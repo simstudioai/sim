@@ -47,6 +47,7 @@ import {
   NonRetryableDeploymentError,
   parseDeploymentReadiness,
 } from '@/lib/workflows/deployment-lifecycle'
+import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 import {
   activateDeploymentOperation,
   beginDeploymentOperationActivation,
@@ -73,15 +74,6 @@ import { activateForkSyncProvenance } from '@/ee/workspace-forking/lib/promote/s
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
-
-export const WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS = {
-  PREPARE_V2: 'workflow.deployment.prepare.v2',
-  /** One-release rolling compatibility for events admitted by pre-v2 pods. */
-  SYNC_ACTIVE_SIDE_EFFECTS: 'workflow.deployment.sync-active-side-effects',
-  /** One-release rolling compatibility for cleanup admitted by pre-v2 pods. */
-  CLEANUP_INACTIVE_SIDE_EFFECTS: 'workflow.deployment.cleanup-inactive-side-effects',
-  CLEANUP_UNDEPLOYED_SIDE_EFFECTS: 'workflow.deployment.cleanup-undeployed-side-effects',
-} as const
 
 export const DEPLOYMENT_READINESS_COMPONENTS = ['webhooks', 'schedules', 'mcp'] as const
 

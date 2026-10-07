@@ -1,4 +1,3 @@
-import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,40 +17,7 @@ vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
 vi.mock('@/lib/knowledge/connectors/connector-error', () => ({
   getConnectorFailureDiagnostic: () => undefined,
 }))
-vi.mock('@/lib/admin/invitation-operation', () => ({ adminInvitationOperationOutboxHandlers: {} }))
-vi.mock('@/lib/admin/member-operation', () => ({ adminMemberOperationOutboxHandlers: {} }))
-vi.mock('@/lib/billing/enterprise-owner-claim', () => ({ enterpriseOwnerClaimOutboxHandlers: {} }))
-vi.mock('@/lib/billing/enterprise-provisioning', () => ({ enterpriseIssuanceOutboxHandlers: {} }))
-vi.mock('@/lib/billing/organizations/membership-reconciliation', () => ({
-  membershipBillingOutboxHandlers: {},
-}))
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
-vi.mock('@/lib/invitations/direct-grant', () => ({ directGrantOutboxHandlers: {} }))
-vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
-  slackSearchOutboxHandlers: {},
-}))
-vi.mock('@/lib/knowledge/documents/processing-outbox-handler', () => ({
-  knowledgeDocumentProcessingOutboxHandlers: {},
-}))
-vi.mock('@/lib/mothership/inbox/cleanup-outbox', () => ({ inboxCleanupOutboxHandlers: {} }))
-vi.mock('@/lib/organizations/resource-cleanup', () => ({
-  organizationResourceCleanupOutboxHandlers: {},
-}))
-vi.mock('@/ee/access-requests/lib/notifications', () => ({
-  permissionAccessRequestOutboxHandlers: {},
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
-  workspaceFileLiveDocOutboxHandlers: {},
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
-  workspaceFileStorageCleanupOutboxHandlers: {},
-}))
-vi.mock('@/lib/workflows/deployment-outbox', () => ({ workflowDeploymentOutboxHandlers: {} }))
-vi.mock('@/lib/workspaces/admin-move', () => ({ invitationMigrationOutboxHandlers: {} }))
-vi.mock('@/lib/workspaces/operations/outbox', () => ({ workspaceOperationOutboxHandlers: {} }))
-vi.mock('@/ee/workspace-forking/application/content-outbox', () => ({
-  forkContentOutboxHandlers: {},
-}))
+vi.mock('@/lib/core/outbox/handlers', () => ({ OUTBOX_HANDLER_GROUPS: [] }))
 
 import { runOutboxProcessor } from '@/lib/core/outbox/processor'
 

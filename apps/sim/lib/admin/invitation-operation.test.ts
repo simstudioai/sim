@@ -11,10 +11,10 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import {
-  ADMIN_INVITATION_OPERATION_EVENT_TYPE,
   adminInvitationOperationOutboxHandlers,
   createAdminInvitationOperation,
 } from '@/lib/admin/invitation-operation'
+import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 
 const mocks = {
   enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,

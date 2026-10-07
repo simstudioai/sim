@@ -30,10 +30,8 @@ import {
   sql,
 } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import {
-  ADMIN_INVITATION_OPERATION_EVENT_TYPE,
-  parseAdminInvitationOperationPayload,
-} from '@/lib/admin/invitation-operation'
+import { parseAdminInvitationOperationPayload } from '@/lib/admin/invitation-operation'
+import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import { resolveEnterpriseReportingPeriod } from '@/lib/billing/core/reporting-period'
@@ -76,7 +74,7 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { env } from '@/lib/core/config/env'
 import {
   continueOutboxHandler,
@@ -94,10 +92,8 @@ import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,
 } from '@/lib/invitations/workspace-invitations'
-import {
-  MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
-  moveWorkspaceToOrganization,
-} from '@/lib/workspaces/admin-move'
+import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)

@@ -2,6 +2,7 @@ import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type OutboxRow = {
@@ -571,5 +572,103 @@ describe('processOutboxEvents — reaper recovery', () => {
     )
     expect(reaperUpdate).toBeDefined()
     expect(reaperUpdate?.lockedAt).toBeNull()
+  })
+})
+
+describe('processOutboxEvents — lazy handler groups', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /** Event types the claim phase selected, in claim order. */
+  const claimedEventTypes = (): unknown[] =>
+    vi
+      .mocked(eq)
+      .mock.calls.filter(([column]) => column === outboxEvent.eventType)
+      .map(([, eventType]) => eventType)
+
+  it('imports only the handler modules whose event types are due', async () => {
+    const handler = vi.fn(async () => {})
+    const idle = { events: ['test.idle'], load: vi.fn(async () => ({ 'test.idle': vi.fn() })) }
+    queuePendingEvents([makePendingRow()])
+    holdLease()
+
+    const result = await processOutboxEvents([
+      { events: ['test.event'], load: async () => ({ 'test.event': handler }) },
+      idle,
+    ])
+
+    expect(result.processed).toBe(1)
+    expect(handler).toHaveBeenCalledOnce()
+    expect(idle.load).not.toHaveBeenCalled()
+  })
+
+  it('leaves the events of a module that fails to import unclaimed and imports it again next run', async () => {
+    const recoveredHandler = vi.fn(async () => {})
+    const healthyHandler = vi.fn(async () => {})
+    const flaky = {
+      events: ['test.flaky'],
+      load: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Cannot find module'))
+        .mockResolvedValue({ 'test.flaky': recoveredHandler }),
+    }
+    const groups = [
+      flaky,
+      { events: ['test.healthy'], load: async () => ({ 'test.healthy': healthyHandler }) },
+    ]
+    dbChainMockFns.execute.mockResolvedValueOnce([
+      { eventType: 'test.flaky' },
+      { eventType: 'test.healthy' },
+    ])
+    queueTableRows(outboxEvent, [makePendingRow({ eventType: 'test.healthy' })])
+    holdLease()
+
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      retried: 0,
+      deadLettered: 0,
+    })
+    expect(healthyHandler).toHaveBeenCalledOnce()
+    expect(claimedEventTypes()).not.toContain('test.flaky')
+    expect(updateSets().some((set) => 'attempts' in set)).toBe(false)
+
+    resetDbChainMock()
+    queuePendingEvents([makePendingRow({ eventType: 'test.flaky' })])
+    holdLease()
+
+    expect(await processOutboxEvents(groups)).toMatchObject({ processed: 1 })
+    expect(recoveredHandler).toHaveBeenCalledOnce()
+  })
+
+  it('sizes the pre-claim deadline check from the imported handler window', async () => {
+    const handler = withOutboxHandlerTimeout(
+      vi.fn(async () => {}),
+      550_000
+    )
+    queuePendingEvents([makePendingRow()])
+    holdLease()
+
+    const result = await processOutboxEvents(
+      [{ events: ['test.event'], load: async () => ({ 'test.event': handler }) }],
+      { maxRuntimeMs: 110_000 }
+    )
+
+    expect(result).toMatchObject({ processed: 0, retried: 0 })
+    expect(handler).not.toHaveBeenCalled()
+    expect(updateSets().some((set) => set.status === 'processing')).toBe(false)
+  })
+
+  it('still retries an event type that no handler module declares', async () => {
+    const load = vi.fn(async () => ({ 'test.event': vi.fn() }))
+    queuePendingEvents([makePendingRow({ eventType: 'unknown.event' })])
+    holdLease()
+
+    const result = await processOutboxEvents([{ events: ['test.event'], load }])
+
+    expect(result.retried).toBe(1)
+    const retry = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(retry?.attempts).toBe(1)
+    expect(load).not.toHaveBeenCalled()
   })
 })

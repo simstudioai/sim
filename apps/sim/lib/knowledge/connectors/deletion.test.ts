@@ -18,10 +18,8 @@ vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
 vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 
-import {
-  cleanupKnowledgeConnector,
-  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
-} from '@/lib/knowledge/connectors/deletion'
+import { cleanupKnowledgeConnector } from '@/lib/knowledge/connectors/deletion'
+import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 
 const mocks = {
   ...hoisted,

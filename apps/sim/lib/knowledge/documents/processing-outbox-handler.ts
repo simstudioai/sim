@@ -9,33 +9,27 @@ import {
 } from '@/lib/core/outbox/service'
 import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import { cleanupKnowledgeConnector } from '@/lib/knowledge/connectors/deletion'
+import { detachKnowledgeConnector } from '@/lib/knowledge/connectors/detachment'
 import {
-  cleanupKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
-} from '@/lib/knowledge/connectors/deletion'
-import {
-  detachKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
-} from '@/lib/knowledge/connectors/detachment'
+} from '@/lib/knowledge/connectors/outbox-events'
+import {
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/checkpoint-events'
 import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
-import {
-  cleanupEmbeddingCheckpoint,
-  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
-} from '@/lib/knowledge/documents/embedding-checkpoints'
-import {
-  cleanupOcrCheckpoint,
-  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
-} from '@/lib/knowledge/documents/ocr-checkpoints'
+import { cleanupEmbeddingCheckpoint } from '@/lib/knowledge/documents/embedding-checkpoints'
+import { cleanupOcrCheckpoint } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
-import {
-  dispatchDocumentProcessingContinuation,
-  KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
-} from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { dispatchDocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,

@@ -1,2 +1,3 @@
 export const PERMISSION_ACCESS_REQUEST_CREATED_EVENT = 'permission-access-request.created'
 export const PERMISSION_ACCESS_REQUEST_DECIDED_EVENT = 'permission-access-request.decided'
+export const PERMISSION_ACCESS_REQUEST_NOTIFY_ADMIN_EVENT = 'permission-access-request.notify-admin'
