@@ -33,8 +33,9 @@ export function readOnlyCliTransport(transport: typeof fetch): typeof fetch {
     const request = new Request(input, init)
     const path = new URL(request.url).pathname
     if (
-      request.method !== 'GET' &&
-      !(request.method === 'POST' && /^\/api\/v2\/tables\/[^/]+\/query(?:\/count)?$/.test(path))
+      /^\/api\/v2\/secrets(?:\/|$)/.test(path) ||
+      (request.method !== 'GET' &&
+        !(request.method === 'POST' && /^\/api\/v2\/tables\/[^/]+\/query(?:\/count)?$/.test(path)))
     ) {
       return Response.json(
         {

@@ -54,7 +54,7 @@ describe.skipIf(!connection)('computer use one-shot admission in PostgreSQL', ()
       `CREATE TABLE copilot_runs (id uuid PRIMARY KEY, chat_id uuid NOT NULL, user_id text NOT NULL, status text NOT NULL, tool_admission_closed_at timestamp)`
     )
     await connection.unsafe(
-      `CREATE TABLE copilot_async_tool_calls (tool_call_id text PRIMARY KEY, run_id uuid NOT NULL, tool_name text NOT NULL, args jsonb NOT NULL, status text NOT NULL, claimed_by text, claimed_at timestamp, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now())`
+      `CREATE TABLE copilot_async_tool_calls (tool_call_id text PRIMARY KEY, run_id uuid NOT NULL, tool_name text NOT NULL, args jsonb NOT NULL, status text NOT NULL, claimed_by text, claimed_at timestamp, permission_requested_at timestamp, permission_decision text, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now())`
     )
     database.current = drizzle(connection)
   })
@@ -80,6 +80,27 @@ describe.skipIf(!connection)('computer use one-shot admission in PostgreSQL', ()
     await requireConnection()`UPDATE copilot_runs SET tool_admission_closed_at = now()`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
+  it.each([
+    { requested: true, decision: null },
+    { requested: true, decision: 'skip' },
+    { requested: false, decision: 'skip' },
+  ])(
+    'refuses an unapproved action with gate $requested and decision $decision',
+    async ({ requested, decision }) => {
+      await requireConnection()`UPDATE copilot_async_tool_calls SET permission_requested_at = CASE WHEN ${requested} THEN now() ELSE NULL END, permission_decision = ${decision}`
+      expect(await claimComputerUseTool(input)).toBeNull()
+      const [row] =
+        await requireConnection()`SELECT status, claimed_by FROM copilot_async_tool_calls`
+      expect(row).toEqual({ status: 'pending', claimed_by: null })
+    }
+  )
+  it.each(['allow', 'allow_chat', 'always_allow'])(
+    'claims an action approved with %s',
+    async (decision) => {
+      await requireConnection()`UPDATE copilot_async_tool_calls SET permission_requested_at = now(), permission_decision = ${decision}`
+      expect(await claimComputerUseTool(input)).toEqual({ args: { action: 'list_apps' } })
+    }
+  )
   it('refuses old calls and leaves them unclaimed', async () => {
     await requireConnection()`UPDATE copilot_async_tool_calls SET created_at = now() - interval '3 minutes'`
     expect(await claimComputerUseTool(input)).toBeNull()

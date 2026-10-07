@@ -49,6 +49,19 @@ describe('benchmark reference workspace inspection', () => {
     }
   )
 
+  it.each(['/api/v2/secrets', '/api/v2/secrets?cursor=next', '/api/v2/secrets/name'])(
+    'refuses credential values from %s before contacting the source',
+    async (path) => {
+      let dispatched = false
+      const transport = readOnlyCliTransport(async () => {
+        dispatched = true
+        return Response.json({ data: 'sensitive fixture' })
+      })
+      expect((await transport(`https://sim.test${path}`)).status).toBe(403)
+      expect(dispatched).toBe(false)
+    }
+  )
+
   it('retains paginated reads and table queries without allowing lookalike mutation paths', async () => {
     const transport = readOnlyCliTransport(async () => Response.json({ data: 'authorized result' }))
     for (const path of ['/api/v2/workflows?cursor=next', '/api/v2/tables/table']) {

@@ -3,6 +3,7 @@ import { copilotAsyncToolCalls, copilotChats, copilotRuns } from '@sim/db/schema
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { omit, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
+import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
 import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
 
 interface ComputerUseClaim {
@@ -55,7 +56,8 @@ export async function claimComputerUseTool(input: ComputerUseClaim) {
       .where(
         and(
           eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-          eq(copilotAsyncToolCalls.status, 'pending')
+          eq(copilotAsyncToolCalls.status, 'pending'),
+          executableToolPermission()
         )
       )
       .returning({ args: copilotAsyncToolCalls.args })

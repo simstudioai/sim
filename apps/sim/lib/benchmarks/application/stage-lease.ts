@@ -18,7 +18,12 @@ export async function withBenchmarkStageLease<T>(
     ownership.abort(
       new OrchestrationError('conflict', 'This step lost its run ownership. Refresh and retry it.')
     )
-  let expiry = setTimeout(loseOwnership, Math.max(0, attempt.leaseExpiresAt.getTime() - Date.now()))
+  const remaining = attempt.leaseExpiresAt.getTime() - Date.now()
+  if (remaining <= 0) {
+    loseOwnership()
+    signal.throwIfAborted()
+  }
+  let expiry = setTimeout(loseOwnership, remaining)
   expiry.unref?.()
   let onAbort: (() => void) | undefined
   const aborted = new Promise<never>((_resolve, reject) => {

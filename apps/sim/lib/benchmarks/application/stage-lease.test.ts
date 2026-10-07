@@ -25,6 +25,25 @@ describe('benchmark stage lifetime', () => {
   })
   afterEach(() => vi.useRealTimers())
 
+  it.each([0, -1])(
+    'does not start work when its initial lease expired %s milliseconds ago',
+    async (offset) => {
+      let started = false
+      await expect(
+        withBenchmarkStageLease(
+          { ...attempt, leaseExpiresAt: new Date(Date.now() + offset) },
+          undefined,
+          async () => {
+            started = true
+            return 'stale result'
+          }
+        )
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(started).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
   it('keeps a healthy inspection alive beyond ten minutes and stops its heartbeat on completion', async () => {
     const result = withBenchmarkStageLease(attempt, undefined, async (signal) => {
       await vi.advanceTimersByTimeAsync(60 * 60_000)

@@ -106,6 +106,20 @@ describe('desktop tool authorization', () => {
     expect(response.status).toBe(403)
   })
 
+  it.each([false, true])(
+    'refuses native computer actions through generic desktop authorization with claim %s',
+    async (claim) => {
+      getAsyncToolCall.mockResolvedValueOnce({
+        toolCallId: 'computer-tool',
+        runId: 'run-1',
+        status: 'pending',
+        toolName: 'computer',
+        args: { action: 'list_apps' },
+      })
+      expect((await POST(request('computer-tool', claim))).status).toBe(403)
+    }
+  )
+
   it('rejects a replayed browser action after its pending row was claimed', async () => {
     getAsyncToolCall.mockResolvedValueOnce({
       toolCallId: 'browser-tool',
