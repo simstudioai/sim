@@ -21,12 +21,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
-    /**
-     * Allowed `quality` values for next/image. 75 is the app-wide default;
-     * 90 exists for large photographic marketing assets (the landing hero
-     * backdrop) where the default visibly softens texture.
-     */
-    qualities: [75, 90],
+    qualities: [75],
     remotePatterns: [
       {
         protocol: 'https',
