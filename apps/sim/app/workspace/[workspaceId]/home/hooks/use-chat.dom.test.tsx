@@ -3028,6 +3028,68 @@ describe('useChat remount send recovery', () => {
       })
     }
 
+    /**
+     * A follow-up typed while a direct send waits on its POST queues behind it.
+     * If that send then fails it goes back to the queue ahead of the follow-up:
+     * it was written first, and must still go out first.
+     */
+    it.each(['offline', 'blip', 'busy'] as const)(
+      'keeps a failed direct send ahead of a follow-up queued during its POST (%s)',
+      async (outcome) => {
+        const history = idleHistory(`chat-requeue-order-${outcome}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => outcome !== 'offline')
+        let failFirstPost: (() => void) | undefined
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return new Promise<Response>((resolve, reject) => {
+              failFirstPost = () =>
+                outcome === 'busy'
+                  ? resolve(
+                      Response.json(
+                        { error: 'A response is already in progress for this chat.' },
+                        { status: 409 }
+                      )
+                    )
+                  : reject(new TypeError('Failed to fetch'))
+            })
+          }
+          if (url.includes('/api/mothership/chat/stream')) {
+            return Response.json({ error: 'Stream not found' }, { status: 404 })
+          }
+          return fetchStub(input, init)
+        })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void getResult().sendMessage('First, written before the follow-up')
+        })
+        await waitFor(() => failFirstPost !== undefined)
+        await act(async () => {
+          await getResult().sendMessage('Follow-up, written while the first was out')
+        })
+        await waitFor(
+          () => (useMothershipQueueStore.getState().queues[history.id]?.length ?? 0) === 1
+        )
+
+        await act(async () => {
+          failFirstPost?.()
+          await sleep(100)
+        })
+
+        expect(
+          (useMothershipQueueStore.getState().queues[history.id] ?? []).map(
+            (message) => message.content
+          )
+        ).toEqual([
+          'First, written before the follow-up',
+          'Follow-up, written while the first was out',
+        ])
+        expect(state.postBodies).toHaveLength(1)
+      }
+    )
+
     it('holds a message sent while offline and sends it under the same id once back online', async () => {
       const history = idleHistory('chat-offline-send')
       mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
