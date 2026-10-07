@@ -136,6 +136,9 @@ jobs:
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
+        env:
+          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
+          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
       - name: Upload test results
         if: failure()

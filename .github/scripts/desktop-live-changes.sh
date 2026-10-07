@@ -15,7 +15,7 @@ run() {
 }
 [ -n "$base" ] || run 'no base commit'
 git fetch --quiet --depth=1 origin "$base" || run "could not fetch $base"
-names=$(git diff --name-only "$base" HEAD) || run "could not diff against $base"
+names=$(git diff --no-renames --name-only "$base" HEAD) || run "could not diff against $base"
 [ -n "$names" ] || run 'no changed files listed'
 if printf '%s\n' "$names" | grep -qvE "$unrelated"; then
   run 'a change may affect it'
