@@ -541,7 +541,10 @@ export class TerminalService {
       // run's, before the record goes. Without the shell's environment the record stays, and the
       // next sweep closes it. An untracked run is never stopped, so it is not kept either.
       if (isRunComplete(handle) && env) {
-        void closeRunPane(handle, env).finally(() => this.forgetRun(handle))
+        void closeRunPane(handle, env).then(async () => {
+          // A pane tmux could not answer for keeps its record, for the next sweep to close.
+          if ((await runPaneState(handle, env)) === 'gone') this.forgetRun(handle)
+        })
       }
       if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
@@ -1053,7 +1056,7 @@ export class TerminalService {
       }
       case 'run':
         return tmux
-          ? this.runInTmux(session, tmux.session, args, latch)
+          ? this.runInTmux(toolCallId, session, tmux.session, args, latch)
           : this.run(toolCallId, session, args, latch)
       case 'read': {
         const requested = Number(args.lines)
@@ -1287,6 +1290,7 @@ export class TerminalService {
    * see through tmux.
    */
   private async runInTmux(
+    toolCallId: string,
     terminal: TerminalSession,
     session: string,
     args: TerminalToolArgs,
@@ -1300,7 +1304,13 @@ export class TerminalService {
     await this.reapFinishedRuns(terminal.terminalId, terminal.env)
     const ledger = this.options.runLedger
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env, {
-      ...(ledger ? { beforeStart: (run: RecordedRun) => ledger.record(run) } : {}),
+      ...(ledger
+        ? {
+            beforeStart: (run: RecordedRun) =>
+              ledger.record({ ...run, callId: toolCallId, delivered: false }),
+            abandon: (runId: string) => ledger.forget(runId),
+          }
+        : {}),
     })
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
     // Tracked from the moment its window exists, so sign-out can stop it even mid-wait.
@@ -1341,7 +1351,8 @@ export class TerminalService {
       handle.dispose()
     }
     // Still going, it stays tracked, and nothing polls the status file again: `read` captures
-    // the pane instead.
+    // the pane instead. Its result now points the model at that pane, so a restart must not end it.
+    if (!outcome.done && handle.runId) ledger?.markDelivered(handle.runId)
 
     const { text, truncated } = elideOutput(outcome.output)
     return {

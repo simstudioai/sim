@@ -810,10 +810,13 @@ function main(): void {
       }
     }
 
-    // A tmux run the previous process left going belongs to a call it can no longer report (its
-    // journal settles it as outcome unknown) or to a chat view that is gone: nothing will collect
-    // what it does, so it is stopped, while its pane still carries its tag.
-    void terminal.stopRecordedRuns({ excludeLive: true })
+    // The same user's tmux runs from a previous process: a run whose call never handed back its
+    // result (or whose result the journal will report as unknown) has nothing left to collect what
+    // it does, so it is stopped, while its pane still carries its tag. A run already handed back as
+    // still going, with its pane, is left to the model, which may come back to it. Read before the
+    // executor starts, since its recovery rewrites the journal.
+    const unresolvedCalls = desktopExecutor.unresolvedCalls()
+    void unresolvedCalls.then((unresolved) => terminal.stopUncollectableRuns(unresolved))
 
     if (!accountDataAvailable()) {
       logger.warn(
@@ -964,6 +967,7 @@ function main(): void {
       ensureAppSession().cookies.on('changed', (_event, cookie, _cause, removed) => {
         if (!removed && isSessionCookieName(cookie.name)) desktopExecutor.refreshRegistration()
       })
+      await unresolvedCalls
       desktopExecutor.start()
     }
     await ensureMainWindow()

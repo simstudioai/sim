@@ -19,8 +19,8 @@ import {
   type TerminalServiceOptions,
   type TerminalSink,
 } from '@/main/terminal'
-import type { RunLedger } from '@/main/terminal/run-ledger'
-import { stopRecordedRun } from '@/main/terminal/tmux'
+import type { RunLedger, RunRecord } from '@/main/terminal/run-ledger'
+import { recordedRunState, stopRecordedRun } from '@/main/terminal/tmux'
 
 /** How long a recorded run gets to end on Ctrl-C before its pane is closed. */
 const RECORDED_RUN_GRACE_MS = 2_000
@@ -388,17 +388,38 @@ export class TerminalRegistry {
   }
 
   /**
-   * Stops the recorded tmux runs, each only while its pane still carries its tag, and drops the
-   * records with nothing left to stop. At launch it skips the runs this process has started since:
-   * every other run belongs to a call the previous process can no longer report, which its
-   * journal settles as outcome unknown, so nothing is left to collect what it does.
+   * At launch, for the same user: stops a previous process's tmux run whose call never handed back
+   * its result, or whose result the executor's journal (`unresolvedCalls`, null when unreadable)
+   * shows as never reaching the model. A run handed back as still going, with its pane, is left
+   * to the model, which may come back to it.
    */
-  async stopRecordedRuns(options: { excludeLive?: boolean } = {}): Promise<void> {
+  stopUncollectableRuns(unresolvedCalls: ReadonlySet<string> | null): Promise<void> {
+    return this.stopRecordedRuns({
+      excludeLive: true,
+      keep: (run) => run.delivered && !unresolvedCalls?.has(run.callId),
+    })
+  }
+
+  /**
+   * Stops the recorded tmux runs, each only while its pane still carries its tag, and drops the
+   * records with nothing left to stop. `excludeLive` skips the runs this process has started;
+   * `keep` names runs to leave going, such as a previous process's runs whose results the model
+   * already has and may come back to.
+   */
+  async stopRecordedRuns(
+    options: {
+      excludeLive?: boolean
+      /** Runs to leave going; their records are only dropped once their panes are gone. */
+      keep?: (run: RunRecord) => boolean
+    } = {}
+  ): Promise<void> {
     const ledger = this.runLedger
     if (!ledger) return
     await Promise.allSettled(
-      ledger.list(options).map(async (run) => {
-        const state = await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
+      ledger.list({ excludeLive: options.excludeLive }).map(async (run) => {
+        const state = options.keep?.(run)
+          ? await recordedRunState(run, process.env)
+          : await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
         if (state === 'gone') ledger.forget(run.runId)
       })
     )

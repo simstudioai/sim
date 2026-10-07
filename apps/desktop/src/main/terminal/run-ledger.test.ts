@@ -12,7 +12,13 @@ function scratch(): string {
   return join(dir, 'terminal-runs')
 }
 
-const RUN = { runId: 'run-1', pane: '%3', socket: '/tmp/tmux-501/default' }
+const RUN = {
+  runId: 'run-1',
+  pane: '%3',
+  socket: '/tmp/tmux-501/default',
+  callId: 'call-1',
+  delivered: false,
+}
 
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
@@ -48,6 +54,11 @@ describe('the tmux run ledger', () => {
     writeFileSync(join(dir, 'run-9.json'), JSON.stringify({ ...RUN, socket: 'relative.sock' }))
     // A record under another run's name could stop the wrong run.
     writeFileSync(join(dir, 'run-8.json'), JSON.stringify({ ...RUN, runId: 'run-7' }))
+    // Only a pane id names one pane; a target like this one names whatever pane is active there.
+    writeFileSync(
+      join(dir, 'run-6.json'),
+      JSON.stringify({ ...RUN, runId: 'run-6', pane: 'work:0.0' })
+    )
 
     expect(ledger.list()).toEqual([RUN])
     expect(readdirSync(dir)).toEqual(['run-1.json'])
@@ -82,6 +93,16 @@ describe('the tmux run ledger', () => {
     const ledger = createRunLedger(join(dir, '..', 'blocked'))
 
     expect(ledger.record(RUN)).toBe(false)
+  })
+
+  it('notes a run handed back as still going, for the next process too', () => {
+    const dir = scratch()
+    const ledger = createRunLedger(dir)
+    ledger.record(RUN)
+
+    ledger.markDelivered(RUN.runId)
+
+    expect(createRunLedger(dir).list()).toEqual([{ ...RUN, delivered: true }])
   })
 
   it('records nothing for a run tag that is not a plain id', () => {

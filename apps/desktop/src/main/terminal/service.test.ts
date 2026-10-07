@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 import { createRunLedger } from '@/main/terminal/run-ledger'
@@ -21,6 +22,8 @@ const tmuxFake = vi.hoisted(() => ({
   untracked: false,
   /** Run panes tmux still shows, kept open after their command ends (`remain-on-exit`). */
   open: new Set<string>(),
+  /** tmux stops answering: no pane can be confirmed, so none is closed. */
+  unanswered: false,
   statusPaths: new Map<string, string>(),
 }))
 
@@ -67,6 +70,7 @@ vi.mock('@/main/terminal/tmux', async () => {
     },
     runPaneState: async (...args: Parameters<typeof actual.runPaneState>) => {
       if (!tmuxFake.on) return actual.runPaneState(...args)
+      if (tmuxFake.unanswered) return 'unknown'
       if (tmuxFake.gone.has(args[0].pane)) return 'gone'
       return args[0].runId === null ? 'unknown' : 'ours'
     },
@@ -79,7 +83,9 @@ vi.mock('@/main/terminal/tmux', async () => {
     },
     closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
       if (!tmuxFake.on) return actual.closeRunPane(...args)
+      if (tmuxFake.unanswered) return
       tmuxFake.open.delete(args[0].pane)
+      tmuxFake.gone.add(args[0].pane)
     },
   }
 })
@@ -651,7 +657,14 @@ describe('agent commands in tmux', () => {
 
       // Still going after its call returned: a later process must be able to find it.
       expect(createRunLedger(ledgerDir).list()).toEqual([
-        { runId: `run-${pane.slice(1)}`, pane, socket: '/tmp/tmux-fake/default' },
+        {
+          runId: `run-${pane.slice(1)}`,
+          pane,
+          socket: '/tmp/tmux-fake/default',
+          callId: 'call-long',
+          // Handed back as still running, with its pane: a restart must leave it be.
+          delivered: true,
+        },
       ])
 
       writeFileSync(statusPath, '0')
@@ -695,6 +708,76 @@ describe('agent commands in tmux', () => {
       expect(tmuxFake.open.has(pane)).toBe(false)
     } finally {
       tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it("forgets a run that finishes within its call, and a closed tab's run once its pane is gone", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      // Finishes while its call still waits on it.
+      const quick = terminal.executeTool('call-quick', 'run', { command: 'ls', waitSeconds: 30 })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+      writeFileSync([...tmuxFake.statusPaths.values()][0] ?? '', '0')
+      await quick
+      expect(createRunLedger(ledgerDir).list()).toEqual([])
+
+      // Still going when its tab closes; its pane goes later, and the next run's bookkeeping sees.
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [, longPane = ''] = [...tmuxFake.statusPaths.keys()]
+      terminal.closeTerminal(activeTerminalId as string)
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).toEqual([longPane])
+      tmuxFake.gone.add(longPane)
+      await terminal.executeTool('call-new', 'new', {})
+      await terminal.executeTool('call-next', 'run', { command: 'pwd', waitSeconds: 1 })
+
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).not.toContain(longPane)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.gone.clear()
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the record of a finished run whose pane tmux could not confirm closing', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      writeFileSync([...tmuxFake.statusPaths.values()][0] ?? '', '0')
+      tmuxFake.unanswered = true
+
+      terminal.closeTerminal(activeTerminalId as string)
+      await sleep(200)
+
+      // The next sweep will close its pane.
+      expect(createRunLedger(ledgerDir).list()).toHaveLength(1)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.unanswered = false
       rmSync(scratch, { recursive: true, force: true })
     }
   })

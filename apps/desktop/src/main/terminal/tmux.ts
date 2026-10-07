@@ -364,6 +364,8 @@ export async function startRun(
      * since a run no later process could find must not outlive this one.
      */
     beforeStart?: (run: RecordedRun) => boolean
+    /** Undoes `beforeStart` for a run that then could not start after all. */
+    abandon?: (runId: string) => void
   } = {}
 ): Promise<TmuxRunHandle | { error: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-run-'))
@@ -461,6 +463,7 @@ export async function startRun(
   try {
     writeFileSync(goPath, '')
   } catch (error) {
+    if (runId) options.abandon?.(runId)
     dispose()
     return { error: `The command could not be started: ${getErrorMessage(error)}` }
   }
@@ -522,7 +525,7 @@ export interface RecordedRun {
  * when that server or pane no longer exists or the pane is not tagged as this run's, `unknown`
  * when tmux could not be asked.
  */
-async function recordedRunState(
+export async function recordedRunState(
   run: RecordedRun,
   env: NodeJS.ProcessEnv
 ): Promise<'ours' | 'gone' | 'unknown'> {

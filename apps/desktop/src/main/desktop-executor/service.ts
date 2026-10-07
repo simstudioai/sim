@@ -68,6 +68,12 @@ export interface DesktopExecutorService {
   /** Re-registers after a sign-in, a session change, or a change to what this device can run. */
   refreshRegistration(): void
   getDevice(): DesktopExecutorDevice | null
+  /**
+   * The calls the journal shows as never handed back with a real result: claimed or started with
+   * none, or settled as not started or outcome unknown. Read before recovery reports them; null
+   * when the journal cannot be read.
+   */
+  unresolvedCalls(): Promise<Set<string> | null>
   /** Stores one entry of a claimed import, as this device's registered session. */
   importEntry(
     request: DesktopImportEntryRequest,
@@ -442,6 +448,24 @@ export function createDesktopExecutorService(
     },
     getDevice() {
       return device
+    },
+    async unresolvedCalls() {
+      try {
+        const unresolved = new Set<string>()
+        for (const entry of await journal.load()) {
+          const data = entry.state === 'result' ? entry.completion.data : undefined
+          if (
+            entry.state !== 'result' ||
+            data?.outcomeUnknown === true ||
+            data?.notStarted === true
+          ) {
+            unresolved.add(entry.toolCallId)
+          }
+        }
+        return unresolved
+      } catch {
+        return null
+      }
     },
     importEntry(request, signal) {
       if (!client) throw new Error('The Sim desktop app is not signed in to Sim.')

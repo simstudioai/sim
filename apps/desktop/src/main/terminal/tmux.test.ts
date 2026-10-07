@@ -132,6 +132,10 @@ interface FakeTmuxState {
   fail?: Record<string, string>
   /** Once a key is sent, tmux stops answering: every later command fails like a dying server. */
   dieAfterKeys?: boolean
+  /** On this many-th display-message, the pane is retagged as another run's (a restart race). */
+  retagAtCheck?: number
+  /** display-message calls so far. */
+  checks?: number
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
@@ -194,6 +198,11 @@ switch (args[0]) {
     break
   }
   case 'display-message': {
+    state.checks = (state.checks ?? 0) + 1
+    if (state.retagAtCheck === state.checks && state.panes[target()]) {
+      state.panes[target()].options['@sim-run-id'] = 'someone-else'
+    }
+    save()
     // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
     const name = args[args.length - 1].slice(2, -1)
@@ -344,6 +353,57 @@ describe('stopping a run another process started, from its record', () => {
     expect(await stopRecordedRun(elsewhere, tmux.env, 0)).toBe('gone')
     expect(tmux.read().log).toEqual([])
     expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('checks the pane is still the run once more right before closing it', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    // The first check (before Ctrl-C) sees the run; the next, right before closing, does not.
+    tmux.write({ ...tmux.read(), checks: 0, retagAtCheck: 2 })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('never starts a tagged run whose server it cannot name for a record', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), socket: '' })
+    const marker = join(tmux.dir, 'ran')
+
+    const result = await startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env, {
+      beforeStart: () => true,
+    })
+
+    expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+    await sleep(1_500)
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it('forgets the saved record of a run that then could not start', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    const saved = new Set<string>()
+    let runDir = ''
+
+    const result = await startRun('agent', 'sleep 600', null, tmux.env, {
+      beforeStart: (run) => {
+        // The run's directory turns read-only, so its go file cannot be written.
+        const command = tmux.read().panes[run.pane]?.command ?? ''
+        const script = /"([^"]+)\/run\.sh"/.exec(command)?.[1] ?? ''
+        runDir = script
+        chmodSync(runDir, 0o500)
+        saved.add(run.runId)
+        return true
+      },
+      abandon: (runId) => saved.delete(runId),
+    })
+
+    if (runDir) chmodSync(runDir, 0o700)
+    if (runDir) dirs.push(runDir)
+    expect(result).toMatchObject({ error: expect.stringContaining('could not be started') })
+    expect([...saved]).toEqual([])
   })
 
   it('keeps the record when tmux stops answering part-way through the stop', async () => {
