@@ -112,18 +112,23 @@ export async function importNativeFiles(
 }
 
 /**
- * Renews an import's lease every heartbeat until stopped, or until the server refuses (the call
+ * Renews an import's lease every heartbeat until stopped, or until the server refuses it (the call
  * was stopped, settled, or its lease already lapsed), the way a desktop renews a bound call.
  */
 function keepImportLeased(toolCallId: string): { stop(): void } {
   const timer = setInterval(() => {
     requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
       (error) => {
-        logger.warn('Could not renew the import lease; it will lapse', {
+        // 410: the server refuses the call (stopped, settled, or its lease lapsed), so stop. Any
+        // other failure may pass: keep renewing, as the lease outlasts a couple of missed beats.
+        if (error instanceof ApiClientError && error.status === 410) {
+          clearInterval(timer)
+          return
+        }
+        logger.warn('Could not renew the import lease; trying again next beat', {
           toolCallId,
           error: getErrorMessage(error),
         })
-        clearInterval(timer)
       }
     )
   }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)

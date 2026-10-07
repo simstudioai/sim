@@ -15,6 +15,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { SIM_TOOL_EXECUTION_LEASE_SECONDS } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import {
   createRunSegment,
@@ -94,6 +95,8 @@ const logger = createLogger('CopilotLifecycle')
 
 /** After a renewed lease's end, the wait looks once more before it calls the call lost. */
 const LEASE_RECHECK_SLACK_MS = 1_000
+/** How soon a failed lease lookup is tried again. */
+const LEASE_LOOKUP_RETRY_MS = 5_000
 
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
@@ -1368,6 +1371,8 @@ async function runCheckpointLoop(
           }>
           deadlineAt: number
           waitBudgetMs: number
+          /** Until when a failing lease lookup is retried before the call is given up. */
+          leaseLookupRetryUntil?: number
         }
       >()
 
@@ -1409,15 +1414,31 @@ async function runCheckpointLoop(
         )
         // A desktop import the chat view is running renews its lease while it works: its budget
         // runs to the end of that lease, and only a lapsed lease fails it.
+        // A lookup that fails says nothing about the lease, so it is retried, for at most one lease.
         const leases = await Promise.all(
           overdueTools.map(([toolCallId]) =>
-            getChatViewDesktopLeaseRemainingMs(toolCallId).catch(() => null)
+            getChatViewDesktopLeaseRemainingMs(toolCallId).then(
+              (remainingMs) => ({ remainingMs }),
+              (error: unknown) => ({ error })
+            )
           )
         )
-        const expiredTools = overdueTools.filter(([, watchdog], index) => {
-          const remainingMs = leases[index]
-          if (typeof remainingMs !== 'number' || remainingMs <= 0) return true
-          watchdog.deadlineAt = Date.now() + remainingMs + LEASE_RECHECK_SLACK_MS
+        const expiredTools = overdueTools.filter(([toolCallId, watchdog], index) => {
+          const lease = leases[index]
+          const checkedAt = Date.now()
+          if ('error' in lease) {
+            watchdog.leaseLookupRetryUntil ??= checkedAt + SIM_TOOL_EXECUTION_LEASE_SECONDS * 1000
+            if (checkedAt >= watchdog.leaseLookupRetryUntil) return true
+            logger.warn('Could not read a pending tool call lease; checking again', {
+              toolCallId,
+              error: getErrorMessage(lease.error),
+            })
+            watchdog.deadlineAt = checkedAt + LEASE_LOOKUP_RETRY_MS
+            return false
+          }
+          watchdog.leaseLookupRetryUntil = undefined
+          if (typeof lease.remainingMs !== 'number' || lease.remainingMs <= 0) return true
+          watchdog.deadlineAt = checkedAt + lease.remainingMs + LEASE_RECHECK_SLACK_MS
           return false
         })
         if (expiredTools.length > 0) {

@@ -3545,78 +3545,99 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
+  /** Runs a turn whose import never settles, recording each leg's request body. */
+  function runImportTurn() {
+    const bodies: Record<string, unknown>[] = []
+    mockForceFailHungToolCall.mockImplementation(
+      async (toolCallId: string, context: StreamingContext) => {
+        const tool = context.toolCalls.get(toolCallId)
+        if (!tool) return
+        tool.status = MothershipStreamV1ToolOutcome.error
+        tool.endTime = Date.now()
+        tool.result = { success: false }
+        tool.error = 'Tool execution hung'
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-import', {
+          id: 'tool-import',
+          name: 'import_local_files',
+          status: 'executing',
+        })
+        context.pendingToolPromises.set('tool-import', new Promise(() => {}))
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-import'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.accumulatedContent = 'Done.'
+      }
+    )
+    const lifecycle = runCopilotLifecycle(
+      { message: 'import', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+      }
+    )
+    /** The agent was resumed with the import given up as lost. */
+    const resumedWithLostImport = () =>
+      bodies.length === 2 &&
+      JSON.stringify(bodies[1].results).includes('"callId":"tool-import"') &&
+      JSON.stringify(bodies[1].results).includes('"success":false')
+    return { bodies, lifecycle, resumedWithLostImport }
+  }
+
   it('waits on a chat-view import while its lease is renewed, and fails it once the lease lapses', async () => {
     vi.useFakeTimers()
     try {
-      const bodies: Record<string, unknown>[] = []
-      mockForceFailHungToolCall.mockImplementation(
-        async (toolCallId: string, context: StreamingContext) => {
-          const tool = context.toolCalls.get(toolCallId)
-          if (!tool) return
-          tool.status = MothershipStreamV1ToolOutcome.error
-          tool.endTime = Date.now()
-          tool.result = { success: false }
-          tool.error = 'Tool execution hung'
-        }
-      )
       // Renewed once past the default budget, then the renewals stop and the lease lapses.
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
         .mockResolvedValueOnce(50_000)
         .mockResolvedValue(null)
-      mockRunStreamLoop.mockImplementationOnce(
-        async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
-          bodies.push(JSON.parse(String(fetchOptions.body)))
-          context.toolCalls.set('tool-import', {
-            id: 'tool-import',
-            name: 'import_local_files',
-            status: 'executing',
-          })
-          context.pendingToolPromises.set('tool-import', new Promise(() => {}))
-          context.awaitingAsyncContinuation = {
-            checkpointId: 'ckpt-1',
-            pendingToolCallIds: ['tool-import'],
-          }
-        }
-      )
-      mockRunStreamLoop.mockImplementationOnce(
-        async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
-          bodies.push(JSON.parse(String(fetchOptions.body)))
-          context.accumulatedContent = 'Done.'
-        }
-      )
-
-      const lifecycle = runCopilotLifecycle(
-        { message: 'import', messageId: 'stream-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'exec-1',
-          runId: 'run-1',
-          executionContext: {
-            userId: 'user-1',
-            workflowId: '',
-            workspaceId: 'ws-1',
-            chatId: 'chat-1',
-          },
-        }
-      )
-
-      // Past the default budget (60 s + 30 s grace) the lease is still live: no force-fail.
+      const turn = runImportTurn()
+      // Past the default budget (60 s + 30 s grace) the lease is still live: the agent waits.
       await vi.advanceTimersByTimeAsync(91_000)
-      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
-      // Once the lease the renewals kept alive runs out, the import is failed as lost.
+      expect(turn.bodies).toHaveLength(1)
+      // Once that lease runs out, the agent is resumed with the import given up as lost.
       await vi.advanceTimersByTimeAsync(52_000)
-      const result = await lifecycle
-      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
-        'tool-import',
-        expect.anything(),
-        expect.objectContaining({ userId: 'user-1' })
-      )
-      expect(bodies[1].results).toEqual([
-        expect.objectContaining({ callId: 'tool-import', success: false }),
-      ])
-      expect(result.success).toBe(true)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a lease lookup that fails is checked again instead of failing a renewed import', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+        .mockRejectedValueOnce(new Error('database unavailable'))
+        .mockResolvedValueOnce(30_000)
+        .mockResolvedValue(null)
+      const turn = runImportTurn()
+      // The failed lookup at the default budget, and its retry 5 s later, leave the import running.
+      await vi.advanceTimersByTimeAsync(97_000)
+      expect(turn.bodies).toHaveLength(1)
+      // It is given up only once the lease the retry found has lapsed.
+      await vi.advanceTimersByTimeAsync(32_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
     } finally {
       vi.useRealTimers()
     }
