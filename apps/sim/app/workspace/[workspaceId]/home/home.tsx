@@ -24,10 +24,12 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -58,6 +60,8 @@ interface HomeProps {
 }
 
 export function Home(props: HomeProps) {
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
+  if (isRestoredChatEntry) return <HomeFallback />
   return (
     <PermissionAccessBoundary configKey='hideCopilot'>
       <HomeContent {...props} />

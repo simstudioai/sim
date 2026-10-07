@@ -1,3 +1,4 @@
+import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -663,8 +664,10 @@ function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | un
       return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
     },
     onError: (_error, _effort, context) => {
-      if (chatId && context)
-        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
+      if (!chatId || !context) return
+      if (useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)) {
+        toast.error("Couldn't change reasoning effort")
+      }
     },
     onSuccess: (_data, effort) => {
       queryClient.setQueryData<MothershipChatHistory>(

@@ -27,8 +27,11 @@ interface MothershipEffortState {
   chatEfforts: Record<string, ChatEffortPick>
   /** Records a pick and returns its token for {@link MothershipEffortState.dropChatEffort}. */
   setChatEffort: (chatId: string, effort: MothershipEffort) => number
-  /** Drops a pick whose save failed, unless a newer pick replaced it, even one of the same value. */
-  dropChatEffort: (chatId: string, pick: number) => void
+  /**
+   * Drops a pick whose save failed, unless a newer pick replaced it, even one of the same value.
+   * Returns whether it dropped the pick, which rolls the chat back to its saved effort.
+   */
+  dropChatEffort: (chatId: string, pick: number) => boolean
   /** Moves the new-chat pick onto the chat its first send created. */
   adoptNewChatEffort: (chatId: string, effort: MothershipEffort) => void
   reset: () => void
@@ -55,7 +58,7 @@ function withModelSelection(
 export const useMothershipEffortStore = create<MothershipEffortState>()(
   devtools(
     persist(
-      (set) => ({
+      (set, get) => ({
         ...initialState,
         setFastMode: (fastMode) =>
           set((state) => withModelSelection({ ...state.modelSelection, fastMode })),
@@ -67,11 +70,11 @@ export const useMothershipEffortStore = create<MothershipEffortState>()(
           set((state) => ({ chatEfforts: { ...state.chatEfforts, [chatId]: { effort, pick } } }))
           return pick
         },
-        dropChatEffort: (chatId, pick) =>
-          set((state) => {
-            if (state.chatEfforts[chatId]?.pick !== pick) return state
-            return { chatEfforts: omit(state.chatEfforts, [chatId]) }
-          }),
+        dropChatEffort: (chatId, pick) => {
+          if (get().chatEfforts[chatId]?.pick !== pick) return false
+          set((state) => ({ chatEfforts: omit(state.chatEfforts, [chatId]) }))
+          return true
+        },
         adoptNewChatEffort: (chatId, effort) => {
           const pick = ++lastChatEffortPick
           set((state) => ({
