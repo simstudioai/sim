@@ -108,8 +108,10 @@ export function VerifiedDomainsSection({
   organizationId,
   active = true,
 }: VerifiedDomainsSectionProps) {
-  const { data, isLoading, isError, error, isFetching, refetch } =
-    useOrganizationDomains(organizationId)
+  const { data, isLoading, isError, error, isFetching, refetch } = useOrganizationDomains(
+    organizationId,
+    { enabled: active }
+  )
   const addDomain = useAddOrganizationDomain()
   const removeDomain = useRemoveOrganizationDomain()
 

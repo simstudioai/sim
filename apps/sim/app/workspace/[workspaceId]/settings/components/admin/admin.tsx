@@ -91,6 +91,8 @@ export function Admin() {
 
   const [workflowId, setWorkflowId] = useState('')
   const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
+  const isImpersonating = impersonatingUserId !== null || impersonateUser.isPending
   const discardImport = () => {
     setWorkflowId('')
     setTargetWorkspaceId('')
@@ -109,7 +111,6 @@ export function Admin() {
   const [searchInput, setSearchInput] = useState(searchQuery)
   const [pendingAction, setPendingAction] = useState<PendingUserAction | null>(null)
   const [banReason, setBanReason] = useState('')
-  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
   const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
   const [provisionWarning, setProvisionWarning] = useState<string | null>(null)
@@ -151,6 +152,7 @@ export function Admin() {
   }
 
   const handleImpersonate = (userId: string, email: string) => {
+    if (isImpersonating || importWorkflow.isPending) return
     setImpersonationGuardError(null)
     if (session?.user?.role !== 'admin') {
       setImpersonatingUserId(null)
@@ -180,7 +182,7 @@ export function Admin() {
   const handleImport = () => {
     const sourceId = workflowId.trim()
     const targetId = targetWorkspaceId.trim()
-    if (!sourceId || !targetId || importWorkflow.isPending || impersonateUser.isPending) return
+    if (!sourceId || !targetId || importWorkflow.isPending || isImpersonating) return
     importWorkflow.mutate(
       { workflowId: sourceId, targetWorkspaceId: targetId },
       {
@@ -244,7 +246,7 @@ export function Admin() {
             <Chip
               aria-label={`Impersonate ${u.email}`}
               onClick={() => handleImpersonate(u.id, u.email)}
-              disabled={importWorkflow.isPending || pendingUserIds.has(u.id)}
+              disabled={importWorkflow.isPending || isImpersonating || pendingUserIds.has(u.id)}
             >
               {impersonatingUserId === u.id ? 'Switching...' : 'Impersonate'}
             </Chip>
@@ -359,7 +361,7 @@ export function Admin() {
               importWorkflow.reset()
             }}
             placeholder='Source workflow ID'
-            disabled={importWorkflow.isPending || impersonateUser.isPending}
+            disabled={importWorkflow.isPending || isImpersonating}
           />
           <ChipInput
             value={targetWorkspaceId}
@@ -368,14 +370,14 @@ export function Admin() {
               importWorkflow.reset()
             }}
             placeholder='Target workspace ID'
-            disabled={importWorkflow.isPending || impersonateUser.isPending}
+            disabled={importWorkflow.isPending || isImpersonating}
           />
           <Button
             variant='primary'
             onClick={handleImport}
             disabled={
               importWorkflow.isPending ||
-              impersonateUser.isPending ||
+              isImpersonating ||
               !workflowId.trim() ||
               !targetWorkspaceId.trim()
             }
