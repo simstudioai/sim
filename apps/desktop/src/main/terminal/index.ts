@@ -521,7 +521,8 @@ export class TerminalService {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
     for (const handle of pending) {
-      if (env && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
+      // An untracked run is never stopped, so there is nothing to keep it for.
+      if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
     }
     this.pendingRuns.delete(terminalId)

@@ -107,6 +107,9 @@ interface FakeTmuxState {
   fail?: Record<string, string>
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
+
+  /** Commands the fake answers only after this many milliseconds, like a busy tmux server. */
+  delay?: Record<string, number>
 }
 
 const FAKE_TMUX = `
@@ -123,6 +126,10 @@ const escaped = (text) =>
   text
     .replace(/\\\\/g, '\\\\\\\\')
     .replace(/[\\x00-\\x1f]/g, (c) => '\\\\' + c.charCodeAt(0).toString(8).padStart(3, '0'))
+
+if (state.delay && state.delay[args[0]]) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, state.delay[args[0]])
+}
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
   case 'new-window': {
@@ -287,16 +294,22 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('never lets a run it could not tag start, and closes no pane by id to stop it', async () => {
+  it('starts a run it could not tag, untracked, and never stops it by a pane id', async () => {
     const tmux = fakeTmux()
     dirs.push(tmux.dir)
+    // tmux before 3.0 has no pane options.
     tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
 
-    const result = await startRun('agent', 'sleep 600', null, tmux.env)
+    const run = await startRun('agent', 'sleep 600', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
 
-    expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
-    // No pane is closed by an id that a restarted server might have handed to the user.
+    expect(run.runId).toBeNull()
+    expect(existsSync(join(run.statusPath, '..', 'go'))).toBe(true)
+    expect(await runPaneState(run, tmux.env)).toBe('unknown')
+    await stopRun(run, tmux.env, 0)
+    // No pane is touched by an id that a restarted server might have handed to the user.
     expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
   })
 
   it('lets a tagged run start only once its pane is tagged', async () => {
@@ -318,7 +331,7 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('runs a tagged command for real, and never runs one it could not tag', async () => {
+  it('runs a command for real whether or not tmux could tag its pane', async () => {
     const tagged = fakeTmux({ exec: true })
     dirs.push(tagged.dir)
     const run = await startRun('agent', 'echo ran', null, tagged.env)
@@ -333,10 +346,27 @@ describe('stopping a tmux run touches only its own pane', () => {
     const untagged = fakeTmux({ exec: true })
     dirs.push(untagged.dir)
     untagged.write({ ...untagged.read(), fail: { 'set-option': 'invalid option' } })
-    const marker = join(untagged.dir, 'ran')
-    await startRun('agent', `touch ${JSON.stringify(marker)}`, null, untagged.env)
-    await sleep(6_000)
+    const untracked = await startRun('agent', 'echo ran', null, untagged.env)
+    if ('error' in untracked) throw new Error(untracked.error)
+    await expect
+      .poll(() => pollRun(untracked), { timeout: 10_000 })
+      .toMatchObject({ done: true, exitCode: 0, output: 'ran\n' })
+  }, 20_000)
 
+  it('holds a command until tmux has finished tagging its pane', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), delay: { 'set-option': 2_000 } })
+    const marker = join(tmux.dir, 'ran')
+
+    const starting = startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env)
+    await sleep(1_200)
+    // The pane exists and its script is running, but the tag is not on it yet.
+    expect(Object.keys(tmux.read().panes)).toHaveLength(1)
     expect(existsSync(marker)).toBe(false)
+
+    const run = await starting
+    if ('error' in run) throw new Error(run.error)
+    await expect.poll(() => existsSync(marker), { timeout: 10_000 }).toBe(true)
   }, 20_000)
 })

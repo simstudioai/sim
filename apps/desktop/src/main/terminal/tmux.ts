@@ -311,9 +311,11 @@ export interface TmuxRunHandle {
   pane: string
   /**
    * Tagged on the pane as the `@sim-run-id` user option. Window and pane ids restart from zero
-   * with the tmux server, so only the tag proves a pane is still this run's.
+   * with the tmux server, so only the tag proves a pane is still this run's. Null when tmux could
+   * not tag the pane (tmux before 3.0 has no pane options): the run goes ahead untracked, and
+   * nothing ever stops it, since nothing could tell its pane from one of the user's.
    */
-  runId: string
+  runId: string | null
   outPath: string
   statusPath: string
   dispose(): void
@@ -368,10 +370,10 @@ export async function startRun(
   // into the pipeline and print `No such file or directory` into the user's own
   // tmux window, minutes after they closed the tab.
   //
-  // The command waits for its pane to be tagged as this run's (the go file), so nothing runs that
-  // a later stop could not recognize. Untagged, the script gives up once the tagging call has
-  // surely failed, and its pane closes on its own; no one has to close a pane whose id might no
-  // longer be its own.
+  // The command waits for the tagging call to finish (the go file), so a tagged run's command
+  // never runs before a later stop could recognize its pane. If Sim never releases it (it quit
+  // mid-start), the script gives up once the tagging call has surely ended and its pane closes on
+  // its own; no one has to close a pane whose id might no longer be its own.
   //
   // The script is a file rather than a `bash -c` string: tmux hands its command to `sh -c`, which
   // would expand `$` references meant for bash (the gate's counter, PIPESTATUS) before bash ran.
@@ -410,18 +412,16 @@ export async function startRun(
     return { error: created.stderr.trim() || 'tmux could not open a window for the command.' }
   }
   const [window = '', pane = ''] = created.stdout.trim().split(' ')
-  const runId = generateId()
+  const tag = generateId()
   // An untagged pane is never treated as the run's: without the tag a stop could not tell it from
-  // a pane the user opened later under the same id, so it sends nothing at all.
-  const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, runId], env)
+  // a pane the user opened later under the same id, so the run is left untracked.
+  const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, tag], env)
   if (!tagged.ok) {
-    // Untagged, nothing could stop it safely later, so it never starts: without the go file the
-    // wrapper exits by itself.
-    dispose()
-    return {
-      error: `tmux could not mark the command's pane (${tagged.stderr.trim() || 'no detail'}), so the command was not run.`,
-    }
+    logger.warn('tmux could not tag a run pane; the run goes ahead untracked', {
+      error: tagged.stderr.trim(),
+    })
   }
+  const runId = tagged.ok ? tag : null
   try {
     writeFileSync(goPath, '')
   } catch (error) {
@@ -435,14 +435,15 @@ export async function startRun(
 /**
  * Whether the run's pane is still the run's: `ours`, or `gone` when tmux has no such pane or the
  * pane under that id is not tagged as this run's (the user closed it, or a restarted tmux server
- * handed the id to one of the user's own panes). `unknown` when tmux could not be asked: such a
- * pane is neither touched nor given up on.
+ * handed the id to one of the user's own panes). `unknown` when tmux could not be asked, or the
+ * run is untracked: such a pane is neither touched nor given up on.
  */
 export async function runPaneState(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv
 ): Promise<'ours' | 'gone' | 'unknown'> {
   if (!handle.pane) return 'gone'
+  if (handle.runId === null) return 'unknown'
   const shown = await runTmux(
     ['display-message', '-p', '-t', handle.pane, `#{${RUN_ID_OPTION}}`],
     env
