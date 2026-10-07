@@ -8,14 +8,15 @@ import {
   isDescendantOf,
   parseFormatLines,
   pollRun,
+  resolveAttachment,
   runPaneState,
   startRun,
   stopRun,
   type TmuxRunHandle,
 } from '@/main/terminal/tmux'
 
-/** The separator the format strings use; no tmux field can contain it. */
-const F = '\u001f'
+/** The separator the format strings use. */
+const F = '|~sim~|'
 
 describe('parseFormatLines', () => {
   it('drops lines with the wrong field count rather than mis-assigning them', () => {
@@ -104,6 +105,8 @@ interface FakeTmuxState {
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
   fail?: Record<string, string>
+  /** Attached clients, as `list-clients` reports them. */
+  clients?: Array<{ pid: string; tty: string; session: string }>
 }
 
 const FAKE_TMUX = `
@@ -114,6 +117,12 @@ const args = process.argv.slice(2)
 const save = () => fs.writeFileSync(file, JSON.stringify(state))
 const target = () => args[args.indexOf('-t') + 1]
 const fail = (message) => { process.stderr.write(message); process.exit(1) }
+// Prints a format's output as tmux 3.4 and 3.5 do: a backslash doubled, and every other control
+// character as its octal escape, so a control-character separator would arrive as text.
+const escaped = (text) =>
+  text
+    .replace(/\\\\/g, '\\\\\\\\')
+    .replace(/[\\x00-\\x1f]/g, (c) => '\\\\' + c.charCodeAt(0).toString(8).padStart(3, '0'))
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
   case 'new-window': {
@@ -142,6 +151,17 @@ switch (args[0]) {
     if (!pane) fail("can't find pane")
     const name = args[args.length - 1].slice(2, -1)
     process.stdout.write((pane.options[name] ?? '') + '\\n')
+    break
+  }
+  case 'list-clients': {
+    const format = args[args.indexOf('-F') + 1]
+    for (const client of state.clients ?? []) {
+      const line = format
+        .replace('#{client_pid}', client.pid)
+        .replace('#{client_tty}', client.tty)
+        .replace('#{client_session}', client.session)
+      process.stdout.write(escaped(line) + '\\n')
+    }
     break
   }
   case 'send-keys':
@@ -190,6 +210,29 @@ function fakeTmux(options: { exec?: boolean } = {}) {
     },
   }
 }
+
+describe('finding the tmux session a shell runs', () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('reads the clients tmux 3.4 and 3.5 list, which escape control characters', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    // A client of this very process: its parent stands in for the shell the client runs in.
+    tmux.write({
+      ...tmux.read(),
+      clients: [{ pid: String(process.pid), tty: '/dev/pts/3', session: 'work' }],
+    })
+
+    expect(await resolveAttachment(process.ppid, tmux.env)).toEqual({
+      session: 'work',
+      clientTty: '/dev/pts/3',
+    })
+  })
+})
 
 describe('stopping a tmux run touches only its own pane', () => {
   const dirs: string[] = []
