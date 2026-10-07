@@ -2630,9 +2630,17 @@ describe('useChat remount send recovery', () => {
      * stream it would have opened does not exist.
      */
     const network = { online: false, acceptedPosts: 0 }
-    function stubUnreachableSend() {
+    /**
+     * By default the browser knows it is offline until the network is back; with
+     * `browserStaysOnline` it reports itself online throughout, as when a
+     * connection drops without the browser noticing.
+     */
+    function stubUnreachableSend({ browserStaysOnline = false } = {}) {
       network.online = false
       network.acceptedPosts = 0
+      vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(
+        () => browserStaysOnline || network.online
+      )
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         if (url === '/api/mothership/chat' && init?.method === 'POST') {
@@ -2677,6 +2685,219 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies[1].message).toBe('Written while offline')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
     })
+
+    /**
+     * A connection can drop while the browser stays online (`ERR_NETWORK_CHANGED`
+     * when an interface changes, a proxy that resets), so no `online` event follows
+     * the failure. The message, and a follow-up sent behind it, must still go out.
+     */
+    it('sends a message whose POST failed while the browser stayed online', async () => {
+      const history = idleHistory('chat-network-changed')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend({ browserStaysOnline: true })
+      const { getResult } = renderUseChatInChat(history.id, history)
+
+      await act(async () => {
+        await getResult().sendMessage('Sent as the network changed')
+      })
+      network.online = true
+      await act(async () => {
+        await getResult().sendMessage('Sent after it')
+      })
+      await waitFor(() => network.acceptedPosts === 2, 5000)
+
+      expect(state.postBodies.map((body) => body.message)).toEqual([
+        'Sent as the network changed',
+        'Sent as the network changed',
+        'Sent after it',
+      ])
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
+    })
+
+    /** Sim stays unreachable while the browser reports itself online: retried on a growing delay. */
+    it('backs off retrying a send that keeps failing while the browser stays online', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const history = idleHistory('chat-unreachable-online')
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void getResult().sendMessage('Sent while Sim is unreachable')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        for (let second = 0; second < 60; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+
+        /** 1, 2, 4, 8, 16 and 30 s apart (give or take a fifth): about six attempts in a minute. */
+        expect(state.postBodies.length).toBeGreaterThan(2)
+        expect(state.postBodies.length).toBeLessThanOrEqual(8)
+
+        network.online = true
+        for (let second = 0; second < 45; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+        expect(network.acceptedPosts).toBe(1)
+        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    /**
+     * A retried send may already be a turn on the server, whichever path sent it.
+     * Retrying must keep it uneditable, under the id the server deduplicates.
+     */
+    it.each(['a direct send', 'a queued dispatch'] as const)(
+      'keeps %s retried while online uneditable under one id',
+      async (path) => {
+        const history = idleHistory(`chat-retried-online-${path.replace(/ /g, '-')}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        if (path === 'a queued dispatch') {
+          useMothershipQueueStore
+            .getState()
+            .enqueue(history.id, { id: 'queued-retried', content: 'Retried while online' })
+        }
+        const { getResult } = renderUseChatInChat(history.id, history)
+        if (path === 'a direct send') {
+          await act(async () => {
+            await getResult().sendMessage('Retried while online')
+          })
+        }
+        await waitFor(() => state.postBodies.length >= 2, 5000)
+        await waitFor(() => !getResult().isSending)
+
+        const [queued] = useMothershipQueueStore.getState().queues[history.id] ?? []
+        expect(queued).toMatchObject({ content: 'Retried while online', admissionUnknown: true })
+        useMothershipQueueStore.getState().replaceAt(history.id, queued.id, {
+          content: 'Edited after the retry',
+          fileAttachments: undefined,
+          contexts: undefined,
+          requestMode: undefined,
+          assistantSearch: undefined,
+          assistantSearchLevel: undefined,
+        })
+        let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+        await act(async () => {
+          edited = getResult().editQueuedMessage(queued.id)
+        })
+
+        expect(edited).toBeUndefined()
+        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+          'Retried while online'
+        )
+        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      }
+    )
+
+    /**
+     * Only the POST failing at the network layer is retried on a timer. An error
+     * before it goes out (here, reading the desktop's capabilities) would fail the
+     * same way each time, so the message is held for the user, as before.
+     */
+    it.each([
+      ['an Error', Error],
+      ['a TypeError', TypeError],
+    ] as const)(
+      'holds a send whose preparation threw %s instead of retrying it',
+      async (_kind, ErrorType) => {
+        const history = idleHistory(`chat-prepare-failed-${ErrorType.name}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        libDesktopMockFns.mockGetDesktopChatCapabilities.mockRejectedValueOnce(
+          new ErrorType('preferences unavailable')
+        )
+        const { getResult } = renderUseChatInChat(history.id, history)
+
+        await act(async () => {
+          await getResult().sendMessage('Never prepared')
+        })
+        await act(async () => {
+          await sleep(2500)
+        })
+
+        expect(libDesktopMockFns.mockGetDesktopChatCapabilities).toHaveBeenCalledTimes(1)
+        expect(state.postBodies).toHaveLength(0)
+        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
+          content: 'Never prepared',
+          retryRequired: true,
+          heldUntilOnline: true,
+        })
+      }
+    )
+
+    /**
+     * The POST was admitted but its answer lost, and the outage outlasted the
+     * server's claim on the id, which then no longer deduplicates a resend. The
+     * chat's history shows the turn, so the resend is dropped, whether it waited
+     * on a timer (online) or for the `online` event (offline).
+     */
+    it.each([
+      ['online', true],
+      ['offline', false],
+    ] as const)(
+      'drops a resend the chat history shows was accepted, after an outage while %s',
+      async (_state, browserStaysOnline) => {
+        const history = idleHistory(`chat-admitted-answer-lost-${browserStaysOnline}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          await getResult().sendMessage('Admitted, answer lost')
+        })
+        const admittedId = state.postBodies[0].userMessageId
+        mockRequestJson.mockImplementation(() =>
+          Promise.resolve({
+            chat: {
+              ...history,
+              messages: [
+                { id: admittedId, role: 'user', content: 'Admitted, answer lost', timestamp: '' },
+                { id: 'its-answer', role: 'assistant', content: 'Done.', timestamp: '' },
+              ],
+            },
+          })
+        )
+        network.online = true
+        await act(async () => {
+          window.dispatchEvent(new Event('online'))
+        })
+
+        await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
+        await act(async () => {
+          await sleep(1500)
+        })
+
+        expect(state.postBodies).toHaveLength(1)
+        expect(network.acceptedPosts).toBe(0)
+      }
+    )
+
+    /** A history read that fails proves nothing, so the resend waits for one that works. */
+    it('does not resend a message that may have been admitted while its chat history is unreadable', async () => {
+      const history = idleHistory('chat-history-unreadable')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend({ browserStaysOnline: true })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        await getResult().sendMessage('Sent before the history broke')
+      })
+      mockRequestJson.mockImplementation(() => Promise.reject(new Error('Service unavailable')))
+      network.online = true
+      await act(async () => {
+        await sleep(4000)
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+        'Sent before the history broke'
+      )
+
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      await waitFor(() => network.acceptedPosts === 1, 20000)
+      expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+    }, 30000)
 
     it('keeps a queued follow-up whose dispatch could not reach the server', async () => {
       const history = idleHistory('chat-offline-queue')

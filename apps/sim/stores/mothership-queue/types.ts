@@ -14,9 +14,10 @@ export type QueuedMothershipMessage = QueuedMessage & {
   /** A failed dispatch remains queued until the user retries or edits it. */
   retryRequired?: boolean
   /**
-   * The failed dispatch got no response, so the server may or may not have
-   * admitted it; the browser being online releases it for dispatch under the
-   * same id, which the server deduplicates if it did.
+   * The failed dispatch got no response while the browser was offline, so the
+   * server may or may not have admitted it; the browser being online again
+   * releases it for dispatch under the same id, which the server deduplicates
+   * if it did.
    */
   heldUntilOnline?: boolean
   /**
@@ -24,9 +25,9 @@ export type QueuedMothershipMessage = QueuedMessage & {
    * mount: the next chatless surface for the same owner and workflow adopts it.
    */
   heldSurface?: string
-  /** Busy refusals so far; paces the next retry. */
-  busyRetries?: number
-  /** Epoch ms before which a busy-refused message is not sent again. */
+  /** Automatic retries so far (busy refusals, or failures to reach Sim while online); paces the next. */
+  sendRetries?: number
+  /** Epoch ms before which a message waiting on an automatic retry is not sent again. */
   notBefore?: number
   /**
    * Message id of a prior attempt at this send that an unmount cleanup
@@ -36,6 +37,12 @@ export type QueuedMothershipMessage = QueuedMessage & {
    * so a retry after a reload deduplicates too.
    */
   resumeUserMessageId?: string
+}
+
+/** When a message's next automatic retry may go out, and how many came before it. */
+export interface ScheduledRetry {
+  sendRetries: number
+  notBefore: number
 }
 
 // Mutable fields an in-place edit overwrites; id and index are preserved by `replaceAt`.
@@ -67,6 +74,8 @@ export interface MothershipQueueState {
   migrate: (fromKey: string, toKey: string) => void
   /** Releases every send held for the network for dispatch. */
   releaseHeldUntilOnline: () => void
+  /** Puts off the automatic retry of `id` until `notBefore`. */
+  deferRetry: (chatKey: string, id: string, retry: ScheduledRetry) => void
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
   /**
