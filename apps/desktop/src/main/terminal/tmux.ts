@@ -17,7 +17,6 @@
  * of the shell that launched it.
  */
 import { spawn } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -26,6 +25,7 @@ import type { TerminalPaneState } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 
 const logger = createLogger('DesktopTmux')
 
@@ -56,7 +56,7 @@ const FIELD = '<~sim~>'
  * newline split are each unframed and dropped.
  */
 function framedFormat(fields: string[]): { format: string; frame: string } {
-  const frame = `<~${randomBytes(8).toString('hex')}~>`
+  const frame = `<~${generateRandomHex(16)}~>`
   return { format: `${frame}${fields.join(FIELD)}${frame}`, frame }
 }
 
