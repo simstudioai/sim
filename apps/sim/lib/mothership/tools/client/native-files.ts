@@ -3,7 +3,14 @@ import type {
   DesktopLocalFileRequest,
   DesktopLocalFileResponse,
 } from '@sim/desktop-bridge'
-import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
+import {
+  assertImportableManifest,
+  type DesktopLocalFileImportResult,
+  localFileImportCompletion,
+  localFileImportFailure,
+  localFileReadCompletion,
+  readImportEntry,
+} from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -34,34 +41,17 @@ async function invoke(
   return response
 }
 
-interface ImportedFile {
-  id: string
-  name: string
-  relativePath: string
-}
-interface ImportedFolder {
-  id: string
-  relativePath: string
-}
-
 /** The manifest is produced from canonical pending-tool arguments in Electron, never renderer paths. */
 export async function importNativeFiles(
   toolCallId: string,
   manifest: DesktopLocalFileManifest,
   signal?: AbortSignal
-) {
-  const files: ImportedFile[] = []
-  const folders: ImportedFolder[] = []
+): Promise<DesktopLocalFileImportResult> {
+  const files: DesktopLocalFileImportResult['files'] = []
+  const folders: DesktopLocalFileImportResult['folders'] = []
   const parents = new Map<string, string | undefined>([['', manifest.folderId]])
   try {
-    if (
-      manifest.entries.some(
-        (entry) => entry.kind === 'file' && entry.size > MAX_DESKTOP_IMPORT_FILE_BYTES
-      )
-    )
-      throw new Error(
-        'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
-      )
+    assertImportableManifest(manifest)
     for (const entry of manifest.entries) {
       signal?.throwIfAborted()
       const segments = entry.relativePath.split('/').filter(Boolean)
@@ -96,32 +86,12 @@ export async function importNativeFiles(
         folders.push({ id: folderId, relativePath: entry.relativePath })
         continue
       }
-      const parts: Uint8Array<ArrayBuffer>[] = []
-      let offset = 0
-      do {
-        const response = await invoke(
-          {
-            operation: 'chunk',
-            toolCallId,
-            relativePath: entry.relativePath,
-            offset,
-            revision: entry.revision,
-          },
-          signal
-        )
-        if (!response.ok) throw new Error(response.error)
-        if (response.data.kind !== 'chunk') throw new Error('Unexpected file chunk response.')
-        const bytes = new Uint8Array(response.data.bytes)
-        parts.push(bytes)
-        offset += bytes.length
-        if (
-          offset > entry.size ||
-          (response.data.eof && offset !== entry.size) ||
-          (!response.data.eof && bytes.length === 0)
-        )
-          throw new Error('The local file changed or its transfer was incomplete.')
-        if (response.data.eof) break
-      } while (offset < entry.size)
+      const parts = await readImportEntry(
+        toolCallId,
+        entry,
+        (request) => invoke(request, signal),
+        signal
+      )
       const saved = await uploadWorkspaceFileSession({
         workspaceId: manifest.targetWorkspaceId,
         folderId: parentId,
@@ -132,16 +102,10 @@ export async function importNativeFiles(
     }
     return { success: true, workspaceId: manifest.targetWorkspaceId, files, folders }
   } catch (error) {
-    return {
-      success: false,
-      workspaceId: manifest.targetWorkspaceId,
-      files,
-      folders,
-      error: getErrorMessage(error),
-      partial: files.length > 0 || folders.length > 0,
-      doNotRetry: true,
-      outcomeUnknown: true,
-    }
+    return localFileImportFailure(
+      { workspaceId: manifest.targetWorkspaceId, files, folders },
+      getErrorMessage(error)
+    )
   }
 }
 
@@ -176,20 +140,16 @@ export async function executeNativeFileTool(
       if (response.code === 'ALREADY_STARTED') return
       throw new Error(response.error)
     }
-    const result =
+    if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
+    const completion =
       response.data.kind === 'manifest'
-        ? await importNativeFiles(toolCallId, response.data, signal)
-        : response.data
-    if ('kind' in result && result.kind === 'chunk')
-      throw new Error('Unexpected chunk outside an import.')
-    const failed = 'success' in result && result.success === false
+        ? localFileImportCompletion(await importNativeFiles(toolCallId, response.data, signal))
+        : localFileReadCompletion(response)
     await reportClientToolCompletion(
       toolCallId,
-      failed ? ASYNC_TOOL_CONFIRMATION_STATUS.error : ASYNC_TOOL_CONFIRMATION_STATUS.success,
-      failed
-        ? 'Some files could not be imported; inspect the partial result.'
-        : 'Local file operation completed.',
-      result
+      completion.status,
+      completion.message,
+      completion.data
     )
     settled = true
   } catch (error) {

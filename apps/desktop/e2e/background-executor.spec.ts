@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,7 +18,8 @@ import { sleep } from '@sim/utils/helpers'
 
 /**
  * The Sim desktop app's background executor against a fixture Sim that speaks the executor's
- * device protocol (register, inbox, doorbell, claim, lease, complete) the way Sim's routes do.
+ * device protocol (register, inbox, doorbell, claim, lease, complete, import) the way Sim's
+ * routes do.
  * The window navigates, reloads and leaves the chats while their calls run: nothing in this
  * suite depends on a chat view, which is the point. Each scenario's checks land in a JSON
  * report at BACKGROUND_EXECUTOR_REPORT_PATH.
@@ -66,12 +68,26 @@ interface ReportCheck {
 
 const report: ReportCheck[] = []
 
+interface ImportedEntry {
+  toolCallId: string
+  kind: string
+  sourceName: string
+  relativePath: string
+  sha256?: string
+  bytes?: number
+}
+
+function sha256(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
 class FixtureSim {
   readonly calls = new Map<string, FixtureCall>()
   readonly devices = new Map<string, { name: string; platform: string }>()
   readonly requests: string[] = []
   readonly hits = new Map<string, number>()
   readonly streams = new Map<string, Set<ServerResponse>>()
+  readonly imported: ImportedEntry[] = []
   enabled = true
   offline = false
   droppedWhileOffline = 0
@@ -100,6 +116,7 @@ class FixtureSim {
     this.devices.clear()
     this.requests.length = 0
     this.hits.clear()
+    this.imported.length = 0
     this.enabled = true
     this.offline = false
     this.droppedWhileOffline = 0
@@ -156,10 +173,58 @@ class FixtureSim {
     }
   }
 
+  private async raw(request: IncomingMessage): Promise<Buffer> {
+    const chunks: Buffer[] = []
+    for await (const chunk of request) chunks.push(Buffer.from(chunk))
+    return Buffer.concat(chunks)
+  }
+
   private async body(request: IncomingMessage): Promise<Record<string, unknown>> {
-    let text = ''
-    for await (const chunk of request) text += chunk.toString()
+    const text = (await this.raw(request)).toString()
     return text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  }
+
+  /** Stores one entry of a claimed, running import, as Sim's import route does. */
+  private async importEntry(
+    url: URL,
+    request: IncomingMessage,
+    response: ServerResponse
+  ): Promise<void> {
+    const query = Object.fromEntries(url.searchParams)
+    const call = this.calls.get(query.toolCallId ?? '')
+    if (
+      request.method !== 'PUT' ||
+      !call ||
+      call.deviceId !== query.deviceId ||
+      call.toolName !== 'import_local_files' ||
+      call.token !== request.headers['x-sim-execution-token'] ||
+      call.status !== 'running'
+    ) {
+      this.json(response, 404, { error: 'Desktop import not found' })
+      return
+    }
+    // As Sim's route does: a file must declare its length, and arrive whole.
+    if (query.kind === 'file' && request.headers['content-length'] === undefined) {
+      this.json(response, 411, { error: 'A file import must declare its length' })
+      return
+    }
+    const content = await this.raw(request)
+    if (query.kind === 'file' && content.length !== Number(request.headers['content-length'])) {
+      this.json(response, 400, { error: 'The file did not arrive whole' })
+      return
+    }
+    const entry: ImportedEntry = {
+      toolCallId: call.toolCallId,
+      kind: query.kind ?? '',
+      sourceName: query.sourceName ?? '',
+      relativePath: query.relativePath ?? '',
+      ...(query.kind === 'file' ? { sha256: sha256(content), bytes: content.length } : {}),
+    }
+    this.imported.push(entry)
+    this.json(response, 200, {
+      id: `entry-${this.imported.length}`,
+      name: entry.relativePath.split('/').at(-1) || entry.sourceName,
+    })
   }
 
   private json(response: ServerResponse, status: number, body: unknown): void {
@@ -259,6 +324,10 @@ class FixtureSim {
           return []
         })
       this.json(response, 200, { items })
+      return
+    }
+    if (path === '/api/desktop/tool/import') {
+      await this.importEntry(url, request, response)
       return
     }
     if (path.startsWith('/api/desktop/tool/')) {
@@ -587,6 +656,67 @@ test.describe('background executor', () => {
     await check('C: the command ran exactly once', async () => {
       expect(sim.requireCall(run).claims).toBe(1)
       expect(readFileSafe(marker).trim().split('\n')).toEqual(['started'])
+    })
+  })
+
+  test('D: a folder import lands in Sim while the user is in another chat', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-d-'))
+    const launched = await launch(userData)
+    app = launched.app
+    const deviceId = await registeredDevice()
+    const source = join(userData, 'Reports')
+    mkdirSync(join(source, 'q3'), { recursive: true })
+    writeFileSync(join(source, 'notes.txt'), 'remember the numbers')
+    // Larger than one 8 MB read, so the file crosses Electron in several chunks.
+    const large = Buffer.alloc(9 * 1024 * 1024, 7)
+    writeFileSync(join(source, 'q3', 'export.bin'), large)
+    await launched.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+
+    const call = sim.issue(deviceId, CHAT_B, 'import_local_files', {
+      path: source,
+      targetWorkspaceId: WORKSPACE,
+      folderId: 'folder-e2e',
+    })
+
+    await check('D: the import completes with every entry it stored', async () => {
+      const completion = await settled(call, 60_000)
+      expect(completion.status).toBe('success')
+      expect(completion.data).toMatchObject({
+        success: true,
+        workspaceId: WORKSPACE,
+        folders: [
+          { id: 'entry-1', relativePath: '' },
+          { id: 'entry-3', relativePath: 'q3' },
+        ],
+        files: [
+          { id: 'entry-2', relativePath: 'notes.txt' },
+          { id: 'entry-4', relativePath: 'q3/export.bin' },
+        ],
+      })
+    })
+
+    await check('D: Sim received the tree with the bytes on disk, once', async () => {
+      expect(sim.imported).toEqual([
+        { toolCallId: call, kind: 'directory', sourceName: 'Reports', relativePath: '' },
+        {
+          toolCallId: call,
+          kind: 'file',
+          sourceName: 'Reports',
+          relativePath: 'notes.txt',
+          sha256: sha256(Buffer.from('remember the numbers')),
+          bytes: 20,
+        },
+        { toolCallId: call, kind: 'directory', sourceName: 'Reports', relativePath: 'q3' },
+        {
+          toolCallId: call,
+          kind: 'file',
+          sourceName: 'Reports',
+          relativePath: 'q3/export.bin',
+          sha256: sha256(large),
+          bytes: large.length,
+        },
+      ])
+      expect(sim.requireCall(call).claims).toBe(1)
     })
   })
 

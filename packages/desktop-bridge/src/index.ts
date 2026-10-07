@@ -1161,7 +1161,11 @@ export interface SimDesktopApi {
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
-export { MAX_DESKTOP_IMPORT_FILE_BYTES } from './local-files'
+export {
+  DESKTOP_IMPORT_TOKEN_HEADER,
+  isStorableImportName,
+  MAX_DESKTOP_IMPORT_FILE_BYTES,
+} from './local-files'
 export {
   applyDesktopTitleBarMode,
   DESKTOP_TITLE_BAR_ATTRIBUTE,

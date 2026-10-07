@@ -36,6 +36,8 @@ import { createExecutorJournal } from '@/main/desktop-executor/journal'
 import {
   DESKTOP_EXECUTOR_PROTOCOL_VERSION,
   type DesktopExecutorTiming,
+  type DesktopImportEntryRequest,
+  type DesktopImportedEntry,
 } from '@/main/desktop-executor/protocol'
 
 const logger = createLogger('DesktopExecutorService')
@@ -66,6 +68,11 @@ export interface DesktopExecutorService {
   /** Re-registers after a sign-in, a session change, or a change to what this device can run. */
   refreshRegistration(): void
   getDevice(): DesktopExecutorDevice | null
+  /** Stores one entry of a claimed import, as this device's registered session. */
+  importEntry(
+    request: DesktopImportEntryRequest,
+    signal: AbortSignal
+  ): Promise<DesktopImportedEntry>
   /** Sign-out: stops every action, forgets every call, and retires this install id. */
   signOut(): Promise<void>
 }
@@ -435,6 +442,10 @@ export function createDesktopExecutorService(
     },
     getDevice() {
       return device
+    },
+    importEntry(request, signal) {
+      if (!client) throw new Error('The Sim desktop app is not signed in to Sim.')
+      return client.importEntry(request, signal)
     },
     async signOut() {
       // A registration in flight now answers for a session that is gone; it must not restart.
