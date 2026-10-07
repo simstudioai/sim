@@ -909,7 +909,7 @@ it.each(['leave', 'edit', 'overwrite', 'acknowledge', 'discard'])(
   }
 )
 
-it.each(['request', 'cleanup', 'failed', 'rejected'])(
+it.each(['request', 'cleanup', 'reopened-request', 'reopened-cleanup', 'failed', 'rejected'])(
   'serializes impersonation targets during the %s phase',
   async (phase) => {
     const firstTransition = createDeferred<unknown>()
@@ -934,7 +934,7 @@ it.each(['request', 'cleanup', 'failed', 'rejected'])(
     authClientMockFns.mockClient.admin.impersonateUser.mockImplementation(
       ({ userId }: { userId: string }) => {
         requestedIdentities.push(userId)
-        return phase === 'cleanup'
+        return phase.endsWith('cleanup')
           ? Promise.resolve({ data: {}, error: null })
           : firstTransition.promise
       }
@@ -947,10 +947,7 @@ it.each(['request', 'cleanup', 'failed', 'rejected'])(
     const first = container.querySelector<HTMLButtonElement>(
       '[aria-label="Impersonate a@example.com"]'
     )
-    const second = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Impersonate b@example.com"]'
-    )
-    if (!first || !second) throw new Error('Impersonation rows did not load')
+    if (!first) throw new Error('Impersonation rows did not load')
     await act(async () => {
       first.click()
       await vi.advanceTimersByTimeAsync(10)
@@ -969,13 +966,33 @@ it.each(['request', 'cleanup', 'failed', 'rejected'])(
         await vi.advanceTimersByTimeAsync(10)
       })
     }
+    if (phase.startsWith('reopened-')) {
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      if (left) {
+        await render(null)
+        await render(<Admin />, '?q=example')
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+          await flushMicrotasks()
+        })
+      }
+    }
+    const second = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Impersonate b@example.com"]'
+    )
+    if (!second) throw new Error('Impersonation rows did not load')
     await act(async () => {
       second.click()
       await vi.advanceTimersByTimeAsync(10)
     })
     const switchFailed = phase === 'failed' || phase === 'rejected'
     expect(requestedIdentities).toEqual(switchFailed ? ['user-a', 'user-b'] : ['user-a'])
-    expectLeave(true)
+    expectLeave(switchFailed)
   }
 )
 

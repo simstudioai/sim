@@ -99,7 +99,7 @@ export function Admin() {
   }
   const importGuard = useSettingsUnsavedGuard({
     isDirty: Boolean(workflowId.trim() || targetWorkspaceId.trim()),
-    navigationBlocked: importWorkflow.isPending,
+    navigationBlocked: importWorkflow.isPending || isImpersonating,
     onDiscard: discardImport,
   })
 
