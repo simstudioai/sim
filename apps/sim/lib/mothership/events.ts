@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
@@ -56,7 +57,7 @@ export interface MothershipSendMessageDetail {
  * this to decide whether to persist a handoff instead.
  */
 export function sendMothershipMessage(payload: SendPayload, resumeUserMessageId?: string): boolean {
-  const { content, ...payloadFields } = payload
+  const { content, ...payloadFields } = sendPayload(payload)
   const trimmed = content.trim()
   if (!trimmed && !payloadFields.fileAttachments?.length) {
     logger.warn('sendMothershipMessage called with empty message')

@@ -56,6 +56,13 @@ export type QueuedMessageEditPatch = Pick<
   | 'assistantSearchLevel'
 >
 
+/** A new-chat queue's move to its chat's key. */
+export interface QueueMigration {
+  key: string
+  /** Ids of the messages the chat's queue already held, which stay ahead of the moved ones. */
+  ahead: string[]
+}
+
 export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>
   editing: Record<string, string>
@@ -65,6 +72,13 @@ export interface MothershipQueueState {
    * handed back); restoring the chat lifts it.
    */
   cleared: Record<string, number>
+  /**
+   * Where each new-chat key's queue moved when its chat became known
+   * (`migrate`). A write that captured the old key before an `await` follows
+   * this (`liveQueueKey`, `liveQueuePosition`), so it lands in the chat's queue,
+   * not a dead key.
+   */
+  migratedTo: Record<string, QueueMigration>
 
   enqueue: (chatKey: string, message: QueuedMothershipMessage) => void
   insertAt: (chatKey: string, index: number, message: QueuedMothershipMessage) => void

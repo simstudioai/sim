@@ -134,7 +134,12 @@ import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { reusedRequestId, useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import {
+  liveQueueKey,
+  liveQueuePosition,
+  reusedRequestId,
+  useMothershipQueueStore,
+} from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
   QueuedSendHandoffSeed,
@@ -336,7 +341,7 @@ const PERSISTED_TURN_REFETCH_BASE_MS = 250
 const PERSISTED_TURN_REFETCH_MAX_DELAY_MS = 5_000
 /** How long a finished turn's save is waited for; a slow save still lands well inside it. */
 const PERSISTED_TURN_WAIT_MS = 120_000
-/** Pacing for re-sending a message refused because the chat was busy, or that could not reach Sim. */
+/** How long a Stop's abort request may take before the Stop counts as failed. */
 const STOP_REQUEST_TIMEOUT_MS = 15_000
 const DETACHED_CHAT_RETRY_BASE_MS = 1000
 const DETACHED_CHAT_RETRY_MAX_MS = 30_000
@@ -4359,7 +4364,9 @@ export function useChat(
          whichever one they opened next. Only a send an unmount withdrew from a
          chatless surface, whose key dies with the mount, goes to the
          cross-surface lanes. */
-      const chatless = activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+      /** The new-chat queue may have moved to its chat while the POST was out. */
+      const { chatKey: requeueKey, index: requeueIndex } = liveQueuePosition(activeChatKey, [])
+      const chatless = requeueKey.startsWith(PENDING_CHAT_KEY_PREFIX)
       if (result.reason === 'withdrawn' && chatless) {
         handOffWithdrawnSend({ ...payload, userMessageId: result.userMessageId })
         return
@@ -4368,7 +4375,7 @@ export function useChat(
          it, so anything queued while its POST was out was written after it. The one
          exception is a held send adopted from a dead mount of this surface in that
          window, which can be older; it lands behind this one. */
-      useMothershipQueueStore.getState().insertAt(activeChatKey, 0, {
+      useMothershipQueueStore.getState().insertAt(requeueKey, requeueIndex, {
         ...createQueuedMessage(payload, result.userMessageId),
         ...requeuedFields(result.reason, 0, chatless ? heldSendSurface : undefined),
         admissionUnknown: result.admissionUnknown,
@@ -4899,8 +4906,10 @@ export function useChat(
       const dispatchChatKey = chatKeyRef.current
       const queueAtStart =
         useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
-      let originalIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
-      if (originalIndex === -1) {
+      const startIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
+      /** What was queued ahead of it, which it goes back behind if it is restored. */
+      let aheadIds = queueAtStart.slice(0, Math.max(0, startIndex)).map((queued) => queued.id)
+      if (startIndex === -1) {
         queuedMessageDispatchIds.delete(msg.id)
         return
       }
@@ -4913,7 +4922,7 @@ export function useChat(
           return
         }
         removedFromQueue = true
-        useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
+        useMothershipQueueStore.getState().remove(liveQueueKey(dispatchChatKey), msg.id)
       }
 
       /* What actually went out. `msg` is the snapshot from when the dispatch was
@@ -4925,7 +4934,13 @@ export function useChat(
         withdrawn?: WithdrawnSendResult
       ) => {
         const withdrawnUserMessageId = withdrawn?.userMessageId
-        const chatless = dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
+        /* The send may have waited on a Stop that saw the new chat's first message
+           admitted, which moved this queue to that chat. */
+        const { chatKey: restoreKey, index: restoreIndex } = liveQueuePosition(
+          dispatchChatKey,
+          aheadIds
+        )
+        const chatless = restoreKey.startsWith(PENDING_CHAT_KEY_PREFIX)
         const savedHandoff = readQueuedSendHandoffState()
         const retainedHandoff =
           savedHandoff?.id === msg.id
@@ -4972,7 +4987,7 @@ export function useChat(
         }
         /** Once restored, the queue owns recovery; a second handoff reader must not resend it. */
         clearQueuedSendHandoffState(msg.id)
-        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
+        useMothershipQueueStore.getState().insertAt(restoreKey, restoreIndex, {
           /* Only this outcome's policy applies: what an earlier one set (a hold, a
              retry delay, a surface) must not outlive it. */
           ...withoutRequeueFields(dispatched),
@@ -4996,7 +5011,7 @@ export function useChat(
         if (currentIndex === -1) {
           return
         }
-        originalIndex = currentIndex
+        aheadIds = queueAtSend.slice(0, currentIndex).map((queued) => queued.id)
 
         // Re-read live: the user may have applied an in-place edit (`replaceAt`)
         // between dispatch scheduling and this send.
@@ -5057,12 +5072,12 @@ export function useChat(
       if (!history) {
         useMothershipQueueStore
           .getState()
-          .deferRetry(chatKey, msg.id, sendRetry((msg.sendRetries ?? 0) + 1))
+          .deferRetry(liveQueueKey(chatKey), msg.id, sendRetry((msg.sendRetries ?? 0) + 1))
         return true
       }
       clearQueuedSendHandoffState(msg.id)
       clearQueuedSendHandoffClaim(msg.id)
-      useMothershipQueueStore.getState().remove(chatKey, msg.id)
+      useMothershipQueueStore.getState().remove(liveQueueKey(chatKey), msg.id)
       return true
     },
     [queryClient]

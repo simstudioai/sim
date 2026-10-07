@@ -25,9 +25,13 @@ describe('requeuedFields', () => {
   })
 
   it.each(['stop-failed', 'failed'] as const)(
-    'leaves a %s send for the user, on any surface',
+    'leaves a %s send for the user, adoptable by its chatless surface',
     (reason) => {
-      expect(requeuedFields(reason, 4, 'ws-1:home')).toEqual({ retryRequired: true })
+      expect(requeuedFields(reason, 4, 'ws-1:home')).toEqual({
+        retryRequired: true,
+        heldSurface: 'ws-1:home',
+      })
+      expect(requeuedFields(reason, 4, undefined)).toEqual({ retryRequired: true })
     }
   )
 

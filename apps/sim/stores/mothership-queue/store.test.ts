@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import {
+  liveQueueKey,
+  liveQueuePosition,
+  useMothershipQueueStore,
+} from '@/stores/mothership-queue/store'
 import type { QueuedMothershipMessage } from '@/stores/mothership-queue/types'
 
 const message = (id: string, content = `content-${id}`): QueuedMothershipMessage => ({
@@ -181,6 +185,50 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('migrate', () => {
+    it('points a late write at the chat a new-chat queue moved to, even an empty one', () => {
+      useMothershipQueueStore.getState().migrate('pending::empty', 'chat-X')
+      useMothershipQueueStore.getState().migrate('chat-X', 'chat-X')
+
+      expect(liveQueueKey('pending::empty')).toBe('chat-X')
+      expect(liveQueueKey('pending::never-moved')).toBe('pending::never-moved')
+      expect(liveQueueKey('chat-X')).toBe('chat-X')
+    })
+
+    it('keeps a late write behind the messages the chat queue already held', () => {
+      useMothershipQueueStore.getState().enqueue('chat-Y', message('older-1'))
+      useMothershipQueueStore.getState().enqueue('chat-Y', message('older-2'))
+      useMothershipQueueStore.getState().enqueue('pending::moved', message('moved'))
+      useMothershipQueueStore.getState().migrate('pending::moved', 'chat-Y')
+
+      const position = liveQueuePosition('pending::moved', [])
+      useMothershipQueueStore.getState().insertAt(position.chatKey, position.index, message('late'))
+
+      expect(position).toEqual({ chatKey: 'chat-Y', index: 2 })
+      expect(useMothershipQueueStore.getState().queues['chat-Y']?.map((m) => m.id)).toEqual([
+        'older-1',
+        'older-2',
+        'late',
+        'moved',
+      ])
+    })
+
+    it('keeps a late write in order when messages ahead of it were removed meanwhile', () => {
+      useMothershipQueueStore.getState().enqueue('chat-Z', message('older'))
+      useMothershipQueueStore.getState().enqueue('pending::sent', message('later'))
+      useMothershipQueueStore.getState().migrate('pending::sent', 'chat-Z')
+      useMothershipQueueStore.getState().remove('chat-Z', 'older')
+
+      const position = liveQueuePosition('pending::sent', [])
+      useMothershipQueueStore
+        .getState()
+        .insertAt(position.chatKey, position.index, message('follow-up'))
+
+      expect(useMothershipQueueStore.getState().queues['chat-Z']?.map((m) => m.id)).toEqual([
+        'follow-up',
+        'later',
+      ])
+    })
+
     it('merges into an existing destination bucket instead of overwriting', () => {
       useMothershipQueueStore.getState().enqueue('chat-X', message('existing-1'))
       useMothershipQueueStore.getState().enqueue('chat-X', message('existing-2'))
