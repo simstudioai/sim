@@ -50,6 +50,7 @@ import {
   killPane,
   listPanes,
   pollRun,
+  type RecordedRun,
   resolveAttachment,
   runPaneState,
   sendKey,
@@ -536,7 +537,8 @@ export class TerminalService {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
     for (const handle of pending) {
-      // An untracked run is never stopped, so there is nothing to keep it for.
+      // A finished run needs no record; an untracked one is never stopped, so is not kept either.
+      if (isRunComplete(handle)) this.forgetRun(handle)
       if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
     }
@@ -1292,15 +1294,11 @@ export class TerminalService {
 
     const started = Date.now()
     await this.reapFinishedRuns(terminal.terminalId, terminal.env)
-    const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
+    const ledger = this.options.runLedger
+    const handle = await startRun(session, command, terminal.currentCwd, terminal.env, {
+      ...(ledger ? { beforeStart: (run: RecordedRun) => ledger.record(run) } : {}),
+    })
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
-    if (handle.runId && handle.socket) {
-      this.options.runLedger?.record({
-        runId: handle.runId,
-        pane: handle.pane,
-        socket: handle.socket,
-      })
-    }
     // Tracked from the moment its window exists, so sign-out can stop it even mid-wait.
     const pending = this.pendingRuns.get(terminal.terminalId)
     if (pending) pending.push(handle)

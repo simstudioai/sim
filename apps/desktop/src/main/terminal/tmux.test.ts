@@ -130,6 +130,8 @@ interface FakeTmuxState {
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
   fail?: Record<string, string>
+  /** Once a key is sent, tmux stops answering: every later command fails like a dying server. */
+  dieAfterKeys?: boolean
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
@@ -222,6 +224,9 @@ switch (args[0]) {
   case 'kill-pane': {
     if (!state.panes[target()]) fail("can't find pane")
     state.log.push(args[0] + ' ' + target() + (args[0] === 'send-keys' ? ' ' + args[args.length - 1] : ''))
+    if (args[0] === 'send-keys' && state.dieAfterKeys) {
+      state.fail = { 'display-message': 'server exited unexpectedly', 'kill-pane': 'server exited unexpectedly' }
+    }
     if (args[0] === 'kill-pane') delete state.panes[target()]
     save()
     break
@@ -340,6 +345,50 @@ describe('stopping a run another process started, from its record', () => {
     expect(tmux.read().log).toEqual([])
     expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
   })
+
+  it('keeps the record when tmux stops answering part-way through the stop', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), dieAfterKeys: true })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('unknown')
+    // Its pane could not be confirmed as the run's, so it was not closed.
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`])
+  })
+
+  it('saves the record before the command may start, and never starts one it could not save', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    const marker = join(tmux.dir, 'ran')
+    let ranBeforeRecord = true
+    const run = await startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env, {
+      beforeStart: () => {
+        // Time enough for a command already released to have run.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_000)
+        ranBeforeRecord = existsSync(marker)
+        return true
+      },
+    })
+    if ('error' in run) throw new Error(run.error)
+    expect(ranBeforeRecord).toBe(false)
+    await expect.poll(() => existsSync(marker), { timeout: 10_000 }).toBe(true)
+
+    const unsaved = fakeTmux({ exec: true })
+    dirs.push(unsaved.dir)
+    const unsavedMarker = join(unsaved.dir, 'ran')
+    const refused = await startRun(
+      'agent',
+      `touch ${JSON.stringify(unsavedMarker)}`,
+      null,
+      unsaved.env,
+      {
+        beforeStart: () => false,
+      }
+    )
+    expect(refused).toMatchObject({ error: expect.stringContaining('was not run') })
+    await sleep(1_500)
+    expect(existsSync(unsavedMarker)).toBe(false)
+  }, 20_000)
 
   it('leaves the record for later while tmux cannot be asked', async () => {
     const tmux = fakeTmux()

@@ -5,39 +5,33 @@
  * going in the user's tmux server, and the next launch would otherwise know nothing about it.
  * Each record names the run's tag, its pane and its tmux server's socket, and nothing else: no
  * command line and no output, since it lives outside the account's encrypted data. A record is
- * written once the pane is tagged and removed once the run has ended, its pane is gone, or Sim has
- * stopped it.
+ * saved before the run's command may start, and removed once the run has ended, its pane is gone,
+ * or Sim has stopped it.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import type { RecordedRun } from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminalRunLedger')
 
-/** One recorded run: what it takes to find its pane again, on the server it ran on. */
-export interface RunRecord {
-  /** The tag on the run's pane; only a pane carrying it is ever acted on. */
-  runId: string
-  pane: string
-  /** The tmux server's socket, so a different server is never asked about this pane. */
-  socket: string
-}
-
 export interface RunLedger {
-  record(run: RunRecord): void
+  /** Saves a run's record; false when it could not be saved, so the run must not start. */
+  record(run: RecordedRun): boolean
   forget(runId: string): void
   /** Every recorded run; `excludeLive` leaves out runs this process recorded. */
-  list(options?: { excludeLive?: boolean }): RunRecord[]
+  list(options?: { excludeLive?: boolean }): RecordedRun[]
 }
 
 /** Run tags are generated ids; anything else in the directory is not a record. */
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/
 
-function parseRecord(text: string): RunRecord | null {
+function parseRecord(text: string): RecordedRun | null {
   try {
-    const parsed = JSON.parse(text) as Partial<RunRecord>
+    const parsed = JSON.parse(text) as Partial<RecordedRun>
     if (
       typeof parsed.runId === 'string' &&
       RUN_ID.test(parsed.runId) &&
@@ -54,6 +48,15 @@ function parseRecord(text: string): RunRecord | null {
   return null
 }
 
+/** Removes a file the ledger no longer needs; a failure is logged, never thrown at a caller. */
+function remove(path: string): void {
+  try {
+    rmSync(path, { force: true })
+  } catch (error) {
+    logger.warn('Could not remove a tmux run record', { error: getErrorMessage(error) })
+  }
+}
+
 export function createRunLedger(dir: string): RunLedger {
   /** Runs recorded by this process, still going as far as it knows. */
   const live = new Set<string>()
@@ -61,19 +64,19 @@ export function createRunLedger(dir: string): RunLedger {
 
   return {
     record(run) {
-      if (!RUN_ID.test(run.runId)) return
+      if (!RUN_ID.test(run.runId)) return false
       try {
-        mkdirSync(dir, { recursive: true, mode: 0o700 })
-        writeFileSync(pathFor(run.runId), JSON.stringify(run), { mode: 0o600 })
+        writeJsonFileAtomicallySync(pathFor(run.runId), run)
         live.add(run.runId)
+        return true
       } catch (error) {
         logger.warn('Could not record a tmux run', { error: getErrorMessage(error) })
+        return false
       }
     },
     forget(runId) {
       live.delete(runId)
-      if (!RUN_ID.test(runId)) return
-      rmSync(pathFor(runId), { force: true })
+      if (RUN_ID.test(runId)) remove(pathFor(runId))
     },
     list(options = {}) {
       let names: string[]
@@ -82,10 +85,15 @@ export function createRunLedger(dir: string): RunLedger {
       } catch {
         return []
       }
-      const runs: RunRecord[] = []
+      const runs: RecordedRun[] = []
       for (const name of names) {
+        // A write that never finished leaves only its temporary file behind.
+        if (name.endsWith('.tmp')) {
+          remove(join(dir, name))
+          continue
+        }
         if (!name.endsWith('.json')) continue
-        let record: RunRecord | null = null
+        let record: RecordedRun | null = null
         try {
           record = parseRecord(readFileSync(join(dir, name), 'utf8'))
         } catch {
@@ -93,7 +101,7 @@ export function createRunLedger(dir: string): RunLedger {
         }
         if (!record || `${record.runId}.json` !== name) {
           // Nothing could act on it safely; it only takes up space.
-          rmSync(join(dir, name), { force: true })
+          remove(join(dir, name))
           continue
         }
         if (options.excludeLive && live.has(record.runId)) continue

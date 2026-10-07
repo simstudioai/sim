@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -51,6 +51,37 @@ describe('the tmux run ledger', () => {
 
     expect(ledger.list()).toEqual([RUN])
     expect(readdirSync(dir)).toEqual(['run-1.json'])
+  })
+
+  it('cleans up after a write that never finished, keeping the saved record', () => {
+    const dir = scratch()
+    const ledger = createRunLedger(dir)
+    ledger.record(RUN)
+    writeFileSync(join(dir, 'run-2.json.4242.1.tmp'), '{"runId":"run-2","pa')
+
+    expect(ledger.list()).toEqual([RUN])
+    expect(readdirSync(dir)).toEqual(['run-1.json'])
+  })
+
+  it('keeps sweeping, and lets a call finish, when an entry cannot be removed', () => {
+    const dir = scratch()
+    const ledger = createRunLedger(dir)
+    ledger.record(RUN)
+    // Not a file, so removing it fails.
+    mkdirSync(join(dir, 'run-3.json'))
+    mkdirSync(join(dir, 'run-4.json'))
+
+    expect(ledger.list()).toEqual([RUN])
+    expect(() => ledger.forget('run-4')).not.toThrow()
+  })
+
+  it('reports a record it could not save, so the run is not started', () => {
+    const dir = scratch()
+    // A file where the directory should be: nothing can be saved under it.
+    writeFileSync(join(dir, '..', 'blocked'), '')
+    const ledger = createRunLedger(join(dir, '..', 'blocked'))
+
+    expect(ledger.record(RUN)).toBe(false)
   })
 
   it('records nothing for a run tag that is not a plain id', () => {

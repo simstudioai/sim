@@ -1,4 +1,5 @@
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TerminalCommandEvent } from '@sim/terminal-protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,11 +90,13 @@ vi.mock('@/main/terminal/session', () => ({
   },
 }))
 
+import { TerminalService, type TerminalServiceOptions } from '@/main/terminal'
 import {
   type ScopedTerminalSink,
   TerminalRegistry,
   type TerminalScopePersistence,
 } from '@/main/terminal/registry'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 
 function registry(): TerminalRegistry {
   return new TerminalRegistry()
@@ -184,6 +187,32 @@ describe('TerminalRegistry', () => {
     expect(terminals.migrateScope('missing', 'chat-other')).toBe(true)
 
     terminals.dispose()
+  })
+
+  it('gives a service rebuilt after a failed restore the run ledger too', () => {
+    const ledger = createRunLedger(join(tmpdir(), `sim-registry-ledger-${process.pid}`))
+    const built: Array<TerminalServiceOptions['runLedger']> = []
+    const persistence: TerminalScopePersistence = {
+      load: () => ({ v: 1 as const, tabs: [{ cwd: tmpdir() }, { cwd: tmpdir() }], activeIndex: 0 }),
+      save: () => true,
+      migrate: () => true,
+      disposeScope: () => {},
+    }
+    const terminals = new TerminalRegistry(
+      persistence,
+      (_scope, options) => {
+        built.push(options.runLedger)
+        return new TerminalService(options)
+      },
+      ledger
+    )
+    createControl.failAt = 2
+
+    expect(() => terminals.restoreScope('chat-A')).toThrow('PTY spawn failed')
+
+    // The service that failed to restore, and the one built in its place.
+    expect(built).toHaveLength(2)
+    expect(built.every((runLedger) => runLedger === ledger)).toBe(true)
   })
 
   it('rolls back a partial restore before retrying the complete descriptor', () => {

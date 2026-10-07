@@ -37,8 +37,20 @@ vi.mock('@/main/terminal/tmux', async () => {
         : actual.resolveAttachment(pid, env),
     startRun: async (...args: Parameters<typeof actual.startRun>) => {
       if (!tmuxFake.on) return actual.startRun(...args)
-      const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
+      const options = args[4]
       const pane = `%${nextPane++}`
+      const runId = tmuxFake.untracked ? null : `run-${pane.slice(1)}`
+      const socket = tmuxFake.untracked ? null : '/tmp/tmux-fake/default'
+      // Like the real one, a tagged run starts only once its record is saved.
+      if (
+        runId &&
+        socket &&
+        options?.beforeStart &&
+        !options.beforeStart({ runId, pane, socket })
+      ) {
+        return { error: 'The command could not be recorded for a later stop, so it was not run.' }
+      }
+      const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
       const statusPath = join(dir, 'status')
       writeFileSync(join(dir, 'out'), 'partial output')
       tmuxFake.statusPaths.set(pane, statusPath)
@@ -46,8 +58,8 @@ vi.mock('@/main/terminal/tmux', async () => {
       return {
         window: `@${pane.slice(1)}`,
         pane,
-        runId: tmuxFake.untracked ? null : `run-${pane.slice(1)}`,
-        socket: tmuxFake.untracked ? null : '/tmp/tmux-fake/default',
+        runId,
+        socket,
         outPath: join(dir, 'out'),
         statusPath,
         dispose: () => rmSync(dir, { recursive: true, force: true }),
@@ -628,7 +640,8 @@ describe('agent commands in tmux', () => {
   it('keeps a record of a tagged run exactly as long as the run goes on', async () => {
     tmuxFake.on = true
     tmuxFake.statusPaths.clear()
-    const ledgerDir = join(mkdtempSync(join(tmpdir(), 'sim-ledger-')), 'terminal-runs')
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
     const ledger = createRunLedger(ledgerDir)
     try {
       const terminal = new TerminalService({ loadCwd: () => '/tmp', runLedger: ledger })
@@ -652,6 +665,54 @@ describe('agent commands in tmux', () => {
       ).toEqual([[...tmuxFake.statusPaths.keys()][1]])
     } finally {
       tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it('forgets a run that finished before its terminal closed', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[, statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      writeFileSync(statusPath, '0')
+
+      terminal.closeTerminal(activeTerminalId as string)
+
+      expect(createRunLedger(ledgerDir).list()).toEqual([])
+    } finally {
+      tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it('never starts a tagged run it could not record', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    // A file where the ledger's directory should be: no record can be saved.
+    writeFileSync(join(scratch, 'terminal-runs'), '')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(join(scratch, 'terminal-runs')),
+      })
+      terminal.start({ cols: 80, rows: 24 })
+
+      await expect(
+        terminal.executeTool('call-unrecorded', 'run', { command: 'make build', waitSeconds: 1 })
+      ).resolves.toMatchObject({ ok: false, code: 'SPAWN_FAILED' })
+      expect(tmuxFake.statusPaths.size).toBe(0)
+    } finally {
+      tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
     }
   })
 

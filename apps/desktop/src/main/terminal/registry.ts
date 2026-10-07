@@ -486,6 +486,7 @@ export class TerminalRegistry {
         replacement = this.serviceFactory(entry.scope, {
           loadCwd: () => entry.persisted?.tabs[0]?.cwd,
           canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
+          runLedger: this.runLedger,
         })
       } catch {
         this.entries.delete(entry.scope)

@@ -357,7 +357,14 @@ export async function startRun(
   session: string,
   command: string,
   cwd: string | null,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  options: {
+    /**
+     * Records a tagged run before its command may start; false keeps the command from starting,
+     * since a run no later process could find must not outlive this one.
+     */
+    beforeStart?: (run: RecordedRun) => boolean
+  } = {}
 ): Promise<TmuxRunHandle | { error: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-run-'))
   const outPath = join(dir, 'out')
@@ -446,6 +453,11 @@ export async function startRun(
     ? await runTmux(['display-message', '-p', '-t', pane, '#{socket_path}'], env)
     : null
   const socket = shown?.ok && shown.stdout.trim().startsWith('/') ? shown.stdout.trim() : null
+  if (runId && options.beforeStart && !(socket && options.beforeStart({ runId, pane, socket }))) {
+    // Without the go file the wrapper exits by itself.
+    dispose()
+    return { error: 'The command could not be recorded for a later stop, so it was not run.' }
+  }
   try {
     writeFileSync(goPath, '')
   } catch (error) {
@@ -496,10 +508,12 @@ export async function stopRun(
   if (!isRunComplete(handle)) await closeRunPane(handle, env)
 }
 
-/** A recorded run as a later process finds it: its pane, its tag and its server. */
+/** A recorded run as a later process finds it: what it takes to find its pane again. */
 export interface RecordedRun {
+  /** The tag on the run's pane; only a pane carrying it is ever acted on. */
   runId: string
   pane: string
+  /** The tmux server's socket, so a different server is never asked about this pane. */
   socket: string
 }
 
@@ -543,8 +557,10 @@ export async function stopRecordedRun(
     state = await recordedRunState(run, env)
     if (state !== 'ours') break
   }
+  // The pane is closed only while it is confirmed the run's; a pane tmux could not answer for is
+  // left alone, and its record kept for the next sweep.
+  if (state === 'ours') state = await recordedRunState(run, env)
   if (state === 'ours') {
-    if ((await recordedRunState(run, env)) !== 'ours') return 'gone'
     await runTmux(['-S', run.socket, 'kill-pane', '-t', run.pane], env)
     state = await recordedRunState(run, env)
   }
