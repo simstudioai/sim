@@ -18,6 +18,9 @@ const fixture = toRecord(
   JSON.parse(await readFile(join(directory, 'http-project-fixture.json'), 'utf8'))
 )
 const account = toRecord(JSON.parse(await readFile(join(directory, 'owner-account.json'), 'utf8')))
+const personalKey = required(
+  toRecord(JSON.parse(await readFile(join(directory, 'v2-fixture-keys.json'), 'utf8'))).personal
+)
 const cookie = toArray(account.cookies)
   .map((value) => required(value).split(';')[0])
   .join('; ')
@@ -138,6 +141,64 @@ await check(
     )
     const head = await request(`${prefix}/${required(generated.id)}/artifact`, { method: 'HEAD' })
     assert.equal(head.status, 200)
+  }
+)
+await check(
+  'v2 Project SVG delivery and current, retained, missing and generated HEAD admission',
+  async () => {
+    const source = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+    const file = await create('project', 'v2-sandbox.svg', 'image/svg+xml', source)
+    const detail = `/api/v2/projects/${projectId}/files/${required(file.id)}`
+    const headers = { 'X-API-Key': personalKey }
+    const response = await request(`${detail}/content`, { headers }, true)
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), source)
+    assert.match(response.headers.get('content-security-policy') ?? '', /sandbox/)
+    assert.equal(response.headers.get('cache-control'), 'private, no-store')
+    const updated = await request(
+      `${detail}/content`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          content: `${source}\n`,
+          encoding: 'utf-8',
+          expectedRevision: required(file.revision),
+        }),
+      },
+      true
+    )
+    assert.equal(updated.status, 200)
+    for (const suffix of ['/content', '/versions/1/content']) {
+      const head = await request(`${detail}${suffix}`, { method: 'HEAD', headers }, true)
+      assert.equal(head.status, 200)
+      assert.equal(await head.text(), '')
+      assert.equal(head.headers.get('cache-control'), 'private, no-store')
+      const denied = await request(`${detail}${suffix}`, { method: 'HEAD' }, true)
+      assert.equal(denied.status, 401)
+      assert.equal(denied.headers.get('content-disposition'), null)
+    }
+    const missing = await request(
+      `${detail}/versions/999999/content`,
+      { method: 'HEAD', headers },
+      true
+    )
+    assert.equal(missing.status, 404)
+    const generated = await create(
+      'project',
+      'v2-head.pdf',
+      'text/x-pdflibjs',
+      'throw new Error("HEAD must not compile")'
+    )
+    for (const path of [
+      `/api/v2/projects/${projectId}/files/${required(generated.id)}/content`,
+      `/api/v2/projects/${projectId}/files/bulk-download?fileIds=${required(generated.id)}`,
+    ]) {
+      const head = await request(path, { method: 'HEAD', headers }, true)
+      assert.equal(head.status, 200)
+      assert.equal(await head.text(), '')
+      assert.equal(head.headers.get('cache-control'), 'private, no-store')
+    }
   }
 )
 await check('Workspace immutable URLs, authorized 304 and browser cache reuse', async () => {
