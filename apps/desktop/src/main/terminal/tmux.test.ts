@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   awaitRun,
+  closeRunPane,
   isDescendantOf,
   parseFormatLines,
   pollRun,
@@ -167,10 +168,11 @@ switch (args[0]) {
     break
   }
   case 'display-message': {
+    // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
-    if (!pane) fail("can't find pane")
     const name = args[args.length - 1].slice(2, -1)
-    process.stdout.write((pane.options[name] ?? '') + '\\n')
+    const value = !pane ? '' : name === 'pane_id' ? target() : (pane.options[name] ?? '')
+    process.stdout.write(value + '\\n')
     break
   }
   case 'list-clients': {
@@ -307,28 +309,62 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('starts a run it could not tag, untracked, and never stops it by a pane id', async () => {
+  it.each(['invalid option: @sim-run-id', 'unknown flag -p'])(
+    'starts a run untracked on a tmux without pane options (%s), and never stops it by a pane id',
+    async (refusal) => {
+      const tmux = fakeTmux()
+      dirs.push(tmux.dir)
+      // tmux before 3.0 has no pane options.
+      tmux.write({ ...tmux.read(), fail: { 'set-option': refusal } })
+
+      const run = await startRun('agent', 'sleep 600', null, tmux.env)
+      if ('error' in run) throw new Error(run.error)
+
+      expect(run.runId).toBeNull()
+      expect(existsSync(join(run.statusPath, '..', 'go'))).toBe(true)
+      expect(await runPaneState(run, tmux.env)).toBe('unknown')
+      await stopRun(run, tmux.env, 0)
+      // No pane is touched by an id that a restarted server might have handed to the user.
+      expect(tmux.read().log).toEqual([])
+      expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
+
+      // Once its pane is gone, it can be let go.
+      const state = tmux.read()
+      delete state.panes[run.pane]
+      tmux.write(state)
+      expect(await runPaneState(run, tmux.env)).toBe('gone')
+    }
+  )
+
+  it.each(['tmux did not respond', 'server exited unexpectedly'])(
+    'refuses a run that a tmux able to tag panes did not tag (%s)',
+    async (failure) => {
+      const tmux = fakeTmux()
+      dirs.push(tmux.dir)
+      tmux.write({ ...tmux.read(), fail: { 'set-option': failure } })
+
+      const result = await startRun('agent', 'sleep 600', null, tmux.env)
+
+      // Untagged on a tmux that tags, nothing could stop it later, so it never starts.
+      expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+      expect(tmux.read().log).toEqual([])
+    }
+  )
+
+  it("closes a finished untracked run's pane, and only once it has finished", async () => {
     const tmux = fakeTmux()
     dirs.push(tmux.dir)
-    // tmux before 3.0 has no pane options.
     tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
-
-    const run = await startRun('agent', 'sleep 600', null, tmux.env)
+    const run = await startRun('agent', 'make build', null, tmux.env)
     if ('error' in run) throw new Error(run.error)
 
-    expect(run.runId).toBeNull()
-    expect(existsSync(join(run.statusPath, '..', 'go'))).toBe(true)
-    expect(await runPaneState(run, tmux.env)).toBe('unknown')
-    await stopRun(run, tmux.env, 0)
-    // No pane is touched by an id that a restarted server might have handed to the user.
-    expect(tmux.read().log).toEqual([])
+    await closeRunPane(run, tmux.env)
     expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
 
-    // Once its pane is gone, it can be let go.
-    const state = tmux.read()
-    delete state.panes[run.pane]
-    tmux.write(state)
-    expect(await runPaneState(run, tmux.env)).toBe('gone')
+    // Its command ended; with `remain-on-exit` its dead pane would otherwise stay open.
+    writeFileSync(run.statusPath, '0')
+    await closeRunPane(run, tmux.env)
+    expect(Object.keys(tmux.read().panes)).toEqual([])
   })
 
   it('lets a tagged run start only once its pane is tagged', async () => {

@@ -494,7 +494,10 @@ export class TerminalService {
     }
     for (const handle of this.pendingRuns.get(terminalId) ?? []) {
       if (this.awaitedRuns.has(handle)) continue
-      if (isRunComplete(handle) || (await runPaneState(handle, env)) === 'gone') {
+      const complete = isRunComplete(handle)
+      if (complete || (await runPaneState(handle, env)) === 'gone') {
+        // A pane kept open after its command ended (`remain-on-exit`) closes with its run.
+        if (complete) await closeRunPane(handle, env)
         this.untrackRun(terminalId, handle)
         handle.dispose()
       }

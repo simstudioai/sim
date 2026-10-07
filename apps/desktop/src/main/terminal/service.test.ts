@@ -18,6 +18,8 @@ const tmuxFake = vi.hoisted(() => ({
   gone: new Set<string>(),
   /** Runs start untracked, as on a tmux too old to tag their panes. */
   untracked: false,
+  /** Run panes tmux still shows, kept open after their command ends (`remain-on-exit`). */
+  open: new Set<string>(),
   statusPaths: new Map<string, string>(),
 }))
 
@@ -39,6 +41,7 @@ vi.mock('@/main/terminal/tmux', async () => {
       const statusPath = join(dir, 'status')
       writeFileSync(join(dir, 'out'), 'partial output')
       tmuxFake.statusPaths.set(pane, statusPath)
+      tmuxFake.open.add(pane)
       return {
         window: `@${pane.slice(1)}`,
         pane,
@@ -62,6 +65,7 @@ vi.mock('@/main/terminal/tmux', async () => {
     },
     closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
       if (!tmuxFake.on) return actual.closeRunPane(...args)
+      tmuxFake.open.delete(args[0].pane)
     },
   }
 })
@@ -616,6 +620,27 @@ describe('agent commands in tmux', () => {
     } finally {
       tmuxFake.on = false
       tmuxFake.untracked = false
+    }
+  })
+
+  it("closes a run's pane when a later run reaps it after it finished", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      // It finishes after its call returned, and its dead pane stays open.
+      writeFileSync(statusPath, '0')
+      expect(tmuxFake.open.has(pane)).toBe(true)
+
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+
+      expect(tmuxFake.open.has(pane)).toBe(false)
+    } finally {
+      tmuxFake.on = false
     }
   })
 
