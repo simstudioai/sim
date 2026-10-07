@@ -58,6 +58,14 @@ describe('serializePauseSnapshot', () => {
     expect(snapshot.snapshot).not.toContain('raw-secret')
   })
 
+  it('carries the stop target across pause and resume', () => {
+    const context = createContext({ stopAfterBlockId: 'stop-block' })
+
+    const serialized = JSON.parse(serializePauseSnapshot(context, ['next-block']).snapshot)
+
+    expect(serialized.metadata.stopAfterBlockId).toBe('stop-block')
+  })
+
   it('persists only encrypted value-adjacent provenance across pause and resume', () => {
     const provenance = {
       version: 1 as const,

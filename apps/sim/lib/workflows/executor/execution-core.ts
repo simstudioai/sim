@@ -67,6 +67,7 @@ import {
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled } from '@/executor/utils/start-block'
+import { isPausingStopTarget } from '@/executor/utils/stop-after'
 import {
   buildLoopSentinelEndId,
   buildParallelSentinelEndId,
@@ -903,6 +904,11 @@ async function executeWorkflowCoreImpl(
     // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
     let resolvedStopAfterBlockId = stopAfterBlockId
     if (stopAfterBlockId) {
+      if (isPausingStopTarget(serializedWorkflow.blocks, stopAfterBlockId)) {
+        throw new Error(
+          `Cannot stop after a block that pauses ("${stopAfterBlockId}"); choose a non-pausing block.`
+        )
+      }
       if (serializedWorkflow.loops?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildLoopSentinelEndId(stopAfterBlockId)
       } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {

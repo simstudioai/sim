@@ -306,6 +306,8 @@ export function serializePauseSnapshot(
         : undefined,
     /** Preserve the run-level agent-events opt-in across HITL pause/resume. */
     agentEvents: metadataFromContext?.agentEvents === true ? true : undefined,
+    /** A resumed run must still stop after the block its original run targeted. */
+    stopAfterBlockId: context.stopAfterBlockId,
   }
 
   const snapshot = new ExecutionSnapshot(

@@ -1885,6 +1885,9 @@ export class PauseResumeManager {
         includeFileBase64: true,
         base64MaxBytes: undefined,
         abortSignal: timeoutController.signal,
+        ...(baseSnapshot.metadata.stopAfterBlockId
+          ? { stopAfterBlockId: baseSnapshot.metadata.stopAfterBlockId }
+          : {}),
         ...(resumeDeploymentVersionId ? { resumeDeploymentVersionId } : {}),
       })
 

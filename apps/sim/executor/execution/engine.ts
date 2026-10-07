@@ -32,6 +32,8 @@ export class ExecutionEngine {
   private cancelledFlag = false
   private errorFlag = false
   private stoppedEarlyFlag = false
+  /** Set when the run ends because it reached `stopAfterBlockId`. */
+  private stopAfterReached = false
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
@@ -122,7 +124,18 @@ export class ExecutionEngine {
         throw this.executionError
       }
 
-      if (this.pausedBlocks.size > 0) {
+      if (this.stopAfterReached) {
+        /**
+         * Stop-after wins over a pause still pending on another branch. The run
+         * completed at the stop target, so nothing downstream will run and no
+         * pause point should survive for a later resume.
+         */
+        this.pausedBlocks.clear()
+        this.context.metadata.pausePoints = []
+        if (this.context.metadata.status === 'paused') {
+          this.context.metadata.status = 'completed'
+        }
+      } else if (this.pausedBlocks.size > 0) {
         return this.buildPausedResult(startTime)
       }
 
@@ -495,6 +508,7 @@ export class ExecutionEngine {
         output.shouldContinue === true || output.selectedRoute === EDGE.PARALLEL_CONTINUE
       if (!shouldContinue) {
         this.execLogger.info('Stopping execution after target block', { nodeId })
+        this.stopAfterReached = true
         this.stoppedEarlyFlag = true
         return
       }

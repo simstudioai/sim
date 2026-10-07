@@ -443,6 +443,50 @@ describe('ExecutionEngine', () => {
         pauseOutput
       )
     })
+
+    it('completes at the stop target instead of pausing when another branch pauses', async () => {
+      const stopNode = createMockNode('stop', 'function')
+      const pauseNode = createMockNode('pause', 'function')
+      const dag = createMockDAG([stopNode, pauseNode])
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        stopAfterBlockId: 'stop',
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: ['stop', 'pause'],
+        },
+      })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockImplementation(async (_ctx, nodeId) => {
+        if (nodeId === 'stop') {
+          return { nodeId: 'stop', output: { done: true }, isFinalOutput: true }
+        }
+        return {
+          nodeId: 'pause',
+          output: {
+            response: { status: 'paused' },
+            _pauseMetadata: {
+              contextId: 'pause-1',
+              blockId: 'pause',
+              response: { status: 'paused' },
+              timestamp: new Date().toISOString(),
+              pauseKind: 'hitl',
+            },
+          },
+          isFinalOutput: false,
+        }
+      })
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run()
+
+      expect(result.success).toBe(true)
+      expect(result.status).not.toBe('paused')
+      expect(result.pausePoints).toBeUndefined()
+      expect(context.metadata.pausePoints).toEqual([])
+    })
   })
 
   describe('Cancellation via AbortSignal', () => {

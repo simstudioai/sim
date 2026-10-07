@@ -59,6 +59,11 @@ export interface ExecutionMetadata {
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  /**
+   * Stop target carried across a human-in-the-loop pause. Without it a resumed
+   * run continues past the target block the original run was told to stop at.
+   */
+  stopAfterBlockId?: string
   credentialAccountUserId?: string
   workflowStateOverride?: {
     blocks: Record<string, any>
