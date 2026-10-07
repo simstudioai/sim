@@ -25,8 +25,12 @@ describe('scrubUrl', () => {
   })
 })
 
+// Windows has no POSIX mode bits: there is nothing to assert, and a chmod that
+// fails there is reported differently.
+const NO_POSIX_MODES = process.platform === 'win32'
+
 describe('createEventLog', () => {
-  it('creates its directory and log with private permissions', () => {
+  it.skipIf(NO_POSIX_MODES)('creates its directory and log with private permissions', () => {
     const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
     const dir = join(root, 'logs')
     const events = createEventLog(dir)
@@ -36,21 +40,24 @@ describe('createEventLog', () => {
     expect(statSync(events.filePath).mode & 0o777).toBe(0o600)
   })
 
-  it('reports permission failures without exposing local paths or OS errors', () => {
-    const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const overlongDir = join(root, 'x'.repeat(300))
+  it.skipIf(NO_POSIX_MODES)(
+    'reports permission failures without exposing local paths or OS errors',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
+      const overlongDir = join(root, 'x'.repeat(300))
 
-    const events = createEventLog(overlongDir)
-    events.record('app_launch')
+      const events = createEventLog(overlongDir)
+      events.record('app_launch')
 
-    expect(mockLogger.warn.mock.calls).toEqual([
-      ['Could not apply private desktop event-log permissions', { target: 'directory' }],
-      ['Could not apply private desktop event-log permissions', { target: 'current-log' }],
-      ['Could not apply private desktop event-log permissions', { target: 'rotated-log' }],
-    ])
-    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(root)
-    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('ENAMETOOLONG')
-  })
+      expect(mockLogger.warn.mock.calls).toEqual([
+        ['Could not apply private desktop event-log permissions', { target: 'directory' }],
+        ['Could not apply private desktop event-log permissions', { target: 'current-log' }],
+        ['Could not apply private desktop event-log permissions', { target: 'rotated-log' }],
+      ])
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(root)
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('ENAMETOOLONG')
+    }
+  )
 })
 
 describe('installMainProcessFailureObservers', () => {

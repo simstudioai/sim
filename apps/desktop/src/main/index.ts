@@ -98,6 +98,12 @@ import {
 } from '@/main/session-lifecycle'
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
+import {
+  findGitBash,
+  getPreferredWindowsShell,
+  isWindowsTerminalShell,
+  setPreferredWindowsShell,
+} from '@/main/terminal/default-shell'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
@@ -165,6 +171,10 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
+  if (process.platform === 'win32') {
+    const storedShell = config.get('terminalShell')
+    if (isWindowsTerminalShell(storedShell)) setPreferredWindowsShell(storedShell)
+  }
   const terminal = new TerminalRegistry({
     load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
     save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
@@ -944,25 +954,39 @@ function main(): void {
       desktopExecutor.start()
     }
     await ensureMainWindow()
-    installApplicationMenu({
-      config,
-      getMainWindow,
-      isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
-      allowHttpLocalhost,
-      openSettings,
-      openServerSettings: () => serverWindow.open(),
-      newWindow: () => void createAndLoadAppWindow(),
-      newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
-      handleFocusedResourceShortcut: (win, shortcut) =>
-        handleFocusedBrowserShortcut(shortcut, win) ||
-        terminal.handleFocusedShortcut(win, shortcut),
-      toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
-      openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
-      signOut: signOutFromMenu,
-      checkForUpdates: () =>
-        checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
-      openDiagnostics: () => shell.showItemInFolder(events.filePath),
-    })
+    // Rebuilt after a shell choice so the radio reflects it; Electron menus
+    // are immutable once built.
+    const installMenu = () =>
+      installApplicationMenu({
+        config,
+        getMainWindow,
+        isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
+        allowHttpLocalhost,
+        openSettings,
+        openServerSettings: () => serverWindow.open(),
+        newWindow: () => void createAndLoadAppWindow(),
+        newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+        handleFocusedResourceShortcut: (win, shortcut) =>
+          handleFocusedBrowserShortcut(shortcut, win) ||
+          terminal.handleFocusedShortcut(win, shortcut),
+        toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
+        openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
+        signOut: signOutFromMenu,
+        checkForUpdates: () =>
+          checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
+        openDiagnostics: () => shell.showItemInFolder(events.filePath),
+        terminalShell: {
+          current: getPreferredWindowsShell,
+          gitBashAvailable: () => findGitBash() !== null,
+          select: (choice) => {
+            setPreferredWindowsShell(choice)
+            config.set('terminalShell', choice)
+            config.flush()
+            installMenu()
+          },
+        },
+      })
+    installMenu()
     installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({
@@ -1001,7 +1025,17 @@ function main(): void {
 // The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
 // can run one install per environment side by side — separate settings,
 // sessions, locks, and update feeds.
-app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
+const launchChannel = channelForOrigin(DEFAULT_ORIGIN)
+app.setName(APP_NAME_FOR_CHANNEL[launchChannel])
+// Windows groups taskbar buttons and attributes toast notifications by this
+// id; without it an unpackaged run shows up as a generic Electron app. Mirrors
+// the per-channel appId in scripts/channels.ts so the installed shortcut and
+// the running process agree.
+if (process.platform === 'win32') {
+  app.setAppUserModelId(
+    launchChannel === 'prod' ? 'ai.sim.desktop' : `ai.sim.desktop.${launchChannel}`
+  )
+}
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }

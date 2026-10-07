@@ -100,7 +100,7 @@ describe('DesktopChatSessionStore', () => {
     expect(restarted.getTerminal(ORIGIN, 'chat-a')).toEqual(TERMINAL)
   })
 
-  it('encrypts the complete descriptor payload and writes it owner-only', () => {
+  it('encrypts the complete descriptor payload', () => {
     const provider = encryption()
     const store = open(provider)
     store.setBrowser(ORIGIN, 'chat-secret', BROWSER)
@@ -115,6 +115,14 @@ describe('DesktopChatSessionStore', () => {
     expect(onDisk).not.toContain('report.csv')
     expect(JSON.parse(onDisk)).toEqual({ v: 1, ciphertext: expect.any(String) })
     expect(provider.encryptString).toHaveBeenCalledOnce()
+  })
+
+  // Windows has no POSIX mode bits to assert on.
+  it.skipIf(process.platform === 'win32')('writes the store file owner-only', () => {
+    const store = open(encryption())
+    store.setBrowser(ORIGIN, 'chat-secret', BROWSER)
+
+    expect(store.flush()).toBe(true)
     expect(statSync(filePath).mode & 0o077).toBe(0)
   })
 

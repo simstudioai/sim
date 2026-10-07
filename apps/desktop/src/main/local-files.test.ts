@@ -12,13 +12,20 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-it('rejects missing paths and directory cycles with explicit errors before uploading', async () => {
+// Creating a symlink on Windows needs Developer Mode or elevation, which the
+// test runner cannot assume.
+const NO_SYMLINKS = process.platform === 'win32'
+
+it('rejects a missing path with an explicit error before uploading', async () => {
   expect(
     await executeLocalFileRequest(
       { operation: 'read' },
       { toolName: 'read_local_file', args: { path: join(root, 'missing') } }
     )
   ).toMatchObject({ ok: false })
+})
+
+it.skipIf(NO_SYMLINKS)('rejects a directory cycle with an explicit error', async () => {
   await symlink(root, join(root, 'cycle'))
   expect(
     await executeLocalFileRequest(
@@ -40,7 +47,7 @@ it('refuses oversized import files before any workspace mutation or bulk allocat
   ).toMatchObject({ ok: false, error: expect.stringContaining('64 MB') })
 })
 
-it.each(['file', 'directory'] as const)(
+it.skipIf(NO_SYMLINKS).each(['file', 'directory'] as const)(
   'rejects %s symlinks outside the import source during manifest and chunk reads',
   async (kind) => {
     const source = join(root, 'selected')
@@ -79,38 +86,41 @@ it.each(['file', 'directory'] as const)(
   }
 )
 
-it('supports internal symlinks and an explicitly selected symlink root, but rejects a retargeted child', async () => {
-  const source = join(root, 'selected')
-  await mkdir(source)
-  await writeFile(join(source, 'notes.txt'), 'inside')
-  await symlink(join(source, 'notes.txt'), join(source, 'alias.txt'))
-  const selectedAlias = join(root, 'selected-alias')
-  await symlink(source, selectedAlias)
-  const authorization = {
-    toolName: 'import_local_files',
-    args: { path: selectedAlias, targetWorkspaceId: 'target' },
+it.skipIf(NO_SYMLINKS)(
+  'supports internal symlinks and an explicitly selected symlink root, but rejects a retargeted child',
+  async () => {
+    const source = join(root, 'selected')
+    await mkdir(source)
+    await writeFile(join(source, 'notes.txt'), 'inside')
+    await symlink(join(source, 'notes.txt'), join(source, 'alias.txt'))
+    const selectedAlias = join(root, 'selected-alias')
+    await symlink(source, selectedAlias)
+    const authorization = {
+      toolName: 'import_local_files',
+      args: { path: selectedAlias, targetWorkspaceId: 'target' },
+    }
+    const manifest = await executeLocalFileRequest({ operation: 'manifest' }, authorization)
+    if (!manifest.ok || manifest.data.kind !== 'manifest') throw new Error('Expected manifest')
+    const entry = manifest.data.entries.find((item) => item.relativePath === 'alias.txt')!
+    const request = {
+      operation: 'chunk',
+      relativePath: 'alias.txt',
+      revision: entry.revision,
+      offset: 0,
+    }
+    expect(await executeLocalFileRequest(request, authorization)).toEqual({
+      ok: true,
+      data: { kind: 'chunk', bytes: new Uint8Array(Buffer.from('inside')), eof: true },
+    })
+    await writeFile(join(root, 'outside.txt'), 'outside')
+    await rm(join(source, 'alias.txt'))
+    await symlink(join(root, 'outside.txt'), join(source, 'alias.txt'))
+    expect(await executeLocalFileRequest(request, authorization)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('outside this import source'),
+    })
   }
-  const manifest = await executeLocalFileRequest({ operation: 'manifest' }, authorization)
-  if (!manifest.ok || manifest.data.kind !== 'manifest') throw new Error('Expected manifest')
-  const entry = manifest.data.entries.find((item) => item.relativePath === 'alias.txt')!
-  const request = {
-    operation: 'chunk',
-    relativePath: 'alias.txt',
-    revision: entry.revision,
-    offset: 0,
-  }
-  expect(await executeLocalFileRequest(request, authorization)).toEqual({
-    ok: true,
-    data: { kind: 'chunk', bytes: new Uint8Array(Buffer.from('inside')), eof: true },
-  })
-  await writeFile(join(root, 'outside.txt'), 'outside')
-  await rm(join(source, 'alias.txt'))
-  await symlink(join(root, 'outside.txt'), join(source, 'alias.txt'))
-  expect(await executeLocalFileRequest(request, authorization)).toMatchObject({
-    ok: false,
-    error: expect.stringContaining('outside this import source'),
-  })
-})
+)
 
 it('preserves a UTF-8 BOM and rejects split offsets and limits that cannot fit a character', async () => {
   const path = join(root, 'unicode.txt')

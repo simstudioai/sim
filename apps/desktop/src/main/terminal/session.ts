@@ -30,6 +30,7 @@ import {
   type IBufferCell,
   type IBufferLine,
 } from '@xterm/headless'
+import { defaultShellPath } from '@/main/terminal/default-shell'
 import { readProcessCwd } from '@/main/terminal/process-cwd'
 import {
   buildShellLaunch,
@@ -351,7 +352,7 @@ export class TerminalSession {
   }
 
   static create(options: TerminalSessionOptions): TerminalSession {
-    const shellPath = process.env.SHELL || '/bin/zsh'
+    const shellPath = defaultShellPath()
     const shell = detectShell(shellPath)
     const nonce = createNonce()
     const integrationDir = mkdtempSync(join(tmpdir(), 'sim-terminal-'))
@@ -363,10 +364,11 @@ export class TerminalSession {
     const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = process.env as Record<string, string>
 
     // A shell we cannot instrument still gives the user a working terminal;
-    // the agent is refused separately via NO_SHELL_INTEGRATION.
+    // the agent is refused separately via NO_SHELL_INTEGRATION. `-l` is the
+    // POSIX login flag; Windows shells reject it.
     const launch = shell
       ? buildShellLaunch(shell, integrationDir, nonce, env)
-      : { args: ['-l'], env: {} }
+      : { args: process.platform === 'win32' ? [] : ['-l'], env: {} }
 
     const shellEnv = { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
     const pty = spawn(shellPath, launch.args, {
@@ -457,7 +459,7 @@ export class TerminalSession {
    * at a glance.
    */
   tabState(active: boolean): TerminalTabState {
-    const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
+    const directory = this.cwd ? (this.cwd.split(/[\\/]/).filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
       // The directory, always: whether to show the running command instead is

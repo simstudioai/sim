@@ -86,6 +86,11 @@ describe('detectShell', () => {
   it('recognises the shells we can instrument', () => {
     expect(detectShell('/bin/zsh')).toBe('zsh')
     expect(detectShell('/usr/local/bin/bash')).toBe('bash')
+    expect(detectShell('C:\\Program Files\\Git\\bin\\bash.exe')).toBe('bash')
+    expect(detectShell('C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')).toBe(
+      'powershell'
+    )
+    expect(detectShell('C:\\Program Files\\PowerShell\\7\\pwsh.exe')).toBe('powershell')
   })
 
   it('returns null for shells without hooks, leaving the terminal uninstrumented', () => {

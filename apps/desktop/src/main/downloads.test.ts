@@ -16,7 +16,8 @@ describe('sanitizeFilename', () => {
 })
 
 describe('uniqueDownloadPath', () => {
-  it('treats a dangling symlink as occupied', async () => {
+  // Creating a symlink on Windows needs Developer Mode or elevation.
+  it.skipIf(process.platform === 'win32')('treats a dangling symlink as occupied', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-download-path-'))
     symlinkSync(join(directory, 'missing-target'), join(directory, 'report.csv'))
 
@@ -45,7 +46,7 @@ describe('uniqueDownloadPath', () => {
     ])
 
     expect(new Set([first, second])).toEqual(
-      new Set(['/Downloads/report.csv', '/Downloads/report (copy-1).csv'])
+      new Set([join('/Downloads', 'report.csv'), join('/Downloads', 'report (copy-1).csv')])
     )
   })
 })

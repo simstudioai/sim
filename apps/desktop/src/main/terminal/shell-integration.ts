@@ -17,15 +17,18 @@
  */
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 
 /** Shells we can install prompt hooks into. */
-export type SupportedShell = 'zsh' | 'bash'
+export type SupportedShell = 'zsh' | 'bash' | 'powershell'
 
 export function detectShell(shellPath: string): SupportedShell | null {
-  const name = basename(shellPath)
+  // Split on both separators rather than basename(): a Windows path must
+  // resolve the same way on the macOS machines that run the test suite.
+  const name = (shellPath.split(/[\\/]/).pop() ?? '').toLowerCase().replace(/\.exe$/, '')
   if (name === 'zsh' || name === '-zsh') return 'zsh'
   if (name === 'bash' || name === '-bash') return 'bash'
+  if (name === 'pwsh' || name === 'powershell') return 'powershell'
   return null
 }
 
@@ -51,10 +54,14 @@ export interface ParseResult {
   markers: ShellMarker[]
 }
 
-/** Undoes the escaping applied by the shell hooks. */
+/**
+ * Undoes the escaping applied by the shell hooks: `\\` for a backslash and
+ * `\xHH` for separators. One pass, so an escaped backslash followed by `x3b`
+ * is not mistaken for an escaped semicolon.
+ */
 function unescapeValue(value: string): string {
-  return value.replace(/\\x([0-9a-fA-F]{2})/g, (_match, hex: string) =>
-    String.fromCharCode(Number.parseInt(hex, 16))
+  return value.replace(/\\\\|\\x([0-9a-fA-F]{2})/g, (_match, hex: string | undefined) =>
+    hex === undefined ? '\\' : String.fromCharCode(Number.parseInt(hex, 16))
   )
 }
 
@@ -245,11 +252,18 @@ __sim_preexec() {
   builtin printf '\\e]633;C;%s\\a' "$__sim_nonce"
 }
 
+# Git for Windows' bash reports /c/Users/... paths; the host, and the rest of
+# the app, speak C:\\Users\\..., so the directory is translated when cygpath
+# is there to do it.
+__sim_cwd() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -w "$PWD"; else builtin printf '%s' "$PWD"; fi
+}
+
 __sim_precmd() {
   local st=$?
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
-  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$PWD")" "$__sim_nonce"
+  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$(__sim_cwd)")" "$__sim_nonce"
   if [ -n "$__sim_in_cmd" ]; then
     builtin printf '\\e]633;D;%s;%s\\a' "$st" "$__sim_nonce"
   fi
@@ -263,6 +277,75 @@ PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 `
   )
   return rcPath
+}
+
+/**
+ * PowerShell has no preexec hook either, and its `prompt` is a plain function
+ * the host calls. The host also calls `PSConsoleHostReadLine` to read each
+ * line, so wrapping that yields the exact command text (E) and the moment it
+ * starts (C), while `prompt` reports the directory (P), the result of the
+ * previous command (D) and the new prompt (A). This is the arrangement
+ * Windows Terminal and VS Code use.
+ *
+ * The script is handed over as `-EncodedCommand` rather than a file: dot
+ * sourcing a file is subject to the machine's execution policy, which blocks
+ * scripts outright on a stock Windows client, and lowering that policy for
+ * the shell would loosen it for everything the user runs there too.
+ */
+function powerShellScript(nonce: string): string {
+  return `
+$global:__simNonce = '${nonce}'
+$global:__simInCmd = $false
+$global:__simOriginalPrompt = $function:prompt
+
+function global:__simEscape([string]$Value) {
+  return $Value.Replace('\\', '\\\\').Replace(';', '\\x3b').Replace([string][char]13, '').Replace([string][char]10, '\\x0a')
+}
+
+function global:__simMarker([string]$Body) {
+  return [string][char]27 + ']633;' + $Body + ';' + $global:__simNonce + [string][char]7
+}
+
+function global:prompt {
+  $succeeded = $?
+  $code = if ($succeeded) { 0 } elseif ($global:LASTEXITCODE) { [int]$global:LASTEXITCODE } else { 1 }
+  $location = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation.ProviderPath
+  $out = __simMarker ('P;Cwd=' + (__simEscape $location))
+  if ($global:__simInCmd) {
+    $out += __simMarker ('D;' + $code)
+    $global:__simInCmd = $false
+  }
+  $original = $null
+  if ($global:__simOriginalPrompt) {
+    try { $original = [string](& $global:__simOriginalPrompt) } catch { $original = $null }
+  }
+  if (-not $original) { $original = 'PS ' + $location + '> ' }
+  return $out + (__simMarker 'A') + $original
+}
+
+function global:PSConsoleHostReadLine {
+  $line = $null
+  if (Get-Module PSReadLine) {
+    # The two-argument overload only: in PSReadLine 2.0 (Windows PowerShell
+    # 5.1) the third parameter is a CancellationToken, and a bool coerces to
+    # a cancelled one, so that call returns at once and the prompt loops.
+    $line = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext)
+  } else {
+    $line = $Host.UI.ReadLine()
+  }
+  if ($line -and $line.Trim()) {
+    $global:__simInCmd = $true
+    [Console]::Write((__simMarker ('E;' + (__simEscape $line))) + (__simMarker 'C'))
+  }
+  return $line
+}
+
+# The agent clears a half-typed line with Ctrl-U before each command, which
+# PSReadLine's default Windows key map leaves unbound.
+if (Get-Module PSReadLine) {
+  Set-PSReadLineKeyHandler -Chord Ctrl+u -Function BackwardDeleteLine -ErrorAction SilentlyContinue
+}
+`
 }
 
 export interface ShellLaunch {
@@ -281,6 +364,13 @@ export function buildShellLaunch(
   env: Record<string, string>
 ): ShellLaunch {
   mkdirSync(dir, { recursive: true })
+
+  if (shell === 'powershell') {
+    // Profiles still load (no -NoProfile), so the user's aliases and prompt
+    // come first and ours wraps theirs.
+    const encoded = Buffer.from(powerShellScript(nonce), 'utf16le').toString('base64')
+    return { args: ['-NoLogo', '-NoExit', '-EncodedCommand', encoded], env: {} }
+  }
 
   if (shell === 'zsh') {
     writeZshFiles(dir, nonce, env.ZDOTDIR || env.HOME || '')
