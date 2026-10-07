@@ -10,7 +10,7 @@ import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/util
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueCancelAtPeriodEndSync,
-  recommitCancelAtPeriodEndSync,
+  recommitSubscriptionSync,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
@@ -305,7 +305,6 @@ export async function requestDashboardSubscriptionCancellation({
           if (!restoredSubscription) {
             throw new Error('Cancellation subscription no longer exists')
           }
-          await recommitCancelAtPeriodEndSync(tx, existingOperation.id, true)
         }
         await tx
           .update(outboxEvent)
@@ -320,6 +319,13 @@ export async function requestDashboardSubscriptionCancellation({
           .where(
             and(eq(outboxEvent.id, existingOperation.id), eq(outboxEvent.status, 'dead_letter'))
           )
+        if (existingOperation.eventType === OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END) {
+          await recommitSubscriptionSync(
+            tx,
+            OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+            existingOperation.subscriptionId
+          )
+        }
         return {
           operationId,
           outboxEventId: existingOperation.id,

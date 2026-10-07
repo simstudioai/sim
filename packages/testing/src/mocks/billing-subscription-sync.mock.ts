@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/lib/billing/webhooks/subscription-sync`. The enqueue
  * functions resolve to a fixed event id; drive them with `mockResolvedValueOnce`.
+ * `mockIsSubscriptionSyncEventType` keeps the real logic.
  *
  * @example
  * ```ts
@@ -16,7 +17,12 @@ import { vi } from 'vitest'
  */
 export const billingSubscriptionSyncMockFns = {
   mockEnqueueCancelAtPeriodEndSync: vi.fn(async () => 'cancel-at-period-end-sync-event'),
-  mockRecommitCancelAtPeriodEndSync: vi.fn(async () => undefined),
+  mockRecommitSubscriptionSync: vi.fn(async () => undefined),
+  mockIsSubscriptionSyncEventType: vi.fn(
+    (eventType: string) =>
+      eventType === 'stripe.sync-cancel-at-period-end' ||
+      eventType === 'stripe.sync-subscription-seats'
+  ),
   mockEnqueueSubscriptionSeatsSync: vi.fn(async () => 'subscription-seats-sync-event'),
   mockCancelAtPeriodEndSyncIdempotencyKey: vi.fn(
     (eventId: string) => `outbox-sync-cancel-at-period-end:${eventId}:key`
@@ -34,7 +40,8 @@ export const billingSubscriptionSyncMockFns = {
  */
 export const billingSubscriptionSyncMock = {
   enqueueCancelAtPeriodEndSync: billingSubscriptionSyncMockFns.mockEnqueueCancelAtPeriodEndSync,
-  recommitCancelAtPeriodEndSync: billingSubscriptionSyncMockFns.mockRecommitCancelAtPeriodEndSync,
+  recommitSubscriptionSync: billingSubscriptionSyncMockFns.mockRecommitSubscriptionSync,
+  isSubscriptionSyncEventType: billingSubscriptionSyncMockFns.mockIsSubscriptionSyncEventType,
   enqueueSubscriptionSeatsSync: billingSubscriptionSyncMockFns.mockEnqueueSubscriptionSeatsSync,
   cancelAtPeriodEndSyncIdempotencyKey:
     billingSubscriptionSyncMockFns.mockCancelAtPeriodEndSyncIdempotencyKey,

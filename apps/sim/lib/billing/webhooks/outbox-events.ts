@@ -1,18 +1,5 @@
 export const OUTBOX_EVENT_TYPES = {
-  /**
-   * Sync a subscription's `cancel_at_period_end` flag from our DB to
-   * Stripe. Enqueue through `enqueueCancelAtPeriodEndSync` in the same
-   * transaction as every DB change to `cancelAtPeriodEnd`.
-   *
-   * Guarantee: once every in-flight event for a subscription completes,
-   * Stripe holds the last value committed to the DB. Each handler pushes
-   * the row's current value (not its payload's) and re-reads the row
-   * after its Stripe write, retrying while the value moved, so racing
-   * events converge even when an earlier request lands in Stripe last.
-   * While an event is in flight, `reconcileSubscriptionSyncFromStripe`
-   * keeps webhook echoes and stale snapshots from overwriting the
-   * committed value; a change made in Stripe itself wins over it.
-   */
+  /** Sync `cancelAtPeriodEnd` from our DB to Stripe; enqueue via `enqueueCancelAtPeriodEndSync`. */
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
   /** Cancel in Stripe; the verified deletion webhook remains the only DB entitlement authority. */
   STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY: 'stripe.cancel-subscription-immediately',

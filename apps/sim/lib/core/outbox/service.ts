@@ -406,6 +406,60 @@ export async function findDeadLetteredEvents(
     .limit(DEAD_LETTER_SCAN_LIMIT)
 }
 
+/** Statuses of an event whose side effect may still run. */
+const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+
+/** Identifies the subject of an event by one scalar field of its JSON payload. */
+export interface OutboxPayloadSubject {
+  payloadKey: string
+  payloadValue: string
+}
+
+function inflightForSubject(eventTypes: readonly string[], subject: OutboxPayloadSubject) {
+  return and(
+    inArray(outboxEvent.eventType, [...eventTypes]),
+    inArray(outboxEvent.status, [...INFLIGHT_OUTBOX_STATUSES]),
+    sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
+  )
+}
+
+/**
+ * The `pending` or `processing` events of the given types for one subject. Pass the caller's
+ * transaction to read under its locks.
+ */
+export async function listInflightOutboxEvents(
+  executor: Pick<typeof db, 'select'>,
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  limit?: number
+): Promise<{ id: string; eventType: string; payload: unknown }[]> {
+  const query = executor
+    .select({ id: outboxEvent.id, eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(inflightForSubject(eventTypes, subject))
+  return limit === undefined ? query : query.limit(limit)
+}
+
+/**
+ * Shallow-merges `patch` into the payload of every `pending` or `processing` event of the type
+ * for one subject. Callers serialize writers for the subject with their domain lock.
+ */
+export async function patchInflightOutboxEvents(
+  executor: Pick<typeof db, 'update'>,
+  eventType: string,
+  subject: OutboxPayloadSubject,
+  patch: Record<string, unknown>
+): Promise<number> {
+  const patched = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`(coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)::json`,
+    })
+    .where(inflightForSubject([eventType], subject))
+    .returning({ id: outboxEvent.id })
+  return patched.length
+}
+
 /**
  * True when an event of the given type whose JSON payload has
  * `payload->>payloadKey === payloadValue` is still `pending` or `processing`.
@@ -417,18 +471,8 @@ export async function hasInflightOutboxEvent(
   payloadKey: string,
   payloadValue: string
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
-    .where(
-      and(
-        eq(outboxEvent.eventType, eventType),
-        inArray(outboxEvent.status, ['pending', 'processing']),
-        sql`${outboxEvent.payload} ->> ${payloadKey} = ${payloadValue}`
-      )
-    )
-    .limit(1)
-  return Boolean(row)
+  const events = await listInflightOutboxEvents(db, [eventType], { payloadKey, payloadValue }, 1)
+  return events.length > 0
 }
 
 /**

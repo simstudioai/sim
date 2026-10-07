@@ -124,10 +124,10 @@ describe('admin subscription cancellation', () => {
       expect.objectContaining({ status: 'pending', attempts: 0, lastError: null })
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
-    expect(billingSubscriptionSyncMockFns.mockRecommitCancelAtPeriodEndSync).toHaveBeenCalledWith(
+    expect(billingSubscriptionSyncMockFns.mockRecommitSubscriptionSync).toHaveBeenCalledWith(
       expect.anything(),
-      'outbox-1',
-      true
+      'stripe.sync-cancel-at-period-end',
+      'sub-row-1'
     )
     expect(result).toMatchObject({
       operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',

@@ -20,6 +20,17 @@ import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 const logger = createLogger('BillingOutboxHandlers')
 
+/**
+ * Passes a DB→Stripe sync handler makes before throwing for an outbox retry: each pass re-reads
+ * the row after its Stripe write and goes again when the value moved in the meantime.
+ */
+const MAX_SYNC_ATTEMPTS = 2
+
+/** A fresh key per Stripe write: the SDK reuses it across its own network retries of that call. */
+function customerContactSyncIdempotencyKey(eventId: string): string {
+  return `outbox:${eventId}:${generateShortId()}`
+}
+
 interface StripeCancelSubscriptionImmediatelyPayload {
   stripeSubscriptionId: string
   subscriptionId: string
@@ -110,9 +121,8 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<CancelAtPeriodEndSyncPayload> =
 ) => {
   await recordAdminCancellationAudit({ ...payload, timing: 'period_end' })
   const stripe = requireStripeClient()
-  const maxSyncAttempts = 2
 
-  for (let attempt = 1; attempt <= maxSyncAttempts; attempt++) {
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
     const desiredValue = await readCancelAtPeriodEnd(payload.subscriptionId)
     if (desiredValue === null) {
       logger.warn('Subscription not found when syncing cancel_at_period_end', {
@@ -184,9 +194,8 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
   ctx
 ) => {
   const stripe = requireStripeClient()
-  const maxSyncAttempts = 2
 
-  for (let attempt = 1; attempt <= maxSyncAttempts; attempt++) {
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
     const row = await getSubscriptionSeatSyncState(payload.subscriptionId)
     if (!row) {
       logger.warn('Subscription not found when syncing seats', {
@@ -450,9 +459,8 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
   ctx
 ) => {
   const stripe = requireStripeClient()
-  const maxSyncAttempts = 2
 
-  for (let attempt = 1; attempt <= maxSyncAttempts; attempt++) {
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
     const contact = await readCustomerContact(payload.subscriptionId)
     if (contact.status === 'skipped') {
       logger.warn(contact.reason, {
@@ -476,7 +484,7 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
           email: contact.email,
           ...(contact.name ? { name: contact.name } : {}),
         },
-        { idempotencyKey: `outbox:${ctx.eventId}:${generateShortId()}` }
+        { idempotencyKey: customerContactSyncIdempotencyKey(ctx.eventId) }
       )
     }
 

@@ -17,11 +17,18 @@ import {
 } from '@sim/testing/mocks/stripe.mock'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import { NextRequest } from 'next/server'
 import postgres from 'postgres'
 import type Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const ADMIN_API_KEY = vi.hoisted(() => {
+  const key = 'integration-fixture-admin-key'
+  process.env.ADMIN_API_KEY = key
+  return key
+})
 
 const database = vi.hoisted(() => ({
   current: undefined as PostgresJsDatabase<typeof schema> | undefined,
@@ -48,6 +55,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { reconcileSubscriptionSyncFromStripe } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
+import { POST as requeueOutboxEvent } from '@/app/api/v1/admin/outbox/[id]/requeue/route'
 
 const schemaName = `stripe_sync_${generateId().replaceAll('-', '')}`
 const connection = postgres(
@@ -202,8 +210,8 @@ async function leaveOrganization(userId: string, organizationId: string) {
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
 }
 
-async function outboxEventIds(eventType: string, subscriptionId: string) {
-  const rows = await testDatabase
+async function latestOutboxEventId(eventType: string, subscriptionId: string) {
+  const [latest] = await testDatabase
     .select({ id: outboxEvent.id })
     .from(outboxEvent)
     .where(
@@ -212,15 +220,10 @@ async function outboxEventIds(eventType: string, subscriptionId: string) {
         sql`${outboxEvent.payload} ->> 'subscriptionId' = ${subscriptionId}`
       )
     )
-    .orderBy(asc(outboxEvent.createdAt), asc(outboxEvent.id))
-  return rows.map((row) => row.id)
-}
-
-async function latestOutboxEventId(eventType: string, subscriptionId: string) {
-  const ids = await outboxEventIds(eventType, subscriptionId)
-  const id = ids.at(-1)
-  if (!id) throw new Error(`No ${eventType} event for ${subscriptionId}`)
-  return id
+    .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
+    .limit(1)
+  if (!latest) throw new Error(`No ${eventType} event for ${subscriptionId}`)
+  return latest.id
 }
 
 function processEvent(eventId: string) {
@@ -232,6 +235,30 @@ async function makeDue(eventId: string) {
     .update(outboxEvent)
     .set({ availableAt: new Date() })
     .where(eq(outboxEvent.id, eventId))
+}
+
+/** Runs the event's last attempt with Stripe unavailable, so it dead-letters without applying. */
+async function deadLetter(eventId: string) {
+  await testDatabase.update(outboxEvent).set({ maxAttempts: 1 }).where(eq(outboxEvent.id, eventId))
+  stripe.failNextRequest('subscriptions.update')
+  await expect(processEvent(eventId)).resolves.toBe('dead_letter')
+}
+
+async function requeueFromAdminApi(eventId: string) {
+  const response = await requeueOutboxEvent(
+    new NextRequest(`http://localhost:3000/api/v1/admin/outbox/${eventId}/requeue`, {
+      method: 'POST',
+      headers: { 'x-admin-key': ADMIN_API_KEY },
+    }),
+    { params: Promise.resolve({ id: eventId }) }
+  )
+  expect(response.status).toBe(200)
+}
+
+/** Delivers a subscription update Stripe makes on its own, e.g. a renewal. */
+async function deliverUnrelatedUpdate(stripeSubscriptionId: string) {
+  stripe.updateOutsideSim(stripeSubscriptionId, { metadata: { renewedAt: generateId() } })
+  await deliver(stripe.events.at(-1) as Stripe.Event)
 }
 
 async function storedSubscription(subscriptionId: string) {
@@ -372,6 +399,126 @@ describe('cancel_at_period_end sync', () => {
     await expect(processEvent(pauseSync)).resolves.toBe('completed')
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
   })
+  it('keeps a renewal made in Stripe after later updates while an earlier sync retries', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    stripe.failNextUpdateAfterApplying('subscriptions')
+    await expect(processEvent(pauseSync)).resolves.toBe('pending')
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    await makeDue(pauseSync)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it('keeps a cancel-then-renew made in Stripe after a later update while a sync is pending', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: true })
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it('does not restore an older value while its slow sync is still running', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    const slowPush = stripe.holdNextUpdate('subscriptions')
+    const pausing = processEvent(pauseSync)
+    await slowPush.reached
+
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await restoreUserProSubscription(pro.userId)
+    const restoreSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(restoreSync)).resolves.toBe('completed')
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+
+    slowPush.release()
+    await expect(pausing).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it('does not revive an older value when its dead-lettered sync is requeued', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await deadLetter(pauseSync)
+
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await restoreUserProSubscription(pro.userId)
+    const restoreSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(restoreSync)).resolves.toBe('completed')
+
+    await requeueFromAdminApi(pauseSync)
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it('leaves the field alone while a sync enqueued by an older deploy is in flight', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await testDatabase.transaction(async (tx) => {
+      await tx
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(subscription.id, pro.subscriptionId))
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+        stripeSubscriptionId: pro.stripeSubscriptionId,
+        subscriptionId: pro.subscriptionId,
+        reason: 'member-left-paid-org',
+      })
+    })
+
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+  })
+
+  it('restores a pending value without reading Stripe', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { metadata: { renewedAt: 'period-2' } })
+    stripe.failNextRequest('subscriptions.retrieve')
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+  })
 })
 
 describe('customer contact sync', () => {
@@ -440,5 +587,34 @@ describe('Team seat sync', () => {
     expect((await storedSubscription(org.subscriptionId)).seats).toBe(2)
     await expect(processEvent(seatSync)).resolves.toBe('completed')
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
+  })
+  it('does not revive an older seat count when its dead-lettered sync is requeued', async () => {
+    const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
+    const org = await createOrganizationWithPlan('team', 1)
+    await addMember(org.organizationId, owner.id, 'owner')
+    await addMember(org.organizationId, joiner.id)
+    await reconcileOrganizationSeats({ organizationId: org.organizationId, reason: 'member-added' })
+    const growSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+      org.subscriptionId
+    )
+    await deadLetter(growSync)
+
+    await leaveOrganization(joiner.id, org.organizationId)
+    await reconcileOrganizationSeats({
+      organizationId: org.organizationId,
+      reason: 'member-removed',
+    })
+    const shrinkSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+      org.subscriptionId
+    )
+    await expect(processEvent(shrinkSync)).resolves.toBe('completed')
+
+    await requeueFromAdminApi(growSync)
+    await deliverUnrelatedUpdate(org.stripeSubscriptionId)
+    expect((await storedSubscription(org.subscriptionId)).seats).toBe(1)
+    await expect(processEvent(growSync)).resolves.toBe('completed')
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(1)
   })
 })

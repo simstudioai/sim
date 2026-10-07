@@ -99,6 +99,7 @@ export interface InMemoryStripeRequestGate {
 }
 
 type UpdatableResource = 'subscriptions' | 'customers'
+type StripeOperation = `${UpdatableResource}.${'retrieve' | 'update'}`
 
 interface SubscriptionUpdateParams {
   cancel_at_period_end?: boolean
@@ -136,6 +137,7 @@ export function createInMemoryStripe() {
     Array<{ reached: () => void; released: Promise<void> }>
   >()
   const failuresAfterApply = new Map<UpdatableResource, Error[]>()
+  const failuresOnArrival = new Map<StripeOperation, Error[]>()
   const events: Stripe.Event[] = []
   let sequence = 0
 
@@ -204,6 +206,11 @@ export function createInMemoryStripe() {
     return structuredClone(next)
   }
 
+  function rejectIfFailing(operation: StripeOperation) {
+    const failure = failuresOnArrival.get(operation)?.shift()
+    if (failure) throw failure
+  }
+
   async function update<T>(
     resource: UpdatableResource,
     id: string,
@@ -211,6 +218,7 @@ export function createInMemoryStripe() {
     options: { idempotencyKey?: string } | undefined,
     apply: () => T
   ): Promise<T> {
+    rejectIfFailing(`${resource}.update`)
     const gate = gates.get(resource)?.shift()
     if (gate) {
       gate.reached()
@@ -241,7 +249,10 @@ export function createInMemoryStripe() {
 
   const client = {
     subscriptions: {
-      retrieve: async (id: string) => structuredClone(requireSubscription(id)),
+      retrieve: async (id: string) => {
+        rejectIfFailing('subscriptions.retrieve')
+        return structuredClone(requireSubscription(id))
+      },
       update: (
         id: string,
         params: SubscriptionUpdateParams,
@@ -252,7 +263,10 @@ export function createInMemoryStripe() {
         ),
     },
     customers: {
-      retrieve: async (id: string) => structuredClone(requireCustomer(id)),
+      retrieve: async (id: string) => {
+        rejectIfFailing('customers.retrieve')
+        return structuredClone(requireCustomer(id))
+      },
       update: (id: string, params: CustomerUpdateParams, options?: { idempotencyKey?: string }) =>
         update('customers', id, params, options, () => {
           const next = { ...requireCustomer(id), ...params }
@@ -327,6 +341,10 @@ export function createInMemoryStripe() {
       return { reached: arrival, release }
     },
     /** Makes the next update to `resource` apply in Stripe, then fail on the client. */
+    /** Makes the next call to `operation` fail before Stripe processes it, as an outage does. */
+    failNextRequest(operation: StripeOperation, error = new Error('Stripe is unavailable')) {
+      failuresOnArrival.set(operation, [...(failuresOnArrival.get(operation) ?? []), error])
+    },
     failNextUpdateAfterApplying(resource: UpdatableResource, error = new Error('socket hang up')) {
       failuresAfterApply.set(resource, [...(failuresAfterApply.get(resource) ?? []), error])
     },

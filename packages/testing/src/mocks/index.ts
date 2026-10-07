@@ -753,9 +753,6 @@ export {
   createInMemoryStripe,
   createMockStripeEvent,
   type InMemoryStripe,
-  type InMemoryStripeCustomer,
-  type InMemoryStripeRequestGate,
-  type InMemoryStripeSubscription,
   stripeClientMock,
   stripePaymentMethodMock,
 } from './stripe.mock'
