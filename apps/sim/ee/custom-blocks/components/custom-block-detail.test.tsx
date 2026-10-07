@@ -180,6 +180,23 @@ afterEach(async () => {
 })
 
 describe('custom block unsaved changes', () => {
+  it.each([
+    { selector: 'input[placeholder="Invoice Parser"]', saved: savedBlock.name, separator: ' ' },
+    { selector: 'textarea', saved: savedBlock.description ?? '', separator: '\n' },
+  ])(
+    'preserves a typed separator while appending text in $selector',
+    async ({ selector, saved, separator }) => {
+      await render()
+      edit(selector, saved + separator)
+      expectNavigation(true)
+      const input = field<HTMLInputElement | HTMLTextAreaElement>(selector)
+      expect(input.value).toBe(saved + separator)
+      edit(selector, `${input.value}continued`)
+      expect(input.value).toBe(`${saved + separator}continued`)
+      expectNavigation(false)
+    }
+  )
+
   it.each(['added input', 'removed output', 'refreshed saved values'] as const)(
     'allows tab and back navigation after %s without an edit',
     async (change) => {
@@ -332,6 +349,32 @@ describe('custom block unsaved changes', () => {
     expect(departures).toBe(1)
   })
 
+  it('keeps the submitted custom-block snapshot stable while saving', async () => {
+    const request = createDeferred<Response>()
+    vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) =>
+      init?.method === 'PATCH'
+        ? request.promise
+        : Promise.resolve(jsonResponse({ enabled: true, customBlocks: [savedBlock] }))
+    )
+    await render()
+    edit('input[placeholder="Invoice Parser"]', 'Submitted name')
+    clickButton('Save')
+    await act(async () => {
+      await flushMicrotasks(10)
+      await vi.advanceTimersByTimeAsync(50)
+    })
+    edit('input[placeholder="Invoice Parser"]', 'Later name')
+    expect(field<HTMLInputElement>('input[placeholder="Invoice Parser"]').value).toBe(
+      'Submitted name'
+    )
+    await act(async () => {
+      request.resolve(jsonResponse({ success: true }))
+      await flushMicrotasks(10)
+      await vi.runOnlyPendingTimersAsync()
+    })
+    expect(departures).toBe(1)
+  })
+
   it('retains unsaved edits and navigation protection when saving fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) =>
       init?.method === 'PATCH'
@@ -371,6 +414,14 @@ describe('custom block unsaved changes', () => {
     act(() => {
       picker.dispatchEvent(new Event('change', { bubbles: true }))
     })
+    const secondDrop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(secondDrop, 'dataTransfer', {
+      value: { files: [new File(['icon'], 'second.png', { type: 'image/png' })], types: ['Files'] },
+    })
+    act(() => {
+      field<HTMLButtonElement>('button[aria-label="Change icon"]').dispatchEvent(secondDrop)
+    })
+    expect(secondDrop.defaultPrevented).toBe(true)
     clickButton('Custom blocks')
     expect(departures).toBe(0)
     act(() => {

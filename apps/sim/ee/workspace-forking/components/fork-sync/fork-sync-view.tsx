@@ -862,6 +862,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           <ChipSwitch
             value={controller.direction}
             onChange={onDirectionChange}
+            disabled={controller.saving || controller.submitting}
             aria-label='Sync direction'
             options={[
               { value: 'push', label: 'Push' },

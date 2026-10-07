@@ -22,6 +22,7 @@ import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -29,11 +30,9 @@ import {
 } from '@/lib/workflows/blocks/flatten-outputs'
 import type { CustomBlockInputPlaceholder } from '@/lib/workflows/custom-blocks/settings-input'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
@@ -264,10 +263,20 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     formChanged ||
     (isCreate && Boolean(selectedWorkflowId || selectedWorkspaceId !== eligibleDefaultWorkspaceId))
 
-  if (draft && !formChanged && !iconUpload.isUploading) setDraft(null)
+  if (
+    draft &&
+    !formChanged &&
+    !iconUpload.isUploading &&
+    JSON.stringify(draft.values) === JSON.stringify(draft.baseline)
+  )
+    setDraft(null)
 
   const saving = publish.isPending || update.isPending || remove.isPending || iconUpload.isUploading
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty, navigationBlocked: saving })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: dirty,
+    navigationBlocked: saving,
+    onDiscard: handleDiscard,
+  })
   // Outputs are required — there is no "expose the whole result" option.
   const saveDisabled =
     !name.trim() ||
@@ -278,6 +287,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     (deployedLoaded && visibleOutputs.length === 0)
 
   function updateForm(change: (current: CustomBlockFormValues) => CustomBlockFormValues) {
+    if (publish.isPending || update.isPending || remove.isPending) return
     setDraft((current) => ({
       baseline: current?.baseline ?? savedValues,
       values: change(current?.values ?? savedValues),
@@ -500,6 +510,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
             <div className='flex items-center gap-4'>
               <DropZone
                 onDrop={(event) => {
+                  event.preventDefault()
                   if (!canManageBlock || saving) return
                   if (event.dataTransfer.files[0]) beginIconUpload()
                   iconUpload.handleFileDrop(event)
@@ -561,7 +572,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               onChange={(e) => updateForm((current) => ({ ...current, name: e.target.value }))}
               placeholder='Invoice Parser'
               maxLength={60}
-              disabled={!canManageBlock}
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
 
@@ -574,7 +585,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               placeholder='What this block does'
               rows={2}
               maxLength={280}
-              disabled={!canManageBlock}
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
 
@@ -643,7 +654,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                 onCheckedChange={(checked) =>
                                   setInputOverride(i.id, { required: checked })
                                 }
-                                disabled={!canManageBlock}
+                                disabled={saving || !canManageBlock}
                               />
                             </div>
                             <div className='flex flex-col gap-1.5'>
@@ -655,7 +666,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                 }
                                 placeholder='Shown in the empty field'
                                 maxLength={200}
-                                disabled={!canManageBlock}
+                                disabled={saving || !canManageBlock}
                               />
                             </div>
                           </div>
@@ -679,7 +690,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               className='w-full'
               dropdownWidth='trigger'
               maxHeight={280}
-              disabled={deployed.isLoading || outputGroups.length === 0 || !canManageBlock}
+              disabled={
+                saving || deployed.isLoading || outputGroups.length === 0 || !canManageBlock
+              }
               emptyMessage={deployed.isLoading ? 'Loading workflow…' : 'No outputs found.'}
               options={[]}
               groups={outputGroups}
@@ -711,7 +724,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         placeholder='name'
                         className='w-[140px]'
                         maxLength={60}
-                        disabled={!canManageBlock}
+                        disabled={saving || !canManageBlock}
                       />
                     </div>
                   )
@@ -731,7 +744,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               onCheckedChange={(checked) =>
                 updateForm((current) => ({ ...current, traceChildRuns: checked }))
               }
-              disabled={!canManageBlock}
+              disabled={saving || !canManageBlock}
             />
           </SettingRow>
         </div>
@@ -781,12 +794,6 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           placeholder={existing?.name}
         />
       </ChipConfirmModal>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
     </>
   )
 }

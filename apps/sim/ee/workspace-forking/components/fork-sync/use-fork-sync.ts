@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useMemo, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
@@ -328,11 +321,7 @@ export function useForkSync(params: {
   // persists as the stored mapping - so the selection survives every future sync without
   // re-picking.
   const [reconfig, setReconfig] = useState<DependentReconfigState>({})
-  // Referenced-but-unmapped resources the user chose to copy into the target (keyed by
-  // `${kind}:${sourceId}`); default-selected once the diff loads. Selected ones are copied on
-  // sync so their references resolve to the copy instead of being cleared.
-  const [copySelected, setCopySelected] = useState<Set<string>>(new Set())
-  const [copyDefaulted, setCopyDefaulted] = useState(false)
+  const [copyOverrides, setCopyOverrides] = useState<Record<string, boolean>>({})
   // Source-deleted references the user explicitly accepted losing in the target (keyed by
   // `${kind}:${sourceId}`). In-session only, like `copySelected` - an acknowledgment is a decision
   // about THIS sync, never a stored mapping. The server re-checks that each source really is gone
@@ -354,8 +343,7 @@ export function useForkSync(params: {
     setPreviousSessionKey(sessionKey)
     setTargets({})
     setReconfig({})
-    setCopySelected(new Set())
-    setCopyDefaulted(false)
+    setCopyOverrides({})
     setDroppedRefs(new Set())
     setTriggerAdoptions({})
     setComparisonSelection(null)
@@ -379,6 +367,14 @@ export function useForkSync(params: {
     () => diff.data?.copyableUnmapped ?? [],
     [diff.data?.copyableUnmapped]
   )
+  const copySelected = useMemo(() => {
+    const selected = forkDefaultCopySelection(copyableUnmapped)
+    for (const [key, checked] of Object.entries(copyOverrides)) {
+      if (checked) selected.add(key)
+      else selected.delete(key)
+    }
+    return selected
+  }, [copyableUnmapped, copyOverrides])
   const clearedRefs = useMemo(() => diff.data?.clearedRefs ?? [], [diff.data?.clearedRefs])
   const triggerMappings = useMemo(
     () => diff.data?.triggerMappings ?? [],
@@ -446,20 +442,6 @@ export function useForkSync(params: {
     return { referencedByKind: referenced, unreferencedByKind: unreferenced }
   }, [visibleCopyables])
 
-  // Default every REFERENCED copyable resource to "copy" once the diff loads, so the common case
-  // (bring the referenced resources along) needs no clicks; the user can deselect to clear
-  // instead. Unreferenced candidates start unselected (see `forkDefaultCopySelection`) - copying
-  // them is opt-in since nothing references them. Seed ONLY from a settled diff for the current
-  // direction: on a direction switch the reset clears `copyDefaulted`, but `useForkDiff` keeps
-  // the previous direction's payload (placeholderData) until the new fetch resolves - seeding
-  // from it would latch against stale keys and leave the real copyables unchecked, clearing
-  // their references on Sync.
-  useEffect(() => {
-    if (!enabled || diff.isPlaceholderData || copyableUnmapped.length === 0 || copyDefaulted) return
-    setCopyDefaulted(true)
-    setCopySelected(forkDefaultCopySelection(copyableUnmapped))
-  }, [enabled, diff.isPlaceholderData, copyableUnmapped, copyDefaulted])
-
   // Group dependents by their parent (kind:sourceId) once, so each mapping entry gets a
   // STABLE `dependents` array reference - a fresh `.filter` per render would defeat the
   // workflow-card grouping memos.
@@ -517,15 +499,19 @@ export function useForkSync(params: {
   ): ReadonlyMap<string, string> =>
     direction === 'push' ? takenTargetOwners(items, targets, entry) : EMPTY_TARGET_OWNERS
 
-  const toggleCopyKeys = (keys: string[], checked: boolean) =>
-    setCopySelected((prev) => {
-      const next = new Set(prev)
-      for (const key of keys) {
-        if (checked) next.add(key)
-        else next.delete(key)
+  const toggleCopyKeys = (keys: string[], checked: boolean) => {
+    const toggledKeys = new Set(keys)
+    setCopyOverrides((prev) => {
+      const next = { ...prev }
+      for (const candidate of copyableUnmapped) {
+        const key = forkRefKey(candidate)
+        if (!toggledKeys.has(key)) continue
+        if (checked === candidate.referenced) delete next[key]
+        else next[key] = checked
       }
       return next
     })
+  }
 
   // Group mappings by resource type - one accordion row per kind, required types first.
   const groups = useMemo<ForkMappingGroup[]>(() => {
@@ -799,21 +785,28 @@ export function useForkSync(params: {
   // by a completed copy never read as a change. A candidate defaults to selected when referenced.
   const copySelectionChanged = useMemo(
     () =>
-      copyDefaulted &&
       visibleCopyables.some(
         (candidate) => copySelected.has(forkRefKey(candidate)) !== candidate.referenced
       ),
-    [copyDefaulted, visibleCopyables, copySelected]
+    [visibleCopyables, copySelected]
   )
 
+  const triggerMappingOverrides = triggerMappings
+    .filter(
+      (mapping) =>
+        mapping.sourceBlockId in triggerAdoptions &&
+        (triggerAdoptions[mapping.sourceBlockId] || null) !== mapping.defaultAdoptPath
+    )
+    .map((mapping) => ({
+      sourceBlockId: mapping.sourceBlockId,
+      adoptPath: triggerAdoptions[mapping.sourceBlockId] || null,
+    }))
+
   const hasSessionChoices =
-    dirty ||
-    copySelectionChanged ||
-    droppedRefs.size > 0 ||
-    Object.keys(triggerAdoptions).length > 0
+    dirty || copySelectionChanged || droppedRefs.size > 0 || triggerMappingOverrides.length > 0
 
   const save = () => {
-    if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
+    if (!otherWorkspaceId || !dirty || updateMapping.isPending || promote.isPending) return
     const submittedTargets = targets
     const submittedReconfig = reconfig
     updateMapping.mutate(
@@ -919,12 +912,14 @@ export function useForkSync(params: {
     setTargets({})
     setReconfig({})
     setTriggerAdoptions({})
+    setCopyOverrides({})
+    setDroppedRefs(new Set())
     setReviewedSourceVersions({})
     setComparisonSelection(null)
   }
 
   const sync = async () => {
-    if (!otherWorkspaceId || !diff.data) return
+    if (!otherWorkspaceId || !diff.data || updateMapping.isPending || promote.isPending) return
     const submittedReviewedVersions = reviewedSourceVersions
     const sourceVersions = new Map(
       diff.data.sourceVersions.map((source) => [source.workflowId, source.deploymentVersionId])
@@ -939,6 +934,7 @@ export function useForkSync(params: {
     const submittedReconfig = reconfig
     const submittedDroppedRefs = droppedRefs
     const submittedTriggerAdoptions = triggerAdoptions
+    const submittedCopyOverrides = copyOverrides
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -960,18 +956,6 @@ export function useForkSync(params: {
         sourceId: key.slice(separator + 1),
       }
     })
-    // Only the choices that DIFFER from the server's default need sending - an untouched row is
-    // already what the server would pick, so an empty list means "the preview, as shown".
-    const triggerMappingOverrides = triggerMappings
-      .filter(
-        (mapping) =>
-          mapping.sourceBlockId in triggerAdoptions &&
-          (triggerAdoptions[mapping.sourceBlockId] || null) !== mapping.defaultAdoptPath
-      )
-      .map((mapping) => ({
-        sourceBlockId: mapping.sourceBlockId,
-        adoptPath: triggerAdoptions[mapping.sourceBlockId] || null,
-      }))
     try {
       const copyResources = {
         knowledgeBases: selectedCopyables
@@ -1040,6 +1024,7 @@ export function useForkSync(params: {
       setReconfig((current) => (current === submittedReconfig ? {} : current))
       setDroppedRefs((current) => (current === submittedDroppedRefs ? new Set() : current))
       setTriggerAdoptions((current) => (current === submittedTriggerAdoptions ? {} : current))
+      setCopyOverrides((current) => (current === submittedCopyOverrides ? {} : current))
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
