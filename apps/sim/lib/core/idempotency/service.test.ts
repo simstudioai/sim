@@ -20,7 +20,6 @@ vi.mock('@/lib/core/storage', () => ({
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   IdempotencyService,
-  pollingIdempotency,
   WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
   webhookIdempotency,
 } from '@/lib/core/idempotency/service'
@@ -232,41 +231,26 @@ describe('IdempotencyService in-progress deadlines', () => {
     expect(WEBHOOK_IN_PROGRESS_LEASE_SECONDS).toBeLessThan(SEVEN_DAYS_SECONDS)
   })
 
-  it.each([
-    {
-      name: 'webhook',
-      service: webhookIdempotency,
-      leaseSeconds: WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
-      dedupeSeconds: SEVEN_DAYS_SECONDS,
-    },
-    {
-      name: 'polling',
-      service: pollingIdempotency,
-      leaseSeconds: 5 * 60,
-      dedupeSeconds: 60 * 60 * 24 * 3,
-    },
-  ])(
-    'leases an untimed $name claim for its bounded lease so a crashed holder frees the key, not the dedupe window',
-    async ({ name, service, leaseSeconds, dedupeSeconds }) => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
-      redisEvalMock.mockResolvedValue([1, ''])
+  it('leases an untimed webhook claim for the bounded lease, not the seven-day dedupe window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    redisEvalMock.mockResolvedValue([1, ''])
 
-      await service.atomicallyClaim('gmail', 'wh_1:untimed-delivery')
+    await webhookIdempotency.atomicallyClaim('gmail', 'wh_1:untimed-delivery')
 
-      const [, , redisKey, serialized, ttlSeconds] = redisEvalMock.mock.calls[0] as [
-        string,
-        number,
-        string,
-        string,
-        number,
-      ]
-      expect(redisKey).toBe(`idempotency:${name}:gmail:wh_1:untimed-delivery`)
-      expect(ttlSeconds).toBe(leaseSeconds)
-      expect(ttlSeconds).toBeLessThan(dedupeSeconds)
-      expect(JSON.parse(serialized).inProgressExpiresAt).toBe(Date.now() + leaseSeconds * 1000)
-    }
-  )
+    const [, , redisKey, serialized, ttlSeconds] = redisEvalMock.mock.calls[0] as [
+      string,
+      number,
+      string,
+      string,
+      number,
+    ]
+    expect(redisKey).toBe('idempotency:webhook:gmail:wh_1:untimed-delivery')
+    expect(ttlSeconds).toBe(WEBHOOK_IN_PROGRESS_LEASE_SECONDS)
+    expect(JSON.parse(serialized).inProgressExpiresAt).toBe(
+      Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+    )
+  })
 
   it('keeps the seven-day dedupe window on a completed webhook result', async () => {
     redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)

@@ -813,23 +813,9 @@ export const webhookIdempotency = new IdempotencyService({
   storeResultBody: false,
 })
 
-/**
- * Longest an unfinished polled-item claim stays live.
- *
- * One item's operation is a payload build (plus attachment download for mail
- * providers), the enqueue, and an optional mark-as-read — seconds, not minutes.
- * The whole poll pass runs under a per-provider lock that the polling route
- * holds for its 180-second `maxDuration`, so five minutes outlives any healthy
- * pass with margin. Left unset, the lease would fall back to the three-day
- * dedupe TTL, so a pass killed mid-item would leave every later poll of that
- * item waiting on a holder that no longer exists.
- */
-const POLLING_IN_PROGRESS_LEASE_SECONDS = 5 * 60
-
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
-  inProgressTtlSeconds: POLLING_IN_PROGRESS_LEASE_SECONDS,
   retryFailures: true,
   storeResultBody: false,
 })
