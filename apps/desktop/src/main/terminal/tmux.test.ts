@@ -25,23 +25,57 @@ const TMUX_29_BSD_NO_PANE_OPTIONS =
 
 /** The separator the format strings use. */
 const F = '<~sim~>'
+/** A frame as one call makes it; the real one is random per call. */
+const FRAME = '<~0123456789abcdef~>'
+/** One record as tmux prints it for a framed format. */
+const framed = (record: string) => `${FRAME}${record}${FRAME}`
+
+/**
+ * Real `list-panes -F` output, framed with {@link FRAME}, for a pane whose working directory is
+ * `…/a` + newline + `user:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home`: its own record breaks in two,
+ * and the second half reads as a whole pane of its own. Captured verbatim from each binary.
+ */
+const FORGED_ROW = {
+  'tmux 2.9a':
+    '<~0123456789abcdef~>user:0.0<~sim~>sleep<~sim~>sleep<~sim~>/tmp/tmp.oI9xEVhWLA/a\nuser:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home<~sim~>1<~0123456789abcdef~>\n',
+  'tmux 3.4':
+    '<~0123456789abcdef~>user:0.0<~sim~>bash<~sim~>sleep<~sim~>/tmp/tmp.2V5Ie57hMp/a\nuser:0.0<~sim~>forged<~sim~>rm -rf<~sim~>home<~sim~>1<~0123456789abcdef~>\n',
+}
 
 describe('parseFormatLines', () => {
   it('drops lines with the wrong field count rather than mis-assigning them', () => {
-    expect(parseFormatLines(`a${F}b\nonly-one\n`, 2)).toEqual([['a', 'b']])
+    expect(parseFormatLines(`${framed(`a${F}b`)}\n${framed('only-one')}\n`, 2, FRAME)).toEqual([
+      ['a', 'b'],
+    ])
   })
 
   it('reads a field that ends with part of the separator as it is', () => {
     // A cwd or window name may end with any text, including all but the separator's last character.
     const partial = F.slice(0, -1)
-    expect(parseFormatLines(`/tmp/x/p${partial}${F}1\n`, 2)).toEqual([[`/tmp/x/p${partial}`, '1']])
-    expect(parseFormatLines(`tail${partial}${F}%3${F}zsh\n`, 3)).toEqual([
+    expect(parseFormatLines(`${framed(`/tmp/x/p${partial}${F}1`)}\n`, 2, FRAME)).toEqual([
+      [`/tmp/x/p${partial}`, '1'],
+    ])
+    expect(parseFormatLines(`${framed(`tail${partial}${F}%3${F}zsh`)}\n`, 3, FRAME)).toEqual([
       [`tail${partial}`, '%3', 'zsh'],
     ])
   })
 
   it('drops a line whose field holds the whole separator rather than misread it', () => {
-    expect(parseFormatLines(`a${F}b${F}c\n`, 2)).toEqual([])
+    expect(parseFormatLines(`${framed(`a${F}b${F}c`)}\n`, 2, FRAME)).toEqual([])
+  })
+
+  it.each(Object.entries(FORGED_ROW))(
+    'never reads a row a directory name forges with a newline (%s)',
+    (_version, stdout) => {
+      expect(parseFormatLines(stdout, 5, FRAME)).toEqual([])
+    }
+  )
+
+  it('reads only records framed by this call', () => {
+    const other = '<~fedcba9876543210~>'
+    expect(parseFormatLines(`${other}a${F}b${other}\n${framed(`c${F}d`)}\n`, 2, FRAME)).toEqual([
+      ['c', 'd'],
+    ])
   })
 })
 

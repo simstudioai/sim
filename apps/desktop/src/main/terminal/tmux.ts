@@ -17,6 +17,7 @@
  * of the shell that launched it.
  */
 import { spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -41,11 +42,23 @@ const RUN_POLL_INTERVAL_MS = 250
 /**
  * Field separator for `-F` output. Printable on purpose: tmux 3.4 and 3.5 print a control
  * character as its octal escape, so a control-character separator arrived as the text `\037` and
- * no line split. No tmux escapes these characters. No proper prefix of the separator is also a
- * suffix of it, so it can only be found where it was written or wholly inside a field: a field
- * holding it changes the line's field count, and that line is dropped rather than misread.
+ * no line split. No tmux escapes these characters. Fields are untrusted text (a directory or
+ * window name can hold the separator, or a newline), so records are also framed per call: see
+ * {@link framedFormat}.
  */
 const FIELD = '<~sim~>'
+
+/**
+ * A `-F` format for these fields whose every record starts and ends with a marker made fresh for
+ * this one call. tmux prints a newline inside a field as is, so a directory named
+ * `a\nuser:0.0<~sim~>…` would otherwise end one record early and forge another. Nobody outside
+ * this call knows the marker, so no field can forge a framed record, and the halves of a record a
+ * newline split are each unframed and dropped.
+ */
+function framedFormat(fields: string[]): { format: string; frame: string } {
+  const frame = `<~${randomBytes(8).toString('hex')}~>`
+  return { format: `${frame}${fields.join(FIELD)}${frame}`, frame }
+}
 
 export interface TmuxCommandResult {
   ok: boolean
@@ -129,18 +142,20 @@ export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCom
 }
 
 /**
- * Parses `list-clients`/`list-panes` output into records.
+ * Parses `list-clients`/`list-panes` output into records: only lines framed whole by this call's
+ * marker, each with exactly the fields asked for.
  *
  * Split on a dedicated separator rather than whitespace: window names and
  * working directories contain spaces, and a path with a space would otherwise
  * shift every later field by one.
  */
-export function parseFormatLines(stdout: string, fields: number): string[][] {
+export function parseFormatLines(stdout: string, fields: number, frame: string): string[][] {
   return stdout
     .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0)
-    .map((line) => line.split(FIELD))
+    .filter(
+      (line) => line.length >= frame.length * 2 && line.startsWith(frame) && line.endsWith(frame)
+    )
+    .map((line) => line.slice(frame.length, line.length - frame.length).split(FIELD))
     .filter((parts) => parts.length === fields)
 }
 
@@ -206,11 +221,11 @@ export async function resolveAttachment(
   shellPid: number,
   env: NodeJS.ProcessEnv
 ): Promise<TmuxAttachment | null> {
-  const format = ['#{client_pid}', '#{client_tty}', '#{client_session}'].join(FIELD)
+  const { format, frame } = framedFormat(['#{client_pid}', '#{client_tty}', '#{client_session}'])
   const listed = await runTmux(['list-clients', '-F', format], env)
   if (!listed.ok) return null
 
-  const clients = parseFormatLines(listed.stdout, 3)
+  const clients = parseFormatLines(listed.stdout, 3, frame)
   if (clients.length === 0) return null
 
   const parents = await listProcessParents()
@@ -226,28 +241,27 @@ export async function resolveAttachment(
 
 /** The active pane of a session, as a target usable by every other call. */
 export async function activePane(session: string, env: NodeJS.ProcessEnv): Promise<string | null> {
-  const result = await runTmux(
-    ['display-message', '-p', '-t', session, '#{session_name}:#{window_index}.#{pane_index}'],
-    env
-  )
-  const target = result.stdout.trim()
-  return result.ok && target ? target : null
+  const { format, frame } = framedFormat(['#{session_name}:#{window_index}.#{pane_index}'])
+  const result = await runTmux(['display-message', '-p', '-t', session, format], env)
+  if (!result.ok) return null
+  const [target] = parseFormatLines(result.stdout, 1, frame)[0] ?? []
+  return target || null
 }
 
 export async function listPanes(
   session: string,
   env: NodeJS.ProcessEnv
 ): Promise<TerminalPaneState[]> {
-  const format = [
+  const { format, frame } = framedFormat([
     '#{session_name}:#{window_index}.#{pane_index}',
     '#{window_name}',
     '#{pane_current_command}',
     '#{pane_current_path}',
     '#{pane_active}',
-  ].join(FIELD)
+  ])
   const result = await runTmux(['list-panes', '-s', '-t', session, '-F', format], env)
   if (!result.ok) return []
-  return parseFormatLines(result.stdout, 5).map(
+  return parseFormatLines(result.stdout, 5, frame).map(
     ([target, windowName, command, cwd, active]): TerminalPaneState => ({
       target,
       windowName,
