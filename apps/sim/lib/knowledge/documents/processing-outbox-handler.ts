@@ -33,8 +33,8 @@ import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/do
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
-  type KnowledgeDocumentProcessingOutboxPayload,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+} from '@/lib/knowledge/documents/processing-events'
+import type { KnowledgeDocumentProcessingOutboxPayload } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingPayload,
   resolveDocumentProcessingLane,

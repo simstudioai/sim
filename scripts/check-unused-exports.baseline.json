@@ -4201,8 +4201,6 @@
   "apps/sim/lib/billing/enterprise-owner-claim.ts#ENTERPRISE_OWNER_CLAIM_EXPIRY_DAYS",
   "apps/sim/lib/billing/enterprise-owner-claim.ts#enterpriseOwnerClaimPayloadSchema",
   "apps/sim/lib/billing/enterprise-owner-claim.ts#getEnterpriseOwnerClaimView",
-  "apps/sim/lib/billing/enterprise-provisioning.ts#ENTERPRISE_METADATA_SYNC_EVENT_TYPE",
-  "apps/sim/lib/billing/enterprise-provisioning.ts#ENTERPRISE_PROVISION_EVENT_TYPE",
   "apps/sim/lib/billing/enterprise-provisioning.ts#EnterpriseFollowUpJobKind",
   "apps/sim/lib/billing/enterprise-provisioning.ts#moveEnterpriseWorkspace",
   "apps/sim/lib/billing/index.ts#canEditLimit",

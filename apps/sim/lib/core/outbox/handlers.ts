@@ -6,7 +6,7 @@ import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
   ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
-} from '@/lib/billing/enterprise-outbox'
+} from '@/lib/billing/enterprise-outbox-events'
 import {
   ENTERPRISE_OWNER_ACTIVATION_EVENT_TYPE,
   ENTERPRISE_OWNER_CLAIM_EVENT_TYPE,
@@ -28,7 +28,7 @@ import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/do
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+} from '@/lib/knowledge/documents/processing-events'
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'

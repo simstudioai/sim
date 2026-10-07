@@ -42,11 +42,6 @@ import {
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   deriveEnterpriseOperationStatus,
-  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
-  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
-  ENTERPRISE_PROVISION_EVENT_TYPE,
-  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseInvitePeoplePayload,
   type EnterpriseMetadataSyncPayload,
   type EnterpriseOperationStatus,
@@ -61,6 +56,13 @@ import {
   enterpriseWorkspaceMovePayloadSchema,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import {
+  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
+  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  ENTERPRISE_PROVISION_EVENT_TYPE,
+  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
+} from '@/lib/billing/enterprise-outbox-events'
 import {
   parseWorkflowExecutionTimeoutSeconds,
   resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
@@ -3211,5 +3213,3 @@ export async function getLatestEnterpriseProvisionings(
   }
   return result
 }
-
-export { ENTERPRISE_METADATA_SYNC_EVENT_TYPE, ENTERPRISE_PROVISION_EVENT_TYPE }

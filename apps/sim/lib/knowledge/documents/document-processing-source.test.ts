@@ -76,7 +76,7 @@ import {
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
-import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
+import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-events'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
