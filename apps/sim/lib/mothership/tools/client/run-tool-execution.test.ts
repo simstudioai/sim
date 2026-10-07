@@ -840,6 +840,18 @@ describe('run tool execution cancellation', () => {
       )
       let reconnectOpen = true
       isReconnectStreamOpen.mockImplementation(() => reconnectOpen)
+      const running = new Map<string, boolean>()
+      setIsExecuting.mockImplementation((workflowId: string, value: boolean) => {
+        running.set(workflowId, value)
+      })
+      getWorkflowExecution.mockImplementation((workflowId: string) => ({
+        isExecuting: running.get(workflowId) ?? false,
+      }))
+      onTestFinished(() => {
+        setIsExecuting.mockReset()
+        getWorkflowExecution.mockReset()
+        getWorkflowExecution.mockImplementation(() => ({ isExecuting: false }))
+      })
       executeWorkflowWithFullLogging.mockRejectedValueOnce(
         new MockSSEStreamInterruptedError('Execution stream interrupted', 'exec-abandoned')
       )
@@ -852,6 +864,7 @@ describe('run tool execution cancellation', () => {
       // The editor's reconnect re-attaches, then the user navigates away and it is
       // cancelled, leaving the execution marked current in the store.
       setCurrentExecutionId('wf-1', 'exec-abandoned')
+      setIsExecuting('wf-1', true)
       serverStatus = 'completed'
       await vi.waitFor(() =>
         expect(isReconnectStreamOpen).toHaveBeenCalledWith('wf-1', 'exec-abandoned')
@@ -866,6 +879,36 @@ describe('run tool execution cancellation', () => {
         ['tool-a', 'background'],
         ['tool-b', 'success'],
       ])
+    })
+
+    it('re-sends an undelivered completion while a later call owns the workflow', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      let confirmsFailFor: string | null = 'tool-a'
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: string, init?: RequestInit) =>
+          confirmsFailFor && String(init?.body).includes(`"toolCallId":"${confirmsFailFor}"`)
+            ? { ok: false, status: 500 }
+            : { ok: true }
+        )
+      )
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+      const firstExecutionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+      finish('tool-a')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+
+      confirmsFailFor = null
+      await expect(bindRunToolToExecution('tool-a', 'wf-1')).resolves.toBe(true)
+
+      const delivered = confirmBodies()
+        .filter((body) => body.toolCallId === 'tool-a')
+        .at(-1)
+      expect(delivered).toMatchObject({ status: 'success', executionId: firstExecutionId })
+      finish('tool-b')
+      await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
     })
 
     it('treats a waiting call as already owned by this tab when the chat recovers it', async () => {

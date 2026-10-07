@@ -423,18 +423,14 @@ export async function bindRunToolToExecution(
     })
     return true
   }
-  if (existingToolCallId && existingToolCallId !== toolCallId) {
-    logger.warn('[RunTool] Recovery skipped: another run tool is already active', {
-      workflowId,
-      toolCallId,
-      existingToolCallId,
-    })
-    return false
-  }
-
-  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  // Another run owns the workflow's pointer, so it says nothing about this call.
+  const otherRunOwnsWorkflow =
+    existingToolCallId !== undefined || interruptedExecutionIdByWorkflowId.has(workflowId)
   const pendingCompletion = loadPendingCompletionReport(toolCallId)
   if (pendingCompletion) {
+    const pointer = otherRunOwnsWorkflow
+      ? null
+      : await loadExecutionPointer(workflowId).catch(() => null)
     const executionId = pendingCompletion.executionId ?? pointer?.executionId
     logger.info('[RunTool] Recovery re-sending pending completion report', {
       workflowId,
@@ -453,7 +449,7 @@ export async function bindRunToolToExecution(
         executionId
       )
       clearPendingCompletionReport(toolCallId)
-      if (pendingCompletion.clearExecutionPointerAfterReport) {
+      if (pendingCompletion.clearExecutionPointerAfterReport && !otherRunOwnsWorkflow) {
         await clearExecutionPointer(workflowId)
       }
     } catch (error) {
@@ -467,6 +463,16 @@ export async function bindRunToolToExecution(
     return true
   }
 
+  if (otherRunOwnsWorkflow) {
+    logger.warn('[RunTool] Recovery skipped: another run owns this workflow', {
+      workflowId,
+      toolCallId,
+      existingToolCallId,
+    })
+    return false
+  }
+
+  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
   if (!pointer?.executionId) {
     logger.info('[RunTool] Recovery skipped: no tab-local execution pointer', {
       workflowId,
