@@ -19,11 +19,13 @@ import { useExecutionStore } from '@/stores/execution/store'
 
 const {
   executeWorkflowWithFullLogging,
+  isReconnectStreamOpen,
   MockExecutionStreamHttpError,
   MockSSEEventHandlerError,
   MockSSEStreamInterruptedError,
 } = vi.hoisted(() => ({
   executeWorkflowWithFullLogging: vi.fn(),
+  isReconnectStreamOpen: vi.fn(() => false),
   MockExecutionStreamHttpError: class ExecutionStreamHttpError extends Error {
     constructor(
       message: string,
@@ -79,6 +81,7 @@ function requireAbortSignal(options: WorkflowExecutionOptions): AbortSignal {
 vi.mock('@/hooks/use-execution-stream', () => ({
   ExecutionStreamHttpError: MockExecutionStreamHttpError,
   isExecutionStreamHttpError: (error: unknown) => error instanceof MockExecutionStreamHttpError,
+  isReconnectStreamOpen,
   SSEEventHandlerError: MockSSEEventHandlerError,
   SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
@@ -820,6 +823,42 @@ describe('run tool execution cancellation', () => {
       expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
 
       serverStatus = 'completed'
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
+      expect(confirmBodies().map((body) => [body.toolCallId, body.status])).toEqual([
+        ['tool-a', 'background'],
+        ['tool-b', 'success'],
+      ])
+    })
+
+    it('lets waiting calls run once the dropped run settles, even if its reconnect was abandoned', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      let serverStatus = 'running'
+      mockRequestJson.mockImplementation(async (contract: unknown) =>
+        contract === getWorkflowExecutionContract ? { status: serverStatus } : { success: true }
+      )
+      let reconnectOpen = true
+      isReconnectStreamOpen.mockImplementation(() => reconnectOpen)
+      executeWorkflowWithFullLogging.mockRejectedValueOnce(
+        new MockSSEStreamInterruptedError('Execution stream interrupted', 'exec-abandoned')
+      )
+      const released = vi.fn()
+      onTestFinished(subscribeToRunToolRelease(released))
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
+      // The editor's reconnect re-attaches, then the user navigates away and it is
+      // cancelled, leaving the execution marked current in the store.
+      setCurrentExecutionId('wf-1', 'exec-abandoned')
+      serverStatus = 'completed'
+      await vi.waitFor(() =>
+        expect(isReconnectStreamOpen).toHaveBeenCalledWith('wf-1', 'exec-abandoned')
+      )
+      expect(launchedToolCallIds()).toEqual(['tool-a'])
+
+      reconnectOpen = false
       await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
       finish('tool-b')
       await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))

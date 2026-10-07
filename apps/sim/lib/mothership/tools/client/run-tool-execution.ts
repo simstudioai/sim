@@ -38,6 +38,7 @@ import {
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import {
   isExecutionStreamHttpError,
+  isReconnectStreamOpen,
   SSEEventHandlerError,
   SSEStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
@@ -157,11 +158,19 @@ async function holdForInterruptedExecution(workflowId: string, executionId: stri
     await sleep(backoffWithJitter(attempt, null, { maxMs: INTERRUPTED_RUN_POLL_MAX_MS }))
     if (interruptedExecutionIdByWorkflowId.get(workflowId) !== executionId) return
     if (await isExecutionStillRunning(workflowId, executionId)) continue
-    // A reconnect that re-attached clears this once it has drained the run's last events.
-    if (useExecutionStore.getState().getCurrentExecutionId(workflowId) === executionId) continue
+    // A live reconnect is still draining the run's last events into the editor.
+    if (isReconnectStreamOpen(workflowId, executionId)) continue
     break
   }
   interruptedExecutionIdByWorkflowId.delete(workflowId)
+  // A reconnect cancelled by navigating away leaves the settled run looking current;
+  // left as is, the next run would read it as a run someone else is driving.
+  const executionState = useExecutionStore.getState()
+  if (executionState.getCurrentExecutionId(workflowId) === executionId) {
+    executionState.setCurrentExecutionId(workflowId, null)
+    executionState.setIsExecuting(workflowId, false)
+    executionState.setActiveBlocks(workflowId, new Set())
+  }
   admitNextRunTool(workflowId)
 }
 
