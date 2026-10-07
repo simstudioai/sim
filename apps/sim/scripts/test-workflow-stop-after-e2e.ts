@@ -37,8 +37,10 @@ import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 const logger = createLogger('WorkflowStopAfterE2E')
 const execFileAsync = promisify(execFile)
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-/** The first execute request cold-compiles the route under `next dev`. */
-const REQUEST_TIMEOUT_MS = 300_000
+/** The first execute request cold-compiles the route's module graph under `next dev`. */
+const ROUTE_COMPILE_TIMEOUT_MS = 300_000
+/** Every later request hits the compiled route; the slowest fixture run waits about `SLOW_MS`. */
+const REQUEST_TIMEOUT_MS = 60_000
 const SLOW_SECONDS = 4
 const SLOW_MS = SLOW_SECONDS * 1000
 const startedAt = new Date().toISOString()
@@ -67,7 +69,8 @@ const personalKey = `sk-sim-fixture-${generateId()}`
 const cliPath = fileURLToPath(new URL('../../../packages/sim-cli/src/index.ts', import.meta.url))
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
-const requests: { method: string; path: string; status: number; durationMs: number }[] = []
+/** `status` is null when the request ended without a complete response. */
+const requests: { method: string; path: string; status: number | null; durationMs: number }[] = []
 let directory: string | undefined
 
 interface PipelineFixture {
@@ -225,37 +228,48 @@ async function seed() {
   })
 }
 
+function isTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
+
 async function execute(
   workflowId: string,
   body: V2ExecuteWorkflowBody,
-  expectedStatus = 200
+  { expectedStatus = 200, timeoutMs = REQUEST_TIMEOUT_MS } = {}
 ): Promise<Record<string, unknown>> {
   const url = new URL(`/api/v2/workflows/${workflowId}/execute`, baseUrl)
   const started = performance.now()
-  // boundary-raw-fetch: protocol E2E exercises a separately running local app over real HTTP
-  const response = await fetch(url, {
-    method: 'POST',
-    redirect: 'error',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      'x-api-key': personalKey,
-      'x-forwarded-for': '127.0.0.1',
-    },
-    body: JSON.stringify(body),
-  })
-  requests.push({
-    method: 'POST',
-    path: url.pathname,
-    status: response.status,
-    durationMs: Math.round(performance.now() - started),
-  })
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_RESPONSE_BYTES,
-    label: 'Stop-after E2E response',
-  })
-  assert.equal(response.status, expectedStatus, `${url.pathname}: ${truncate(text, 500)}`)
+  const elapsed = () => Math.round(performance.now() - started)
+  let status: number | null = null
+  let text: string
+  try {
+    // boundary-raw-fetch: protocol E2E exercises a separately running local app over real HTTP
+    const response = await fetch(url, {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-api-key': personalKey,
+        'x-forwarded-for': '127.0.0.1',
+      },
+      body: JSON.stringify(body),
+    })
+    text = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_RESPONSE_BYTES,
+      label: 'Stop-after E2E response',
+    })
+    status = response.status
+  } catch (error) {
+    const reason = isTimeout(error)
+      ? `no complete response within ${timeoutMs / 1000}s`
+      : getErrorMessage(error)
+    throw new Error(`POST ${url.pathname} failed after ${elapsed()} ms: ${reason}`)
+  } finally {
+    requests.push({ method: 'POST', path: url.pathname, status, durationMs: elapsed() })
+  }
+  assert.equal(status, expectedStatus, `${url.pathname}: ${truncate(text, 500)}`)
   return record(JSON.parse(text))
 }
 
@@ -268,55 +282,93 @@ async function run(
   return data
 }
 
-async function expectBadRequest(workflowId: string, body: V2ExecuteWorkflowBody, code: string) {
-  const status = code === 'NOT_FOUND' ? 404 : 400
-  const error = record((await execute(workflowId, body, status)).error)
+async function expectBadRequest(
+  workflowId: string,
+  body: V2ExecuteWorkflowBody,
+  code: string,
+  timeoutMs = REQUEST_TIMEOUT_MS
+) {
+  const expectedStatus = code === 'NOT_FOUND' ? 404 : 400
+  const error = record((await execute(workflowId, body, { expectedStatus, timeoutMs })).error)
   assert.equal(error.code, code)
 }
 
-async function runCli(args: string[]): Promise<V2ExecuteWorkflowData> {
+/** Runs the CLI; a run it must fail exits non-zero and still prints the run on stdout. */
+async function execCli(
+  args: string[]
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assert(directory, 'CLI fixture directory must exist')
-  const { stdout } = await execFileAsync(
-    'bun',
-    [
-      '--no-env-file',
-      cliPath,
-      '--endpoint',
-      baseUrl.origin,
-      '--workspace',
-      workspaceId,
-      '--output',
-      'json',
-      'workflows',
-      'run',
-      ...args,
-    ],
-    {
-      cwd: directory,
-      env: { ...process.env, SIM_CONFIG_DIR: directory, SIM_API_KEY: personalKey, NO_COLOR: '1' },
-      timeout: REQUEST_TIMEOUT_MS,
-      maxBuffer: MAX_RESPONSE_BYTES,
-    }
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      'bun',
+      [
+        '--no-env-file',
+        cliPath,
+        '--endpoint',
+        baseUrl.origin,
+        '--workspace',
+        workspaceId,
+        '--output',
+        'json',
+        'workflows',
+        'run',
+        ...args,
+      ],
+      {
+        cwd: directory,
+        env: { ...process.env, SIM_CONFIG_DIR: directory, SIM_API_KEY: personalKey, NO_COLOR: '1' },
+        timeout: REQUEST_TIMEOUT_MS,
+        maxBuffer: MAX_RESPONSE_BYTES,
+      }
+    )
+    return { exitCode: 0, stdout, stderr }
+  } catch (error) {
+    assert(isRecordLike(error), getErrorMessage(error))
+    assert(
+      error.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER',
+      `sim workflows run printed more than ${MAX_RESPONSE_BYTES} bytes`
+    )
+    assert(!error.killed, `sim workflows run did not exit within ${REQUEST_TIMEOUT_MS / 1000}s`)
+    assert(
+      typeof error.code === 'number' &&
+        typeof error.stdout === 'string' &&
+        typeof error.stderr === 'string',
+      getErrorMessage(error)
+    )
+    return { exitCode: error.code, stdout: error.stdout, stderr: error.stderr }
+  }
+}
+
+async function runCli(args: string[]): Promise<V2ExecuteWorkflowData> {
+  const { exitCode, stdout, stderr } = await execCli(args)
+  assert.equal(
+    exitCode,
+    0,
+    `sim workflows run exited ${exitCode}: ${truncate(stderr || stdout, 500)}`
   )
   return v2ExecuteWorkflowDataSchema.parse(JSON.parse(stdout))
 }
 
 /** A CLI run the command itself must fail: exits non-zero and prints the failed run. */
 async function runCliExpectingFailure(args: string[]): Promise<V2ExecuteWorkflowData> {
-  try {
-    await runCli(args)
-  } catch (error) {
-    assert(isRecordLike(error) && typeof error.stdout === 'string', getErrorMessage(error))
-    assert.notEqual(error.code, 0, 'a failed run must exit non-zero')
-    return v2ExecuteWorkflowDataSchema.parse(JSON.parse(error.stdout))
-  }
-  assert.fail('the CLI exited 0 for a run that must fail')
+  const { exitCode, stdout } = await execCli(args)
+  assert.notEqual(exitCode, 0, 'the CLI exited 0 for a run that must fail')
+  return v2ExecuteWorkflowDataSchema.parse(JSON.parse(stdout))
 }
 
 const selectAll = ['Slow.status', 'Check.status', 'After.status']
 
 try {
   await check('seed disposable workspace, personal key and fixtures', seed)
+
+  await check('the execute route compiles and refuses a run before it starts', () =>
+    expectBadRequest(
+      pipeline.workflowId,
+      { run: { source: 'manual', stopAfterBlockId: '' } },
+      'BAD_REQUEST',
+      ROUTE_COMPILE_TIMEOUT_MS
+    )
+  )
 
   let sourceRunId = ''
   await check('a full manual run executes every block and persists its state', async () => {

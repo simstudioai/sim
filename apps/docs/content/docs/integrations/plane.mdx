@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="plane"
-  color="#3F76FF"
+  color="#FFFFFF"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -24,7 +24,7 @@ Create a personal access token in Plane's profile settings and enter it as the A
 
 Explicit empty strings, nulls, and empty arrays can be supplied through **Body Overrides** using the action's canonical input names. Clearing work item labels and assignees is verified through API v1 because Plane v2 can continue returning deleted relationship IDs. The update action returns the verified cleared state; subsequent v2 reads may still include those IDs. Use API v1 when reading active relationships after a clear.
 
-For webhooks, automatic registration requires API v2. On instances using API v1, create a webhook in Plane's settings and configure its signing secret in Sim. Project-filtered legacy deletion events that omit their project cannot be matched and are skipped.
+For webhooks, automatic registration requires API v2, an API token, and the workspace slug. Manual setup requires the webhook signing secret; it does not require an API token or workspace slug. On instances using API v1, create a webhook in Plane's settings and configure its signing secret in Sim. The trigger tables mark only unconditional requirements as required. Project-filtered legacy deletion events that omit their project cannot be matched and are skipped.
 
 The knowledge connector reads API v1 to include full descriptions. It preserves existing documents when a listing is capped and disables automatic deletion reconciliation because offset listings can shift during concurrent changes. Project pages require an edition that exposes the pages API.
 
@@ -4323,10 +4323,10 @@ Trigger a workflow for any signed Plane event.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4361,10 +4361,10 @@ Trigger a workflow for Plane cycle archived events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4399,10 +4399,10 @@ Trigger a workflow for Plane cycle created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4437,10 +4437,10 @@ Trigger a workflow for Plane cycle deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4475,10 +4475,10 @@ Trigger a workflow for Plane cycle updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4513,10 +4513,10 @@ Trigger a workflow for Plane milestone created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4551,10 +4551,10 @@ Trigger a workflow for Plane milestone deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4589,10 +4589,10 @@ Trigger a workflow for Plane milestone updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4627,10 +4627,10 @@ Trigger a workflow for Plane module archived events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4665,10 +4665,10 @@ Trigger a workflow for Plane module created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4703,10 +4703,10 @@ Trigger a workflow for Plane module deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4741,10 +4741,10 @@ Trigger a workflow for Plane module updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4779,10 +4779,10 @@ Trigger a workflow for Plane page archived events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4817,10 +4817,10 @@ Trigger a workflow for Plane page comment created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4855,10 +4855,10 @@ Trigger a workflow for Plane page comment deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4893,10 +4893,10 @@ Trigger a workflow for Plane page comment updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4931,10 +4931,10 @@ Trigger a workflow for Plane page created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -4969,10 +4969,10 @@ Trigger a workflow for Plane page deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5007,10 +5007,10 @@ Trigger a workflow for Plane page updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5045,10 +5045,10 @@ Trigger a workflow for Plane project archived events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5083,10 +5083,10 @@ Trigger a workflow for Plane project created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5121,10 +5121,10 @@ Trigger a workflow for Plane project deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5159,10 +5159,10 @@ Trigger a workflow for Plane project updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5197,10 +5197,10 @@ Trigger a workflow for Plane work item archived events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5235,10 +5235,10 @@ Trigger a workflow for Plane work item attachment created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5273,10 +5273,10 @@ Trigger a workflow for Plane work item attachment deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5311,10 +5311,10 @@ Trigger a workflow for Plane work item attachment updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5349,10 +5349,10 @@ Trigger a workflow for Plane work item comment created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5387,10 +5387,10 @@ Trigger a workflow for Plane work item comment deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5425,10 +5425,10 @@ Trigger a workflow for Plane work item comment updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5463,10 +5463,10 @@ Trigger a workflow for Plane work item created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5501,10 +5501,10 @@ Trigger a workflow for Plane work item deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5539,10 +5539,10 @@ Trigger a workflow for Plane work item dependency created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5577,10 +5577,10 @@ Trigger a workflow for Plane work item dependency deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5615,10 +5615,10 @@ Trigger a workflow for Plane work item link created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5653,10 +5653,10 @@ Trigger a workflow for Plane work item link deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5691,10 +5691,10 @@ Trigger a workflow for Plane work item link updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5729,10 +5729,10 @@ Trigger a workflow for Plane work item page link created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5767,10 +5767,10 @@ Trigger a workflow for Plane work item page link deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5805,10 +5805,10 @@ Trigger a workflow for Plane work item relation created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5843,10 +5843,10 @@ Trigger a workflow for Plane work item relation deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5881,10 +5881,10 @@ Trigger a workflow for Plane work item updated events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5919,10 +5919,10 @@ Trigger a workflow for Plane work item vote created events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 
@@ -5957,10 +5957,10 @@ Trigger a workflow for Plane work item vote deleted events.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `autoRegister` | boolean | No | Requires the Plane v2 webhook API. Use manual setup for Community Edition. |
-| `triggerApiKey` | string | Yes | API Token |
+| `triggerApiKey` | string | No | API Token |
 | `triggerBaseUrl` | string | No | Instance URL |
-| `triggerWorkspaceSlug` | string | Yes | Workspace Slug |
-| `webhookSecret` | string | Yes | Webhook Secret |
+| `triggerWorkspaceSlug` | string | No | Workspace Slug |
+| `webhookSecret` | string | No | Webhook Secret |
 | `projectId` | string | No | Self-hosted v1 deletions without project information are skipped when this filter is set. |
 | `workspaceId` | string | No | Workspace ID |
 

@@ -2787,6 +2787,13 @@
       "when": 1791260662287,
       "tag": "0398_desktop_tool_pickup_deadline",
       "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1791313130367,
+      "tag": "0399_tool_call_persist_seq",
+      "breakpoints": true
     }
   ]
 }

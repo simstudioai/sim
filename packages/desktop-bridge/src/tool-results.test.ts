@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeBrowserToolResultForModel } from '@/lib/mothership/tools/client/browser-tool-result'
+import { sanitizeBrowserToolResultForModel } from './tool-results'
 
 describe('browser screenshot model projection', () => {
   it('keeps an image usable when an older desktop omits coordinate metadata', () => {

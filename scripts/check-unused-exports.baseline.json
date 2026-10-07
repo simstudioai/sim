@@ -40,7 +40,6 @@
   "apps/desktop/src/main/observability.ts#DesktopEventName",
   "apps/desktop/src/main/session-lifecycle.ts#SessionLifecycleDeps",
   "apps/desktop/src/main/session-lifecycle.ts#isLogoutNavigation",
-  "apps/desktop/src/main/session-lifecycle.ts#isSessionCookieName",
   "apps/desktop/src/main/session-lifecycle.ts#revokeAppSession",
   "apps/desktop/src/main/telemetry-policy.ts#BLOCKED_ANALYTICS_HOSTS",
   "apps/desktop/src/main/terminal-themes.ts#parseTerminalThemeProfiles",

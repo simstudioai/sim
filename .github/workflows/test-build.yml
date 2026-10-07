@@ -217,6 +217,13 @@ jobs:
       # immediately, and either way the server log tail lands in the job log. No
       # step timeout: the job's bound covers a hang without cutting a slow but
       # healthy suite short of writing its report.
+      #
+      # Every `next dev` app in this job shares apps/sim/.next, so each one follows the
+      # same lifecycle. It starts from an empty Turbopack dev cache: a cache written under
+      # other NEXT_PUBLIC_* values, by a server that `next dev` SIGKILLs 100ms after
+      # SIGTERM, can panic Turbopack or wedge a route compile on restore. It runs in its
+      # own session, and stop-session.sh returns only once all of it has exited, so no app
+      # starts beside one still writing .next/dev.
       - name: Verify SCIM, administration and workflow comparisons over real HTTP
         working-directory: apps/sim
         env:
@@ -243,17 +250,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/scim-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
@@ -275,6 +287,54 @@ jobs:
           VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
 
+      # Self-hosted without billing: hosted billing admits runs through Redis, which
+      # this job does not provision.
+      - name: Verify embedded CLI workflow runs and log reads over real HTTP
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3018
+          BETTER_AUTH_URL: http://127.0.0.1:3018
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          INTERNAL_API_SECRET: cli-http-ci-local-secret-at-least-32-characters
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          server_log="$report_dir/cli-next.log"
+          mkdir -p "$report_dir"
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          server_pid=$!
+          finish() {
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
+            wait "$server_pid" 2>/dev/null || true
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
+          }
+          trap finish EXIT
+          fail_startup() {
+            echo "::error::$1"
+            exit 1
+          }
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3018/api/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || fail_startup 'Local CLI app exited during startup.'
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] ||
+              fail_startup "Local CLI app did not become ready within $READY_TIMEOUT_SECONDS seconds."
+            sleep 2
+          done
+          echo "Local CLI app ready after $((SECONDS - started))s"
+          CLI_LATENCY_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          CLI_LATENCY_E2E_DATABASE_URL="$DATABASE_URL" \
+          CLI_LATENCY_E2E_RUNS=3 \
+          CLI_LATENCY_E2E_WARMUP=1 \
+          CLI_LATENCY_E2E_REPORT_PATH="$report_dir/cli-run-latency-report.json" \
+            bun run test:cli-run-latency:e2e
+
       # A self-hosted app: hosted billing admits a run only through a Redis usage
       # reservation, and the SCIM suite above asserts PostgreSQL rate-limit storage,
       # so workflow execution gets its own app rather than adding Redis to that one.
@@ -294,17 +354,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/stop-after-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3018 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/stop-after-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS
@@ -340,17 +405,22 @@ jobs:
           report_dir="$RUNNER_TEMP/e2e"
           server_log="$report_dir/desktop-inbox-next.log"
           mkdir -p "$report_dir"
-          node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
+          rm -rf .next/dev
+          setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3019 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
-            kill "$server_pid" 2>/dev/null || true
+            status=$?
+            bash ../../.github/scripts/stop-session.sh "$server_pid" || status=1
             wait "$server_pid" 2>/dev/null || true
             awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/desktop-inbox-http-status.log"
+            if [ "$status" -ne 0 ]; then
+              tail -n 200 "$server_log"
+              exit "$status"
+            fi
           }
           trap finish EXIT
           fail_startup() {
             echo "::error::$1"
-            tail -n 200 "$server_log"
             exit 1
           }
           started=$SECONDS

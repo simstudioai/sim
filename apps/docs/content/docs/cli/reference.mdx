@@ -2751,7 +2751,7 @@ sim logs get <runId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--include-workflow-state` | No | Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged. |
+| `--include-workflow-state` | No | Include the saved workflow snapshot (default: true; Sim’s in-app agent leaves it out unless this flag is passed). Set false to omit block configuration from a log read. Other run fields are unchanged. |
 | `--no-include-workflow-state` | No | Send --include-workflow-state as false. |
 | `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
 
@@ -6695,7 +6695,7 @@ sim workflows run <workflowId> [options]
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
 | `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
+| `--include-file-base64` | No | Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |

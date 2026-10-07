@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   filterContextsPresentInMessage,
   filterOutContext,
@@ -21,7 +21,23 @@ interface UseContextManagementProps {
  * @returns Context state and management functions
  */
 export function useContextManagement({ message, initialContexts }: UseContextManagementProps) {
-  const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>(initialContexts ?? [])
+  const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>(() =>
+    filterContextsPresentInMessage(initialContexts ?? [], message)
+  )
+  const [prunedForMessage, setPrunedForMessage] = useState(message)
+
+  /**
+   * Drops contexts whose inline @label or /label token left the message, during
+   * render. An effect here re-rendered after every keystroke; when keystrokes
+   * outpace React's scheduler (a loaded machine), React counts those commits as
+   * nested updates and the next `setState` (the Enter that submits) throws
+   * "Maximum update depth exceeded".
+   */
+  if (prunedForMessage !== message) {
+    setPrunedForMessage(message)
+    const present = filterContextsPresentInMessage(selectedContexts, message)
+    if (present !== selectedContexts) setSelectedContexts(present)
+  }
 
   /**
    * Adds a context to the selected contexts list, avoiding duplicates
@@ -51,16 +67,6 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
   const clearContexts = useCallback(() => {
     setSelectedContexts((prev) => (prev.length === 0 ? prev : []))
   }, [])
-
-  /**
-   * Synchronizes selected contexts with inline @label or /label tokens in the message.
-   * Removes contexts whose labels are no longer present in the message.
-   */
-  useEffect(() => {
-    setSelectedContexts((prev) => {
-      return filterContextsPresentInMessage(prev, message)
-    })
-  }, [message])
 
   return {
     selectedContexts,

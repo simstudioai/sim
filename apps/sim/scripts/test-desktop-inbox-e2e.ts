@@ -284,20 +284,16 @@ function openDoorbell(desktop: Desktop) {
 function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbell>) {
   const ran = new Map<string, { toolName: string; chatId: string; executionToken: string }>()
   const completed = new Set<string>()
-  let running = false
+  let inFlight: Promise<void> | null = null
   let rerun = false
   let stopped = false
-  const pull = async () => {
-    if (running) {
-      rerun = true
-      return
-    }
-    running = true
+  const drain = async () => {
     try {
       do {
         rerun = false
         const inbox = await pullInbox(desktop)
         for (const item of inbox.items) {
+          if (stopped) return
           if (item.kind !== 'call' || ran.has(item.toolCallId)) continue
           const claimBody: ClaimDesktopToolBody = {
             deviceId: desktop.deviceId,
@@ -351,8 +347,16 @@ function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbel
         }
       } while (rerun && !stopped)
     } finally {
-      running = false
+      inFlight = null
     }
+  }
+  const pull = () => {
+    if (inFlight) {
+      rerun = true
+      return inFlight
+    }
+    inFlight = drain()
+    return inFlight
   }
   const offDoorbell = doorbell.onEvent(
     () => void pull().catch((error) => logger.error('pull failed', error))
@@ -361,14 +365,19 @@ function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbel
     () => void pull().catch((error) => logger.error('reconcile failed', error)),
     RECONCILE_MS
   )
-  void pull()
+  void pull().catch((error) => logger.error('pull failed', error))
   return {
     ran,
     completed,
-    stop() {
+    /**
+     * Resolves once the pull in flight has settled, so the fixture is never torn down under a
+     * request the executor already started.
+     */
+    async stop() {
       stopped = true
       offDoorbell()
       clearInterval(timer)
+      await inFlight?.catch(() => {})
     },
   }
 }
@@ -412,6 +421,21 @@ async function run() {
     assert(registration.leaseRenewMs < registration.leaseMs)
     assert(registration.reconcileMs < PICKUP_GRACE_SECONDS * 1000)
   })
+
+  /** `next dev` compiles a route on its first request, which must not count against the timed checks. */
+  await check(
+    'reads the inbox and refuses malformed claim, lease and completion bodies',
+    async () => {
+      await pullInbox(desktop)
+      for (const path of [
+        '/api/desktop/tool/claim',
+        '/api/desktop/tool/lease',
+        '/api/desktop/tool/complete',
+      ]) {
+        await request(desktop, 'POST', path, { body: {}, expected: 400 })
+      }
+    }
+  )
 
   /** Starts absent, so only the stream open below can mark the device present. */
   await redis.del(`desktop:presence:${desktop.deviceId}`)
@@ -533,7 +557,7 @@ async function run() {
       })
     })
   } finally {
-    executor.stop()
+    await executor.stop()
   }
 
   await check('tells the device to cancel a call whose chat was stopped', async () => {

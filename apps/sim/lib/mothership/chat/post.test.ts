@@ -816,7 +816,7 @@ describe('handleUnifiedChatPost', () => {
     ['low', 'low'],
     ['none', 'high'],
   ])(
-    'enforces the default model and effort range on submitted %s effort',
+    'leaves the model to the worker and enforces the effort range on submitted %s effort',
     async (effort, expected) => {
       flags.models.mockResolvedValue(false)
       const response = await handleUnifiedChatPost(
@@ -831,12 +831,9 @@ describe('handleUnifiedChatPost', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({
-          effort: expected,
-          modelSelection: { model: 'gpt-6-astra', fastMode: false },
-        })
-      )
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      expect(requestPayload?.effort).toBe(expected)
+      expect(JSON.stringify(requestPayload)).not.toContain('modelSelection')
     }
   )
 

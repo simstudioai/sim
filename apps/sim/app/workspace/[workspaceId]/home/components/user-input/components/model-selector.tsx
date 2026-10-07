@@ -45,7 +45,7 @@ export function ModelSelector() {
     { effort: effortChoice ?? undefined, modelSelection: selection },
     advanced
   )
-  const options = advanced
+  const options = modelSelection
     ? mothershipEffortOptions(modelSelection.model)
     : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {
@@ -59,13 +59,10 @@ export function ModelSelector() {
   }, [chatId])
 
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
-  const modelLabel =
-    MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??
-    modelSelection.model
 
   return (
     <div className='flex items-center gap-[inherit]'>
-      {advanced && (
+      {modelSelection && (
         <>
           {modelSelection.model !== 'claude-opus-5-5' && (
             <FastModeToggle
@@ -77,7 +74,10 @@ export function ModelSelector() {
           <DropdownMenu modal={false}>
             <ModelSettingTrigger
               label='Model'
-              valueLabel={modelLabel}
+              valueLabel={
+                MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                  ?.label ?? modelSelection.model
+              }
               icon={Sparkles}
               showChevron
             />

@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, type ChangeEvent, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useContextManagement } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-context-management'
 import type { ChatContext } from '@/stores/panel'
 
@@ -78,5 +78,86 @@ describe('useContextManagement label sync', () => {
     ])
 
     expect(latest.selectedContexts.map((c) => c.label)).toEqual(['notes.md:12', 'notes.md:12-40'])
+  })
+})
+
+describe('useContextManagement while the user types', () => {
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * Under CPU load the browser runs each keystroke's input task before React's
+   * scheduler task, so a keystroke commit must leave no render pending. React
+   * counts every commit that leaves an update pending, and the 51st such commit
+   * in a row makes the next `setState` anywhere throw "Maximum update depth
+   * exceeded" (#185); in the chat that next `setState` was the Enter that queues
+   * the follow-up, which was then lost. Keystrokes here are separate input
+   * events with only microtasks between them, so the scheduler never runs: the
+   * same ordering a loaded browser produces.
+   */
+  it('submits a long message typed faster than the React scheduler runs', async () => {
+    const thrown: unknown[] = []
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let submitted = ''
+
+    function Composer() {
+      const [message, setMessage] = useState('')
+      const [lastSubmitted, setLastSubmitted] = useState('')
+      useContextManagement({ message })
+      submitted = lastSubmitted
+      const guard = (update: () => void) => {
+        try {
+          update()
+        } catch (error) {
+          thrown.push(error)
+        }
+      }
+      return (
+        <textarea
+          value={message}
+          onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+            guard(() => setMessage(event.target.value))
+          }
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') guard(() => setLastSubmitted(message))
+          }}
+        />
+      )
+    }
+
+    act(() => {
+      root.render(<Composer />)
+    })
+    const textarea = container.querySelector('textarea')
+    if (!textarea) throw new Error('composer did not render')
+    const setNativeValue = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    if (!setNativeValue) throw new Error('textarea value setter missing')
+
+    const followUp = 'please also summarize the second quarter numbers by region and team'
+    for (let i = 1; i <= followUp.length; i++) {
+      setNativeValue.call(textarea, followUp.slice(0, i))
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    }
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await Promise.resolve()
+
+    expect(thrown).toEqual([])
+    expect(
+      consoleError.mock.calls.filter((call) => String(call[0]).includes('Maximum update depth'))
+    ).toEqual([])
+    expect(submitted).toBe(followUp)
   })
 })

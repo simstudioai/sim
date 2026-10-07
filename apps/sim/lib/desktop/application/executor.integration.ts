@@ -31,6 +31,7 @@ import {
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
@@ -865,7 +866,29 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       ])
     })
 
-    it('lists pending calls in persistence order even when their doorbell was never heard', async () => {
+    it('lists calls persisted in the same millisecond in the order they were persisted', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const sameMillisecond = new Date()
+      /** Ids that sort in reverse, so neither the clock nor the id can produce this order. */
+      const persisted = ['type-zz', 'click-mm', 'submit-aa'].map(
+        (name) => `${name}-${generateId()}`
+      )
+      for (const toolCallId of persisted) {
+        await db.insert(copilotAsyncToolCalls).values({
+          runId: run.runId,
+          toolCallId,
+          toolName: 'browser_click',
+          args: { ref: 'e1' },
+          createdAt: sameMillisecond,
+          pickupDeadlineAt: sql`now() + interval '1 minute'`,
+        })
+      }
+
+      expect((await inbox(desktop)).items.map((item) => item.toolCallId)).toEqual(persisted)
+    })
+
+    it('preserves legacy sub-millisecond order even when the doorbell was never heard', async () => {
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
       const first = await pendingCall(run.runId, 'browser_navigate', { url: 'https://sim.ai' })
@@ -874,13 +897,24 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
         path: 'user-local/Project--mount-1',
         pattern: 'TODO',
       })
+      const persisted = [first, second, vfs].sort(compareStrings).reverse()
+      const createdAt = new Date(Date.now() - 1000).toISOString()
+      for (const [index, toolCallId] of persisted.entries()) {
+        await db
+          .update(copilotAsyncToolCalls)
+          .set({
+            persistSeq: null,
+            createdAt: sql`${createdAt}::timestamp + ${index} * interval '100 microseconds'`,
+          })
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      }
       await pendingCall(run.runId, 'run_workflow', {})
       /** Rung while no stream was open: nobody heard it. */
       ringDesktopInbox(desktop.deviceId, 'call')
 
       expect(
         (await inbox(desktop)).items.map((item) => item.kind === 'call' && item.toolCallId)
-      ).toEqual([first, second, vfs])
+      ).toEqual(persisted)
     })
 
     it('counts the device online after a pull or a stream open, and keeps it online when the stream closes', async () => {

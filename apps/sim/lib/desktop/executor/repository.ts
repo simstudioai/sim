@@ -31,7 +31,8 @@ import {
   isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { DESKTOP_TOOL_PICKUP_GRACE_MS } from '@/lib/mothership/constants'
-import { DESKTOP_TOOL_CALL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import { NAMED_DESKTOP_TOOL_NAMES } from '@/lib/mothership/tools/desktop-tools'
+import { USER_LOCAL_VFS_ROOT } from '@/lib/mothership/tools/local-filesystem'
 
 const LIVE_RUN_STATUSES: CopilotRunStatus[] = ['active', 'paused_waiting_for_tool', 'resuming']
 
@@ -61,7 +62,40 @@ function pickupOverdueAt(at: SQL) {
     sql`${pickupDeadline} <= ${at}`
   )
 }
+
+function isUserLocalVfsPath(path: SQL) {
+  return sql`(${path} = ${USER_LOCAL_VFS_ROOT} OR ${path} LIKE ${`${USER_LOCAL_VFS_ROOT}/%`})`
+}
+
+/**
+ * The SQL form of `isDesktopToolCall`, so a query limits only over calls the desktop runs: a
+ * desktop tool by name, or a VFS read of a granted local folder (not a read of Sim's own files).
+ */
+const isDesktopToolCallRow = or(
+  inArray(copilotAsyncToolCalls.toolName, [...NAMED_DESKTOP_TOOL_NAMES]),
+  and(
+    inArray(copilotAsyncToolCalls.toolName, ['read', 'grep']),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'path'`)
+  ),
+  and(
+    eq(copilotAsyncToolCalls.toolName, 'glob'),
+    isUserLocalVfsPath(sql`${copilotAsyncToolCalls.args}->>'pattern'`)
+  )
+)
 const INBOX_ROW_LIMIT = 500
+
+/**
+ * Persistence order, which follows the order the model emitted the calls in: calls of one turn
+ * can share a millisecond, so the timestamp alone cannot order them. Rows persisted before the
+ * sequence existed have none and come first, as they are the oldest.
+ */
+function persistOrder() {
+  return [
+    sql`${copilotAsyncToolCalls.persistSeq} ASC NULLS FIRST`,
+    asc(copilotAsyncToolCalls.createdAt),
+    asc(copilotAsyncToolCalls.toolCallId),
+  ]
+}
 
 export interface DesktopDeviceRegistration {
   id: string
@@ -157,7 +191,7 @@ export async function touchDesktopDevice(deviceId: string): Promise<void> {
  * out the other: unclaimed calls on its recent open runs that are offered or waiting for the
  * user's decision, and calls it claimed that Sim settled without its result and it has not yet
  * acknowledged (cancel items). A call the device is still running is never listed: it already
- * holds it. Ordered by persistence time, the order the device claims in.
+ * holds it. Ordered by persistence, the order the device claims in.
  */
 export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity, 'sessionId'>) {
   const rowsWhere = (state: SQL | undefined) =>
@@ -171,6 +205,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
         permissionDecision: copilotAsyncToolCalls.permissionDecision,
         claimed: sql<boolean>`${copilotAsyncToolCalls.executionOwnerToken} IS NOT NULL`,
         createdAt: copilotAsyncToolCalls.createdAt,
+        persistSeq: copilotAsyncToolCalls.persistSeq,
         chatId: copilotRuns.chatId,
         chatTitle: copilotChats.title,
         workspaceId: copilotRuns.workspaceId,
@@ -183,34 +218,31 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
           eq(copilotRuns.desktopDeviceId, identity.deviceId),
           eq(copilotRuns.userId, identity.userId),
           sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-          inArray(copilotAsyncToolCalls.toolName, [...DESKTOP_TOOL_CALL_NAMES]),
+          isDesktopToolCallRow,
           state
         )
       )
-      .orderBy(asc(copilotAsyncToolCalls.createdAt), asc(copilotAsyncToolCalls.toolCallId))
+      .orderBy(...persistOrder())
       .limit(INBOX_ROW_LIMIT)
-  const [waiting, cancelled] = await Promise.all([
-    rowsWhere(
-      and(
-        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-        isNull(copilotAsyncToolCalls.executionOwnerToken),
-        or(sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`, awaitingPermission),
-        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
-        isNull(copilotRuns.toolAdmissionClosedAt)
-      )
-    ),
-    rowsWhere(
-      and(
-        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
-        isNull(copilotAsyncToolCalls.executionSettledAt),
-        ne(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running)
-      )
-    ),
-  ])
-  return [...waiting, ...cancelled].sort(
-    (a, b) =>
-      a.createdAt.getTime() - b.createdAt.getTime() || a.toolCallId.localeCompare(b.toolCallId)
+  return rowsWhere(
+    and(
+      eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+      isNull(copilotAsyncToolCalls.executionOwnerToken),
+      or(sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`, awaitingPermission),
+      inArray(copilotRuns.status, LIVE_RUN_STATUSES),
+      isNull(copilotRuns.toolAdmissionClosedAt)
+    )
   )
+    .unionAll(
+      rowsWhere(
+        and(
+          isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+          isNull(copilotAsyncToolCalls.executionSettledAt),
+          ne(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running)
+        )
+      )
+    )
+    .orderBy(...persistOrder())
 }
 
 export type DesktopInboxRow = Awaited<ReturnType<typeof listDesktopInboxRows>>[number]
@@ -336,12 +368,14 @@ export async function offerDesktopToolCall(input: {
 /**
  * A bound desktop call with the deadlines only Sim enforces, read on the database clock every CAS
  * uses: whether its pickup window closed while it is unclaimed, and whether its lease lapsed while
- * it runs. Null for a call on a run no device is bound to.
+ * it runs. Null for a call on a run no device is bound to, and for a tool the desktop never runs.
  */
 export async function getDesktopToolCallDeadlines(toolCallId: string) {
   const [row] = await db
     .select({
       toolCallId: copilotAsyncToolCalls.toolCallId,
+      toolName: copilotAsyncToolCalls.toolName,
+      args: copilotAsyncToolCalls.args,
       runId: copilotRuns.id,
       userId: copilotRuns.userId,
       deviceId: copilotRuns.desktopDeviceId,
@@ -361,7 +395,11 @@ export async function getDesktopToolCallDeadlines(toolCallId: string) {
     .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
     .leftJoin(desktopDevices, eq(desktopDevices.id, copilotRuns.desktopDeviceId))
     .where(
-      and(eq(copilotAsyncToolCalls.toolCallId, toolCallId), isNotNull(copilotRuns.desktopDeviceId))
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+        isNotNull(copilotRuns.desktopDeviceId),
+        isDesktopToolCallRow
+      )
     )
     .limit(1)
   return row?.deviceId ? { ...row, deviceId: row.deviceId } : null
@@ -374,7 +412,9 @@ export type DesktopToolCallDeadlines = NonNullable<
 /**
  * Bound desktop calls a deadline passed for at least `slackMs` ago: unclaimed past their pickup
  * deadline (offered or not), or claimed by the executor with a lapsed lease. A live waiter settles
- * these within its 5 s poll, so anything this finds lost its waiter.
+ * these within its 5 s poll, so anything this finds lost its waiter. The scan starts from the
+ * few unsettled calls (pending or running), in persistence order, so however long a call stayed
+ * overdue it is still reached.
  */
 export async function listOverdueDesktopToolCalls(input: { slackMs: number; limit: number }) {
   const overdue = sql`clock_timestamp() - ${input.slackMs} * interval '1 millisecond'`
@@ -385,6 +425,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .where(
       and(
         isNotNull(copilotRuns.desktopDeviceId),
+        isDesktopToolCallRow,
         or(
           pickupOverdueAt(overdue),
           and(
@@ -397,6 +438,7 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
         )
       )
     )
+    .orderBy(...persistOrder())
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
 }

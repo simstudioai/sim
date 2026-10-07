@@ -14,6 +14,21 @@ export type QueuedMothershipMessage = QueuedMessage & {
   /** A failed dispatch remains queued until the user retries or edits it. */
   retryRequired?: boolean
   /**
+   * The failed dispatch got no response, so the server may or may not have
+   * admitted it; the browser being online releases it for dispatch under the
+   * same id, which the server deduplicates if it did.
+   */
+  heldUntilOnline?: boolean
+  /**
+   * Set on a send held by a chatless surface, whose queue key dies with its
+   * mount: the next chatless surface for the same owner and workflow adopts it.
+   */
+  heldSurface?: string
+  /** Busy refusals so far; paces the next retry. */
+  busyRetries?: number
+  /** Epoch ms before which a busy-refused message is not sent again. */
+  notBefore?: number
+  /**
    * Message id of a prior attempt at this send that an unmount cleanup
    * withdrew. Reused when the entry is dispatched so the server deduplicates
    * against that attempt — it never sees the client's abort, so a request it
@@ -37,6 +52,12 @@ export type QueuedMessageEditPatch = Pick<
 export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>
   editing: Record<string, string>
+  /**
+   * Chats cleared this session (deleted), each with the token of its latest
+   * delete. No write recreates their queue (a late restore, or a failed send
+   * handed back); restoring the chat lifts it.
+   */
+  cleared: Record<string, number>
 
   enqueue: (chatKey: string, message: QueuedMothershipMessage) => void
   insertAt: (chatKey: string, index: number, message: QueuedMothershipMessage) => void
@@ -44,6 +65,15 @@ export interface MothershipQueueState {
   remove: (chatKey: string, id: string) => void
   setEditing: (chatKey: string, id: string | null) => void
   migrate: (fromKey: string, toKey: string) => void
+  /** Releases every send held for the network for dispatch. */
+  releaseHeldUntilOnline: () => void
+  /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
+  adoptHeldSends: (toKey: string, surface: string) => void
   clearChat: (chatKey: string) => void
+  /**
+   * Lifts `cleared` for a restored chat. Given the delete token an operation
+   * saw when it began, lifts only that delete, never one that landed after it.
+   */
+  reopenChat: (chatKey: string, deleteToken?: number) => void
   reset: () => void
 }

@@ -788,7 +788,7 @@ describe('buildPredicateClause (v2 grammar)', () => {
  * compiling to no WHERE clause — which on a bulk delete means every row rather
  * than none. The guard turns that into a loud, self-describing failure, and it
  * sits at the one choke point every filter path shares (`queryRows`,
- * `update-runner`, `delete-runner`, inline and background).
+ * `delete-runner`, inline and background).
  */
 describe('legacy compiler rejects a v2 predicate (version-mismatch fail-fast)', () => {
   it('throws on a top-level all/any group instead of emitting no clause', () => {

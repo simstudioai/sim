@@ -111,6 +111,7 @@ export const planeConnector: ConnectorConfig = {
     }
     const response = await requestPlane(token, config, resourcePath(config), {
       cursor,
+      // Plane v1 cursor offsets depend on per_page, so it must stay fixed across pages.
       per_page: PAGE_SIZE,
       fields: config.contentType === 'pages' ? PAGE_FIELDS : WORK_ITEM_FIELDS,
       ...(config.contentType === 'work_items'
@@ -131,7 +132,9 @@ export const planeConnector: ConnectorConfig = {
     const total = fetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = total
     const capped =
-      config.maxDocuments > 0 && total >= config.maxDocuments && page.nextCursor !== undefined
+      config.maxDocuments > 0 &&
+      total >= config.maxDocuments &&
+      (page.nextCursor !== undefined || page.results.length > remaining)
     if (capped && syncContext) syncContext.listingCapped = true
     logger.info('Listed Plane documents', {
       count: documents.length,
