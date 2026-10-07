@@ -1,5 +1,7 @@
 import { backoffWithJitter } from '@sim/utils/retry'
 import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
+import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
+import { reusedRequestId } from '@/stores/mothership-queue/store'
 import type { QueuedMothershipMessage, SendRetry } from '@/stores/mothership-queue/types'
 
 /**
@@ -86,4 +88,41 @@ export function sendPayload(source: SendPayload): SendPayload {
       ? { assistantSearchLevel: source.assistantSearchLevel }
       : {}),
   }
+}
+
+/** Ids of the sends a chat's history shows the server accepted: its user messages and running turn. */
+export function acceptedMessageIds(history: MothershipChatHistory): Set<string> {
+  const ids = new Set(
+    history.messages.filter((message) => message.role === 'user').map((message) => message.id)
+  )
+  if (history.activeStreamId) ids.add(history.activeStreamId)
+  return ids
+}
+
+/**
+ * Whether a queued message must be checked against its chat's history before it
+ * goes out: it may already be a turn on the server, under the id it reuses.
+ */
+export function needsResendCheck(entry: QueuedMothershipMessage): boolean {
+  return entry.admissionUnknown === true && reusedRequestId(entry) !== undefined
+}
+
+/** What to do with a queued message about to go out. */
+export type ResendVerdict = 'send' | 'wait' | 'drop'
+
+/**
+ * Whether a queued message may go out, given its chat's history read fresh
+ * (`null` when the read failed). The server deduplicates a resend only while the
+ * earlier attempt's claim lasts, which a long outage outlives, so a message the
+ * history shows accepted is dropped (`drop`). One whose history cannot be read
+ * waits (`wait`): the read failing says nothing about whether it ran.
+ */
+export function resendVerdict(
+  entry: QueuedMothershipMessage,
+  history: MothershipChatHistory | null
+): ResendVerdict {
+  const requestId = reusedRequestId(entry)
+  if (!needsResendCheck(entry) || requestId === undefined) return 'send'
+  if (!history) return 'wait'
+  return acceptedMessageIds(history).has(requestId) ? 'drop' : 'send'
 }

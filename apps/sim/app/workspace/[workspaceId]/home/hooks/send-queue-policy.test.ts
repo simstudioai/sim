@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   requeuedFields,
+  resendVerdict,
   sendPayload,
   withoutRequeueFields,
 } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
+import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 
 describe('requeuedFields', () => {
   it('holds an offline send for the network, on its chatless surface', () => {
@@ -70,5 +72,46 @@ describe('sendPayload', () => {
         assistantSearchLevel: undefined,
       })
     ).toEqual({ content: 'hello', requestMode: 'assistant' })
+  })
+})
+
+describe('resendVerdict', () => {
+  const history = (accepted: string[] = [], activeStreamId: string | null = null) =>
+    ({
+      id: 'chat-A',
+      mode: 'agent',
+      title: 'A',
+      messages: accepted.map((id) => ({
+        id,
+        role: 'user' as const,
+        content: 'sent',
+        timestamp: new Date(0).toISOString(),
+      })),
+      activeStreamId,
+      resources: [],
+    }) satisfies MothershipChatHistory
+  const resumed = {
+    id: 'm1',
+    content: 'hello',
+    resumeUserMessageId: 'attempt-1',
+    admissionUnknown: true,
+  }
+
+  it('sends a message the server cannot already hold, without reading history', () => {
+    expect(resendVerdict({ id: 'm1', content: 'hello' }, null)).toBe('send')
+    expect(resendVerdict({ ...resumed, admissionUnknown: false }, null)).toBe('send')
+  })
+
+  it('drops a message the history shows accepted, as a message or as the running turn', () => {
+    expect(resendVerdict(resumed, history(['attempt-1']))).toBe('drop')
+    expect(resendVerdict(resumed, history([], 'attempt-1'))).toBe('drop')
+  })
+
+  it('sends a message the history does not show', () => {
+    expect(resendVerdict(resumed, history(['other']))).toBe('send')
+  })
+
+  it('waits when the history could not be read', () => {
+    expect(resendVerdict(resumed, null)).toBe('wait')
   })
 })

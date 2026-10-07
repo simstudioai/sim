@@ -2671,10 +2671,10 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * A resumed message whose earlier attempt is the very turn now running, sent
-   * now: its Stop and its resend share one id, and the server answers the resend
-   * as a duplicate of that turn. That is not a refusal, so the message must
-   * never come back editable.
+   * A Send-now restored after a reload, whose earlier attempt is the very turn it
+   * was stopping: its Stop and its resend share one id, and the server answers
+   * the resend as a duplicate of that turn. That is not a refusal, so the message
+   * must never come back editable.
    */
   it('never treats a conflict naming the resent id itself as a refusal', async () => {
     const history: MothershipChatHistory = {
@@ -2682,9 +2682,10 @@ describe('useChat remount send recovery', () => {
       mode: 'agent',
       title: 'Own id',
       messages: [],
-      activeStreamId: 'earlier-attempt',
+      activeStreamId: null,
       resources: [],
     }
+    /** Neither the cache nor a fresh read shows the earlier attempt yet. */
     mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2709,25 +2710,25 @@ describe('useChat remount send recovery', () => {
       }
       return fetchStub(input, init)
     })
-    const { getResult } = renderUseChatInChat(history.id, history)
-    await waitFor(() => getResult().isSending)
-    useMothershipQueueStore.getState().enqueue(history.id, {
+    writeQueuedSendHandoffState({
       id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
+      chatId: history.id,
+      workspaceId: 'ws-1',
+      supersededStreamId: 'earlier-attempt',
+      userMessageId: 'earlier-attempt',
+      message: 'sent earlier with no answer',
+      stopRequired: true,
       admissionUnknown: true,
+      requestedAt: Date.now(),
     })
-    await act(async () => {
-      /** Reattaches to the running turn, which stays open. */
-      void getResult()
-        .sendNow('resumed')
-        .catch(() => {})
-    })
+    renderUseChatInChat(history.id, history)
+
     await waitFor(() => state.postBodies.length === 1)
     await act(async () => {
       await sleep(300)
     })
 
+    expect(state.abortBodies.map((body) => body.streamId)).toEqual(['earlier-attempt'])
     expect(state.postBodies.map((body) => body.userMessageId)).toEqual(['earlier-attempt'])
     const requeued = useMothershipQueueStore
       .getState()
@@ -2879,6 +2880,50 @@ describe('useChat remount send recovery', () => {
       Object.entries(queues).filter(([key, queue]) => key.startsWith('pending::') && queue.length)
     ).toEqual([])
     expect(getResult().messageQueue.map((message) => message.content)).toEqual(['Follow-up'])
+  })
+
+  /**
+   * Send-now on a message that may already be a turn checks the chat's history
+   * first, as the queue drain does: if the server shows the id accepted, the
+   * message is already in the chat and sending it again could run a second turn.
+   */
+  it('drops a Send-now whose id the server already accepted instead of resending it', async () => {
+    const cached: MothershipChatHistory = {
+      id: 'chat-send-now-accepted',
+      mode: 'agent',
+      title: 'Accepted',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const fresh: MothershipChatHistory = {
+      ...cached,
+      messages: [
+        {
+          id: 'earlier-attempt',
+          role: 'user',
+          content: 'sent earlier with no answer',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: fresh }))
+    useMothershipQueueStore.getState().enqueue(cached.id, {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+      hold: 'user',
+    })
+    const { getResult } = renderUseChatInChat(cached.id, cached)
+
+    await act(async () => {
+      void getResult().sendNow('resumed')
+      await sleep(200)
+    })
+
+    expect(state.postBodies).toHaveLength(0)
+    expect(useMothershipQueueStore.getState().queues[cached.id]).toBeUndefined()
   })
 
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
