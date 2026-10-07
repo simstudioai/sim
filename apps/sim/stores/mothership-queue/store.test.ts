@@ -126,7 +126,7 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'm1',
         content: 'original',
-        retryRequired: true,
+        hold: 'user',
         resumeUserMessageId: 'prior-request',
         /** Its Stop never settled, so it was never sent: the server cannot hold it. */
         admissionUnknown: false,
@@ -152,7 +152,7 @@ describe('useMothershipQueueStore', () => {
       })
       expect(edited?.queuedSendHandoff?.userMessageId).toBeUndefined()
       expect(edited?.resumeUserMessageId).toBeUndefined()
-      expect(edited?.retryRequired).toBeUndefined()
+      expect(edited?.hold).toBeUndefined()
     })
 
     it('strips queuedSendHandoff on edit so a fresh handoff is minted at send time', () => {

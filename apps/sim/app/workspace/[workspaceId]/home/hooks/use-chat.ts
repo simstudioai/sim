@@ -4994,7 +4994,7 @@ export function useChat(
           ...(retainedHandoff ? { queuedSendHandoff: retainedHandoff } : {}),
           ...requeuedFields(
             withdrawn?.reason ?? 'failed',
-            dispatched.sendRetries ?? 0,
+            dispatched.retry?.attempt ?? 0,
             chatless ? heldSendSurface : undefined
           ),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
@@ -5072,7 +5072,7 @@ export function useChat(
       if (!history) {
         useMothershipQueueStore
           .getState()
-          .deferRetry(liveQueueKey(chatKey), msg.id, sendRetry((msg.sendRetries ?? 0) + 1))
+          .deferRetry(chatKey, msg.id, sendRetry((msg.retry?.attempt ?? 0) + 1))
         return true
       }
       clearQueuedSendHandoffState(msg.id)
@@ -5101,9 +5101,9 @@ export function useChat(
         const queueState = useMothershipQueueStore.getState()
         const activeChatKey = chatKeyRef.current
         const msg = queueState.queues[activeChatKey]?.[0]
-        if (!msg || msg.retryRequired) continue
+        if (!msg || msg.hold) continue
         /** An automatic retry waits out its delay; the drain effect wakes it. */
-        if (msg.notBefore !== undefined && msg.notBefore > Date.now()) continue
+        if (msg.retry && msg.retry.notBefore > Date.now()) continue
         // Pause draining if the head is bound to the composer; dispatching now
         // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
@@ -5276,8 +5276,8 @@ export function useChat(
   // `notifyTurnEnded`. Idempotent — the dispatch loop dedupes.
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
-  const queueHeadHeld = messageQueue[0]?.retryRequired === true
-  const queueHeadNotBefore = messageQueue[0]?.notBefore
+  const queueHeadHeld = messageQueue[0]?.hold !== undefined
+  const queueHeadNotBefore = messageQueue[0]?.retry?.notBefore
   const [sendRetryWakeup, setSendRetryWakeup] = useState(0)
   useEffect(() => {
     if (!scopeKey) return

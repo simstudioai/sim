@@ -1769,7 +1769,7 @@ describe('useChat remount send recovery', () => {
         await act(async () => {
           await sending
         })
-        await waitFor(() => allQueuedMessages().some((message) => message.retryRequired === true))
+        await waitFor(() => allQueuedMessages().some((message) => message.hold === 'user'))
         expect(state.postBodies).toHaveLength(1)
         expect(allQueuedMessages()).toEqual([
           expect.objectContaining({ id: queued.id, content: queued.content }),
@@ -1777,7 +1777,7 @@ describe('useChat remount send recovery', () => {
         expect(getResult().error).toBe('Previous response is still shutting down.')
         const failed = allQueuedMessages()[0]
         expect(failed).toMatchObject({
-          retryRequired: true,
+          hold: 'user',
           queuedSendHandoff: {
             stopRequired: true,
             supersededStreamId: state.postBodies[0].userMessageId,
@@ -1966,7 +1966,7 @@ describe('useChat remount send recovery', () => {
         expect(allQueuedMessages()).toEqual([
           expect.objectContaining({
             id: 'queued-correction',
-            retryRequired: true,
+            hold: 'user',
             queuedSendHandoff: expect.objectContaining({
               userMessageId: 'prepared-correction-request',
               supersededStreamId: 'previous-response',
@@ -1998,7 +1998,7 @@ describe('useChat remount send recovery', () => {
     useMothershipQueueStore.getState().enqueue('chat-a', {
       id: 'earlier-correction',
       content: 'inspect the second invoice instead',
-      retryRequired: true,
+      hold: 'user',
       queuedSendHandoff: {
         id: 'earlier-correction',
         chatId: 'chat-a',
@@ -2038,7 +2038,7 @@ describe('useChat remount send recovery', () => {
     expect(state.abortBodies[0]?.streamId).toBe(newerStreamId)
     expect(state.postBodies).toHaveLength(1)
     expect(allQueuedMessages()[0]).toMatchObject({
-      retryRequired: true,
+      hold: 'user',
       queuedSendHandoff: {
         supersededStreamId: newerStreamId,
         userMessageId: 'prepared-correction',
@@ -2358,8 +2358,7 @@ describe('useChat remount send recovery', () => {
       content: 'written while offline',
       resumeUserMessageId: 'offline-attempt',
       admissionUnknown: true,
-      retryRequired: true,
-      heldUntilOnline: true,
+      hold: 'online',
     })
 
     await act(async () => {
@@ -2375,8 +2374,7 @@ describe('useChat remount send recovery', () => {
 
     expect(state.postBodies).toHaveLength(1)
     const queued = useMothershipQueueStore.getState().queues['chat-a']?.[0]
-    expect(queued).toMatchObject({ id: 'held-offline', retryRequired: true })
-    expect(queued?.heldUntilOnline).toBeUndefined()
+    expect(queued).toMatchObject({ id: 'held-offline', hold: 'user' })
   })
 
   it('keeps a resumed message uneditable when its Send-now Stop does not settle', async () => {
@@ -3192,7 +3190,7 @@ describe('useChat remount send recovery', () => {
 
       const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
       expect(queued.map((message) => message.content)).toEqual(['Written while offline'])
-      expect(queued[0].retryRequired).toBe(true)
+      expect(queued[0].hold).toBe('online')
       expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
       expect(getResult().error).not.toBeNull()
       expect(state.postBodies).toHaveLength(1)
@@ -3343,8 +3341,7 @@ describe('useChat remount send recovery', () => {
         expect(state.postBodies).toHaveLength(0)
         expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
           content: 'Never prepared',
-          retryRequired: true,
-          heldUntilOnline: true,
+          hold: 'online',
         })
       }
     )
@@ -3435,7 +3432,7 @@ describe('useChat remount send recovery', () => {
 
       await waitFor(() => state.postBodies.length === 1)
       await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.retryRequired === true
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold !== undefined
       )
 
       const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
@@ -3530,7 +3527,7 @@ describe('useChat remount send recovery', () => {
       await act(async () => {
         await first.getResult().sendMessage('First message, sent offline')
       })
-      await waitFor(() => allQueuedMessages().some((message) => message.retryRequired === true))
+      await waitFor(() => allQueuedMessages().some((message) => message.hold !== undefined))
       first.unmount()
 
       const second = renderUseChat()
@@ -4307,7 +4304,7 @@ describe('useChat remount send recovery', () => {
         await first.getResult().sendMessage('Held while I was elsewhere')
       })
       await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.retryRequired === true
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold !== undefined
       )
       first.unmount()
 
@@ -4354,7 +4351,7 @@ describe('useChat remount send recovery', () => {
         id: 'withdrawn-entry',
         content: 'check the trace for this req',
         resumeUserMessageId: 'accepted-request',
-        retryRequired: true,
+        hold: 'user',
       })
       const { getResult } = renderUseChatInChat('chat-a', {
         id: 'chat-a',
@@ -4391,7 +4388,7 @@ describe('useChat remount send recovery', () => {
     useMothershipQueueStore.getState().enqueue('chat-a', {
       id: 'unsent-entry',
       content: 'check the trace for this req',
-      retryRequired: true,
+      hold: 'user',
       resumeUserMessageId: 'unsent-request',
     })
     const { getResult } = renderUseChatInChat('chat-a', {

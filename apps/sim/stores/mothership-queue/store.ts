@@ -85,14 +85,38 @@ function isQueuedMessage(value: unknown): value is QueuedMothershipMessage {
 }
 
 /**
- * Queues saved to this tab's session, guarded on the way back in: an entry
- * saved before `admissionUnknown` existed would otherwise be editable.
+ * An entry saved before `hold` and `retry` existed, in their shape: a held
+ * `retryRequired` (with `heldUntilOnline` when it waited for the network) and a
+ * `sendRetries` count with its `notBefore`.
+ */
+function withCurrentWaitFields(value: unknown): unknown {
+  const record = toRecordOrNull(value)
+  if (!record) return value
+  const { retryRequired, heldUntilOnline, sendRetries, notBefore, ...rest } = record
+  return {
+    ...rest,
+    ...(retryRequired === true && rest.hold === undefined
+      ? { hold: heldUntilOnline === true ? 'online' : 'user' }
+      : {}),
+    ...(typeof sendRetries === 'number' && typeof notBefore === 'number' && rest.retry === undefined
+      ? { retry: { attempt: sendRetries, notBefore } }
+      : {}),
+  }
+}
+
+/**
+ * Queues saved to this tab's session, brought to the current shape and guarded
+ * on the way back in: an entry saved before `admissionUnknown` existed would
+ * otherwise be editable.
  */
 function restoredQueues(persisted: unknown): Record<string, QueuedMothershipMessage[]> {
   const queues: Record<string, QueuedMothershipMessage[]> = {}
   for (const [chatKey, queue] of Object.entries(toRecord(toRecord(persisted).queues))) {
     if (!Array.isArray(queue)) continue
-    const messages = queue.filter(isQueuedMessage).map(withAdmissionGuard)
+    const messages = queue
+      .map(withCurrentWaitFields)
+      .filter(isQueuedMessage)
+      .map(withAdmissionGuard)
     if (messages.length > 0) queues[chatKey] = messages
   }
   return queues
@@ -190,11 +214,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const {
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
-              retryRequired: _retry,
-              heldUntilOnline: _held,
+              hold: _hold,
               heldSurface: _surface,
-              sendRetries: _sendRetries,
-              notBefore: _notBefore,
+              retry: _retry,
               ...rest
             } = next[index]
             next[index] = {
@@ -271,9 +293,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const queues: Record<string, QueuedMothershipMessage[]> = {}
             for (const [chatKey, queue] of Object.entries(state.queues)) {
               queues[chatKey] = queue.map((message) => {
-                if (!message.heldUntilOnline) return message
+                if (message.hold !== 'online') return message
                 released = true
-                const { retryRequired: _retry, heldUntilOnline: _held, ...rest } = message
+                const { hold: _hold, ...rest } = message
                 return rest
               })
             }
@@ -288,7 +310,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               queues: setQueueForChat(
                 state.queues,
                 chatKey,
-                current.map((message) => (message.id === id ? { ...message, ...retry } : message))
+                current.map((message) => (message.id === id ? { ...message, retry } : message))
               ),
             }
           }),
