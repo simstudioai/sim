@@ -5,7 +5,7 @@ description: Invoke, deploy, and manage AWS Lambda functions
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="lambda"
   color="linear-gradient(45deg, #C8511B 0%, #FF9900 100%)"
 />
@@ -67,11 +67,11 @@ Invoke a Lambda function synchronously or asynchronously and return its response
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statusCode` | number | HTTP status of the invocation \(200 for RequestResponse, 202 for Event, 204 for DryRun\) |
-| `payload` | json | The response returned by the function, parsed as JSON when possible |
-| `functionError` | string | Set to Handled or Unhandled when the function itself returned an error |
-| `logResult` | string | Decoded execution log tail, present only when logType is Tail |
-| `executedVersion` | string | The function version that was executed |
+| `statusCode` | number (nullable) | HTTP status of the invocation \(200 for RequestResponse, 202 for Event, 204 for DryRun\) |
+| `payload` | json (nullable) | The response returned by the function, parsed as JSON when possible |
+| `functionError` | string (nullable) | Set to Handled or Unhandled when the function itself returned an error |
+| `logResult` | string (nullable) | Decoded execution log tail, present only when logType is Tail |
+| `executedVersion` | string (nullable) | The function version that was executed |
 
 ### Lambda List Functions
 
@@ -94,7 +94,7 @@ List Lambda functions with the version-specific configuration of each
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `functions` | array | Lambda functions with their runtime, handler, memory, and state |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Get Function
 
@@ -114,11 +114,11 @@ Get a function's configuration, code location, tags, and reserved concurrency
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
-| `tagsError` | json | Why the tags could not be read, when a partial tag-read failure occurred |
-| `code` | json | Presigned download URL for the deployment package, or the container image URI |
+| `configuration` | json (nullable) | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+| `tagsError` | json (nullable) | Why the tags could not be read, when a partial tag-read failure occurred |
+| `code` | json (nullable) | Presigned download URL for the deployment package, or the container image URI |
 | `tags` | json | The function's tags |
-| `reservedConcurrentExecutions` | number | Concurrency reserved for this function, if any |
+| `reservedConcurrentExecutions` | number (nullable) | Concurrency reserved for this function, if any |
 
 ### Lambda Get Function Configuration
 
@@ -312,7 +312,7 @@ List the published versions of a Lambda function, plus $LATEST
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `versions` | array | Published versions of the function, plus the unpublished $LATEST version |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Create Alias
 
@@ -422,7 +422,7 @@ List the aliases of a Lambda function
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `aliases` | array | Aliases with their ARNs, target versions, and routing configuration |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Add Permission
 
@@ -451,7 +451,7 @@ Grant an AWS service, account, or organization permission to use a function
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `statement` | string | The permission statement that was added, as a JSON document string |
+| `statement` | string (nullable) | The permission statement that was added, as a JSON document string |
 
 ### Lambda Remove Permission
 
@@ -493,8 +493,8 @@ Get the resource-based IAM policy attached to a function, version, or alias
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `policy` | string | The resource-based policy, as a JSON document string |
-| `revisionId` | string | Current revision ID of the policy |
+| `policy` | string (nullable) | The resource-based policy, as a JSON document string |
+| `revisionId` | string (nullable) | Current revision ID of the policy |
 
 ### Lambda Create Event Source Mapping
 
@@ -641,7 +641,7 @@ List event source mappings, optionally filtered by function or event source
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventSourceMappings` | array | Event source mappings with their UUIDs, state, and batching settings |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Get Function Concurrency
 
@@ -660,7 +660,7 @@ Get the reserved concurrency configured for a function
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `reservedConcurrentExecutions` | number | Concurrency reserved for this function, or null when none is reserved |
+| `reservedConcurrentExecutions` | number (nullable) | Concurrency reserved for this function, or null when none is reserved |
 
 ### Lambda Set Function Concurrency
 
@@ -680,7 +680,7 @@ Reserve a share of the account concurrency limit for a function
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `reservedConcurrentExecutions` | number | Concurrency now reserved for this function |
+| `reservedConcurrentExecutions` | number (nullable) | Concurrency now reserved for this function |
 
 ### Lambda Delete Function Concurrency
 
@@ -782,7 +782,7 @@ List the provisioned concurrency configurations of a function
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `provisionedConcurrencyConfigs` | array | Provisioned concurrency configurations with their allocation status |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Create Function URL
 
@@ -900,7 +900,7 @@ List the URL configurations of a function
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `functionUrlConfigs` | array | Function URLs with their auth types, invoke modes, and CORS settings |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Get Async Invoke Config
 
@@ -986,7 +986,7 @@ List the asynchronous invocation configurations of a function
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventInvokeConfigs` | array | Asynchronous invocation configurations for the function versions and aliases |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda List Layers
 
@@ -1009,7 +1009,7 @@ List Lambda layers and the latest version of each
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `layers` | array | Layers with their ARNs and latest matching version |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda List Layer Versions
 
@@ -1033,7 +1033,7 @@ List the versions of a Lambda layer
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `layerVersions` | array | Layer versions with their ARNs, compatible runtimes, and license info |
-| `nextMarker` | string | Pagination token to pass as marker on the next request |
+| `nextMarker` | string (nullable) | Pagination token to pass as marker on the next request |
 
 ### Lambda Get Layer Version
 
@@ -1130,8 +1130,8 @@ Get the Lambda limits and usage of the current AWS account and region
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `accountLimit` | json | Account-level storage and concurrency limits |
-| `accountUsage` | json | Current code storage used and number of functions deployed |
+| `accountLimit` | json (nullable) | Account-level storage and concurrency limits |
+| `accountUsage` | json (nullable) | Current code storage used and number of functions deployed |
 
 ### Lambda Get Recursion Config
 
@@ -1150,7 +1150,7 @@ Get the recursive loop detection setting of a function
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `recursiveLoop` | string | Terminate stops the function after 16 recursive invocations, Allow permits recursion |
+| `recursiveLoop` | string (nullable) | Terminate stops the function after 16 recursive invocations, Allow permits recursion |
 
 ### Lambda Set Recursion Config
 
@@ -1170,7 +1170,7 @@ Set whether Lambda stops a function that invokes itself recursively
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `recursiveLoop` | string | The recursion setting now in effect for the function |
+| `recursiveLoop` | string (nullable) | The recursion setting now in effect for the function |
 
 ### Lambda Get Runtime Management Config
 
@@ -1190,9 +1190,9 @@ Get the runtime update policy of a function version
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updateRuntimeOn` | string | Auto, FunctionUpdate, or Manual runtime update policy |
-| `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
-| `functionArn` | string | ARN of the function the policy applies to |
+| `updateRuntimeOn` | string (nullable) | Auto, FunctionUpdate, or Manual runtime update policy |
+| `runtimeVersionArn` | string (nullable) | ARN of the pinned runtime version, when the policy is Manual |
+| `functionArn` | string (nullable) | ARN of the function the policy applies to |
 
 ### Lambda Set Runtime Management Config
 
@@ -1214,8 +1214,6 @@ Set how and when Lambda applies runtime updates to a function version
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updateRuntimeOn` | string | The runtime update policy now in effect |
-| `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
-| `functionArn` | string | ARN of the function the policy applies to |
-
-
+| `updateRuntimeOn` | string (nullable) | The runtime update policy now in effect |
+| `runtimeVersionArn` | string (nullable) | ARN of the pinned runtime version, when the policy is Manual |
+| `functionArn` | string (nullable) | ARN of the function the policy applies to |

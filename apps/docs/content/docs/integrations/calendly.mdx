@@ -5,7 +5,7 @@ description: Manage Calendly scheduling and events
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="calendly"
   color="#FFFFFF"
 />
@@ -688,8 +688,6 @@ Retrieve the submissions of a routing form, including answers and routing result
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -882,4 +880,3 @@ Trigger workflow from any Calendly webhook event
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
 | `payload` | object | Complete event payload \(structure varies by event type\) |
-

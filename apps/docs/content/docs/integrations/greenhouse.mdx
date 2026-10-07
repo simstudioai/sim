@@ -5,7 +5,7 @@ description: Manage candidates, jobs, and applications in Greenhouse
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="greenhouse"
   color="#469776"
 />
@@ -493,8 +493,6 @@ Lists all interview stages for a specific job in Greenhouse
 |         ↳ `question` | string | Question text |
 | `count` | number | Number of stages returned |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -819,4 +817,3 @@ Trigger on whichever event types you select for this URL in Greenhouse. Sim does
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
 | `payload` | json | Full event payload |
-

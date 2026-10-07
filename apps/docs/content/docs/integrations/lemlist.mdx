@@ -5,7 +5,7 @@ description: Manage outreach activities, leads, and send emails via Lemlist
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="lemlist"
   color="#316BFF"
 />
@@ -116,8 +116,6 @@ Sends an email to a contact through the Lemlist inbox.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the email was sent successfully |
-
-
 
 ## Triggers
 
@@ -472,4 +470,3 @@ Trigger workflow on any Lemlist webhook event
 | `emailId` | string | Lemlist email identifier |
 | `clickedUrl` | string | URL that was clicked \(for emailsClicked events\) |
 | `errorMessage` | string | Error message \(for bounce/failed events\) |
-

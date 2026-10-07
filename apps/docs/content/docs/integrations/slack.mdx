@@ -5,7 +5,7 @@ description: Manage Slack messages, channels, users, files, Lists, canvases, and
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="slack_v2"
   color="#611f69"
 />
@@ -928,7 +928,7 @@ Create or update the state of a Slack agent session associated with a thread.
 | `ok` | boolean | Whether Slack updated the agent session |
 | `status` | string | Requested agent session status |
 | `agentStatus` | string | Agent status recorded by Slack |
-| `title` | string | Current agent session title, or null when the session has no title |
+| `title` | string (nullable) | Current agent session title, or null when the session has no title |
 
 ### Slack Rename Agent Session
 
@@ -1531,7 +1531,7 @@ Create a Slack List with an optional column schema. Requires a paid Slack plan.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `listId` | string | Created Slack List ID |
-| `schema` | array | Column schema with IDs; null if Slack omitted it |
+| `schema` | array (nullable) | Column schema with IDs; null if Slack omitted it |
 |   ↳ `id` | string | Column ID |
 |   ↳ `key` | string | Column key |
 |   ↳ `name` | string | Column name |
@@ -1619,11 +1619,11 @@ Read a page of Slack List rows and optionally its column schema. Pass nextCursor
 |     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
 |     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
 |     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
-|   ↳ `created_by` | string | Creator user ID |
-|   ↳ `updated_by` | string | Last editor user ID |
-|   ↳ `updated_timestamp` | string | Last update timestamp |
-|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
-| `list` | object | Parent List \(id, title, schema\); null if not included |
+|   ↳ `created_by` | string (nullable) | Creator user ID |
+|   ↳ `updated_by` | string (nullable) | Last editor user ID |
+|   ↳ `updated_timestamp` | string (nullable) | Last update timestamp |
+|   ↳ `parent_record_id` | string (nullable) | Parent row ID for subtasks |
+| `list` | object (nullable) | Parent List \(id, title, schema\); null if not included |
 |   ↳ `id` | string | List ID |
 |   ↳ `title` | string | List title |
 |   ↳ `schema` | array | Column schema: use id as column_id when writing cells |
@@ -1674,10 +1674,10 @@ Read a Slack List row and its parent List column schema.
 |     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
 |     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
 |     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
-|   ↳ `created_by` | string | Creator user ID |
-|   ↳ `updated_by` | string | Last editor user ID |
-|   ↳ `updated_timestamp` | string | Last update timestamp |
-|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+|   ↳ `created_by` | string (nullable) | Creator user ID |
+|   ↳ `updated_by` | string (nullable) | Last editor user ID |
+|   ↳ `updated_timestamp` | string (nullable) | Last update timestamp |
+|   ↳ `parent_record_id` | string (nullable) | Parent row ID for subtasks |
 | `list` | object | Parent List title and column schema |
 |   ↳ `id` | string | List ID |
 |   ↳ `title` | string | List title |
@@ -1730,10 +1730,10 @@ Create a Slack List row using real column IDs and typed cell values. Text column
 |     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
 |     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
 |     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
-|   ↳ `created_by` | string | Creator user ID |
-|   ↳ `updated_by` | string | Last editor user ID |
-|   ↳ `updated_timestamp` | string | Last update timestamp |
-|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+|   ↳ `created_by` | string (nullable) | Creator user ID |
+|   ↳ `updated_by` | string (nullable) | Last editor user ID |
+|   ↳ `updated_timestamp` | string (nullable) | Last update timestamp |
+|   ↳ `parent_record_id` | string (nullable) | Parent row ID for subtasks |
 
 ### Slack Lists Update Items
 
@@ -2522,7 +2522,7 @@ Find a Slack user by their email address.
 |     ↳ `pronouns` | string | Pronouns |
 |     ↳ `start_date` | string | Start date |
 |     ↳ `status_expiration` | number | Status expiration |
-|     ↳ `fields` | json | Fields |
+|     ↳ `fields` | json (nullable) | Fields |
 
 ### Slack List User Conversations
 
@@ -2601,7 +2601,7 @@ Read a Slack user’s profile, status, and custom fields. Omit User ID for the a
 |   ↳ `pronouns` | string | Pronouns |
 |   ↳ `start_date` | string | Start date |
 |   ↳ `status_expiration` | number | Status expiration |
-|   ↳ `fields` | json | Fields |
+|   ↳ `fields` | json (nullable) | Fields |
 
 ### Slack Set Bot Presence
 
@@ -2971,7 +2971,7 @@ Add a link bookmark to a Slack channel.
 |   ↳ `type` | string | Type |
 |   ↳ `date_created` | number | Date created |
 |   ↳ `date_updated` | number | Date updated |
-|   ↳ `entity_id` | string | Entity id |
+|   ↳ `entity_id` | string (nullable) | Entity id |
 
 ### Slack Edit Bookmark
 
@@ -3001,7 +3001,7 @@ Change a channel link bookmark’s title, URL, or emoji.
 |   ↳ `type` | string | Type |
 |   ↳ `date_created` | number | Date created |
 |   ↳ `date_updated` | number | Date updated |
-|   ↳ `entity_id` | string | Entity id |
+|   ↳ `entity_id` | string (nullable) | Entity id |
 
 ### Slack List Bookmarks
 
@@ -3027,7 +3027,7 @@ Read the bookmarks in a Slack channel.
 |   ↳ `type` | string | Type |
 |   ↳ `date_created` | number | Date created |
 |   ↳ `date_updated` | number | Date updated |
-|   ↳ `entity_id` | string | Entity id |
+|   ↳ `entity_id` | string (nullable) | Entity id |
 
 ### Slack Remove Bookmark
 
@@ -3382,7 +3382,7 @@ Read the workspace’s custom profile field definitions, optionally filtered by 
 |     ↳ `ordering` | number | Ordering |
 |     ↳ `is_hidden` | boolean | Is hidden |
 |     ↳ `section_id` | string | Section id |
-|     ↳ `possible_values` | array | Possible values |
+|     ↳ `possible_values` | array (nullable) | Possible values |
 |   ↳ `sections` | array | Sections |
 |     ↳ `id` | string | Id |
 |     ↳ `label` | string | Label |

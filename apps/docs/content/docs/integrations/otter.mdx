@@ -5,7 +5,7 @@ description: Read Otter.ai meeting conversations, transcripts, and summaries
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="otter"
   color="#FFFFFF"
 />
@@ -53,50 +53,50 @@ List Otter conversations for the authenticated user, most recent first, optional
 | --------- | ---- | ----------- |
 | `conversations` | array | Conversations, most recent first |
 |   ↳ `id` | string | Conversation ID |
-|   ↳ `title` | string | Conversation title |
-|   ↳ `url` | string | URL to view the conversation in Otter |
-|   ↳ `owner` | object | Conversation owner |
+|   ↳ `title` | string (nullable) | Conversation title |
+|   ↳ `url` | string (nullable) | URL to view the conversation in Otter |
+|   ↳ `owner` | object (nullable) | Conversation owner |
 |     ↳ `id` | string | User ID |
-|     ↳ `name` | string | Full name |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `createdAt` | string | When the conversation was created |
-|   ↳ `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
-|     ↳ `abstractSummary` | string | Summary status |
-|     ↳ `actionItem` | string | Action item status |
-|     ↳ `outline` | string | Outline status |
+|     ↳ `name` | string (nullable) | Full name |
+|     ↳ `firstName` | string (nullable) | First name |
+|     ↳ `lastName` | string (nullable) | Last name |
+|     ↳ `email` | string (nullable) | Email address |
+|   ↳ `createdAt` | string (nullable) | When the conversation was created |
+|   ↳ `processStatus` | object (nullable) | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|     ↳ `abstractSummary` | string (nullable) | Summary status |
+|     ↳ `actionItem` | string (nullable) | Action item status |
+|     ↳ `outline` | string (nullable) | Outline status |
 |   ↳ `calendarGuests` | array | Guests invited to the associated calendar event |
-|     ↳ `name` | string | Guest name |
-|     ↳ `email` | string | Guest email |
-|     ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+|     ↳ `name` | string (nullable) | Guest name |
+|     ↳ `email` | string (nullable) | Guest email |
+|     ↳ `permission` | string (nullable) | Guest permission \(present in webhook payloads\) |
 |   ↳ `sharedEmails` | array | Users or email addresses the conversation is shared with |
-|     ↳ `email` | string | Shared email address |
-|     ↳ `user` | object | Otter user for the email, if any |
+|     ↳ `email` | string (nullable) | Shared email address |
+|     ↳ `user` | object (nullable) | Otter user for the email, if any |
 |       ↳ `id` | string | User ID |
-|       ↳ `name` | string | Full name |
-|       ↳ `firstName` | string | First name |
-|       ↳ `lastName` | string | Last name |
-|       ↳ `email` | string | Email address |
-|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|       ↳ `name` | string (nullable) | Full name |
+|       ↳ `firstName` | string (nullable) | First name |
+|       ↳ `lastName` | string (nullable) | Last name |
+|       ↳ `email` | string (nullable) | Email address |
+|     ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
 |   ↳ `sharedChannels` | array | Channels the conversation is shared with |
-|     ↳ `channel` | object | The channel |
+|     ↳ `channel` | object (nullable) | The channel |
 |       ↳ `id` | string | Channel ID |
-|       ↳ `name` | string | Channel name |
-|       ↳ `memberCount` | number | Number of channel members |
-|       ↳ `owner` | object | Channel owner |
+|       ↳ `name` | string (nullable) | Channel name |
+|       ↳ `memberCount` | number (nullable) | Number of channel members |
+|       ↳ `owner` | object (nullable) | Channel owner |
 |         ↳ `id` | string | User ID |
-|         ↳ `name` | string | Full name |
-|         ↳ `firstName` | string | First name |
-|         ↳ `lastName` | string | Last name |
-|         ↳ `email` | string | Email address |
-|       ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
-|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
-|   ↳ `abstractSummary` | string | AI-generated summary of the conversation |
-|   ↳ `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+|         ↳ `name` | string (nullable) | Full name |
+|         ↳ `firstName` | string (nullable) | First name |
+|         ↳ `lastName` | string (nullable) | Last name |
+|         ↳ `email` | string (nullable) | Email address |
+|       ↳ `discoverability` | string (nullable) | Channel visibility, such as private or workspace \(public\) |
+|     ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
+|   ↳ `abstractSummary` | string (nullable) | AI-generated summary of the conversation |
+|   ↳ `confJoinUrl` | string (nullable) | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 | `hasMore` | boolean | Whether more pages are available |
-| `nextCursor` | string | Cursor for the next page; pass it as Cursor to continue |
+| `nextCursor` | string (nullable) | Cursor for the next page; pass it as Cursor to continue |
 
 ### Otter Get Conversation
 
@@ -115,74 +115,74 @@ Get an Otter conversation with its summary and details, plus any requested actio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Conversation ID |
-| `title` | string | Conversation title |
-| `url` | string | URL to view the conversation in Otter |
-| `owner` | object | Conversation owner |
+| `title` | string (nullable) | Conversation title |
+| `url` | string (nullable) | URL to view the conversation in Otter |
+| `owner` | object (nullable) | Conversation owner |
 |   ↳ `id` | string | User ID |
-|   ↳ `name` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Email address |
-| `createdAt` | string | When the conversation was created |
-| `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
-|   ↳ `abstractSummary` | string | Summary status |
-|   ↳ `actionItem` | string | Action item status |
-|   ↳ `outline` | string | Outline status |
+|   ↳ `name` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `email` | string (nullable) | Email address |
+| `createdAt` | string (nullable) | When the conversation was created |
+| `processStatus` | object (nullable) | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|   ↳ `abstractSummary` | string (nullable) | Summary status |
+|   ↳ `actionItem` | string (nullable) | Action item status |
+|   ↳ `outline` | string (nullable) | Outline status |
 | `calendarGuests` | array | Guests invited to the associated calendar event |
-|   ↳ `name` | string | Guest name |
-|   ↳ `email` | string | Guest email |
-|   ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+|   ↳ `name` | string (nullable) | Guest name |
+|   ↳ `email` | string (nullable) | Guest email |
+|   ↳ `permission` | string (nullable) | Guest permission \(present in webhook payloads\) |
 | `sharedEmails` | array | Users or email addresses the conversation is shared with |
-|   ↳ `email` | string | Shared email address |
-|   ↳ `user` | object | Otter user for the email, if any |
+|   ↳ `email` | string (nullable) | Shared email address |
+|   ↳ `user` | object (nullable) | Otter user for the email, if any |
 |     ↳ `id` | string | User ID |
-|     ↳ `name` | string | Full name |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|     ↳ `name` | string (nullable) | Full name |
+|     ↳ `firstName` | string (nullable) | First name |
+|     ↳ `lastName` | string (nullable) | Last name |
+|     ↳ `email` | string (nullable) | Email address |
+|   ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
 | `sharedChannels` | array | Channels the conversation is shared with |
-|   ↳ `channel` | object | The channel |
+|   ↳ `channel` | object (nullable) | The channel |
 |     ↳ `id` | string | Channel ID |
-|     ↳ `name` | string | Channel name |
-|     ↳ `memberCount` | number | Number of channel members |
-|     ↳ `owner` | object | Channel owner |
+|     ↳ `name` | string (nullable) | Channel name |
+|     ↳ `memberCount` | number (nullable) | Number of channel members |
+|     ↳ `owner` | object (nullable) | Channel owner |
 |       ↳ `id` | string | User ID |
-|       ↳ `name` | string | Full name |
-|       ↳ `firstName` | string | First name |
-|       ↳ `lastName` | string | Last name |
-|       ↳ `email` | string | Email address |
-|     ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
-|   ↳ `permission` | string | Share permission \(e.g., collaborate\) |
-| `abstractSummary` | string | AI-generated summary of the conversation |
-| `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
-| `actionItems` | array | AI-detected action items \(null unless requested with include\) |
+|       ↳ `name` | string (nullable) | Full name |
+|       ↳ `firstName` | string (nullable) | First name |
+|       ↳ `lastName` | string (nullable) | Last name |
+|       ↳ `email` | string (nullable) | Email address |
+|     ↳ `discoverability` | string (nullable) | Channel visibility, such as private or workspace \(public\) |
+|   ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
+| `abstractSummary` | string (nullable) | AI-generated summary of the conversation |
+| `confJoinUrl` | string (nullable) | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `actionItems` | array (nullable) | AI-detected action items \(null unless requested with include\) |
 |   ↳ `id` | string | Action item ID |
-|   ↳ `text` | string | Action item text |
-|   ↳ `assignee` | object | Assigned user |
+|   ↳ `text` | string (nullable) | Action item text |
+|   ↳ `assignee` | object (nullable) | Assigned user |
 |     ↳ `id` | string | User ID |
-|     ↳ `name` | string | Full name |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `status` | object | Completion status |
-|     ↳ `completed` | boolean | Whether completed |
-|     ↳ `createdAt` | string | When created |
-|     ↳ `lastModifiedAt` | string | When last modified |
-|     ↳ `completedAt` | string | When completed |
-| `insights` | array | Key topics discussed \(null unless requested with include\) |
-|   ↳ `topic` | string | Insight topic \(e.g., Decisions\) |
+|     ↳ `name` | string (nullable) | Full name |
+|     ↳ `firstName` | string (nullable) | First name |
+|     ↳ `lastName` | string (nullable) | Last name |
+|     ↳ `email` | string (nullable) | Email address |
+|   ↳ `status` | object (nullable) | Completion status |
+|     ↳ `completed` | boolean (nullable) | Whether completed |
+|     ↳ `createdAt` | string (nullable) | When created |
+|     ↳ `lastModifiedAt` | string (nullable) | When last modified |
+|     ↳ `completedAt` | string (nullable) | When completed |
+| `insights` | array (nullable) | Key topics discussed \(null unless requested with include\) |
+|   ↳ `topic` | string (nullable) | Insight topic \(e.g., Decisions\) |
 |   ↳ `text` | array | Insight points |
-| `outline` | array | Meeting outline sections \(null unless requested with include\) |
-|   ↳ `section` | string | Section heading |
+| `outline` | array (nullable) | Meeting outline sections \(null unless requested with include\) |
+|   ↳ `section` | string (nullable) | Section heading |
 |   ↳ `text` | array | Section points |
-| `transcript` | object | Full transcript \(null unless requested with include\) |
-|   ↳ `content` | string | Transcript text |
-|   ↳ `format` | string | Transcript format \(e.g., txt\) |
-| `customPrompt` | object | Output of a custom prompt configured in Otter, if any |
-|   ↳ `label` | string | Prompt label |
-|   ↳ `output` | string | Prompt output |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+| `transcript` | object (nullable) | Full transcript \(null unless requested with include\) |
+|   ↳ `content` | string (nullable) | Transcript text |
+|   ↳ `format` | string (nullable) | Transcript format \(e.g., txt\) |
+| `customPrompt` | object (nullable) | Output of a custom prompt configured in Otter, if any |
+|   ↳ `label` | string (nullable) | Prompt label |
+|   ↳ `output` | string (nullable) | Prompt output |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 
 ### Otter Get Conversation Audio
 
@@ -199,8 +199,8 @@ Get the MP3 audio download link for an Otter conversation.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `audioUrl` | string | Download URL for the conversation MP3 audio |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+| `audioUrl` | string (nullable) | Download URL for the conversation MP3 audio |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 
 ### Otter Import Recording
 
@@ -218,9 +218,9 @@ Import an audio or video recording into Otter as a new conversation from a publi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `status` | string | Import status \(e.g., success\) |
-| `completedAt` | string | When the import completed |
-| `file` | string | Name of the imported file |
+| `status` | string (nullable) | Import status \(e.g., success\) |
+| `completedAt` | string (nullable) | When the import completed |
+| `file` | string (nullable) | Name of the imported file |
 
 ### Otter List Channels
 
@@ -238,16 +238,16 @@ List the Otter channels available to the authenticated user, in alphabetical ord
 | --------- | ---- | ----------- |
 | `channels` | array | Channels, in alphabetical order by name |
 |   ↳ `id` | string | Channel ID |
-|   ↳ `name` | string | Channel name |
-|   ↳ `memberCount` | number | Number of channel members |
-|   ↳ `owner` | object | Channel owner |
+|   ↳ `name` | string (nullable) | Channel name |
+|   ↳ `memberCount` | number (nullable) | Number of channel members |
+|   ↳ `owner` | object (nullable) | Channel owner |
 |     ↳ `id` | string | User ID |
-|     ↳ `name` | string | Full name |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+|     ↳ `name` | string (nullable) | Full name |
+|     ↳ `firstName` | string (nullable) | First name |
+|     ↳ `lastName` | string (nullable) | Last name |
+|     ↳ `email` | string (nullable) | Email address |
+|   ↳ `discoverability` | string (nullable) | Channel visibility, such as private or workspace \(public\) |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 
 ### Otter List Channel Members
 
@@ -266,11 +266,11 @@ List the members of an Otter channel, in alphabetical order.
 | --------- | ---- | ----------- |
 | `members` | array | Channel members, in alphabetical order by name |
 |   ↳ `id` | string | User ID |
-|   ↳ `name` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Email address |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+|   ↳ `name` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `email` | string (nullable) | Email address |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 
 ### Otter Get Workspace
 
@@ -286,18 +286,18 @@ Get the Otter workspace of the authenticated user, including its ID, name, owner
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `workspaceId` | number | Workspace ID \(the id field\); pass it to List Workspace Conversations |
-| `name` | string | Workspace name |
-| `owner` | object | Workspace owner |
+| `workspaceId` | number (nullable) | Workspace ID \(the id field\); pass it to List Workspace Conversations |
+| `name` | string (nullable) | Workspace name |
+| `owner` | object (nullable) | Workspace owner |
 |   ↳ `id` | string | User ID |
-|   ↳ `name` | string | Full name |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Email address |
-| `memberCount` | number | Number of workspace members |
-| `handle` | string | Workspace handle \(e.g., a domain such as otter.ai\) |
-| `type` | string | Workspace type \(e.g., business\) |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+|   ↳ `name` | string (nullable) | Full name |
+|   ↳ `firstName` | string (nullable) | First name |
+|   ↳ `lastName` | string (nullable) | Last name |
+|   ↳ `email` | string (nullable) | Email address |
+| `memberCount` | number (nullable) | Number of workspace members |
+| `handle` | string (nullable) | Workspace handle \(e.g., a domain such as otter.ai\) |
+| `type` | string (nullable) | Workspace type \(e.g., business\) |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 
 ### Otter List Workspace Conversations
 
@@ -318,52 +318,50 @@ List every conversation in an Otter workspace, most recent first. Requires an Ot
 | --------- | ---- | ----------- |
 | `conversations` | array | Workspace conversations, most recent first |
 |   ↳ `id` | string | Conversation ID |
-|   ↳ `title` | string | Conversation title |
-|   ↳ `url` | string | URL to view the conversation in Otter |
-|   ↳ `owner` | object | Conversation owner |
+|   ↳ `title` | string (nullable) | Conversation title |
+|   ↳ `url` | string (nullable) | URL to view the conversation in Otter |
+|   ↳ `owner` | object (nullable) | Conversation owner |
 |     ↳ `id` | string | User ID |
-|     ↳ `name` | string | Full name |
-|     ↳ `firstName` | string | First name |
-|     ↳ `lastName` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `createdAt` | string | When the conversation was created |
-|   ↳ `processStatus` | object | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
-|     ↳ `abstractSummary` | string | Summary status |
-|     ↳ `actionItem` | string | Action item status |
-|     ↳ `outline` | string | Outline status |
+|     ↳ `name` | string (nullable) | Full name |
+|     ↳ `firstName` | string (nullable) | First name |
+|     ↳ `lastName` | string (nullable) | Last name |
+|     ↳ `email` | string (nullable) | Email address |
+|   ↳ `createdAt` | string (nullable) | When the conversation was created |
+|   ↳ `processStatus` | object (nullable) | Processing status of generated data \(e.g., "finished"\); a field is null when not yet available |
+|     ↳ `abstractSummary` | string (nullable) | Summary status |
+|     ↳ `actionItem` | string (nullable) | Action item status |
+|     ↳ `outline` | string (nullable) | Outline status |
 |   ↳ `calendarGuests` | array | Guests invited to the associated calendar event |
-|     ↳ `name` | string | Guest name |
-|     ↳ `email` | string | Guest email |
-|     ↳ `permission` | string | Guest permission \(present in webhook payloads\) |
+|     ↳ `name` | string (nullable) | Guest name |
+|     ↳ `email` | string (nullable) | Guest email |
+|     ↳ `permission` | string (nullable) | Guest permission \(present in webhook payloads\) |
 |   ↳ `sharedEmails` | array | Users or email addresses the conversation is shared with |
-|     ↳ `email` | string | Shared email address |
-|     ↳ `user` | object | Otter user for the email, if any |
+|     ↳ `email` | string (nullable) | Shared email address |
+|     ↳ `user` | object (nullable) | Otter user for the email, if any |
 |       ↳ `id` | string | User ID |
-|       ↳ `name` | string | Full name |
-|       ↳ `firstName` | string | First name |
-|       ↳ `lastName` | string | Last name |
-|       ↳ `email` | string | Email address |
-|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
+|       ↳ `name` | string (nullable) | Full name |
+|       ↳ `firstName` | string (nullable) | First name |
+|       ↳ `lastName` | string (nullable) | Last name |
+|       ↳ `email` | string (nullable) | Email address |
+|     ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
 |   ↳ `sharedChannels` | array | Channels the conversation is shared with |
-|     ↳ `channel` | object | The channel |
+|     ↳ `channel` | object (nullable) | The channel |
 |       ↳ `id` | string | Channel ID |
-|       ↳ `name` | string | Channel name |
-|       ↳ `memberCount` | number | Number of channel members |
-|       ↳ `owner` | object | Channel owner |
+|       ↳ `name` | string (nullable) | Channel name |
+|       ↳ `memberCount` | number (nullable) | Number of channel members |
+|       ↳ `owner` | object (nullable) | Channel owner |
 |         ↳ `id` | string | User ID |
-|         ↳ `name` | string | Full name |
-|         ↳ `firstName` | string | First name |
-|         ↳ `lastName` | string | Last name |
-|         ↳ `email` | string | Email address |
-|       ↳ `discoverability` | string | Channel visibility, such as private or workspace \(public\) |
-|     ↳ `permission` | string | Share permission \(e.g., collaborate\) |
-|   ↳ `abstractSummary` | string | AI-generated summary of the conversation |
-|   ↳ `confJoinUrl` | string | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
-| `retrievedAt` | string | When Otter retrieved the data \(ISO 8601\) |
+|         ↳ `name` | string (nullable) | Full name |
+|         ↳ `firstName` | string (nullable) | First name |
+|         ↳ `lastName` | string (nullable) | Last name |
+|         ↳ `email` | string (nullable) | Email address |
+|       ↳ `discoverability` | string (nullable) | Channel visibility, such as private or workspace \(public\) |
+|     ↳ `permission` | string (nullable) | Share permission \(e.g., collaborate\) |
+|   ↳ `abstractSummary` | string (nullable) | AI-generated summary of the conversation |
+|   ↳ `confJoinUrl` | string (nullable) | Meeting join URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
+| `retrievedAt` | string (nullable) | When Otter retrieved the data \(ISO 8601\) |
 | `hasMore` | boolean | Whether more pages are available |
-| `nextCursor` | string | Cursor for the next page; pass it as Cursor to continue |
-
-
+| `nextCursor` | string (nullable) | Cursor for the next page; pass it as Cursor to continue |
 
 ## Triggers
 
@@ -521,4 +519,3 @@ Trigger workflow on any Otter workspace webhook event
 |   ↳ `label` | string | Custom prompt label |
 |   ↳ `output` | string | Custom prompt output |
 | `payload` | json | Full raw webhook body as delivered by Otter |
-

@@ -5,7 +5,7 @@ description: Send emails and manage contacts with Resend.
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="resend"
   color="#181C1E"
 />
@@ -381,8 +381,6 @@ List all verified domains in your Resend account
 |   ↳ `createdAt` | string | Domain creation timestamp |
 | `hasMore` | boolean | Whether there are more domains to retrieve |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -629,4 +627,3 @@ Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, dom
 | `clickLink` | string | URL that was clicked |
 | `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
 | `clickUserAgent` | string | Browser user agent string |
-

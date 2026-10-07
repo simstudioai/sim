@@ -5,7 +5,7 @@ description: Process payments and manage Stripe data
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="stripe"
   color="#635BFF"
 />
@@ -1455,7 +1455,7 @@ Search one page of subscriptions using query syntax. Pass metadata.next_page as 
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
-|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
+|   ↳ `next_page` | string (nullable) | Token for the next page of search results, or null when there are no more results |
 
 ### Stripe Create Invoice
 
@@ -1538,29 +1538,33 @@ Create a new invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -1690,29 +1694,33 @@ Retrieve an existing invoice by ID
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -1845,29 +1853,33 @@ Update an existing invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2016,29 +2028,33 @@ Finalize a draft invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2169,29 +2185,33 @@ Pay an invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2321,29 +2341,33 @@ Void an invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2896,8 +2920,6 @@ List all Events
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2926,4 +2948,3 @@ Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 | `livemode` | boolean | Whether this event occurred in live mode \(true\) or test mode \(false\) |
 | `pending_webhooks` | number | Number of webhooks yet to be delivered for this event |
 | `request` | json | Information about the API request that triggered this event \(id, idempotency_key\) |
-

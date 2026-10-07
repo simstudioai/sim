@@ -5,7 +5,7 @@ description: Manage Notion pages
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="notion_v2"
   color="#FFFFFF"
 />
@@ -164,8 +164,17 @@ Query and filter Notion database entries with advanced filtering
 |     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
 |     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
 |   ↳ `icon` | object | Page/database icon \(emoji, custom_emoji, or file\) |
-|     ↳ `url` | string | Authenticated URL valid for one hour |
-|     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `type` | string | Icon type: "emoji", "custom_emoji", or "file" |
+|     ↳ `emoji` | string | Emoji character \(if type is emoji\) |
+|     ↳ `custom_emoji` | object | Custom emoji object \(if type is custom_emoji\) |
+|       ↳ `id` | string | Custom emoji UUID |
+|       ↳ `name` | string | Custom emoji name |
+|       ↳ `url` | string | URL to custom emoji image |
+|     ↳ `file` | object | Notion-hosted file \(if type is file\) |
+|       ↳ `url` | string | Authenticated URL valid for one hour |
+|       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `external` | object | External file \(if type is external\) |
+|       ↳ `url` | string | External file URL \(never expires\) |
 |   ↳ `cover` | object | Page/database cover image |
 |     ↳ `type` | string | File type: "file", "file_upload", or "external" |
 |     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |
@@ -283,26 +292,30 @@ Append new block children (content) to a Notion page or block
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
+| `results` | array | Array of Notion block objects |
+|   ↳ `object` | string | Always "block" |
+|   ↳ `id` | string | Block UUID |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the block is archived |
+|   ↳ `in_trash` | boolean | Whether the block is in trash |
+|   ↳ `has_children` | boolean | Whether the block has nested blocks |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `next_cursor` | string | Cursor for next page of results |
 
 ### Notion Retrieve Block
 
@@ -318,26 +331,32 @@ Retrieve a single Notion block by its UUID, including its type-specific content
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
-| `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
+| `id` | string | Block UUID |
+| `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `block` | object | The full Notion block object. Includes a type-specific field \(e.g. paragraph, heading_1, image\) whose shape varies by block type and is not enumerated below — read it directly off this object. |
+|   ↳ `object` | string | Always "block" |
+|   ↳ `id` | string | Block UUID |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the block is archived |
+|   ↳ `in_trash` | boolean | Whether the block is in trash |
+|   ↳ `has_children` | boolean | Whether the block has nested blocks |
 
 ### Notion Retrieve Block Children
 
@@ -355,26 +374,30 @@ Retrieve the block children (content) of a Notion page or block
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
+| `results` | array | Array of Notion block objects |
+|   ↳ `object` | string | Always "block" |
+|   ↳ `id` | string | Block UUID |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the block is archived |
+|   ↳ `in_trash` | boolean | Whether the block is in trash |
+|   ↳ `has_children` | boolean | Whether the block has nested blocks |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `next_cursor` | string | Cursor for next page of results |
 
 ### Notion Update Block
 
@@ -392,26 +415,31 @@ Update the content or archived state of a single Notion block
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
-| `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
+| `id` | string | Block UUID |
+| `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
 | `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `block` | object | The full updated Notion block object |
+|   ↳ `object` | string | Always "block" |
+|   ↳ `id` | string | Block UUID |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `type` | string | Block type \(paragraph, heading_1, heading_2, heading_3, image, etc.\) |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the block is archived |
+|   ↳ `in_trash` | boolean | Whether the block is in trash |
+|   ↳ `has_children` | boolean | Whether the block has nested blocks |
 
 ### Notion Delete Block
 
@@ -427,26 +455,8 @@ Delete (move to trash) a single Notion block
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
-| `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `id` | string | Block UUID |
+| `archived` | boolean | Whether the block was archived \(moved to trash\) |
 
 ### Notion Create Comment
 
@@ -464,26 +474,21 @@ Create a comment on a Notion page or within an existing discussion thread
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
-| `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `id` | string | Comment UUID |
+| `discussion_id` | string | UUID of the discussion thread |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `content` | string | Plain text content of the comment |
+| `rich_text` | array | Array of rich text objects |
+|   ↳ `type` | string | Rich text type: "text", "mention", or "equation" |
+|   ↳ `plain_text` | string | Plain text content without annotations |
+|   ↳ `href` | string | URL for links or Notion mentions |
+|   ↳ `annotations` | object | Text styling annotations |
+|     ↳ `bold` | boolean | Bold styling |
+|     ↳ `italic` | boolean | Italic styling |
+|     ↳ `strikethrough` | boolean | Strikethrough styling |
+|     ↳ `underline` | boolean | Underline styling |
+|     ↳ `code` | boolean | Code styling |
+|     ↳ `color` | string | Text color \(default, blue, green, red, purple, orange, pink, gray, brown, yellow, or _background variants\) |
 
 ### Notion List Comments
 
@@ -501,26 +506,35 @@ List unresolved comments on a Notion page or block
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
+| `results` | array | Array of Notion comment objects |
+|   ↳ `object` | string | Always "comment" |
+|   ↳ `id` | string | Comment UUID |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `discussion_id` | string | UUID of the discussion thread |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `rich_text` | array | Array of rich text objects |
+|     ↳ `type` | string | Rich text type: "text", "mention", or "equation" |
+|     ↳ `plain_text` | string | Plain text content without annotations |
+|     ↳ `href` | string | URL for links or Notion mentions |
+|     ↳ `annotations` | object | Text styling annotations |
+|       ↳ `bold` | boolean | Bold styling |
+|       ↳ `italic` | boolean | Italic styling |
+|       ↳ `strikethrough` | boolean | Strikethrough styling |
+|       ↳ `underline` | boolean | Underline styling |
+|       ↳ `code` | boolean | Code styling |
+|       ↳ `color` | string | Text color \(default, blue, green, red, purple, orange, pink, gray, brown, yellow, or _background variants\) |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `next_cursor` | string | Cursor for next page of results |
 
 ### Notion List Users
 
@@ -537,26 +551,14 @@ List all users (members and bots) in the Notion workspace
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
+| `results` | array | Array of Notion user objects |
+|   ↳ `object` | string | Always "user" |
+|   ↳ `id` | string | User UUID |
+|   ↳ `type` | string | User type: "person" or "bot" |
+|   ↳ `name` | string | User display name |
+|   ↳ `avatar_url` | string | URL to user avatar image |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
-| `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
-| `email` | string | User email address \(person users only\) |
+| `next_cursor` | string | Cursor for next page of results |
 
 ### Notion Retrieve User
 
@@ -572,25 +574,10 @@ Retrieve a single Notion user by their UUID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content in markdown format, or comment text for create comment |
-| `title` | string | Page or database title |
-| `url` | string | Notion URL |
-| `id` | string | Page, database, block, comment, or user ID |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
-| `results` | array | Array of results \(pages, blocks, comments, or users\) |
-| `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
-| `total_results` | number | Number of results returned |
-| `properties` | json | Database properties schema |
-| `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
-| `block` | json | The full Notion block object |
-| `has_children` | boolean | Whether the block has nested blocks |
-| `archived` | boolean | Whether the block is archived |
-| `discussion_id` | string | Discussion thread ID |
+| `id` | string | User UUID |
+| `type` | string | User type: "person" or "bot" |
 | `name` | string | User display name |
-| `avatar_url` | string | User avatar image URL |
+| `avatar_url` | string | URL to user avatar image |
 | `email` | string | User email address \(person users only\) |
 
 ## Triggers
@@ -945,5 +932,3 @@ Sim requests no OAuth scopes for Notion. On a self-hosted deployment, register y
 | ------- | ----- |
 | Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/notion` |
 | Environment variables | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
-
-

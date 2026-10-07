@@ -5,7 +5,7 @@ description: Query semantic models and manage reports and refreshes
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="powerbi"
   color="#FFFFFF"
 />
@@ -136,9 +136,9 @@ Execute one DAX query returning one table. Requires workspace access, Read/Build
 | `rowCount` | number | Number of rows returned |
 | `errors` | array | Errors reported at response, query, or table scope |
 |   ↳ `scope` | string | Error scope: response, query, or table |
-|   ↳ `details` | json | Dynamic nested provider error details, when supplied |
+|   ↳ `details` | json (nullable) | Dynamic nested provider error details, when supplied |
 | `incomplete` | boolean | Whether the provider reported an embedded error; false does not guarantee an unlimited result |
-| `informationProtectionLabel` | object | Information protection label, when supplied |
+| `informationProtectionLabel` | object (nullable) | Information protection label, when supplied |
 
 ### Power BI Refresh Semantic Model
 
@@ -157,8 +157,8 @@ Request a standard asynchronous semantic model refresh and return acceptance imm
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Whether Power BI accepted the refresh request; does not indicate completion |
-| `requestId` | string | Provider x-ms-request-id header, when supplied |
-| `location` | string | Provider Location header, when supplied |
+| `requestId` | string (nullable) | Provider x-ms-request-id header, when supplied |
+| `location` | string (nullable) | Provider Location header, when supplied |
 
 ### Power BI Get Refresh History
 
@@ -178,7 +178,7 @@ Get recent semantic model refresh history; requires Write permission on the mode
 | --------- | ---- | ----------- |
 | `refreshes` | array | Recent refresh entries returned by Power BI |
 |   ↳ `refreshAttempts` | array | Refresh attempts supplied by the provider |
-|     ↳ `attemptId` | number | Refresh attempt index |
+|     ↳ `attemptId` | number (nullable) | Refresh attempt index |
 | `refreshCount` | number | Number of refresh entries returned |
 
 ## OAuth Scopes
@@ -199,5 +199,3 @@ Sim requests these scopes when someone connects a Power BI account. On a self-ho
 | `profile` | Access profile information |
 | `email` | Access email address |
 | `offline_access` | Access account when not using the application |
-
-

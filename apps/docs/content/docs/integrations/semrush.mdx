@@ -5,7 +5,7 @@ description: Research SEO and paid search data with Semrush
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="semrush"
   color="#FFFFFF"
 />
@@ -48,15 +48,15 @@ Get the Semrush rank plus organic and paid search totals for a domain in one reg
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `overview` | json | Organic and paid search overview for the domain |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+| `overview` | json (nullable) | Organic and paid search overview for the domain |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush Domain Overview (All Databases)
 
@@ -79,17 +79,17 @@ Get organic and paid search totals for a domain across every regional Semrush da
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `databases` | array | One row of domain totals per regional database |
-|   ↳ `database` | string | Regional database the row belongs to |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
-|   ↳ `plaKeywords` | number | Keywords used for product listing ads |
-|   ↳ `plaUniques` | number | Number of unique product listing ads |
+|   ↳ `database` | string (nullable) | Regional database the row belongs to |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
+|   ↳ `plaKeywords` | number (nullable) | Keywords used for product listing ads |
+|   ↳ `plaUniques` | number (nullable) | Number of unique product listing ads |
 
 ### Semrush Domain Overview History
 
@@ -112,14 +112,14 @@ Get the historical trend of a domain rank plus its organic and paid search total
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `history` | array | Historical data points, in the requested sort order |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush Domain Organic Keywords
 
@@ -144,19 +144,19 @@ List the keywords a domain ranks for in Google organic search, with position, vo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Organic keywords the domain ranks for |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `positionDifference` | number | Change between the previous and the current position |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `positionDifference` | number (nullable) | Change between the previous and the current position |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -182,21 +182,21 @@ List the keywords a domain buys in Google Ads, with ad position, copy, and traff
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Paid keywords the domain bids on |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `positionDifference` | number | Change between the previous and the current position |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `positionDifference` | number (nullable) | Change between the previous and the current position |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Estimated traffic cost attributed to this keyword |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
 
 ### Semrush Domain Ad Copies
 
@@ -219,11 +219,11 @@ List the unique Google Ads creatives a domain runs, with title, description, and
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ads` | array | Unique ad creatives the domain runs |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `numberOfKeywords` | number | Number of keywords the ad runs on |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `numberOfKeywords` | number (nullable) | Number of keywords the ad runs on |
 
 ### Semrush Domain Ad History
 
@@ -246,16 +246,16 @@ List a domain past Google Ads placements month by month, with the copy used each
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ads` | array | Historical ad placements, one row per keyword and month |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
 
 ### Semrush Organic Competitors
 
@@ -278,13 +278,13 @@ List the domains competing with a target domain in Google organic search results
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `competitors` | array | Competing domains ranked by competitor relevance |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `competitorRelevance` | number | Competition level based on the total keyword count of each domain |
-|   ↳ `commonKeywords` | number | Keywords both domains rank for in the top 100 organic results |
-|   ↳ `organicKeywords` | number | Keywords this competing domain ranks for in the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic this competing domain gets from the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of this competing domain organic keywords |
-|   ↳ `paidKeywords` | number | Keywords this competing domain is buying in Google Ads |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `competitorRelevance` | number (nullable) | Competition level based on the total keyword count of each domain |
+|   ↳ `commonKeywords` | number (nullable) | Keywords both domains rank for in the top 100 organic results |
+|   ↳ `organicKeywords` | number (nullable) | Keywords this competing domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic this competing domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of this competing domain organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords this competing domain is buying in Google Ads |
 
 ### Semrush Paid Competitors
 
@@ -307,13 +307,13 @@ List the domains competing with a target domain in Google paid search results.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `competitors` | array | Competing advertisers ranked by competitor relevance |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `competitorRelevance` | number | Competition level based on the total keyword count of each domain |
-|   ↳ `commonKeywords` | number | Keywords both domains rank for in the top 100 organic results |
-|   ↳ `paidKeywords` | number | Keywords this competing domain is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic this competing domain gets from paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this competing domain |
-|   ↳ `organicKeywords` | number | Keywords this competing domain ranks for in the Google top 100 organic results |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `competitorRelevance` | number (nullable) | Competition level based on the total keyword count of each domain |
+|   ↳ `commonKeywords` | number (nullable) | Keywords both domains rank for in the top 100 organic results |
+|   ↳ `paidKeywords` | number (nullable) | Keywords this competing domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic this competing domain gets from paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget of this competing domain |
+|   ↳ `organicKeywords` | number (nullable) | Keywords this competing domain ranks for in the Google top 100 organic results |
 
 ### Semrush Domain PLA Keywords
 
@@ -336,16 +336,16 @@ List the keywords that trigger a domain product listing ads, with the promoted p
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Product listing ad keywords for the domain |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `positionDifference` | number | Change between the previous and the current position |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `shopName` | string | Name of the shop running the product listing ad |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `productPrice` | number | Price of the promoted product |
-|   ↳ `timestamp` | number | Unix timestamp of the data point |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `positionDifference` | number (nullable) | Change between the previous and the current position |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `shopName` | string (nullable) | Name of the shop running the product listing ad |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `productPrice` | number (nullable) | Price of the promoted product |
+|   ↳ `timestamp` | number (nullable) | Unix timestamp of the data point |
 
 ### Semrush Domain PLA Copies
 
@@ -366,10 +366,10 @@ List the unique product listing ads a domain runs, with product title, price, an
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ads` | array | Unique product listing ads the domain runs |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `productPrice` | number | Price of the promoted product |
-|   ↳ `shopName` | string | Name of the shop running the product listing ad |
-|   ↳ `url` | string | URL of the ranking or advertised page |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `productPrice` | number (nullable) | Price of the promoted product |
+|   ↳ `shopName` | string (nullable) | Name of the shop running the product listing ad |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
 
 ### Semrush Domain vs. Domain
 
@@ -394,11 +394,11 @@ Compare up to five domains on the keywords they rank for, returning each domain 
 | --------- | ---- | ----------- |
 | `domains` | array | The compared domains, in the order their positions appear |
 | `keywords` | array | Keywords with each compared domain position |
-|   ↳ `keyword` | string | Keyword phrase |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
 |   ↳ `positions` | json | Position of each compared domain, keyed by domain, where 0 means not ranked |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
 
 ### Semrush Subdomain Overview
 
@@ -417,15 +417,15 @@ Get the organic and paid search totals for a subdomain in one regional database.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `overview` | json | Organic and paid search overview for the subdomain |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+| `overview` | json (nullable) | Organic and paid search overview for the subdomain |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush Subdomain Overview (All Databases)
 
@@ -448,17 +448,17 @@ Get organic and paid search totals for a subdomain across every regional Semrush
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `databases` | array | One row of subdomain totals per regional database |
-|   ↳ `database` | string | Regional database the row belongs to |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
-|   ↳ `plaKeywords` | number | Keywords used for product listing ads |
-|   ↳ `plaUniques` | number | Number of unique product listing ads |
+|   ↳ `database` | string (nullable) | Regional database the row belongs to |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
+|   ↳ `plaKeywords` | number (nullable) | Keywords used for product listing ads |
+|   ↳ `plaUniques` | number (nullable) | Number of unique product listing ads |
 
 ### Semrush Subdomain Overview History
 
@@ -481,14 +481,14 @@ Get the historical trend of a subdomain organic and paid search totals.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `history` | array | Historical data points, in the requested sort order |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush Subdomain Organic Keywords
 
@@ -513,19 +513,19 @@ List the keywords a subdomain ranks for in Google organic search.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Organic keywords the subdomain ranks for |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `positionDifference` | number | Change between the previous and the current position |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `positionDifference` | number (nullable) | Change between the previous and the current position |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -551,21 +551,21 @@ List the keywords a subdomain buys in Google Ads.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Paid keywords the subdomain bids on |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `positionDifference` | number | Change between the previous and the current position |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `positionDifference` | number (nullable) | Change between the previous and the current position |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Estimated traffic cost attributed to this keyword |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
 
 ### Semrush Subdomain Ad Copies
 
@@ -588,11 +588,11 @@ List the unique Google Ads creatives a subdomain runs.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ads` | array | Unique ad creatives the subdomain runs |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `numberOfKeywords` | number | Number of keywords the ad runs on |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `numberOfKeywords` | number (nullable) | Number of keywords the ad runs on |
 
 ### Semrush URL Overview
 
@@ -611,15 +611,15 @@ Get the organic and paid search totals for a single URL in one regional database
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `overview` | json | Organic and paid search overview for the URL |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+| `overview` | json (nullable) | Organic and paid search overview for the URL |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush URL Overview (All Databases)
 
@@ -642,17 +642,17 @@ Get organic and paid search totals for a single URL across every regional Semrus
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `databases` | array | One row of URL totals per regional database |
-|   ↳ `database` | string | Regional database the row belongs to |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
-|   ↳ `plaKeywords` | number | Keywords used for product listing ads |
-|   ↳ `plaUniques` | number | Number of unique product listing ads |
+|   ↳ `database` | string (nullable) | Regional database the row belongs to |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
+|   ↳ `plaKeywords` | number (nullable) | Keywords used for product listing ads |
+|   ↳ `plaUniques` | number (nullable) | Number of unique product listing ads |
 
 ### Semrush URL Overview History
 
@@ -675,14 +675,14 @@ Get the historical trend of a URL organic and paid search totals.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `history` | array | Historical data points, in the requested sort order |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of the target, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic brought via the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of the organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords the target is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic brought via paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget |
 
 ### Semrush URL Organic Keywords
 
@@ -706,17 +706,17 @@ List the keywords a single URL ranks for in Google organic search.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Organic keywords the URL ranks for |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `previousPosition` | number | Position held at the previous data collection |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `previousPosition` | number (nullable) | Position held at the previous data collection |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Estimated traffic cost attributed to this keyword |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -742,18 +742,18 @@ List the keywords a single URL is advertised on in Google Ads, with the ad copy 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Paid keywords the URL is advertised on |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `traffic` | number (nullable) | Estimated traffic driven by this keyword |
+|   ↳ `trafficPercent` | number (nullable) | Share of the traffic to the target driven by this keyword |
+|   ↳ `trafficCost` | number (nullable) | Estimated traffic cost attributed to this keyword |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
 
 ### Semrush Keyword Overview
 
@@ -772,13 +772,13 @@ Get search volume, CPC, competition, difficulty, and intent for a single keyword
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `overview` | json | Keyword metrics in the selected database |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+| `overview` | json (nullable) | Keyword metrics in the selected database |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -799,15 +799,15 @@ Get search volume, CPC, and competition for a keyword across every regional Semr
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `databases` | array | One row of keyword metrics per regional database |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `database` | string | Regional database the row belongs to |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `database` | string (nullable) | Regional database the row belongs to |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 
 ### Semrush Batch Keyword Overview
 
@@ -827,12 +827,12 @@ Get search volume, CPC, competition, difficulty, and intent for up to 100 keywor
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Keyword metrics, one row per submitted keyword |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -853,8 +853,8 @@ Get the Keyword Difficulty Index for up to 100 keywords at once.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Keyword difficulty scores, one row per submitted keyword |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 
 ### Semrush Related Keywords
 
@@ -877,13 +877,13 @@ Find keywords semantically related to a seed keyword, with volume, difficulty, a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Related keyword ideas for the seed keyword |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
-|   ↳ `relatedRelevance` | number | Relevance of the result keyword to the seed keyword |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `relatedRelevance` | number (nullable) | Relevance of the result keyword to the seed keyword |
 |   ↳ `keywordSerpFeatures` | array | IDs of all SERP features triggered by the keyword |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
@@ -909,12 +909,12 @@ Find broad-match and phrase-match variations of a seed keyword, with volume and 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Broad match keyword variations of the seed keyword |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `keywordSerpFeatures` | array | IDs of all SERP features triggered by the keyword |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
@@ -940,12 +940,12 @@ Find question-form keywords containing a seed keyword, with volume and difficult
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `keywords` | array | Question keywords containing the seed keyword |
-|   ↳ `keyword` | string | Keyword phrase |
-|   ↳ `searchVolume` | number | Average monthly searches for the keyword |
-|   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
-|   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
-|   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
-|   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
+|   ↳ `keyword` | string (nullable) | Keyword phrase |
+|   ↳ `searchVolume` | number (nullable) | Average monthly searches for the keyword |
+|   ↳ `cpc` | number (nullable) | Average cost per click in USD \(Google Ads\) |
+|   ↳ `competition` | number (nullable) | Competitive density of advertisers bidding on the keyword \(0-1\) |
+|   ↳ `numberOfResults` | number (nullable) | Total organic results returned for the keyword |
+|   ↳ `keywordDifficulty` | number (nullable) | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
@@ -969,10 +969,10 @@ List the domains and URLs ranking in Google organic search results for a keyword
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Ranking pages for the keyword, in SERP order |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `positionType` | string | Whether the position is a regular organic result or a SERP feature |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `url` | string | URL of the ranking or advertised page |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `positionType` | string (nullable) | Whether the position is a regular organic result or a SERP feature |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
 |   ↳ `keywordSerpFeatures` | array | IDs of all SERP features triggered by the keyword |
 |   ↳ `serpFeatures` | array | IDs of the SERP features the domain appears in for the keyword |
 
@@ -996,9 +996,9 @@ List the domains and URLs advertising on a keyword in Google paid search results
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Advertisers appearing for the keyword |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
 
 ### Semrush Keyword Ad History
 
@@ -1019,13 +1019,13 @@ List which domains advertised on a keyword month by month, with the copy each on
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ads` | array | Historical advertisers for the keyword, one row per domain and month |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
-|   ↳ `position` | number | Position in the Google top 100 results, where 0 means not ranked |
-|   ↳ `url` | string | URL of the ranking or advertised page |
-|   ↳ `title` | string | Ad or product title |
-|   ↳ `description` | string | Ad text |
-|   ↳ `visibleUrl` | string | Display URL shown in the ad |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `date` | string (nullable) | Data collection date in YYYYMMDD or YYYYMM format |
+|   ↳ `position` | number (nullable) | Position in the Google top 100 results, where 0 means not ranked |
+|   ↳ `url` | string (nullable) | URL of the ranking or advertised page |
+|   ↳ `title` | string (nullable) | Ad or product title |
+|   ↳ `description` | string (nullable) | Ad text |
+|   ↳ `visibleUrl` | string (nullable) | Display URL shown in the ad |
 
 ### Semrush Winners and Losers
 
@@ -1047,20 +1047,20 @@ List the domains that gained or lost the most organic and paid search visibility
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `domains` | array | Domains ranked by change in search visibility |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of this domain, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords this domain ranks for in the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic this domain gets from the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of this domain organic keywords |
-|   ↳ `paidKeywords` | number | Keywords this domain is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic this domain gets from paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this domain |
-|   ↳ `organicKeywordsDifference` | number | Change in organic keyword count since the previous month |
-|   ↳ `organicTrafficDifference` | number | Change in organic traffic since the previous month |
-|   ↳ `organicCostDifference` | number | Change in organic cost since the previous month |
-|   ↳ `paidKeywordsDifference` | number | Change in paid keyword count since the previous month |
-|   ↳ `paidTrafficDifference` | number | Change in paid traffic since the previous month |
-|   ↳ `paidCostDifference` | number | Change in paid cost since the previous month |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of this domain, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords this domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic this domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of this domain organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords this domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic this domain gets from paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget of this domain |
+|   ↳ `organicKeywordsDifference` | number (nullable) | Change in organic keyword count since the previous month |
+|   ↳ `organicTrafficDifference` | number (nullable) | Change in organic traffic since the previous month |
+|   ↳ `organicCostDifference` | number (nullable) | Change in organic cost since the previous month |
+|   ↳ `paidKeywordsDifference` | number (nullable) | Change in paid keyword count since the previous month |
+|   ↳ `paidTrafficDifference` | number (nullable) | Change in paid traffic since the previous month |
+|   ↳ `paidCostDifference` | number (nullable) | Change in paid cost since the previous month |
 
 ### Semrush Top Domains
 
@@ -1082,14 +1082,14 @@ List the highest-ranked domains in a regional database by Semrush rank.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `domains` | array | Top-ranked domains in the database |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of this domain, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords this domain ranks for in the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic this domain gets from the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of this domain organic keywords |
-|   ↳ `paidKeywords` | number | Keywords this domain is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic this domain gets from paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this domain |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `rank` | number (nullable) | Semrush popularity rating of this domain, based on organic traffic |
+|   ↳ `organicKeywords` | number (nullable) | Keywords this domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number (nullable) | Traffic this domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number (nullable) | Estimated Google Ads price of this domain organic keywords |
+|   ↳ `paidKeywords` | number (nullable) | Keywords this domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number (nullable) | Traffic this domain gets from paid search results |
+|   ↳ `paidCost` | number (nullable) | Estimated monthly Google Ads budget of this domain |
 
 ### Semrush Backlinks Overview
 
@@ -1107,21 +1107,21 @@ Get the Authority Score and backlink profile totals for a domain, subdomain, or 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `overview` | json | Backlink profile totals for the target |
-|   ↳ `authorityScore` | number | Semrush Authority Score \(0-100\) |
-|   ↳ `total` | number | Total number of backlinks |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `urlsNum` | number | Number of referring URLs |
-|   ↳ `ipsNum` | number | Number of referring IPs |
-|   ↳ `ipClassCNum` | number | Number of referring class C subnets |
-|   ↳ `followsNum` | number | Number of followed backlinks |
-|   ↳ `nofollowsNum` | number | Number of nofollow backlinks |
-|   ↳ `sponsoredNum` | number | Number of backlinks marked rel="sponsored" |
-|   ↳ `ugcNum` | number | Number of backlinks marked rel="ugc" |
-|   ↳ `textsNum` | number | Number of text backlinks |
-|   ↳ `imagesNum` | number | Number of image backlinks |
-|   ↳ `formsNum` | number | Number of form backlinks |
-|   ↳ `framesNum` | number | Number of frame backlinks |
+| `overview` | json (nullable) | Backlink profile totals for the target |
+|   ↳ `authorityScore` | number (nullable) | Semrush Authority Score \(0-100\) |
+|   ↳ `total` | number (nullable) | Total number of backlinks |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `urlsNum` | number (nullable) | Number of referring URLs |
+|   ↳ `ipsNum` | number (nullable) | Number of referring IPs |
+|   ↳ `ipClassCNum` | number (nullable) | Number of referring class C subnets |
+|   ↳ `followsNum` | number (nullable) | Number of followed backlinks |
+|   ↳ `nofollowsNum` | number (nullable) | Number of nofollow backlinks |
+|   ↳ `sponsoredNum` | number (nullable) | Number of backlinks marked rel="sponsored" |
+|   ↳ `ugcNum` | number (nullable) | Number of backlinks marked rel="ugc" |
+|   ↳ `textsNum` | number (nullable) | Number of text backlinks |
+|   ↳ `imagesNum` | number (nullable) | Number of image backlinks |
+|   ↳ `formsNum` | number (nullable) | Number of form backlinks |
+|   ↳ `framesNum` | number (nullable) | Number of frame backlinks |
 
 ### Semrush Backlinks
 
@@ -1144,16 +1144,16 @@ List the backlinks pointing at a domain, subdomain, or URL, with source page, an
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `backlinks` | array | Backlinks pointing at the target |
-|   ↳ `pageAuthorityScore` | number | Authority Score of the source page |
-|   ↳ `sourceTitle` | string | Title of the linking page |
-|   ↳ `sourceUrl` | string | URL of the linking page |
-|   ↳ `targetUrl` | string | URL the backlink points to |
-|   ↳ `anchor` | string | Anchor text of the backlink |
-|   ↳ `nofollow` | string | Raw rel="nofollow" flag as returned by the API |
-|   ↳ `externalLinksNum` | number | External links on the source page |
-|   ↳ `internalLinksNum` | number | Internal links on the source page |
-|   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
-|   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
+|   ↳ `pageAuthorityScore` | number (nullable) | Authority Score of the source page |
+|   ↳ `sourceTitle` | string (nullable) | Title of the linking page |
+|   ↳ `sourceUrl` | string (nullable) | URL of the linking page |
+|   ↳ `targetUrl` | string (nullable) | URL the backlink points to |
+|   ↳ `anchor` | string (nullable) | Anchor text of the backlink |
+|   ↳ `nofollow` | string (nullable) | Raw rel="nofollow" flag as returned by the API |
+|   ↳ `externalLinksNum` | number (nullable) | External links on the source page |
+|   ↳ `internalLinksNum` | number (nullable) | Internal links on the source page |
+|   ↳ `firstSeen` | number (nullable) | Unix timestamp when the link was first seen |
+|   ↳ `lastSeen` | number (nullable) | Unix timestamp when the link was last seen |
 
 ### Semrush Referring Domains
 
@@ -1176,13 +1176,13 @@ List the domains linking to a target, with Authority Score, backlink count, and 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `domains` | array | Domains linking to the target |
-|   ↳ `domainAuthorityScore` | number | Authority Score of the referring domain |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `backlinksNum` | number | Number of backlinks |
-|   ↳ `ip` | string | IP address |
-|   ↳ `country` | string | Country of the referring domain |
-|   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
-|   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
+|   ↳ `domainAuthorityScore` | number (nullable) | Authority Score of the referring domain |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
+|   ↳ `ip` | string (nullable) | IP address |
+|   ↳ `country` | string (nullable) | Country of the referring domain |
+|   ↳ `firstSeen` | number (nullable) | Unix timestamp when the link was first seen |
+|   ↳ `lastSeen` | number (nullable) | Unix timestamp when the link was last seen |
 
 ### Semrush Referring IPs
 
@@ -1204,12 +1204,12 @@ List the IP addresses linking to a target, with the domain and backlink counts b
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ips` | array | IP addresses linking to the target |
-|   ↳ `ip` | string | IP address |
-|   ↳ `country` | string | Country of the referring domain |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `backlinksNum` | number | Number of backlinks |
-|   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
-|   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
+|   ↳ `ip` | string (nullable) | IP address |
+|   ↳ `country` | string (nullable) | Country of the referring domain |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
+|   ↳ `firstSeen` | number (nullable) | Unix timestamp when the link was first seen |
+|   ↳ `lastSeen` | number (nullable) | Unix timestamp when the link was last seen |
 
 ### Semrush Backlink TLD Distribution
 
@@ -1231,9 +1231,9 @@ Break a target backlink profile down by the top-level domain of its referring do
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `zones` | array | Referring domain and backlink counts per top-level domain |
-|   ↳ `zone` | string | Top-level domain zone |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `backlinksNum` | number | Number of backlinks |
+|   ↳ `zone` | string (nullable) | Top-level domain zone |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
 
 ### Semrush Backlink Country Distribution
 
@@ -1255,9 +1255,9 @@ Break a target backlink profile down by the country of its referring domains.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `countries` | array | Referring domain and backlink counts per country |
-|   ↳ `country` | string | Country of the referring domain |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `backlinksNum` | number | Number of backlinks |
+|   ↳ `country` | string (nullable) | Country of the referring domain |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
 
 ### Semrush Backlink Anchors
 
@@ -1279,11 +1279,11 @@ List the anchor texts used in backlinks to a target, with domain and backlink co
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `anchors` | array | Anchor text distribution for the backlink profile |
-|   ↳ `anchor` | string | Anchor text of the backlink |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `backlinksNum` | number | Number of backlinks |
-|   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
-|   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
+|   ↳ `anchor` | string (nullable) | Anchor text of the backlink |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
+|   ↳ `firstSeen` | number (nullable) | Unix timestamp when the link was first seen |
+|   ↳ `lastSeen` | number (nullable) | Unix timestamp when the link was last seen |
 
 ### Semrush Indexed Pages
 
@@ -1305,14 +1305,14 @@ List the pages of a target that attract backlinks, with response code and link c
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | Indexed pages of the target and the links they attract |
-|   ↳ `sourceUrl` | string | URL of the linking page |
-|   ↳ `sourceTitle` | string | Title of the linking page |
-|   ↳ `responseCode` | number | HTTP status code the page returned when last crawled |
-|   ↳ `backlinksNum` | number | Number of backlinks |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
-|   ↳ `externalLinksNum` | number | External links on the source page |
-|   ↳ `internalLinksNum` | number | Internal links on the source page |
+|   ↳ `sourceUrl` | string (nullable) | URL of the linking page |
+|   ↳ `sourceTitle` | string (nullable) | Title of the linking page |
+|   ↳ `responseCode` | number (nullable) | HTTP status code the page returned when last crawled |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `lastSeen` | number (nullable) | Unix timestamp when the link was last seen |
+|   ↳ `externalLinksNum` | number (nullable) | External links on the source page |
+|   ↳ `internalLinksNum` | number (nullable) | Internal links on the source page |
 
 ### Semrush Backlink Competitors
 
@@ -1333,11 +1333,9 @@ List domains with a backlink profile similar to the target, ranked by shared ref
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `competitors` | array | Domains with backlink profiles similar to the target |
-|   ↳ `authorityScore` | number | Semrush Authority Score \(0-100\) |
-|   ↳ `domain` | string | Domain name |
-|   ↳ `similarity` | number | Backlink profile similarity to the target |
-|   ↳ `commonRefdomains` | number | Referring domains shared with the target |
-|   ↳ `domainsNum` | number | Number of referring domains |
-|   ↳ `backlinksNum` | number | Number of backlinks |
-
-
+|   ↳ `authorityScore` | number (nullable) | Semrush Authority Score \(0-100\) |
+|   ↳ `domain` | string (nullable) | Domain name |
+|   ↳ `similarity` | number (nullable) | Backlink profile similarity to the target |
+|   ↳ `commonRefdomains` | number (nullable) | Referring domains shared with the target |
+|   ↳ `domainsNum` | number (nullable) | Number of referring domains |
+|   ↳ `backlinksNum` | number (nullable) | Number of backlinks |

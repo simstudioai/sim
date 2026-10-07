@@ -5,7 +5,7 @@ description: Create, read, update, and delete ServiceNow records
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="servicenow_v2"
   color="#032D42"
 />
@@ -249,33 +249,9 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Get ServiceNow Incident
 
@@ -297,33 +273,9 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### List ServiceNow Incidents
 
@@ -353,33 +305,9 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Update ServiceNow Incident
 
@@ -415,33 +343,9 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Resolve ServiceNow Incident
 
@@ -467,33 +371,9 @@ Move a ServiceNow incident to Resolved (state 6) with a resolution code and reso
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Close ServiceNow Incident
 
@@ -519,33 +399,9 @@ Move a ServiceNow incident to Closed (state 7) with a resolution code and resolu
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Add ServiceNow Incident Comment
 
@@ -569,33 +425,9 @@ Append an internal work note or a customer-visible additional comment to a Servi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Create ServiceNow Change Request
 
@@ -634,33 +466,9 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Get ServiceNow Change Request
 
@@ -682,33 +490,9 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### List ServiceNow Change Requests
 
@@ -738,33 +522,9 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Update ServiceNow Change Request
 
@@ -800,33 +560,9 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Move ServiceNow Change State
 
@@ -853,33 +589,9 @@ Move a ServiceNow change request to another state. Base-system change model stat
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### List ServiceNow Change Tasks
 
@@ -963,11 +675,11 @@ Browse or search the ServiceNow service catalog. Returns each item with its sys_
 | `items` | array | Catalog items |
 |   ↳ `sys_id` | string | Catalog item sys_id, used to order the item |
 |   ↳ `name` | string | Catalog item name |
-|   ↳ `short_description` | string | Short description |
+|   ↳ `short_description` | string (nullable) | Short description |
 |   ↳ `description` | string | HTML description |
 |   ↳ `type` | string | Item type, e.g., record_producer or catalog_item |
 |   ↳ `sys_class_name` | string | Item table |
-|   ↳ `category` | json | Category \{sys_id, title\} |
+|   ↳ `category` | json (nullable) | Category \{sys_id, title\} |
 |   ↳ `catalogs` | json | Catalogs the item belongs to, each \{sys_id, title\} |
 |   ↳ `picture` | string | Item picture reference |
 |   ↳ `icon` | string | Item icon reference |
@@ -1001,11 +713,11 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sysId` | string | Sys_id of the order |
-| `number` | string | Number of the generated request |
-| `requestNumber` | string | Request number |
-| `requestId` | string | Sys_id of the order request |
-| `table` | string | Table name of the request |
+| `sysId` | string (nullable) | Sys_id of the order |
+| `number` | string (nullable) | Number of the generated request |
+| `requestNumber` | string (nullable) | Request number |
+| `requestId` | string (nullable) | Sys_id of the order request |
+| `table` | string (nullable) | Table name of the request |
 
 ### List ServiceNow Requested Items
 
@@ -1031,33 +743,9 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Get ServiceNow Requested Item
 
@@ -1079,33 +767,9 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### List ServiceNow Approvals
 
@@ -1131,33 +795,9 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Approve or Reject ServiceNow Approval
 
@@ -1181,33 +821,9 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `record` | json (nullable) | The ServiceNow record. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned \(0 or 1\) |
 
 ### Search ServiceNow Configuration Items
 
@@ -1233,33 +849,9 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Get ServiceNow Configuration Item
 
@@ -1279,7 +871,7 @@ Retrieve a configuration item and its CMDB relationships through the CMDB Instan
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `attributes` | json | Data attributes on the CI record. The available attributes depend on the class. |
+| `attributes` | json (nullable) | Data attributes on the CI record. The available attributes depend on the class. |
 | `inboundRelations` | array | Inbound CI relationships |
 |   ↳ `sys_id` | string | Sys_id of the relationship record on cmdb_rel_ci |
 |   ↳ `target` | json | Related CI as \{value \(sys_id\), display_value, link\} |
@@ -1315,33 +907,9 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### Search ServiceNow Knowledge
 
@@ -1377,7 +945,7 @@ Search ServiceNow knowledge base articles through the Knowledge Management API. 
 |   ↳ `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of articles returned |
-|   ↳ `totalCount` | number | Total number of available articles reported by ServiceNow |
+|   ↳ `totalCount` | number (nullable) | Total number of available articles reported by ServiceNow |
 
 ### Get ServiceNow Knowledge Article
 
@@ -1399,11 +967,11 @@ Retrieve the full content of a ServiceNow knowledge article by sys_id or KB numb
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sysId` | string | Article sys_id on kb_knowledge |
-| `number` | string | Knowledge article number |
-| `title` | string | Article title \(short description\) |
-| `content` | string | Full HTML content of the article |
-| `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
+| `sysId` | string (nullable) | Article sys_id on kb_knowledge |
+| `number` | string (nullable) | Knowledge article number |
+| `title` | string (nullable) | Article title \(short description\) |
+| `content` | string (nullable) | Full HTML content of the article |
+| `fields` | json (nullable) | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
 | `attachments` | array | Article attachments, returned only when display_attachments is active on the article |
 |   ↳ `sys_id` | string | Attachment sys_id |
 |   ↳ `file_name` | string | Attachment file name |
@@ -1435,33 +1003,9 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
+|   ↳ `recordCount` | number | Number of records returned |
 
 ### List ServiceNow Group Members
 
@@ -1486,35 +1030,9 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Single ServiceNow record |
-| `records` | json | Array of ServiceNow records |
-| `success` | boolean | Operation success status |
+| `records` | array | Matching ServiceNow records. With the default display value mode "all", every field is an object of the form \{value, display_value\}. |
 | `metadata` | json | Operation metadata |
-| `result` | json | Aggregate result \(stats or grouped array\) |
-| `count` | number | Aggregate matching record count |
-| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
-| `file` | file | Downloaded attachment file |
-| `content` | string | HTML body of a knowledge article |
-| `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
-| `items` | json | Service catalog items |
-| `articles` | json | Knowledge article search results |
-| `attributes` | json | Configuration item attributes |
-| `inboundRelations` | json | Inbound CI relationships |
-| `outboundRelations` | json | Outbound CI relationships |
-| `sysId` | string | sys_id returned by the operation |
-| `number` | string | Record number returned by the operation |
-| `requestNumber` | string | Catalog request number |
-| `requestId` | string | sys_id of the catalog request |
-| `table` | string | Table the catalog request was created on |
-| `availableStates` | json | State coded values a change request can reach, including its current state |
-| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
-| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
-| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
-| `title` | string | Knowledge article title |
-| `fields` | json | Requested knowledge article field values |
-
-
+|   ↳ `recordCount` | number | Number of records returned |
 
 ## Triggers
 
@@ -1713,4 +1231,3 @@ Trigger workflow on any ServiceNow webhook event
 | `eventType` | string | The type of event that triggered this workflow \(e.g., insert, update, delete\) |
 | `category` | string | Record category |
 | `record` | json | Full record data from the webhook payload |
-

@@ -5,7 +5,7 @@ description: Generate and vectorize SVGs
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="quiver_v2"
   color="#FFFFFF"
 />
@@ -58,8 +58,8 @@ Generate SVG images from text prompts using QuiverAI
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | file[] | All generated SVG files |
-| `id` | string | Request ID |
-| `usage` | json | Token usage statistics |
+| `id` | string (nullable) | Request ID |
+| `usage` | json (nullable) | Token usage statistics |
 |   ↳ `totalTokens` | number | Total tokens used |
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
@@ -87,8 +87,8 @@ Convert raster images into vector SVG format using QuiverAI
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | file[] | All generated SVG files |
-| `id` | string | Request ID |
-| `usage` | json | Token usage statistics |
+| `id` | string (nullable) | Request ID |
+| `usage` | json (nullable) | Token usage statistics |
 |   ↳ `totalTokens` | number | Total tokens used |
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
@@ -121,5 +121,3 @@ List all available QuiverAI models
 |     ↳ `maxOutputLength` | number | Maximum generation length |
 |     ↳ `supportedOperations` | json | Available operations \(svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions\) |
 |     ↳ `supportedSamplingParameters` | json | Supported sampling parameters \(temperature, top_p, top_k, repetition_penalty, presence_penalty, stop\) |
-
-

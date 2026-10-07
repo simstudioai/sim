@@ -5,7 +5,7 @@ description: Look up private market data on companies, deals, investors, funds, 
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="pitchbook"
   color="#1D5080"
 />
@@ -67,19 +67,19 @@ Search across every PitchBook entity type at once by name, PitchBook ID, website
 |   ↳ `page` | number | Current page number |
 |   ↳ `lastPage` | number | Number of the last available page |
 | `items` | array | Matching entities. Entries carry pbId/name for companies, investors, and service providers, and fundId/fundName for funds, so check which is populated before using an ID. |
-|   ↳ `pbId` | string | PitchBook entity ID, null for fund results |
-|   ↳ `name` | string | Entity name, null for fund results |
-|   ↳ `fundId` | string | PitchBook fund ID, present only on fund results |
-|   ↳ `fundName` | string | Fund name, present only on fund results |
-|   ↳ `website` | string | Entity website, absent on fund results |
-|   ↳ `pitchBookProfileLink` | string | Link to the entity profile in the PitchBook platform |
-|   ↳ `primaryFirmType` | object | Primary type of the entity |
+|   ↳ `pbId` | string (nullable) | PitchBook entity ID, null for fund results |
+|   ↳ `name` | string (nullable) | Entity name, null for fund results |
+|   ↳ `fundId` | string (nullable) | PitchBook fund ID, present only on fund results |
+|   ↳ `fundName` | string (nullable) | Fund name, present only on fund results |
+|   ↳ `website` | string (nullable) | Entity website, absent on fund results |
+|   ↳ `pitchBookProfileLink` | string (nullable) | Link to the entity profile in the PitchBook platform |
+|   ↳ `primaryFirmType` | object (nullable) | Primary type of the entity |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `type` | string | Entity type \(e.g. COMPANY, INVESTOR\) |
 |   ↳ `otherFirmTypes` | array | Additional types the entity is also classified as |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `type` | string | Entity type \(e.g. COMPANY, INVESTOR\) |
-|   ↳ `stockTicker` | string | Stock ticker when the entity is publicly traded |
+|   ↳ `stockTicker` | string (nullable) | Stock ticker when the entity is publicly traded |
 
 ### PitchBook Shared Search
 
@@ -128,26 +128,26 @@ Retrieve the people at an entity: primary contact, current and former team, and 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `entityId` | string | PitchBook entity ID |
-| `primaryContact` | object | Primary contact at the entity |
-|   ↳ `personId` | string | PitchBook person ID |
-|   ↳ `fullName` | string | Full name |
-|   ↳ `title` | string | Job title |
-|   ↳ `phone` | string | Phone number |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `email` | string | Email address |
+| `entityId` | string (nullable) | PitchBook entity ID |
+| `primaryContact` | object (nullable) | Primary contact at the entity |
+|   ↳ `personId` | string (nullable) | PitchBook person ID |
+|   ↳ `fullName` | string (nullable) | Full name |
+|   ↳ `title` | string (nullable) | Job title |
+|   ↳ `phone` | string (nullable) | Phone number |
+|   ↳ `fax` | string (nullable) | Fax number |
+|   ↳ `email` | string (nullable) | Email address |
 | `currentTeam` | array | People currently working at the entity |
 |   ↳ `id` | string | PitchBook person ID |
 |   ↳ `name` | string | Full name |
-|   ↳ `title` | string | Job title |
-|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `title` | string (nullable) | Job title |
+|   ↳ `positionStart` | string (nullable) | Date the position started \(YYYY-MM-DD\) |
 |   ↳ `infoAvailable` | boolean | Whether a full person profile is available for them |
 | `formerTeam` | array | People who previously worked at the entity |
 |   ↳ `id` | string | PitchBook person ID |
 |   ↳ `name` | string | Full name |
-|   ↳ `title` | string | Job title |
-|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
-|   ↳ `positionFinish` | string | Date the position ended \(YYYY-MM-DD\) |
+|   ↳ `title` | string (nullable) | Job title |
+|   ↳ `positionStart` | string (nullable) | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `positionFinish` | string (nullable) | Date the position ended \(YYYY-MM-DD\) |
 |   ↳ `infoAvailable` | boolean | Whether a full person profile is available for them |
 | `currentBoardMembersAndObservers` | array | Current board members and observers |
 | `formerBoardMembersAndObservers` | array | Former board members and observers |
@@ -168,34 +168,34 @@ Retrieve the headquarters and every alternate office on record for an entity
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `entityId` | string | PitchBook entity ID |
+| `entityId` | string (nullable) | PitchBook entity ID |
 | `hqOffice` | object | Headquarters office |
 |   ↳ `location` | string | Office label |
 |   ↳ `addressLine1` | string | Address line 1 |
-|   ↳ `addressLine2` | json | Address line 2 |
+|   ↳ `addressLine2` | json (nullable) | Address line 2 |
 |   ↳ `city` | string | City |
 |   ↳ `stateProvince` | string | State or province |
 |   ↳ `postCode` | string | Postal code |
 |   ↳ `country` | string | Country |
 |   ↳ `phone` | string | Phone number |
-|   ↳ `fax` | json | Fax number |
+|   ↳ `fax` | json (nullable) | Fax number |
 |   ↳ `email` | string | Email address |
 |   ↳ `globalRegion` | string | Global region |
 |   ↳ `globalSubRegion` | string | Global sub-region |
 | `alternateOffices` | array | Other offices on record |
 |   ↳ `location` | string | Office label |
-|   ↳ `addressLine1` | string | Address line 1 |
-|   ↳ `addressLine2` | string | Address line 2 |
-|   ↳ `city` | string | City |
-|   ↳ `stateProvince` | string | State or province |
-|   ↳ `postCode` | string | Postal code |
+|   ↳ `addressLine1` | string (nullable) | Address line 1 |
+|   ↳ `addressLine2` | string (nullable) | Address line 2 |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `stateProvince` | string (nullable) | State or province |
+|   ↳ `postCode` | string (nullable) | Postal code |
 |   ↳ `country` | string | Country |
-|   ↳ `phone` | json | Phone number |
-|   ↳ `fax` | json | Fax number |
+|   ↳ `phone` | json (nullable) | Phone number |
+|   ↳ `fax` | json (nullable) | Fax number |
 |   ↳ `email` | string | Email address |
 |   ↳ `globalRegion` | string | Global region |
 |   ↳ `globalSubRegion` | string | Global sub-region |
-| `alternateOfficesCount` | number | How many other offices are on record |
+| `alternateOfficesCount` | number (nullable) | How many other offices are on record |
 
 ### PitchBook Entity Affiliates
 
@@ -240,10 +240,10 @@ Retrieve recent news articles PitchBook has associated with an entity
 | `news` | array | News articles associated with the entity, most recent first |
 |   ↳ `entityId` | string | PitchBook entity ID the article is about |
 |   ↳ `title` | string | Article headline |
-|   ↳ `byline` | string | Article summary or byline |
-|   ↳ `source` | string | Publication the article came from |
-|   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
-|   ↳ `url` | string | Link to the article |
+|   ↳ `byline` | string (nullable) | Article summary or byline |
+|   ↳ `source` | string (nullable) | Publication the article came from |
+|   ↳ `publishDate` | string (nullable) | Publication timestamp \(ISO 8601\) |
+|   ↳ `url` | string (nullable) | Link to the article |
 
 ### PitchBook Entity Updates
 
@@ -263,7 +263,7 @@ Check which entity datasets changed in a window, so a sync only refetches what m
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Company Search
 
@@ -310,7 +310,7 @@ Search PitchBook for companies by name, location, industry, funding, deal activi
 | `items` | array | Companies matching the search criteria |
 |   ↳ `companyId` | string | PitchBook company ID |
 |   ↳ `companyName` | string | Company name |
-|   ↳ `website` | string | Company website |
+|   ↳ `website` | string (nullable) | Company website |
 
 ### PitchBook Company Bio
 
@@ -328,59 +328,59 @@ Retrieve the core profile of a company: names, description, HQ, status, headcoun
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
+| `companyId` | string (nullable) | PitchBook company ID |
 | `companyName` | object | The names the company is known by |
-|   ↳ `formalName` | string | Formal name |
-|   ↳ `alsoKnownAs` | string | Also-known-as name |
-|   ↳ `legalName` | string | Registered legal name |
-|   ↳ `formerlyKnownAs` | string | Previous name |
-| `parentCompanyId` | string | PitchBook ID of the parent company |
-| `parentCompanyName` | string | Name of the parent company |
-| `hqLocation` | object | Headquarters location |
-|   ↳ `city` | string | City |
-|   ↳ `stateProvince` | string | State or province |
-|   ↳ `postCode` | string | Postal code |
-|   ↳ `country` | string | Country |
-| `description` | string | Business description |
-| `financingStatus` | object | How the company is financed |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `businessStatus` | object | Operating status of the business |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `ownershipStatus` | object | Ownership status of the company |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
+|   ↳ `formalName` | string (nullable) | Formal name |
+|   ↳ `alsoKnownAs` | string (nullable) | Also-known-as name |
+|   ↳ `legalName` | string (nullable) | Registered legal name |
+|   ↳ `formerlyKnownAs` | string (nullable) | Previous name |
+| `parentCompanyId` | string (nullable) | PitchBook ID of the parent company |
+| `parentCompanyName` | string (nullable) | Name of the parent company |
+| `hqLocation` | object (nullable) | Headquarters location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `stateProvince` | string (nullable) | State or province |
+|   ↳ `postCode` | string (nullable) | Postal code |
+|   ↳ `country` | string (nullable) | Country |
+| `description` | string (nullable) | Business description |
+| `financingStatus` | object (nullable) | How the company is financed |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `businessStatus` | object (nullable) | Operating status of the business |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `ownershipStatus` | object (nullable) | Ownership status of the company |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
 | `universe` | array | PitchBook universes the company belongs to |
 |   ↳ `code` | string | Universe code |
 |   ↳ `description` | string | Universe label |
-| `website` | string | Company website |
-| `employees` | number | Current employee count |
+| `website` | string (nullable) | Company website |
+| `employees` | number (nullable) | Current employee count |
 | `employeeHistory` | array | Reported headcount over time |
 |   ↳ `asOfDate` | string | Date the count was reported \(YYYY-MM-DD\) |
 |   ↳ `employeeCount` | number | Headcount on that date |
-| `exchange` | string | Stock exchange the company trades on |
-| `ticker` | string | Stock ticker |
-| `yearFounded` | number | Year the company was founded |
-| `financingStatusNote` | object | Analyst note explaining the financing status |
-|   ↳ `note` | string | Note text |
-|   ↳ `asOfDate` | string | Date of the note \(YYYY-MM-DD\) |
-| `totalMoneyRaised` | object | Total capital raised to date |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `exchange` | string (nullable) | Stock exchange the company trades on |
+| `ticker` | string (nullable) | Stock ticker |
+| `yearFounded` | number (nullable) | Year the company was founded |
+| `financingStatusNote` | object (nullable) | Analyst note explaining the financing status |
+|   ↳ `note` | string (nullable) | Note text |
+|   ↳ `asOfDate` | string (nullable) | Date of the note \(YYYY-MM-DD\) |
+| `totalMoneyRaised` | object (nullable) | Total capital raised to date |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 | `sicCodes` | array | SIC classification codes |
 |   ↳ `code` | string | SIC code |
 |   ↳ `description` | string | SIC code label |
-| `morningstarCode` | string | Morningstar identifier |
-| `cikCode` | string | SEC CIK identifier |
-| `companySocialURLs` | object | Social profile links |
-|   ↳ `facebookProfileUrl` | string | Facebook profile |
-|   ↳ `twitterProfileUrl` | string | X/Twitter profile |
-|   ↳ `linkedInProfileUrl` | string | LinkedIn profile |
-| `pitchBookProfileLink` | string | Link to the company profile in the PitchBook platform |
+| `morningstarCode` | string (nullable) | Morningstar identifier |
+| `cikCode` | string (nullable) | SEC CIK identifier |
+| `companySocialURLs` | object (nullable) | Social profile links |
+|   ↳ `facebookProfileUrl` | string (nullable) | Facebook profile |
+|   ↳ `twitterProfileUrl` | string (nullable) | X/Twitter profile |
+|   ↳ `linkedInProfileUrl` | string (nullable) | LinkedIn profile |
+| `pitchBookProfileLink` | string (nullable) | Link to the company profile in the PitchBook platform |
 
 ### PitchBook Company Industries
 
@@ -442,11 +442,11 @@ Retrieve every investor in a company, current and former, with the type of inves
 |       ↳ `code` | string | Investor type code |
 |       ↳ `description` | string | Investor type label |
 |     ↳ `primary` | boolean | Whether this is the primary type |
-|   ↳ `investorSince` | string | Date the investor first invested \(YYYY-MM-DD\) |
-|   ↳ `investorExit` | string | Date the investor exited \(YYYY-MM-DD\) |
-|   ↳ `investorStatus` | object | Whether the investor is current or former |
-|     ↳ `code` | string | Status code |
-|     ↳ `description` | string | Status label |
+|   ↳ `investorSince` | string (nullable) | Date the investor first invested \(YYYY-MM-DD\) |
+|   ↳ `investorExit` | string (nullable) | Date the investor exited \(YYYY-MM-DD\) |
+|   ↳ `investorStatus` | object (nullable) | Whether the investor is current or former |
+|     ↳ `code` | string (nullable) | Status code |
+|     ↳ `description` | string (nullable) | Status label |
 
 ### PitchBook Company Active Investors
 
@@ -495,16 +495,16 @@ Retrieve every deal a company has been involved in, in chronological order with 
 | `deals` | array | Deals involving the company, oldest first |
 |   ↳ `companyId` | string | PitchBook company ID |
 |   ↳ `dealId` | string | PitchBook deal ID |
-|   ↳ `dealDate` | string | Date of the deal \(YYYY-MM-DD\) |
-|   ↳ `dealType1` | object | Primary deal type |
-|     ↳ `code` | string | Deal type code |
-|     ↳ `description` | string | Deal type label |
-|   ↳ `dealType2` | object | Secondary deal type, such as the round letter |
-|     ↳ `code` | string | Deal type code |
-|     ↳ `description` | string | Deal type label |
-|   ↳ `dealType3` | object | Tertiary deal type |
-|     ↳ `code` | string | Deal type code |
-|     ↳ `description` | string | Deal type label |
+|   ↳ `dealDate` | string (nullable) | Date of the deal \(YYYY-MM-DD\) |
+|   ↳ `dealType1` | object (nullable) | Primary deal type |
+|     ↳ `code` | string (nullable) | Deal type code |
+|     ↳ `description` | string (nullable) | Deal type label |
+|   ↳ `dealType2` | object (nullable) | Secondary deal type, such as the round letter |
+|     ↳ `code` | string (nullable) | Deal type code |
+|     ↳ `description` | string (nullable) | Deal type label |
+|   ↳ `dealType3` | object (nullable) | Tertiary deal type |
+|     ↳ `code` | string (nullable) | Deal type code |
+|     ↳ `description` | string (nullable) | Deal type label |
 |   ↳ `dealNumber` | number | Sequence of this deal in the company financing history |
 
 ### PitchBook Company Most Recent Financing
@@ -523,45 +523,45 @@ Retrieve a company most recent financing round: date, size, type, and last known
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
-| `lastFinancingDealId` | string | PitchBook deal ID of the most recent financing |
-| `lastFinancingDate` | string | Date of the most recent financing \(YYYY-MM-DD\) |
-| `lastFinancingSize` | object | Size of the most recent financing |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `lastFinancingDealId` | string (nullable) | PitchBook deal ID of the most recent financing |
+| `lastFinancingDate` | string (nullable) | Date of the most recent financing \(YYYY-MM-DD\) |
+| `lastFinancingSize` | object (nullable) | Size of the most recent financing |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `lastFinancingSizeStatus` | string | Whether the financing size is actual or estimated |
-| `lastFinancingValuation` | object | Valuation at the most recent financing |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `lastFinancingSizeStatus` | string (nullable) | Whether the financing size is actual or estimated |
+| `lastFinancingValuation` | object (nullable) | Valuation at the most recent financing |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `lastFinancingValuationStatus` | string | Whether the valuation is actual or estimated |
-| `lastFinancingDealType` | object | Primary deal type of the most recent financing |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `lastFinancingDealType2` | object | Secondary deal type of the most recent financing |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `lastFinancingDealType3` | object | Tertiary deal type of the most recent financing |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `lastFinancingDealClass` | object | Deal class of the most recent financing |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `lastKnownValuation` | object | Most recent known valuation of the company |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `lastFinancingValuationStatus` | string (nullable) | Whether the valuation is actual or estimated |
+| `lastFinancingDealType` | object (nullable) | Primary deal type of the most recent financing |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `lastFinancingDealType2` | object (nullable) | Secondary deal type of the most recent financing |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `lastFinancingDealType3` | object (nullable) | Tertiary deal type of the most recent financing |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `lastFinancingDealClass` | object (nullable) | Deal class of the most recent financing |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `lastKnownValuation` | object (nullable) | Most recent known valuation of the company |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `lastKnownValuationDate` | string | Date of the last known valuation \(YYYY-MM-DD\) |
-| `lastKnownValuationDealType` | object | Deal type the last known valuation came from |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
+| `lastKnownValuationDate` | string (nullable) | Date of the last known valuation \(YYYY-MM-DD\) |
+| `lastKnownValuationDealType` | object (nullable) | Deal type the last known valuation came from |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
 
 ### PitchBook Company Most Recent Debt Financing
 
@@ -579,9 +579,9 @@ Retrieve a company most recent debt financing, including each debt instrument ra
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
-| `lastDebtFinancingDealId` | string | PitchBook deal ID of the most recent debt financing |
-| `lastDebtFinancingDate` | string | Date of the most recent debt financing \(YYYY-MM-DD\) |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `lastDebtFinancingDealId` | string (nullable) | PitchBook deal ID of the most recent debt financing |
+| `lastDebtFinancingDate` | string (nullable) | Date of the most recent debt financing \(YYYY-MM-DD\) |
 | `lastDebtFinancing` | array | Debt instruments in the most recent debt financing |
 |   ↳ `lastDebtFinancingType` | object | Type of the most recent debt financing |
 |     ↳ `code` | string | PitchBook code |
@@ -592,10 +592,10 @@ Retrieve a company most recent debt financing, including each debt instrument ra
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-|   ↳ `seniority` | json | Seniority of the debt |
-|   ↳ `security` | json | Security backing the debt |
-|   ↳ `subordination` | json | Subordination terms |
-|   ↳ `term` | json | Term of the debt |
+|   ↳ `seniority` | json (nullable) | Seniority of the debt |
+|   ↳ `security` | json (nullable) | Security backing the debt |
+|   ↳ `subordination` | json (nullable) | Subordination terms |
+|   ↳ `term` | json (nullable) | Term of the debt |
 |   ↳ `additionalDebtCharacteristics` | object | Other characteristics of the debt |
 |     ↳ `unitranche` | boolean | Whether the debt is unitranche |
 |     ↳ `syndicated` | boolean | Whether the debt is syndicated |
@@ -603,7 +603,7 @@ Retrieve a company most recent debt financing, including each debt instrument ra
 |     ↳ `covLite` | boolean | Whether the debt is covenant-lite |
 |     ↳ `warrants` | boolean | Whether warrants are attached |
 |     ↳ `convertible` | boolean | Whether the instrument is convertible |
-|     ↳ `rate` | json | Interest rate |
+|     ↳ `rate` | json (nullable) | Interest rate |
 |   ↳ `lenders` | array | Lenders on the debt |
 
 ### PitchBook Company Most Recent Financials
@@ -622,44 +622,44 @@ Retrieve the most recent reported financials for a private company: revenue, net
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
-| `period` | number | Fiscal period the figures cover |
-| `endDate` | string | Period end date \(YYYY-MM-DD\) |
-| `enterpriseValue` | object | Enterprise value |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `period` | number (nullable) | Fiscal period the figures cover |
+| `endDate` | string (nullable) | Period end date \(YYYY-MM-DD\) |
+| `enterpriseValue` | object (nullable) | Enterprise value |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `revenue` | object | Revenue |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `revenue` | object (nullable) | Revenue |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `netIncome` | object | Net income |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `netIncome` | object (nullable) | Net income |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `ebitda` | object | EBITDA |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `ebitda` | object (nullable) | EBITDA |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `totalAssets` | object | Total assets |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `totalAssets` | object (nullable) | Total assets |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `totalDebt` | object | Total debt |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `totalDebt` | object (nullable) | Total debt |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 
 ### PitchBook Company Financials
@@ -682,13 +682,13 @@ Retrieve reported financials for a private company across every available fiscal
 | `items` | array | Records returned |
 |   ↳ `period` | string | Fiscal period the figures cover |
 |   ↳ `endDate` | string | End date \(YYYY-MM-DD\) |
-|   ↳ `enterpriseValue` | object | Enterprise value |
+|   ↳ `enterpriseValue` | object (nullable) | Enterprise value |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `revenue` | object | Revenue |
+|   ↳ `revenue` | object (nullable) | Revenue |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
@@ -706,13 +706,13 @@ Retrieve reported financials for a private company across every available fiscal
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `totalAssets` | object | Total assets |
+|   ↳ `totalAssets` | object (nullable) | Total assets |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `totalDebt` | object | Total debt |
+|   ↳ `totalDebt` | object (nullable) | Total debt |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
@@ -758,16 +758,16 @@ Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Re
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
-| `predictionDate` | string | Date the prediction was generated \(YYYY-MM-DD\) |
-| `opportunityScore` | number | PitchBook opportunity score |
-| `successClass` | string | Predicted outcome class, such as Success |
-| `successProbability` | number | Probability of a successful outcome, as a percentage |
-| `noexitProbability` | number | Probability of no exit, as a percentage |
-| `exitClass` | string | Most likely exit type, such as IPO or M&A |
-| `ipoProbability` | number | Probability of an IPO exit, as a percentage |
-| `mergeracquisitionProbability` | number | Probability of an M&A exit, as a percentage |
-| `vcDealNumber` | number | Number of VC deals the prediction is based on |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `predictionDate` | string (nullable) | Date the prediction was generated \(YYYY-MM-DD\) |
+| `opportunityScore` | number (nullable) | PitchBook opportunity score |
+| `successClass` | string (nullable) | Predicted outcome class, such as Success |
+| `successProbability` | number (nullable) | Probability of a successful outcome, as a percentage |
+| `noexitProbability` | number (nullable) | Probability of no exit, as a percentage |
+| `exitClass` | string (nullable) | Most likely exit type, such as IPO or M&A |
+| `ipoProbability` | number (nullable) | Probability of an IPO exit, as a percentage |
+| `mergeracquisitionProbability` | number (nullable) | Probability of an M&A exit, as a percentage |
+| `vcDealNumber` | number (nullable) | Number of VC deals the prediction is based on |
 
 ### PitchBook Company Social Analytics
 
@@ -786,26 +786,26 @@ Retrieve web and social growth and size metrics for a company, with percentile r
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
-| `growthRate` | number | Overall growth rate |
-| `growthRatePercentile` | number | Percentile of the overall growth rate |
-| `growthRateChange` | number | Change in the overall growth rate |
-| `growthRatePercentChange` | number | Percent change in the overall growth rate |
-| `webGrowthRate` | number | Web traffic growth rate |
-| `webGrowthRatePercentile` | number | Percentile of the web growth rate |
-| `socialGrowthRate` | number | Social following growth rate |
-| `socialGrowthRatePercentile` | number | Percentile of the social growth rate |
-| `sizeMultiple` | number | Overall size multiple |
-| `sizeMultiplePercentile` | number | Percentile of the size multiple |
-| `sizeMultipleChange` | number | Change in the size multiple |
-| `sizeMultiplePercentChange` | number | Percent change in the size multiple |
-| `webSizeMultiple` | number | Web size multiple |
-| `webSizeMultiplePercentile` | number | Percentile of the web size multiple |
-| `socialSizeMultiple` | number | Social size multiple |
-| `socialSizeMultiplePercentile` | number | Percentile of the social size multiple |
-| `twitterFollowers` | number | Twitter/X follower count |
-| `twitterFollowersChange` | number | Change in follower count |
-| `twitterFollowersPercentChange` | number | Percent change in follower count |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `growthRate` | number (nullable) | Overall growth rate |
+| `growthRatePercentile` | number (nullable) | Percentile of the overall growth rate |
+| `growthRateChange` | number (nullable) | Change in the overall growth rate |
+| `growthRatePercentChange` | number (nullable) | Percent change in the overall growth rate |
+| `webGrowthRate` | number (nullable) | Web traffic growth rate |
+| `webGrowthRatePercentile` | number (nullable) | Percentile of the web growth rate |
+| `socialGrowthRate` | number (nullable) | Social following growth rate |
+| `socialGrowthRatePercentile` | number (nullable) | Percentile of the social growth rate |
+| `sizeMultiple` | number (nullable) | Overall size multiple |
+| `sizeMultiplePercentile` | number (nullable) | Percentile of the size multiple |
+| `sizeMultipleChange` | number (nullable) | Change in the size multiple |
+| `sizeMultiplePercentChange` | number (nullable) | Percent change in the size multiple |
+| `webSizeMultiple` | number (nullable) | Web size multiple |
+| `webSizeMultiplePercentile` | number (nullable) | Percentile of the web size multiple |
+| `socialSizeMultiple` | number (nullable) | Social size multiple |
+| `socialSizeMultiplePercentile` | number (nullable) | Percentile of the social size multiple |
+| `twitterFollowers` | number (nullable) | Twitter/X follower count |
+| `twitterFollowersChange` | number (nullable) | Change in follower count |
+| `twitterFollowersPercentChange` | number (nullable) | Percent change in follower count |
 
 ### PitchBook Company General Service Providers
 
@@ -823,7 +823,7 @@ Retrieve the current and former general service providers engaged by a company
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companyId` | string | PitchBook company ID |
+| `companyId` | string (nullable) | PitchBook company ID |
 | `currentGeneralServices` | array | Current general service relationships |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
@@ -894,7 +894,7 @@ Check which company datasets changed in a window, so a sync only refetches what 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Patent Search
 
@@ -960,13 +960,13 @@ Retrieve the full record for a single patent: title, status, dates, assignees, i
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `patentId` | string | Patent ID |
-| `patentTitle` | string | Patent title |
-| `status` | string | Status |
-| `publicationDate` | string | Publication date \(YYYY-MM-DD\) |
-| `firstFilingDate` | string | First filing date \(YYYY-MM-DD\) |
-| `expirationDate` | json | Expiration date \(YYYY-MM-DD\) |
-| `filingAuthorityLocation` | string | Filing authority location |
+| `patentId` | string (nullable) | Patent ID |
+| `patentTitle` | string (nullable) | Patent title |
+| `status` | string (nullable) | Status |
+| `publicationDate` | string (nullable) | Publication date \(YYYY-MM-DD\) |
+| `firstFilingDate` | string (nullable) | First filing date \(YYYY-MM-DD\) |
+| `expirationDate` | json (nullable) | Expiration date \(YYYY-MM-DD\) |
+| `filingAuthorityLocation` | string (nullable) | Filing authority location |
 | `cpcSection` | object | CPC section |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
@@ -978,17 +978,17 @@ Retrieve the full record for a single patent: title, status, dates, assignees, i
 |   ↳ `description` | string | Human-readable label for the code |
 | `currentAssigneeNames` | array | Current assignees |
 | `originalAssigneeNames` | array | Original assignees |
-| `mostRecentLegalStatus` | string | Most recent legal status |
-| `mostRecentLegalStatusDate` | string | Date of the most recent legal status \(YYYY-MM-DD\) |
-| `applicationDate` | string | Application date \(YYYY-MM-DD\) |
-| `grantDate` | string | Grant date \(YYYY-MM-DD\) |
-| `familyId` | string | Patent family ID |
+| `mostRecentLegalStatus` | string (nullable) | Most recent legal status |
+| `mostRecentLegalStatusDate` | string (nullable) | Date of the most recent legal status \(YYYY-MM-DD\) |
+| `applicationDate` | string (nullable) | Application date \(YYYY-MM-DD\) |
+| `grantDate` | string (nullable) | Grant date \(YYYY-MM-DD\) |
+| `familyId` | string (nullable) | Patent family ID |
 | `inventors` | array | Named inventors |
-| `documentForwardCitations` | number | Number of forward citations |
-| `documentBackwardCitations` | number | Number of backward citations |
-| `countOfClaims` | number | Number of claims |
-| `countOfIndependentClaims` | number | Number of independent claims |
-| `patentDownloadUrl` | string | Link to download the patent document |
+| `documentForwardCitations` | number (nullable) | Number of forward citations |
+| `documentBackwardCitations` | number (nullable) | Number of backward citations |
+| `countOfClaims` | number (nullable) | Number of claims |
+| `countOfIndependentClaims` | number (nullable) | Number of independent claims |
+| `patentDownloadUrl` | string (nullable) | Link to download the patent document |
 
 ### PitchBook Deal Search
 
@@ -1048,34 +1048,34 @@ Retrieve the summary of a deal: company, date, size, status, type, and which det
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of this deal in the company financing history |
-| `companyId` | string | PitchBook ID of the company in the deal |
-| `companyName` | string | Name of the company in the deal |
-| `dealAnnouncedDate` | string | Date the deal was announced \(YYYY-MM-DD\) |
-| `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
-| `dealSize` | object | Size of the deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of this deal in the company financing history |
+| `companyId` | string (nullable) | PitchBook ID of the company in the deal |
+| `companyName` | string (nullable) | Name of the company in the deal |
+| `dealAnnouncedDate` | string (nullable) | Date the deal was announced \(YYYY-MM-DD\) |
+| `dealDate` | string (nullable) | Date the deal closed \(YYYY-MM-DD\) |
+| `dealSize` | object (nullable) | Size of the deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `dealSizeStatus` | string | Whether the deal size is actual or estimated |
-| `dealStatus` | object | Status of the deal, such as Completed |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealType1` | object | Primary deal type |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealType2` | object | Secondary deal type, such as the round letter |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealType3` | object | Tertiary deal type |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealClass` | object | Deal class, such as Venture Capital |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
+| `dealSizeStatus` | string (nullable) | Whether the deal size is actual or estimated |
+| `dealStatus` | object (nullable) | Status of the deal, such as Completed |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealType1` | object (nullable) | Primary deal type |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealType2` | object (nullable) | Secondary deal type, such as the round letter |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealType3` | object (nullable) | Tertiary deal type |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealClass` | object (nullable) | Deal class, such as Venture Capital |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
 | `valuationAvailable` | boolean | Whether valuation data exists for this deal |
 | `capTableAvailable` | boolean | Whether cap table history exists for this deal |
 | `trancheInfoAvailable` | boolean | Whether tranche information exists for this deal |
@@ -1097,95 +1097,95 @@ Retrieve the full detail of a deal: synopsis, percent acquired, round, invested 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of this deal in the company financing history |
-| `companyId` | string | PitchBook ID of the company in the deal |
-| `companyName` | string | Name of the company in the deal |
-| `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
-| `dealSize` | object | Size of the deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of this deal in the company financing history |
+| `companyId` | string (nullable) | PitchBook ID of the company in the deal |
+| `companyName` | string (nullable) | Name of the company in the deal |
+| `dealDate` | string (nullable) | Date the deal closed \(YYYY-MM-DD\) |
+| `dealSize` | object (nullable) | Size of the deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `dealSizeStatus` | string | Whether the deal size is actual or estimated |
-| `dealStatus` | object | Status of the deal, such as Completed |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `percentAcquired` | number | Percentage of the company acquired in the deal |
-| `raisedToDate` | object | Total the company had raised as of this deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `dealSizeStatus` | string (nullable) | Whether the deal size is actual or estimated |
+| `dealStatus` | object (nullable) | Status of the deal, such as Completed |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `percentAcquired` | number (nullable) | Percentage of the company acquired in the deal |
+| `raisedToDate` | object (nullable) | Total the company had raised as of this deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `vcRound` | string | Venture round label, such as 1st Round |
-| `vcRoundUpDownFlat` | string | Whether the round was up, down, or flat versus the previous one |
-| `totalInvestedCapital` | object | Total capital invested in the deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `vcRound` | string (nullable) | Venture round label, such as 1st Round |
+| `vcRoundUpDownFlat` | string (nullable) | Whether the round was up, down, or flat versus the previous one |
+| `totalInvestedCapital` | object (nullable) | Total capital invested in the deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `investorOwnership` | number | Percentage of the company owned by investors after the deal |
-| `stockSplit` | string | Stock split applied at the deal, such as 1:1 |
-| `dealType1` | object | Primary deal type |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealType2` | object | Secondary deal type, such as the round letter |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealType3` | object | Tertiary deal type |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealClass` | object | Deal class, such as Venture Capital |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `dealSynopsis` | string | Narrative summary of the deal |
-| `totalInvestedEquity` | object | Total equity invested in the deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `investorOwnership` | number (nullable) | Percentage of the company owned by investors after the deal |
+| `stockSplit` | string (nullable) | Stock split applied at the deal, such as 1:1 |
+| `dealType1` | object (nullable) | Primary deal type |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealType2` | object (nullable) | Secondary deal type, such as the round letter |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealType3` | object (nullable) | Tertiary deal type |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealClass` | object (nullable) | Deal class, such as Venture Capital |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `dealSynopsis` | string (nullable) | Narrative summary of the deal |
+| `totalInvestedEquity` | object (nullable) | Total equity invested in the deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `debtType1` | object | Primary debt type raised in the deal |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `debtType2` | object | Secondary debt type raised in the deal |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `debtType3` | object | Tertiary debt type raised in the deal |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
-| `debtAmount1` | object | Amount of the primary debt type |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `debtType1` | object (nullable) | Primary debt type raised in the deal |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `debtType2` | object (nullable) | Secondary debt type raised in the deal |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `debtType3` | object (nullable) | Tertiary debt type raised in the deal |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
+| `debtAmount1` | object (nullable) | Amount of the primary debt type |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `debtAmount2` | object | Amount of the secondary debt type |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `debtAmount2` | object (nullable) | Amount of the secondary debt type |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `debtAmount3` | object | Amount of the tertiary debt type |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `debtAmount3` | object (nullable) | Amount of the tertiary debt type |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `debtRaisedInRound` | object | Total debt raised in the round |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `debtRaisedInRound` | object (nullable) | Total debt raised in the round |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `contingentPayout` | object | Contingent payout attached to the deal |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `contingentPayout` | object (nullable) | Contingent payout attached to the deal |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 | `valuationAvailable` | boolean | Whether valuation data exists for this deal |
 | `capTableAvailable` | boolean | Whether cap table history exists for this deal |
@@ -1208,23 +1208,23 @@ Retrieve the pre-money and post-money valuation recorded for a deal
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of this deal in the company financing history |
-| `companyId` | string | PitchBook ID of the company in the deal |
-| `companyName` | string | Name of the company in the deal |
-| `preValuation` | object | Pre-money valuation |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of this deal in the company financing history |
+| `companyId` | string (nullable) | PitchBook ID of the company in the deal |
+| `companyName` | string (nullable) | Name of the company in the deal |
+| `preValuation` | object (nullable) | Pre-money valuation |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `postValuation` | object | Post-money valuation |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `postValuation` | object (nullable) | Post-money valuation |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `postValuationStatus` | string | Whether the post-money valuation is actual or estimated |
+| `postValuationStatus` | string (nullable) | Whether the post-money valuation is actual or estimated |
 
 ### PitchBook Deal Multiples
 
@@ -1242,27 +1242,27 @@ Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of the deal in the company financing history |
-| `companyId` | string | PitchBook company ID |
-| `companyName` | string | Company name |
-| `dealSizeToCashFlow` | number | Deal size to cash flow |
-| `dealSizeToEBIT` | number | Deal size to EBIT |
-| `dealSizeToEBITDA` | number | Deal size to EBITDA |
-| `dealSizeToNetIncome` | json | Deal size to net income |
-| `dealSizeToRevenue` | number | Deal size to revenue |
-| `debtRaisedInRoundToEBITDA` | json | Debt raised in round to EBITDA |
-| `debtRaisedInRoundToEquity` | json | Debt raised in round to equity |
-| `impliedEvToCashFlow` | number | Implied EV to cash flow |
-| `impliedEvToEBIT` | number | Implied EV to EBIT |
-| `impliedEvToEBITDA` | number | Implied EV to EBITDA |
-| `impliedEvToNetIncome` | json | Implied EV to net income |
-| `impliedEvToRevenue` | number | Implied EV to revenue |
-| `valuationToCashFlow` | number | Valuation to cash flow |
-| `valuationToEBIT` | number | Valuation to EBIT |
-| `valuationToEBITDA` | number | Valuation to EBITDA |
-| `valuationToNetIncome` | json | Valuation to net income |
-| `valuationToRevenue` | number | Valuation to revenue |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of the deal in the company financing history |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `companyName` | string (nullable) | Company name |
+| `dealSizeToCashFlow` | number (nullable) | Deal size to cash flow |
+| `dealSizeToEBIT` | number (nullable) | Deal size to EBIT |
+| `dealSizeToEBITDA` | number (nullable) | Deal size to EBITDA |
+| `dealSizeToNetIncome` | json (nullable) | Deal size to net income |
+| `dealSizeToRevenue` | number (nullable) | Deal size to revenue |
+| `debtRaisedInRoundToEBITDA` | json (nullable) | Debt raised in round to EBITDA |
+| `debtRaisedInRoundToEquity` | json (nullable) | Debt raised in round to equity |
+| `impliedEvToCashFlow` | number (nullable) | Implied EV to cash flow |
+| `impliedEvToEBIT` | number (nullable) | Implied EV to EBIT |
+| `impliedEvToEBITDA` | number (nullable) | Implied EV to EBITDA |
+| `impliedEvToNetIncome` | json (nullable) | Implied EV to net income |
+| `impliedEvToRevenue` | number (nullable) | Implied EV to revenue |
+| `valuationToCashFlow` | number (nullable) | Valuation to cash flow |
+| `valuationToEBIT` | number (nullable) | Valuation to EBIT |
+| `valuationToEBITDA` | number (nullable) | Valuation to EBITDA |
+| `valuationToNetIncome` | json (nullable) | Valuation to net income |
+| `valuationToRevenue` | number (nullable) | Valuation to revenue |
 
 ### PitchBook Deal Investors
 
@@ -1280,28 +1280,28 @@ Retrieve the investors, sellers, and exiting investors on a deal, including who 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `companyId` | string | PitchBook ID of the company in the deal |
-| `companyName` | string | Name of the company in the deal |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `companyId` | string (nullable) | PitchBook ID of the company in the deal |
+| `companyName` | string (nullable) | Name of the company in the deal |
 | `investors` | array | Investors participating in the deal |
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `investorName` | string | Investor name |
-|   ↳ `investmentStatus` | string | Whether the investor is new or following on |
+|   ↳ `investmentStatus` | string (nullable) | Whether the investor is new or following on |
 |   ↳ `leadSoleInvestor` | boolean | Whether the investor led or solely funded the round |
-|   ↳ `leadPartnerId` | string | PitchBook person ID of the lead partner |
-|   ↳ `leadPartnerName` | string | Name of the lead partner |
+|   ↳ `leadPartnerId` | string (nullable) | PitchBook person ID of the lead partner |
+|   ↳ `leadPartnerName` | string (nullable) | Name of the lead partner |
 |   ↳ `investorFunds` | array | Funds the investor deployed into the deal |
 |     ↳ `fundId` | string | PitchBook fund ID |
 |     ↳ `fundName` | string | Fund name |
-|   ↳ `investmentAmount` | object | Amount this investor put into the deal |
-|     ↳ `amount` | number | Value in the requested currency |
-|     ↳ `currency` | string | Currency of amount |
-|     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|     ↳ `nativeCurrency` | string | Currency of nativeAmount |
+|   ↳ `investmentAmount` | object (nullable) | Amount this investor put into the deal |
+|     ↳ `amount` | number (nullable) | Value in the requested currency |
+|     ↳ `currency` | string (nullable) | Currency of amount |
+|     ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|     ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-|   ↳ `formOfPayment` | object | How the investment was paid |
-|     ↳ `code` | string | Payment form code |
-|     ↳ `description` | string | Payment form label |
+|   ↳ `formOfPayment` | object (nullable) | How the investment was paid |
+|     ↳ `code` | string (nullable) | Payment form code |
+|     ↳ `description` | string (nullable) | Payment form label |
 | `sellers` | array | Parties selling in the deal |
 | `exiters` | array | Investors exiting through the deal |
 
@@ -1321,29 +1321,29 @@ Retrieve the share terms of a deal: price per share, shares acquired, and the pr
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of the deal in the company financing history |
-| `companyId` | string | PitchBook company ID |
-| `companyName` | string | Company name |
-| `series` | string | Stock series |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of the deal in the company financing history |
+| `companyId` | string (nullable) | PitchBook company ID |
+| `companyName` | string (nullable) | Company name |
+| `series` | string (nullable) | Stock series |
 | `pricePerShare` | object | Price per share |
 |   ↳ `amount` | number | Value in the requested currency |
 |   ↳ `currency` | string | Currency of amount |
 |   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
 |   ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `stockType` | json | Type of stock |
-| `numberOfSharesAcquired` | number | Shares acquired |
-| `sharesSought` | number | Shares sought |
-| `conversionRatio` | string | Conversion ratio |
-| `liquidationPreferences` | string | Liquidation preference terms |
-| `liquidationParticipating` | string | Whether the preference participates |
-| `dividendRights` | string | Dividend rights terms |
-| `cumulativeness` | string | Whether dividends are cumulative |
-| `antiDilutionProvisions` | string | Anti-dilution provisions |
-| `redemptionRights` | json | Redemption rights terms |
-| `boardVotingRights` | string | Board voting rights terms |
-| `generalVotingRights` | string | General voting rights terms |
+| `stockType` | json (nullable) | Type of stock |
+| `numberOfSharesAcquired` | number (nullable) | Shares acquired |
+| `sharesSought` | number (nullable) | Shares sought |
+| `conversionRatio` | string (nullable) | Conversion ratio |
+| `liquidationPreferences` | string (nullable) | Liquidation preference terms |
+| `liquidationParticipating` | string (nullable) | Whether the preference participates |
+| `dividendRights` | string (nullable) | Dividend rights terms |
+| `cumulativeness` | string (nullable) | Whether dividends are cumulative |
+| `antiDilutionProvisions` | string (nullable) | Anti-dilution provisions |
+| `redemptionRights` | json (nullable) | Redemption rights terms |
+| `boardVotingRights` | string (nullable) | Board voting rights terms |
+| `generalVotingRights` | string (nullable) | General voting rights terms |
 
 ### PitchBook Deal Cap Table History
 
@@ -1375,7 +1375,7 @@ Retrieve the cap table as of a deal, one row per stock series with its terms and
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `dividendRate` | number | Dividend rate |
-|   ↳ `dividendAmount` | json | Dividend amount |
+|   ↳ `dividendAmount` | json (nullable) | Dividend amount |
 |   ↳ `originalIssuePrice` | object | Original issue price per share |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `currency` | string | Currency of amount |
@@ -1413,13 +1413,13 @@ Retrieve the tranches a deal was funded in, with each tranche date, size, and in
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of the deal in the company financing history |
 | `company` | object | Company the record belongs to |
 |   ↳ `id` | string | PitchBook person ID |
 |   ↳ `name` | string | Name |
 | `tranches` | array | Tranches making up the deal |
-|   ↳ `trancheSize` | object | Size of the tranche |
+|   ↳ `trancheSize` | object (nullable) | Size of the tranche |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
@@ -1430,19 +1430,19 @@ Retrieve the tranches a deal was funded in, with each tranche date, size, and in
 |   ↳ `financingType` | object | Type of financing |
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
-|   ↳ `stockType` | object | Type of stock |
+|   ↳ `stockType` | object (nullable) | Type of stock |
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 |   ↳ `stockSeriesType` | string | Type of the stock series |
-|   ↳ `conversionStatus` | json | Conversion status |
-|   ↳ `conversionDate` | json | Conversion date \(YYYY-MM-DD\) |
-|   ↳ `investor` | object | Investor on the record |
+|   ↳ `conversionStatus` | json (nullable) | Conversion status |
+|   ↳ `conversionDate` | json (nullable) | Conversion date \(YYYY-MM-DD\) |
+|   ↳ `investor` | object (nullable) | Investor on the record |
 |     ↳ `name` | string | Name |
 |     ↳ `id` | string | PitchBook person ID |
-|   ↳ `investor2` | object | Second investor on the record |
+|   ↳ `investor2` | object (nullable) | Second investor on the record |
 |     ↳ `id` | string | PitchBook person ID |
 |     ↳ `name` | string | Name |
-|   ↳ `investor3` | object | Third investor on the record |
+|   ↳ `investor3` | object (nullable) | Third investor on the record |
 |     ↳ `id` | string | PitchBook person ID |
 |     ↳ `name` | string | Name |
 
@@ -1462,21 +1462,21 @@ Retrieve the debt raised in a deal and the lenders behind it, with rate, maturit
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealId` | string | PitchBook deal ID |
-| `dealNumber` | number | Sequence of the deal in the company financing history |
+| `dealId` | string (nullable) | PitchBook deal ID |
+| `dealNumber` | number (nullable) | Sequence of the deal in the company financing history |
 | `company` | object | Company the record belongs to |
 |   ↳ `id` | string | PitchBook person ID |
 |   ↳ `name` | string | Name |
 | `debts` | array | Debt instruments in the deal |
-|   ↳ `debtSize` | json | Size of the debt instrument |
-|   ↳ `paymentInKind` | json | Whether interest is paid in kind |
+|   ↳ `debtSize` | json (nullable) | Size of the debt instrument |
+|   ↳ `paymentInKind` | json (nullable) | Whether interest is paid in kind |
 |   ↳ `debtType` | object | Type of debt |
 |     ↳ `code` | string | PitchBook code |
 |     ↳ `description` | string | Human-readable label for the code |
-|   ↳ `seniority` | json | Seniority of the debt |
-|   ↳ `security` | json | Security backing the debt |
-|   ↳ `subordination` | json | Subordination terms |
-|   ↳ `term` | json | Term of the debt |
+|   ↳ `seniority` | json (nullable) | Seniority of the debt |
+|   ↳ `security` | json (nullable) | Security backing the debt |
+|   ↳ `subordination` | json (nullable) | Subordination terms |
+|   ↳ `term` | json (nullable) | Term of the debt |
 |   ↳ `additionalDebtCharacteristics` | object | Other characteristics of the debt |
 |     ↳ `unitranche` | boolean | Whether the debt is unitranche |
 |     ↳ `syndicated` | boolean | Whether the debt is syndicated |
@@ -1484,9 +1484,9 @@ Retrieve the debt raised in a deal and the lenders behind it, with rate, maturit
 |     ↳ `covLite` | boolean | Whether the debt is covenant-lite |
 |     ↳ `warrants` | boolean | Whether warrants are attached |
 |     ↳ `convertible` | boolean | Whether the instrument is convertible |
-|     ↳ `rate` | json | Interest rate |
-|   ↳ `maturityDate` | json | Maturity date \(YYYY-MM-DD\) |
-|   ↳ `spreadInterestRate` | json | Spread over the reference interest rate |
+|     ↳ `rate` | json (nullable) | Interest rate |
+|   ↳ `maturityDate` | json (nullable) | Maturity date \(YYYY-MM-DD\) |
+|   ↳ `spreadInterestRate` | json (nullable) | Spread over the reference interest rate |
 |   ↳ `lenders` | array | Lenders on the debt |
 |     ↳ `lenderId` | string | PitchBook ID of the lender |
 |     ↳ `lenderName` | string | Name of the lender |
@@ -1494,7 +1494,7 @@ Retrieve the debt raised in a deal and the lenders behind it, with rate, maturit
 |     ↳ `serviceProviderType` | object | Service provider type |
 |       ↳ `code` | string | PitchBook code |
 |       ↳ `description` | string | Human-readable label for the code |
-|     ↳ `lenderSize` | json | Amount provided by the lender |
+|     ↳ `lenderSize` | json (nullable) | Amount provided by the lender |
 
 ### PitchBook Deal Service Providers
 
@@ -1528,8 +1528,8 @@ Retrieve the service providers that worked on a deal and which party each repres
 |     ↳ `description` | string | Human-readable label for the code |
 |   ↳ `serviceProvidedToId` | string | PitchBook ID of the party the service was provided to |
 |   ↳ `serviceProvidedToName` | string | Name of the party the service was provided to |
-|   ↳ `leadPartnerId` | json | PitchBook person ID of the lead partner |
-|   ↳ `leadPartnerName` | json | Name of the lead partner |
+|   ↳ `leadPartnerId` | json (nullable) | PitchBook person ID of the lead partner |
+|   ↳ `leadPartnerName` | json (nullable) | Name of the lead partner |
 
 ### PitchBook Deal Updates
 
@@ -1549,7 +1549,7 @@ Check which deal datasets changed in a window, so a sync only refetches what mov
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Investor Search
 
@@ -1594,7 +1594,7 @@ Search PitchBook for investors by type, location, assets under management, fund 
 | `items` | array | Investors matching the search criteria |
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `investorName` | string | Investor name |
-|   ↳ `website` | string | Investor website |
+|   ↳ `website` | string (nullable) | Investor website |
 
 ### PitchBook Investor Bio
 
@@ -1612,43 +1612,43 @@ Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
+| `investorId` | string (nullable) | PitchBook investor ID |
 | `investorName` | object | The names the investor is known by |
-|   ↳ `formalName` | string | Formal name |
-|   ↳ `alsoKnownAs` | string | Also-known-as name |
-|   ↳ `legalName` | string | Registered legal name |
-|   ↳ `formerlyKnownAs` | string | Previous name |
-| `hqLocation` | object | Headquarters location |
-|   ↳ `city` | string | City |
-|   ↳ `stateProvince` | string | State or province |
-|   ↳ `postCode` | string | Postal code |
-|   ↳ `country` | string | Country |
-| `description` | object | Investor description in brief and full form |
-|   ↳ `brief` | string | Short description |
-|   ↳ `full` | string | Full description |
-| `investorStatus` | object | Whether the investor is actively investing |
-|   ↳ `code` | string | PitchBook code |
-|   ↳ `description` | string | Human-readable label for the code |
+|   ↳ `formalName` | string (nullable) | Formal name |
+|   ↳ `alsoKnownAs` | string (nullable) | Also-known-as name |
+|   ↳ `legalName` | string (nullable) | Registered legal name |
+|   ↳ `formerlyKnownAs` | string (nullable) | Previous name |
+| `hqLocation` | object (nullable) | Headquarters location |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `stateProvince` | string (nullable) | State or province |
+|   ↳ `postCode` | string (nullable) | Postal code |
+|   ↳ `country` | string (nullable) | Country |
+| `description` | object (nullable) | Investor description in brief and full form |
+|   ↳ `brief` | string (nullable) | Short description |
+|   ↳ `full` | string (nullable) | Full description |
+| `investorStatus` | object (nullable) | Whether the investor is actively investing |
+|   ↳ `code` | string (nullable) | PitchBook code |
+|   ↳ `description` | string (nullable) | Human-readable label for the code |
 | `investorType` | array | Types the investor is classified as, one flagged primary |
 |   ↳ `type` | object | Investor type |
 |     ↳ `code` | string | Investor type code |
 |     ↳ `description` | string | Investor type label |
 |   ↳ `primary` | boolean | Whether this is the primary type |
-| `assetsUnderManagement` | object | Assets under management |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `assetsUnderManagement` | object (nullable) | Assets under management |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `dryPowder` | object | Uncalled capital available to deploy |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `dryPowder` | object (nullable) | Uncalled capital available to deploy |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `yearFounded` | number | Year the investor was founded |
-| `website` | string | Investor website |
-| `countInvestmentProfessionals` | number | Number of investment professionals on staff |
+| `yearFounded` | number (nullable) | Year the investor was founded |
+| `website` | string (nullable) | Investor website |
+| `countInvestmentProfessionals` | number (nullable) | Number of investment professionals on staff |
 | `tradeAssociations` | array | Trade associations the investor belongs to |
 
 ### PitchBook Investor Investments
@@ -1671,11 +1671,11 @@ Retrieve every investment an investor has made, active and exited, with the deal
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `companyId` | string | PitchBook ID of the portfolio company |
 |   ↳ `companyName` | string | Name of the portfolio company |
-|   ↳ `investorStatus` | string | Whether the investor is a current or former holder |
-|   ↳ `investmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
-|   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
-|   ↳ `exitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
-|   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
+|   ↳ `investorStatus` | string (nullable) | Whether the investor is a current or former holder |
+|   ↳ `investmentDate` | string (nullable) | Date the position was opened \(YYYY-MM-DD\) |
+|   ↳ `investmentDealId` | string (nullable) | PitchBook deal ID of the investment |
+|   ↳ `exitDate` | string (nullable) | Date the position was exited \(YYYY-MM-DD\) |
+|   ↳ `exitDealId` | string (nullable) | PitchBook deal ID of the exit |
 
 ### PitchBook Investor Active Investments
 
@@ -1717,34 +1717,34 @@ Retrieve the funds an investor manages, with open and closed counts and the min,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
-| `stats` | object | Counts of open and closed funds |
+| `investorId` | string (nullable) | PitchBook investor ID |
+| `stats` | object (nullable) | Counts of open and closed funds |
 |   ↳ `totalFundsOpen` | number | Number of open funds |
 |   ↳ `totalFundsClosed` | number | Number of closed funds |
-| `minFundSize` | object | Smallest fund raised |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `minFundSize` | object (nullable) | Smallest fund raised |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `medianFundSize` | object | Median fund size |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `medianFundSize` | object (nullable) | Median fund size |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `maxFundSize` | object | Largest fund raised |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `maxFundSize` | object (nullable) | Largest fund raised |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 | `fundInfo` | array | Funds the investor manages |
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `fundName` | string | Fund name |
-|   ↳ `fundType` | object | Type of the fund |
-|     ↳ `code` | string | Fund type code |
-|     ↳ `description` | string | Fund type label |
+|   ↳ `fundType` | object (nullable) | Type of the fund |
+|     ↳ `code` | string (nullable) | Fund type code |
+|     ↳ `description` | string (nullable) | Fund type label |
 
 ### PitchBook Investor Last Closed Fund
 
@@ -1762,10 +1762,10 @@ Retrieve the most recently closed fund raised by an investor, with its size, typ
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
-| `fundId` | string | PitchBook fund ID |
-| `fundName` | string | Fund name |
-| `fundVintage` | number | Vintage year of the fund |
+| `investorId` | string (nullable) | PitchBook investor ID |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `fundName` | string (nullable) | Fund name |
+| `fundVintage` | number (nullable) | Vintage year of the fund |
 | `fundSize` | object | Capital raised by the fund |
 |   ↳ `amount` | number | Value in the requested currency |
 |   ↳ `currency` | string | Currency of amount |
@@ -1775,8 +1775,8 @@ Retrieve the most recently closed fund raised by an investor, with its size, typ
 | `fundType` | object | Fund type |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
-| `fundCloseDate` | string | Date the fund closed \(YYYY-MM-DD\) |
-| `fundOpenDate` | json | Date the fund opened \(YYYY-MM-DD\) |
+| `fundCloseDate` | string (nullable) | Date the fund closed \(YYYY-MM-DD\) |
+| `fundOpenDate` | json (nullable) | Date the fund opened \(YYYY-MM-DD\) |
 
 ### PitchBook Investor Preferences
 
@@ -1794,29 +1794,29 @@ Retrieve what an investor targets: check size, deal size, valuation, revenue, ge
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
-| `investorName` | string | Investor name |
-| `preferredInvestmentAmount` | object | Preferred check size, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredDealSize` | object | Preferred total deal size, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredCompanyValuation` | object | Preferred company valuation, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredEbitda` | object | Preferred EBITDA, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredEbit` | object | Preferred EBIT, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredRevenue` | object | Preferred revenue, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
-| `preferredInvestmentHorizon` | object | Preferred holding period in years |
-|   ↳ `min` | number | Minimum years |
-|   ↳ `max` | number | Maximum years |
+| `investorId` | string (nullable) | PitchBook investor ID |
+| `investorName` | string (nullable) | Investor name |
+| `preferredInvestmentAmount` | object (nullable) | Preferred check size, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredDealSize` | object (nullable) | Preferred total deal size, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredCompanyValuation` | object (nullable) | Preferred company valuation, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredEbitda` | object (nullable) | Preferred EBITDA, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredEbit` | object (nullable) | Preferred EBIT, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredRevenue` | object (nullable) | Preferred revenue, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
+| `preferredInvestmentHorizon` | object (nullable) | Preferred holding period in years |
+|   ↳ `min` | number (nullable) | Minimum years |
+|   ↳ `max` | number (nullable) | Maximum years |
 | `geographicalPreferences` | array | Regions the investor targets, from broad group down to state |
 |   ↳ `regionGroup` | json | Broad region as a code and description pair |
 |   ↳ `regionSegment` | json | Region segment as a code and description pair |
@@ -1826,7 +1826,7 @@ Retrieve what an investor targets: check size, deal size, valuation, revenue, ge
 |   ↳ `code` | string | Preference code |
 |   ↳ `description` | string | Preference label |
 | `preferredIndustry` | array | Industries the investor targets |
-|   ↳ `industryCode` | json | Most specific industry classification |
+|   ↳ `industryCode` | json (nullable) | Most specific industry classification |
 |   ↳ `industrySector` | object | Top-level sector |
 |     ↳ `code` | string | Sector code |
 |     ↳ `description` | string | Sector label |
@@ -1860,7 +1860,7 @@ Retrieve the board seats an investor holds and previously held across its portfo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
+| `investorId` | string (nullable) | PitchBook investor ID |
 | `current` | array | Current entries |
 |   ↳ `personId` | string | PitchBook person ID |
 |   ↳ `personName` | string | Full name of the person |
@@ -1868,7 +1868,7 @@ Retrieve the board seats an investor holds and previously held across its portfo
 |   ↳ `boardCompanyName` | string | Name of the company the seat is on |
 |   ↳ `onBoard` | boolean | Whether the person holds a board seat |
 |   ↳ `boardStartDate` | string | Date the seat started \(YYYY-MM-DD\) |
-|   ↳ `boardEndDate` | json | Date the seat ended \(YYYY-MM-DD\) |
+|   ↳ `boardEndDate` | json (nullable) | Date the seat ended \(YYYY-MM-DD\) |
 |   ↳ `role` | string | Role played |
 | `former` | array | Former team members |
 
@@ -1888,7 +1888,7 @@ Retrieve the current and former general service providers engaged by an investor
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `investorId` | string | PitchBook investor ID |
+| `investorId` | string (nullable) | PitchBook investor ID |
 | `currentGeneralServices` | array | Current general service relationships |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
@@ -1950,7 +1950,7 @@ Check which investor datasets changed in a window, so a sync only refetches what
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook People Search
 
@@ -1994,7 +1994,7 @@ Search PitchBook for people by name, employer, position, education, and location
 | `items` | array | People matching the search criteria |
 |   ↳ `personId` | string | PitchBook person ID |
 |   ↳ `personName` | string | Full name of the person |
-|   ↳ `firmId` | string | PitchBook ID of the firm the person is associated with |
+|   ↳ `firmId` | string (nullable) | PitchBook ID of the firm the person is associated with |
 
 ### PitchBook Person Bio
 
@@ -2012,35 +2012,35 @@ Retrieve the profile of a person: name, biography, LinkedIn, primary employer, p
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `personId` | string | PitchBook person ID |
+| `personId` | string (nullable) | PitchBook person ID |
 | `personName` | object | Parsed name of the person |
-|   ↳ `full` | string | Full name |
-|   ↳ `first` | string | First name |
-|   ↳ `last` | string | Last name |
-|   ↳ `middle` | string | Middle name |
-|   ↳ `prefix` | string | Name prefix |
-|   ↳ `suffix` | string | Name suffix |
-| `biography` | string | Biography of the person |
-| `linkedInProfileUrl` | string | LinkedIn profile URL |
-| `gender` | string | Gender recorded for the person |
-| `primaryEntityId` | string | PitchBook ID of the primary employer |
-| `primaryEntityName` | string | Name of the primary employer |
-| `primaryEntityType` | string | Type of the primary employer, such as COMPANY or INVESTOR |
-| `primaryEntityWebsite` | string | Website of the primary employer |
-| `primaryPosition` | string | Position the person holds at the primary employer |
-| `primaryOffice` | object | Office the person works out of |
-|   ↳ `location` | string | Office label |
-|   ↳ `addressLine1` | string | Address line 1 |
-|   ↳ `addressLine2` | string | Address line 2 |
-|   ↳ `city` | string | City |
-|   ↳ `stateProvince` | string | State or province |
-|   ↳ `postCode` | string | Postal code |
-|   ↳ `country` | string | Country |
-|   ↳ `phone` | string | Phone number |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `email` | string | Email address |
-|   ↳ `globalRegion` | string | Global region |
-|   ↳ `globalSubRegion` | string | Global sub-region |
+|   ↳ `full` | string (nullable) | Full name |
+|   ↳ `first` | string (nullable) | First name |
+|   ↳ `last` | string (nullable) | Last name |
+|   ↳ `middle` | string (nullable) | Middle name |
+|   ↳ `prefix` | string (nullable) | Name prefix |
+|   ↳ `suffix` | string (nullable) | Name suffix |
+| `biography` | string (nullable) | Biography of the person |
+| `linkedInProfileUrl` | string (nullable) | LinkedIn profile URL |
+| `gender` | string (nullable) | Gender recorded for the person |
+| `primaryEntityId` | string (nullable) | PitchBook ID of the primary employer |
+| `primaryEntityName` | string (nullable) | Name of the primary employer |
+| `primaryEntityType` | string (nullable) | Type of the primary employer, such as COMPANY or INVESTOR |
+| `primaryEntityWebsite` | string (nullable) | Website of the primary employer |
+| `primaryPosition` | string (nullable) | Position the person holds at the primary employer |
+| `primaryOffice` | object (nullable) | Office the person works out of |
+|   ↳ `location` | string (nullable) | Office label |
+|   ↳ `addressLine1` | string (nullable) | Address line 1 |
+|   ↳ `addressLine2` | string (nullable) | Address line 2 |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `stateProvince` | string (nullable) | State or province |
+|   ↳ `postCode` | string (nullable) | Postal code |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `phone` | string (nullable) | Phone number |
+|   ↳ `fax` | string (nullable) | Fax number |
+|   ↳ `email` | string (nullable) | Email address |
+|   ↳ `globalRegion` | string (nullable) | Global region |
+|   ↳ `globalSubRegion` | string (nullable) | Global sub-region |
 
 ### PitchBook Person Contact
 
@@ -2058,11 +2058,11 @@ Retrieve the direct contact details on file for a person
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `personId` | string | PitchBook person ID |
-| `fullName` | string | Full name of the person |
-| `phone` | string | Phone number |
-| `fax` | string | Fax number |
-| `email` | string | Email address |
+| `personId` | string (nullable) | PitchBook person ID |
+| `fullName` | string (nullable) | Full name of the person |
+| `phone` | string (nullable) | Phone number |
+| `fax` | string (nullable) | Fax number |
+| `email` | string (nullable) | Email address |
 
 ### PitchBook Person Education and Work
 
@@ -2080,43 +2080,43 @@ Retrieve a person full history: education, company roles, board seats, deal role
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `personId` | string | PitchBook person ID |
-| `fullName` | string | Full name of the person |
+| `personId` | string (nullable) | PitchBook person ID |
+| `fullName` | string (nullable) | Full name of the person |
 | `education` | array | Institutions the person attended |
 |   ↳ `institution` | string | Institution name |
-|   ↳ `degree` | string | Degree earned |
-|   ↳ `yearOfGraduation` | number | Graduation year |
+|   ↳ `degree` | string (nullable) | Degree earned |
+|   ↳ `yearOfGraduation` | number (nullable) | Graduation year |
 | `companyRoles` | array | Positions the person has held at companies |
 |   ↳ `companyId` | string | PitchBook company ID |
 |   ↳ `companyName` | string | Company name |
-|   ↳ `position` | string | Position title |
-|   ↳ `positionType` | string | Whether the role is an employee or non-employee position |
-|   ↳ `positionStatus` | string | Whether the position is Current or Former |
-|   ↳ `positionStart` | string | Date the position started \(YYYY-MM-DD\) |
-|   ↳ `positionFinish` | string | Date the position ended \(YYYY-MM-DD\) |
+|   ↳ `position` | string (nullable) | Position title |
+|   ↳ `positionType` | string (nullable) | Whether the role is an employee or non-employee position |
+|   ↳ `positionStatus` | string (nullable) | Whether the position is Current or Former |
+|   ↳ `positionStart` | string (nullable) | Date the position started \(YYYY-MM-DD\) |
+|   ↳ `positionFinish` | string (nullable) | Date the position ended \(YYYY-MM-DD\) |
 | `boardSeats` | array | Board seats the person has held |
 |   ↳ `boardCompanyId` | string | PitchBook ID of the company |
 |   ↳ `boardCompanyName` | string | Name of the company |
-|   ↳ `boardRepresentingId` | string | PitchBook ID of the firm the seat represents |
-|   ↳ `boardRepresentingName` | string | Name of the firm the seat represents |
-|   ↳ `positionStatus` | string | Whether the seat is Current or Former |
-|   ↳ `boardStart` | string | Date the seat started \(YYYY-MM-DD\) |
-|   ↳ `boardFinish` | string | Date the seat ended \(YYYY-MM-DD\) |
+|   ↳ `boardRepresentingId` | string (nullable) | PitchBook ID of the firm the seat represents |
+|   ↳ `boardRepresentingName` | string (nullable) | Name of the firm the seat represents |
+|   ↳ `positionStatus` | string (nullable) | Whether the seat is Current or Former |
+|   ↳ `boardStart` | string (nullable) | Date the seat started \(YYYY-MM-DD\) |
+|   ↳ `boardFinish` | string (nullable) | Date the seat ended \(YYYY-MM-DD\) |
 | `currentAdvisoryRoles` | array | Advisory roles the person currently holds |
 | `dealRoles` | array | Deals the person worked on and who they represented |
 |   ↳ `dealId` | string | PitchBook deal ID |
-|   ↳ `dealDate` | string | Date of the deal \(YYYY-MM-DD\) |
+|   ↳ `dealDate` | string (nullable) | Date of the deal \(YYYY-MM-DD\) |
 |   ↳ `companyId` | string | PitchBook ID of the company in the deal |
 |   ↳ `companyName` | string | Name of the company in the deal |
-|   ↳ `representingId` | string | PitchBook ID of the firm the person represented |
-|   ↳ `representingName` | string | Name of the firm the person represented |
+|   ↳ `representingId` | string (nullable) | PitchBook ID of the firm the person represented |
+|   ↳ `representingName` | string (nullable) | Name of the firm the person represented |
 | `fundRoles` | array | Funds the person is associated with |
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `fundName` | string | Fund name |
-|   ↳ `investorId` | string | PitchBook ID of the fund manager |
-|   ↳ `investorName` | string | Name of the fund manager |
-|   ↳ `representingId` | string | PitchBook ID of the firm the person represented |
-|   ↳ `representingName` | string | Name of the firm the person represented |
+|   ↳ `investorId` | string (nullable) | PitchBook ID of the fund manager |
+|   ↳ `investorName` | string (nullable) | Name of the fund manager |
+|   ↳ `representingId` | string (nullable) | PitchBook ID of the firm the person represented |
+|   ↳ `representingName` | string (nullable) | Name of the firm the person represented |
 
 ### PitchBook Fund Search
 
@@ -2178,43 +2178,43 @@ Retrieve the profile of a fund: managers, vintage, status, type, size, target, l
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `name` | string | Fund name |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `name` | string (nullable) | Fund name |
 | `fundInvestors` | array | Managers of the fund, with where it sits in their fund series |
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `investorName` | string | Investor name |
-|   ↳ `fundNo` | number | Position in the manager fund series |
+|   ↳ `fundNo` | number (nullable) | Position in the manager fund series |
 |   ↳ `firstFund` | boolean | Whether this is the manager first fund |
-| `vintage` | number | Vintage year of the fund |
-| `fundStatus` | string | Whether the fund is open or closed |
-| `fundType` | string | Type of the fund |
-| `fundSize` | object | Capital raised by the fund |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `vintage` | number (nullable) | Vintage year of the fund |
+| `fundStatus` | string (nullable) | Whether the fund is open or closed |
+| `fundType` | string (nullable) | Type of the fund |
+| `fundSize` | object (nullable) | Capital raised by the fund |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `location` | object | Office the fund is run from |
-|   ↳ `location` | string | Office label |
-|   ↳ `addressLine1` | string | Address line 1 |
-|   ↳ `addressLine2` | string | Address line 2 |
-|   ↳ `city` | string | City |
-|   ↳ `stateProvince` | string | State or province |
-|   ↳ `postCode` | string | Postal code |
-|   ↳ `country` | string | Country |
-|   ↳ `phone` | string | Phone number |
-|   ↳ `fax` | string | Fax number |
-|   ↳ `email` | string | Email address |
-|   ↳ `globalRegion` | string | Global region |
-|   ↳ `globalSubRegion` | string | Global sub-region |
+| `location` | object (nullable) | Office the fund is run from |
+|   ↳ `location` | string (nullable) | Office label |
+|   ↳ `addressLine1` | string (nullable) | Address line 1 |
+|   ↳ `addressLine2` | string (nullable) | Address line 2 |
+|   ↳ `city` | string (nullable) | City |
+|   ↳ `stateProvince` | string (nullable) | State or province |
+|   ↳ `postCode` | string (nullable) | Postal code |
+|   ↳ `country` | string (nullable) | Country |
+|   ↳ `phone` | string (nullable) | Phone number |
+|   ↳ `fax` | string (nullable) | Fax number |
+|   ↳ `email` | string (nullable) | Email address |
+|   ↳ `globalRegion` | string (nullable) | Global region |
+|   ↳ `globalSubRegion` | string (nullable) | Global sub-region |
 | `fundTeam` | array | People on the fund team |
 |   ↳ `personId` | string | PitchBook person ID |
 |   ↳ `personFullName` | string | Full name of the person |
-| `openDate` | string | Date the fund opened \(YYYY-MM-DD\) |
-| `closeDate` | string | Date the fund closed \(YYYY-MM-DD\) |
-| `fundTargetSize` | object | Target raise for the fund, as a min and max monetary value |
-|   ↳ `min` | json | Minimum, as a PitchBook monetary value |
-|   ↳ `max` | json | Maximum, as a PitchBook monetary value |
+| `openDate` | string (nullable) | Date the fund opened \(YYYY-MM-DD\) |
+| `closeDate` | string (nullable) | Date the fund closed \(YYYY-MM-DD\) |
+| `fundTargetSize` | object (nullable) | Target raise for the fund, as a min and max monetary value |
+|   ↳ `min` | json (nullable) | Minimum, as a PitchBook monetary value |
+|   ↳ `max` | json (nullable) | Maximum, as a PitchBook monetary value |
 | `sbic` | boolean | Whether the fund is a Small Business Investment Company |
 | `returnsInfoAvailable` | array | Which returns datasets are available for the fund |
 
@@ -2234,17 +2234,17 @@ Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `fundName` | string | Fund name |
-| `asOfQuarter` | number | Quarter the figures are reported as of |
-| `asOfYear` | number | Year the figures are reported as of |
-| `irr` | number | Internal rate of return, as a percentage |
-| `dpi` | number | Distributions to paid-in multiple |
-| `rvpi` | number | Residual value to paid-in multiple |
-| `tvpi` | number | Total value to paid-in multiple |
-| `nav` | number | Net asset value |
-| `quartile` | number | Benchmark quartile the fund falls in, 1 being the best |
-| `numberOfFundsInBenchmark` | number | How many funds the benchmark is drawn from |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `fundName` | string (nullable) | Fund name |
+| `asOfQuarter` | number (nullable) | Quarter the figures are reported as of |
+| `asOfYear` | number (nullable) | Year the figures are reported as of |
+| `irr` | number (nullable) | Internal rate of return, as a percentage |
+| `dpi` | number (nullable) | Distributions to paid-in multiple |
+| `rvpi` | number (nullable) | Residual value to paid-in multiple |
+| `tvpi` | number (nullable) | Total value to paid-in multiple |
+| `nav` | number (nullable) | Net asset value |
+| `quartile` | number (nullable) | Benchmark quartile the fund falls in, 1 being the best |
+| `numberOfFundsInBenchmark` | number (nullable) | How many funds the benchmark is drawn from |
 
 ### PitchBook Fund Benchmark
 
@@ -2262,8 +2262,8 @@ Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `fundName` | string | Fund name |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `fundName` | string (nullable) | Fund name |
 | `benchmarkFundType` | object | Fund type the benchmark is built from |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
@@ -2273,12 +2273,12 @@ Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the 
 | `benchmarkFundLocation` | object | Location the benchmark is built from |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
-| `benchmarkFundVintageYear` | number | Vintage year the benchmark is built from |
-| `irrBenchmark` | number | Benchmark IRR |
-| `dpiBenchmark` | number | Benchmark DPI |
-| `tvpiBenchmark` | number | Benchmark TVPI |
-| `rvpiBenchmark` | number | Benchmark RVPI |
-| `numberOfFundsInBenchmark` | number | How many funds the benchmark is drawn from |
+| `benchmarkFundVintageYear` | number (nullable) | Vintage year the benchmark is built from |
+| `irrBenchmark` | number (nullable) | Benchmark IRR |
+| `dpiBenchmark` | number (nullable) | Benchmark DPI |
+| `tvpiBenchmark` | number (nullable) | Benchmark TVPI |
+| `rvpiBenchmark` | number (nullable) | Benchmark RVPI |
+| `numberOfFundsInBenchmark` | number (nullable) | How many funds the benchmark is drawn from |
 | `benchmarkFunds` | array | Funds making up the benchmark |
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `fundName` | string | Fund name |
@@ -2300,24 +2300,24 @@ Retrieve contributed, distributed, and remaining value for a fund as of a specif
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `fundName` | string | Fund name |
-| `asOfQuarter` | number | Quarter the figures are reported as of |
-| `asOfYear` | number | Year the figures are reported as of |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `fundName` | string (nullable) | Fund name |
+| `asOfQuarter` | number (nullable) | Quarter the figures are reported as of |
+| `asOfYear` | number (nullable) | Year the figures are reported as of |
 | `contributed` | object | Capital contributed by limited partners |
 |   ↳ `amount` | number | Value in the requested currency |
 |   ↳ `currency` | string | Currency of amount |
 |   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
 |   ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `percentCalledDown` | number | Percentage of committed capital called down |
+| `percentCalledDown` | number (nullable) | Percentage of committed capital called down |
 | `dryPowder` | object | Uncalled capital available to deploy |
 |   ↳ `amount` | number | Value in the requested currency |
 |   ↳ `currency` | string | Currency of amount |
 |   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
 |   ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `percentDryPowder` | number | Percentage of committed capital still uncalled |
+| `percentDryPowder` | number (nullable) | Percentage of committed capital still uncalled |
 | `distributed` | object | Capital distributed back to limited partners |
 |   ↳ `amount` | number | Value in the requested currency |
 |   ↳ `currency` | string | Currency of amount |
@@ -2353,16 +2353,16 @@ Retrieve every investment a fund has made, active and exited, with the deals tha
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `fundName` | string | Fund name |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `fundName` | string (nullable) | Fund name |
 | `investments` | array | Investments held |
 |   ↳ `targetCompanyId` | string | PitchBook ID of the portfolio company |
 |   ↳ `targetCompanyName` | string | Name of the portfolio company |
 |   ↳ `investmentStatus` | string | Whether the position is active or exited |
 |   ↳ `targetCompanyInvestmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
 |   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
-|   ↳ `targetCompanyExitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
-|   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
+|   ↳ `targetCompanyExitDate` | string (nullable) | Date the position was exited \(YYYY-MM-DD\) |
+|   ↳ `exitDealId` | string (nullable) | PitchBook deal ID of the exit |
 
 ### PitchBook Fund Active Investments
 
@@ -2407,10 +2407,10 @@ Retrieve the limited partners committed to a fund, with commitment date, size, s
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `limitedPartnerId` | string | PitchBook limited partner ID |
 |   ↳ `limitedPartnerName` | string | Limited partner name |
-|   ↳ `commitmentDate` | string | Date of the commitment \(YYYY-MM-DD\) |
-|   ↳ `commitmentSize` | json | Size of the commitment, as a PitchBook monetary value |
-|   ↳ `commitmentStatus` | json | Status of the commitment, as a code and description pair |
-|   ↳ `commitmentType` | json | Type of the commitment, as a code and description pair |
+|   ↳ `commitmentDate` | string (nullable) | Date of the commitment \(YYYY-MM-DD\) |
+|   ↳ `commitmentSize` | json (nullable) | Size of the commitment, as a PitchBook monetary value |
+|   ↳ `commitmentStatus` | json (nullable) | Status of the commitment, as a code and description pair |
+|   ↳ `commitmentType` | json (nullable) | Type of the commitment, as a code and description pair |
 
 ### PitchBook Fund Investment Preferences
 
@@ -2428,14 +2428,14 @@ Retrieve what a fund targets: check size, valuation, geography, industry, vertic
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
-| `preferredInvestmentAmount` | json | Preferred check size |
-| `preferredDealSize` | json | Preferred deal size |
-| `preferredCompanyValuation` | json | Preferred company valuation |
-| `preferredEbitda` | json | Preferred EBITDA |
-| `preferredEbit` | json | Preferred EBIT |
-| `preferredRevenue` | json | Preferred revenue |
-| `preferredInvestmentHorizon` | json | Preferred holding period in years |
+| `fundId` | string (nullable) | PitchBook fund ID |
+| `preferredInvestmentAmount` | json (nullable) | Preferred check size |
+| `preferredDealSize` | json (nullable) | Preferred deal size |
+| `preferredCompanyValuation` | json (nullable) | Preferred company valuation |
+| `preferredEbitda` | json (nullable) | Preferred EBITDA |
+| `preferredEbit` | json (nullable) | Preferred EBIT |
+| `preferredRevenue` | json (nullable) | Preferred revenue |
+| `preferredInvestmentHorizon` | json (nullable) | Preferred holding period in years |
 | `geographicalPreferences` | array | Regions targeted |
 |   ↳ `regionGroup` | object | Broad region as a code and description pair |
 |     ↳ `code` | string | PitchBook code |
@@ -2446,12 +2446,12 @@ Retrieve what a fund targets: check size, valuation, geography, industry, vertic
 |   ↳ `regionCode` | object | Country as a code and description pair |
 |     ↳ `code` | string | PitchBook code |
 |     ↳ `description` | string | Human-readable label for the code |
-|   ↳ `regionState` | json | State or province as a code and description pair |
+|   ↳ `regionState` | json (nullable) | State or province as a code and description pair |
 | `otherInvestmentPreferences` | array | Other stated preferences |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
 | `preferredIndustry` | array | Industries targeted |
-|   ↳ `industryCode` | json | Most specific industry classification |
+|   ↳ `industryCode` | json (nullable) | Most specific industry classification |
 |   ↳ `industrySector` | object | Top-level sector |
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
@@ -2483,9 +2483,9 @@ Retrieve the active and former people on a fund team
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `fundId` | string | PitchBook fund ID |
+| `fundId` | string (nullable) | PitchBook fund ID |
 | `investorIds` | array | PitchBook IDs of the fund managers |
-| `countActiveTeam` | number | Number of active team members |
+| `countActiveTeam` | number (nullable) | Number of active team members |
 | `active` | array | Active team members |
 |   ↳ `id` | string | PitchBook person ID |
 |   ↳ `name` | string | Name |
@@ -2515,7 +2515,7 @@ Check which fund datasets changed in a window, so a sync only refetches what mov
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Limited Partner Search
 
@@ -2555,7 +2555,7 @@ Search PitchBook for limited partners by type, location, assets under management
 | `items` | array | Limited partners matching the search criteria |
 |   ↳ `limitedPartnerId` | string | PitchBook limited partner ID |
 |   ↳ `limitedPartnerName` | string | Limited partner name |
-|   ↳ `website` | string | Limited partner website |
+|   ↳ `website` | string (nullable) | Limited partner website |
 
 ### PitchBook Limited Partner Bio
 
@@ -2575,25 +2575,25 @@ Retrieve the profile of a limited partner: names, description, type, assets unde
 | --------- | ---- | ----------- |
 | `limitedPartnerId` | string | PitchBook limited partner ID |
 | `limitedPartnerName` | object | The names the limited partner is known by |
-|   ↳ `formalName` | string | Formal name |
-|   ↳ `alsoKnownAs` | string | Also-known-as name |
-|   ↳ `legalName` | string | Registered legal name |
-|   ↳ `formerlyKnownAs` | string | Previous name |
-| `description` | string | Description of the limited partner |
+|   ↳ `formalName` | string (nullable) | Formal name |
+|   ↳ `alsoKnownAs` | string (nullable) | Also-known-as name |
+|   ↳ `legalName` | string (nullable) | Registered legal name |
+|   ↳ `formerlyKnownAs` | string (nullable) | Previous name |
+| `description` | string (nullable) | Description of the limited partner |
 | `limitedPartnerTypes` | array | Types the limited partner is classified as, one flagged primary |
 |   ↳ `type` | object | Limited partner type |
 |     ↳ `code` | string | Type code |
 |     ↳ `description` | string | Type label |
 |   ↳ `primary` | boolean | Whether this is the primary type |
-| `assetsUnderManagement` | object | Assets under management |
-|   ↳ `amount` | number | Value in the requested currency |
-|   ↳ `currency` | string | Currency of amount |
-|   ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `nativeCurrency` | string | Currency of nativeAmount |
+| `assetsUnderManagement` | object (nullable) | Assets under management |
+|   ↳ `amount` | number (nullable) | Value in the requested currency |
+|   ↳ `currency` | string (nullable) | Currency of amount |
+|   ↳ `nativeAmount` | number (nullable) | Value in the currency it was originally reported in |
+|   ↳ `nativeCurrency` | string (nullable) | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
-| `yearFounded` | number | Year the limited partner was founded |
-| `website` | string | Limited partner website |
-| `managementStaff` | number | Number of management staff |
+| `yearFounded` | number (nullable) | Year the limited partner was founded |
+| `website` | string (nullable) | Limited partner website |
+| `managementStaff` | number (nullable) | Number of management staff |
 
 ### PitchBook Limited Partner Commitments
 
@@ -2618,17 +2618,17 @@ Retrieve every fund commitment a limited partner has made, with date, size, stat
 |   ↳ `committedInvestors` | array | Managers of the fund committed to |
 |     ↳ `committedInvestorName` | string | Name of the fund manager |
 |     ↳ `committedInvestorId` | string | PitchBook ID of the fund manager |
-|   ↳ `commitmentDate` | string | Date of the commitment \(YYYY-MM-DD\) |
-|   ↳ `commitmentSize` | object | Size of the commitment |
+|   ↳ `commitmentDate` | string (nullable) | Date of the commitment \(YYYY-MM-DD\) |
+|   ↳ `commitmentSize` | object (nullable) | Size of the commitment |
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `currency` | string | Currency of amount |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
-|   ↳ `commitmentStatus` | object | Status of the commitment |
+|   ↳ `commitmentStatus` | object (nullable) | Status of the commitment |
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
-|   ↳ `commitmentType` | object | Type of the commitment |
+|   ↳ `commitmentType` | object (nullable) | Type of the commitment |
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 
@@ -2648,26 +2648,26 @@ Retrieve a limited partner commitments rolled up by fund type, both active and a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `limitedPartnerId` | string | PitchBook limited partner ID |
-| `limitedPartnerName` | string | Limited partner name |
-| `activeCommitmentsInDebtFunds` | json | Number of active commitments to debt funds |
-| `activeCommitmentsInPeFunds` | number | Number of active commitments to PE funds |
-| `activeCommitmentsInReFunds` | number | Number of active commitments to real estate funds |
-| `activeCommitmentsInVcFunds` | number | Number of active commitments to VC funds |
-| `activeCommitmentsInFoFsAnd2nd` | json | Number of active commitments to funds of funds and secondaries |
-| `activeCommitmentsInInfrastructure` | json | Number of active commitments to infrastructure funds |
-| `activeCommitmentsInEnergyFunds` | json | Number of active commitments to energy funds |
-| `activeCommitmentsInOtherFunds` | number | Number of active commitments to other funds |
-| `totalActiveCommitments` | number | Number of active commitments |
-| `totalCommitmentsInDebtFunds` | json | Number of all commitments to debt funds |
-| `totalCommitmentsInPeFunds` | number | Number of all commitments to PE funds |
-| `totalCommitmentsInReFunds` | number | Number of all commitments to real estate funds |
-| `totalCommitmentsInVcFunds` | number | Number of all commitments to VC funds |
-| `totalCommitmentsInFoFsAnd2nd` | json | Number of all commitments to funds of funds and secondaries |
-| `totalCommitmentsInInfrastructure` | json | Number of all commitments to infrastructure funds |
-| `totalCommitmentsInEnergyFunds` | json | Number of all commitments to energy funds |
-| `totalCommitmentsInOtherFunds` | number | Number of all commitments to other funds |
-| `totalCommitments` | number | Number of commitments ever made |
+| `limitedPartnerId` | string (nullable) | PitchBook limited partner ID |
+| `limitedPartnerName` | string (nullable) | Limited partner name |
+| `activeCommitmentsInDebtFunds` | json (nullable) | Number of active commitments to debt funds |
+| `activeCommitmentsInPeFunds` | number (nullable) | Number of active commitments to PE funds |
+| `activeCommitmentsInReFunds` | number (nullable) | Number of active commitments to real estate funds |
+| `activeCommitmentsInVcFunds` | number (nullable) | Number of active commitments to VC funds |
+| `activeCommitmentsInFoFsAnd2nd` | json (nullable) | Number of active commitments to funds of funds and secondaries |
+| `activeCommitmentsInInfrastructure` | json (nullable) | Number of active commitments to infrastructure funds |
+| `activeCommitmentsInEnergyFunds` | json (nullable) | Number of active commitments to energy funds |
+| `activeCommitmentsInOtherFunds` | number (nullable) | Number of active commitments to other funds |
+| `totalActiveCommitments` | number (nullable) | Number of active commitments |
+| `totalCommitmentsInDebtFunds` | json (nullable) | Number of all commitments to debt funds |
+| `totalCommitmentsInPeFunds` | number (nullable) | Number of all commitments to PE funds |
+| `totalCommitmentsInReFunds` | number (nullable) | Number of all commitments to real estate funds |
+| `totalCommitmentsInVcFunds` | number (nullable) | Number of all commitments to VC funds |
+| `totalCommitmentsInFoFsAnd2nd` | json (nullable) | Number of all commitments to funds of funds and secondaries |
+| `totalCommitmentsInInfrastructure` | json (nullable) | Number of all commitments to infrastructure funds |
+| `totalCommitmentsInEnergyFunds` | json (nullable) | Number of all commitments to energy funds |
+| `totalCommitmentsInOtherFunds` | number (nullable) | Number of all commitments to other funds |
+| `totalCommitments` | number (nullable) | Number of commitments ever made |
 
 ### PitchBook Limited Partner Commitment Preferences
 
@@ -2685,16 +2685,16 @@ Retrieve what a limited partner commits to: preferred commitment size, fund type
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `limitedPartnerId` | string | PitchBook limited partner ID |
-| `limitedPartnerName` | string | Limited partner name |
-| `preferredCommitmentSize` | json | Preferred commitment size |
+| `limitedPartnerId` | string (nullable) | PitchBook limited partner ID |
+| `limitedPartnerName` | string (nullable) | Limited partner name |
+| `preferredCommitmentSize` | json (nullable) | Preferred commitment size |
 | `preferredGeography` | array | Regions the limited partner targets |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
 | `preferredFundTypes` | array | Fund types the limited partner targets |
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
-| `preferredDirectInvestmentSize` | json | Preferred direct investment size |
+| `preferredDirectInvestmentSize` | json (nullable) | Preferred direct investment size |
 | `otherInvestmentPreferences` | array | Other stated preferences |
 
 ### PitchBook Limited Partner Actual Allocations
@@ -2713,13 +2713,13 @@ Retrieve a limited partner reported asset allocation across cash, equities, fixe
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `limitedPartnerId` | string | PitchBook limited partner ID |
-| `limitedPartnerName` | string | Limited partner name |
-| `affiliatedFunds` | number | Number of affiliated funds |
-| `affiliatedInvestors` | number | Number of affiliated investors |
+| `limitedPartnerId` | string (nullable) | PitchBook limited partner ID |
+| `limitedPartnerName` | string (nullable) | Limited partner name |
+| `affiliatedFunds` | number (nullable) | Number of affiliated funds |
+| `affiliatedInvestors` | number (nullable) | Number of affiliated investors |
 | `allocations` | array | Reported asset allocations |
-|   ↳ `alternativeInvestments` | json | Amount allocated to alternative investments |
-|   ↳ `alternativeInvestmentsPercent` | json | Percentage of the portfolio allocated to alternative investments |
+|   ↳ `alternativeInvestments` | json (nullable) | Amount allocated to alternative investments |
+|   ↳ `alternativeInvestmentsPercent` | json (nullable) | Percentage of the portfolio allocated to alternative investments |
 |   ↳ `privateEquity` | object | Amount allocated to private equity |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `currency` | string | Currency of amount |
@@ -2734,8 +2734,8 @@ Retrieve a limited partner reported asset allocation across cash, equities, fixe
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `realEstatePercent` | number | Percentage of the portfolio allocated to real estate |
-|   ↳ `specialOpportunities` | json | Amount allocated to special opportunities |
-|   ↳ `specialOpportunitiePercent` | json | Percentage of the portfolio allocated to special opportunities |
+|   ↳ `specialOpportunities` | json (nullable) | Amount allocated to special opportunities |
+|   ↳ `specialOpportunitiePercent` | json (nullable) | Percentage of the portfolio allocated to special opportunities |
 |   ↳ `hedgeFunds` | object | Amount allocated to hedge funds |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `currency` | string | Currency of amount |
@@ -2781,14 +2781,14 @@ Retrieve a limited partner target allocation ranges per asset class, in both val
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `limitedPartnerId` | string | PitchBook limited partner ID |
-| `limitedPartnerName` | string | Limited partner name |
+| `limitedPartnerId` | string (nullable) | PitchBook limited partner ID |
+| `limitedPartnerName` | string (nullable) | Limited partner name |
 | `targetAllocations` | array | Target asset allocations |
 |   ↳ `policyDescription` | string | Allocation policy description |
-|   ↳ `alternativesMin` | json | Alternatives min |
-|   ↳ `alternativesPercentMin` | json | Alternatives percent min |
-|   ↳ `alternativesMax` | json | Alternatives max |
-|   ↳ `alternativesPercentMax` | json | Alternatives percent max |
+|   ↳ `alternativesMin` | json (nullable) | Alternatives min |
+|   ↳ `alternativesPercentMin` | json (nullable) | Alternatives percent min |
+|   ↳ `alternativesMax` | json (nullable) | Alternatives max |
+|   ↳ `alternativesPercentMax` | json (nullable) | Alternatives percent max |
 |   ↳ `privateEquityMin` | object | Minimum target allocation to private equity |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `currency` | string | Currency of amount |
@@ -2817,14 +2817,14 @@ Retrieve a limited partner target allocation ranges per asset class, in both val
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `realEstatePercentMax` | number | Maximum target allocation to real estate, as a percentage |
-|   ↳ `specialOpportunitiesMin` | json | Minimum target allocation to special opportunities |
-|   ↳ `specialOpportunitiesPercentMin` | json | Minimum target allocation to special opportunities, as a percentage |
-|   ↳ `specialOpportunitiesMax` | json | Maximum target allocation to special opportunities |
-|   ↳ `specialOpportunitiesPercentMax` | json | Maximum target allocation to special opportunities, as a percentage |
-|   ↳ `hedgeFundsMin` | json | Minimum target allocation to hedge funds |
-|   ↳ `hedgeFundsPercentMin` | json | Minimum target allocation to hedge funds, as a percentage |
-|   ↳ `hedgeFundsMax` | json | Maximum target allocation to hedge funds |
-|   ↳ `hedgeFundsPercentMax` | json | Maximum target allocation to hedge funds, as a percentage |
+|   ↳ `specialOpportunitiesMin` | json (nullable) | Minimum target allocation to special opportunities |
+|   ↳ `specialOpportunitiesPercentMin` | json (nullable) | Minimum target allocation to special opportunities, as a percentage |
+|   ↳ `specialOpportunitiesMax` | json (nullable) | Maximum target allocation to special opportunities |
+|   ↳ `specialOpportunitiesPercentMax` | json (nullable) | Maximum target allocation to special opportunities, as a percentage |
+|   ↳ `hedgeFundsMin` | json (nullable) | Minimum target allocation to hedge funds |
+|   ↳ `hedgeFundsPercentMin` | json (nullable) | Minimum target allocation to hedge funds, as a percentage |
+|   ↳ `hedgeFundsMax` | json (nullable) | Maximum target allocation to hedge funds |
+|   ↳ `hedgeFundsPercentMax` | json (nullable) | Maximum target allocation to hedge funds, as a percentage |
 |   ↳ `equitiesMin` | object | Minimum target allocation to equities |
 |     ↳ `amount` | number | Value in the requested currency |
 |     ↳ `currency` | string | Currency of amount |
@@ -2853,10 +2853,10 @@ Retrieve a limited partner target allocation ranges per asset class, in both val
 |     ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `fixedIncomePercentMax` | number | Maximum target allocation to fixed income, as a percentage |
-|   ↳ `cashMin` | json | Minimum target allocation to cash |
-|   ↳ `cashPercentMin` | json | Minimum target allocation to cash, as a percentage |
-|   ↳ `cashMax` | json | Maximum target allocation to cash |
-|   ↳ `cashPercentMax` | json | Maximum target allocation to cash, as a percentage |
+|   ↳ `cashMin` | json (nullable) | Minimum target allocation to cash |
+|   ↳ `cashPercentMin` | json (nullable) | Minimum target allocation to cash, as a percentage |
+|   ↳ `cashMax` | json (nullable) | Maximum target allocation to cash |
+|   ↳ `cashPercentMax` | json (nullable) | Maximum target allocation to cash, as a percentage |
 
 ### PitchBook Limited Partner Service Providers
 
@@ -2874,7 +2874,7 @@ Retrieve the current and former service providers engaged by a limited partner
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `limitedPartnerId` | string | PitchBook limited partner ID |
+| `limitedPartnerId` | string (nullable) | PitchBook limited partner ID |
 | `currentGeneralServices` | array | Current general service relationships |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
@@ -2916,7 +2916,7 @@ Check which limited partner datasets changed in a window, so a sync only refetch
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Service Provider Search
 
@@ -2955,7 +2955,7 @@ Search PitchBook for service providers by type, location, and the deals they hav
 | `items` | array | Service providers matching the search criteria |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
-|   ↳ `website` | string | Service provider website |
+|   ↳ `website` | string (nullable) | Service provider website |
 
 ### PitchBook Service Provider Bio
 
@@ -2973,25 +2973,25 @@ Retrieve the profile of a service provider: names, types, description, and how m
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `serviceProviderId` | string | PitchBook service provider ID |
+| `serviceProviderId` | string (nullable) | PitchBook service provider ID |
 | `serviceProviderName` | object | The names the service provider is known by |
-|   ↳ `formalName` | string | Formal name |
-|   ↳ `alsoKnownAs` | string | Also-known-as name |
-|   ↳ `legalName` | string | Registered legal name |
-|   ↳ `formerlyKnownAs` | string | Previous name |
+|   ↳ `formalName` | string (nullable) | Formal name |
+|   ↳ `alsoKnownAs` | string (nullable) | Also-known-as name |
+|   ↳ `legalName` | string (nullable) | Registered legal name |
+|   ↳ `formerlyKnownAs` | string (nullable) | Previous name |
 | `serviceProviderTypes` | array | Types the service provider is classified as, one flagged primary |
 |   ↳ `type` | object | Service provider type |
 |     ↳ `code` | string | Type code |
 |     ↳ `description` | string | Type label |
 |   ↳ `primary` | boolean | Whether this is the primary type |
-| `description` | string | Description of the service provider |
-| `website` | string | Service provider website |
-| `employees` | number | Employee count |
-| `servicedCompanies` | number | Number of companies serviced |
-| `servicedDeals` | number | Number of deals serviced |
-| `servicedInvestors` | number | Number of investors serviced |
-| `servicedFunds` | number | Number of funds serviced |
-| `servicedLimitedPartners` | number | Number of limited partners serviced |
+| `description` | string (nullable) | Description of the service provider |
+| `website` | string (nullable) | Service provider website |
+| `employees` | number (nullable) | Employee count |
+| `servicedCompanies` | number (nullable) | Number of companies serviced |
+| `servicedDeals` | number (nullable) | Number of deals serviced |
+| `servicedInvestors` | number (nullable) | Number of investors serviced |
+| `servicedFunds` | number (nullable) | Number of funds serviced |
+| `servicedLimitedPartners` | number (nullable) | Number of limited partners serviced |
 
 ### PitchBook Serviced Companies
 
@@ -3035,7 +3035,7 @@ Retrieve the deals a service provider worked on and what it was hired for on eac
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `serviceProviderName` | string | Service provider name |
+| `serviceProviderName` | string (nullable) | Service provider name |
 | `servicedDealInfo` | array | Deals the service provider worked on |
 |   ↳ `companyId` | string | PitchBook company ID |
 |   ↳ `companyName` | string | Company name |
@@ -3088,8 +3088,8 @@ Retrieve the funds a service provider has worked with and the service provided t
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `serviceProviderId` | string | PitchBook service provider ID |
-| `serviceProviderName` | string | Service provider name |
+| `serviceProviderId` | string (nullable) | PitchBook service provider ID |
+| `serviceProviderName` | string (nullable) | Service provider name |
 | `fundServices` | array | Funds the service provider worked with |
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `fundName` | string | Fund name |
@@ -3116,8 +3116,8 @@ Retrieve the limited partners a service provider currently and formerly serves
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `serviceProviderId` | string | PitchBook service provider ID |
-| `serviceProviderName` | string | Service provider name |
+| `serviceProviderId` | string (nullable) | PitchBook service provider ID |
+| `serviceProviderName` | string (nullable) | Service provider name |
 | `currentGeneralServices` | array | Current general service relationships |
 | `formerGeneralServices` | array | Former general service relationships |
 |   ↳ `entityId` | string | PitchBook entity ID |
@@ -3144,7 +3144,7 @@ Check which service provider datasets changed in a window, so a sync only refetc
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
+| `updates` | json (nullable) | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
 ### PitchBook Credit News Search
 
@@ -3185,13 +3185,13 @@ Search PitchBook credit analysis news by author, region, asset class, topic, iss
 |   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
 |   ↳ `assetClasses` | array | Asset classes the article covers |
 |   ↳ `topics` | array | Topics the article covers |
-|   ↳ `issuer` | object | Issuer the article is about |
+|   ↳ `issuer` | object (nullable) | Issuer the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
-|   ↳ `lender` | object | Lender the article is about |
+|   ↳ `lender` | object (nullable) | Lender the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
-|   ↳ `sponsor` | object | Sponsor the article is about |
+|   ↳ `sponsor` | object (nullable) | Sponsor the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
 
@@ -3226,13 +3226,13 @@ Retrieve the most recently published credit analysis articles and their descript
 |   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
 |   ↳ `assetClasses` | array | Asset classes the article covers |
 |   ↳ `topics` | array | Topics the article covers |
-|   ↳ `issuer` | object | Issuer the article is about |
+|   ↳ `issuer` | object (nullable) | Issuer the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
-|   ↳ `lender` | object | Lender the article is about |
+|   ↳ `lender` | object (nullable) | Lender the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
-|   ↳ `sponsor` | object | Sponsor the article is about |
+|   ↳ `sponsor` | object (nullable) | Sponsor the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
 
@@ -3252,20 +3252,20 @@ Retrieve one credit analysis article in full, including its body text, authors, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `articleId` | number | Credit news article ID |
-| `title` | string | Title |
+| `articleId` | number (nullable) | Credit news article ID |
+| `title` | string (nullable) | Title |
 | `authors` | array | Authors of the article |
 |   ↳ `authorName` | string | Author name |
 | `regions` | array | Geographic regions the article covers |
-| `publishDate` | string | Publication timestamp \(ISO 8601\) |
+| `publishDate` | string (nullable) | Publication timestamp \(ISO 8601\) |
 | `assetClasses` | array | Asset classes the article covers |
 | `topics` | array | Topics the article covers |
 | `issuer` | object | Issuer the article is about |
 |   ↳ `pbId` | string | PitchBook entity ID |
 |   ↳ `name` | string | Name |
-| `lender` | json | Lender the article is about |
-| `sponsor` | json | Sponsor the article is about |
-| `articleBody` | string | Full text of the article |
+| `lender` | json (nullable) | Lender the article is about |
+| `sponsor` | json (nullable) | Sponsor the article is about |
+| `articleBody` | string (nullable) | Full text of the article |
 | `attachments` | array | Attachments on the article |
 
 ### PitchBook Credit News Bulk
@@ -3298,14 +3298,14 @@ Retrieve many credit analysis articles in full in a single call, reporting which
 |   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
 |   ↳ `assetClasses` | array | Asset classes the article covers |
 |   ↳ `topics` | array | Topics the article covers |
-|   ↳ `issuer` | object | Issuer the article is about |
+|   ↳ `issuer` | object (nullable) | Issuer the article is about |
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
-|   ↳ `lender` | json | Lender the article is about |
-|   ↳ `sponsor` | json | Sponsor the article is about |
+|   ↳ `lender` | json (nullable) | Lender the article is about |
+|   ↳ `sponsor` | json (nullable) | Sponsor the article is about |
 |   ↳ `articleBody` | string | Full text of the article |
 |   ↳ `attachments` | array | Attachments on the article |
-|   ↳ `deal` | object | Deal the record belongs to |
+|   ↳ `deal` | object (nullable) | Deal the record belongs to |
 |     ↳ `dealId` | string | PitchBook deal ID |
 | `notFound` | array | Article IDs that were not found |
 | `duplicates` | array | Article IDs that were requested more than once |
@@ -3331,7 +3331,7 @@ Retrieve the API contracts on the account with their pricing model, term, and cr
 |   ↳ `activeContract` | boolean | Whether the contract is currently active |
 |   ↳ `pricingModel` | string | Pricing model of the contract |
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
-|   ↳ `endDate` | string | End date \(YYYY-MM-DD\) |
+|   ↳ `endDate` | string (nullable) | End date \(YYYY-MM-DD\) |
 |   ↳ `creditsUsed` | number | Credits consumed |
 |   ↳ `creditsChanged` | number | Net credits added or removed |
 |   ↳ `creditsExpired` | number | Credits that expired |
@@ -3471,6 +3471,4 @@ List the entities a sandbox API key is allowed to query, so test workflows have 
 | `entities` | array | Entities the sandbox key may query. PitchBook names this array after the requested entity type, so it is surfaced under a stable `entities` key rather than the type-specific one. |
 |   ↳ `companyId` | string | PitchBook ID of the entity, keyed by its own entity type |
 |   ↳ `companyName` | string | Name of the entity, keyed by its own entity type |
-| `entityTypeCounts` | json | Count of available sandbox entities, keyed by entity type |
-
-
+| `entityTypeCounts` | json (nullable) | Count of available sandbox entities, keyed by entity type |

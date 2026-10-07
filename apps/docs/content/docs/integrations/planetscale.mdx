@@ -5,7 +5,7 @@ description: Manage PlanetScale databases, branches, backups, and deploy request
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="planetscale"
   color="#111111"
 />
@@ -56,7 +56,7 @@ List databases
 | `pagination` | json | Pagination metadata |
 |   ↳ `currentPage` | number | current page |
 |   ↳ `perPage` | number | per page |
-|   ↳ `nextPage` | number | next page |
+|   ↳ `nextPage` | number (nullable) | next page |
 |   ↳ `totalCount` | number | total count |
 |   ↳ `totalPages` | number | total pages |
 | `databases` | array | databases |
@@ -130,7 +130,7 @@ List branches
 | `pagination` | json | Pagination metadata |
 |   ↳ `currentPage` | number | current page |
 |   ↳ `perPage` | number | per page |
-|   ↳ `nextPage` | number | next page |
+|   ↳ `nextPage` | number (nullable) | next page |
 |   ↳ `totalCount` | number | total count |
 |   ↳ `totalPages` | number | total pages |
 | `branches` | array | branches |
@@ -142,7 +142,7 @@ List branches
 |   ↳ `production` | boolean | Whether or not the branch is a production branch |
 |   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
 |   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
-|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `parentBranch` | string (nullable) | The name of the parent branch from which the branch was created |
 |   ↳ `createdAt` | string | When the branch was created |
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
@@ -174,7 +174,7 @@ Get a branch
 |   ↳ `production` | boolean | Whether or not the branch is a production branch |
 |   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
 |   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
-|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `parentBranch` | string (nullable) | The name of the parent branch from which the branch was created |
 |   ↳ `createdAt` | string | When the branch was created |
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
@@ -215,7 +215,7 @@ Create a branch
 |   ↳ `production` | boolean | Whether or not the branch is a production branch |
 |   ↳ `safeMigrations` | boolean | Whether or not the branch has safe migrations enabled |
 |   ↳ `deletionProtected` | boolean | Whether deletion protection is enabled for the branch |
-|   ↳ `parentBranch` | string | The name of the parent branch from which the branch was created |
+|   ↳ `parentBranch` | string (nullable) | The name of the parent branch from which the branch was created |
 |   ↳ `createdAt` | string | When the branch was created |
 |   ↳ `updatedAt` | string | When the branch was last updated |
 |   ↳ `htmlUrl` | string | Planetscale app URL for the branch |
@@ -271,7 +271,7 @@ List backups
 | `pagination` | json | Pagination metadata |
 |   ↳ `currentPage` | number | current page |
 |   ↳ `perPage` | number | per page |
-|   ↳ `nextPage` | number | next page |
+|   ↳ `nextPage` | number (nullable) | next page |
 |   ↳ `totalCount` | number | total count |
 |   ↳ `totalPages` | number | total pages |
 | `backups` | array | backups |
@@ -283,9 +283,9 @@ List backups
 |   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
 |   ↳ `createdAt` | string | When the backup was created |
 |   ↳ `updatedAt` | string | When the backup was last updated |
-|   ↳ `startedAt` | string | When the backup started |
-|   ↳ `completedAt` | string | When the backup completed |
-|   ↳ `expiresAt` | string | When the backup expires |
+|   ↳ `startedAt` | string (nullable) | When the backup started |
+|   ↳ `completedAt` | string (nullable) | When the backup completed |
+|   ↳ `expiresAt` | string (nullable) | When the backup expires |
 
 ### PlanetScale Get Backup
 
@@ -315,9 +315,9 @@ Get a backup
 |   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
 |   ↳ `createdAt` | string | When the backup was created |
 |   ↳ `updatedAt` | string | When the backup was last updated |
-|   ↳ `startedAt` | string | When the backup started |
-|   ↳ `completedAt` | string | When the backup completed |
-|   ↳ `expiresAt` | string | When the backup expires |
+|   ↳ `startedAt` | string (nullable) | When the backup started |
+|   ↳ `completedAt` | string (nullable) | When the backup completed |
+|   ↳ `expiresAt` | string (nullable) | When the backup expires |
 
 ### PlanetScale Create Backup
 
@@ -350,9 +350,9 @@ Create a backup
 |   ↳ `protected` | boolean | Whether or not the backup is protected from deletion |
 |   ↳ `createdAt` | string | When the backup was created |
 |   ↳ `updatedAt` | string | When the backup was last updated |
-|   ↳ `startedAt` | string | When the backup started |
-|   ↳ `completedAt` | string | When the backup completed |
-|   ↳ `expiresAt` | string | When the backup expires |
+|   ↳ `startedAt` | string (nullable) | When the backup started |
+|   ↳ `completedAt` | string (nullable) | When the backup completed |
+|   ↳ `expiresAt` | string (nullable) | When the backup expires |
 
 ### PlanetScale List Deploy Requests
 
@@ -381,7 +381,7 @@ List deploy requests (Vitess only)
 | `pagination` | json | Pagination metadata |
 |   ↳ `currentPage` | number | current page |
 |   ↳ `perPage` | number | per page |
-|   ↳ `nextPage` | number | next page |
+|   ↳ `nextPage` | number (nullable) | next page |
 |   ↳ `totalCount` | number | total count |
 |   ↳ `totalPages` | number | total pages |
 | `deployRequests` | array | deploy requests |
@@ -396,8 +396,8 @@ List deploy requests (Vitess only)
 |   ↳ `notes` | string | Notes on the deploy request |
 |   ↳ `createdAt` | string | When the deploy request was created |
 |   ↳ `updatedAt` | string | When the deploy request was last updated |
-|   ↳ `closedAt` | string | When the deploy request was closed |
-|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `closedAt` | string (nullable) | When the deploy request was closed |
+|   ↳ `deployedAt` | string (nullable) | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
 ### PlanetScale Get Deploy Request
@@ -430,8 +430,8 @@ Get a deploy request (Vitess only)
 |   ↳ `notes` | string | Notes on the deploy request |
 |   ↳ `createdAt` | string | When the deploy request was created |
 |   ↳ `updatedAt` | string | When the deploy request was last updated |
-|   ↳ `closedAt` | string | When the deploy request was closed |
-|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `closedAt` | string (nullable) | When the deploy request was closed |
+|   ↳ `deployedAt` | string (nullable) | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
 ### PlanetScale Create Deploy Request
@@ -468,8 +468,8 @@ Create a deploy request (Vitess only)
 |   ↳ `notes` | string | Notes on the deploy request |
 |   ↳ `createdAt` | string | When the deploy request was created |
 |   ↳ `updatedAt` | string | When the deploy request was last updated |
-|   ↳ `closedAt` | string | When the deploy request was closed |
-|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `closedAt` | string (nullable) | When the deploy request was closed |
+|   ↳ `deployedAt` | string (nullable) | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
 ### PlanetScale Review Deploy Request
@@ -530,8 +530,8 @@ Queue a deploy request (Vitess only)
 |   ↳ `notes` | string | Notes on the deploy request |
 |   ↳ `createdAt` | string | When the deploy request was created |
 |   ↳ `updatedAt` | string | When the deploy request was last updated |
-|   ↳ `closedAt` | string | When the deploy request was closed |
-|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `closedAt` | string (nullable) | When the deploy request was closed |
+|   ↳ `deployedAt` | string (nullable) | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
 ### PlanetScale Close Deploy Request
@@ -564,8 +564,6 @@ Close a deploy request (Vitess only)
 |   ↳ `notes` | string | Notes on the deploy request |
 |   ↳ `createdAt` | string | When the deploy request was created |
 |   ↳ `updatedAt` | string | When the deploy request was last updated |
-|   ↳ `closedAt` | string | When the deploy request was closed |
-|   ↳ `deployedAt` | string | When the deploy request was deployed |
+|   ↳ `closedAt` | string (nullable) | When the deploy request was closed |
+|   ↳ `deployedAt` | string (nullable) | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
-
-

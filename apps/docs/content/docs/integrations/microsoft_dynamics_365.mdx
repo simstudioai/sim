@@ -5,7 +5,7 @@ description: Manage customers, sales pipelines, and support cases in Dynamics 36
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="microsoft_dynamics_365"
   color="#FFFFFF"
 />
@@ -55,10 +55,10 @@ Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filt
 | --------- | ---- | ----------- |
 | `records` | array | Array of Dataverse records. Each record has dynamic columns based on the table schema. |
 | `count` | number | Number of records returned in the current page |
-| `totalCount` | number | Provider-reported matching-record count, which Dataverse may cap \(requires $count=true\) |
-| `totalCountLimitExceeded` | boolean | Whether Dataverse capped the provider-reported matching-record count |
-| `nextLink` | string | URL for the next page of results |
-| `nextPageSize` | number | Page size that must accompany nextLink on the continuation request |
+| `totalCount` | number (nullable) | Provider-reported matching-record count, which Dataverse may cap \(requires $count=true\) |
+| `totalCountLimitExceeded` | boolean (nullable) | Whether Dataverse capped the provider-reported matching-record count |
+| `nextLink` | string (nullable) | URL for the next page of results |
+| `nextPageSize` | number (nullable) | Page size that must accompany nextLink on the continuation request |
 | `success` | boolean | Operation success status |
 
 ### Get Microsoft Dynamics 365 CRM Record
@@ -155,7 +155,7 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 |   ↳ `Score` | number | Relevance score for this result |
 | `totalCount` | number | Total number of matching records across all tables |
 | `count` | number | Number of results returned in this page |
-| `facets` | object | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
+| `facets` | object (nullable) | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
 | `success` | boolean | Operation success status |
 
 ### Qualify Microsoft Dynamics 365 Lead
@@ -249,5 +249,3 @@ Sim requests these scopes when someone connects a Microsoft Dataverse account. O
 | `offline_access` | Access account when not using the application |
 
 Each connection is bound to one environment. `<environment-url>` is that environment's Web API origin, so the scope looks like `https://yourorg.api.crm.dynamics.com/.default`. In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
-
-

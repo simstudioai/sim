@@ -5,7 +5,7 @@ description: Query and manage Azure Data Explorer (Kusto) clusters with KQL
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="azure_data_explorer"
   color="#FFFFFF"
 />
@@ -76,11 +76,11 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -107,11 +107,11 @@ Run an Azure Data Explorer management command (a control command starting with "
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -136,11 +136,11 @@ List the databases on an Azure Data Explorer cluster that the service principal 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -167,11 +167,11 @@ List the tables in an Azure Data Explorer database, with their folder and docstr
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -199,11 +199,11 @@ Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Times
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name of the table |
-| `schema` | string | Comma-separated CSL column schema \(name:type\) |
-| `databaseName` | string | The table's database |
-| `folder` | string | The table's folder |
-| `docString` | string | The table's docstring |
+| `tableName` | string (nullable) | Name of the table |
+| `schema` | string (nullable) | Comma-separated CSL column schema \(name:type\) |
+| `databaseName` | string (nullable) | The table's database |
+| `folder` | string (nullable) | The table's folder |
+| `docString` | string (nullable) | The table's docstring |
 
 ### Azure Data Explorer Show Database Schema
 
@@ -224,11 +224,11 @@ Read the full schema of an Azure Data Explorer database as a flat list of every 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -255,11 +255,11 @@ Read size, row count, hot-cache footprint, and effective policies for a table �
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -285,11 +285,11 @@ List the stored functions in an Azure Data Explorer database, with their paramet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -319,11 +319,11 @@ Push rows directly into an Azure Data Explorer table with .ingest inline. Data i
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -355,11 +355,11 @@ Materialize the result of a KQL query into a table with .set, .append, .set-or-a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -388,11 +388,11 @@ Create a table in an Azure Data Explorer database from a CSL column schema. Succ
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -420,11 +420,11 @@ Drop a table from an Azure Data Explorer database. This permanently deletes the 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -452,11 +452,11 @@ List ingestion failures recorded for a database, with the failing table, error c
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
@@ -483,15 +483,13 @@ Check the state of administrative operations on a cluster, such as an async inge
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tableName` | string | Name Kusto assigned to the returned result table |
+| `tableName` | string (nullable) | Name Kusto assigned to the returned result table |
 | `columns` | array | Column metadata for the result table |
 |   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Kusto scalar type |
-|   ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `type` | string (nullable) | Kusto scalar type |
+|   ↳ `dataType` | string (nullable) | Approximate .NET type |
 | `rows` | array | Result rows as positional arrays matching the columns order |
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
-
-

@@ -5,7 +5,7 @@ description: Manage users, audiences, learning and CPD on Thrive
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="thrive"
   color="#FFFFFF"
 />
@@ -63,17 +63,17 @@ Create a new user in Thrive.
 |   ↳ `lastName` | string | The family name of the individual |
 |   ↳ `role` | string | Role assigned to this individual |
 |   ↳ `jobTitle` | string | Name of this individual's role |
-|   ↳ `managerRef` | string | The line manager's ref |
-|   ↳ `startDate` | string | Date started with the organisation |
-|   ↳ `endDate` | string | Date left the organisation |
+|   ↳ `managerRef` | string (nullable) | The line manager's ref |
+|   ↳ `startDate` | string (nullable) | Date started with the organisation |
+|   ↳ `endDate` | string (nullable) | Date left the organisation |
 |   ↳ `timeZone` | string | The user's preferred timezone |
 |   ↳ `languageCode` | string | The user's preferred language |
 |   ↳ `active` | boolean | Whether the account is active or suspended |
 |   ↳ `createdAt` | string | Date/time the user was created |
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
 |   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
-|   ↳ `domain` | string | Domain this individual is associated with |
-|   ↳ `additionalFields` | json | Custom field values for this user |
+|   ↳ `domain` | string (nullable) | Domain this individual is associated with |
+|   ↳ `additionalFields` | json (nullable) | Custom field values for this user |
 
 ### Thrive Update User
 
@@ -115,17 +115,17 @@ Update an existing user in Thrive by ref. Only the fields provided are changed.
 |   ↳ `lastName` | string | The family name of the individual |
 |   ↳ `role` | string | Role assigned to this individual |
 |   ↳ `jobTitle` | string | Name of this individual's role |
-|   ↳ `managerRef` | string | The line manager's ref |
-|   ↳ `startDate` | string | Date started with the organisation |
-|   ↳ `endDate` | string | Date left the organisation |
+|   ↳ `managerRef` | string (nullable) | The line manager's ref |
+|   ↳ `startDate` | string (nullable) | Date started with the organisation |
+|   ↳ `endDate` | string (nullable) | Date left the organisation |
 |   ↳ `timeZone` | string | The user's preferred timezone |
 |   ↳ `languageCode` | string | The user's preferred language |
 |   ↳ `active` | boolean | Whether the account is active or suspended |
 |   ↳ `createdAt` | string | Date/time the user was created |
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
 |   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
-|   ↳ `domain` | string | Domain this individual is associated with |
-|   ↳ `additionalFields` | json | Custom field values for this user |
+|   ↳ `domain` | string (nullable) | Domain this individual is associated with |
+|   ↳ `additionalFields` | json (nullable) | Custom field values for this user |
 
 ### Thrive Delete User
 
@@ -173,17 +173,17 @@ Suspend a user in Thrive by ref, marking the account inactive.
 |   ↳ `lastName` | string | The family name of the individual |
 |   ↳ `role` | string | Role assigned to this individual |
 |   ↳ `jobTitle` | string | Name of this individual's role |
-|   ↳ `managerRef` | string | The line manager's ref |
-|   ↳ `startDate` | string | Date started with the organisation |
-|   ↳ `endDate` | string | Date left the organisation |
+|   ↳ `managerRef` | string (nullable) | The line manager's ref |
+|   ↳ `startDate` | string (nullable) | Date started with the organisation |
+|   ↳ `endDate` | string (nullable) | Date left the organisation |
 |   ↳ `timeZone` | string | The user's preferred timezone |
 |   ↳ `languageCode` | string | The user's preferred language |
 |   ↳ `active` | boolean | Whether the account is active or suspended |
 |   ↳ `createdAt` | string | Date/time the user was created |
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
 |   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
-|   ↳ `domain` | string | Domain this individual is associated with |
-|   ↳ `additionalFields` | json | Custom field values for this user |
+|   ↳ `domain` | string (nullable) | Domain this individual is associated with |
+|   ↳ `additionalFields` | json (nullable) | Custom field values for this user |
 
 ### Thrive Search Users
 
@@ -209,32 +209,32 @@ Search users in Thrive and return basic user information with pagination.
 | --------- | ---- | ----------- |
 | `results` | array | The matching users |
 |   ↳ `id` | string | The user's ID |
-|   ↳ `ref` | string | The user's ref |
-|   ↳ `firstName` | string | The user's first name |
-|   ↳ `lastName` | string | The user's last name |
-|   ↳ `email` | string | The user's email |
-|   ↳ `role` | string | The user's role |
-|   ↳ `status` | string | The user's status |
+|   ↳ `ref` | string (nullable) | The user's ref |
+|   ↳ `firstName` | string (nullable) | The user's first name |
+|   ↳ `lastName` | string (nullable) | The user's last name |
+|   ↳ `email` | string (nullable) | The user's email |
+|   ↳ `role` | string (nullable) | The user's role |
+|   ↳ `status` | string (nullable) | The user's status |
 |   ↳ `positions` | array | The user's positions |
-|   ↳ `additionalFields` | json | Custom field values |
-|   ↳ `languageCode` | string | The user's language code |
+|   ↳ `additionalFields` | json (nullable) | Custom field values |
+|   ↳ `languageCode` | string (nullable) | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
 |   ↳ `compliance` | number | The user's compliance score |
 |   ↳ `level` | number | The user's level |
-|   ↳ `firstLogin` | string | First login timestamp \(ISO 8601\) |
-|   ↳ `lastLogin` | string | Last login timestamp \(ISO 8601\) |
+|   ↳ `firstLogin` | string (nullable) | First login timestamp \(ISO 8601\) |
+|   ↳ `lastLogin` | string (nullable) | Last login timestamp \(ISO 8601\) |
 |   ↳ `tags` | json | Tag membership \(e.g. skills\) |
 |   ↳ `usersFollowing` | array | IDs of users this user follows |
 |   ↳ `tagsFollowing` | array | Tags this user follows |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 |   ↳ `hasPicture` | boolean | Whether the user has a profile picture |
-|   ↳ `timeZone` | string | The user's time zone |
-|   ↳ `summary` | string | The user's summary |
+|   ↳ `timeZone` | string (nullable) | The user's time zone |
+|   ↳ `summary` | string (nullable) | The user's summary |
 |   ↳ `relevancy` | number | The user's relevancy score |
 |   ↳ `rank` | json | The user's rank details |
-|   ↳ `agreedTerms` | boolean | Whether the user agreed to the terms |
-|   ↳ `onboarded` | boolean | Whether the user has been onboarded |
+|   ↳ `agreedTerms` | boolean (nullable) | Whether the user agreed to the terms |
+|   ↳ `onboarded` | boolean (nullable) | Whether the user has been onboarded |
 |   ↳ `audiences` | array | Audience IDs the user belongs to |
 |   ↳ `singleSignOn` | boolean | Whether the user uses single sign-on |
 | `pagination` | object | Pagination details |
@@ -262,32 +262,32 @@ Get a single user in Thrive by their ID and return basic user information.
 | --------- | ---- | ----------- |
 | `user` | object | The user |
 |   ↳ `id` | string | The user's ID |
-|   ↳ `ref` | string | The user's ref |
-|   ↳ `firstName` | string | The user's first name |
-|   ↳ `lastName` | string | The user's last name |
-|   ↳ `email` | string | The user's email |
-|   ↳ `role` | string | The user's role |
-|   ↳ `status` | string | The user's status |
+|   ↳ `ref` | string (nullable) | The user's ref |
+|   ↳ `firstName` | string (nullable) | The user's first name |
+|   ↳ `lastName` | string (nullable) | The user's last name |
+|   ↳ `email` | string (nullable) | The user's email |
+|   ↳ `role` | string (nullable) | The user's role |
+|   ↳ `status` | string (nullable) | The user's status |
 |   ↳ `positions` | array | The user's positions |
-|   ↳ `additionalFields` | json | Custom field values |
-|   ↳ `languageCode` | string | The user's language code |
+|   ↳ `additionalFields` | json (nullable) | Custom field values |
+|   ↳ `languageCode` | string (nullable) | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
 |   ↳ `compliance` | number | The user's compliance score |
 |   ↳ `level` | number | The user's level |
-|   ↳ `firstLogin` | string | First login timestamp \(ISO 8601\) |
-|   ↳ `lastLogin` | string | Last login timestamp \(ISO 8601\) |
+|   ↳ `firstLogin` | string (nullable) | First login timestamp \(ISO 8601\) |
+|   ↳ `lastLogin` | string (nullable) | Last login timestamp \(ISO 8601\) |
 |   ↳ `tags` | json | Tag membership \(e.g. skills\) |
 |   ↳ `usersFollowing` | array | IDs of users this user follows |
 |   ↳ `tagsFollowing` | array | Tags this user follows |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 |   ↳ `hasPicture` | boolean | Whether the user has a profile picture |
-|   ↳ `timeZone` | string | The user's time zone |
-|   ↳ `summary` | string | The user's summary |
+|   ↳ `timeZone` | string (nullable) | The user's time zone |
+|   ↳ `summary` | string (nullable) | The user's summary |
 |   ↳ `relevancy` | number | The user's relevancy score |
 |   ↳ `rank` | json | The user's rank details |
-|   ↳ `agreedTerms` | boolean | Whether the user agreed to the terms |
-|   ↳ `onboarded` | boolean | Whether the user has been onboarded |
+|   ↳ `agreedTerms` | boolean (nullable) | Whether the user agreed to the terms |
+|   ↳ `onboarded` | boolean (nullable) | Whether the user has been onboarded |
 |   ↳ `audiences` | array | Audience IDs the user belongs to |
 |   ↳ `singleSignOn` | boolean | Whether the user uses single sign-on |
 
@@ -310,15 +310,15 @@ Get a single user in Thrive by their ref and return basic user information.
 | --------- | ---- | ----------- |
 | `user` | object | The user \(basic information\) |
 |   ↳ `id` | string | The user's ID |
-|   ↳ `ref` | string | The user's ref |
-|   ↳ `firstName` | string | The user's first name |
-|   ↳ `lastName` | string | The user's last name |
-|   ↳ `email` | string | The user's email |
-|   ↳ `role` | string | The user's role |
-|   ↳ `status` | string | The user's status |
+|   ↳ `ref` | string (nullable) | The user's ref |
+|   ↳ `firstName` | string (nullable) | The user's first name |
+|   ↳ `lastName` | string (nullable) | The user's last name |
+|   ↳ `email` | string (nullable) | The user's email |
+|   ↳ `role` | string (nullable) | The user's role |
+|   ↳ `status` | string (nullable) | The user's status |
 |   ↳ `positions` | array | The user's positions |
-|   ↳ `additionalFields` | json | Custom field values |
-|   ↳ `languageCode` | string | The user's language code |
+|   ↳ `additionalFields` | json (nullable) | Custom field values |
+|   ↳ `languageCode` | string (nullable) | The user's language code |
 
 ### Thrive List Audiences
 
@@ -347,7 +347,7 @@ List audiences and structures in Thrive with pagination.
 |   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
 |   ↳ `category` | string | Either "audience" or "structure" |
 |   ↳ `type` | string | Either "manual" or "smart" |
-|   ↳ `parent` | object | Parent audience/structure information |
+|   ↳ `parent` | object (nullable) | Parent audience/structure information |
 |     ↳ `name` | string | The name of the parent audience |
 |     ↳ `reference` | string | The external reference for the parent |
 |     ↳ `id` | string | The id of the parent audience/structure |
@@ -386,7 +386,7 @@ Create a new audience or structure in Thrive.
 |   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
 |   ↳ `category` | string | Either "audience" or "structure" |
 |   ↳ `type` | string | Either "manual" or "smart" |
-|   ↳ `parent` | object | Parent audience/structure information |
+|   ↳ `parent` | object (nullable) | Parent audience/structure information |
 |     ↳ `name` | string | The name of the parent audience |
 |     ↳ `reference` | string | The external reference for the parent |
 |     ↳ `id` | string | The id of the parent audience/structure |
@@ -417,7 +417,7 @@ Get a single audience or structure in Thrive by id or reference.
 |   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
 |   ↳ `category` | string | Either "audience" or "structure" |
 |   ↳ `type` | string | Either "manual" or "smart" |
-|   ↳ `parent` | object | Parent audience/structure information |
+|   ↳ `parent` | object (nullable) | Parent audience/structure information |
 |     ↳ `name` | string | The name of the parent audience |
 |     ↳ `reference` | string | The external reference for the parent |
 |     ↳ `id` | string | The id of the parent audience/structure |
@@ -451,7 +451,7 @@ Update an audience in Thrive, optionally moving it to a new parent.
 |   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
 |   ↳ `category` | string | Either "audience" or "structure" |
 |   ↳ `type` | string | Either "manual" or "smart" |
-|   ↳ `parent` | object | Parent audience/structure information |
+|   ↳ `parent` | object (nullable) | Parent audience/structure information |
 |     ↳ `name` | string | The name of the parent audience |
 |     ↳ `reference` | string | The external reference for the parent |
 |     ↳ `id` | string | The id of the parent audience/structure |
@@ -608,7 +608,7 @@ List the managers of a Thrive audience.
 |   ↳ `permissions` | object | The manager permissions |
 |     ↳ `audienceManager` | json | Audience manager permissions |
 |     ↳ `peopleManager` | json | People manager permissions |
-|     ↳ `administrator` | json | Administrator permissions \(structures only\) |
+|     ↳ `administrator` | json (nullable) | Administrator permissions \(structures only\) |
 
 ### Thrive Add Audience Managers
 
@@ -715,12 +715,12 @@ List compliance assignments in Thrive, optionally filtered by audience.
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
-|   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
+|   ↳ `recurrence` | number (nullable) | Number of days until the assignment reoccurs |
 |   ↳ `isActive` | boolean | Whether the assignment is active |
 |   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `deletedAt` | string (nullable) | Deletion timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 
 ### Thrive Create Assignment
 
@@ -751,12 +751,12 @@ Create a compliance assignment in Thrive for an audience and content item.
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
-|   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
+|   ↳ `recurrence` | number (nullable) | Number of days until the assignment reoccurs |
 |   ↳ `isActive` | boolean | Whether the assignment is active |
 |   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `deletedAt` | string (nullable) | Deletion timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 
 ### Thrive Get Assignment
 
@@ -782,12 +782,12 @@ Get a single compliance assignment in Thrive by its ID.
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
-|   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
+|   ↳ `recurrence` | number (nullable) | Number of days until the assignment reoccurs |
 |   ↳ `isActive` | boolean | Whether the assignment is active |
 |   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `deletedAt` | string (nullable) | Deletion timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 
 ### Thrive Update Assignment
 
@@ -818,12 +818,12 @@ Update a compliance assignment in Thrive.
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
-|   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
+|   ↳ `recurrence` | number (nullable) | Number of days until the assignment reoccurs |
 |   ↳ `isActive` | boolean | Whether the assignment is active |
 |   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `createdAt` | string (nullable) | Creation timestamp \(ISO 8601\) |
+|   ↳ `deletedAt` | string (nullable) | Deletion timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 
 ### Thrive Delete Assignment
 
@@ -1033,10 +1033,10 @@ Get a single content record in Thrive by its ID.
 |   ↳ `type` | string | The kind of artifact associated with this content |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
-|   ↳ `author` | string | User ID who authored the content |
+|   ↳ `author` | string (nullable) | User ID who authored the content |
 |   ↳ `isOfficial` | boolean | Whether the content is recognised as official |
-|   ↳ `duration` | object | Expected time to complete the content |
-|     ↳ `value` | number | Duration value |
+|   ↳ `duration` | object (nullable) | Expected time to complete the content |
+|     ↳ `value` | number (nullable) | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
 
@@ -1069,10 +1069,10 @@ Query content records in Thrive with pagination and filtering options.
 |   ↳ `type` | string | The kind of artifact associated with this content |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
-|   ↳ `author` | string | User ID who authored the content |
+|   ↳ `author` | string (nullable) | User ID who authored the content |
 |   ↳ `isOfficial` | boolean | Whether the content is recognised as official |
-|   ↳ `duration` | object | Expected time to complete the content |
-|     ↳ `value` | number | Duration value |
+|   ↳ `duration` | object (nullable) | Expected time to complete the content |
+|     ↳ `value` | number (nullable) | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
 | `pagination` | object | Pagination details |
@@ -1107,7 +1107,7 @@ Get a single activity record in Thrive by its ID.
 |   ↳ `contextId` | string | Identifier for the context item |
 |   ↳ `contextType` | string | What this activity was in relation to |
 |   ↳ `data` | json | Unstructured activity data; shape varies by type |
-|   ↳ `with` | json | Additional context information |
+|   ↳ `with` | json (nullable) | Additional context information |
 
 ### Thrive Query Activities
 
@@ -1142,7 +1142,7 @@ Query activity records in Thrive with pagination and filtering options.
 |   ↳ `contextId` | string | Identifier for the context item |
 |   ↳ `contextType` | string | What this activity was in relation to |
 |   ↳ `data` | json | Unstructured activity data; shape varies by type |
-|   ↳ `with` | json | Additional context information |
+|   ↳ `with` | json (nullable) | Additional context information |
 | `pagination` | object | Pagination details |
 |   ↳ `totalResults` | number | Total number of results matching the query |
 |   ↳ `totalPages` | number | Total number of pages available |
@@ -1226,7 +1226,7 @@ Get a single CPD log entry in Thrive by its ID.
 |     ↳ `name` | string | Name of the category of CPD activity |
 |   ↳ `entryDate` | string | The date and time the CPD entry was logged \(ISO 8601\) |
 |   ↳ `durationMinutes` | number | Minutes logged as CPD from this activity |
-|   ↳ `description` | string | Summary or reflective statement |
+|   ↳ `description` | string (nullable) | Summary or reflective statement |
 |   ↳ `isVerified` | boolean | Whether the activity was generated from verified system activity |
 
 ### Thrive Query CPD Entries
@@ -1260,7 +1260,7 @@ Query CPD log entries in Thrive and return results with pagination.
 |     ↳ `name` | string | Name of the category of CPD activity |
 |   ↳ `entryDate` | string | The date and time the CPD entry was logged \(ISO 8601\) |
 |   ↳ `durationMinutes` | number | Minutes logged as CPD from this activity |
-|   ↳ `description` | string | Summary or reflective statement |
+|   ↳ `description` | string (nullable) | Summary or reflective statement |
 |   ↳ `isVerified` | boolean | Whether the activity was generated from verified system activity |
 | `pagination` | object | Pagination details |
 |   ↳ `totalResults` | number | Total number of results matching the query |
@@ -1290,7 +1290,7 @@ Get a single CPD requirement summary in Thrive by its ID.
 |   ↳ `audienceId` | string | ID of the audience this requirement applies to |
 |   ↳ `requiredMinutes` | number | Number of minutes required for CPD completion |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 
 ### Thrive Query CPD Requirements
 
@@ -1316,7 +1316,7 @@ Query CPD requirement summaries in Thrive and return results with pagination.
 |   ↳ `audienceId` | string | ID of the audience this requirement applies to |
 |   ↳ `requiredMinutes` | number | Number of minutes required for CPD completion |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string (nullable) | Last-update timestamp \(ISO 8601\) |
 | `pagination` | object | Pagination details |
 |   ↳ `totalResults` | number | Total number of results matching the query |
 |   ↳ `totalPages` | number | Total number of pages available |
@@ -1493,5 +1493,3 @@ Get the available skill levels configured in Thrive.
 |   ↳ `name` | string | The name of the skill level |
 |   ↳ `isEnabled` | boolean | Whether the skill level is enabled |
 |   ↳ `value` | number | The numeric value of the skill level |
-
-

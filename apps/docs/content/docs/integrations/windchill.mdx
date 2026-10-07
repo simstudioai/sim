@@ -5,7 +5,7 @@ description: Manage documents, revisions, and content in PTC Windchill
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="windchill"
   color="#FFFFFF"
 />
@@ -60,24 +60,24 @@ List documents with an OData query, sorting, and pagination
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `documents` | array | Windchill documents |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 | `pageInfo` | object | OData pagination information |
 |   ↳ `count` | number | Number of items returned in this page |
-|   ↳ `totalCount` | number | Total matching items |
-|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
+|   ↳ `totalCount` | number (nullable) | Total matching items |
+|   ↳ `nextLink` | string (nullable) | URL returned by Windchill for the next page |
 
 ### Windchill Get Document
 
@@ -99,20 +99,20 @@ Get a WT.Document by OID
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `document` | object | Windchill document |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Get Document Structure
 
@@ -135,42 +135,42 @@ Retrieve recursive document usage links and their parent and child documents
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `structure` | array | Document usage links, including recursively expanded child links |
-|   ↳ `id` | string | Document usage link OID |
-|   ↳ `parent` | object | Parent document |
-|     ↳ `id` | string | Windchill object identifier |
-|     ↳ `name` | string | Document name |
-|     ↳ `number` | string | Document number |
-|     ↳ `title` | string | Document title |
-|     ↳ `description` | string | Document description |
-|     ↳ `state` | string | Internal life cycle state value |
-|     ↳ `stateDisplay` | string | Displayed life cycle state value |
-|     ↳ `versionId` | string | Version identifier |
-|     ↳ `revision` | string | Revision identifier |
-|     ↳ `version` | string | Version and iteration |
-|     ↳ `latest` | boolean | Whether this is the latest version |
-|     ↳ `checkoutState` | string | Checkout state |
-|     ↳ `folderName` | string | Folder name |
-|     ↳ `folderLocation` | string | Folder path |
-|   ↳ `child` | object | Child document |
-|     ↳ `id` | string | Windchill object identifier |
-|     ↳ `name` | string | Document name |
-|     ↳ `number` | string | Document number |
-|     ↳ `title` | string | Document title |
-|     ↳ `description` | string | Document description |
-|     ↳ `state` | string | Internal life cycle state value |
-|     ↳ `stateDisplay` | string | Displayed life cycle state value |
-|     ↳ `versionId` | string | Version identifier |
-|     ↳ `revision` | string | Revision identifier |
-|     ↳ `version` | string | Version and iteration |
-|     ↳ `latest` | boolean | Whether this is the latest version |
-|     ↳ `checkoutState` | string | Checkout state |
-|     ↳ `folderName` | string | Folder name |
-|     ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Document usage link OID |
+|   ↳ `parent` | object (nullable) | Parent document |
+|     ↳ `id` | string (nullable) | Windchill object identifier |
+|     ↳ `name` | string (nullable) | Document name |
+|     ↳ `number` | string (nullable) | Document number |
+|     ↳ `title` | string (nullable) | Document title |
+|     ↳ `description` | string (nullable) | Document description |
+|     ↳ `state` | string (nullable) | Internal life cycle state value |
+|     ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|     ↳ `versionId` | string (nullable) | Version identifier |
+|     ↳ `revision` | string (nullable) | Revision identifier |
+|     ↳ `version` | string (nullable) | Version and iteration |
+|     ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|     ↳ `checkoutState` | string (nullable) | Checkout state |
+|     ↳ `folderName` | string (nullable) | Folder name |
+|     ↳ `folderLocation` | string (nullable) | Folder path |
+|   ↳ `child` | object (nullable) | Child document |
+|     ↳ `id` | string (nullable) | Windchill object identifier |
+|     ↳ `name` | string (nullable) | Document name |
+|     ↳ `number` | string (nullable) | Document number |
+|     ↳ `title` | string (nullable) | Document title |
+|     ↳ `description` | string (nullable) | Document description |
+|     ↳ `state` | string (nullable) | Internal life cycle state value |
+|     ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|     ↳ `versionId` | string (nullable) | Version identifier |
+|     ↳ `revision` | string (nullable) | Revision identifier |
+|     ↳ `version` | string (nullable) | Version and iteration |
+|     ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|     ↳ `checkoutState` | string (nullable) | Checkout state |
+|     ↳ `folderName` | string (nullable) | Folder name |
+|     ↳ `folderLocation` | string (nullable) | Folder path |
 |   ↳ `children` | array | Nested child usage links with the same recursive shape |
 | `pageInfo` | object | OData pagination information |
 |   ↳ `count` | number | Number of items returned in this page |
-|   ↳ `totalCount` | number | Total matching items |
-|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
+|   ↳ `totalCount` | number (nullable) | Total matching items |
+|   ↳ `nextLink` | string (nullable) | URL returned by Windchill for the next page |
 
 ### Windchill Get Valid State Transitions
 
@@ -191,8 +191,8 @@ Get lifecycle states a document can transition to from its current state
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `states` | array | Valid lifecycle transitions |
-|   ↳ `value` | string | Internal state value |
-|   ↳ `display` | string | Displayed state value |
+|   ↳ `value` | string (nullable) | Internal state value |
+|   ↳ `display` | string (nullable) | Displayed state value |
 
 ### Windchill Get Primary Content
 
@@ -212,17 +212,17 @@ Get primary-content metadata for a document
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
-| `content` | object | Primary-content metadata |
-|   ↳ `id` | string | Content object identifier |
-|   ↳ `fileName` | string | Content file name |
-|   ↳ `description` | string | Content description |
-|   ↳ `format` | string | Windchill content format |
-|   ↳ `mimeType` | string | Content MIME type |
-|   ↳ `fileSize` | number | Content size in bytes |
-|   ↳ `contentType` | string | Windchill OData content entity type |
-|   ↳ `displayName` | string | Displayed content name |
-|   ↳ `urlLocation` | string | URL-data location |
-|   ↳ `externalLocation` | string | External-storage location |
+| `content` | object (nullable) | Primary-content metadata |
+|   ↳ `id` | string (nullable) | Content object identifier |
+|   ↳ `fileName` | string (nullable) | Content file name |
+|   ↳ `description` | string (nullable) | Content description |
+|   ↳ `format` | string (nullable) | Windchill content format |
+|   ↳ `mimeType` | string (nullable) | Content MIME type |
+|   ↳ `fileSize` | number (nullable) | Content size in bytes |
+|   ↳ `contentType` | string (nullable) | Windchill OData content entity type |
+|   ↳ `displayName` | string (nullable) | Displayed content name |
+|   ↳ `urlLocation` | string (nullable) | URL-data location |
+|   ↳ `externalLocation` | string (nullable) | External-storage location |
 
 ### Windchill List Attachments
 
@@ -244,20 +244,20 @@ List attachment metadata for a document
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `attachments` | array | Document attachments |
-|   ↳ `id` | string | Content object identifier |
-|   ↳ `fileName` | string | Content file name |
-|   ↳ `description` | string | Content description |
-|   ↳ `format` | string | Windchill content format |
-|   ↳ `mimeType` | string | Content MIME type |
-|   ↳ `fileSize` | number | Content size in bytes |
-|   ↳ `contentType` | string | Windchill OData content entity type |
-|   ↳ `displayName` | string | Displayed content name |
-|   ↳ `urlLocation` | string | URL-data location |
-|   ↳ `externalLocation` | string | External-storage location |
+|   ↳ `id` | string (nullable) | Content object identifier |
+|   ↳ `fileName` | string (nullable) | Content file name |
+|   ↳ `description` | string (nullable) | Content description |
+|   ↳ `format` | string (nullable) | Windchill content format |
+|   ↳ `mimeType` | string (nullable) | Content MIME type |
+|   ↳ `fileSize` | number (nullable) | Content size in bytes |
+|   ↳ `contentType` | string (nullable) | Windchill OData content entity type |
+|   ↳ `displayName` | string (nullable) | Displayed content name |
+|   ↳ `urlLocation` | string (nullable) | URL-data location |
+|   ↳ `externalLocation` | string (nullable) | External-storage location |
 | `pageInfo` | object | OData pagination information |
 |   ↳ `count` | number | Number of items returned in this page |
-|   ↳ `totalCount` | number | Total matching items |
-|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
+|   ↳ `totalCount` | number (nullable) | Total matching items |
+|   ↳ `nextLink` | string (nullable) | URL returned by Windchill for the next page |
 
 ### Windchill Create Document
 
@@ -285,20 +285,20 @@ Create one WT.Document
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Create Documents
 
@@ -320,20 +320,20 @@ Create several documents in one atomic Windchill request
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Update Document
 
@@ -356,20 +356,20 @@ Update one document's editable attributes
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Update Common Properties
 
@@ -392,20 +392,20 @@ Update a document's Name, Number, and other common properties
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Update Documents
 
@@ -427,20 +427,20 @@ Update several documents' editable attributes in one atomic request
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Delete Document
 
@@ -503,20 +503,20 @@ Check out one document
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Check Out Documents
 
@@ -539,20 +539,20 @@ Check out multiple documents atomically
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Check In Document
 
@@ -577,20 +577,20 @@ Check in one document
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Check In Documents
 
@@ -615,20 +615,20 @@ Check in multiple documents atomically
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Undo Check Out Document
 
@@ -650,20 +650,20 @@ Undo checkout for one document
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Undo Check Out Documents
 
@@ -685,20 +685,20 @@ Undo checkout for multiple documents atomically
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Revise Document
 
@@ -721,20 +721,20 @@ Create a new revision of one document
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Revise Documents
 
@@ -756,20 +756,20 @@ Create new revisions of multiple documents atomically
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Set Lifecycle State
 
@@ -793,20 +793,20 @@ Transition a document to a valid lifecycle state
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `document` | object | Document returned by Windchill when the operation returns one |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Update Document Security Labels
 
@@ -828,20 +828,20 @@ Update installed security-label attributes for one or more documents
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
 | `documents` | array | Documents returned by Windchill when the operation returns them |
-|   ↳ `id` | string | Windchill object identifier |
-|   ↳ `name` | string | Document name |
-|   ↳ `number` | string | Document number |
-|   ↳ `title` | string | Document title |
-|   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Internal life cycle state value |
-|   ↳ `stateDisplay` | string | Displayed life cycle state value |
-|   ↳ `versionId` | string | Version identifier |
-|   ↳ `revision` | string | Revision identifier |
-|   ↳ `version` | string | Version and iteration |
-|   ↳ `latest` | boolean | Whether this is the latest version |
-|   ↳ `checkoutState` | string | Checkout state |
-|   ↳ `folderName` | string | Folder name |
-|   ↳ `folderLocation` | string | Folder path |
+|   ↳ `id` | string (nullable) | Windchill object identifier |
+|   ↳ `name` | string (nullable) | Document name |
+|   ↳ `number` | string (nullable) | Document number |
+|   ↳ `title` | string (nullable) | Document title |
+|   ↳ `description` | string (nullable) | Document description |
+|   ↳ `state` | string (nullable) | Internal life cycle state value |
+|   ↳ `stateDisplay` | string (nullable) | Displayed life cycle state value |
+|   ↳ `versionId` | string (nullable) | Version identifier |
+|   ↳ `revision` | string (nullable) | Revision identifier |
+|   ↳ `version` | string (nullable) | Version and iteration |
+|   ↳ `latest` | boolean (nullable) | Whether this is the latest version |
+|   ↳ `checkoutState` | string (nullable) | Checkout state |
+|   ↳ `folderName` | string (nullable) | Folder name |
+|   ↳ `folderLocation` | string (nullable) | Folder path |
 
 ### Windchill Download Primary Content
 
@@ -933,5 +933,3 @@ Upload one or more files as document attachments
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
-
-

@@ -5,7 +5,7 @@ description: Make and manage phone calls
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="twilio_voice"
   color="#F22F46"
 />
@@ -121,8 +121,6 @@ Retrieve call recording information and transcription (if enabled via TwiML).
 | `transcriptionPriceUnit` | string | Currency of the transcription price |
 | `error` | string | Error message if retrieval failed |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -176,4 +174,3 @@ Trigger workflow when phone calls are received via Twilio Voice
 | `callerCountry` | string | Country of the caller \(same as fromCountry\) |
 | `callToken` | string | Twilio call token for authentication |
 | `raw` | string | Complete raw webhook payload from Twilio as JSON string |
-

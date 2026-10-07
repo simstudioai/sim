@@ -5,7 +5,7 @@ description: Send WhatsApp messages
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="whatsapp"
   color="#25D366"
 />
@@ -40,39 +40,15 @@ Send a free-form text message through the WhatsApp Cloud API. Only works inside 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | string | WhatsApp message identifier |
-| `messageStatus` | string | Pacing status from the send API: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — use the webhook trigger for delivery status. |
-| `messagingProduct` | string | Messaging product returned by the send API |
-| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
-| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
-| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
-| `mediaId` | string | Media asset ID from Upload Media, or the ID downloaded by Download Media |
-| `file` | file | Media downloaded by Download Media, stored as a workflow file |
-| `fileName` | string | Name of the file uploaded by Upload Media |
-| `mimeType` | string | MIME type of the uploaded or downloaded media |
-| `size` | number | Size in bytes of the file uploaded by Upload Media |
-| `fileSize` | number | Size in bytes of the downloaded media |
-| `sha256` | string | SHA-256 hash WhatsApp reported for the downloaded media |
-| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
-| `from` | string | Sender phone number from the first incoming message |
-| `recipientId` | string | Recipient phone number from the first status update in the batch |
-| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
-| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
-| `text` | string | Text body from the first incoming text message |
-| `timestamp` | string | Timestamp from the first message or status item in the batch |
-| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
-| `mediaMimeType` | string | MIME type of the first incoming media message in the webhook batch |
-| `caption` | string | Caption on the first incoming image, video, or document message |
-| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
-| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
-| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
-| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
-| `webhookContacts` | json | All sender contact profiles from the webhook batch |
-| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
-| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
-| `raw` | json | Full structured WhatsApp webhook payload |
-| `error` | string | Error information if sending fails |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `messageStatus` | string | Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status. |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 ### WhatsApp Send Template
 
@@ -92,39 +68,15 @@ Send a pre-approved WhatsApp template message. Required to start a conversation 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | string | WhatsApp message identifier |
-| `messageStatus` | string | Pacing status from the send API: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — use the webhook trigger for delivery status. |
-| `messagingProduct` | string | Messaging product returned by the send API |
-| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
-| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
-| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
-| `mediaId` | string | Media asset ID from Upload Media, or the ID downloaded by Download Media |
-| `file` | file | Media downloaded by Download Media, stored as a workflow file |
-| `fileName` | string | Name of the file uploaded by Upload Media |
-| `mimeType` | string | MIME type of the uploaded or downloaded media |
-| `size` | number | Size in bytes of the file uploaded by Upload Media |
-| `fileSize` | number | Size in bytes of the downloaded media |
-| `sha256` | string | SHA-256 hash WhatsApp reported for the downloaded media |
-| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
-| `from` | string | Sender phone number from the first incoming message |
-| `recipientId` | string | Recipient phone number from the first status update in the batch |
-| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
-| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
-| `text` | string | Text body from the first incoming text message |
-| `timestamp` | string | Timestamp from the first message or status item in the batch |
-| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
-| `mediaMimeType` | string | MIME type of the first incoming media message in the webhook batch |
-| `caption` | string | Caption on the first incoming image, video, or document message |
-| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
-| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
-| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
-| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
-| `webhookContacts` | json | All sender contact profiles from the webhook batch |
-| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
-| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
-| `raw` | json | Full structured WhatsApp webhook payload |
-| `error` | string | Error information if sending fails |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `messageStatus` | string | Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status. |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 ### WhatsApp Send Media
 
@@ -147,39 +99,15 @@ Send an image, document, video, audio, or sticker message. Accepts an uploaded f
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | string | WhatsApp message identifier |
-| `messageStatus` | string | Pacing status from the send API: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — use the webhook trigger for delivery status. |
-| `messagingProduct` | string | Messaging product returned by the send API |
-| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
-| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
-| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
-| `mediaId` | string | Media asset ID from Upload Media, or the ID downloaded by Download Media |
-| `file` | file | Media downloaded by Download Media, stored as a workflow file |
-| `fileName` | string | Name of the file uploaded by Upload Media |
-| `mimeType` | string | MIME type of the uploaded or downloaded media |
-| `size` | number | Size in bytes of the file uploaded by Upload Media |
-| `fileSize` | number | Size in bytes of the downloaded media |
-| `sha256` | string | SHA-256 hash WhatsApp reported for the downloaded media |
-| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
-| `from` | string | Sender phone number from the first incoming message |
-| `recipientId` | string | Recipient phone number from the first status update in the batch |
-| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
-| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
-| `text` | string | Text body from the first incoming text message |
-| `timestamp` | string | Timestamp from the first message or status item in the batch |
-| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
-| `mediaMimeType` | string | MIME type of the first incoming media message in the webhook batch |
-| `caption` | string | Caption on the first incoming image, video, or document message |
-| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
-| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
-| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
-| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
-| `webhookContacts` | json | All sender contact profiles from the webhook batch |
-| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
-| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
-| `raw` | json | Full structured WhatsApp webhook payload |
-| `error` | string | Error information if sending fails |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `messageStatus` | string | Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status. |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 ### WhatsApp Send Interactive
 
@@ -202,39 +130,15 @@ Send an interactive WhatsApp message with reply buttons or a selectable list.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | string | WhatsApp message identifier |
-| `messageStatus` | string | Pacing status from the send API: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — use the webhook trigger for delivery status. |
-| `messagingProduct` | string | Messaging product returned by the send API |
-| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
-| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
-| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
-| `mediaId` | string | Media asset ID from Upload Media, or the ID downloaded by Download Media |
-| `file` | file | Media downloaded by Download Media, stored as a workflow file |
-| `fileName` | string | Name of the file uploaded by Upload Media |
-| `mimeType` | string | MIME type of the uploaded or downloaded media |
-| `size` | number | Size in bytes of the file uploaded by Upload Media |
-| `fileSize` | number | Size in bytes of the downloaded media |
-| `sha256` | string | SHA-256 hash WhatsApp reported for the downloaded media |
-| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
-| `from` | string | Sender phone number from the first incoming message |
-| `recipientId` | string | Recipient phone number from the first status update in the batch |
-| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
-| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
-| `text` | string | Text body from the first incoming text message |
-| `timestamp` | string | Timestamp from the first message or status item in the batch |
-| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
-| `mediaMimeType` | string | MIME type of the first incoming media message in the webhook batch |
-| `caption` | string | Caption on the first incoming image, video, or document message |
-| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
-| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
-| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
-| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
-| `webhookContacts` | json | All sender contact profiles from the webhook batch |
-| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
-| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
-| `raw` | json | Full structured WhatsApp webhook payload |
-| `error` | string | Error information if sending fails |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `messageStatus` | string | Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status. |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 ### WhatsApp Send Reaction
 
@@ -253,39 +157,15 @@ React to a WhatsApp message with an emoji. Send an empty emoji to remove an exis
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | string | WhatsApp message identifier |
-| `messageStatus` | string | Pacing status from the send API: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — use the webhook trigger for delivery status. |
-| `messagingProduct` | string | Messaging product returned by the send API |
-| `inputPhoneNumber` | string | Recipient phone number echoed by the send API |
-| `whatsappUserId` | string | Resolved WhatsApp user ID for the recipient |
-| `contacts` | array | Recipient contacts returned by the send API \(each item includes input and wa_id\) |
-| `mediaId` | string | Media asset ID from Upload Media, or the ID downloaded by Download Media |
-| `file` | file | Media downloaded by Download Media, stored as a workflow file |
-| `fileName` | string | Name of the file uploaded by Upload Media |
-| `mimeType` | string | MIME type of the uploaded or downloaded media |
-| `size` | number | Size in bytes of the file uploaded by Upload Media |
-| `fileSize` | number | Size in bytes of the downloaded media |
-| `sha256` | string | SHA-256 hash WhatsApp reported for the downloaded media |
-| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
-| `from` | string | Sender phone number from the first incoming message |
-| `recipientId` | string | Recipient phone number from the first status update in the batch |
-| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
-| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
-| `text` | string | Text body from the first incoming text message |
-| `timestamp` | string | Timestamp from the first message or status item in the batch |
-| `messageType` | string | Type of the first incoming message in the batch, such as text, image, or system |
-| `mediaMimeType` | string | MIME type of the first incoming media message in the webhook batch |
-| `caption` | string | Caption on the first incoming image, video, or document message |
-| `status` | string | First outgoing message status in the batch, such as sent, delivered, or read |
-| `contact` | json | First sender contact in the webhook batch \(wa_id, profile.name\) |
-| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
-| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
-| `webhookContacts` | json | All sender contact profiles from the webhook batch |
-| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
-| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
-| `raw` | json | Full structured WhatsApp webhook payload |
-| `error` | string | Error information if sending fails |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `messageStatus` | string | Message pacing status when WhatsApp returns one: accepted, held_for_quality_assessment, or paused. Acceptance is not delivery — subscribe to the webhook trigger for delivery status. |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 ### WhatsApp Mark As Read
 
@@ -346,8 +226,6 @@ Download media a customer sent you. Takes the media ID from an incoming WhatsApp
 | `fileSize` | number | Size of the downloaded media in bytes |
 | `sha256` | string | SHA-256 hash WhatsApp reported for the media, for integrity checks |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -387,4 +265,3 @@ Trigger workflow from WhatsApp incoming messages and message status webhooks
 | `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
 | `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
 | `raw` | json | Complete structured webhook payload from WhatsApp |
-

@@ -5,7 +5,7 @@ description: Manage contacts and send emails with Loops
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="loops"
   color="#FAFAF9"
 />
@@ -321,8 +321,6 @@ Retrieve a single transactional email template from your Loops account by its ID
 | `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 | `dataVariables` | array | Template data variable names |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -593,4 +591,3 @@ Trigger workflow when a Loops transactional email is sent
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 | `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
-

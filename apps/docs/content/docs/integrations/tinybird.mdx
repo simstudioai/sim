@@ -5,7 +5,7 @@ description: Send events, query data, and manage Data Sources with Tinybird
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="tinybird"
   color="#2EF598"
 />
@@ -197,5 +197,3 @@ Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID.
 | `is_cancellable` | boolean | Whether the job can still be cancelled |
 | `error` | string | Error message, present only when status is "error" |
 | `job` | json | Full raw job details, including kind-specific fields \(statistics, datasource, delete_condition, etc.\) |
-
-

@@ -5,7 +5,7 @@ description: Interact with GitLab projects, issues, merge requests, and pipeline
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="gitlab"
   color="#FFFFFF"
 />
@@ -1236,64 +1236,8 @@ Block a GitLab user, preventing them from signing in or accessing the instance
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Unblock User
 
@@ -1310,64 +1254,8 @@ Unblock a previously blocked GitLab user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Deactivate User
 
@@ -1384,64 +1272,8 @@ Deactivate a dormant GitLab user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Activate User
 
@@ -1458,64 +1290,8 @@ Reactivate a deactivated GitLab user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Ban User
 
@@ -1532,64 +1308,8 @@ Ban a GitLab user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Unban User
 
@@ -1606,64 +1326,8 @@ Unban a previously banned GitLab user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Approve User
 
@@ -1680,64 +1344,8 @@ Approve a GitLab user whose signup is pending administrator approval
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Reject User
 
@@ -1754,64 +1362,8 @@ Reject a GitLab user whose signup is pending administrator approval
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projects` | json | List of projects |
-| `project` | json | Project details |
-| `groups` | json | List of groups |
-| `group` | json | Group details |
-| `memberships` | json | A user's project and group memberships |
-| `issues` | json | List of issues |
-| `issue` | json | Issue details |
-| `mergeRequests` | json | List of merge requests |
-| `mergeRequest` | json | Merge request details |
-| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
-| `pipelines` | json | List of pipelines |
-| `pipeline` | json | Pipeline details |
-| `note` | json | Comment/note details |
-| `tree` | json | Repository tree entries |
-| `content` | string | File contents \(decoded\) |
-| `fileName` | string | File name |
-| `filePath` | string | Path to the file in the repository |
-| `branch` | string | Branch the file was committed to |
-| `branches` | json | List of branches |
-| `commits` | json | List of commits |
-| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
-| `name` | string | Created branch name |
-| `protected` | boolean | Whether the branch is protected |
-| `size` | number | File size in bytes |
-| `ref` | string | The branch, tag, or commit SHA |
-| `blobId` | string | The blob ID |
-| `lastCommitId` | string | The last commit ID that modified the file |
-| `webUrl` | string | Web URL |
-| `changes` | json | Merge request file changes/diffs |
-| `changesCount` | number | Number of changed files returned \(first 100\) |
-| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
-| `approvalsRequired` | number | Approvals required |
-| `approvalsLeft` | number | Approvals remaining |
-| `approvedBy` | json | List of approvers |
-| `jobs` | json | Pipeline jobs |
-| `log` | string | Job log output |
-| `id` | number | Job ID |
-| `status` | string | Job status |
-| `diffs` | json | File diffs between two compared references |
-| `compareTimeout` | boolean | Whether the comparison timed out |
-| `compareSameRef` | boolean | Whether both compared references match |
-| `releases` | json | List of releases |
-| `release` | json | Release details |
-| `members` | json | List of project or group members |
-| `member` | json | A single member |
-| `alreadyMember` | boolean | Whether the user was already a member |
-| `invitations` | json | List of pending invitations |
-| `invitation` | json | A single invitation |
-| `accessRequests` | json | List of pending access requests |
-| `accessRequest` | json | A single access request |
-| `samlGroupLinks` | json | List of SAML group links |
-| `samlGroupLink` | json | A single SAML group link |
-| `message` | json | Per-email invitation result detail |
-| `users` | json | List of matching users |
-| `user` | json | User details |
-| `total` | number | Total number of items available across all pages |
-| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the action succeeded |
+| `user` | object | The updated user, when returned by GitLab |
 
 ### GitLab Delete User Identity
 
@@ -1870,8 +1422,6 @@ Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the SAML group link was deleted successfully |
-
-
 
 ## Triggers
 
@@ -2100,4 +1650,3 @@ Trigger workflow when commits are pushed to a GitLab project
 |   ↳ `web_url` | string | Project web URL |
 |   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `commits` | json | Array of commit objects included in this push |
-
