@@ -324,6 +324,10 @@ async function execCli(
     return { exitCode: 0, stdout, stderr }
   } catch (error) {
     assert(isRecordLike(error), getErrorMessage(error))
+    assert(
+      error.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER',
+      `sim workflows run printed more than ${MAX_RESPONSE_BYTES} bytes`
+    )
     assert(!error.killed, `sim workflows run did not exit within ${REQUEST_TIMEOUT_MS / 1000}s`)
     assert(
       typeof error.code === 'number' &&
