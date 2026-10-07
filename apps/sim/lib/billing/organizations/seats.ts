@@ -109,7 +109,7 @@ export async function reconcileOrganizationSeats({
       orgSubscription.seats ?? 1
     )
 
-    if (targetSeats === currentSeats) {
+    if (targetSeats === currentSeats && targetSeats === (orgSubscription.seats ?? 1)) {
       return { kind: 'noop', seats: currentSeats }
     }
 

@@ -50,7 +50,7 @@ import { validateSeatAvailability } from '@/lib/billing/validation/seat-manageme
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueCancelAtPeriodEndSync,
-  readCommittedCancelAtPeriodEnd,
+  isCancelAtPeriodEndSettled,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -263,12 +263,16 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .limit(1)
 
     if (!personalPro?.stripeSubscriptionId) return
-    const pausing = await readCommittedCancelAtPeriodEnd(
-      tx,
-      personalPro.id,
-      Boolean(personalPro.cancelAtPeriodEnd)
-    )
-    if (!pausing) return
+    if (
+      await isCancelAtPeriodEndSettled(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd),
+        false
+      )
+    ) {
+      return
+    }
     result.subscriptionId = personalPro.id
 
     const organizationMemberships = await tx
@@ -415,10 +419,11 @@ export async function pauseProSubscriptionForOrgCoverage(
     result.subscriptionId = personalPro.id
 
     if (
-      await readCommittedCancelAtPeriodEnd(
+      await isCancelAtPeriodEndSettled(
         tx,
         personalPro.id,
-        Boolean(personalPro.cancelAtPeriodEnd)
+        Boolean(personalPro.cancelAtPeriodEnd),
+        true
       )
     ) {
       return
@@ -874,10 +879,11 @@ async function applyPaidOrgJoinBillingTx(
 
   const alreadyPausing =
     personalPro &&
-    (await readCommittedCancelAtPeriodEnd(
+    (await isCancelAtPeriodEndSettled(
       tx,
       personalPro.id,
-      Boolean(personalPro.cancelAtPeriodEnd)
+      Boolean(personalPro.cancelAtPeriodEnd),
+      true
     ))
   if (personalPro && !alreadyPausing) {
     await tx

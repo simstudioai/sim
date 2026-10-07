@@ -19,7 +19,7 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import {
   enqueueCancelAtPeriodEndSync,
   enqueueSubscriptionSeatsSync,
-  readCommittedCancelAtPeriodEnd,
+  isCancelAtPeriodEndSettled,
   readCommittedSeats,
   recordCancelAtPeriodEnd,
 } from '@/lib/billing/webhooks/subscription-sync'
@@ -275,7 +275,7 @@ async function activateTeamSubscription(
   }
 
   if (!locked?.stripeSubscriptionId) return
-  if (await readCommittedCancelAtPeriodEnd(tx, sub.id, Boolean(locked.cancelAtPeriodEnd))) {
+  if (!(await isCancelAtPeriodEndSettled(tx, sub.id, Boolean(locked.cancelAtPeriodEnd), false))) {
     await enqueueCancelAtPeriodEndSync(tx, {
       stripeSubscriptionId: locked.stripeSubscriptionId,
       subscriptionId: sub.id,

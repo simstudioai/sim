@@ -310,13 +310,31 @@ export async function readRecordedSyncValue(
  * plugin's stale webhook payload, so a writer deciding whether a change is needed compares
  * against this, never the row alone. The caller holds the subscription row lock.
  */
-export async function readCommittedCancelAtPeriodEnd(
+async function readCommittedCancelAtPeriodEnd(
   tx: DbOrTx,
   subscriptionId: string,
   stored: boolean
 ): Promise<boolean> {
   const intent = (await readSyncIntents(tx, subscriptionId)).cancelAtPeriodEnd
   return intent.status === 'value' ? intent.value : stored
+}
+
+/**
+ * True when both the row and the latest committed `cancelAtPeriodEnd` already hold `desired`, so
+ * a writer has nothing to record. A writer that sees either one differ writes the row and
+ * commits: a redundant sync of the same value is harmless, while skipping on the committed value
+ * alone could let an older Stripe read, accepted after this writer, override it.
+ */
+export async function isCancelAtPeriodEndSettled(
+  tx: DbOrTx,
+  subscriptionId: string,
+  stored: boolean,
+  desired: boolean
+): Promise<boolean> {
+  return (
+    stored === desired &&
+    (await readCommittedCancelAtPeriodEnd(tx, subscriptionId, stored)) === desired
+  )
 }
 
 /** The seat-count counterpart of {@link readCommittedCancelAtPeriodEnd}. */
@@ -363,9 +381,10 @@ function latestIntent<T>(
 }
 
 /**
- * One indexed read of the subscription's in-flight syncs. Dead letters are not intents: they are
- * failed syncs awaiting an operator, kept current by every commit so a retry pushes the latest
- * value, but never a reason to override Stripe.
+ * One read of the subscription's in-flight syncs, through the status index and bounded by the
+ * in-flight backlog. Dead letters are not intents: they are failed syncs awaiting an operator,
+ * kept current by every commit so a retry pushes the latest value, but never a reason to override
+ * Stripe.
  */
 async function readSyncIntents(executor: DbOrTx, subscriptionId: string) {
   const events = await listInflightOutboxEvents(

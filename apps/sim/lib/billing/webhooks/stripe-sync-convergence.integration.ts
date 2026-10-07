@@ -853,6 +853,33 @@ describe('cancel_at_period_end sync', () => {
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
   })
 
+  it('keeps a pause committed after the reconcile read a customer restore from Stripe', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    stripe.failNextUpdateAfterApplying('subscriptions')
+    await expect(processEvent(pauseSync)).resolves.toBe('pending')
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    const liveRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const reconcilingRestore = deliver(stripe.events.at(-1) as Stripe.Event)
+    await liveRead.reached
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    liveRead.release()
+    await reconcilingRestore
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    const latestSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(latestSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+  })
+
   it('restores the personal Pro when its member leaves while the plugin has overwritten the row', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
