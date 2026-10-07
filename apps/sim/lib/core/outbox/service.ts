@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { and, asc, desc, eq, inArray, lte, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 import {
   dueOutboxWorkQuery,
   isStuckProcessing,
@@ -408,6 +408,11 @@ export async function findDeadLetteredEvents(
 
 /** Statuses of an event whose side effect may still run. */
 const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+/**
+ * Statuses an event can still run from: in flight, or dead-lettered, which every operator retry
+ * path resets to `pending`. A `completed` event never runs again.
+ */
+const RETRYABLE_OUTBOX_STATUSES = [...INFLIGHT_OUTBOX_STATUSES, 'dead_letter'] as const
 
 /** Identifies the subject of an event by one scalar field of its JSON payload. */
 export interface OutboxPayloadSubject {
@@ -415,65 +420,44 @@ export interface OutboxPayloadSubject {
   payloadValue: string
 }
 
-function inflightForSubject(eventTypes: readonly string[], subject: OutboxPayloadSubject) {
+function eventsForSubject(
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  statuses: readonly string[]
+) {
   return and(
     inArray(outboxEvent.eventType, [...eventTypes]),
-    inArray(outboxEvent.status, [...INFLIGHT_OUTBOX_STATUSES]),
+    inArray(outboxEvent.status, [...statuses]),
     sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
   )
 }
 
 /**
- * The `pending` or `processing` events of the given types for one subject. Pass the caller's
- * transaction to read under its locks.
+ * The `pending`, `processing`, or `dead_letter` events of the given types for one subject. Pass
+ * the caller's transaction to read under its locks.
  */
-export async function listInflightOutboxEvents(
+export async function listRetryableOutboxEvents(
   executor: Pick<typeof db, 'select'>,
   eventTypes: readonly string[],
-  subject: OutboxPayloadSubject,
-  limit?: number
-): Promise<{ id: string; eventType: string; payload: unknown }[]> {
-  const query = executor
-    .select({ id: outboxEvent.id, eventType: outboxEvent.eventType, payload: outboxEvent.payload })
-    .from(outboxEvent)
-    .where(inflightForSubject(eventTypes, subject))
-  return limit === undefined ? query : query.limit(limit)
-}
-
-/**
- * For each event type, the largest numeric `payloadKey` among the subject's settled
- * (`completed` or `dead_letter`) events. Types with no such value are absent from the map.
- */
-export async function maxSettledOutboxPayloadNumber(
-  executor: Pick<typeof db, 'select'>,
-  eventTypes: readonly string[],
-  subject: OutboxPayloadSubject,
-  payloadKey: string
-): Promise<Map<string, number>> {
-  const rows = await executor
+  subject: OutboxPayloadSubject
+): Promise<{ id: string; eventType: string; status: string; payload: unknown }[]> {
+  return executor
     .select({
+      id: outboxEvent.id,
       eventType: outboxEvent.eventType,
-      value: sql<string | null>`max((${outboxEvent.payload} ->> ${payloadKey})::numeric)::text`,
+      status: outboxEvent.status,
+      payload: outboxEvent.payload,
     })
     .from(outboxEvent)
-    .where(
-      and(
-        inArray(outboxEvent.eventType, [...eventTypes]),
-        notInArray(outboxEvent.status, [...INFLIGHT_OUTBOX_STATUSES]),
-        sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
-      )
-    )
-    .groupBy(outboxEvent.eventType)
-  return new Map(
-    rows.flatMap((row) => (row.value === null ? [] : [[row.eventType, Number(row.value)]]))
-  )
+    .where(eventsForSubject(eventTypes, subject, RETRYABLE_OUTBOX_STATUSES))
 }
 
 /**
- * Shallow-merges `patch` into the payload of every `pending` or `processing` event of the type
- * for one subject. Callers serialize writers for the subject with their domain lock.
+ * Shallow-merges `patch` into the payload of every `pending`, `processing`, or `dead_letter`
+ * event of the type for one subject. Callers serialize writers for the subject with their
+ * domain lock.
  */
-export async function patchInflightOutboxEvents(
+export async function patchRetryableOutboxEvents(
   executor: Pick<typeof db, 'update'>,
   eventType: string,
   subject: OutboxPayloadSubject,
@@ -484,7 +468,7 @@ export async function patchInflightOutboxEvents(
     .set({
       payload: sql`(coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)::json`,
     })
-    .where(inflightForSubject([eventType], subject))
+    .where(eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES))
     .returning({ id: outboxEvent.id })
   return patched.length
 }
@@ -500,8 +484,12 @@ export async function hasInflightOutboxEvent(
   payloadKey: string,
   payloadValue: string
 ): Promise<boolean> {
-  const events = await listInflightOutboxEvents(db, [eventType], { payloadKey, payloadValue }, 1)
-  return events.length > 0
+  const [row] = await db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(eventsForSubject([eventType], { payloadKey, payloadValue }, INFLIGHT_OUTBOX_STATUSES))
+    .limit(1)
+  return Boolean(row)
 }
 
 /**

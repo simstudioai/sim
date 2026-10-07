@@ -48,6 +48,7 @@ import {
   pauseProSubscriptionForOrgCoverage,
   restoreUserProSubscription,
 } from '@/lib/billing/organizations/membership'
+import { ensureTeamOrganizationForAcceptance } from '@/lib/billing/organizations/provision-seat'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
@@ -55,6 +56,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import {
   commitCustomerRestoredSubscription,
+  enqueueCancelAtPeriodEndSync,
   reconcileSubscriptionSyncFromStripe,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
@@ -122,7 +124,15 @@ let deliver: ReturnType<typeof createWebhookEndpoint>
 
 beforeAll(async () => {
   await connection`CREATE SCHEMA ${connection(schemaName)}`
-  for (const table of ['subscription', 'outbox_event', 'member', 'user', 'organization']) {
+  for (const table of [
+    'subscription',
+    'outbox_event',
+    'member',
+    'user',
+    'organization',
+    'workspace',
+    'permissions',
+  ]) {
     await connection.unsafe(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`)
   }
   database.current = testDatabase
@@ -607,6 +617,77 @@ describe('cancel_at_period_end sync', () => {
   })
 })
 
+describe('Team activation', () => {
+  /** Resolves once another backend is blocked on a lock, i.e. the racing transaction is parked. */
+  async function untilAnotherTransactionWaitsOnALock() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const [row] = await connection<{ waiting: number }[]>`
+        select count(*)::int as waiting from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`
+      if (row.waiting > 0) return
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    throw new Error('The racing transaction never waited on a lock')
+  }
+
+  it('records the cleared cancellation when a cancel is committed while it activates Team', async () => {
+    const owner = await createUser('owner')
+    const subscriptionId = generateId()
+    const stripeSubscriptionId = `sub_${subscriptionId}`
+    await testDatabase.insert(subscription).values({
+      id: subscriptionId,
+      plan: 'team',
+      referenceId: owner.id,
+      status: 'active',
+      seats: 1,
+      stripeSubscriptionId,
+      stripeCustomerId: `cus_${subscriptionId}`,
+      cancelAtPeriodEnd: false,
+    })
+    stripe.addSubscription({ id: stripeSubscriptionId, customer: `cus_${subscriptionId}` })
+
+    let releaseCancel: () => void = () => {}
+    const cancelHeld = new Promise<void>((resolve) => {
+      releaseCancel = resolve
+    })
+    const cancelling = testDatabase.transaction(async (tx) => {
+      await tx
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(subscription.id, subscriptionId))
+      await enqueueCancelAtPeriodEndSync(tx, {
+        stripeSubscriptionId,
+        subscriptionId,
+        cancelAtPeriodEnd: true,
+        reason: 'admin-cancel-at-period-end',
+      })
+      await cancelHeld
+    })
+    const activating = testDatabase.transaction((tx) =>
+      ensureTeamOrganizationForAcceptance({
+        billingOwnerUserId: owner.id,
+        workspaceOrganizationId: null,
+        executor: tx,
+        workspaceIdsToAttach: [],
+      })
+    )
+    await untilAnotherTransactionWaitsOnALock()
+    releaseCancel()
+    await cancelling
+    await expect(activating).resolves.toMatchObject({ success: true })
+    expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
+
+    await deliverUnrelatedUpdate(stripeSubscriptionId)
+    expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    const cancelSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      subscriptionId
+    )
+    await expect(processEvent(cancelSync)).resolves.toBe('completed')
+    expect(stripe.subscription(stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+})
+
 describe('customer contact sync', () => {
   it('pushes the current owner when an earlier sync lands in Stripe after a newer one', async () => {
     const [first, second, third] = await Promise.all([
@@ -702,5 +783,75 @@ describe('Team seat sync', () => {
     expect((await storedSubscription(org.subscriptionId)).seats).toBe(1)
     await expect(processEvent(growSync)).resolves.toBe('completed')
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(1)
+  })
+})
+
+describe('webhook reconcile cost', () => {
+  interface QueryPlan {
+    'Node Type': string
+    'Relation Name'?: string
+    'Shared Hit Blocks': number
+    'Shared Read Blocks': number
+    Plans?: QueryPlan[]
+  }
+  const planNodes = (plan: QueryPlan): QueryPlan[] => [
+    plan,
+    ...(plan.Plans ?? []).flatMap(planNodes),
+  ]
+
+  it('reads only the syncs that can still run, however many have completed', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    await connection`
+      INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at, processed_at)
+      SELECT ${generateId()} || ':' || n, ${OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END},
+        json_build_object(
+          'subscriptionId', ${pro.subscriptionId}::text,
+          'cancelAtPeriodEnd', n % 2 = 0,
+          'committedAt', n
+        ),
+        'completed', now(), now(), now()
+      FROM generate_series(1, 20000) AS n`
+    await connection`ANALYZE outbox_event`
+
+    const issued: { query: string; parameters: unknown[] }[] = []
+    const traced = postgres(
+      readTestDatabaseUrl(),
+      withUtcTimestamps({
+        max: 2,
+        prepare: false,
+        fetch_types: false,
+        connection: { search_path: schemaName },
+        onnotice: () => {},
+        debug: (_connection: number, query: string, parameters: unknown[]) => {
+          issued.push({ query, parameters })
+        },
+      })
+    )
+    database.current = drizzle(traced, { schema })
+    try {
+      await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    } finally {
+      database.current = testDatabase
+      await traced.end()
+    }
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+
+    const outboxReads = issued.filter(({ query }) => /from "outbox_event"/i.test(query))
+    expect(outboxReads.length).toBeGreaterThan(0)
+    for (const { query, parameters } of outboxReads) {
+      const [explained] = await connection.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
+        parameters as never[]
+      )
+      const plan = (explained['QUERY PLAN'] as { Plan: QueryPlan }[])[0].Plan
+      const nodes = planNodes(plan)
+      expect(
+        nodes.some(
+          (node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'outbox_event'
+        )
+      ).toBe(false)
+      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(100)
+    }
   })
 })

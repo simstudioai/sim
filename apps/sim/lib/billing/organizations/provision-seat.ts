@@ -19,6 +19,7 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import {
   enqueueCancelAtPeriodEndSync,
   enqueueSubscriptionSeatsSync,
+  recordCancelAtPeriodEnd,
 } from '@/lib/billing/webhooks/subscription-sync'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
@@ -238,43 +239,49 @@ async function convertPersonalSubscriptionToTeam(
  * the post-join seat reconcile is skipped or fails. Any scheduled cancellation
  * is cleared (DB + Stripe) so a freshly-activated Team is not left scheduled to
  * cancel, including the legacy personal-scoped Team case where the plan is
- * unchanged.
+ * unchanged. The row is read under its lock, so a cancellation committed after
+ * the caller's earlier read is still cleared and recorded.
  */
 async function activateTeamSubscription(
-  sub: { id: string; cancelAtPeriodEnd?: boolean | null; stripeSubscriptionId: string | null },
+  sub: { id: string; stripeSubscriptionId: string | null },
   targetPlan: string,
   { planChanged }: { planChanged: boolean },
-  executor: DbOrTx
+  tx: DbOrTx
 ): Promise<void> {
-  const shouldClearCancellation =
-    Boolean(sub.cancelAtPeriodEnd) && Boolean(sub.stripeSubscriptionId)
+  const [locked] = await tx
+    .select({
+      cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd,
+      seats: subscriptionTable.seats,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, sub.id))
+    .for('update')
+    .limit(1)
 
-  const apply = async (tx: DbOrTx) => {
-    const [activated] = await tx
-      .update(subscriptionTable)
-      .set({ plan: targetPlan, cancelAtPeriodEnd: false })
-      .where(eq(subscriptionTable.id, sub.id))
-      .returning({ seats: subscriptionTable.seats })
+  await tx
+    .update(subscriptionTable)
+    .set({ plan: targetPlan, cancelAtPeriodEnd: false })
+    .where(eq(subscriptionTable.id, sub.id))
 
-    if (planChanged) {
-      await enqueueSubscriptionSeatsSync(tx, {
-        subscriptionId: sub.id,
-        seats: activated?.seats ?? 1,
-        reason: 'pro-to-team-conversion',
-      })
-    }
-
-    if (shouldClearCancellation) {
-      await enqueueCancelAtPeriodEndSync(tx, {
-        stripeSubscriptionId: sub.stripeSubscriptionId as string,
-        subscriptionId: sub.id,
-        cancelAtPeriodEnd: false,
-        reason: 'pro-to-team-conversion',
-      })
-    }
+  if (planChanged) {
+    await enqueueSubscriptionSeatsSync(tx, {
+      subscriptionId: sub.id,
+      seats: locked?.seats ?? 1,
+      reason: 'pro-to-team-conversion',
+    })
   }
 
-  await apply(executor)
+  if (!sub.stripeSubscriptionId) return
+  if (locked?.cancelAtPeriodEnd) {
+    await enqueueCancelAtPeriodEndSync(tx, {
+      stripeSubscriptionId: sub.stripeSubscriptionId,
+      subscriptionId: sub.id,
+      cancelAtPeriodEnd: false,
+      reason: 'pro-to-team-conversion',
+    })
+  } else {
+    await recordCancelAtPeriodEnd(tx, sub.id, false)
+  }
 }
 
 /**

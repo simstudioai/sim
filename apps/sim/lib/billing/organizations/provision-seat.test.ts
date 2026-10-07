@@ -58,18 +58,24 @@ const mockGetHighestPriorityPersonalSubscription =
 const { mockEnqueueSubscriptionSeatsSync, mockEnqueueCancelAtPeriodEndSync } =
   billingSubscriptionSyncMockFns
 
-function testExecutor(onUpdate: () => void = () => {}) {
+/** The subscription row as the activation re-reads it under its lock. */
+function testExecutor(onSubscriptionLock: () => void = () => {}) {
+  const lockedRow = { cancelAtPeriodEnd: false, seats: 1 }
   return {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          for: () => {
+            onSubscriptionLock()
+            return { limit: () => Promise.resolve([lockedRow]) }
+          },
+        }),
+      }),
+    }),
     update: () => ({
       set: (values: Record<string, unknown>) => {
-        onUpdate()
         updateCalls.value.push(values)
-        return {
-          where: () =>
-            Object.assign(Promise.resolve([]), {
-              returning: () => Promise.resolve([{ seats: 1 }]),
-            }),
-        }
+        return { where: () => Promise.resolve([]) }
       },
     }),
   } as never

@@ -9,9 +9,8 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueOutboxEvent,
-  listInflightOutboxEvents,
-  maxSettledOutboxPayloadNumber,
-  patchInflightOutboxEvents,
+  listRetryableOutboxEvents,
+  patchRetryableOutboxEvents,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -88,9 +87,10 @@ async function withCommittedAt<T extends SyncIntentFields>(
 
 /**
  * Records `fields` as the subscription's latest committed value for `eventType` and writes it
- * onto every in-flight event of that type, so no pending, retrying, or reaped event still
- * carries an older value for the webhook reconcile to restore. The caller must hold the
- * subscription row lock (`FOR UPDATE`, or the `UPDATE` itself).
+ * onto every event of that type that can still run: pending, processing, or dead-lettered (each
+ * operator retry path resets dead letters to pending). No event that can run again ever carries
+ * an older value for the webhook reconcile to restore. The caller must hold the subscription row
+ * lock (`FOR UPDATE`, or the `UPDATE` itself).
  */
 async function commitIntent<T extends SyncIntentFields>(
   tx: DbOrTx,
@@ -99,7 +99,7 @@ async function commitIntent<T extends SyncIntentFields>(
   fields: T
 ): Promise<T & { committedAt: number }> {
   const committed = await withCommittedAt(tx, fields)
-  await patchInflightOutboxEvents(tx, eventType, subscriptionSubject(subscriptionId), committed)
+  await patchRetryableOutboxEvents(tx, eventType, subscriptionSubject(subscriptionId), committed)
   return committed
 }
 
@@ -134,6 +134,19 @@ export async function enqueueSubscriptionSeatsSync(
   })
   const intent: SubscriptionSeatsSyncPayload = { ...payload, ...committed }
   return enqueueOutboxEvent(tx, SEATS_SYNC, intent)
+}
+
+/**
+ * Records a `cancelAtPeriodEnd` value written in this transaction without enqueuing a sync, for
+ * a writer that left the row's value unchanged: no sync that can still run keeps an older value.
+ * The caller must hold the subscription row lock.
+ */
+export async function recordCancelAtPeriodEnd(
+  tx: DbOrTx,
+  subscriptionId: string,
+  cancelAtPeriodEnd: boolean
+): Promise<void> {
+  await commitIntent(tx, CANCEL_SYNC, subscriptionId, { cancelAtPeriodEnd })
 }
 
 /**
@@ -210,22 +223,22 @@ export function cancelAtPeriodEndSyncIdempotencyKey(eventId: string): string {
 }
 
 /**
- * What a sync type's in-flight events say about its field: no applicable value, the latest
+ * What a sync type's in-flight events say about its field: nothing in flight, the latest
  * committed value, or `legacy` when an event predates recorded values (enqueued by an older
- * deploy) so the committed value is unknown. An in-flight value older than one a settled event
- * already carried was revived by a retry path that did not re-commit, and does not apply.
+ * deploy) so the committed value is unknown.
  */
 type InflightIntent<T> = { status: 'none' } | { status: 'legacy' } | { status: 'value'; value: T }
 
+const INFLIGHT_STATUSES = new Set(['pending', 'processing'])
+
 function latestIntent<T>(
-  events: { eventType: string; payload: unknown }[],
-  settledCommittedAt: Map<string, number>,
+  events: { eventType: string; status: string; payload: unknown }[],
   eventType: SubscriptionSyncEventType,
   readValue: (payload: Record<string, unknown>) => T | undefined
 ): InflightIntent<T> {
   let latest: { committedAt: number; value: T } | undefined
   for (const event of events) {
-    if (event.eventType !== eventType) continue
+    if (event.eventType !== eventType || !INFLIGHT_STATUSES.has(event.status)) continue
     const payload = toRecord(event.payload)
     const value = readValue(payload)
     if (typeof payload.committedAt !== 'number' || value === undefined) return { status: 'legacy' }
@@ -233,29 +246,29 @@ function latestIntent<T>(
       latest = { committedAt: payload.committedAt, value }
     }
   }
-  if (!latest || latest.committedAt < (settledCommittedAt.get(eventType) ?? 0)) {
-    return { status: 'none' }
-  }
-  return { status: 'value', value: latest.value }
+  return latest ? { status: 'value', value: latest.value } : { status: 'none' }
 }
 
-async function readInflightIntents(executor: DbOrTx, subscriptionId: string) {
-  const eventTypes = [CANCEL_SYNC, SEATS_SYNC]
-  const subject = subscriptionSubject(subscriptionId)
-  const events = await listInflightOutboxEvents(executor, eventTypes, subject)
-  const settledCommittedAt = await maxSettledOutboxPayloadNumber(
+/** One indexed read of the subscription's sync events that can still run. */
+async function readSyncIntents(executor: DbOrTx, subscriptionId: string) {
+  const events = await listRetryableOutboxEvents(
     executor,
-    eventTypes,
-    subject,
-    'committedAt'
+    [CANCEL_SYNC, SEATS_SYNC],
+    subscriptionSubject(subscriptionId)
   )
   return {
-    cancelAtPeriodEnd: latestIntent(events, settledCommittedAt, CANCEL_SYNC, (payload) =>
+    cancelAtPeriodEnd: latestIntent(events, CANCEL_SYNC, (payload) =>
       typeof payload.cancelAtPeriodEnd === 'boolean' ? payload.cancelAtPeriodEnd : undefined
     ),
-    seats: latestIntent(events, settledCommittedAt, SEATS_SYNC, (payload) =>
+    seats: latestIntent(events, SEATS_SYNC, (payload) =>
       typeof payload.seats === 'number' ? payload.seats : undefined
     ),
+    /** Whether a cancel sync that can still run carries a value other than `value`. */
+    cancelSyncCarriesOtherThan: (value: boolean) =>
+      events.some(
+        (event) =>
+          event.eventType === CANCEL_SYNC && toRecord(event.payload).cancelAtPeriodEnd !== value
+      ),
   }
 }
 
@@ -297,7 +310,7 @@ function cancelAtPeriodEndSource(
  * - `cancelAtPeriodEnd`: while a cancel sync is in flight, its committed value wins over
  *   snapshots and over echoes of Sim's own writes. A change made in Stripe itself (customer
  *   portal, dashboard, Better Auth's cancel/restore endpoints) is newer and wins, and is
- *   committed onto the in-flight events so none can later restore the value it replaced. With
+ *   committed onto every sync that can still run so none can later restore the value it replaced. With
  *   no sync in flight Stripe wins, read live so out-of-order delivery cannot regress it.
  * - `seats`: Team seats are Sim-owned; while a seat sync is in flight its committed value wins.
  * - A field with an in-flight event from an older deploy is left as the plugin wrote it.
@@ -324,7 +337,7 @@ export async function reconcileSubscriptionSyncFromStripe(event: Stripe.Event): 
       const needsStripe =
         pass > 1 ||
         cancelAtPeriodEndSource(
-          (await readInflightIntents(db, row.id)).cancelAtPeriodEnd,
+          (await readSyncIntents(db, row.id)).cancelAtPeriodEnd,
           changedInStripe
         ).source === 'stripe'
       if (needsStripe) {
@@ -342,7 +355,7 @@ export async function reconcileSubscriptionSyncFromStripe(event: Stripe.Event): 
         .limit(1)
       if (!current) return true
 
-      const intents = await readInflightIntents(tx, row.id)
+      const intents = await readSyncIntents(tx, row.id)
       const cancel = cancelAtPeriodEndSource(intents.cancelAtPeriodEnd, changedInStripe)
       let cancelAtPeriodEnd = Boolean(current.cancelAtPeriodEnd)
       if (cancel.source === 'pending-sync') {
@@ -350,7 +363,7 @@ export async function reconcileSubscriptionSyncFromStripe(event: Stripe.Event): 
       } else if (cancel.source === 'stripe') {
         if (liveCancelAtPeriodEnd === undefined) return false
         cancelAtPeriodEnd = liveCancelAtPeriodEnd
-        if (intents.cancelAtPeriodEnd.status === 'value') {
+        if (intents.cancelSyncCarriesOtherThan(cancelAtPeriodEnd)) {
           await commitIntent(tx, CANCEL_SYNC, row.id, { cancelAtPeriodEnd })
         }
       }

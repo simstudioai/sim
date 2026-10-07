@@ -18,6 +18,7 @@ import { vi } from 'vitest'
 export const billingSubscriptionSyncMockFns = {
   mockEnqueueCancelAtPeriodEndSync: vi.fn(async () => 'cancel-at-period-end-sync-event'),
   mockRecommitSubscriptionSync: vi.fn(async () => undefined),
+  mockRecordCancelAtPeriodEnd: vi.fn(async () => undefined),
   mockIsSubscriptionSyncEventType: vi.fn(
     (eventType: string) =>
       eventType === 'stripe.sync-cancel-at-period-end' ||
@@ -42,6 +43,7 @@ export const billingSubscriptionSyncMockFns = {
 export const billingSubscriptionSyncMock = {
   enqueueCancelAtPeriodEndSync: billingSubscriptionSyncMockFns.mockEnqueueCancelAtPeriodEndSync,
   recommitSubscriptionSync: billingSubscriptionSyncMockFns.mockRecommitSubscriptionSync,
+  recordCancelAtPeriodEnd: billingSubscriptionSyncMockFns.mockRecordCancelAtPeriodEnd,
   isSubscriptionSyncEventType: billingSubscriptionSyncMockFns.mockIsSubscriptionSyncEventType,
   enqueueSubscriptionSeatsSync: billingSubscriptionSyncMockFns.mockEnqueueSubscriptionSeatsSync,
   cancelAtPeriodEndSyncIdempotencyKey:
