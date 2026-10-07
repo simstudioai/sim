@@ -119,7 +119,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       : undefined
     // A filter that was SUPPLIED but compiles to no clause must never widen into
     // "delete every row" — `and()` silently drops an undefined clause downstream.
-    // Mirrors the guard in update-runner and the inline deleteRowsByFilter path;
+    // Mirrors the guard in the inline deleteRowsByFilter path;
     // an absent filter is still legitimate (delete-all is an explicit caller mode).
     if (filter && !filterClause) throw new Error('Filter is required for bulk delete')
     const excluded = new Set(excludeRowIds ?? [])
