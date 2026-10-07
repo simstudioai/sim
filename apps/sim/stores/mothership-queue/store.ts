@@ -85,14 +85,38 @@ function isQueuedMessage(value: unknown): value is QueuedMothershipMessage {
 }
 
 /**
- * Queues saved to this tab's session, guarded on the way back in: an entry
- * saved before `admissionUnknown` existed would otherwise be editable.
+ * An entry saved before `hold` and `retry` existed, in their shape: a held
+ * `retryRequired` (with `heldUntilOnline` when it waited for the network) and a
+ * `sendRetries` count with its `notBefore`.
+ */
+function withCurrentWaitFields(value: unknown): unknown {
+  const record = toRecordOrNull(value)
+  if (!record) return value
+  const { retryRequired, heldUntilOnline, sendRetries, notBefore, ...rest } = record
+  return {
+    ...rest,
+    ...(retryRequired === true && rest.hold === undefined
+      ? { hold: heldUntilOnline === true ? 'online' : 'user' }
+      : {}),
+    ...(typeof sendRetries === 'number' && typeof notBefore === 'number' && rest.retry === undefined
+      ? { retry: { attempt: sendRetries, notBefore } }
+      : {}),
+  }
+}
+
+/**
+ * Queues saved to this tab's session, brought to the current shape and guarded
+ * on the way back in: an entry saved before `admissionUnknown` existed would
+ * otherwise be editable.
  */
 function restoredQueues(persisted: unknown): Record<string, QueuedMothershipMessage[]> {
   const queues: Record<string, QueuedMothershipMessage[]> = {}
   for (const [chatKey, queue] of Object.entries(toRecord(toRecord(persisted).queues))) {
     if (!Array.isArray(queue)) continue
-    const messages = queue.filter(isQueuedMessage).map(withAdmissionGuard)
+    const messages = queue
+      .map(withCurrentWaitFields)
+      .filter(isQueuedMessage)
+      .map(withAdmissionGuard)
     if (messages.length > 0) queues[chatKey] = messages
   }
   return queues
@@ -112,17 +136,6 @@ const setQueueForChat = (
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
 /**
- * The queue key a write captured before an `await` should use now: the key a
- * new-chat queue migrated to once its chat became known, if it did.
- */
-export function liveQueueKey(chatKey: string): string {
-  const { migratedTo } = useMothershipQueueStore.getState()
-  let key = chatKey
-  for (let hops = 0; hops < 8 && migratedTo[key] !== undefined; hops++) key = migratedTo[key].key
-  return key
-}
-
-/**
  * Where a message goes back into its queue after a write captured before an
  * `await`: in the queue's live key, right after the last message still there
  * that was ahead of it (`aheadIds`, plus whatever a chat's queue already held
@@ -134,20 +147,21 @@ export function liveQueuePosition(
   aheadIds: readonly string[]
 ): { chatKey: string; index: number } {
   const { migratedTo, queues } = useMothershipQueueStore.getState()
-  const ahead = new Set(aheadIds)
-  let key = chatKey
-  for (let hops = 0; hops < 8; hops++) {
-    const migration = migratedTo[key]
-    if (!migration) break
-    for (const id of migration.ahead) ahead.add(id)
-    key = migration.key
-  }
+  /** One lookup: only a new-chat key moves, and only to its chat's key, which never does. */
+  const migration = migratedTo[chatKey]
+  const key = migration?.key ?? chatKey
+  const ahead = new Set([...aheadIds, ...(migration?.ahead ?? [])])
   const queue = queues[key] ?? []
   let index = 0
   queue.forEach((message, position) => {
     if (ahead.has(message.id)) index = position + 1
   })
   return { chatKey: key, index }
+}
+
+/** The queue key a write captured before an `await` should use now (see `liveQueuePosition`). */
+export function liveQueueKey(chatKey: string): string {
+  return liveQueuePosition(chatKey, []).chatKey
 }
 
 export const useMothershipQueueStore = create<MothershipQueueState>()(
@@ -190,11 +204,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const {
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
-              retryRequired: _retry,
-              heldUntilOnline: _held,
+              hold: _hold,
               heldSurface: _surface,
-              sendRetries: _sendRetries,
-              notBefore: _notBefore,
+              retry: _retry,
               ...rest
             } = next[index]
             next[index] = {
@@ -237,7 +249,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (fromKey === toKey) return state
             const migratedTo = {
               ...state.migratedTo,
-              [fromKey]: {
+              /** The first move is the real one; a repeat must not rewrite what was ahead. */
+              [fromKey]: state.migratedTo[fromKey] ?? {
                 key: toKey,
                 ahead: (state.queues[toKey] ?? []).map((message) => message.id),
               },
@@ -271,9 +284,9 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const queues: Record<string, QueuedMothershipMessage[]> = {}
             for (const [chatKey, queue] of Object.entries(state.queues)) {
               queues[chatKey] = queue.map((message) => {
-                if (!message.heldUntilOnline) return message
+                if (message.hold !== 'online') return message
                 released = true
-                const { retryRequired: _retry, heldUntilOnline: _held, ...rest } = message
+                const { hold: _hold, ...rest } = message
                 return rest
               })
             }
@@ -288,7 +301,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               queues: setQueueForChat(
                 state.queues,
                 chatKey,
-                current.map((message) => (message.id === id ? { ...message, ...retry } : message))
+                current.map((message) => (message.id === id ? { ...message, retry } : message))
               ),
             }
           }),

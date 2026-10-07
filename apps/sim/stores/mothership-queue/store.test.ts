@@ -126,7 +126,7 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'm1',
         content: 'original',
-        retryRequired: true,
+        hold: 'user',
         resumeUserMessageId: 'prior-request',
         /** Its Stop never settled, so it was never sent: the server cannot hold it. */
         admissionUnknown: false,
@@ -152,7 +152,7 @@ describe('useMothershipQueueStore', () => {
       })
       expect(edited?.queuedSendHandoff?.userMessageId).toBeUndefined()
       expect(edited?.resumeUserMessageId).toBeUndefined()
-      expect(edited?.retryRequired).toBeUndefined()
+      expect(edited?.hold).toBeUndefined()
     })
 
     it('strips queuedSendHandoff on edit so a fresh handoff is minted at send time', () => {
@@ -209,6 +209,24 @@ describe('useMothershipQueueStore', () => {
         'older-2',
         'late',
         'moved',
+      ])
+    })
+
+    it('keeps the first move when the same new-chat queue is migrated again', () => {
+      useMothershipQueueStore.getState().enqueue('chat-W', message('older'))
+      useMothershipQueueStore.getState().enqueue('pending::twice', message('moved'))
+      useMothershipQueueStore.getState().migrate('pending::twice', 'chat-W')
+      useMothershipQueueStore.getState().enqueue('chat-W', message('written-later'))
+      useMothershipQueueStore.getState().migrate('pending::twice', 'chat-W')
+
+      const position = liveQueuePosition('pending::twice', [])
+      useMothershipQueueStore.getState().insertAt(position.chatKey, position.index, message('late'))
+
+      expect(useMothershipQueueStore.getState().queues['chat-W']?.map((m) => m.id)).toEqual([
+        'older',
+        'late',
+        'moved',
+        'written-later',
       ])
     })
 

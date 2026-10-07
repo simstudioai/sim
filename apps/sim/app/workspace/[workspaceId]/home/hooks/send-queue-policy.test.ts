@@ -8,8 +8,7 @@ import {
 describe('requeuedFields', () => {
   it('holds an offline send for the network, on its chatless surface', () => {
     expect(requeuedFields('offline', 0, 'ws-1:home')).toEqual({
-      retryRequired: true,
-      heldUntilOnline: true,
+      hold: 'online',
       heldSurface: 'ws-1:home',
     })
   })
@@ -18,9 +17,9 @@ describe('requeuedFields', () => {
     const before = Date.now()
     const fields = requeuedFields(reason, 2, undefined)
 
-    expect(fields.sendRetries).toBe(3)
-    expect(fields.notBefore).toBeGreaterThan(before)
-    expect(fields.retryRequired).toBeUndefined()
+    expect(fields.retry?.attempt).toBe(3)
+    expect(fields.retry?.notBefore).toBeGreaterThan(before)
+    expect(fields.hold).toBeUndefined()
     expect(fields.heldSurface).toBeUndefined()
   })
 
@@ -28,10 +27,10 @@ describe('requeuedFields', () => {
     'leaves a %s send for the user, adoptable by its chatless surface',
     (reason) => {
       expect(requeuedFields(reason, 4, 'ws-1:home')).toEqual({
-        retryRequired: true,
+        hold: 'user',
         heldSurface: 'ws-1:home',
       })
-      expect(requeuedFields(reason, 4, undefined)).toEqual({ retryRequired: true })
+      expect(requeuedFields(reason, 4, undefined)).toEqual({ hold: 'user' })
     }
   )
 
@@ -48,10 +47,8 @@ describe('withoutRequeueFields', () => {
         content: 'hello',
         resumeUserMessageId: 'attempt-1',
         admissionUnknown: true,
-        retryRequired: true,
-        heldUntilOnline: true,
-        sendRetries: 2,
-        notBefore: 123,
+        hold: 'online',
+        retry: { attempt: 2, notBefore: 123 },
         heldSurface: 'ws-1:home',
       })
     ).toEqual({

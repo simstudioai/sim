@@ -10,6 +10,34 @@ describe('useMothershipQueueStore rehydration', () => {
     sessionStorage.clear()
   })
 
+  it('restores the hold and retry fields of a queue saved in their older shape', async () => {
+    sessionStorage.setItem(
+      'mothership-queue',
+      JSON.stringify({
+        state: {
+          queues: {
+            'chat-A': [
+              { id: 'for-user', content: 'a', retryRequired: true },
+              { id: 'for-network', content: 'b', retryRequired: true, heldUntilOnline: true },
+              { id: 'retrying', content: 'c', sendRetries: 2, notBefore: 1_000 },
+              { id: 'plain', content: 'd' },
+            ],
+          },
+        },
+        version: 0,
+      })
+    )
+
+    await useMothershipQueueStore.persist.rehydrate()
+
+    expect(useMothershipQueueStore.getState().queues['chat-A']).toEqual([
+      { id: 'for-user', content: 'a', hold: 'user' },
+      { id: 'for-network', content: 'b', hold: 'online' },
+      { id: 'retrying', content: 'c', retry: { attempt: 2, notBefore: 1_000 } },
+      { id: 'plain', content: 'd' },
+    ])
+  })
+
   it('treats a resumed message saved before the edit guard as possibly sent', async () => {
     sessionStorage.setItem(
       'mothership-queue',

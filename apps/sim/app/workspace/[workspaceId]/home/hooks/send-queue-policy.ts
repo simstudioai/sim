@@ -1,6 +1,6 @@
 import { backoffWithJitter } from '@sim/utils/retry'
 import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
-import type { QueuedMothershipMessage, ScheduledRetry } from '@/stores/mothership-queue/types'
+import type { QueuedMothershipMessage, SendRetry } from '@/stores/mothership-queue/types'
 
 /**
  * Why a send came back to its caller instead of going out:
@@ -17,18 +17,15 @@ export type WithdrawalReason = 'withdrawn' | 'offline' | 'unreachable' | 'busy' 
 export type RequeueReason = WithdrawalReason | 'failed'
 
 /** The queue fields that say when, and on which surface, a re-queued message goes out. */
-type RequeueFields = Pick<
-  QueuedMothershipMessage,
-  'retryRequired' | 'heldUntilOnline' | 'sendRetries' | 'notBefore' | 'heldSurface'
->
+type RequeueFields = Pick<QueuedMothershipMessage, 'hold' | 'retry' | 'heldSurface'>
 
 const SEND_RETRY_BASE_MS = 1_000
 const SEND_RETRY_MAX_MS = 30_000
 
-/** Queue fields for the `attempt`th automatic retry of a message: when it may be sent again. */
-export function sendRetry(attempt: number): ScheduledRetry {
+/** The `attempt`th automatic retry of a message: when it may be sent again. */
+export function sendRetry(attempt: number): SendRetry {
   return {
-    sendRetries: attempt,
+    attempt,
     notBefore:
       Date.now() +
       backoffWithJitter(attempt, null, { baseMs: SEND_RETRY_BASE_MS, maxMs: SEND_RETRY_MAX_MS }),
@@ -55,13 +52,13 @@ export function requeuedFields(
   const surface = chatlessSurface ? { heldSurface: chatlessSurface } : {}
   switch (reason) {
     case 'offline':
-      return { retryRequired: true, heldUntilOnline: true, ...surface }
+      return { hold: 'online', ...surface }
     case 'unreachable':
     case 'busy':
-      return { ...sendRetry(previousAttempts + 1), ...surface }
+      return { retry: sendRetry(previousAttempts + 1), ...surface }
     case 'stop-failed':
     case 'failed':
-      return { retryRequired: true, ...surface }
+      return { hold: 'user', ...surface }
     case 'withdrawn':
       return {}
   }
@@ -69,18 +66,11 @@ export function requeuedFields(
 
 /**
  * A queue entry without the fields an earlier outcome set, so a re-queue applies
- * only the policy for the outcome it is handling. A stale `heldUntilOnline`, for
+ * only the policy for the outcome it is handling. A stale `online` hold, for
  * one, would let the browser coming online send a message waiting for the user.
  */
 export function withoutRequeueFields(entry: QueuedMothershipMessage): QueuedMothershipMessage {
-  const {
-    retryRequired: _retryRequired,
-    heldUntilOnline: _heldUntilOnline,
-    sendRetries: _sendRetries,
-    notBefore: _notBefore,
-    heldSurface: _heldSurface,
-    ...rest
-  } = entry
+  const { hold: _hold, retry: _retry, heldSurface: _heldSurface, ...rest } = entry
   return rest
 }
 

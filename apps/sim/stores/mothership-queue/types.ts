@@ -11,24 +11,25 @@ export interface QueuedSendHandoffSeed {
 
 export type QueuedMothershipMessage = QueuedMessage & {
   queuedSendHandoff?: QueuedSendHandoffSeed
-  /** A failed dispatch remains queued until the user retries or edits it. */
-  retryRequired?: boolean
   /**
-   * The failed dispatch got no response while the browser was offline, so the
-   * server may or may not have admitted it; the browser being online again
-   * releases it for dispatch under the same id, which the server deduplicates
-   * if it did.
+   * Why it waits instead of draining. `user`: a failed dispatch stays until the
+   * user sends or edits it. `online`: its dispatch got no response while the
+   * browser was offline, so the server may or may not have admitted it; the
+   * browser coming online releases it under the same id (or the user does),
+   * which the server deduplicates if it did.
    */
-  heldUntilOnline?: boolean
+  hold?: 'user' | 'online'
   /**
    * Set on a send held by a chatless surface, whose queue key dies with its
    * mount: the next chatless surface for the same owner and workflow adopts it.
    */
   heldSurface?: string
-  /** Automatic retries so far (busy refusals, or failures to reach Sim while online); paces the next. */
-  sendRetries?: number
-  /** Epoch ms before which a message waiting on an automatic retry is not sent again. */
-  notBefore?: number
+  /**
+   * The automatic retry it waits on (a busy refusal, or a failure to reach Sim
+   * while online): which attempt it will be, and the epoch ms before which it is
+   * not sent.
+   */
+  retry?: SendRetry
   /**
    * Message id of a prior attempt at this send that an unmount cleanup
    * withdrew. Reused when the entry is dispatched so the server deduplicates
@@ -39,9 +40,9 @@ export type QueuedMothershipMessage = QueuedMessage & {
   resumeUserMessageId?: string
 }
 
-/** When a message's next automatic retry may go out, and how many came before it. */
-export interface ScheduledRetry {
-  sendRetries: number
+/** A message's next automatic retry: which attempt it is, and when it may go out. */
+export interface SendRetry {
+  attempt: number
   notBefore: number
 }
 
@@ -89,7 +90,7 @@ export interface MothershipQueueState {
   /** Releases every send held for the network for dispatch. */
   releaseHeldUntilOnline: () => void
   /** Puts off the automatic retry of `id` until `notBefore`. */
-  deferRetry: (chatKey: string, id: string, retry: ScheduledRetry) => void
+  deferRetry: (chatKey: string, id: string, retry: SendRetry) => void
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
   /**
