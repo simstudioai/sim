@@ -25,12 +25,23 @@ import postgres from 'postgres'
 import type Stripe from 'stripe'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const ADMIN_API_KEY = vi.hoisted(() => {
-  const key = 'integration-fixture-admin-key'
-  process.env.ADMIN_API_KEY = key
-  process.env.STRIPE_PRICE_TEAM_25_MO = 'price_team_pro_tier_month'
-  process.env.STRIPE_PRICE_TEAM_100_MO = 'price_team_max_tier_month'
-  return key
+const { ADMIN_API_KEY, restoreEnvironment } = vi.hoisted(() => {
+  const fixture: Record<string, string> = {
+    ADMIN_API_KEY: 'integration-fixture-admin-key',
+    STRIPE_PRICE_TEAM_25_MO: 'price_team_pro_tier_month',
+    STRIPE_PRICE_TEAM_100_MO: 'price_team_max_tier_month',
+  }
+  const previous = Object.fromEntries(Object.keys(fixture).map((key) => [key, process.env[key]]))
+  Object.assign(process.env, fixture)
+  return {
+    ADMIN_API_KEY: fixture.ADMIN_API_KEY,
+    restoreEnvironment() {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    },
+  }
 })
 
 const database = vi.hoisted(() => ({
@@ -166,6 +177,7 @@ beforeEach(() => {
 
 afterAll(async () => {
   resetEnvFlagsMock()
+  restoreEnvironment()
   try {
     await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
   } finally {
@@ -1188,6 +1200,41 @@ describe('Team seat sync', () => {
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].price.id).toBe(
       'price_team_max_tier_month'
     )
+  })
+
+  it('pushes a seat count that changes away and back while its sync retries', async () => {
+    const org = await createOrganizationWithPlan('team', 1)
+    async function commitSeats(seats: number) {
+      await testDatabase.transaction(async (tx) => {
+        await tx.update(subscription).set({ seats }).where(eq(subscription.id, org.subscriptionId))
+        await enqueueSubscriptionSeatsSync(tx, {
+          subscriptionId: org.subscriptionId,
+          seats,
+          reason: 'member-change',
+        })
+      })
+      return latestOutboxEventId(
+        OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+        org.subscriptionId
+      )
+    }
+
+    const seatSync = await commitSeats(2)
+    const firstPush = stripe.holdNextRequest('subscriptions.update')
+    const syncing = processEvent(seatSync)
+    await firstPush.reached
+    await commitSeats(3)
+    const secondPush = stripe.holdNextRequest('subscriptions.update')
+    firstPush.release()
+    await secondPush.reached
+    await commitSeats(2)
+    secondPush.release()
+    await expect(syncing).resolves.toBe('pending')
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(3)
+
+    await makeDue(seatSync)
+    await expect(processEvent(seatSync)).resolves.toBe('completed')
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
   })
 
   it('does not revive an older seat count when its dead-lettered sync is requeued', async () => {

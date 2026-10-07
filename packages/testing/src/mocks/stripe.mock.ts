@@ -180,8 +180,11 @@ export function createInMemoryStripe() {
       }
     }
     if (params.metadata) {
-      previousAttributes.metadata = current.metadata
-      next.metadata = { ...current.metadata, ...params.metadata }
+      const metadata = { ...current.metadata, ...params.metadata }
+      if (JSON.stringify(metadata) !== JSON.stringify(current.metadata)) {
+        previousAttributes.metadata = current.metadata
+        next.metadata = metadata
+      }
     }
     for (const item of params.items ?? []) {
       const target = next.items.data.find((existing) => existing.id === item.id)

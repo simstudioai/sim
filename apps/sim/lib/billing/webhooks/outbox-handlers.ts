@@ -27,8 +27,11 @@ const logger = createLogger('BillingOutboxHandlers')
  */
 const MAX_SYNC_ATTEMPTS = 2
 
-/** A fresh key per Stripe write: the SDK reuses it across its own network retries of that call. */
-function customerContactSyncIdempotencyKey(eventId: string): string {
+/**
+ * A fresh key per Stripe write: the SDK reuses it across its own network retries of that call.
+ * A key derived from the pushed value would be replayed, unapplied, once that value comes back.
+ */
+function syncWriteIdempotencyKey(eventId: string): string {
   return `outbox:${eventId}:${generateShortId()}`
 }
 
@@ -293,7 +296,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
           ],
           proration_behavior: 'always_invoice',
         },
-        { idempotencyKey: `outbox:${ctx.eventId}:${row.plan}:${desiredSeats}` }
+        { idempotencyKey: syncWriteIdempotencyKey(ctx.eventId) }
       )
     }
 
@@ -503,7 +506,7 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
           email: contact.email,
           ...(contact.name ? { name: contact.name } : {}),
         },
-        { idempotencyKey: customerContactSyncIdempotencyKey(ctx.eventId) }
+        { idempotencyKey: syncWriteIdempotencyKey(ctx.eventId) }
       )
     }
 
