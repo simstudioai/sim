@@ -85,12 +85,13 @@ function withCurrentWaitFields(value: unknown): unknown {
   if (!record) return value
   const { retryRequired, heldUntilOnline, sendRetries, notBefore, ...rest } = record
   /* An entry saved when its Stop handoff carried the reused id: that id is the
-     entry's `resumeUserMessageId` now. */
+     entry's `resumeUserMessageId` now. It wins over the entry's own, as it did
+     when that build picked the id to send. */
   const seed = toRecordOrNull(rest.queuedSendHandoff)
   if (seed && typeof seed.userMessageId === 'string') {
     const { userMessageId: seedRequestId, ...seedRest } = seed
     rest.queuedSendHandoff = seedRest
-    if (rest.resumeUserMessageId === undefined) rest.resumeUserMessageId = seedRequestId
+    rest.resumeUserMessageId = seedRequestId
   }
   return {
     ...rest,
