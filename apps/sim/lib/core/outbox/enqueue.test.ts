@@ -23,14 +23,25 @@ const mocks = {
 const IDLE_MINUTE = new Date('2026-09-16T12:34:45Z')
 const MAINTENANCE_MINUTE = new Date('2026-09-16T12:35:10Z')
 
-const BACKENDS = [
-  { name: 'Trigger.dev', isTriggerDevEnabled: true },
-  { name: 'self-hosted inline', isTriggerDevEnabled: false },
-] as const
-
-function processorStarted() {
-  return mocks.trigger.mock.calls.length + mocks.processor.mock.calls.length
+const INLINE_OUTPUT = {
+  result: { processed: 0, retried: 0, deadLettered: 0, leaseLost: 0, reaped: 0 },
+  recoveredDocuments: 0,
+  reapedBackgroundWork: 0,
 }
+
+/** Each backend's own proof that it, and only it, ran the processor. */
+const BACKENDS = [
+  {
+    name: 'Trigger.dev',
+    isTriggerDevEnabled: true,
+    started: { backend: 'trigger-dev', jobId: 'run-1' },
+  },
+  {
+    name: 'self-hosted inline',
+    isTriggerDevEnabled: false,
+    started: { backend: 'inline', output: INLINE_OUTPUT },
+  },
+] as const
 
 describe('outbox processor enqueue', () => {
   beforeEach(() => {
@@ -38,6 +49,8 @@ describe('outbox processor enqueue', () => {
     vi.setSystemTime(IDLE_MINUTE)
     setEnvFlags({ isTriggerDevEnabled: true })
     mocks.trigger.mockResolvedValue({ id: 'run-1' })
+    mocks.processor.mockReset()
+    mocks.processor.mockResolvedValue(INLINE_OUTPUT)
     mocks.hasDueWork.mockReset()
     mocks.hasDueWork.mockResolvedValue(true)
   })
@@ -77,28 +90,25 @@ describe('outbox processor enqueue', () => {
       setEnvFlags({ isTriggerDevEnabled })
       mocks.hasDueWork.mockResolvedValue(false)
       await expect(enqueueOutboxProcessor()).resolves.toEqual({ backend: null, triggered: false })
-      expect(processorStarted()).toBe(0)
     }
   )
 
   it.each(BACKENDS)(
     'starts the $name processor on an idle queue in the maintenance window',
-    async ({ isTriggerDevEnabled }) => {
+    async ({ isTriggerDevEnabled, started }) => {
       setEnvFlags({ isTriggerDevEnabled })
       vi.setSystemTime(MAINTENANCE_MINUTE)
       mocks.hasDueWork.mockResolvedValue(false)
-      await enqueueOutboxProcessor()
-      expect(processorStarted()).toBe(1)
+      await expect(enqueueOutboxProcessor()).resolves.toEqual(started)
     }
   )
 
   it.each(BACKENDS)(
     'starts the $name processor when the work check fails',
-    async ({ isTriggerDevEnabled }) => {
+    async ({ isTriggerDevEnabled, started }) => {
       setEnvFlags({ isTriggerDevEnabled })
       mocks.hasDueWork.mockRejectedValue(new Error('connection refused'))
-      await enqueueOutboxProcessor()
-      expect(processorStarted()).toBe(1)
+      await expect(enqueueOutboxProcessor()).resolves.toEqual(started)
     }
   )
 })
