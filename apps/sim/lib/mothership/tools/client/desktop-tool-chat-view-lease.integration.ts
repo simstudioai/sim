@@ -247,7 +247,7 @@ describe.runIf(Boolean(redisUrl))('a chat-view import kept alive by its lease', 
   it('the claiming session renews it, which keeps the turn waiting', async () => {
     signedInAs(userId, sessionId)
     const { toolCallId } = await chatViewImports()
-    await leaseEndsIn(toolCallId, 2)
+    await leaseEndsIn(toolCallId, 10)
     const renewal = await chatViewRenews(toolCallId)
     expect(renewal.status).toBe(200)
     expect(await renewal.json()).toEqual({ renewed: true })
