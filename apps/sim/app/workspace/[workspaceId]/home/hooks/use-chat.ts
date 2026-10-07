@@ -770,6 +770,8 @@ export function useChat(
   const onlineEventsRef = useRef(0)
   /** Identifies this chatless surface across mounts, for the sends it holds. */
   const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
+  const heldSendSurfaceRef = useRef(heldSendSurface)
+  heldSendSurfaceRef.current = heldSendSurface
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
   const onTitleUpdateRef = useRef(options?.onTitleUpdate)
@@ -5317,6 +5319,14 @@ export function useChat(
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.
       useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
+      /* A chatless mount's queue key dies with it. Messages still queued there
+         (behind a first message whose chat is not known yet, or a Stop that
+         failed) go to the next mount of this surface, as held sends do. */
+      if (chatKeyRef.current.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        useMothershipQueueStore
+          .getState()
+          .holdForSurface(chatKeyRef.current, heldSendSurfaceRef.current)
+      }
     }
   }, [
     cancelActiveStreamRecovery,

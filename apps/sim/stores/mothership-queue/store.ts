@@ -205,6 +205,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             }
           }),
 
+        holdForSurface: (chatKey, surface) =>
+          set((state) => {
+            const queue = state.queues[chatKey]
+            if (!queue?.some((message) => message.heldSurface !== surface)) return state
+            return {
+              queues: setQueueForChat(
+                state.queues,
+                chatKey,
+                queue.map((message) => ({ ...message, heldSurface: surface }))
+              ),
+            }
+          }),
+
         clearChat: (chatKey) =>
           set((state) => ({
             queues: omitKey(state.queues, chatKey),

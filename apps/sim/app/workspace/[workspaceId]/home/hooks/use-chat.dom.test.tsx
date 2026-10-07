@@ -2052,6 +2052,57 @@ describe('useChat remount send recovery', () => {
     expect(state.abortBodies[0]).not.toHaveProperty('chatId')
   })
 
+  /**
+   * A follow-up sent on the new-chat surface while the first message's Stop is
+   * pending waits in that surface's queue until the first message's chat is
+   * known. If the Stop fails and the surface remounts first, the queue key dies
+   * with the mount: the next new-chat surface must show the follow-up (and may
+   * send it), not leave it under the dead key, neither sent nor visible.
+   */
+  it('keeps a follow-up queued behind a failed chatless Stop when the surface remounts', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      }
+      if (url.includes('/api/copilot/chat/abort')) {
+        state.abortBodies.push(JSON.parse(String(init?.body)))
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      if (url.includes('/api/mothership/chat/stream')) {
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      return fetchStub(input, init)
+    })
+    const first = renderUseChat()
+    await act(async () => {
+      void first.getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      void first
+        .getResult()
+        .stopGeneration()
+        .catch(() => {})
+      void first.getResult().sendMessage('Sent while the Stop was failing')
+      await sleep(1_000)
+    })
+    first.unmount()
+
+    const second = renderUseChat()
+    await waitFor(
+      () =>
+        second
+          .getResult()
+          .messageQueue.some((message) => message.content === 'Sent while the Stop was failing') ||
+        state.postBodies.some((body) => body.message === 'Sent while the Stop was failing'),
+      4_000
+    )
+  })
+
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
     const executionStore = useExecutionStore.getState()
     executionStore.setIsExecuting('manual-workflow', true)

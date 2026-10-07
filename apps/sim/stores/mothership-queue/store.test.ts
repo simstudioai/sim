@@ -75,6 +75,21 @@ describe('useMothershipQueueStore', () => {
     })
   })
 
+  describe('holdForSurface', () => {
+    it("hands a dead chatless mount's queue to the next mount of its surface only", () => {
+      useMothershipQueueStore.getState().enqueue('pending::dead', message('m1'))
+      useMothershipQueueStore.getState().holdForSurface('pending::dead', 'ws-1:home')
+
+      useMothershipQueueStore.getState().adoptHeldSends('pending::other', 'ws-1:workflow-1')
+      expect(useMothershipQueueStore.getState().queues['pending::other']).toBeUndefined()
+
+      useMothershipQueueStore.getState().adoptHeldSends('pending::next', 'ws-1:home')
+      const state = useMothershipQueueStore.getState()
+      expect(state.queues['pending::next']?.map((m) => m.id)).toEqual(['m1'])
+      expect(state.queues['pending::dead']).toBeUndefined()
+    })
+  })
+
   describe('migrate', () => {
     it('merges into an existing destination bucket instead of overwriting', () => {
       useMothershipQueueStore.getState().enqueue('chat-X', message('existing-1'))
