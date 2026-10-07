@@ -8,6 +8,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { noop } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import type { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -19,6 +20,8 @@ interface SSESubscription {
     workspaceId: string,
     send: (eventName: string, data: Record<string, unknown>) => void
   ): () => void
+  /** Settles once the subscription receives events; the stream is announced only after it. */
+  ready?: () => Promise<void>
 }
 
 interface WorkspaceSSEConfig {
@@ -29,6 +32,16 @@ interface WorkspaceSSEConfig {
 const encoder = new TextEncoder()
 
 export const HEARTBEAT_INTERVAL_MS = 30_000
+
+/** Written once a stream's subscriptions are live; clients ignore comments. */
+export const OPENED_COMMENT = ': connected\n\n'
+
+/**
+ * How long a stream waits for its subscriptions before opening anyway. A subscription still not
+ * live is in an outage, which open streams ride out the same way, and a client that hears nothing
+ * gives up on the connection: Sim desktop after 15 s.
+ */
+export const OPEN_DEADLINE_MS = 5_000
 
 /**
  * Starts a make-before-break rotation for one connection. Healthy clients open
@@ -83,6 +96,7 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
       label: `${config.label}:workspace:${workspaceId}`,
       subscriptions: config.subscriptions.map((subscription) => ({
         subscribe: (send) => subscription.subscribe(workspaceId, send),
+        ready: subscription.ready,
       })),
     })
   }
@@ -92,6 +106,8 @@ interface SSEStreamConfig {
   label: string
   subscriptions: Array<{
     subscribe(send: (eventName: string, data: Record<string, unknown>) => void): () => void
+    /** Settles once the subscription receives events; the stream is announced only after it. */
+    ready?: () => Promise<void>
   }>
   /** Rechecks a long-lived authorization before each publication and on heartbeats. */
   revalidate?: () => Promise<void>
@@ -149,32 +165,68 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
         })
         return authorization
       }
+      /**
+       * The stream's writes in order: the opening, then each event once it is authorized. An event
+       * waits here while the stream has not opened or an earlier event is still being written.
+       */
+      let writes: Promise<void> = Promise.resolve()
+      let opened = false
       let pendingEvents = 0
       const send = (eventName: string, data: Record<string, unknown>) => {
         if (cleaned) return
         const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
-        if (!config.revalidate) {
+        if (opened && pendingEvents === 0 && !config.revalidate) {
           enqueue(payload)
           return
         }
         if (pendingEvents >= MAX_UNDRAINED_CHUNKS) {
-          close('authorization_backpressure')
+          close('pending_backpressure')
           return
         }
         pendingEvents += 1
-        void revalidate().then(
-          () => {
-            pendingEvents -= 1
-            enqueue(payload)
-          },
-          () => {
-            pendingEvents -= 1
-            close('authorization_lost')
-          }
-        )
+        // Authorized as soon as it arrives, so concurrent events share one check, but written only
+        // after every event before it.
+        const authorized = opened
+          ? revalidate()
+          : writes.then(() => (cleaned ? undefined : revalidate()))
+        authorized.catch(noop)
+        writes = writes
+          .then(() => authorized)
+          .then(
+            () => {
+              pendingEvents -= 1
+              enqueue(payload)
+            },
+            () => {
+              pendingEvents -= 1
+              close('authorization_lost')
+            }
+          )
       }
 
       try {
+        // The runtime sends the status and headers with the first body chunk, so the stream writes
+        // one as soon as it opens. A client reads its state once the stream opens, so it opens once
+        // every subscription receives events, or at the deadline when one is in an outage. A
+        // heartbeat cannot open it first: the deadline is shorter than the heartbeat interval.
+        // Closing settles it too, so a stream closed before it opened is not kept alive by a
+        // subscription that never becomes ready.
+        writes = Promise.race([
+          Promise.all(config.subscriptions.map((subscription) => subscription.ready?.())),
+          new Promise<void>((resolve) => {
+            const deadline = setTimeout(resolve, OPEN_DEADLINE_MS)
+            teardowns.push(() => {
+              clearTimeout(deadline)
+              resolve()
+            })
+          }),
+        ]).then(
+          () => {
+            opened = true
+            enqueue(OPENED_COMMENT)
+          },
+          () => close('subscription_failed')
+        )
         for (const subscription of config.subscriptions) {
           teardowns.push(subscription.subscribe(send))
         }

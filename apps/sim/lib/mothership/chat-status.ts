@@ -40,6 +40,7 @@ export const chatPubSub = channel
   ? {
       publishStatusChanged: (event: ChatStatusEvent) => channel.publish(event),
       onStatusChanged: (handler: (event: ChatStatusEvent) => void) => channel.subscribe(handler),
+      ready: () => channel.ready(),
       dispose: () => channel.dispose(),
     }
   : null

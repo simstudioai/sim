@@ -42,6 +42,7 @@ const mothershipEventsHandler = createWorkspaceSSE({
           })
         })
       },
+      ready: async () => chatPubSub?.ready(),
     },
   ],
 })
@@ -80,6 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 timestamp: Date.now(),
               })
             }) ?? (() => {}),
+          ready: async () => chatPubSub?.ready(),
         },
       ],
     })

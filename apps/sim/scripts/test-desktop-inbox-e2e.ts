@@ -48,6 +48,10 @@ import {
 const logger = createLogger('DesktopInboxE2E')
 const PICKUP_GRACE_SECONDS = 15
 const RECONCILE_MS = 2_000
+/** Sim desktop gives up on a doorbell whose response has not started by then, and reconnects. */
+const DESKTOP_DOORBELL_HANDSHAKE_MS = 15_000
+/** A ring is a Redis publish and one device check away from the open stream. */
+const RING_DELIVERY_MS = 2_000
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]
@@ -228,16 +232,18 @@ function openDoorbell(desktop: Desktop) {
   const controller = new AbortController()
   const events: string[] = []
   const listeners = new Set<() => void>()
+  const startedAt = Date.now()
   // boundary-raw-fetch: reads the SSE doorbell as a stream.
   const opened = fetch(new URL(`/api/desktop/inbox/stream?deviceId=${desktop.deviceId}`, baseUrl), {
     headers: { Cookie: `better-auth.session_token=${desktop.cookie}`, Accept: 'text/event-stream' },
     signal: controller.signal,
   }).then(async (response) => {
+    const startedInMs = Date.now() - startedAt
     http.push({
       method: 'GET',
       path: '/api/desktop/inbox/stream',
       status: response.status,
-      durationMs: 0,
+      durationMs: startedInMs,
     })
     assert.equal(response.status, 200, `inbox stream: ${response.status}`)
     assert(response.body, 'inbox stream has no body')
@@ -265,8 +271,10 @@ function openDoorbell(desktop: Desktop) {
         }
       } catch {}
     })()
+    return startedInMs
   })
   return {
+    /** Resolves with how long the response took to start. */
     opened,
     events,
     onEvent(listener: () => void) {
@@ -437,15 +445,40 @@ async function run() {
     }
   )
 
+  /**
+   * Compiles the doorbell route before its open is timed. Refused before the use case runs, so the
+   * open below is still the first to subscribe this process to the doorbell channel.
+   */
+  await check('refuses a doorbell without a device', async () => {
+    await request(desktop, 'GET', '/api/desktop/inbox/stream', { expected: 400 })
+  })
+
   /** Starts absent, so only the stream open below can mark the device present. */
   await redis.del(`desktop:presence:${desktop.deviceId}`)
   const doorbell = openDoorbell(desktop)
   await check('counts the device online once it opens its doorbell stream', async () => {
-    await doorbell.opened
+    const startedInMs = await doorbell.opened
+    assert(
+      startedInMs < DESKTOP_DOORBELL_HANDSHAKE_MS,
+      `the doorbell response started after ${startedInMs} ms`
+    )
     await waitFor(
       async () => (await redis.exists(`desktop:presence:${desktop.deviceId}`)) === 1,
       10_000,
       'presence'
+    )
+  })
+
+  await check('rings the doorbell as soon as the inbox changes', async () => {
+    const heardBefore = doorbell.events.length
+    await redis.publish(
+      'desktop:inbox',
+      JSON.stringify({ deviceId: desktop.deviceId, reason: 'call' })
+    )
+    await waitFor(
+      () => doorbell.events.slice(heardBefore).includes('inbox_changed:call'),
+      RING_DELIVERY_MS,
+      'the doorbell'
     )
   })
 

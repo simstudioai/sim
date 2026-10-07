@@ -15,6 +15,7 @@ import {
 } from '@/lib/desktop/executor/constants'
 import {
   type DesktopInboxChangeReason,
+  desktopInboxDoorbellReady,
   onDesktopInboxDoorbell,
 } from '@/lib/desktop/executor/doorbell'
 import {
@@ -201,6 +202,7 @@ export const openDesktopInboxStream = defineAuthorizedCredentialUserUseCase({
         onDesktopInboxDoorbell(deviceId, (reason: DesktopInboxChangeReason) =>
           send('inbox_changed', { reason })
         ),
+      ready: desktopInboxDoorbellReady,
     }
   },
 })
