@@ -69,12 +69,29 @@ describe('createPubSubChannel over Redis', () => {
     expect(await settled(channel.ready())).toBe(true)
   })
 
-  it('settles when the subscribe fails, so streams are not held back', async () => {
+  it('is not ready while its subscribe fails, and retries on the next connection', async () => {
     const channel = createPubSubChannel({ channel: 'test', label: 'Test' })
     subscriber().emit('ready')
 
     subscriber().subscribed[0](new Error('NOPERM'))
+    expect(await settled(channel.ready())).toBe(false)
 
+    subscriber().emit('close')
+    subscriber().emit('ready')
+    subscriber().subscribed[1](null)
+    expect(await settled(channel.ready())).toBe(true)
+  })
+
+  it('ignores a subscribe answered after its connection closed', async () => {
+    const channel = createPubSubChannel({ channel: 'test', label: 'Test' })
+    subscriber().emit('ready')
+
+    subscriber().emit('close')
+    subscriber().subscribed[0](null)
+    expect(await settled(channel.ready())).toBe(false)
+
+    subscriber().emit('ready')
+    subscriber().subscribed[1](null)
     expect(await settled(channel.ready())).toBe(true)
   })
 })

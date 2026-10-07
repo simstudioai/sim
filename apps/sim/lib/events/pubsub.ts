@@ -18,7 +18,8 @@ export interface PubSubChannel<T> {
   subscribe(handler: (event: T) => void): () => void
   /**
    * Settles once this process receives the channel's publications; anything published before
-   * then reaches no subscriber here.
+   * then reaches no subscriber here. Stays pending while the channel cannot subscribe, so a caller
+   * that must not wait indefinitely bounds the wait.
    */
   ready(): Promise<void>
   dispose(): void
@@ -36,6 +37,8 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   private disposed = false
   /** Whether the current connection has subscribed; a dropped connection has to again. */
   private listening = false
+  /** Counts closed connections, so a subscribe answered after its connection closed is ignored. */
+  private closedConnections = 0
   private subscribed: Promise<void> = Promise.resolve()
   private markSubscribed: () => void = noop
 
@@ -67,21 +70,23 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
 
     this.awaitSubscription()
     // Subscribes on every ready connection: ioredis resubscribes after a reconnect on its own but
-    // does not report when that lands, and SUBSCRIBE is idempotent. Readiness settles on failure
-    // too: nothing retries a failed subscribe, so waiting on it would only hold back every stream
-    // on this channel.
+    // does not report when that lands, and SUBSCRIBE is idempotent. A failed subscribe leaves the
+    // channel not ready; the next connection tries again.
     this.sub.on('ready', () => {
+      const connection = this.closedConnections
       this.sub.subscribe(config.channel, (err) => {
+        if (connection !== this.closedConnections) return
         if (err) {
           logger.error(`Failed to subscribe to ${config.label} channel:`, err)
-        } else {
-          this.listening = true
-          logger.info(`Subscribed to ${config.label} channel`)
+          return
         }
+        this.listening = true
+        logger.info(`Subscribed to ${config.label} channel`)
         this.markSubscribed()
       })
     })
     this.sub.on('close', () => {
+      this.closedConnections += 1
       if (!this.listening) return
       this.listening = false
       this.awaitSubscription()
