@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 
 /**
  * A tmux attachment the service sees only when a test turns it on. Runs get real status files;
@@ -45,7 +46,8 @@ vi.mock('@/main/terminal/tmux', async () => {
       return {
         window: `@${pane.slice(1)}`,
         pane,
-        runId: tmuxFake.untracked ? null : `run-${pane}`,
+        runId: tmuxFake.untracked ? null : `run-${pane.slice(1)}`,
+        socket: tmuxFake.untracked ? null : '/tmp/tmux-fake/default',
         outPath: join(dir, 'out'),
         statusPath,
         dispose: () => rmSync(dir, { recursive: true, force: true }),
@@ -620,6 +622,36 @@ describe('agent commands in tmux', () => {
     } finally {
       tmuxFake.on = false
       tmuxFake.untracked = false
+    }
+  })
+
+  it('keeps a record of a tagged run exactly as long as the run goes on', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const ledgerDir = join(mkdtempSync(join(tmpdir(), 'sim-ledger-')), 'terminal-runs')
+    const ledger = createRunLedger(ledgerDir)
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp', runLedger: ledger })
+      terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+
+      // Still going after its call returned: a later process must be able to find it.
+      expect(createRunLedger(ledgerDir).list()).toEqual([
+        { runId: `run-${pane.slice(1)}`, pane, socket: '/tmp/tmux-fake/default' },
+      ])
+
+      writeFileSync(statusPath, '0')
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+
+      // The first finished and is forgotten; the one still going is recorded in its place.
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).toEqual([[...tmuxFake.statusPaths.keys()][1]])
+    } finally {
+      tmuxFake.on = false
     }
   })
 

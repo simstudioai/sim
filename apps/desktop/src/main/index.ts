@@ -101,6 +101,7 @@ import {
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
@@ -167,15 +168,20 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
-  const terminal = new TerminalRegistry({
-    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
-    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
-    migrate: (fromScopeId, toScopeId) =>
-      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
-    disposeScope: (scopeId) => {
-      desktopChatSessions.deleteScope(processOrigin, scopeId)
+  const terminal = new TerminalRegistry(
+    {
+      load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+      save: (scopeId, snapshot) =>
+        desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
+      migrate: (fromScopeId, toScopeId) =>
+        desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
+      disposeScope: (scopeId) => {
+        desktopChatSessions.deleteScope(processOrigin, scopeId)
+      },
     },
-  })
+    undefined,
+    createRunLedger(join(userDataPath, 'terminal-runs'))
+  )
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -803,6 +809,11 @@ function main(): void {
         logger.error('Account-data recovery remains incomplete', { stores: failures })
       }
     }
+
+    // A tmux run the previous process left going belongs to a call it can no longer report (its
+    // journal settles it as outcome unknown) or to a chat view that is gone: nothing will collect
+    // what it does, so it is stopped, while its pane still carries its tag.
+    void terminal.stopRecordedRuns({ excludeLive: true })
 
     if (!accountDataAvailable()) {
       logger.warn(

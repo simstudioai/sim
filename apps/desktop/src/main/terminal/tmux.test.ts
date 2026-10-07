@@ -12,6 +12,7 @@ import {
   resolveAttachment,
   runPaneState,
   startRun,
+  stopRecordedRun,
   stopRun,
   type TmuxRunHandle,
 } from '@/main/terminal/tmux'
@@ -71,6 +72,7 @@ describe('run status files', () => {
     window: '@1',
     pane: '%1',
     runId: 'run-1',
+    socket: null,
     outPath: join(dir, 'out'),
     statusPath: join(dir, 'status'),
     dispose: () => {},
@@ -119,6 +121,8 @@ describe('run status files', () => {
  * reshapes the server directly (a split, a closed window, a restart) by rewriting that file.
  */
 interface FakeTmuxState {
+  /** The server's socket; `-S` naming any other reaches no server. */
+  socket: string
   nextWindow: number
   nextPane: number
   panes: Record<string, { window: string; options: Record<string, string>; command?: string }>
@@ -138,8 +142,16 @@ const FAKE_TMUX = `
 const fs = require('node:fs')
 const file = process.env.FAKE_TMUX_STATE
 const state = JSON.parse(fs.readFileSync(file, 'utf8'))
-const args = process.argv.slice(2)
+let args = process.argv.slice(2)
 const save = () => fs.writeFileSync(file, JSON.stringify(state))
+// \`-S socket\` names the server; any server but this one does not exist.
+if (args[0] === '-S') {
+  if (args[1] !== state.socket) {
+    process.stderr.write('no server running on ' + args[1])
+    process.exit(1)
+  }
+  args = args.slice(2)
+}
 const target = () => args[args.indexOf('-t') + 1]
 const fail = (message) => { process.stderr.write(message); process.exit(1) }
 // Prints a format's output as tmux 3.4 and 3.5 do: a backslash doubled, and every other control
@@ -187,6 +199,8 @@ switch (args[0]) {
       ? ''
       : name === 'pane_id'
         ? target()
+        : name === 'socket_path'
+          ? state.socket
         : name === 'pane_start_command'
           ? (pane.command ?? '')
           : (pane.options[name] ?? '')
@@ -224,7 +238,7 @@ function fakeTmux(options: { exec?: boolean } = {}) {
   writeFileSync(binary, `#!${process.execPath}\n${FAKE_TMUX}`)
   chmodSync(binary, 0o755)
   const write = (state: FakeTmuxState) => writeFileSync(stateFile, JSON.stringify(state))
-  write({ nextWindow: 0, nextPane: 0, panes: {}, log: [] })
+  write({ nextWindow: 0, nextPane: 0, panes: {}, log: [], socket: join(dir, 'server.sock') })
   const read = (): FakeTmuxState => JSON.parse(readFileSync(stateFile, 'utf8'))
   return {
     dir,
@@ -271,6 +285,69 @@ describe('finding the tmux session a shell runs', () => {
       session: 'work',
       clientTty: '/dev/pts/3',
     })
+  })
+})
+
+describe('stopping a run another process started, from its record', () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  async function recorded(tmux: ReturnType<typeof fakeTmux>) {
+    dirs.push(tmux.dir)
+    const run = await startRun('agent', 'sleep 600', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
+    return { run, record: { runId: run.runId ?? '', pane: run.pane, socket: run.socket ?? '' } }
+  }
+
+  it('records the server a tagged run runs on', async () => {
+    const tmux = fakeTmux()
+    const { run } = await recorded(tmux)
+
+    expect(run.socket).toBe(tmux.read().socket)
+  })
+
+  it('interrupts and then closes the pane while it still carries the run tag', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`, `kill-pane ${record.pane}`])
+    expect(tmux.read().panes).toEqual({})
+  })
+
+  it('never touches a pane that took the recorded id after tmux restarted', async () => {
+    const tmux = fakeTmux()
+    const { run, record } = await recorded(tmux)
+    tmux.restart()
+    const state = tmux.read()
+    state.panes[run.pane] = { window: run.window, options: {}, command: 'zsh' }
+    tmux.write(state)
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
+  })
+
+  it('never asks a different tmux server about the pane', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+
+    const elsewhere = { ...record, socket: join(tmux.dir, 'another.sock') }
+    expect(await stopRecordedRun(elsewhere, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('leaves the record for later while tmux cannot be asked', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), fail: { 'display-message': 'server exited unexpectedly' } })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('unknown')
+    expect(tmux.read().log).toEqual([])
   })
 })
 

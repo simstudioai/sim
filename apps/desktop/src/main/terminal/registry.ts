@@ -19,6 +19,11 @@ import {
   type TerminalServiceOptions,
   type TerminalSink,
 } from '@/main/terminal'
+import type { RunLedger } from '@/main/terminal/run-ledger'
+import { stopRecordedRun } from '@/main/terminal/tmux'
+
+/** How long a recorded run gets to end on Ctrl-C before its pane is closed. */
+const RECORDED_RUN_GRACE_MS = 2_000
 
 /** Native PTYs and their headless xterm buffers are process-wide resources. */
 export const MAX_TERMINALS_PER_PROCESS = 48
@@ -106,7 +111,8 @@ export class TerminalRegistry {
 
   constructor(
     private readonly persistence?: TerminalScopePersistence,
-    private readonly serviceFactory: TerminalServiceFactory = createTerminalService
+    private readonly serviceFactory: TerminalServiceFactory = createTerminalService,
+    private readonly runLedger?: RunLedger
   ) {}
 
   setSink(sink: ScopedTerminalSink | null): void {
@@ -369,10 +375,32 @@ export class TerminalRegistry {
     return true
   }
 
-  /** Stops every command the agent started in any chat's terminals; the user's own are untouched. */
+  /**
+   * Stops every command the agent started in any chat's terminals; the user's own are untouched.
+   * That includes tmux runs no live terminal holds any more: a chat put away, or a previous
+   * process that quit or crashed while they ran.
+   */
   async stopAgentCommands(): Promise<void> {
     await Promise.allSettled(
       [...this.entries.values()].map((entry) => entry.service.stopAgentCommands())
+    )
+    await this.stopRecordedRuns()
+  }
+
+  /**
+   * Stops the recorded tmux runs, each only while its pane still carries its tag, and drops the
+   * records with nothing left to stop. At launch it skips the runs this process has started since:
+   * every other run belongs to a call the previous process can no longer report, which its
+   * journal settles as outcome unknown, so nothing is left to collect what it does.
+   */
+  async stopRecordedRuns(options: { excludeLive?: boolean } = {}): Promise<void> {
+    const ledger = this.runLedger
+    if (!ledger) return
+    await Promise.allSettled(
+      ledger.list(options).map(async (run) => {
+        const state = await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
+        if (state === 'gone') ledger.forget(run.runId)
+      })
     )
   }
 
@@ -405,6 +433,7 @@ export class TerminalRegistry {
       service: this.serviceFactory(scope, {
         loadCwd: () => this.entries.get(scope)?.persisted?.tabs[0]?.cwd,
         canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
+        runLedger: this.runLedger,
       }),
       persisted,
       restoreApplied: false,
