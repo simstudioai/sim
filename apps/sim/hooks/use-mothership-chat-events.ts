@@ -130,7 +130,8 @@ export function handleMothershipChatStatusEvent(
     return
   }
   /** A restore is published as `created`; the chat takes queued sends again. */
-  if (payload.type === 'created') useMothershipQueueStore.getState().reopenChat(payload.chatId)
+  if (payload.type === 'created')
+    useMothershipQueueStore.getState().reopenRestoredChat(payload.chatId)
   if (payload.type === 'renamed') {
     /**
      * The lists invalidated above carry the title every surface renders; the

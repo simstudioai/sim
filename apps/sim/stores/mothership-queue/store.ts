@@ -205,6 +205,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             }
           }),
 
+        holdForSurface: (chatKey, surface) =>
+          set((state) => {
+            const queue = state.queues[chatKey]
+            if (!queue?.some((message) => message.heldSurface !== surface)) return state
+            return {
+              queues: setQueueForChat(
+                state.queues,
+                chatKey,
+                queue.map((message) => ({ ...message, heldSurface: surface }))
+              ),
+            }
+          }),
+
         clearChat: (chatKey) =>
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
@@ -212,13 +225,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             cleared: { ...state.cleared, [chatKey]: ++deleteCount },
           })),
 
-        reopenChat: (chatKey, deleteToken) =>
-          set((state) => {
-            const current = state.cleared[chatKey]
-            if (current === undefined) return state
-            if (deleteToken !== undefined && deleteToken !== current) return state
-            return { cleared: omitKey(state.cleared, chatKey) }
-          }),
+        liftDelete: (chatKey, deleteToken) =>
+          set((state) =>
+            state.cleared[chatKey] === deleteToken
+              ? { cleared: omitKey(state.cleared, chatKey) }
+              : state
+          ),
+
+        reopenRestoredChat: (chatKey) =>
+          set((state) =>
+            state.cleared[chatKey] === undefined
+              ? state
+              : { cleared: omitKey(state.cleared, chatKey) }
+          ),
 
         reset: () => set(initialState),
       }),

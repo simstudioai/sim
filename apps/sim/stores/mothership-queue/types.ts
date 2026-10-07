@@ -69,11 +69,23 @@ export interface MothershipQueueState {
   releaseHeldUntilOnline: () => void
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
+  /**
+   * Marks everything queued under a chatless mount's key as held for its
+   * `surface`, as that mount goes away: the key dies with it, and the next
+   * mount of the surface adopts the messages instead of losing them.
+   */
+  holdForSurface: (chatKey: string, surface: string) => void
   clearChat: (chatKey: string) => void
   /**
-   * Lifts `cleared` for a restored chat. Given the delete token an operation
-   * saw when it began, lifts only that delete, never one that landed after it.
+   * Lifts the delete an operation saw when it began (`cleared[chatKey]` read
+   * then), for a read or restore that found the chat. A delete that landed
+   * after it has a newer token and stays.
    */
-  reopenChat: (chatKey: string, deleteToken?: number) => void
+  liftDelete: (chatKey: string, deleteToken: number) => void
+  /**
+   * Lifts any delete of a chat the server announced as restored (its `created`
+   * event, published after every delete before it).
+   */
+  reopenRestoredChat: (chatKey: string) => void
   reset: () => void
 }

@@ -19,7 +19,7 @@
  * request it aborted was accepted.
  */
 
-import { act, type ReactNode, StrictMode, useEffect, useState } from 'react'
+import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -102,6 +102,36 @@ import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-eve
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+
+/** Captured before any test fakes timers, so the act budget below runs in real time. */
+const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
+/** Well under the 10s test timeout: the scope must end before the runner abandons the test. */
+const ACT_BUDGET_MS = 6_000
+
+/**
+ * React's `act`, with async callbacks bounded. A callback that never settles (a
+ * regressed send stuck reconnecting) used to run into the test timeout while
+ * still inside React's act scope, and the renders of every later test queued
+ * behind it ("Hook result is not ready"). Failing the act after a budget ends
+ * the scope, so one regression is one red test. Sync callbacks stay synchronous.
+ */
+function act(callback: () => unknown): Promise<void> {
+  return reactAct((): undefined | Promise<void> => {
+    const result = callback()
+    if (!(result instanceof Promise)) return undefined
+    let budget: ReturnType<typeof setTimeout> | undefined
+    const budgetSpent = new Promise<never>((_, reject) => {
+      budget = realSetTimeout(
+        () => reject(new Error(`act callback still pending after ${ACT_BUDGET_MS}ms`)),
+        ACT_BUDGET_MS
+      )
+    })
+    return Promise.race([result.then(() => undefined), budgetSpent]).finally(() =>
+      realClearTimeout(budget)
+    )
+  })
+}
 
 authClientMockFns.mockUseSession.mockImplementation(() => ({
   data: { user: { id: 'test-viewer' } },
@@ -2020,6 +2050,119 @@ describe('useChat remount send recovery', () => {
     expect(state.abortBodies).toHaveLength(2)
     expect(state.abortBodies[1]).toEqual({ ...state.abortBodies[0], chatId: DEDUPED_CHAT_ID })
     expect(state.abortBodies[0]).not.toHaveProperty('chatId')
+  })
+
+  /**
+   * The first POST on the new-chat surface never answers; later POSTs open a
+   * turn in the chat the first message created. The abort endpoint and the
+   * stream lookup fail, as they would for a Stop that cannot reach the server.
+   */
+  function stubFirstPostPendingThenAdmitted() {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        if (state.postBodies.length === 1) {
+          return new Promise<Response>((_, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true,
+            })
+          })
+        }
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close()
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'x-mothership-chat-id': DEDUPED_CHAT_ID,
+            },
+          }
+        )
+      }
+      if (url.includes('/api/copilot/chat/abort')) {
+        state.abortBodies.push(JSON.parse(String(init?.body)))
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      if (url.includes('/api/mothership/chat/stream') && state.postBodies.length === 1) {
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+      return fetchStub(input, init)
+    })
+  }
+
+  /**
+   * A follow-up typed on the new-chat surface while the first message waits for
+   * the server is queued behind it. If the surface remounts then, the first
+   * message is withdrawn and both must reach the next mount in the order they
+   * were written: the first message (under its own id), then the follow-up.
+   */
+  it('sends a withdrawn first message before its follow-up when the new-chat surface remounts', async () => {
+    stubFirstPostPendingThenAdmitted()
+    const first = renderHomeLikeSurface()
+    await act(async () => {
+      void first.getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      void first.getResult().sendMessage('follow-up while admission pending')
+    })
+    await waitFor(() => allQueuedMessages().length === 1)
+    first.unmount()
+
+    const second = renderHomeLikeSurface()
+    await waitFor(() => state.postBodies.length >= 3, 4_000)
+    await act(async () => {
+      await sleep(300)
+    })
+
+    const afterRemount = state.postBodies.slice(1)
+    expect(afterRemount.map((body) => body.message)).toEqual([
+      'inspect the workspace',
+      'follow-up while admission pending',
+    ])
+    expect(afterRemount[0].userMessageId).toBe(state.postBodies[0].userMessageId)
+    expect(afterRemount[1].chatId).toBe(DEDUPED_CHAT_ID)
+    expect(second.claimedByOwnListener()).toBe(0)
+    expect(allQueuedMessages()).toHaveLength(0)
+  })
+
+  /**
+   * After a Stop of the first message, only the follow-up was the user's
+   * intent: the Stop's POST is left to the server, nothing withdraws it, and the
+   * next mount sends just the follow-up, once.
+   */
+  it('sends only the follow-up after a failed Stop when the new-chat surface remounts', async () => {
+    stubFirstPostPendingThenAdmitted()
+    const first = renderHomeLikeSurface()
+    await act(async () => {
+      void first.getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      void first
+        .getResult()
+        .stopGeneration()
+        .catch(() => {})
+      void first.getResult().sendMessage('Sent while the Stop was failing')
+      await sleep(1_000)
+    })
+    first.unmount()
+
+    renderHomeLikeSurface()
+    await waitFor(() => state.postBodies.length >= 2, 4_000)
+    await act(async () => {
+      await sleep(500)
+    })
+
+    expect(state.postBodies.slice(1).map((body) => body.message)).toEqual([
+      'Sent while the Stop was failing',
+    ])
+    expect(allQueuedMessages()).toHaveLength(0)
   })
 
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {

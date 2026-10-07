@@ -90,7 +90,7 @@ describe('lifting a chat delete', () => {
     useMothershipQueueStore.getState().clearChat(history.id)
     const answer = deferredAnswer({ chat: history })
     const read = fetchMothershipChatHistory(history.id)
-    useMothershipQueueStore.getState().reopenChat(history.id)
+    useMothershipQueueStore.getState().reopenRestoredChat(history.id)
     useMothershipQueueStore.getState().clearChat(history.id)
     answer()
     await read
@@ -110,7 +110,7 @@ describe('lifting a chat delete', () => {
     useMothershipQueueStore.getState().clearChat(history.id)
 
     await restore(history.id, () => {
-      useMothershipQueueStore.getState().reopenChat(history.id)
+      useMothershipQueueStore.getState().reopenRestoredChat(history.id)
       useMothershipQueueStore.getState().clearChat(history.id)
     })
 

@@ -268,6 +268,8 @@ interface PendingChatAdmission {
   chatKey: string
   controller: AbortController
   settled: Promise<string | undefined>
+  /** What an unmount would withdraw, if it ran before the server answered. */
+  send: WithdrawnSend
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -771,6 +773,10 @@ export function useChat(
   const onlineEventsRef = useRef(0)
   /** Identifies this chatless surface across mounts, for the sends it holds. */
   const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
+  const heldSendSurfaceRef = useRef(heldSendSurface)
+  heldSendSurfaceRef.current = heldSendSurface
+  /** Withdrawn first messages the unmount queued itself, so their handoff is skipped. */
+  const withdrawnHeldAtUnmountRef = useRef<Set<string> | null>(null)
   const onToolResultRef = useRef(options?.onToolResult)
   onToolResultRef.current = options?.onToolResult
   const onTitleUpdateRef = useRef(options?.onTitleUpdate)
@@ -3788,6 +3794,17 @@ export function useChat(
           settled: new Promise((resolve) => {
             resolveAdmission = resolve
           }),
+          send: {
+            content: message,
+            userMessageId,
+            ...(fileAttachments ? { fileAttachments } : {}),
+            ...(contexts ? { contexts } : {}),
+            ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+            ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: options.assistantSearchLevel }
+              : {}),
+          },
         }
         pendingChatAdmissionRef.current = admission
       }
@@ -4031,9 +4048,10 @@ export function useChat(
                message. Retry it later like a busy refusal; the server's claim settles.
                This is checked before adopting the chat the answer names, so a retried
                message stays under the key it was sent from. A lookup that fails for
-               another reason proves nothing either way, so it is retried too: the server
-               deduplicates the retry by id. Only a lookup this send aborted (Stop, or the
-               user moving on) is not retried. */
+               another reason proves nothing either way, so it is retried on purpose; that
+               includes the lookup's own timeout abort, which leaves this send's signal
+               untouched. The server deduplicates the retry by id. Only an abort of this
+               send itself (Stop, or the user moving on) is not retried. */
             const dedupedStreamExists = await fetchStreamBatch(
               conflictStreamId,
               '0',
@@ -4249,6 +4267,8 @@ export function useChat(
    */
   const handOffWithdrawnSend = useCallback(
     (send: WithdrawnSend) => {
+      /** The unmount already queued it ahead of its follow-ups; see the unmount cleanup. */
+      if (withdrawnHeldAtUnmountRef.current?.delete(send.userMessageId)) return
       if (
         sendMothershipMessage(
           send.content,
@@ -5311,6 +5331,40 @@ export function useChat(
 
   useEffect(() => {
     return () => {
+      /* A chatless mount's queue key dies with it, so messages still queued there
+         go to the next mount of this surface, as held sends do. A first message
+         this unmount withdraws (its POST not yet answered, and not stopped) goes
+         at their head: the follow-ups were written after it, and the next mount
+         would otherwise send them before its handoff arrives. Alone, it keeps
+         the usual cross-surface handoff. */
+      const deadKey = chatKeyRef.current
+      if (deadKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        const queueStore = useMothershipQueueStore.getState()
+        const withdrawing = pendingChatAdmissionRef.current
+        if (
+          withdrawing &&
+          withdrawing.chatKey === deadKey &&
+          abortControllerRef.current === withdrawing.controller &&
+          (queueStore.queues[deadKey]?.length ?? 0) > 0
+        ) {
+          const { send } = withdrawing
+          queueStore.insertAt(deadKey, 0, {
+            id: generateId(),
+            content: send.content,
+            resumeUserMessageId: send.userMessageId,
+            ...(send.fileAttachments ? { fileAttachments: send.fileAttachments } : {}),
+            ...(send.contexts ? { contexts: send.contexts } : {}),
+            ...(send.requestMode ? { requestMode: send.requestMode } : {}),
+            ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
+            ...(send.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: send.assistantSearchLevel }
+              : {}),
+          })
+          withdrawnHeldAtUnmountRef.current ??= new Set()
+          withdrawnHeldAtUnmountRef.current.add(send.userMessageId)
+        }
+        queueStore.holdForSurface(deadKey, heldSendSurfaceRef.current)
+      }
       cancelActiveStreamRecovery()
       clearQueueDispatchState()
       streamGenRef.current++
