@@ -3480,7 +3480,7 @@ describe('useChat remount send recovery', () => {
 
       await waitFor(() => state.postBodies.length === 1)
       await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold !== undefined
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold === 'online'
       )
 
       const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
@@ -3575,7 +3575,7 @@ describe('useChat remount send recovery', () => {
       await act(async () => {
         await first.getResult().sendMessage('First message, sent offline')
       })
-      await waitFor(() => allQueuedMessages().some((message) => message.hold !== undefined))
+      await waitFor(() => allQueuedMessages().some((message) => message.hold === 'online'))
       first.unmount()
 
       const second = renderUseChat()
@@ -4352,7 +4352,7 @@ describe('useChat remount send recovery', () => {
         await first.getResult().sendMessage('Held while I was elsewhere')
       })
       await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold !== undefined
+        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold === 'online'
       )
       first.unmount()
 
