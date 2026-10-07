@@ -2152,11 +2152,6 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * After a Stop of the first message, only the follow-up was the user's
-   * intent: the Stop's POST is left to the server, nothing withdraws it, and the
-   * next mount sends just the follow-up, once.
-   */
-  /**
    * A first message held at the queue head after a remount may already be a
    * turn on the server. Editing it would send different text under a new id,
    * a second message the user never meant to send.
@@ -2204,6 +2199,159 @@ describe('useChat remount send recovery', () => {
     })
   })
 
+  /** A chat with a turn running, so anything sent to it waits in its queue. */
+  function renderBusyChat(id: string) {
+    const history: MothershipChatHistory = {
+      id,
+      mode: 'agent',
+      title: 'Busy',
+      messages: [],
+      activeStreamId: 'turn-still-running',
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/mothership/chat/stream')) {
+        if (String(input).includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        return new Response(new ReadableStream<Uint8Array>(), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+      return fetchStub(input, init)
+    })
+    return { history, ...renderUseChatInChat(id, history) }
+  }
+
+  /**
+   * A send another surface withdrew arrives here under its original id, through
+   * the send event or the stored handoff. Queued behind a running turn, it may
+   * already be a turn on the server, so it can't be edited either.
+   */
+  it('does not let a withdrawn send handed to a busy chat be edited', async () => {
+    const { history, getResult } = renderBusyChat('chat-busy-on-handoff')
+    await waitFor(() => getResult().isSending)
+    await act(async () => {
+      await getResult().sendMessage('handed over from another surface', undefined, undefined, {
+        resumeUserMessageId: 'withdrawn-attempt',
+      })
+    })
+    const queued = useMothershipQueueStore.getState().queues[history.id]?.[0]
+    expect(queued?.resumeUserMessageId).toBe('withdrawn-attempt')
+
+    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+    await act(async () => {
+      edited = getResult().editQueuedMessage(queued?.id ?? '')
+    })
+
+    expect(edited).toBeUndefined()
+    expect(getResult().editingQueuedId).toBeNull()
+  })
+
+  /** A follow-up whose dispatch got no answer may have reached the server too. */
+  it('does not let a queued follow-up be edited after its send got no answer', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-follow-up-unanswered',
+      mode: 'agent',
+      title: 'Unanswered',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        throw new TypeError('Failed to fetch')
+      }
+      return fetchStub(input, init)
+    })
+    useMothershipQueueStore
+      .getState()
+      .enqueue(history.id, { id: 'follow-up', content: 'and the second invoice' })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(
+      () =>
+        useMothershipQueueStore.getState().queues[history.id]?.[0]?.resumeUserMessageId !==
+        undefined
+    )
+
+    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+    await act(async () => {
+      edited = getResult().editQueuedMessage('follow-up')
+    })
+
+    expect(edited).toBeUndefined()
+    expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
+      content: 'and the second invoice',
+      resumeUserMessageId: state.postBodies[0].userMessageId,
+    })
+  })
+
+  /**
+   * A held message the server then refuses as busy is known not to be a turn
+   * there: the server answers a retry of an admitted id as a duplicate, never
+   * as busy. The user can edit it again.
+   */
+  it('lets a held message be edited again once the server refuses it as busy', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-held-then-refused',
+      mode: 'agent',
+      title: 'Refused',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return Response.json(
+          {
+            error: 'A response is already in progress for this chat.',
+            activeStreamId: 'turn-from-another-tab',
+          },
+          { status: 409 }
+        )
+      }
+      if (url.includes('/api/mothership/chat/stream')) {
+        if (url.includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        return new Response(new ReadableStream<Uint8Array>(), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+      return fetchStub(input, init)
+    })
+    useMothershipQueueStore.getState().enqueue(history.id, {
+      id: 'held-first',
+      content: 'inspect the workspace',
+      resumeUserMessageId: 'first-attempt',
+      admissionUnknown: true,
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(() => state.postBodies.length === 1)
+    await waitFor(
+      () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.id === 'held-first'
+    )
+
+    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+    await act(async () => {
+      edited = getResult().editQueuedMessage('held-first')
+    })
+
+    expect(edited?.content).toBe('inspect the workspace')
+    expect(getResult().editingQueuedId).toBe('held-first')
+  })
+
+  /**
+   * After a Stop of the first message, only the follow-up was the user's
+   * intent: the Stop's POST is left to the server, nothing withdraws it, and the
+   * next mount sends just the follow-up, once.
+   */
   it('sends only the follow-up after a failed Stop when the new-chat surface remounts', async () => {
     stubFirstPostPendingThenAdmitted()
     const first = renderHomeLikeSurface()
