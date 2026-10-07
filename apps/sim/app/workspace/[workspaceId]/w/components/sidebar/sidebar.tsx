@@ -41,6 +41,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import type { DesktopChatActivity } from '@/lib/api/contracts/desktop-executor'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
@@ -123,6 +124,7 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useDesktopActivity } from '@/hooks/queries/desktop-activity'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
@@ -183,6 +185,37 @@ const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
+const DESKTOP_ACTIVITY_COLOR_CLASS: Record<DesktopChatActivity['state'], string> = {
+  running: 'bg-[#EAB308]',
+  needs_input: 'bg-[var(--warning)]',
+  blocked: 'bg-[var(--text-error)]',
+}
+
+function desktopActivityLabel({ state, deviceName }: DesktopChatActivity): string {
+  if (state === 'needs_input') return 'Needs input'
+  if (state === 'blocked') return `Waiting for ${deviceName} to come back online`
+  return `Running on ${deviceName}`
+}
+
+interface DesktopActivityDotProps {
+  activity: DesktopChatActivity
+}
+
+/**
+ * The status of a chat one of the user's desktops is running in the background. The row's
+ * indicator slot is pointer-inert and gives way to the row's actions on hover, so the label is
+ * read out here and shown in the row's own tooltip.
+ */
+function DesktopActivityDot({ activity }: DesktopActivityDotProps) {
+  return (
+    <span
+      role='img'
+      aria-label={desktopActivityLabel(activity)}
+      className={cn('size-[6px] rounded-full', DESKTOP_ACTIVITY_COLOR_CLASS[activity.state])}
+    />
+  )
+}
+
 const SidebarChatItem = memo(function SidebarChatItem({
   chat,
   isCurrentRoute,
@@ -190,6 +223,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
   isActive,
   isUnread,
   isPinned,
+  desktopActivity,
   isMenuOpen,
   showCollapsedTooltips,
   onMultiSelectClick,
@@ -203,6 +237,8 @@ const SidebarChatItem = memo(function SidebarChatItem({
   isActive: boolean
   isUnread: boolean
   isPinned: boolean
+  /** Set while one of the user's desktops runs this chat's turn in the background. */
+  desktopActivity?: DesktopChatActivity
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
   onMultiSelectClick: (chatId: string, shiftKey: boolean) => void
@@ -217,7 +253,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
    * transient state (a run in progress, or an unread reply elsewhere), while pinning
    * is persistent and already conveyed by the row sorting to the top of the list.
    */
-  const showStatusDot = isActive || (!isCurrentRoute && isUnread)
+  const showStatusDot = Boolean(desktopActivity) || isActive || (!isCurrentRoute && isUnread)
 
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.effectAllowed = 'copyMove'
@@ -239,7 +275,12 @@ const SidebarChatItem = memo(function SidebarChatItem({
   }
 
   return (
-    <SidebarTooltip label={chat.name} enabled={showCollapsedTooltips}>
+    <SidebarTooltip
+      label={
+        desktopActivity ? `${chat.name} · ${desktopActivityLabel(desktopActivity)}` : chat.name
+      }
+      enabled={showCollapsedTooltips || Boolean(desktopActivity)}
+    >
       <ChatNavigationLink
         chatId={chat.id}
         href={chat.href}
@@ -262,7 +303,9 @@ const SidebarChatItem = memo(function SidebarChatItem({
           <RowActions
             open={isMenuOpen}
             indicator={
-              showStatusDot ? (
+              desktopActivity ? (
+                <DesktopActivityDot activity={desktopActivity} />
+              ) : showStatusDot ? (
                 <span
                   aria-hidden='true'
                   className='size-[6px] rounded-full'
@@ -842,7 +885,20 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  useMothershipChatEvents(workspaceId, chatEnabled && !permissionConfig.hideCopilot)
+  const desktopExecutorEnabled = useFeatureFlag('mothership-desktop-background-executor')
+  useMothershipChatEvents(
+    workspaceId,
+    chatEnabled && !permissionConfig.hideCopilot,
+    desktopExecutorEnabled
+  )
+  const { data: desktopActivity } = useDesktopActivity(
+    workspaceId,
+    desktopExecutorEnabled && chatEnabled && !permissionConfig.hideCopilot
+  )
+  const desktopActivityByChat = useMemo(
+    () => new Map((desktopActivity ?? []).map((activity) => [activity.chatId, activity])),
+    [desktopActivity]
+  )
 
   /**
    * Stays empty when Chat is disabled, which also drops the command palette's
@@ -1537,6 +1593,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                       isActive={!!chat.isActive}
                                       isUnread={!!chat.isUnread}
                                       isPinned={!!chat.isPinned}
+                                      desktopActivity={desktopActivityByChat.get(chat.id)}
                                       isMenuOpen={menuOpenChatId === chat.id}
                                       showCollapsedTooltips={showCollapsedTooltips}
                                       onMultiSelectClick={handleChatClick}

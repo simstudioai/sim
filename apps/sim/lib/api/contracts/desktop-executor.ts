@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /**
@@ -180,5 +181,33 @@ export const completeDesktopToolContract = defineRouteContract({
   path: '/api/desktop/tool/complete',
   body: completeDesktopToolBodySchema,
   response: { mode: 'json', schema: completeDesktopToolResponseSchema },
+  error: z.object({ error: z.string() }),
+})
+
+const desktopActivityQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+
+/**
+ * `running`: the desktop is working on the chat. `needs_input`: a call waits for the user's
+ * approval in the chat. `blocked`: the desktop the chat runs on is offline.
+ */
+const desktopChatActivitySchema = z.object({
+  chatId: z.string().min(1),
+  /** The turn the desktop runs, as chat status events name it. */
+  streamId: z.string().min(1),
+  state: z.enum(['running', 'needs_input', 'blocked']),
+  deviceName: z.string(),
+})
+export type DesktopChatActivity = z.output<typeof desktopChatActivitySchema>
+
+const desktopActivityResponseSchema = z.object({
+  chats: z.array(desktopChatActivitySchema),
+})
+
+/** The caller's chats in a workspace whose turn is running on one of their desktops. */
+export const listDesktopActivityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/desktop/activity',
+  query: desktopActivityQuerySchema,
+  response: { mode: 'json', schema: desktopActivityResponseSchema },
   error: z.object({ error: z.string() }),
 })

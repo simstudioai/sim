@@ -195,9 +195,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const args = payload.arguments as Record<string, unknown> | undefined
   // Every client tailing the chat sees the call. A client without the desktop app leaves desktop
   // tools to it: its answer could only be an error, and that error would beat the real result.
+  // A turn a desktop's background executor runs belongs to that desktop: this view only shows it.
+  const isDesktopCall = isDesktopToolCall(name, args)
   const shouldStartClientTool =
     isClientExecutedToolCall(name, args) &&
-    (isDesktopApp() || !isDesktopToolCall(name, args)) &&
+    (isDesktopApp() || !isDesktopCall) &&
+    !(isDesktopCall && deps.options.desktopToolsOnDevice) &&
     !isPartial &&
     !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
     node?.kind === 'tool' &&

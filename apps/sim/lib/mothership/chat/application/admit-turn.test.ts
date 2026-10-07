@@ -22,10 +22,11 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { admitChatTurn, turnDesktopDevice } from '@/lib/mothership/chat/application/admit-turn'
 
 const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
+  resolveDesktop: vi.fn(),
 }))
 const mocks = {
   ...hoisted,
@@ -43,6 +44,9 @@ vi.mock('@/lib/mothership/request/session/controller-lease', () => ({
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/desktop/application/executor', () => ({
+  resolveTurnDesktopDevice: hoisted.resolveDesktop,
+}))
 
 const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const chatId = '11111111-1111-4111-8111-111111111111'
@@ -118,6 +122,14 @@ describe('organization turn admission through current private-chat authorization
       expect.objectContaining({ streamId }),
       expect.anything()
     )
+  })
+  it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {
+    hoisted.resolveDesktop.mockResolvedValue('device-1')
+    const offered = '33333333-3333-4333-8333-333333333333'
+
+    await expect(turnDesktopDevice(principal, null, offered)).resolves.toBeNull()
+    await expect(turnDesktopDevice(principal, 'ws-1', offered)).resolves.toBe('device-1')
+    await expect(turnDesktopDevice(principal, 'ws-1', undefined)).resolves.toBeNull()
   })
   it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',

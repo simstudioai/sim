@@ -63,7 +63,11 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/mothership/chat/selection-context'
-import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import {
+  COPILOT_REQUEST_MODES,
+  MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
+} from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
@@ -1598,6 +1602,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           ...SSE_RESPONSE_HEADERS,
           traceparent: rootTraceparent,
           ...(actualChatId ? { [MOTHERSHIP_CHAT_ID_HEADER]: actualChatId } : {}),
+          ...(admittedRun?.desktopDeviceId
+            ? { [MOTHERSHIP_DESKTOP_EXECUTOR_HEADER]: 'device' }
+            : {}),
         },
       })
     }) // end otelContextApi.with

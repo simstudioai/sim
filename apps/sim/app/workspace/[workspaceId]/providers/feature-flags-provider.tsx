@@ -7,6 +7,7 @@ export interface WorkspaceFeatureFlags {
   'table-row-ttl': boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
+  'mothership-desktop-background-executor': boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)

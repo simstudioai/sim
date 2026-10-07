@@ -106,6 +106,21 @@ function readPreferences(
 }
 
 /**
+ * Whether a focused window already shows what a notification is about. One without a route is
+ * about the app as a whole, which a focused window always shows; one about a chat is news only
+ * while that chat is in the background.
+ */
+function showsRoute(window: BrowserWindow, route: string | undefined): boolean {
+  if (!route) return true
+  try {
+    const shown = new URL(window.webContents.getURL()).pathname
+    return shown === new URL(route, 'https://sim.invalid').pathname
+  } catch {
+    return false
+  }
+}
+
+/**
  * Owns device preferences and their native side effects. Renderer code can
  * request a change, but only this main-process service touches login items,
  * updater policy, window focus, or OS notifications.
@@ -203,7 +218,13 @@ export function createDesktopSettingsService(
         return false
       }
       const window = deps.getMainWindow()
-      if (preferences.notificationsOnlyWhenUnfocused && window?.isFocused()) {
+      // A focused window holds back every notification, as it always has. Only a background
+      // chat's completion is shown anyway when the focused window is somewhere else.
+      if (
+        preferences.notificationsOnlyWhenUnfocused &&
+        window?.isFocused() &&
+        (!payload.background || showsRoute(window, payload.route))
+      ) {
         return false
       }
 

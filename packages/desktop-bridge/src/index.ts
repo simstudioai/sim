@@ -954,6 +954,12 @@ export interface DesktopNotificationPayload {
   body: string
   /** Optional in-app route opened when the notification is clicked. */
   route?: string
+  /**
+   * A chat that finished in the background. In "only when unfocused" mode such a notification is
+   * held back only while the focused window shows its `route`; every other notification is held
+   * back whenever the window is focused.
+   */
+  background?: boolean
 }
 
 /** Device-level settings owned by the desktop shell. */
