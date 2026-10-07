@@ -100,6 +100,32 @@ const logger = createLogger('CopilotLifecycle')
 const LEASE_RECHECK_SLACK_MS = 1_000
 /** How soon a failed lease lookup is tried again. */
 const LEASE_LOOKUP_RETRY_MS = 5_000
+/** How long one lease lookup may take before it counts as failed. */
+const LEASE_LOOKUP_TIMEOUT_MS = 5_000
+
+/** A pending call's chat-view lease, or why it could not be read within `timeoutMs`. */
+async function readLeaseWithin(
+  toolCallId: string,
+  timeoutMs: number,
+  abortSignal: AbortSignal | undefined
+): Promise<{ remainingMs: number | null } | { error: unknown }> {
+  const lookup = getChatViewDesktopLeaseRemainingMs(toolCallId).then(
+    (remainingMs) => ({ remainingMs }),
+    (error: unknown) => ({ error })
+  )
+  const giveUp = new AbortController()
+  const signal = abortSignal ? AbortSignal.any([abortSignal, giveUp.signal]) : giveUp.signal
+  try {
+    return await Promise.race([
+      lookup,
+      interruptibleSleep(timeoutMs, signal).then(() => ({
+        error: new Error(`The lease lookup took longer than ${timeoutMs} ms`),
+      })),
+    ])
+  } finally {
+    giveUp.abort()
+  }
+}
 
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
@@ -1426,15 +1452,16 @@ async function runCheckpointLoop(
         // A desktop import the chat view is running renews its lease while it works: its budget
         // runs to the end of that lease, and only a lapsed lease fails it.
         // A lookup that fails says nothing about the lease, so it is retried, for at most one lease.
+        // Each lookup is bounded, so a stalled read cannot hold the wait past its deadlines or Stop.
         const leases = await Promise.all(
           overdueTools.map(([toolCallId]) =>
-            getChatViewDesktopLeaseRemainingMs(toolCallId).then(
-              (remainingMs) => ({ remainingMs }),
-              (error: unknown) => ({ error })
-            )
+            readLeaseWithin(toolCallId, LEASE_LOOKUP_TIMEOUT_MS, options.abortSignal)
           )
         )
+        if (isAborted(options, context)) break
         const expiredTools = overdueTools.filter(([toolCallId, watchdog], index) => {
+          // A call replaced while its lease was read belongs to its new watchdog.
+          if (context.pendingToolPromises.get(toolCallId) !== watchdog.promise) return false
           const lease = leases[index]
           const checkedAt = Date.now()
           if (checkedAt >= watchdog.ceilingAt) return true

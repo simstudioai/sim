@@ -4,6 +4,7 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
@@ -154,21 +155,37 @@ it('a read the user stopped while the desktop was reading reports nothing', asyn
 })
 
 describe('an import keeps its lease while it runs', () => {
-  /** The import's upload, which the test finishes when it chooses. */
+  const LEASE_MS = 60_000
+  /**
+   * The server's side of the lease, by the rules the lease route applies: the claim (which the
+   * desktop makes as it starts building the manifest) takes a lease, and a renewal extends it only
+   * while it is live; a refused renewal answers 410.
+   */
+  let server: {
+    leaseUntil: number
+    claimed: boolean
+    stopped: boolean
+    renewalsReceived: number
+    transient: number[]
+  }
+  let scanMs: number
   let finishUpload: () => void
-  /** What the server answers each lease renewal, in turn. */
-  let renewals: Array<() => Promise<unknown>>
-  const renewalsSent = () =>
-    mocks.json.mock.calls.filter(([contract]) => contract === renewDesktopToolLeaseContract).length
+  const leaseLive = () => Date.now() < server.leaseUntil
+  const answer = (status: number) =>
+    Promise.reject(new ApiClientError({ message: `HTTP ${status}`, status, body: {} }))
 
   beforeEach(() => {
     vi.useFakeTimers()
-    renewals = []
-    mocks.invoke.mockImplementation(async (request: { operation: string }) =>
-      request.operation === 'manifest'
-        ? { ok: true, data: manifest }
-        : { ok: true, data: { kind: 'chunk', bytes: new Uint8Array([65, 66, 67]), eof: true } }
-    )
+    server = { leaseUntil: 0, claimed: false, stopped: false, renewalsReceived: 0, transient: [] }
+    scanMs = 0
+    mocks.invoke.mockImplementation(async (request: { operation: string }) => {
+      if (request.operation !== 'manifest')
+        return { ok: true, data: { kind: 'chunk', bytes: new Uint8Array([65, 66, 67]), eof: true } }
+      server.claimed = true
+      server.leaseUntil = Date.now() + LEASE_MS
+      await sleep(scanMs)
+      return { ok: true, data: manifest }
+    })
     mocks.upload.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -177,8 +194,12 @@ describe('an import keeps its lease while it runs', () => {
     )
     mocks.json.mockImplementation(async (contract: unknown) => {
       if (contract !== renewDesktopToolLeaseContract) return { folder: { id: 'created-folder' } }
-      const answer = renewals.shift()
-      return answer ? answer() : { renewed: true }
+      server.renewalsReceived += 1
+      const transient = server.transient.shift()
+      if (transient) return answer(transient)
+      if (server.stopped || !server.claimed || !leaseLive()) return answer(410)
+      server.leaseUntil = Date.now() + LEASE_MS
+      return { renewed: true }
     })
   })
 
@@ -186,35 +207,37 @@ describe('an import keeps its lease while it runs', () => {
     vi.useRealTimers()
   })
 
-  const refused = (status: number) => () =>
-    Promise.reject(new ApiClientError({ message: `HTTP ${status}`, status, body: {} }))
-
-  it('renews at once, then every heartbeat, and stops when the import ends', async () => {
+  it('keeps the lease live through a slow scan and a long upload, and lets it lapse after', async () => {
+    scanMs = 70_000
     const run = executeNativeFileTool('tool', 'import_local_files')
-    await vi.advanceTimersByTimeAsync(0)
-    expect(renewalsSent()).toBe(1)
-    await vi.advanceTimersByTimeAsync(40_000)
-    expect(renewalsSent()).toBe(3)
+    await vi.advanceTimersByTimeAsync(70_000)
+    expect(leaseLive()).toBe(true)
+    await vi.advanceTimersByTimeAsync(100_000)
+    expect(leaseLive()).toBe(true)
     finishUpload()
     await run
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(renewalsSent()).toBe(3)
+    await vi.advanceTimersByTimeAsync(LEASE_MS + 1_000)
+    expect(leaseLive()).toBe(false)
   })
 
-  it('stops renewing once the server refuses the call', async () => {
-    renewals.push(refused(410))
+  it('stops renewing once the server refuses the claimed call', async () => {
     const run = executeNativeFileTool('tool', 'import_local_files')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(leaseLive()).toBe(true)
+    server.stopped = true
+    await vi.advanceTimersByTimeAsync(20_000)
+    const received = server.renewalsReceived
     await vi.advanceTimersByTimeAsync(60_000)
-    expect(renewalsSent()).toBe(1)
+    expect(server.renewalsReceived).toBe(received)
     finishUpload()
     await run
   })
 
   it('keeps renewing through failures that may pass', async () => {
-    renewals.push(refused(401), refused(429), refused(503))
+    server.transient = [401, 429, 503]
     const run = executeNativeFileTool('tool', 'import_local_files')
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(renewalsSent()).toBe(4)
+    await vi.advanceTimersByTimeAsync(90_000)
+    expect(leaseLive()).toBe(true)
     finishUpload()
     await run
   })

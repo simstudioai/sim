@@ -112,19 +112,20 @@ export async function importNativeFiles(
 }
 
 /**
- * Renews an import's lease at once and then every heartbeat, until stopped or until the server
- * refuses it (410: the call was stopped, settled, or its lease already lapsed), the way a desktop
- * renews a bound call. The first renewal comes right after the claim, so a slow start cannot
- * outlast the lease the claim took.
+ * Renews an import's lease from the moment its manifest is requested, every heartbeat, the way a
+ * desktop renews a bound call, so a slow directory scan cannot outlast the lease the claim took.
+ * The claim lands while the manifest is being built, so a refusal (410) counts only once the
+ * manifest confirmed the claim: then the call was stopped, settled, or its lease lapsed, and
+ * renewing stops. Any other failure may pass, and the next beat tries again.
  */
-function keepImportLeased(toolCallId: string): { stop(): void } {
+function keepImportLeased(toolCallId: string): { claimed(): void; stop(): void } {
+  let claimed = false
   let stopped = false
   const renew = () => {
     if (stopped) return
     requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
       (error) => {
-        // Any other failure may pass: keep renewing, as the lease outlasts a couple of missed beats.
-        if (error instanceof ApiClientError && error.status === 410) {
+        if (claimed && error instanceof ApiClientError && error.status === 410) {
           stop()
           return
         }
@@ -141,7 +142,13 @@ function keepImportLeased(toolCallId: string): { stop(): void } {
     clearInterval(timer)
   }
   renew()
-  return { stop }
+  return {
+    claimed() {
+      claimed = true
+      renew()
+    },
+    stop,
+  }
 }
 
 /** The server claims imports before reading their manifest, preventing replayed uploads. */
@@ -166,6 +173,10 @@ export async function executeNativeFileTool(
       )
   }
   window.addEventListener('pagehide', onPageHide)
+  // An import's claim takes a lease under this session: keep it renewed while the import runs, so
+  // the turn waits for it however long it takes, and no longer than a lease once this page stops
+  // renewing (closed, crashed, or signed out).
+  const lease = toolName === 'import_local_files' ? keepImportLeased(toolCallId) : null
   try {
     const response = await invoke(
       { operation: toolName === 'read_local_file' ? 'read' : 'manifest', toolCallId },
@@ -178,17 +189,10 @@ export async function executeNativeFileTool(
     if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
     let completion
     if (response.data.kind === 'manifest') {
-      // The import's claim took a lease under this session: keep it renewed while files transfer,
-      // so the turn waits for the import however long it takes, and no longer than a lease once
-      // this page stops renewing (closed, crashed, or signed out).
-      const lease = keepImportLeased(toolCallId)
-      try {
-        completion = localFileImportCompletion(
-          await importNativeFiles(toolCallId, response.data, signal)
-        )
-      } finally {
-        lease.stop()
-      }
+      lease?.claimed()
+      completion = localFileImportCompletion(
+        await importNativeFiles(toolCallId, response.data, signal)
+      )
     } else completion = localFileReadCompletion(response)
     // Cancelled by the user's Stop: Stop settles the call. Cancelled by signing out: nobody reports
     // it, and the server's resume watchdog settles it once its budget or lease runs out. Either way
@@ -220,6 +224,7 @@ export async function executeNativeFileTool(
     )
     settled = true
   } finally {
+    lease?.stop()
     window.removeEventListener('pagehide', onPageHide)
   }
 }

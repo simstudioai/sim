@@ -3549,6 +3549,7 @@ describe('runCopilotLifecycle', () => {
   /** Runs a turn whose import never settles, recording each leg's request body. */
   function runImportTurn() {
     const bodies: Record<string, unknown>[] = []
+    let streamContext: StreamingContext | undefined
     mockForceFailHungToolCall.mockImplementation(
       async (toolCallId: string, context: StreamingContext) => {
         const tool = context.toolCalls.get(toolCallId)
@@ -3562,6 +3563,7 @@ describe('runCopilotLifecycle', () => {
     mockRunStreamLoop.mockImplementationOnce(
       async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
         bodies.push(JSON.parse(String(fetchOptions.body)))
+        streamContext = context
         context.toolCalls.set('tool-import', {
           id: 'tool-import',
           name: 'import_local_files',
@@ -3601,7 +3603,11 @@ describe('runCopilotLifecycle', () => {
       bodies.length === 2 &&
       JSON.stringify(bodies[1].results).includes('"callId":"tool-import"') &&
       JSON.stringify(bodies[1].results).includes('"success":false')
-    return { bodies, lifecycle, resumedWithLostImport }
+    const context = () => {
+      if (!streamContext) throw new Error('The turn did not start its stream')
+      return streamContext
+    }
+    return { bodies, lifecycle, resumedWithLostImport, context }
   }
 
   it('waits on a chat-view import while its lease is renewed, and fails it once the lease lapses', async () => {
@@ -3676,6 +3682,67 @@ describe('runCopilotLifecycle', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a lease lookup that stalls counts as failed, and gives the import up after one lease', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockImplementation(
+        () => new Promise<number | null>(() => {})
+      )
+      const turn = runImportTurn()
+      // The lookup at the default budget (90 s) stalls; each attempt is cut off after 5 s and
+      // tried again, for one lease.
+      await vi.advanceTimersByTimeAsync(150_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fail a call replaced while its lease was being read', async () => {
+    vi.useFakeTimers()
+    try {
+      let finishReplacement = () => {}
+      const turn = runImportTurn()
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockImplementationOnce(
+        async () => {
+          const context = turn.context()
+          context.pendingToolPromises.set(
+            'tool-import',
+            new Promise<{ status: 'success' }>((resolve) => {
+              finishReplacement = () => {
+                const tool = context.toolCalls.get('tool-import')
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { imported: true } }
+                }
+                context.pendingToolPromises.delete('tool-import')
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          // The old promise's lease has lapsed, but the call now belongs to the replacement.
+          return null
+        }
+      )
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(turn.bodies).toHaveLength(1)
+      // The replacement is still running: nothing has settled the call as failed.
+      expect(turn.context().toolCalls.get('tool-import')?.status).toBe('executing')
+      finishReplacement()
+      await vi.advanceTimersByTimeAsync(0)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(JSON.stringify(turn.bodies[1].results)).toContain('"success":true')
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
