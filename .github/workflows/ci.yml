@@ -18,13 +18,11 @@ name: ci
 on:
   push:
     branches: [main, staging, dev]
+  # No path filter: `checks / ci` is the required status check, and a pull request whose run
+  # never starts never reports it, so it could not merge. Docs-only pull requests are rare enough
+  # that running CI on them costs nothing measurable.
   pull_request:
     branches: [main, staging, dev]
-    # Docs content and markdown don't affect the app build or images; push
-    # runs stay unfiltered because they feed the deploy pipeline.
-    paths-ignore:
-      - 'apps/docs/content/**'
-      - '**/*.md'
 
 concurrency:
   group: ci-${{ github.ref }}
