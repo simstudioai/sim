@@ -39,6 +39,12 @@ export type QueuedMothershipMessage = QueuedMessage & {
   resumeUserMessageId?: string
 }
 
+/** When a message's next automatic retry may go out, and how many came before it. */
+export interface ScheduledRetry {
+  sendRetries: number
+  notBefore: number
+}
+
 // Mutable fields an in-place edit overwrites; id and index are preserved by `replaceAt`.
 export type QueuedMessageEditPatch = Pick<
   QueuedMessage,
@@ -68,6 +74,8 @@ export interface MothershipQueueState {
   migrate: (fromKey: string, toKey: string) => void
   /** Releases every send held for the network for dispatch. */
   releaseHeldUntilOnline: () => void
+  /** Puts off the automatic retry of `id` until `notBefore`. */
+  deferRetry: (chatKey: string, id: string, retry: ScheduledRetry) => void
   /** Moves the sends a dead chatless mount of `surface` held onto `toKey`. */
   adoptHeldSends: (toKey: string, surface: string) => void
   /**

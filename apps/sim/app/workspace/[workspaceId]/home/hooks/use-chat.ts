@@ -138,6 +138,7 @@ import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
   QueuedSendHandoffSeed,
+  ScheduledRetry,
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -740,7 +741,7 @@ function acceptedMessageIds(history: MothershipChatHistory): Set<string> {
 }
 
 /** Queue fields for the `attempt`th automatic retry of a message: when it may be sent again. */
-function sendRetry(attempt: number): { sendRetries: number; notBefore: number } {
+function sendRetry(attempt: number): ScheduledRetry {
   return {
     sendRetries: attempt,
     notBefore:
@@ -5148,28 +5149,30 @@ export function useChat(
   )
 
   /**
-   * Whether an automatic retry of a send that may have been admitted would repeat
-   * it: its chat's history (read fresh) shows the earlier attempt. The server
-   * deduplicates a retry only while that attempt's claim lasts, which a long
-   * outage outlives. The entry is dropped when it does. A failed read proves
-   * nothing, so the retry goes ahead.
+   * Whether the queue drain must not send a message that may already have been
+   * admitted, checked against its chat's history (read fresh). The server
+   * deduplicates a resend only while the earlier attempt's claim lasts, which a
+   * long outage, online or off, outlives. An entry the history shows is dropped.
+   * One whose history cannot be read waits on a growing delay instead: the read
+   * failing says nothing about whether the attempt ran.
    */
-  const alreadyAccepted = useCallback(
+  const mustNotResend = useCallback(
     async (chatKey: string, msg: QueuedMothershipMessage): Promise<boolean> => {
       const requestId = msg.queuedSendHandoff?.userMessageId ?? msg.resumeUserMessageId
-      if (
-        msg.sendRetries === undefined ||
-        !msg.admissionUnknown ||
-        !requestId ||
-        chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
-      )
+      if (!msg.admissionUnknown || !requestId || chatKey.startsWith(PENDING_CHAT_KEY_PREFIX))
         return false
       const history = await queryClient
         .fetchQuery({ ...mothershipChatHistoryQueryOptions(chatKey), staleTime: 0 })
         .catch(() => undefined)
-      if (!history || !acceptedMessageIds(history).has(requestId)) return false
+      if (history && !acceptedMessageIds(history).has(requestId)) return false
       /** Sent by hand meanwhile: that dispatch owns the entry now. */
-      if (queuedMessageDispatchIds.has(msg.id)) return false
+      if (queuedMessageDispatchIds.has(msg.id)) return true
+      if (!history) {
+        useMothershipQueueStore
+          .getState()
+          .deferRetry(chatKey, msg.id, sendRetry((msg.sendRetries ?? 0) + 1))
+        return true
+      }
       clearQueuedSendHandoffState(msg.id)
       clearQueuedSendHandoffClaim(msg.id)
       useMothershipQueueStore.getState().remove(chatKey, msg.id)
@@ -5202,7 +5205,7 @@ export function useChat(
         // Pause draining if the head is bound to the composer; dispatching now
         // would race the eventual submit. The next kick on edit-resolve resumes us.
         if (queueState.editing[activeChatKey] === msg.id) continue
-        if (await alreadyAccepted(activeChatKey, msg)) continue
+        if (await mustNotResend(activeChatKey, msg)) continue
 
         await dispatchQueuedMessage(msg, { epoch: action.epoch })
       }
@@ -5218,7 +5221,7 @@ export function useChat(
         void queueDispatchLoopRef.current()
       }
     })
-  }, [dispatchQueuedMessage, hasPendingChatAdmission, alreadyAccepted])
+  }, [dispatchQueuedMessage, hasPendingChatAdmission, mustNotResend])
   queueDispatchLoopRef.current = runQueueDispatchLoop
 
   const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {

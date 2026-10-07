@@ -219,6 +219,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             return released ? { queues } : state
           }),
 
+        deferRetry: (chatKey, id, retry) =>
+          set((state) => {
+            const current = state.queues[chatKey]
+            if (!current?.some((message) => message.id === id)) return state
+            return {
+              queues: setQueueForChat(
+                state.queues,
+                chatKey,
+                current.map((message) => (message.id === id ? { ...message, ...retry } : message))
+              ),
+            }
+          }),
+
         adoptHeldSends: (toKey, surface) =>
           set((state) => {
             const adopted: QueuedMothershipMessage[] = []

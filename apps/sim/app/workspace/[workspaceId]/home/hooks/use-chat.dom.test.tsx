@@ -2829,40 +2829,75 @@ describe('useChat remount send recovery', () => {
     )
 
     /**
-     * The POST was admitted but its answer lost, and Sim stayed unreachable past
-     * the server's claim on the id, which then no longer deduplicates a retry.
-     * The chat's history shows the turn, so the automatic retry is dropped.
+     * The POST was admitted but its answer lost, and the outage outlasted the
+     * server's claim on the id, which then no longer deduplicates a resend. The
+     * chat's history shows the turn, so the resend is dropped, whether it waited
+     * on a timer (online) or for the `online` event (offline).
      */
-    it('drops an automatic retry of a send the chat history shows was accepted', async () => {
-      const history = idleHistory('chat-admitted-answer-lost')
+    it.each([
+      ['online', true],
+      ['offline', false],
+    ] as const)(
+      'drops a resend the chat history shows was accepted, after an outage while %s',
+      async (_state, browserStaysOnline) => {
+        const history = idleHistory(`chat-admitted-answer-lost-${browserStaysOnline}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          await getResult().sendMessage('Admitted, answer lost')
+        })
+        const admittedId = state.postBodies[0].userMessageId
+        mockRequestJson.mockImplementation(() =>
+          Promise.resolve({
+            chat: {
+              ...history,
+              messages: [
+                { id: admittedId, role: 'user', content: 'Admitted, answer lost', timestamp: '' },
+                { id: 'its-answer', role: 'assistant', content: 'Done.', timestamp: '' },
+              ],
+            },
+          })
+        )
+        network.online = true
+        await act(async () => {
+          window.dispatchEvent(new Event('online'))
+        })
+
+        await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
+        await act(async () => {
+          await sleep(1500)
+        })
+
+        expect(state.postBodies).toHaveLength(1)
+        expect(network.acceptedPosts).toBe(0)
+      }
+    )
+
+    /** A history read that fails proves nothing, so the resend waits for one that works. */
+    it('does not resend a message that may have been admitted while its chat history is unreadable', async () => {
+      const history = idleHistory('chat-history-unreadable')
       mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
       stubUnreachableSend({ browserStaysOnline: true })
       const { getResult } = renderUseChatInChat(history.id, history)
       await act(async () => {
-        await getResult().sendMessage('Admitted, answer lost')
+        await getResult().sendMessage('Sent before the history broke')
       })
-      const admittedId = state.postBodies[0].userMessageId
+      mockRequestJson.mockImplementation(() => Promise.reject(new Error('Service unavailable')))
       network.online = true
-      mockRequestJson.mockImplementation(() =>
-        Promise.resolve({
-          chat: {
-            ...history,
-            messages: [
-              { id: admittedId, role: 'user', content: 'Admitted, answer lost', timestamp: '' },
-              { id: 'its-answer', role: 'assistant', content: 'Done.', timestamp: '' },
-            ],
-          },
-        })
-      )
-
-      await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
       await act(async () => {
-        await sleep(1500)
+        await sleep(4000)
       })
 
       expect(state.postBodies).toHaveLength(1)
-      expect(network.acceptedPosts).toBe(0)
-    })
+      expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+        'Sent before the history broke'
+      )
+
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      await waitFor(() => network.acceptedPosts === 1, 20000)
+      expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+    }, 30000)
 
     it('keeps a queued follow-up whose dispatch could not reach the server', async () => {
       const history = idleHistory('chat-offline-queue')
