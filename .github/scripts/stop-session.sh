@@ -19,16 +19,21 @@
 # until the shell that started it waits on it, which that shell does after this returns.
 set -u
 
-leader=$1
-tag=$2
+leader=${1:-}
+tag=${2:-}
 grace_seconds=10
+
+if ! [[ "$leader" =~ ^[0-9]+$ ]] || [ -z "$tag" ]; then
+  echo "::error::Usage: stop-session.sh <session-leader-pid> <app-tag>, with a non-empty tag." >&2
+  exit 2
+fi
 
 # Sets `state` and `parent` from /proc/<pid>/stat without forking, so a scan stays cheap, and
 # fails once the process is gone. The command name can hold spaces and parentheses, so the
 # fields are read after its last ")".
 read_stat() {
   local stat rest
-  read -r stat < "/proc/$1/stat" 2>/dev/null || return 1
+  read -r stat 2>/dev/null < "/proc/$1/stat" || return 1
   rest=${stat##*") "}
   state=${rest%% *}
   rest=${rest#* }
@@ -65,9 +70,9 @@ is_own() {
 app_pids() {
   local pid
   {
-    ps -s "$leader" -o pid= 2>/dev/null
+    ps -s "$leader" -o pid= 2>/dev/null | tr -d ' '
     grep -Flzx "E2E_APP=$tag" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3
-  } | sort -u | while read -r pid; do
+  } | sort -nu | while read -r pid; do
     read_stat "$pid" || continue
     [ "$state" = Z ] && continue
     is_own "$pid" || echo "$pid"
@@ -88,13 +93,19 @@ leader_running() {
   ps -p "$leader" -o stat= 2>/dev/null | grep -qv '^Z'
 }
 
-list_app() {
-  local pids
+# Prints one scan of the app's processes as a table, the expected telemetry flush labelled in a
+# leading column, and fails when that scan finds none, so no caller prints an empty heading.
+describe_app() {
+  local pids table
   pids=$(app_pids | paste -sd, -)
-  [ -z "$pids" ] && return
-  ps -p "$pids" -o pid,sid,stat,etimes,args 2>/dev/null |
-    awk '/next\/dist\/telemetry\/detached-flush\.js/ { print "(expected telemetry flush) " $0; next } { print }' |
-    cut -c1-220 || true
+  [ -n "$pids" ] || return 1
+  table=$(ps -p "$pids" -o pid,sid,stat,etimes,args 2>/dev/null)
+  [ "$(wc -l <<< "$table")" -gt 1 ] || return 1
+  awk '{
+    note = ""
+    if (NR > 1 && $0 ~ /next\/dist\/telemetry\/detached-flush\.js/) note = "(expected telemetry flush)"
+    printf "%-26s %s\n", note, $0
+  }' <<< "$table" | cut -c1-240
 }
 
 # Centiseconds since boot: monotonic, and independent of the locale's decimal separator.
@@ -120,19 +131,21 @@ signal_while() {
     fi
     sleep 0.1
   done
+  "$@" && return 1
+  sleep 0.1
   ! "$@"
 }
 
 deadline=$((10#$(now_cs) + grace_seconds * 100))
 signal_while TERM leader_running
-if ! leader_running && running; then
+if ! leader_running && table=$(describe_app); then
   echo "Processes from app $tag outlived its leader:"
-  list_app
+  echo "$table"
 fi
 signal_while TERM running && exit 0
 
 echo "::warning::Processes from app $tag were still running ${grace_seconds}s after SIGTERM:"
-list_app
+describe_app || true
 deadline=$((10#$(now_cs) + grace_seconds * 100))
 signal_while KILL running && exit 0
 
