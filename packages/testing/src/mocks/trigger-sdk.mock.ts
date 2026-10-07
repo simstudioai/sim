@@ -98,7 +98,7 @@ export function createIdempotentTasksTrigger() {
   let runCount = 0
   return async (taskId: string, _payload?: unknown, options?: unknown): Promise<unknown> => {
     const key = (options as { idempotencyKey?: unknown } | undefined)?.idempotencyKey
-    const scopedKey = typeof key === 'string' ? `${taskId}:${key}` : null
+    const scopedKey = typeof key === 'string' ? JSON.stringify([taskId, key]) : null
     const existing = scopedKey ? runIdByKey.get(scopedKey) : undefined
     if (existing) return { id: existing }
     runCount += 1
