@@ -45,18 +45,18 @@ import {
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
-import {
-  parseWorkspaceFileRevision,
-  workspaceFileRevisionField,
-} from '@/lib/workspace-files/application/file-revision'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { projectFileVersionAuthors } from '@/lib/workspace-files/application/version-authors'
+import {
+  assertFileVersionRevision,
+  readFileVersionObject,
+} from '@/lib/workspace-files/application/version-content'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 interface VersionTarget extends ProjectFileTarget {
@@ -146,12 +146,11 @@ async function captureVersion(
     current.version !== input.expectedCurrentVersion
   )
     throw new OrchestrationError('conflict', 'The current file version changed')
-  if (
-    input.expectedRevision &&
-    parseWorkspaceFileRevision(input.expectedRevision, file.id).getTime() !==
-      file.contentUpdatedAt.getTime()
+  assertFileVersionRevision(
+    file,
+    input.expectedRevision,
+    'The file changed since the revision you read'
   )
-    throw new OrchestrationError('conflict', 'The file changed since the revision you read')
   const version = await loadVersion(tx, context, input.version)
   const provenance = version.isCurrent
     ? await snapshotWorkspaceFileSecretProvenanceInTx(
@@ -186,13 +185,9 @@ async function readVersionBytes(
 ) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BUFFERED_TRANSFER_BYTES)
     throw new OrchestrationError('validation', 'Invalid file byte limit')
-  try {
-    return await downloadFile({ key: version.key, context: 'project', maxBytes })
-  } catch (error) {
-    if (hasObjectNotFoundCause(error))
-      throw new OrchestrationError('not_found', `Version ${version.version} not found`)
-    throw error
-  }
+  return readFileVersionObject(version.version, () =>
+    downloadFile({ key: version.key, context: 'project', maxBytes })
+  )
 }
 
 function requireVersionMatch(

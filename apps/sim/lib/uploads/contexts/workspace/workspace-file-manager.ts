@@ -96,10 +96,8 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import {
-  enqueueFileLiveDocReconciliation,
-  processFileLiveDocReconciliationNow,
-} from '@/lib/uploads/server/live-doc-outbox'
+import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
+import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   getVerifiedUploadSessionObject,
@@ -611,7 +609,7 @@ export async function commitFileCreateInTx(
     folderPath?: string
     exactName?: boolean
     identity?: PlannedFileIdentity
-    secretProvenance: WorkspaceFileSecretProvenance
+    secretProvenance?: WorkspaceFileSecretProvenance
   }
 ): Promise<WorkspaceFileRow> {
   assertStagedFileOwner(args.owner, args.staged)
@@ -664,12 +662,14 @@ export async function commitFileCreateInTx(
     size: args.staged.size,
   })
   if (!inserted) throw new FileConflictError(name)
-  await replaceWorkspaceFileSecretProvenanceInTx(
-    tx,
-    inserted.id,
-    inserted.contentUpdatedAt,
-    args.secretProvenance
-  )
+  if (args.secretProvenance) {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      tx,
+      inserted.id,
+      inserted.contentUpdatedAt,
+      args.secretProvenance
+    )
+  }
   return inserted
 }
 
@@ -729,7 +729,7 @@ export async function uploadWorkspaceFile(
     if (exactName && (await fileExistsInWorkspace(workspaceId, uniqueName, folderId))) {
       throw new FileConflictError(uniqueName)
     }
-    const fileId = `wf_${generateShortId()}`
+    const identity = planFileIdentity({ entityType: 'workspace', entityId: workspaceId })
 
     try {
       const uploadResult = await stageFileContent({
@@ -747,40 +747,26 @@ export async function uploadWorkspaceFile(
       }
       try {
         finalized = await db.transaction(async (tx) => {
-          await lockWorkspaceProject(tx, workspaceId)
-          await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
-          let activeFolderId: string | null
+          let activeFolderId = folderId
           if (options?.folderPath !== undefined) {
+            await lockWorkspaceProject(tx, workspaceId)
+            await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
             const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
             const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
             if (resolvedFolderId === undefined) {
               throw new OrchestrationError('not_found', 'Target folder not found')
             }
             activeFolderId = resolvedFolderId
-          } else {
-            activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
           }
-          const inserted = await insertWorkspaceFileMetadataInTx(tx, {
-            id: fileId,
-            key: uploadResult.key,
+          const inserted = await commitFileCreateInTx(tx, {
+            owner: { entityType: 'workspace', entityId: workspaceId },
+            staged: uploadResult,
+            identity,
             userId,
-            workspaceId,
             folderId: activeFolderId,
-            originalName: uniqueName,
-            contentType: effectiveContentType,
-            size: effectiveBuffer.length,
+            exactName: true,
+            secretProvenance: options?.secretProvenance,
           })
-          if (!inserted) {
-            throw new FileConflictError(uniqueName)
-          }
-          if (options?.secretProvenance) {
-            await replaceWorkspaceFileSecretProvenanceInTx(
-              tx,
-              inserted.id,
-              inserted.contentUpdatedAt,
-              options.secretProvenance
-            )
-          }
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
             storageBillingContext,
@@ -2566,32 +2552,11 @@ export async function updateWorkspaceFileContent(
         finalized.sizeDiff < 0
       )
     }
-    await processWorkspaceFileStorageCleanupsNow(finalized.storageCleanupEventIds, {
-      workspaceId,
-      fileId,
-      reason: 'released version',
-    })
-
-    if (finalized.liveDocEventId) {
-      try {
-        const result = await processFileLiveDocReconciliationNow(finalized.liveDocEventId)
-        if (result !== 'completed') {
-          logger.warn('Live document reconciliation deferred to outbox retry', {
-            workspaceId,
-            fileId,
-            eventId: finalized.liveDocEventId,
-            result,
-          })
-        }
-      } catch (error) {
-        logger.warn('Live document reconciliation deferred after inline processing error', {
-          workspaceId,
-          fileId,
-          eventId: finalized.liveDocEventId,
-          error: getErrorMessage(error),
-        })
-      }
-    }
+    await finishFileContentEffects(
+      { cleanupIds: finalized.storageCleanupEventIds, liveDocEventId: finalized.liveDocEventId },
+      { workspaceId, fileId, reason: 'released version' },
+      'defer'
+    )
 
     const currentFolderPath =
       finalized.file.folderId === fileRecord.folderId ? fileRecord.folderPath : null

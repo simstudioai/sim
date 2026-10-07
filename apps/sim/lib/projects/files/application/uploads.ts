@@ -1,18 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
+import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import {
-  type ProjectStorageBillingContext,
-  resolveProjectStorageBillingContext,
-} from '@/lib/billing/storage/context'
+import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
 import { checkStorageQuotaForBillingContext } from '@/lib/billing/storage/limits'
-import {
-  maybeNotifyStorageLimitForBillingContext,
-  prepareProjectStorageMutationInTx,
-} from '@/lib/billing/storage/tracking'
 import type { AuthorizingUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
@@ -31,27 +24,25 @@ import {
   projectFileOperations,
 } from '@/lib/projects/files/application/operations'
 import {
+  finishProjectFileWrite,
+  mapProjectFileResult,
+  prepareProjectFileAccounting,
+  recordProjectFileWriteEffects,
+} from '@/lib/projects/files/application/write-effects'
+import {
   projectUploadCleanupAvailableAt,
   queueRetiredProjectUploadCleanup,
 } from '@/lib/projects/files/prefix-cleanup'
-import {
-  buildWorkspaceFileFolderPathMap,
-  listFileFolders,
-  resolveFileFolderTarget,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   adoptVerifiedUploadSession,
   commitFileCreateInTx,
   discardStagedFileContent,
-  mapFileRecord,
   type StagedFileContent,
   stageFileContent,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import {
-  enqueueWorkspaceFileStorageCleanups,
-  processWorkspaceFileStorageCleanupsNow,
-} from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import { assertProjectFileUploadBinding } from '@/lib/uploads/upload-session/project-file-binding'
@@ -105,21 +96,6 @@ interface UploadArgs<I, P = undefined> {
   prepared?: P
 }
 
-async function mapUploadedFile(
-  tx: DbTransaction,
-  context: ProjectFileAuthorizationContext,
-  file: WorkspaceFileRow
-) {
-  const folders = file.folderId ? await listFileFolders(context.owner, { scope: 'all' }, tx) : []
-  return {
-    file: {
-      ...mapFileRecord(file, context.owner, buildWorkspaceFileFolderPathMap(folders)),
-      contentUpdatedAt: file.contentUpdatedAt,
-    },
-    capabilities: { canRead: true as const, canWrite: context.canWrite },
-  }
-}
-
 async function loadRegisteredFile(
   tx: DbTransaction,
   context: ProjectFileAuthorizationContext,
@@ -138,7 +114,7 @@ async function loadRegisteredFile(
     )
     .for('share')
     .limit(1)
-  return row ? mapUploadedFile(tx, context, row) : null
+  return row ? mapProjectFileResult(tx, context, row) : null
 }
 
 export const createProjectFileUploadSession = defineAuthorizedProjectFileUseCase({
@@ -289,11 +265,6 @@ interface PreparedUploadContent {
   staged: StagedFileContent
   restored: boolean
 }
-const uploadEffects = new WeakMap<
-  object,
-  { billing: ProjectStorageBillingContext; usage: number; cleanupIds: string[] }
->()
-
 const registerProjectUpload = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.uploadComplete,
   invalidatesFileList: true,
@@ -336,15 +307,7 @@ const registerProjectUpload = defineAuthorizedProjectFileUseCase({
   }: UploadArgs<RegisterUploadInput, PreparedUploadContent>) {
     if (!prepared) throw new Error('Upload bytes were not prepared')
     assertProjectFileUploadBinding(input.session, principal, context.projectId)
-    const billing = await resolveProjectStorageBillingContext(
-      {
-        projectId: context.projectId,
-        ownerId: context.ownerUserId,
-        organizationId: context.organizationId,
-      },
-      tx
-    )
-    const accounting = await prepareProjectStorageMutationInTx(tx, billing)
+    const { billing, mutation: accounting } = await prepareProjectFileAccounting(tx, context)
     const registration = await lockUploadSessionRegistrationInTx(tx, input.session)
     const file = await commitFileCreateInTx(tx, {
       owner: context.owner,
@@ -361,22 +324,21 @@ const registerProjectUpload = defineAuthorizedProjectFileUseCase({
           availableAt: projectUploadCleanupAvailableAt(),
         })
       : []
-    const result = await mapUploadedFile(tx, context, file)
-    uploadEffects.set(result, { billing, usage, cleanupIds })
+    const result = await mapProjectFileResult(tx, context, file)
+    recordProjectFileWriteEffects(result, {
+      billing,
+      usage,
+      delta: prepared.staged.size,
+      cleanupIds,
+      cleanupReason: 'restored editable page source',
+    })
     return result
   },
   async onCommitFailure({ prepared }) {
     if (prepared.restored) await discardStagedFileContent(prepared.staged)
   },
   async afterSuccess({ result }) {
-    const effects = uploadEffects.get(result)
-    if (!effects) throw new Error('Committed upload effects are unavailable')
-    uploadEffects.delete(result)
-    await maybeNotifyStorageLimitForBillingContext(effects.billing, effects.usage)
-    await processWorkspaceFileStorageCleanupsNow(effects.cleanupIds, {
-      projectId: effects.billing.projectId,
-      reason: 'restored editable page source',
-    })
+    await finishProjectFileWrite(result)
   },
   projectAudit: ({ input, result }) => ({
     action: AuditAction.FILE_UPLOADED,

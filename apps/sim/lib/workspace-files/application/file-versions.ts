@@ -26,7 +26,6 @@ import {
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -38,10 +37,7 @@ import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,
 } from '@/lib/workspace-files/application/file-delivery-observer'
-import {
-  parseWorkspaceFileRevision,
-  workspaceFileRevisionField,
-} from '@/lib/workspace-files/application/file-revision'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
@@ -53,6 +49,10 @@ import {
   type AuthoredFileVersion,
   projectFileVersionAuthors,
 } from '@/lib/workspace-files/application/version-authors'
+import {
+  assertFileVersionRevision,
+  readFileVersionObject,
+} from '@/lib/workspace-files/application/version-content'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('WorkspaceFileVersions')
@@ -145,21 +145,6 @@ async function readVersionSecretProvenance(
 }
 
 /**
- * Runs a read of a version's stored object, answering 404 when the object is gone — retention or a
- * delete can remove a superseded version between loading its row and reading its bytes.
- */
-async function readVersionObject<T>(version: number, read: () => Promise<T>): Promise<T> {
-  try {
-    return await read()
-  } catch (error) {
-    if (hasObjectNotFoundCause(error)) {
-      throw new OrchestrationError('not_found', `Version ${version} not found`)
-    }
-    throw error
-  }
-}
-
-/**
  * The file as it was at `version`: current name and location, that version's bytes. Rename and move
  * are metadata writes that never create versions, so a version always reads under today's name.
  */
@@ -221,7 +206,7 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)
     const secretProvenance = await readVersionSecretProvenance(file, version)
-    const result = await readVersionObject(version.version, () =>
+    const result = await readFileVersionObject(version.version, () =>
       extractWorkspaceFileRecordText(
         fileAtVersion,
         input,
@@ -242,7 +227,7 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version))
-    const result = await readVersionObject(version.version, () =>
+    const result = await readFileVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )
     return { ...result, file, version }
@@ -282,22 +267,11 @@ async function executeRevertWorkspaceFileVersion({
       `The current version is ${current.version}, not ${input.expectedCurrentVersion}`
     )
   }
-  /*
-   * Checked before the no-op branch below: a caller that named content which has since changed
-   * must hear about it, not be told there was nothing to do.
-   */
-  const expectedContentAt = input.expectedRevision
-    ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
-    : undefined
-  if (
-    expectedContentAt &&
-    (file.contentUpdatedAt ?? file.updatedAt).getTime() !== expectedContentAt.getTime()
-  ) {
-    throw new OrchestrationError(
-      'conflict',
-      'The file changed since the revision you read; re-read it before reverting'
-    )
-  }
+  const expectedContentAt = assertFileVersionRevision(
+    file,
+    input.expectedRevision,
+    'The file changed since the revision you read; re-read it before reverting'
+  )
   const target = await loadVersion(file, input.version)
   if (target.isCurrent) {
     return { file, version: target, reverted: false, revertedFrom: current.version }
@@ -310,7 +284,7 @@ async function executeRevertWorkspaceFileVersion({
   }
 
   const [content, provenance] = await Promise.all([
-    readVersionObject(target.version, () =>
+    readFileVersionObject(target.version, () =>
       fetchWorkspaceFileBuffer(recordAtVersion(file, target), {
         maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       })

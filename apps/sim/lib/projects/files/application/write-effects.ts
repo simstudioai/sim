@@ -14,8 +14,7 @@ import {
   listFileFolders,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { mapFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-doc-outbox'
+import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
 
 interface CommittedWriteEffects {
   billing: ProjectStorageBillingContext
@@ -23,6 +22,7 @@ interface CommittedWriteEffects {
   delta: number
   cleanupIds: string[]
   liveDocEventId?: string
+  cleanupReason?: string
 }
 
 const committedWriteEffects = new WeakMap<object, CommittedWriteEffects>()
@@ -38,11 +38,10 @@ export async function finishProjectFileWrite(result: object) {
   if (!effects) throw new Error('Committed file effects are unavailable')
   committedWriteEffects.delete(result)
   await maybeNotifyStorageLimitForBillingContext(effects.billing, effects.usage, effects.delta < 0)
-  await processWorkspaceFileStorageCleanupsNow(effects.cleanupIds, {
+  await finishFileContentEffects(effects, {
     projectId: effects.billing.projectId,
-    reason: 'released version',
+    reason: effects.cleanupReason ?? 'released version',
   })
-  if (effects.liveDocEventId) await processFileLiveDocReconciliationNow(effects.liveDocEventId)
 }
 
 /** Projects owner-aware metadata using the caller's authorized transaction. */
