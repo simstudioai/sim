@@ -1,16 +1,31 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipInput, ChipModalError, ChipTextarea } from '@sim/emcn'
+import {
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModalError,
+  ChipSelect,
+  ChipTextarea,
+} from '@sim/emcn'
 import { Download, Trash } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import type {
   BenchmarkCase,
+  RunBenchmarkComparisonBody,
   RunBenchmarkStageBody,
   UpdateBenchmarkBody,
 } from '@/lib/api/contracts/benchmarks'
+import {
+  type BenchmarkModelConfig,
+  DEFAULT_BENCHMARK_EVALUATOR,
+  DEFAULT_BENCHMARK_PLANNER,
+} from '@/lib/benchmarks/models'
+import { MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { BenchmarkHistory } from '@/app/o/[organizationId]/benchmark/components/benchmark-history'
+import { BenchmarkModelPicker } from '@/app/o/[organizationId]/benchmark/components/benchmark-model-picker'
 import { BenchmarkReference } from '@/app/o/[organizationId]/benchmark/components/benchmark-reference'
 import { BenchmarkResults } from '@/app/o/[organizationId]/benchmark/components/benchmark-results'
 import { BenchmarkStep } from '@/app/o/[organizationId]/benchmark/components/benchmark-step'
@@ -22,6 +37,7 @@ import {
   useBenchmark,
   useBenchmarkWorkspaces,
   useDeleteBenchmark,
+  useRunBenchmarkComparison,
   useRunBenchmarkStage,
   useUpdateBenchmark,
 } from '@/hooks/queries/benchmarks'
@@ -41,7 +57,13 @@ interface BenchmarkEditorProps {
   saving: boolean
   stage: RunBenchmarkStageBody['stage'] | null
   onUpdate: (body: UpdateBenchmarkBody, onSaved: () => void) => void
-  onRun: (stage: RunBenchmarkStageBody['stage'], runLabel?: string) => void
+  comparing: boolean
+  onCompare: (body: Omit<RunBenchmarkComparisonBody, 'version'>) => void
+  onRun: (
+    stage: RunBenchmarkStageBody['stage'],
+    runLabel?: string,
+    model?: BenchmarkModelConfig
+  ) => void
 }
 
 function BenchmarkEditor({
@@ -52,6 +74,8 @@ function BenchmarkEditor({
   stage,
   onUpdate,
   onRun,
+  comparing,
+  onCompare,
 }: BenchmarkEditorProps) {
   const [edit, setEdit] = useState<{
     version: number
@@ -64,6 +88,15 @@ function BenchmarkEditor({
       artifacts: { ...(current?.artifacts ?? benchmark.artifacts), ...patch },
     }))
   const [runLabel, setRunLabel] = useState('')
+  const [planner, setPlanner] = useState(
+    benchmark.artifacts.modelRuns?.plan?.config ?? DEFAULT_BENCHMARK_PLANNER
+  )
+  const [evaluator, setEvaluator] = useState(
+    benchmark.artifacts.modelRuns?.reconstruct?.config ?? DEFAULT_BENCHMARK_EVALUATOR
+  )
+  const [comparisonModels, setComparisonModels] = useState<string[]>(
+    MOTHERSHIP_MODEL_OPTIONS.map((option) => option.value)
+  )
   const { artifacts } = benchmark
   const referenceDirty =
     draft.taskBrief !== artifacts.taskBrief || draft.referenceSpec !== artifacts.referenceSpec
@@ -113,7 +146,7 @@ function BenchmarkEditor({
             () => setEdit((current) => (current === edit ? null : current))
           )
         }}
-        onRun={onRun}
+        onRun={(nextStage) => onRun(nextStage, undefined, evaluator)}
       />
       <BenchmarkStep
         number={2}
@@ -124,12 +157,73 @@ function BenchmarkEditor({
           <Chip
             variant='primary'
             disabled={busy || dirty || !canPlan || !hasPlannerInputs}
-            onClick={() => onRun('plan')}
+            onClick={() => onRun('plan', undefined, planner)}
           >
             {stage === 'plan' ? 'Planning…' : artifacts.generatedSpec ? 'Run again' : 'Run planner'}
           </Chip>
         }
       >
+        <div className='flex flex-wrap gap-6'>
+          <BenchmarkModelPicker
+            label='Planner'
+            value={planner}
+            disabled={busy}
+            onChange={setPlanner}
+          />
+          <BenchmarkModelPicker
+            label='Evaluator'
+            value={evaluator}
+            disabled={busy}
+            onChange={setEvaluator}
+          />
+        </div>
+        <div className='flex flex-col gap-3 rounded-lg border border-[var(--border)] p-4'>
+          <h3 className='text-[var(--text-primary)] text-base'>Compare models</h3>
+          <p className='text-[var(--text-muted)] text-small'>
+            Each model plans, reconstructs, and grades in fresh conversations. All planners use{' '}
+            {planner.effort} effort and the same evaluator for reconstruction and grading. Completed
+            results are saved as each model finishes.
+          </p>
+          <div className='flex flex-wrap items-center gap-2'>
+            <ChipSelect
+              aria-label='Models to compare'
+              multiSelect
+              options={MOTHERSHIP_MODEL_OPTIONS}
+              multiSelectValues={comparisonModels}
+              onMultiSelectChange={setComparisonModels}
+              showAllOption={false}
+              placeholder='Select models'
+              disabled={busy}
+            />
+            <Chip
+              variant='primary'
+              disabled={
+                busy || dirty || !canPlan || !hasPlannerInputs || comparisonModels.length === 0
+              }
+              onClick={() =>
+                onCompare({
+                  planners: MOTHERSHIP_MODEL_OPTIONS.filter((option) =>
+                    comparisonModels.includes(option.value)
+                  ).map((option) => ({
+                    modelSelection: { model: option.value, fastMode: false },
+                    effort: planner.effort,
+                  })),
+                  evaluator,
+                  runLabel,
+                })
+              }
+            >
+              {comparing
+                ? 'Running comparison…'
+                : `Run and grade ${comparisonModels.length} ${comparisonModels.length === 1 ? 'model' : 'models'}`}
+            </Chip>
+          </div>
+          {comparing && (
+            <p role='status' className='text-[var(--text-muted)] text-small'>
+              Keep this page open. {stage ? `Current step: ${stage}.` : 'Starting the next model…'}
+            </p>
+          )}
+        </div>
         {!canPlan && (
           <p className='text-[var(--text-muted)] text-small'>
             The selected user needs Plan mode access and permission to create organization
@@ -158,7 +252,7 @@ function BenchmarkEditor({
         action={
           <Chip
             disabled={busy || dirty || !artifacts.generatedSpec}
-            onClick={() => onRun('reconstruct')}
+            onClick={() => onRun('reconstruct', undefined, evaluator)}
           >
             {stage === 'reconstruct' ? 'Reconstructing…' : 'Reconstruct'}
           </Chip>
@@ -174,7 +268,7 @@ function BenchmarkEditor({
         action={
           <Chip
             disabled={busy || dirty || !artifacts.reconstruction}
-            onClick={() => onRun('grade', runLabel)}
+            onClick={() => onRun('grade', runLabel, evaluator)}
           >
             {stage === 'grade' ? 'Grading…' : 'Grade'}
           </Chip>
@@ -219,7 +313,8 @@ export function BenchmarkDetail({
   onDeleted,
 }: BenchmarkDetailProps) {
   const [{ benchmarkView }, setParams] = useQueryStates(benchmarkParams, benchmarkUrlOptions)
-  const benchmarkQuery = useBenchmark(organizationId, benchmarkId)
+  const comparison = useRunBenchmarkComparison(organizationId, benchmarkId)
+  const benchmarkQuery = useBenchmark(organizationId, benchmarkId, comparison.isPending)
   const updateBenchmark = useUpdateBenchmark(organizationId, benchmarkId)
   const runStage = useRunBenchmarkStage(organizationId, benchmarkId)
   const deleteBenchmark = useDeleteBenchmark(organizationId, benchmarkId)
@@ -251,13 +346,21 @@ export function BenchmarkDetail({
     benchmark.leaseExpiresAt !== null &&
     Date.parse(benchmark.leaseExpiresAt) > Date.now()
   const busy =
-    activeLease || runStage.isPending || updateBenchmark.isPending || deleteBenchmark.isPending
+    activeLease ||
+    comparison.isPending ||
+    runStage.isPending ||
+    updateBenchmark.isPending ||
+    deleteBenchmark.isPending
   const stage = runStage.isPending
     ? runStage.variables.stage
     : activeLease
       ? benchmark.runningStage
       : null
-  const error = runStage.error?.message ?? updateBenchmark.error?.message ?? benchmark.error
+  const error =
+    comparison.error?.message ??
+    runStage.error?.message ??
+    updateBenchmark.error?.message ??
+    benchmark.error
 
   return (
     <div aria-busy={benchmarkQuery.isFetching} className='flex flex-col gap-6'>
@@ -297,7 +400,12 @@ export function BenchmarkDetail({
           {error}
         </p>
       )}
-      {benchmark.runningStage && !activeLease && !runStage.isPending && (
+      {comparison.error && (
+        <p className='text-[var(--text-muted)] text-small'>
+          The comparison stopped. Completed models remain in Run history.
+        </p>
+      )}
+      {benchmark.runningStage && !activeLease && !runStage.isPending && !comparison.isPending && (
         <p role='status' className='text-[var(--text-muted)] text-small'>
           The previous attempt expired. You can run that step again.
         </p>
@@ -326,14 +434,33 @@ export function BenchmarkDetail({
           busy={busy}
           saving={updateBenchmark.isPending}
           stage={stage}
+          comparing={comparison.isPending}
+          onCompare={(body) => {
+            runStage.reset()
+            updateBenchmark.reset()
+            comparison.mutate(
+              { ...body, version: benchmark.version },
+              {
+                onSuccess: () =>
+                  setParams({
+                    benchmarkView: 'history',
+                    runId: null,
+                    compareRunId: null,
+                    runsCursor: null,
+                  }),
+              }
+            )
+          }}
           onUpdate={(body, onSaved) => {
             runStage.reset()
+            comparison.reset()
             updateBenchmark.mutate(body, { onSuccess: onSaved })
           }}
-          onRun={(nextStage, runLabel) => {
+          onRun={(nextStage, runLabel, model) => {
+            comparison.reset()
             updateBenchmark.reset()
             runStage.mutate(
-              { version: benchmark.version, stage: nextStage, runLabel },
+              { version: benchmark.version, stage: nextStage, runLabel, model },
               {
                 onSuccess: () => {
                   if (nextStage === 'grade')

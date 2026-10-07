@@ -2,7 +2,9 @@
 
 import { Chip } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
+import { benchmarkModelLabel } from '@/lib/benchmarks/models'
 import { BenchmarkRunComparison } from '@/app/o/[organizationId]/benchmark/components/benchmark-run-comparison'
+import { BenchmarkScoreChart } from '@/app/o/[organizationId]/benchmark/components/benchmark-score-chart'
 import {
   benchmarkParams,
   benchmarkUrlOptions,
@@ -40,6 +42,14 @@ export function BenchmarkHistory({ organizationId, benchmarkId }: BenchmarkHisto
           {error}
         </p>
       )}
+      <BenchmarkScoreChart
+        runs={runs}
+        selectedId={selectedId}
+        evaluationKey={selected.data?.run.evaluationKey}
+        onSelect={(id) =>
+          setParams({ runId: id, ...(baselineId === id ? { compareRunId: null } : {}) })
+        }
+      />
       {history.isPending ? (
         <p role='status' className='text-[var(--text-muted)] text-small'>
           Loading runs…
@@ -54,6 +64,7 @@ export function BenchmarkHistory({ organizationId, benchmarkId }: BenchmarkHisto
             <thead className='border-[var(--border)] border-b text-[var(--text-muted)]'>
               <tr>
                 <th className='px-4 py-3 font-normal'>Run</th>
+                <th className='px-4 py-3 font-normal'>Planner</th>
                 <th className='px-4 py-3 font-normal'>Score</th>
                 <th className='px-4 py-3 font-normal'>
                   <span className='sr-only'>Actions</span>
@@ -68,6 +79,14 @@ export function BenchmarkHistory({ organizationId, benchmarkId }: BenchmarkHisto
                     <p className='text-[var(--text-muted)]'>
                       {new Date(run.createdAt).toLocaleString()}
                     </p>
+                  </td>
+                  <td className='px-4 py-3 text-[var(--text-body)]'>
+                    {benchmarkModelLabel(run.modelRuns.plan?.config)}
+                    {run.modelRuns.plan && (
+                      <p className='mt-1 text-[var(--text-muted)]'>
+                        Plan: {Math.round(run.modelRuns.plan.durationMs / 1000)}s
+                      </p>
+                    )}
                   </td>
                   <td className='whitespace-nowrap px-4 py-3 text-[var(--text-body)] tabular-nums'>
                     {Math.round((run.correct / run.total) * 100)}%{' '}

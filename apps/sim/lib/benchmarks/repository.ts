@@ -320,6 +320,8 @@ export async function completeBenchmarkStage(
               artifacts.referenceSpec,
               artifacts.redactedSpec,
               [...artifacts.blanks].sort((a, b) => compareStrings(a.id, b.id)),
+              artifacts.modelRuns?.reconstruct?.config ?? null,
+              artifacts.modelRuns?.grade?.config ?? null,
             ])
           )
           .digest('hex'),
@@ -330,11 +332,12 @@ export async function completeBenchmarkStage(
         reviewedCount: 0,
         reviewedAt: null,
         reviews: [],
+        modelRuns: artifacts.modelRuns ?? {},
         artifacts,
         createdAt: row.updatedAt.toISOString(),
       })
       await tx.insert(mothershipBenchmarkRuns).values({
-        ...omit(snapshot, ['reviewedCount', 'execution']),
+        ...omit(snapshot, ['reviewedCount', 'execution', 'modelRuns']),
         createdAt: row.updatedAt,
         reviewedAt: null,
       })
@@ -348,6 +351,7 @@ const runSummaryColumns = {
   benchmarkId: mothershipBenchmarkRuns.benchmarkId,
   label: mothershipBenchmarkRuns.label,
   evaluationKey: mothershipBenchmarkRuns.evaluationKey,
+  modelRuns: sql`coalesce(${mothershipBenchmarkRuns.artifacts}->'modelRuns', '{}'::jsonb)`,
   correct: mothershipBenchmarkRuns.correct,
   automaticCorrect: mothershipBenchmarkRuns.automaticCorrect,
   total: mothershipBenchmarkRuns.total,

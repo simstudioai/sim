@@ -12,11 +12,17 @@ import {
 import {
   applyBenchmarkPatch,
   redactBenchmarkSpec,
+  retainBenchmarkModelRuns,
   validateBenchmarkRedaction,
 } from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
 import { verifyRecoveryEvidence } from '@/lib/benchmarks/evidence'
+import {
+  type BenchmarkModelConfig,
+  DEFAULT_BENCHMARK_EVALUATOR,
+  DEFAULT_BENCHMARK_PLANNER,
+} from '@/lib/benchmarks/models'
 import {
   distillationMessages,
   gradingMessages,
@@ -80,6 +86,7 @@ interface RunBenchmarkStageInput {
   version: number
   stage: BenchmarkStage
   runLabel?: string
+  model?: BenchmarkModelConfig
 }
 
 function requireStageInputs(stage: BenchmarkStage, artifacts: BenchmarkArtifacts): void {
@@ -104,7 +111,8 @@ async function performStage(
   principal: Principal,
   benchmark: BenchmarkCase,
   stage: BenchmarkStage,
-  signal: AbortSignal
+  signal: AbortSignal,
+  model: BenchmarkModelConfig
 ): Promise<{ artifacts: BenchmarkArtifacts; plannerChatId?: string | null }> {
   const artifacts = benchmark.artifacts
   switch (stage) {
@@ -113,6 +121,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: distillationSchema,
         messages: distillationMessages(artifacts.taskBrief),
         profile: { stage: 'distill' },
@@ -124,6 +133,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: redactionSchema,
         messages: redactionMessages(artifacts.referenceSpec),
       })
@@ -135,7 +145,7 @@ async function performStage(
       }
     }
     case 'plan': {
-      const result = await executeBenchmarkPlan({ principal, benchmark, signal })
+      const result = await executeBenchmarkPlan({ principal, benchmark, signal, model })
       return {
         artifacts: {
           ...artifacts,
@@ -154,6 +164,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: reconstructionSchema,
         messages: reconstructionMessages(artifacts.redactedSpec),
         profile: { stage: 'resolve', spec: generatedSpec },
@@ -172,6 +183,7 @@ async function performStage(
         principal,
         benchmark,
         signal,
+        model,
         schema: gradingSchema,
         messages: gradingMessages(artifacts),
       })
@@ -221,6 +233,10 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       leaseExpiresAt: new Date(Date.now() + BENCHMARK_LEASE_MS),
     })
     const attempt = { ...scope, version: claimed.version, stage: input.stage, attemptId }
+    const model =
+      input.model ??
+      (input.stage === 'plan' ? DEFAULT_BENCHMARK_PLANNER : DEFAULT_BENCHMARK_EVALUATOR)
+    const startedAt = performance.now()
     logger.info('Benchmark step started', {
       ...attempt,
       operatorUserId: current.userId,
@@ -231,8 +247,12 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       const output = await withBenchmarkStageLease(
         { ...attempt, leaseExpiresAt: new Date(claimed.leaseExpiresAt) },
         request?.signal,
-        (signal) => performStage(principal, claimed, input.stage, signal)
+        (signal) => performStage(principal, claimed, input.stage, signal, model)
       )
+      output.artifacts.modelRuns = {
+        ...retainBenchmarkModelRuns(output.artifacts),
+        [input.stage]: { config: model, durationMs: Math.round(performance.now() - startedAt) },
+      }
       request?.signal?.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)
       return {

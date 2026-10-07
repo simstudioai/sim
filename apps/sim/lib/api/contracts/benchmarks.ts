@@ -2,6 +2,10 @@ import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  benchmarkComparisonConfigSchema,
+  benchmarkModelConfigSchema,
+} from '@/lib/benchmarks/models'
+import {
   benchmarkBlankSchema,
   benchmarkBriefSchema,
   benchmarkCaseSchema,
@@ -40,7 +44,17 @@ const updateBenchmarkBodySchema = benchmarkEditablePatchSchema
   .strict()
 const deleteBenchmarkBodySchema = z.object({ version: z.number().int().min(1) }).strict()
 const runBenchmarkStageBodySchema = deleteBenchmarkBodySchema
-  .extend({ stage: benchmarkStageSchema, runLabel: benchmarkRunLabelSchema.optional() })
+  .extend({
+    stage: benchmarkStageSchema,
+    runLabel: benchmarkRunLabelSchema.optional(),
+    model: benchmarkModelConfigSchema.optional(),
+  })
+  .strict()
+const runBenchmarkComparisonBodySchema = benchmarkComparisonConfigSchema
+  .extend({
+    version: z.number().int().min(1),
+    runLabel: benchmarkRunLabelSchema.optional(),
+  })
   .strict()
 const benchmarkResponseSchema = z.object({ benchmark: benchmarkCaseSchema })
 const listBenchmarksResponseSchema = z.object({
@@ -103,6 +117,14 @@ export const runBenchmarkStageContract = defineRouteContract({
   response: { mode: 'json', schema: benchmarkResponseSchema },
 })
 
+export const runBenchmarkComparisonContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/benchmarks/[benchmarkId]/compare',
+  params: benchmarkParamsSchema,
+  body: runBenchmarkComparisonBodySchema,
+  response: { mode: 'json', schema: benchmarkResponseSchema },
+})
+
 export const listBenchmarkRunsContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/benchmarks/[benchmarkId]/runs',
@@ -129,6 +151,7 @@ export type BenchmarkCase = z.infer<typeof benchmarkCaseSchema>
 export type CreateBenchmarkBody = z.input<typeof createBenchmarkBodySchema>
 export type UpdateBenchmarkBody = z.input<typeof updateBenchmarkBodySchema>
 export type DeleteBenchmarkBody = z.input<typeof deleteBenchmarkBodySchema>
+export type RunBenchmarkComparisonBody = z.input<typeof runBenchmarkComparisonBodySchema>
 export type RunBenchmarkStageBody = z.input<typeof runBenchmarkStageBodySchema>
 export type BenchmarkRun = z.infer<typeof benchmarkRunSchema>
 export type ReviewBenchmarkRunBody = z.input<typeof reviewBenchmarkRunBodySchema>

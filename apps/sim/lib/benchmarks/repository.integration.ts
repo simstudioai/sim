@@ -17,17 +17,20 @@ const database = await vi.hoisted(async () => {
   process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
   const { createServer } = await import('node:http')
   const requests: Record<string, unknown>[] = []
+  const responses: { text: string; onRequest?: () => void }[] = []
   const worker = createServer(async (request, response) => {
     let body = ''
     for await (const chunk of request) body += chunk
-    if (request.url !== '/api/mothership/execute') {
+    if (!['/api/mothership/execute', '/api/mothership'].includes(request.url ?? '')) {
       response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
       return
     }
     const payload = JSON.parse(body) as Record<string, unknown>
     requests.push(payload)
+    const scripted = responses.shift()
+    scripted?.onRequest?.()
     const frames = [
-      { type: 'text', payload: { channel: 'assistant', text: '{"ok":true}' } },
+      { type: 'text', payload: { channel: 'assistant', text: scripted?.text ?? '{"ok":true}' } },
       { type: 'complete', payload: { status: 'complete' } },
     ]
     response.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -51,7 +54,13 @@ const database = await vi.hoisted(async () => {
   if (!address || typeof address === 'string') throw new Error('Worker fixture did not bind')
   process.env.MOTHERSHIP_BENCHMARK_URL = `http://127.0.0.1:${address.port}`
   process.env.COPILOT_API_KEY = 'local-benchmark-fixture'
-  return { current: undefined as PostgresJsDatabase | undefined, worker, requests, originalEnv }
+  return {
+    current: undefined as PostgresJsDatabase | undefined,
+    worker,
+    requests,
+    responses,
+    originalEnv,
+  }
 })
 vi.mock('server-only', () => ({}))
 vi.mock('@sim/db', () => {
@@ -69,9 +78,15 @@ vi.mock('@sim/db', () => {
 })
 
 import { z } from 'zod'
-import { createBenchmark, getBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
+import {
+  createBenchmark,
+  getBenchmark,
+  listBenchmarks,
+  updateBenchmark,
+} from '@/lib/benchmarks/application/cases'
 import { prepareBenchmarkExecution } from '@/lib/benchmarks/application/prepare-execution'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
+import { runBenchmarkComparison } from '@/lib/benchmarks/application/run-comparison'
 import {
   getBenchmarkRun,
   listBenchmarkRuns,
@@ -83,6 +98,7 @@ import {
   listBenchmarkUsers,
   listBenchmarkWorkspaces,
 } from '@/lib/benchmarks/application/selection'
+import { type BenchmarkModelConfig, DEFAULT_BENCHMARK_EVALUATOR } from '@/lib/benchmarks/models'
 import {
   claimBenchmarkStage,
   completeBenchmarkStage,
@@ -193,6 +209,8 @@ describe('private benchmark persistence and attempt fencing', () => {
   })
 
   beforeEach(async () => {
+    database.requests.length = 0
+    database.responses.length = 0
     await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions, copilot_runs, copilot_chats`
     await connection`UPDATE "user" SET role = CASE WHEN id IN ('owner', 'peer') THEN 'admin' ELSE 'user' END, banned = false`
     await connection`UPDATE settings SET super_user_mode_enabled = true`
@@ -241,6 +259,10 @@ describe('private benchmark persistence and attempt fencing', () => {
         benchmark,
         messages: [{ role: 'user' as const, content: 'Return the fixture result.' }],
         schema: z.object({ ok: z.literal(true) }),
+        model: {
+          modelSelection: { model: 'gpt-6-sol' as const, fastMode: true },
+          effort: 'low' as const,
+        },
         signal: new AbortController().signal,
       }
       expect(await executeBenchmarkJson(input)).toMatchObject({ data: { ok: true } })
@@ -262,8 +284,139 @@ describe('private benchmark persistence and attempt fencing', () => {
         userId: 'target',
         useConversationHistory: false,
         messages: [{ role: 'user', content: 'Return the fixture result.' }],
+        modelSelection: { model: 'gpt-6-sol', fastMode: true },
+        effort: 'low',
       })
   })
+
+  const planners: BenchmarkModelConfig[] = [
+    { modelSelection: { model: 'gpt-6-astra', fastMode: false }, effort: 'low' },
+    { modelSelection: { model: 'claude-opus-5-5', fastMode: false }, effort: 'medium' },
+  ]
+
+  async function prepareComparison() {
+    await connection`UPDATE member SET role = 'owner' WHERE id = 'owner-member'`
+    const benchmark = await updateBenchmarkRecord({
+      ...scope,
+      version: 1,
+      name: 'Model comparison',
+      artifacts: { ...graded, generatedSpec: null, reconstruction: null, grade: null },
+    })
+    for (let index = 0; index < planners.length; index++) {
+      database.responses.push(
+        { text: 'Queue: escalations.' },
+        {
+          text: JSON.stringify({
+            answers: graded.reconstruction?.map((answer) => ({ ...answer, sources: [] })),
+          }),
+        },
+        {
+          text: JSON.stringify({
+            judgments: graded.grade?.map((grade) => ({
+              ...grade,
+              basis: grade.correct ? 'spec' : 'missing',
+            })),
+          }),
+        }
+      )
+    }
+    return {
+      organizationId: scope.organizationId,
+      benchmarkId: scope.benchmarkId,
+      version: benchmark.version,
+      planners,
+      evaluator: DEFAULT_BENCHMARK_EVALUATOR,
+      runLabel: 'Model comparison',
+    }
+  }
+
+  it('executes selected planners in fresh conversations with a fixed evaluator and saves comparable model snapshots', async () => {
+    const input = await prepareComparison()
+    await runBenchmarkComparison.execute({ principal, input })
+    expect(database.requests).toHaveLength(6)
+    expect(new Set(database.requests.map((request) => request.chatId)).size).toBe(6)
+    for (const [index, planner] of planners.entries()) {
+      expect(database.requests[index * 3]).toMatchObject({
+        ...planner,
+        benchmark: true,
+        message: graded.taskBrief,
+        organizationId: 'org',
+      })
+      expect(database.requests[index * 3]).not.toHaveProperty('workspaceId')
+      expect(database.requests[index * 3 + 1]).toMatchObject({
+        ...DEFAULT_BENCHMARK_EVALUATOR,
+        useConversationHistory: false,
+        benchmark: { stage: 'resolve' },
+      })
+      expect(database.requests[index * 3 + 2]).toMatchObject({
+        ...DEFAULT_BENCHMARK_EVALUATOR,
+        useConversationHistory: false,
+      })
+    }
+    const history = await listBenchmarkRunRecords({ ...scope, limit: 20 })
+    expect(history.runs).toHaveLength(2)
+    expect(new Set(history.runs.map((run) => run.evaluationKey)).size).toBe(1)
+    for (const [index, summary] of [...history.runs].reverse().entries()) {
+      const run = await getBenchmarkRunRecord({ ...scope, runId: summary.id })
+      expect(summary.modelRuns.plan?.config).toEqual(planners[index])
+      expect(run.artifacts.modelRuns).toEqual(summary.modelRuns)
+      expect(run.modelRuns.reconstruct?.config).toEqual(DEFAULT_BENCHMARK_EVALUATOR)
+      expect(run.modelRuns.grade?.config).toEqual(DEFAULT_BENCHMARK_EVALUATOR)
+      expect(run.correct).toBe(1)
+      expect(run.total).toBe(2)
+    }
+    const saved = await getBenchmarkRunRecord({ ...scope, runId: history.runs[0].id })
+    await saveGrade({
+      ...saved.artifacts,
+      modelRuns: {
+        ...saved.modelRuns,
+        grade: { config: { ...DEFAULT_BENCHMARK_EVALUATOR, effort: 'medium' }, durationMs: 20 },
+      },
+    })
+    const changedEvaluator = await listBenchmarkRunRecords({ ...scope, limit: 20 })
+    expect(changedEvaluator.runs[0].evaluationKey).not.toBe(saved.evaluationKey)
+    const current = await getBenchmarkRecord(scope)
+    const edited = await updateBenchmark.execute({
+      principal,
+      input: {
+        organizationId: scope.organizationId,
+        benchmarkId: scope.benchmarkId,
+        version: current.version,
+        patch: { taskBrief: 'Plan a different escalation workflow.' },
+      },
+    })
+    expect(edited.benchmark.artifacts.generatedSpec).toBeNull()
+    expect(edited.benchmark.artifacts.modelRuns).not.toHaveProperty('plan')
+    expect(edited.benchmark.artifacts.modelRuns).not.toHaveProperty('reconstruct')
+    expect(edited.benchmark.artifacts.modelRuns).not.toHaveProperty('grade')
+    expect((await getBenchmarkRunRecord({ ...scope, runId: saved.id })).modelRuns).toEqual(
+      saved.modelRuns
+    )
+  })
+
+  it.each(['failure', 'cancellation'] as const)(
+    'preserves the first saved model and stops the comparison on later %s',
+    async (reason) => {
+      const input = await prepareComparison()
+      const controller = new AbortController()
+      database.responses[3] =
+        reason === 'failure'
+          ? { text: '' }
+          : { text: 'Interrupted plan', onRequest: () => controller.abort() }
+      await expect(
+        runBenchmarkComparison.execute({
+          principal,
+          input,
+          request: { signal: controller.signal, headers: new Headers() },
+        })
+      ).rejects.toThrow()
+      expect(database.requests).toHaveLength(4)
+      const history = await listBenchmarkRunRecords({ ...scope, limit: 20 })
+      expect(history.runs).toHaveLength(1)
+      expect(history.runs[0].modelRuns.plan?.config).toEqual(planners[0])
+      expect((await getBenchmarkRecord(scope)).runningStage).toBeNull()
+    }
+  )
 
   it('runs reference recovery in a fresh target-owned organization conversation without the source workspace', async () => {
     await connection`UPDATE "user" SET role = 'admin' WHERE id = 'target'`

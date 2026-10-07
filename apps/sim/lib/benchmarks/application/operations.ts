@@ -87,6 +87,12 @@ export const benchmarkOperations = {
     capability: 'none',
   }),
   /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  compare: defineOperation({
+    id: 'benchmarks.compare',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
   run: defineOperation({
     id: 'benchmarks.run',
     principalKinds: ['session'],

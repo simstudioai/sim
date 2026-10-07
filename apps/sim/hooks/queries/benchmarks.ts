@@ -15,8 +15,10 @@ import {
   listBenchmarkRunsContract,
   listBenchmarksContract,
   type ReviewBenchmarkRunBody,
+  type RunBenchmarkComparisonBody,
   type RunBenchmarkStageBody,
   reviewBenchmarkRunContract,
+  runBenchmarkComparisonContract,
   runBenchmarkStageContract,
   type UpdateBenchmarkBody,
   updateBenchmarkContract,
@@ -123,7 +125,7 @@ export function useBenchmarkWorkspaces(organizationId: string, runAsUserId: stri
   })
 }
 
-export function useBenchmark(organizationId: string, benchmarkId: string) {
+export function useBenchmark(organizationId: string, benchmarkId: string, polling = false) {
   return useQuery({
     queryKey: benchmarkKeys.detail(organizationId, benchmarkId),
     queryFn: ({ signal }) =>
@@ -134,6 +136,7 @@ export function useBenchmark(organizationId: string, benchmarkId: string) {
     enabled: Boolean(benchmarkId),
     staleTime: BENCHMARK_STALE_TIME,
     refetchInterval: (query) => {
+      if (polling) return BENCHMARK_POLL_INTERVAL
       const benchmark = query.state.data?.benchmark
       if (!benchmark?.runningStage || !benchmark.leaseExpiresAt) return false
       return Date.parse(benchmark.leaseExpiresAt) > Date.now() ? BENCHMARK_POLL_INTERVAL : false
@@ -240,6 +243,26 @@ export function useRunBenchmarkStage(organizationId: string, benchmarkId: string
     onError: (_error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
+    onSuccess: (data) => queryClient.setQueryData(queryKey, data),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: benchmarkKeys.list(organizationId) })
+      queryClient.invalidateQueries({
+        queryKey: benchmarkKeys.runList(organizationId, benchmarkId),
+      })
+    },
+  })
+}
+
+export function useRunBenchmarkComparison(organizationId: string, benchmarkId: string) {
+  const queryClient = useQueryClient()
+  const queryKey = benchmarkKeys.detail(organizationId, benchmarkId)
+  return useMutation({
+    mutationFn: (body: RunBenchmarkComparisonBody) =>
+      requestJson(runBenchmarkComparisonContract, {
+        params: { id: organizationId, benchmarkId },
+        body,
+      }),
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey })

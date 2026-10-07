@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import {
   type BenchmarkArtifacts,
@@ -67,12 +68,14 @@ export function applyBenchmarkPatch(
 ): BenchmarkArtifacts {
   const next = { ...current }
   if (patch.taskBrief !== undefined && patch.taskBrief !== current.taskBrief) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill', 'redact'])
     next.taskBrief = patch.taskBrief
     next.generatedSpec = null
     next.reconstruction = null
     next.grade = null
   }
   if (patch.referenceSpec !== undefined && patch.referenceSpec !== current.referenceSpec) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['distill', 'redact'])
     next.referenceSpec = patch.referenceSpec
     next.redactedSpec = ''
     next.blanks = []
@@ -89,12 +92,27 @@ export function applyBenchmarkPatch(
             blank.id !== current.blanks[index]?.id || blank.answer !== current.blanks[index]?.answer
         )))
   if (redactionChanged) {
+    if (next.modelRuns) next.modelRuns = omit(next.modelRuns, ['redact'])
     next.redactedSpec = patch.redactedSpec ?? next.redactedSpec
     next.blanks = patch.blanks ?? next.blanks
     next.reconstruction = null
     next.grade = null
   }
+  if (next.modelRuns) next.modelRuns = retainBenchmarkModelRuns(next)
   const parsed = benchmarkArtifactsSchema.parse(next)
   validateBenchmarkRedaction(parsed)
   return parsed
+}
+
+/** Discard model provenance together with the output it describes. */
+export function retainBenchmarkModelRuns(
+  artifacts: BenchmarkArtifacts
+): NonNullable<BenchmarkArtifacts['modelRuns']> {
+  const { plan, reconstruct, grade, ...reference } = artifacts.modelRuns ?? {}
+  return {
+    ...reference,
+    ...(artifacts.generatedSpec && plan ? { plan } : {}),
+    ...(artifacts.reconstruction && reconstruct ? { reconstruct } : {}),
+    ...(artifacts.grade && grade ? { grade } : {}),
+  }
 }
