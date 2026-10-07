@@ -38,8 +38,13 @@ const TMUX_TIMEOUT_MS = 5_000
 /** How often the status file is checked while a tmux-run command is going. */
 const RUN_POLL_INTERVAL_MS = 250
 
-/** Field separator for `-F` output. Chosen because no tmux field contains it. */
-const FIELD = '\u001f'
+/**
+ * Field separator for `-F` output. Printable on purpose: tmux 3.4 and 3.5 print a control
+ * character as its octal escape, so a control-character separator arrived as the text `\037` and
+ * no line split. No tmux escapes these characters, and a field that happened to contain the
+ * separator would change the line's field count, so that line is dropped rather than misread.
+ */
+const FIELD = '|~sim~|'
 
 export interface TmuxCommandResult {
   ok: boolean
@@ -125,7 +130,7 @@ export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCom
 /**
  * Parses `list-clients`/`list-panes` output into records.
  *
- * Split on a control character rather than whitespace: window names and
+ * Split on a dedicated separator rather than whitespace: window names and
  * working directories contain spaces, and a path with a space would otherwise
  * shift every later field by one.
  */
