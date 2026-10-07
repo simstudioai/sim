@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, notInArray, sql } from 'drizzle-orm'
 import {
   dueOutboxWorkQuery,
   isStuckProcessing,
@@ -438,6 +438,35 @@ export async function listInflightOutboxEvents(
     .from(outboxEvent)
     .where(inflightForSubject(eventTypes, subject))
   return limit === undefined ? query : query.limit(limit)
+}
+
+/**
+ * For each event type, the largest numeric `payloadKey` among the subject's settled
+ * (`completed` or `dead_letter`) events. Types with no such value are absent from the map.
+ */
+export async function maxSettledOutboxPayloadNumber(
+  executor: Pick<typeof db, 'select'>,
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  payloadKey: string
+): Promise<Map<string, number>> {
+  const rows = await executor
+    .select({
+      eventType: outboxEvent.eventType,
+      value: sql<string | null>`max((${outboxEvent.payload} ->> ${payloadKey})::numeric)::text`,
+    })
+    .from(outboxEvent)
+    .where(
+      and(
+        inArray(outboxEvent.eventType, [...eventTypes]),
+        notInArray(outboxEvent.status, [...INFLIGHT_OUTBOX_STATUSES]),
+        sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
+      )
+    )
+    .groupBy(outboxEvent.eventType)
+  return new Map(
+    rows.flatMap((row) => (row.value === null ? [] : [[row.eventType, Number(row.value)]]))
+  )
 }
 
 /**

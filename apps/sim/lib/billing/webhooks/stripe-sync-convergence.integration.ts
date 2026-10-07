@@ -53,7 +53,10 @@ import { isTeam } from '@/lib/billing/plan-helpers'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
-import { reconcileSubscriptionSyncFromStripe } from '@/lib/billing/webhooks/subscription-sync'
+import {
+  commitCustomerRestoredSubscription,
+  reconcileSubscriptionSyncFromStripe,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
 import { POST as requeueOutboxEvent } from '@/app/api/v1/admin/outbox/[id]/requeue/route'
 
@@ -518,6 +521,89 @@ describe('cancel_at_period_end sync', () => {
     await deliver(stripe.events.at(-1) as Stripe.Event)
 
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+  })
+
+  it('does not revive an older value when a retry path resets its sync without re-committing', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await deadLetter(pauseSync)
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await restoreUserProSubscription(pro.userId)
+    const restoreSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(restoreSync)).resolves.toBe('completed')
+
+    await testDatabase
+      .update(outboxEvent)
+      .set({
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        availableAt: new Date(),
+        lockedAt: null,
+        processedAt: null,
+      })
+      .where(eq(outboxEvent.id, pauseSync))
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it("treats a write from an older deploy's sync handler as Sim's own echo", async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await restoreUserProSubscription(pro.userId)
+
+    await stripe.client.subscriptions.update(
+      pro.stripeSubscriptionId,
+      { cancel_at_period_end: true },
+      { idempotencyKey: `outbox:${pauseSync}` }
+    )
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+  })
+
+  it("keeps a customer's restore made while an earlier sync is retrying", async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    stripe.failNextUpdateAfterApplying('subscriptions')
+    await expect(processEvent(pauseSync)).resolves.toBe('pending')
+
+    const restored = await stripe.client.subscriptions.update(pro.stripeSubscriptionId, {
+      cancel_at_period_end: false,
+    })
+    const restoreEvent = stripe.events.at(-1) as Stripe.Event
+    await testDatabase
+      .update(subscription)
+      .set({ cancelAtPeriodEnd: false, cancelAt: null, canceledAt: null })
+      .where(eq(subscription.id, pro.subscriptionId))
+    await commitCustomerRestoredSubscription(restored)
+
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+    await makeDue(pauseSync)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    await deliver(restoreEvent)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
   })
 })
 

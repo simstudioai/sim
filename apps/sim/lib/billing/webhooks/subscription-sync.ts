@@ -10,6 +10,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueOutboxEvent,
   listInflightOutboxEvents,
+  maxSettledOutboxPayloadNumber,
   patchInflightOutboxEvents,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
@@ -22,6 +23,8 @@ const logger = createLogger('BillingSubscriptionSync')
  * webhook is recognized as the echo of Sim's own sync rather than a change made in Stripe.
  */
 const CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX = 'outbox-sync-cancel-at-period-end:'
+/** The key prefix the cancel-sync handler used before the one above; old pods still send it mid-rollout. */
+const LEGACY_SYNC_KEY_PREFIX = 'outbox:'
 
 const CANCEL_SYNC = OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END
 const SEATS_SYNC = OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS
@@ -161,20 +164,62 @@ export async function recommitSubscriptionSync(
   )
 }
 
+/**
+ * Records a customer's restore through Better Auth's `/subscription/restore` as Sim's latest
+ * committed `cancelAtPeriodEnd`. That endpoint updates Stripe and then writes the row directly,
+ * so a cancel sync still in flight would otherwise carry the cancellation the customer just
+ * undid, and a webhook processed before the restore's own could restore it for that sync to
+ * push. Enqueuing re-pushes `false` even if such a sync already ran. Called from the endpoint's
+ * `after` hook with the Stripe subscription it returned.
+ */
+export async function commitCustomerRestoredSubscription(restored: unknown): Promise<void> {
+  const stripeSubscription = toRecord(restored)
+  const stripeSubscriptionId = stripeSubscription.id
+  if (
+    typeof stripeSubscriptionId !== 'string' ||
+    stripeSubscription.cancel_at_period_end !== false
+  ) {
+    return
+  }
+
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(eq(subscription.stripeSubscriptionId, stripeSubscriptionId))
+      .for('update')
+      .limit(1)
+    if (!row) return
+
+    await tx
+      .update(subscription)
+      .set({ cancelAtPeriodEnd: false })
+      .where(eq(subscription.id, row.id))
+    await enqueueCancelAtPeriodEndSync(tx, {
+      stripeSubscriptionId,
+      subscriptionId: row.id,
+      cancelAtPeriodEnd: false,
+      reason: 'customer-restored',
+    })
+  })
+}
+
 /** A fresh key per Stripe write: the SDK reuses it across its own network retries of that call. */
 export function cancelAtPeriodEndSyncIdempotencyKey(eventId: string): string {
   return `${CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX}${eventId}:${generateShortId()}`
 }
 
 /**
- * What a sync type's in-flight events say about its field: nothing in flight, the latest
+ * What a sync type's in-flight events say about its field: no applicable value, the latest
  * committed value, or `legacy` when an event predates recorded values (enqueued by an older
- * deploy) so the committed value is unknown.
+ * deploy) so the committed value is unknown. An in-flight value older than one a settled event
+ * already carried was revived by a retry path that did not re-commit, and does not apply.
  */
 type InflightIntent<T> = { status: 'none' } | { status: 'legacy' } | { status: 'value'; value: T }
 
 function latestIntent<T>(
   events: { eventType: string; payload: unknown }[],
+  settledCommittedAt: Map<string, number>,
   eventType: SubscriptionSyncEventType,
   readValue: (payload: Record<string, unknown>) => T | undefined
 ): InflightIntent<T> {
@@ -188,20 +233,27 @@ function latestIntent<T>(
       latest = { committedAt: payload.committedAt, value }
     }
   }
-  return latest ? { status: 'value', value: latest.value } : { status: 'none' }
+  if (!latest || latest.committedAt < (settledCommittedAt.get(eventType) ?? 0)) {
+    return { status: 'none' }
+  }
+  return { status: 'value', value: latest.value }
 }
 
 async function readInflightIntents(executor: DbOrTx, subscriptionId: string) {
-  const events = await listInflightOutboxEvents(
+  const eventTypes = [CANCEL_SYNC, SEATS_SYNC]
+  const subject = subscriptionSubject(subscriptionId)
+  const events = await listInflightOutboxEvents(executor, eventTypes, subject)
+  const settledCommittedAt = await maxSettledOutboxPayloadNumber(
     executor,
-    [CANCEL_SYNC, SEATS_SYNC],
-    subscriptionSubject(subscriptionId)
+    eventTypes,
+    subject,
+    'committedAt'
   )
   return {
-    cancelAtPeriodEnd: latestIntent(events, CANCEL_SYNC, (payload) =>
+    cancelAtPeriodEnd: latestIntent(events, settledCommittedAt, CANCEL_SYNC, (payload) =>
       typeof payload.cancelAtPeriodEnd === 'boolean' ? payload.cancelAtPeriodEnd : undefined
     ),
-    seats: latestIntent(events, SEATS_SYNC, (payload) =>
+    seats: latestIntent(events, settledCommittedAt, SEATS_SYNC, (payload) =>
       typeof payload.seats === 'number' ? payload.seats : undefined
     ),
   }
@@ -212,7 +264,10 @@ function isCancellationChangedInStripe(event: Stripe.Event): boolean {
   const previousAttributes = toRecord(event.data.previous_attributes)
   if (!('cancel_at_period_end' in previousAttributes)) return false
   const idempotencyKey = event.request?.idempotency_key
-  return !idempotencyKey?.startsWith(CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX)
+  const issuedBySimSync =
+    idempotencyKey?.startsWith(CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX) ||
+    idempotencyKey?.startsWith(LEGACY_SYNC_KEY_PREFIX)
+  return !issuedBySimSync
 }
 
 type CancelAtPeriodEndSource =
