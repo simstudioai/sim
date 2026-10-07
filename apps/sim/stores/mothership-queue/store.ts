@@ -96,6 +96,8 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const current = state.queues[chatKey] ?? []
             const index = current.findIndex((m) => m.id === id)
             if (index === -1) return state
+            /** The server may already hold it as sent; an edit would become a second message. */
+            if (current[index].admissionUnknown) return state
             const next = [...current]
             /** Editing changes the request identity, never an unresolved Stop dependency. */
             const {

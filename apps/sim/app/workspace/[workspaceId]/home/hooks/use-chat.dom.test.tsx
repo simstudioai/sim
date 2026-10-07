@@ -2053,9 +2053,11 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * The first POST on the new-chat surface never answers; later POSTs open a
-   * turn in the chat the first message created. The abort endpoint and the
-   * stream lookup fail, as they would for a Stop that cannot reach the server.
+   * The first POST on the new-chat surface reaches the server, which admits it,
+   * but its answer never arrives. A resend under that id gets the server's
+   * dedupe answer naming the chat it opened; any other POST opens a turn in
+   * that chat. Until the remount, the abort endpoint and the stream lookup
+   * fail, as they would for a Stop that cannot reach the server.
    */
   function stubFirstPostPendingThenAdmitted() {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -2068,6 +2070,17 @@ describe('useChat remount send recovery', () => {
               once: true,
             })
           })
+        }
+        const firstId = state.postBodies[0].userMessageId
+        if (state.postBodies.at(-1)?.userMessageId === firstId) {
+          return Response.json(
+            {
+              error: 'This message was already sent.',
+              activeStreamId: firstId,
+              chatId: DEDUPED_CHAT_ID,
+            },
+            { status: 409 }
+          )
         }
         return new Response(
           new ReadableStream<Uint8Array>({
@@ -2113,6 +2126,13 @@ describe('useChat remount send recovery', () => {
     })
     await waitFor(() => allQueuedMessages().length === 1)
     first.unmount()
+    /** Held first, as written: the server may already have it under its id. */
+    expect(
+      allQueuedMessages().map((message) => [message.content, message.admissionUnknown])
+    ).toEqual([
+      ['inspect the workspace', true],
+      ['follow-up while admission pending', undefined],
+    ])
 
     const second = renderHomeLikeSurface()
     await waitFor(() => state.postBodies.length >= 3, 4_000)
@@ -2136,6 +2156,54 @@ describe('useChat remount send recovery', () => {
    * intent: the Stop's POST is left to the server, nothing withdraws it, and the
    * next mount sends just the follow-up, once.
    */
+  /**
+   * A first message held at the queue head after a remount may already be a
+   * turn on the server. Editing it would send different text under a new id,
+   * a second message the user never meant to send.
+   */
+  it('does not let a withdrawn first message held at the queue head be edited', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-running-while-held',
+      mode: 'agent',
+      title: 'Held',
+      messages: [],
+      activeStreamId: 'turn-still-running',
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/mothership/chat/stream')) {
+        if (String(input).includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        return new Response(new ReadableStream<Uint8Array>(), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+      return fetchStub(input, init)
+    })
+    useMothershipQueueStore.getState().enqueue(history.id, {
+      id: 'held-first',
+      content: 'inspect the workspace',
+      resumeUserMessageId: 'first-attempt',
+      admissionUnknown: true,
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(() => getResult().isSending)
+
+    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+    await act(async () => {
+      edited = getResult().editQueuedMessage('held-first')
+    })
+
+    expect(edited).toBeUndefined()
+    expect(getResult().editingQueuedId).toBeNull()
+    expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
+      content: 'inspect the workspace',
+      resumeUserMessageId: 'first-attempt',
+    })
+  })
+
   it('sends only the follow-up after a failed Stop when the new-chat surface remounts', async () => {
     stubFirstPostPendingThenAdmitted()
     const first = renderHomeLikeSurface()

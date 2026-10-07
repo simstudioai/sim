@@ -30,6 +30,20 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
+    it('leaves a first message the server may already hold unchanged, with its id', () => {
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'm1',
+        content: 'original',
+        resumeUserMessageId: 'first-attempt',
+        admissionUnknown: true,
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'm1', { content: 'edited' })
+      expect(useMothershipQueueStore.getState().queues['chat-A']?.[0]).toMatchObject({
+        content: 'original',
+        resumeUserMessageId: 'first-attempt',
+      })
+    })
+
     it('editing preserves an unresolved Stop while replacing the prior request identity', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'm1',

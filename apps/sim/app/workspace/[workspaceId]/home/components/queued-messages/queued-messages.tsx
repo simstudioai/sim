@@ -74,6 +74,7 @@ export function QueuedMessages({
           {messageQueue.map((msg) => {
             const isEditing = msg.id === editingQueuedId
             const isDispatching = msg.id === dispatchingHeadId
+            const editBlocked = isDispatching || msg.admissionUnknown === true
             return (
               <div
                 key={msg.id}
@@ -141,9 +142,15 @@ export function QueuedMessages({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <button
-                            aria-label={isDispatching ? 'Sending now' : 'Edit queued message'}
+                            aria-label={
+                              isDispatching
+                                ? 'Sending now'
+                                : msg.admissionUnknown
+                                  ? 'Already sent; editing it would send a second message'
+                                  : 'Edit queued message'
+                            }
                             type='button'
-                            disabled={isDispatching}
+                            disabled={editBlocked}
                             onClick={(e) => {
                               e.stopPropagation()
                               onEdit(msg.id)
@@ -154,7 +161,11 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {isDispatching ? 'Sending now' : 'Edit queued message'}
+                          {isDispatching
+                            ? 'Sending now'
+                            : msg.admissionUnknown
+                              ? 'Already sent; editing it would send a second message'
+                              : 'Edit queued message'}
                         </Tooltip.Content>
                       </Tooltip.Root>
 
