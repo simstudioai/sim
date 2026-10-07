@@ -13,6 +13,7 @@ import {
   workflowRegistryStoreMockFns,
 } from '@sim/testing/mocks/workflow-registry-store.mock'
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 
@@ -791,6 +792,41 @@ describe('run tool execution cancellation', () => {
       expect(statusByToolCall.get('tool-a')).toBe('cancelled')
       expect(statusByToolCall.get('tool-b')).toBe('cancelled')
       expect(statusByToolCall.get('tool-other-chat')).toBe('success')
+    })
+
+    it('keeps the workflow for a run whose stream dropped until that run settles on the server', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      let serverStatus = 'running'
+      mockRequestJson.mockImplementation(async (contract: unknown) =>
+        contract === getWorkflowExecutionContract ? { status: serverStatus } : { success: true }
+      )
+      executeWorkflowWithFullLogging.mockRejectedValueOnce(
+        new MockSSEStreamInterruptedError('Execution stream interrupted', 'exec-interrupted')
+      )
+      const released = vi.fn()
+      onTestFinished(subscribeToRunToolRelease(released))
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
+      await vi.waitFor(() =>
+        expect(
+          mockRequestJson.mock.calls.filter(([c]) => c === getWorkflowExecutionContract).length
+        ).toBeGreaterThan(2)
+      )
+
+      expect(launchedToolCallIds()).toEqual(['tool-a'])
+      expect(saveExecutionPointer).toHaveBeenCalledTimes(1)
+      expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
+
+      serverStatus = 'completed'
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
+      expect(confirmBodies().map((body) => [body.toolCallId, body.status])).toEqual([
+        ['tool-a', 'background'],
+        ['tool-b', 'success'],
+      ])
     })
 
     it('treats a waiting call as already owned by this tab when the chat recovers it', async () => {

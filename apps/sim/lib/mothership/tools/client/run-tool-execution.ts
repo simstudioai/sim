@@ -1,9 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import {
+  cancelWorkflowExecutionContract,
+  getWorkflowExecutionContract,
+} from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -59,6 +65,9 @@ interface WaitingRunTool {
 
 const activeRunToolByWorkflowId = new Map<string, ActiveRunTool>()
 const waitingRunToolsByWorkflowId = new Map<string, WaitingRunTool[]>()
+/** Executions whose run tool lost its stream while the server kept running them. */
+const interruptedExecutionIdByWorkflowId = new Map<string, string>()
+const INTERRUPTED_RUN_POLL_MAX_MS = 15_000
 const manuallyStoppedToolCallIds = new Set<string>()
 type RunToolReleaseListener = (workflowId: string) => void
 const runToolReleaseListeners = new Set<RunToolReleaseListener>()
@@ -95,7 +104,11 @@ function acquireRunToolSlot(
   workflowId: string,
   toolCallId: string
 ): ActiveRunTool | Promise<ActiveRunTool | null> {
-  if (!activeRunToolByWorkflowId.has(workflowId) && !waitingRunToolsByWorkflowId.has(workflowId)) {
+  if (
+    !activeRunToolByWorkflowId.has(workflowId) &&
+    !waitingRunToolsByWorkflowId.has(workflowId) &&
+    !interruptedExecutionIdByWorkflowId.has(workflowId)
+  ) {
     const run: ActiveRunTool = { toolCallId }
     activeRunToolByWorkflowId.set(workflowId, run)
     return run
@@ -113,6 +126,7 @@ function acquireRunToolSlot(
  */
 function admitNextRunTool(workflowId: string): void {
   if (activeRunToolByWorkflowId.has(workflowId)) return
+  if (interruptedExecutionIdByWorkflowId.has(workflowId)) return
   const waiting = waitingRunToolsByWorkflowId.get(workflowId)
   const next = waiting?.shift()
   if (waiting?.length === 0) waitingRunToolsByWorkflowId.delete(workflowId)
@@ -126,6 +140,50 @@ function releaseRunToolSlot(workflowId: string, run: ActiveRunTool): void {
   if (activeRunToolByWorkflowId.get(workflowId) !== run) return
   activeRunToolByWorkflowId.delete(workflowId)
   admitNextRunTool(workflowId)
+}
+
+/**
+ * Holds the workflow for an execution whose run tool lost its stream while the
+ * server kept running it, until that execution settles.
+ *
+ * The interrupted run keeps its terminal pointer so the editor's reconnect can
+ * re-attach to it. A waiting call admitted now would overwrite that pointer and
+ * claim the workflow, leaving the still-running execution without live output or
+ * the editor's Stop. The hold is not run-tool ownership, so reconnect may claim it.
+ */
+async function holdForInterruptedExecution(workflowId: string, executionId: string) {
+  interruptedExecutionIdByWorkflowId.set(workflowId, executionId)
+  for (let attempt = 1; ; attempt++) {
+    await sleep(backoffWithJitter(attempt, null, { maxMs: INTERRUPTED_RUN_POLL_MAX_MS }))
+    if (interruptedExecutionIdByWorkflowId.get(workflowId) !== executionId) return
+    if (await isExecutionStillRunning(workflowId, executionId)) continue
+    // A reconnect that re-attached clears this once it has drained the run's last events.
+    if (useExecutionStore.getState().getCurrentExecutionId(workflowId) === executionId) continue
+    break
+  }
+  interruptedExecutionIdByWorkflowId.delete(workflowId)
+  admitNextRunTool(workflowId)
+}
+
+async function isExecutionStillRunning(workflowId: string, executionId: string) {
+  try {
+    const { status } = await requestJson(getWorkflowExecutionContract, {
+      params: { id: workflowId, executionId },
+      query: {},
+    })
+    return status === 'queued' || status === 'pending' || status === 'running'
+  } catch (error) {
+    // Gone or not ours: nothing left to wait for. Anything else may be transient.
+    if (error instanceof ApiClientError && (error.status === 403 || error.status === 404)) {
+      return false
+    }
+    logger.warn('[RunTool] Could not check an interrupted execution; still holding', {
+      workflowId,
+      executionId,
+      error: toError(error).message,
+    })
+    return true
+  }
 }
 
 function isRunToolWaiting(workflowId: string, toolCallId: string): boolean {
@@ -729,7 +787,7 @@ async function doExecuteRunTool(
   })
 
   let leaveExecutionRecoverable = false
-  let streamInterrupted = false
+  let interruptedExecutionId: string | undefined
 
   try {
     const result = await executeWorkflowWithFullLogging({
@@ -810,7 +868,7 @@ async function doExecuteRunTool(
       const msg = toError(err).message
       if (err instanceof SSEEventHandlerError || err instanceof SSEStreamInterruptedError) {
         leaveExecutionRecoverable = true
-        streamInterrupted = true
+        interruptedExecutionId = err.executionId ?? executionId
         logger.warn(
           '[RunTool] Execution stream interrupted; leaving workflow execution in background',
           {
@@ -879,7 +937,8 @@ async function doExecuteRunTool(
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
     }
-    if (streamInterrupted && ownsRegistration) {
+    if (interruptedExecutionId && ownsRegistration) {
+      void holdForInterruptedExecution(targetWorkflowId, interruptedExecutionId)
       notifyRunToolReleased(targetWorkflowId)
     }
     if (ownsRegistration) {
