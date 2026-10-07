@@ -2563,6 +2563,143 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
+   * A fresh-id Send-now is unsent while it waits on its Stop. Once its POST goes
+   * out the server may hold it, even before the chat's history shows it, so a
+   * reload with that POST unanswered must restore it uneditable.
+   */
+  it('keeps a fresh Send-now uneditable when the page reloads with its POST unanswered', async () => {
+    const first = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void first.getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && first.getResult().isSending)
+    await act(async () => {
+      void first.getResult().sendMessage('Use the latest report')
+    })
+    await waitFor(() => useMothershipQueueStore.getState().queues['chat-a']?.length === 1)
+    await act(async () => {
+      void first.getResult().sendNow()
+    })
+    /** The Send-now POST is out, and held open. */
+    await waitFor(() => state.postBodies.length === 2)
+    const storedAtReload = readQueuedSendHandoffState()
+    expect(storedAtReload?.userMessageId).toBe(state.postBodies[1].userMessageId)
+    first.unmount()
+    await act(async () => {
+      await sleep(50)
+    })
+    /* A reload runs no cleanup: the queue comes back as the session saved it (the
+       dispatched entry had left it) and the handoff as it was stored. */
+    useMothershipQueueStore.getState().reset()
+    if (storedAtReload) writeQueuedSendHandoffState(storedAtReload)
+
+    const history: MothershipChatHistory = {
+      id: 'chat-a',
+      mode: 'agent',
+      title: 'Reloaded',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    let loadHistory: (() => void) | undefined
+    mockRequestJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          loadHistory = () => resolve({ chat: history })
+        })
+    )
+    const reloaded = renderUseChatInChat('chat-a')
+    const editAtRestore: Array<ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>> = []
+    let tried = false
+    const unsubscribe = useMothershipQueueStore.subscribe((queueState) => {
+      if (tried) return
+      const restored = queueState.queues['chat-a']?.find(
+        (message) => message.content === 'Use the latest report'
+      )
+      if (!restored) return
+      tried = true
+      editAtRestore.push(reloaded.getResult().editQueuedMessage(restored.id))
+    })
+    try {
+      await waitFor(() => loadHistory !== undefined)
+      await act(async () => {
+        loadHistory?.()
+        await sleep(50)
+      })
+      await waitFor(() => tried)
+    } finally {
+      unsubscribe()
+    }
+
+    expect(editAtRestore[0]).toBeUndefined()
+  })
+
+  /**
+   * A resumed message whose earlier attempt is the very turn now running, sent
+   * now: its Stop and its resend share one id, and the server answers the resend
+   * as a duplicate of that turn. That is not a refusal, so the message must
+   * never come back editable.
+   */
+  it('never treats a conflict naming the resent id itself as a refusal', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-own-id',
+      mode: 'agent',
+      title: 'Own id',
+      messages: [],
+      activeStreamId: 'earlier-attempt',
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/api/copilot/chat/abort')) {
+        state.abortBodies.push(JSON.parse(String(init?.body)))
+        return Response.json({ aborted: true, settled: true })
+      }
+      if (url === '/api/mothership/chat' && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return Response.json(
+          { error: 'This message was already sent.', activeStreamId: 'earlier-attempt' },
+          { status: 409 }
+        )
+      }
+      if (url.includes('/api/mothership/chat/stream')) {
+        if (url.includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        return new Response(new ReadableStream<Uint8Array>(), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await waitFor(() => getResult().isSending)
+    useMothershipQueueStore.getState().enqueue(history.id, {
+      id: 'resumed',
+      content: 'sent earlier with no answer',
+      resumeUserMessageId: 'earlier-attempt',
+      admissionUnknown: true,
+    })
+    await act(async () => {
+      /** Reattaches to the running turn, which stays open. */
+      void getResult()
+        .sendNow('resumed')
+        .catch(() => {})
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      await sleep(300)
+    })
+
+    expect(state.postBodies.map((body) => body.userMessageId)).toEqual(['earlier-attempt'])
+    const requeued = useMothershipQueueStore
+      .getState()
+      .queues[history.id]?.find((message) => message.content === 'sent earlier with no answer')
+    expect(requeued === undefined || requeued.admissionUnknown === true).toBe(true)
+  })
+
+  /**
    * A held message the server then refuses as busy is known not to be a turn
    * there: the server answers a retry of an admitted id as a duplicate, never
    * as busy. The user can edit it again.
