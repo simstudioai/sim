@@ -46,10 +46,24 @@ function installBrowserNavigationGuard() {
   const trackedRoutes = new Map<number, string>()
   const route = (url: URL) => url.pathname + url.search
 
-  const stamp = (data: unknown, index: number, entryGeneration = generation) =>
-    data == null || isRecordLike(data)
+  const stamp = (data: unknown, index: number, entryGeneration = generation) => {
+    const prototype = isRecordLike(data) ? Object.getPrototypeOf(data) : undefined
+    return data == null || prototype === Object.prototype || prototype === null
       ? { ...toRecord(data), [HISTORY_INDEX]: index, [HISTORY_GENERATION]: entryGeneration }
       : data
+  }
+  const cancelPendingTraversal = () => {
+    allowTraversal = false
+    restoring = false
+    pendingDelta = 0
+    useSettingsDirtyStore.getState().cancelLeave()
+  }
+
+  const traverse = (delta: number) => {
+    pendingDelta = delta
+    allowTraversal = true
+    originalGo.call(history, delta)
+  }
 
   originalReplace.call(history, stamp(history.state, currentIndex), '', window.location.href)
   trackedRoutes.set(currentIndex, route(currentUrl))
@@ -59,6 +73,7 @@ function installBrowserNavigationGuard() {
     const nextGeneration = previousIndex === null ? generateId() : generation
     const nextIndex = (previousIndex ?? -1) + 1
     originalPush.call(history, stamp(data, nextIndex, nextGeneration), unused, url)
+    cancelPendingTraversal()
     if (generation !== nextGeneration) trackedRoutes.clear()
     generation = nextGeneration
     currentIndex = nextIndex
@@ -71,12 +86,14 @@ function installBrowserNavigationGuard() {
   history.replaceState = (data: unknown, unused, url) => {
     const index = entryIndex(history.state)
     originalReplace.call(history, index === null ? data : stamp(data, index), unused, url)
+    if (index !== currentIndex || window.location.href !== currentUrl.href) cancelPendingTraversal()
     currentIndex = index
     currentUrl = new URL(window.location.href)
     if (index !== null) trackedRoutes.set(index, route(currentUrl))
   }
 
   history.go = (delta) => {
+    cancelPendingTraversal()
     if (!delta) {
       originalGo.call(history, delta)
       return
@@ -96,11 +113,7 @@ function installBrowserNavigationGuard() {
       originalGo.call(history, delta)
       return
     }
-    requestLeave(() => {
-      pendingDelta = delta
-      allowTraversal = true
-      originalGo.call(history, delta)
-    })
+    requestLeave(() => traverse(delta))
   }
   history.back = () => history.go(-1)
   history.forward = () => history.go(1)
@@ -153,10 +166,7 @@ function installBrowserNavigationGuard() {
         }
         restoring = false
         const requestedDelta = pendingDelta
-        useSettingsDirtyStore.getState().requestLeave(() => {
-          allowTraversal = true
-          originalGo.call(history, requestedDelta)
-        })
+        useSettingsDirtyStore.getState().requestLeave(() => traverse(requestedDelta))
         return
       }
       const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
