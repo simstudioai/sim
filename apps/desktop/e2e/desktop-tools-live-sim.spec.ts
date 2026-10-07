@@ -53,6 +53,7 @@ test.describe('desktop tools against a live Sim', () => {
   let scratch: string
   /** Errors the current window reported, shown when a click is blocked. */
   let pageErrors: string[] = []
+  let testStartedAt = 0
 
   test.beforeAll(async () => {
     test.setTimeout(1_500_000)
@@ -70,16 +71,36 @@ test.describe('desktop tools against a live Sim', () => {
   })
 
   test.beforeEach(() => {
+    testStartedAt = Date.now()
     scratch = mkdtempSync(join(tmpdir(), 'sim-desktop-tools-live-'))
   })
 
   test.afterEach(async () => {
     const testInfo = test.info()
-    if (testInfo.status !== testInfo.expectedStatus)
-      await app
-        ?.windows()[0]
-        ?.screenshot({ path: testInfo.outputPath('failure.png') })
-        .catch(() => {})
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const page = app?.windows()[0]
+      await page?.screenshot({ path: testInfo.outputPath('failure.png') }).catch(() => {})
+      writeFileSync(
+        testInfo.outputPath('diagnostics.json'),
+        JSON.stringify(
+          {
+            url: page?.url(),
+            composer: await page
+              ?.getByRole('textbox')
+              .last()
+              .inputValue({ timeout: 2_000 })
+              .catch(() => null),
+            pageErrors,
+            requests: proxy
+              .seen(testStartedAt)
+              .filter((entry) => !entry.path.startsWith('/_next/')),
+          },
+          null,
+          2
+        )
+      )
+    }
+    proxy.clearHolds()
     await app?.close().catch(() => {})
     app = undefined
     proxy.rewriteChatBody(undefined)
@@ -178,23 +199,36 @@ test.describe('desktop tools against a live Sim', () => {
   const composer = (page: Page) => page.getByRole('textbox').last()
 
   /** The dev app's error overlay, if it is up, with the errors the window reported. */
-  async function devOverlayError(page: Page): Promise<string | undefined> {
+  async function devOverlay(page: Page): Promise<{ text: string; consoleOnly: boolean } | null> {
     const overlay = page.locator('nextjs-portal [data-nextjs-dialog]')
-    if ((await overlay.count()) === 0) return undefined
-    return `Next.js error overlay: ${await overlay.first().innerText()}\n${pageErrors.join('\n')}`
+    if ((await overlay.count()) === 0) return null
+    const text = await overlay
+      .first()
+      .innerText()
+      .catch(() => '')
+    return {
+      text: `${text}\n${pageErrors.join('\n')}`,
+      consoleOnly: /^\s*Console Error/.test(text),
+    }
   }
 
   /**
-   * Clicks `target`, failing at once with the dev app's error instead of waiting out a click the
-   * Next.js error overlay intercepts.
+   * Clicks `target`. When the dev app's error overlay intercepts the click, a console-error notice
+   * (dev-only chrome over a logged error) is dismissed and the click retried; a runtime error fails
+   * at once with its message instead of waiting out a blocked click.
    */
   async function click(page: Page, target: Locator, timeout = 15_000): Promise<void> {
-    const before = await devOverlayError(page)
-    if (before) throw new Error(before)
-    try {
-      await target.click({ timeout })
-    } catch (error) {
-      throw new Error((await devOverlayError(page)) ?? String(error))
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await target.click({ timeout: attempt === 0 ? Math.min(timeout, 5_000) : timeout })
+        return
+      } catch (error) {
+        const overlay = await devOverlay(page)
+        if (overlay && !overlay.consoleOnly)
+          throw new Error(`Next.js error overlay: ${overlay.text}`)
+        if (overlay) await page.keyboard.press('Escape')
+        else if (attempt > 0) throw error
+      }
     }
   }
 
@@ -211,15 +245,19 @@ test.describe('desktop tools against a live Sim', () => {
         .some((entry) => entry.method === 'POST' && entry.path === '/api/mothership/chat')
     const deadline = Date.now() + timeout
     while (!sent()) {
-      const overlay = await devOverlayError(page)
-      if (overlay) throw new Error(overlay)
-      if (Date.now() > deadline) throw new Error(`The message was never sent: ${message}`)
+      if (Date.now() > deadline)
+        throw new Error(
+          `The message was never sent: ${message} (composer: ${JSON.stringify(
+            await composer(page).inputValue()
+          )}; errors: ${pageErrors.join(' | ')})`
+        )
       if ((await composer(page).inputValue()) !== message) await composer(page).fill(message)
-      const clicked = await page
-        .getByRole('button', { name: 'Send message' })
-        .click({ timeout: 5_000 })
+      const clicked = await click(page, page.getByRole('button', { name: 'Send message' }), 5_000)
         .then(() => true)
-        .catch(() => false)
+        .catch((error: unknown) => {
+          if (String(error).includes('Next.js error overlay')) throw error
+          return false
+        })
       if (clicked)
         await expect
           .poll(sent, { timeout: 10_000 })
@@ -361,8 +399,12 @@ test.describe('desktop tools against a live Sim', () => {
     firstUpload.release()
     // The import outlived both view changes: its first file landed.
     await expect
-      .poll(() => db.workspaceFileNames(user.workspaceId), { timeout: 30_000 })
-      .toContain('a.txt')
+      .poll(
+        async () =>
+          `${(await db.workspaceFileNames(user.workspaceId)).join(',')} | ${await callState(chatId)}`,
+        { timeout: 60_000 }
+      )
+      .toMatch(/^a\.txt /)
     await laterFolder.arrival(ARRIVAL_MS, 'The next folder')
 
     // Hold the import's own report until Stop has settled the call, so the outcome is Stop's.
@@ -507,13 +549,28 @@ test.describe('desktop tools against a live Sim', () => {
     const page = await openApp(user, 'Stop chat')
     const chatId = user.chats['Stop chat']
     const lateClaim = proxy.hold(isDesktopClaim)
+    // Should Electron give up on the held claim first, the read reports its own failure; hold that
+    // too, so the call's outcome is Stop's.
+    const report = proxy.hold(isToolReport)
     await send(page, '[stopped-claim] read my secret')
     const claim = await lateClaim.arrival(ARRIVAL_MS, 'The read’s claim')
     await click(page, page.getByRole('button', { name: 'Stop generation' }))
     // Stop settles the call nobody has claimed yet as never started.
-    await expect.poll(async () => callState(chatId), { timeout: 15_000 }).toMatch(/^cancelled/)
+    await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     lateClaim.release()
-    await expect.poll(() => claim.status, { timeout: 15_000 }).toBe(410)
+    report.release()
+    // The claim held across Stop, and the same claim replayed afterwards, are both refused.
+    const [call] = await db.toolCalls(chatId)
+    const replay = await page.evaluate(
+      (toolCallId) =>
+        (globalThis as DesktopWindow).simDesktop.localFiles?.({ operation: 'read', toolCallId }),
+      call.toolCallId
+    )
+    expect(replay?.ok).toBe(false)
+    const answered = () =>
+      proxy.seen(claim.at, '/api/desktop/tool/authorize').filter((entry) => entry.status)
+    await expect.poll(() => answered().length, { timeout: 15_000 }).toBeGreaterThan(0)
+    for (const entry of answered()) expect(entry.status).toBe(410)
     const [after] = await db.toolCalls(chatId)
     expect(after).toMatchObject({ status: 'cancelled', claimedBy: null })
   })

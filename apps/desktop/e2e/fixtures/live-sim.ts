@@ -220,6 +220,12 @@ export class SimProxy {
     return held
   }
 
+  /** Drops holds that never matched, so none outlives the test that set it. */
+  clearHolds(): void {
+    for (const held of this.holds) held.release()
+    this.holds = []
+  }
+
   /** Rewrites the JSON body of chat turns the renderer sends, as a newer client would send it. */
   rewriteChatBody(rewrite: ((body: Record<string, unknown>) => void) | undefined): void {
     this.chatBodyRewrite = rewrite
