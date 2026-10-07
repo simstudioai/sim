@@ -2341,6 +2341,44 @@ describe('useChat remount send recovery', () => {
    * settle sends nothing. That says nothing about the earlier attempt the
    * message resumes, so it must stay uneditable.
    */
+  /**
+   * A message held for the network that the user then sends by hand, over a turn
+   * whose Stop does not settle, goes back waiting for the user. The hold it had
+   * before must not outlive that: the browser coming online must not send it.
+   */
+  it('keeps a Send-now whose Stop failed waiting for the user when the browser comes online', async () => {
+    state.abortSettlements = [false, false, false, false]
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'held-offline',
+      content: 'written while offline',
+      resumeUserMessageId: 'offline-attempt',
+      admissionUnknown: true,
+      retryRequired: true,
+      heldUntilOnline: true,
+    })
+
+    await act(async () => {
+      await getResult()
+        .sendNow('held-offline')
+        .catch(() => {})
+      await sleep(200)
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+      await sleep(100)
+    })
+
+    expect(state.postBodies).toHaveLength(1)
+    const queued = useMothershipQueueStore.getState().queues['chat-a']?.[0]
+    expect(queued).toMatchObject({ id: 'held-offline', retryRequired: true })
+    expect(queued?.heldUntilOnline).toBeUndefined()
+  })
+
   it('keeps a resumed message uneditable when its Send-now Stop does not settle', async () => {
     state.abortSettlements = [false, false, false, false]
     const { getResult } = renderUseChatInChat('chat-a')
