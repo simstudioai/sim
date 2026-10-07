@@ -30,6 +30,27 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
+    it('treats a flagless handoff still waiting on its Stop as possibly sent', () => {
+      /** Its id may be a re-queued message's earlier attempt, which a pending Stop says nothing about. */
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'legacy',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'legacy',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'earlier-attempt',
+          stopRequired: true,
+        },
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'legacy', { content: 'edited' })
+
+      expect(useMothershipQueueStore.getState().queues['chat-A']?.[0]).toMatchObject({
+        content: 'original',
+        admissionUnknown: true,
+      })
+    })
+
     it('reads a reused handoff id as possibly sent unless the entry says otherwise', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'sent',

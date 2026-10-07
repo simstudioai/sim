@@ -1871,6 +1871,51 @@ describe('useChat remount send recovery', () => {
     })
   })
 
+  /**
+   * A handoff stored before the flag existed cannot say whether its id was ever
+   * sent, so it is checked against the chat's history before it goes out again.
+   */
+  it('checks a flagless stored handoff against history before resending it', async () => {
+    const order: string[] = []
+    const history: MothershipChatHistory = {
+      id: 'chat-a',
+      mode: 'agent',
+      title: 'Invoice inspection',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    mockRequestJson.mockImplementation(() => {
+      order.push('history')
+      return Promise.resolve({ chat: history })
+    })
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.includes('/api/copilot/chat/abort')) {
+        state.abortBodies.push(JSON.parse(String(init?.body)))
+        return Response.json({ aborted: true, settled: true })
+      }
+      if (url === '/api/mothership/chat' && init?.method === 'POST') order.push('post')
+      return fetchStub(input, init)
+    })
+    writeQueuedSendHandoffState({
+      id: 'queued-correction',
+      chatId: 'chat-a',
+      workspaceId: 'ws-1',
+      supersededStreamId: 'previous-response',
+      userMessageId: 'prepared-correction-request',
+      message: 'inspect the second invoice instead',
+      stopRequired: true,
+      requestedAt: Date.now(),
+    })
+    renderUseChatInChat('chat-a', history)
+    await waitFor(() => state.postBodies.length === 1, 4_000)
+
+    expect(state.postBodies[0].userMessageId).toBe('prepared-correction-request')
+    expect(order.indexOf('history')).toBeGreaterThanOrEqual(0)
+    expect(order.indexOf('history')).toBeLessThan(order.indexOf('post'))
+  })
+
   it.each([false, true])(
     'the remounted handoff reader requires Stop settlement (settled: %s)',
     async (settled) => {
@@ -1892,6 +1937,8 @@ describe('useChat remount send recovery', () => {
         message: 'inspect the second invoice instead',
         requestMode: 'assistant',
         stopRequired: true,
+        /** A fresh id still waiting on its Stop, as the hook records it. */
+        admissionUnknown: false,
         requestedAt: Date.now(),
       })
       const { getResult } = renderUseChatInChat('chat-a', {

@@ -134,7 +134,7 @@ import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { reusedRequestId, useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
   QueuedSendHandoffSeed,
@@ -3635,8 +3635,7 @@ export function useChat(
           organizationId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
           ...(queuedSendHandoff.stopRequired ? { stopRequired: true } : {}),
-          /** Without a pending Stop, its POST goes out next. */
-          admissionUnknown: admissionUnknown || !queuedSendHandoff.stopRequired,
+          admissionUnknown,
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
@@ -3936,6 +3935,8 @@ export function useChat(
             : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         admissionUnknown = true
+        /** A reload from here on may find the server holding this id. */
+        writeQueuedSendHandoff(requestChatId)
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4021,7 +4022,11 @@ export function useChat(
             /** Whether this view still shows the send; otherwise only its own chat changes. */
             const viewOnSend = streamGenRef.current === gen
             const supersededStreamId = queuedSendHandoff?.supersededStreamId ?? pendingStopStreamId
-            if (supersededStreamId && conflictStreamId === supersededStreamId) {
+            if (
+              supersededStreamId &&
+              conflictStreamId === supersededStreamId &&
+              conflictStreamId !== userMessageId
+            ) {
               rollbackOptimisticSend()
               if (streamGenRef.current === gen) {
                 streamGenRef.current++
@@ -5156,7 +5161,7 @@ export function useChat(
    */
   const mustNotResend = useCallback(
     async (chatKey: string, msg: QueuedMothershipMessage): Promise<boolean> => {
-      const requestId = msg.queuedSendHandoff?.userMessageId ?? msg.resumeUserMessageId
+      const requestId = reusedRequestId(msg)
       if (!msg.admissionUnknown || !requestId || chatKey.startsWith(PENDING_CHAT_KEY_PREFIX))
         return false
       const history = await queryClient
@@ -5358,7 +5363,7 @@ export function useChat(
     const accepted = acceptedMessageIds(chatHistory)
     for (const queued of messageQueue) {
       if (queuedMessageDispatchIds.has(queued.id)) continue
-      const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
+      const requestId = reusedRequestId(queued)
       if (!requestId || !accepted.has(requestId)) continue
       clearQueuedSendHandoffState(queued.id)
       clearQueuedSendHandoffClaim(queued.id)
