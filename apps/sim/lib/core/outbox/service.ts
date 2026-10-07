@@ -166,6 +166,8 @@ export interface ProcessOutboxResult {
   deadLettered: number
   leaseLost: number
   reaped: number
+  /** Ready event types left pending because their handler module failed to import. */
+  unloadedEventTypes: string[]
 }
 
 export type ProcessSingleOutboxResult =
@@ -457,7 +459,7 @@ export async function processOutboxEvents(
     reaped = await reapStuckProcessingRows()
     phase = 'discover'
     const readyTypes = await db.execute<{ eventType: string }>(readyEventTypesQuery(new Date()))
-    const { handlers, eligibleTypes } = await resolveOutboxHandlers(
+    const { handlers, eligibleTypes, unloadedEventTypes } = await resolveOutboxHandlers(
       handlerGroups,
       readyTypes.map(({ eventType }) => eventType)
     )
@@ -497,7 +499,7 @@ export async function processOutboxEvents(
       else retried++
     }
 
-    return { processed, retried, deadLettered, leaseLost, reaped }
+    return { processed, retried, deadLettered, leaseLost, reaped, unloadedEventTypes }
   } catch (error) {
     logger.error('Outbox processing failed', {
       phase,
@@ -517,13 +519,17 @@ export async function processOutboxEvents(
  * Imports the groups that serve any ready event type and returns the types to claim this run. A
  * group whose import fails leaves its event types unclaimed: unlike a missing handler, which
  * spends an attempt and eventually dead-letters, a failed import says nothing about the events,
- * so they stay pending for a later run. Event types outside every group stay eligible and reach
- * the missing-handler path.
+ * so they stay pending for a later run and are reported as `unloadedEventTypes`. Event types
+ * outside every group stay eligible and reach the missing-handler path.
  */
 async function resolveOutboxHandlers(
   groups: readonly LazyOutboxHandlerGroup[],
   readyEventTypes: string[]
-): Promise<{ handlers: OutboxHandlerRegistry; eligibleTypes: string[] }> {
+): Promise<{
+  handlers: OutboxHandlerRegistry
+  eligibleTypes: string[]
+  unloadedEventTypes: string[]
+}> {
   const unavailableEventTypes = new Set<string>()
   const ready = new Set(readyEventTypes)
   const dueGroups = groups.filter((group) => group.events.some((eventType) => ready.has(eventType)))
@@ -547,6 +553,7 @@ async function resolveOutboxHandlers(
   return {
     handlers,
     eligibleTypes: readyEventTypes.filter((eventType) => !unavailableEventTypes.has(eventType)),
+    unloadedEventTypes: readyEventTypes.filter((eventType) => unavailableEventTypes.has(eventType)),
   }
 }
 

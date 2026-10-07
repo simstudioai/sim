@@ -71,5 +71,11 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     prunedEvents,
     durationMs: Date.now() - startedAt,
   })
+  /** Fail the run so a broken handler module stays as visible as the crash its static import caused. */
+  if (result.unloadedEventTypes.length > 0) {
+    throw new Error(
+      `Outbox handler modules failed to load; left pending: ${result.unloadedEventTypes.join(', ')}`
+    )
+  }
   return output
 }

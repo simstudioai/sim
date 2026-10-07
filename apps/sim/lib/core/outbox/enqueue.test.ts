@@ -27,7 +27,14 @@ const IDLE_MINUTE = new Date('2026-09-16T12:34:45Z')
 const MAINTENANCE_MINUTE = new Date('2026-09-16T12:35:10Z')
 
 const INLINE_OUTPUT = {
-  result: { processed: 0, retried: 0, deadLettered: 0, leaseLost: 0, reaped: 0 },
+  result: {
+    processed: 0,
+    retried: 0,
+    deadLettered: 0,
+    leaseLost: 0,
+    reaped: 0,
+    unloadedEventTypes: [],
+  },
   recoveredDocuments: 0,
   reapedBackgroundWork: 0,
 }
@@ -84,7 +91,14 @@ describe('outbox processor enqueue', () => {
   it('preserves synchronous processing for self-hosted deployments without Trigger', async () => {
     setEnvFlags({ isTriggerDevEnabled: false })
     const output = {
-      result: { processed: 4, retried: 0, deadLettered: 0, leaseLost: 0, reaped: 0 },
+      result: {
+        processed: 4,
+        retried: 0,
+        deadLettered: 0,
+        leaseLost: 0,
+        reaped: 0,
+        unloadedEventTypes: [],
+      },
       recoveredDocuments: 2,
       reapedBackgroundWork: 1,
     }

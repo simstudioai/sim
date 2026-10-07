@@ -24,7 +24,14 @@ import { runOutboxProcessor } from '@/lib/core/outbox/processor'
 const mockProcessOutboxEvents = outboxServiceMockFns.mockProcessOutboxEvents
 
 describe('outbox processor recovery', () => {
-  const result = { processed: 5, retried: 1, deadLettered: 0, leaseLost: 0, reaped: 0 }
+  const result = {
+    processed: 5,
+    retried: 1,
+    deadLettered: 0,
+    leaseLost: 0,
+    reaped: 0,
+    unloadedEventTypes: [],
+  }
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -85,5 +92,19 @@ describe('outbox processor recovery', () => {
     await expect(runOutboxProcessor()).rejects.toThrow('database unavailable')
     expect(mocks.recover).not.toHaveBeenCalled()
     expect(mocks.reap).not.toHaveBeenCalled()
+  })
+
+  it('finishes maintenance, then fails the run naming event types whose handler module failed to load', async () => {
+    mockProcessOutboxEvents.mockResolvedValueOnce({
+      ...result,
+      unloadedEventTypes: ['test.broken', 'test.broken-too'],
+    })
+
+    await expect(runOutboxProcessor()).rejects.toThrow(
+      'Outbox handler modules failed to load; left pending: test.broken, test.broken-too'
+    )
+    expect(mocks.recover).toHaveBeenCalledOnce()
+    expect(mocks.reap).toHaveBeenCalledOnce()
+    expect(mocks.prune).toHaveBeenCalledOnce()
   })
 })

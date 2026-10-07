@@ -637,6 +637,7 @@ describe('processOutboxEvents — lazy handler groups', () => {
       processed: 1,
       retried: 0,
       deadLettered: 0,
+      unloadedEventTypes: ['test.flaky'],
     })
     expect(healthyHandler).toHaveBeenCalledOnce()
     expect(claimedEventTypes()).not.toContain('test.flaky')
@@ -646,7 +647,10 @@ describe('processOutboxEvents — lazy handler groups', () => {
     queuePendingEvents([makePendingRow({ eventType: 'test.flaky' })])
     holdLease()
 
-    expect(await processOutboxEvents(groups)).toMatchObject({ processed: 1 })
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      unloadedEventTypes: [],
+    })
     expect(recoveredHandler).toHaveBeenCalledOnce()
   })
 
