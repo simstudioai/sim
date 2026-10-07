@@ -143,7 +143,6 @@ export async function enqueueQuickBooksWebhookIngress(
 export const quickBooksWebhookIngressTask = task({
   id: 'quickbooks-webhook-ingress',
   machine: 'small-1x',
-  maxDuration: 300,
   retry: {
     maxAttempts: QUICKBOOKS_WEBHOOK_INGRESS_MAX_ATTEMPTS,
     factor: 2,

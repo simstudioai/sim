@@ -188,12 +188,7 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
 
 export const cleanupFileVersionsTask = task({
   id: 'cleanup-file-versions',
-  /**
-   * Each pass works in bounded batches of version rows, so peak memory stays well under
-   * `small-2x` (1 GB) and does not grow with backlog.
-   */
-  machine: 'small-2x',
-  maxDuration: 600,
+  machine: 'large-1x',
   queue: retentionCleanupQueue,
   retry: { maxAttempts: 1 },
   run: runCleanupFileVersions,
