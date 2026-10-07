@@ -2746,6 +2746,124 @@ describe('useChat remount send recovery', () => {
       }
     })
 
+    /**
+     * A retried send may already be a turn on the server, whichever path sent it.
+     * Retrying must keep it uneditable, under the id the server deduplicates.
+     */
+    it.each(['a direct send', 'a queued dispatch'] as const)(
+      'keeps %s retried while online uneditable under one id',
+      async (path) => {
+        const history = idleHistory(`chat-retried-online-${path.replace(/ /g, '-')}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        if (path === 'a queued dispatch') {
+          useMothershipQueueStore
+            .getState()
+            .enqueue(history.id, { id: 'queued-retried', content: 'Retried while online' })
+        }
+        const { getResult } = renderUseChatInChat(history.id, history)
+        if (path === 'a direct send') {
+          await act(async () => {
+            await getResult().sendMessage('Retried while online')
+          })
+        }
+        await waitFor(() => state.postBodies.length >= 2, 5000)
+        await waitFor(() => !getResult().isSending)
+
+        const [queued] = useMothershipQueueStore.getState().queues[history.id] ?? []
+        expect(queued).toMatchObject({ content: 'Retried while online', admissionUnknown: true })
+        useMothershipQueueStore.getState().replaceAt(history.id, queued.id, {
+          content: 'Edited after the retry',
+          fileAttachments: undefined,
+          contexts: undefined,
+          requestMode: undefined,
+          assistantSearch: undefined,
+          assistantSearchLevel: undefined,
+        })
+        let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
+        await act(async () => {
+          edited = getResult().editQueuedMessage(queued.id)
+        })
+
+        expect(edited).toBeUndefined()
+        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
+          'Retried while online'
+        )
+        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      }
+    )
+
+    /**
+     * Only the POST failing at the network layer is retried on a timer. An error
+     * before it goes out (here, reading the desktop's capabilities) would fail the
+     * same way each time, so the message is held for the user, as before.
+     */
+    it.each([
+      ['an Error', Error],
+      ['a TypeError', TypeError],
+    ] as const)(
+      'holds a send whose preparation threw %s instead of retrying it',
+      async (_kind, ErrorType) => {
+        const history = idleHistory(`chat-prepare-failed-${ErrorType.name}`)
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        libDesktopMockFns.mockGetDesktopChatCapabilities.mockRejectedValueOnce(
+          new ErrorType('preferences unavailable')
+        )
+        const { getResult } = renderUseChatInChat(history.id, history)
+
+        await act(async () => {
+          await getResult().sendMessage('Never prepared')
+        })
+        await act(async () => {
+          await sleep(2500)
+        })
+
+        expect(libDesktopMockFns.mockGetDesktopChatCapabilities).toHaveBeenCalledTimes(1)
+        expect(state.postBodies).toHaveLength(0)
+        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
+          content: 'Never prepared',
+          retryRequired: true,
+          heldUntilOnline: true,
+        })
+      }
+    )
+
+    /**
+     * The POST was admitted but its answer lost, and Sim stayed unreachable past
+     * the server's claim on the id, which then no longer deduplicates a retry.
+     * The chat's history shows the turn, so the automatic retry is dropped.
+     */
+    it('drops an automatic retry of a send the chat history shows was accepted', async () => {
+      const history = idleHistory('chat-admitted-answer-lost')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend({ browserStaysOnline: true })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        await getResult().sendMessage('Admitted, answer lost')
+      })
+      const admittedId = state.postBodies[0].userMessageId
+      network.online = true
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: {
+            ...history,
+            messages: [
+              { id: admittedId, role: 'user', content: 'Admitted, answer lost', timestamp: '' },
+              { id: 'its-answer', role: 'assistant', content: 'Done.', timestamp: '' },
+            ],
+          },
+        })
+      )
+
+      await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
+      await act(async () => {
+        await sleep(1500)
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(network.acceptedPosts).toBe(0)
+    })
+
     it('keeps a queued follow-up whose dispatch could not reach the server', async () => {
       const history = idleHistory('chat-offline-queue')
       mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
