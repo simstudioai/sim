@@ -1592,7 +1592,7 @@
     "apps/sim/lib/mothership/agent-cli/workbench-file-provenance.integration.ts": 4,
     "apps/sim/lib/mothership/agent-cli/workbench-file-provenance.ts": 2,
     "apps/sim/lib/mothership/assistant/tool-policy.test.ts": 2,
-    "apps/sim/lib/mothership/async-runs/orphaned-runs.integration.ts": 11,
+    "apps/sim/lib/mothership/async-runs/orphaned-runs.integration.ts": 10,
     "apps/sim/lib/mothership/auth/internal.ts": 1,
     "apps/sim/lib/mothership/billing/service-store.integration.ts": 3,
     "apps/sim/lib/mothership/chat/application/context.ts": 1,
