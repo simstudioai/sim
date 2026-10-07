@@ -623,9 +623,8 @@ export async function guardBatch(
 
 /**
  * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
- * chunk in its own short transaction. One statement per transaction bounds how long the
- * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
- * held it for the entire page, starving concurrent inserts and overrunning `statement_timeout`),
+ * chunk in its own short transaction. One statement per transaction keeps each transaction short
+ * (a page-wide transaction held its row locks for the entire page and overran `statement_timeout`),
  * and a mid-page failure loses at most one uncommitted batch — the keyset walker (or a task
  * retry) re-walks whatever remains. Skips legacy position compaction: under fractional ordering
  * it's unnecessary, and in the legacy path `position` gaps are harmless — rows still order by

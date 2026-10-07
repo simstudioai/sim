@@ -6,8 +6,8 @@ import postgres from 'postgres'
  * row-count triggers that versioned migrations install on staging/prod — so every
  * table's `row_count` sat at 0 forever there (found live: the agent had to count rows
  * directly because the tables list lied). This applies the CURRENT trigger definitions
- * (verbatim from migrations 0224/0241/0289) idempotently, then reconciles the stored
- * counts with reality once. Runs in the dev migrate lane after `db:push`.
+ * (verbatim from migrations 0224 and 0402: each statement logs to `user_table_row_changes`)
+ * idempotently, then reconciles the stored counts so stored + unfolded log matches reality.
  */
 const logger = createLogger('DevTableTriggers')
 
@@ -27,15 +27,8 @@ const TRIGGER_SQL = `
 CREATE OR REPLACE FUNCTION increment_user_table_row_count_stmt()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE user_table_definitions d
-    SET row_count = d.row_count + c.n,
-        updated_at = timezone('UTC', now())
-    FROM (
-        SELECT table_id, count(*)::int AS n
-        FROM new_rows
-        GROUP BY table_id
-    ) c
-    WHERE d.id = c.table_id;
+    INSERT INTO user_table_row_changes (table_id, row_delta)
+    SELECT table_id, count(*)::integer FROM new_rows GROUP BY table_id;
 
     RETURN NULL;
 END;
@@ -44,15 +37,10 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION decrement_user_table_row_count_stmt()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE user_table_definitions d
-    SET row_count = GREATEST(d.row_count - c.n, 0),
-        updated_at = timezone('UTC', now())
-    FROM (
-        SELECT table_id, count(*)::int AS n
-        FROM old_rows
-        GROUP BY table_id
-    ) c
-    WHERE d.id = c.table_id;
+    INSERT INTO user_table_row_changes (table_id, row_delta)
+    SELECT o.table_id, -count(*)::integer FROM old_rows o
+    WHERE EXISTS (SELECT 1 FROM user_table_definitions d WHERE d.id = o.table_id)
+    GROUP BY o.table_id;
 
     RETURN NULL;
 END;
@@ -82,14 +70,15 @@ try {
   await sql.unsafe(TRIGGER_SQL)
   const reconciled = await sql`
     UPDATE user_table_definitions d
-    SET row_count = actual.n
+    SET row_count = actual.n - actual.tail
     FROM (
-      SELECT d2.id, count(r.id)::int AS n
+      SELECT d2.id,
+        (SELECT count(*) FROM user_table_rows r WHERE r.table_id = d2.id)::int AS n,
+        (SELECT coalesce(sum(c.row_delta), 0) FROM user_table_row_changes c
+          WHERE c.table_id = d2.id)::int AS tail
       FROM user_table_definitions d2
-      LEFT JOIN user_table_rows r ON r.table_id = d2.id
-      GROUP BY d2.id
     ) actual
-    WHERE actual.id = d.id AND d.row_count IS DISTINCT FROM actual.n
+    WHERE actual.id = d.id AND d.row_count IS DISTINCT FROM actual.n - actual.tail
     RETURNING d.id
   `
   logger.info('Table row-count triggers applied; counts reconciled', {

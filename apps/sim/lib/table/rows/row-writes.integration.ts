@@ -26,11 +26,13 @@ import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/servi
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importReplaceRows } from '@/lib/table/import-data'
 import type { DbTransaction } from '@/lib/table/planner'
+import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
 import {
   batchInsertRows,
   batchUpdateRows,
+  deleteRowsByFilter,
   insertRow,
   replaceTableRows,
   updateRow,
@@ -84,8 +86,9 @@ async function seedRows(
 }
 
 async function rowsVersion(tableId: string): Promise<number> {
-  const [row] = await control`SELECT rows_version FROM user_table_definitions WHERE id = ${tableId}`
-  return Number(row.rows_version)
+  const version = await readCurrentRowsVersion(tableId)
+  if (version === null) throw new Error('Fixture table missing')
+  return version
 }
 
 const textColumns = (...ids: string[]): ColumnDefinition[] =>
@@ -1379,6 +1382,143 @@ describe('table row writes against real PostgreSQL', () => {
         )
       ).rejects.toThrow(/must be unique/)
       expect(await countRows(table.id, 'email-dup')).toBe(1)
+    })
+  })
+
+  describe.skipIf(!migrated)('a held definition row', () => {
+    it('lets every row write path commit while another session holds the definition row', async () => {
+      const table = await createTable([
+        { id: 'key', name: 'key', type: 'string', unique: true },
+        { id: 'name', name: 'name', type: 'string' },
+      ])
+      const versionBefore = await rowsVersion(table.id)
+      const rowIdByKey = async (key: string) => {
+        const [row] = await control<{ id: string }[]>`SELECT id FROM user_table_rows
+          WHERE table_id = ${table.id} AND data->>'key' = ${key}`
+        return row.id
+      }
+      const writes: Array<[string, () => Promise<unknown>]> = [
+        [
+          'insert',
+          () =>
+            insertRow(
+              {
+                tableId: table.id,
+                workspaceId,
+                data: { key: 'a', name: 'a' },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'held-insert'
+            ),
+        ],
+        [
+          'batch insert',
+          () =>
+            batchInsertRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                rows: [
+                  { key: 'b', name: 'b' },
+                  { key: 'c', name: 'c' },
+                ],
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'held-batch-insert'
+            ),
+        ],
+        [
+          'upsert',
+          () =>
+            upsertRow(
+              {
+                tableId: table.id,
+                workspaceId,
+                data: { key: 'd', name: 'd' },
+                conflictTarget: 'key',
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'held-upsert'
+            ),
+        ],
+        [
+          'update by id',
+          async () =>
+            updateRow(
+              {
+                tableId: table.id,
+                rowId: await rowIdByKey('a'),
+                workspaceId,
+                data: { name: 'a2' },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'held-update'
+            ),
+        ],
+        [
+          'update by filter',
+          () =>
+            updateRowsByFilter(
+              table,
+              {
+                filter: { name: 'b' },
+                data: { name: 'b2' },
+                limit: 10,
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              'held-update-by-filter'
+            ),
+        ],
+        [
+          'delete by filter',
+          () => deleteRowsByFilter(table, { filter: { name: 'c' } }, 'held-delete-by-filter'),
+        ],
+        [
+          'replace',
+          () =>
+            replaceTableRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                rows: [{ key: 'x', name: 'x' }],
+                secretProvenance: undefined,
+              },
+              table,
+              'held-replace'
+            ),
+        ],
+      ]
+
+      const holder = await control.reserve()
+      const elapsedMs: Record<string, number> = {}
+      try {
+        await holder`BEGIN`
+        await holder`SELECT 1 FROM user_table_definitions WHERE id = ${table.id} FOR NO KEY UPDATE`
+        for (const [name, write] of writes) {
+          const started = Date.now()
+          await write()
+          elapsedMs[name] = Date.now() - started
+        }
+      } finally {
+        await holder`ROLLBACK`.catch(() => {})
+        holder.release()
+      }
+
+      for (const [name] of writes) expect(elapsedMs[name], name).toBeLessThan(2_000)
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id}`
+      expect(count).toBe(1)
+      expect((await getTableById(table.id))?.rowCount).toBe(count)
+      expect(await rowsVersion(table.id)).toBeGreaterThanOrEqual(versionBefore + writes.length)
     })
   })
 
