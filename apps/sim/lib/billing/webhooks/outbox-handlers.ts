@@ -14,6 +14,7 @@ import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   type CancelAtPeriodEndSyncPayload,
   cancelAtPeriodEndSyncIdempotencyKey,
+  readRecordedSyncValue,
   type SubscriptionSeatsSyncPayload,
 } from '@/lib/billing/webhooks/subscription-sync'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
@@ -100,20 +101,32 @@ async function getSubscriptionSeatSyncState(subscriptionId: string) {
   return row ?? null
 }
 
-async function readCancelAtPeriodEnd(subscriptionId: string): Promise<boolean | null> {
+/**
+ * The value this sync should push: the one recorded on its own event, re-read now, which every
+ * commit keeps current on each sync that can still run. The subscription row is not used for
+ * this, because the Stripe plugin can overwrite it with a stale webhook payload before the
+ * reconcile step restores it. An event enqueued before values were recorded falls back to the
+ * row. Null when the subscription no longer exists.
+ */
+async function readDesiredCancelAtPeriodEnd(
+  eventId: string,
+  subscriptionId: string
+): Promise<boolean | null> {
   const [row] = await db
     .select({ cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd })
     .from(subscriptionTable)
     .where(eq(subscriptionTable.id, subscriptionId))
     .limit(1)
-  return row ? Boolean(row.cancelAtPeriodEnd) : null
+  if (!row) return null
+  return (await readRecordedSyncValue(eventId))?.cancelAtPeriodEnd ?? Boolean(row.cancelAtPeriodEnd)
 }
 
 /**
- * Pushes the row's current value, never the payload's: racing events for one subscription each
- * converge on the last committed value. Stripe is read first and written only when it differs,
- * and the row is re-read after the write so a value committed while this event's request was in
- * flight is pushed too, even when an earlier event's request lands in Stripe after a newer one.
+ * Pushes the latest committed value (see `readDesiredCancelAtPeriodEnd`), never the claim-time
+ * payload: racing events for one subscription each converge on it. Stripe is read first and
+ * written only when it differs, and the value is re-read after the write so one committed while
+ * this event's request was in flight is pushed too, even when an earlier event's request lands
+ * in Stripe after a newer one.
  */
 const stripeSyncCancelAtPeriodEnd: OutboxHandler<CancelAtPeriodEndSyncPayload> = async (
   payload,
@@ -123,7 +136,7 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<CancelAtPeriodEndSyncPayload> =
   const stripe = requireStripeClient()
 
   for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
-    const desiredValue = await readCancelAtPeriodEnd(payload.subscriptionId)
+    const desiredValue = await readDesiredCancelAtPeriodEnd(ctx.eventId, payload.subscriptionId)
     if (desiredValue === null) {
       logger.warn('Subscription not found when syncing cancel_at_period_end', {
         eventId: ctx.eventId,
@@ -142,7 +155,7 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<CancelAtPeriodEndSyncPayload> =
       )
     }
 
-    const latestValue = await readCancelAtPeriodEnd(payload.subscriptionId)
+    const latestValue = await readDesiredCancelAtPeriodEnd(ctx.eventId, payload.subscriptionId)
     if (latestValue !== desiredValue) {
       logger.info('cancel_at_period_end changed during Stripe sync; retrying latest value', {
         eventId: ctx.eventId,
@@ -189,6 +202,10 @@ const stripeCancelSubscriptionImmediately: OutboxHandler<
   })
 }
 
+/**
+ * Pushes the seat count recorded on its own event, re-read each pass (falling back to the row
+ * for an event enqueued before values were recorded), for the same reason as the cancel sync.
+ */
 const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> = async (
   payload,
   ctx
@@ -231,7 +248,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
       return
     }
 
-    const desiredSeats = row.seats || 1
+    const desiredSeats = (await readRecordedSyncValue(ctx.eventId))?.seats ?? (row.seats || 1)
     const stripeSubscription = await stripe.subscriptions.retrieve(row.stripeSubscriptionId)
 
     if (!hasPaidSubscriptionStatus(stripeSubscription.status)) {
@@ -281,7 +298,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> =
     }
 
     const latest = await getSubscriptionSeatSyncState(payload.subscriptionId)
-    const latestSeats = latest?.seats || 1
+    const latestSeats = (await readRecordedSyncValue(ctx.eventId))?.seats ?? (latest?.seats || 1)
     if (latestSeats !== desiredSeats) {
       logger.info('Subscription seats changed during Stripe sync; retrying latest value', {
         eventId: ctx.eventId,

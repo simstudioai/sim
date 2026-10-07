@@ -117,25 +117,22 @@ interface CustomerUpdateParams {
  * `retrieve` returns current state, `update` applies params and emits the
  * `customer.subscription.updated` event Stripe would send (with `previous_attributes` and the
  * originating `request.idempotency_key`), and a reused idempotency key replays the first
- * response, or rejects when its parameters differ. A test can park the next update on a gate to
- * control the order requests land in, or make the next update apply and then fail on the
+ * response, or rejects when its parameters differ. A test can park the next request on a gate to
+ * control the order requests land in (a parked retrieve answers with the state it arrived to), or make the next update apply and then fail on the
  * client, as a dropped connection does.
  *
  * @example
  * ```ts
  * const stripe = createInMemoryStripe()
  * stripeClientMock.requireStripeClient.mockReturnValue(stripe.client)
- * const gate = stripe.holdNextUpdate('subscriptions')
+ * const gate = stripe.holdNextRequest('subscriptions.update')
  * ```
  */
 export function createInMemoryStripe() {
   const subscriptions = new Map<string, InMemoryStripeSubscription>()
   const customers = new Map<string, InMemoryStripeCustomer>()
   const idempotentResults = new Map<string, { fingerprint: string; result: unknown }>()
-  const gates = new Map<
-    UpdatableResource,
-    Array<{ reached: () => void; released: Promise<void> }>
-  >()
+  const gates = new Map<StripeOperation, Array<{ reached: () => void; released: Promise<void> }>>()
   const failuresAfterApply = new Map<UpdatableResource, Error[]>()
   const failuresOnArrival = new Map<StripeOperation, Error[]>()
   const events: Stripe.Event[] = []
@@ -211,6 +208,21 @@ export function createInMemoryStripe() {
     if (failure) throw failure
   }
 
+  async function waitAtGate(operation: StripeOperation) {
+    const gate = gates.get(operation)?.shift()
+    if (gate) {
+      gate.reached()
+      await gate.released
+    }
+  }
+
+  async function retrieve<T>(operation: StripeOperation, read: () => T): Promise<T> {
+    rejectIfFailing(operation)
+    const snapshot = structuredClone(read())
+    await waitAtGate(operation)
+    return snapshot
+  }
+
   async function update<T>(
     resource: UpdatableResource,
     id: string,
@@ -219,11 +231,7 @@ export function createInMemoryStripe() {
     apply: () => T
   ): Promise<T> {
     rejectIfFailing(`${resource}.update`)
-    const gate = gates.get(resource)?.shift()
-    if (gate) {
-      gate.reached()
-      await gate.released
-    }
+    await waitAtGate(`${resource}.update`)
 
     const idempotencyKey = options?.idempotencyKey
     const fingerprint = JSON.stringify([resource, id, params])
@@ -249,10 +257,7 @@ export function createInMemoryStripe() {
 
   const client = {
     subscriptions: {
-      retrieve: async (id: string) => {
-        rejectIfFailing('subscriptions.retrieve')
-        return structuredClone(requireSubscription(id))
-      },
+      retrieve: (id: string) => retrieve('subscriptions.retrieve', () => requireSubscription(id)),
       update: (
         id: string,
         params: SubscriptionUpdateParams,
@@ -263,10 +268,7 @@ export function createInMemoryStripe() {
         ),
     },
     customers: {
-      retrieve: async (id: string) => {
-        rejectIfFailing('customers.retrieve')
-        return structuredClone(requireCustomer(id))
-      },
+      retrieve: (id: string) => retrieve('customers.retrieve', () => requireCustomer(id)),
       update: (id: string, params: CustomerUpdateParams, options?: { idempotencyKey?: string }) =>
         update('customers', id, params, options, () => {
           const next = { ...requireCustomer(id), ...params }
@@ -327,8 +329,8 @@ export function createInMemoryStripe() {
     updateOutsideSim(id: string, params: SubscriptionUpdateParams) {
       return applySubscriptionUpdate(id, params, null)
     },
-    /** Parks the next update to `resource` until the returned gate is released. */
-    holdNextUpdate(resource: UpdatableResource): InMemoryStripeRequestGate {
+    /** Parks the next call to `operation` until the returned gate is released. */
+    holdNextRequest(operation: StripeOperation): InMemoryStripeRequestGate {
       let reached: () => void = () => {}
       const arrival = new Promise<void>((resolve) => {
         reached = resolve
@@ -337,7 +339,7 @@ export function createInMemoryStripe() {
       const released = new Promise<void>((resolve) => {
         release = resolve
       })
-      gates.set(resource, [...(gates.get(resource) ?? []), { reached, released }])
+      gates.set(operation, [...(gates.get(operation) ?? []), { reached, released }])
       return { reached: arrival, release }
     },
     /** Makes the next update to `resource` apply in Stripe, then fail on the client. */

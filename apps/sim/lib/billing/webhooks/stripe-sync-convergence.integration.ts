@@ -17,6 +17,7 @@ import {
 } from '@sim/testing/mocks/stripe.mock'
 import { generateId } from '@sim/utils/id'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
+import { createAuthMiddleware } from 'better-auth/api'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { NextRequest } from 'next/server'
@@ -56,9 +57,9 @@ import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-manag
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import {
-  commitCustomerRestoredSubscription,
   enqueueCancelAtPeriodEndSync,
   reconcileSubscriptionSyncFromStripe,
+  recordCustomerRestoreAfterHook,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
 import { POST as requeueOutboxEvent } from '@/app/api/v1/admin/outbox/[id]/requeue/route'
@@ -78,15 +79,21 @@ const testDatabase = drizzle(connection, { schema })
 
 let stripe: InMemoryStripe
 
+/** Runs between the plugin's write and Sim's reconcile step, to place work in that window. */
+let beforeReconcile: (() => Promise<void>) | undefined
+
 /**
- * Sim's Stripe plugin callbacks from `lib/auth/auth.ts`, reduced to the parts that touch the
- * synced fields: the seat sync in `onSubscriptionUpdate` and the reconcile step in `onEvent`.
+ * Sim's Better Auth Stripe wiring from `lib/auth/auth.ts`, reduced to the parts that touch the
+ * synced fields: the seat sync in `onSubscriptionUpdate`, the reconcile step in `onEvent`, and
+ * the restore step in the `after` hook.
  */
-function createWebhookEndpoint() {
-  const auth = betterAuth({
+function createTestAuth() {
+  return betterAuth({
     baseURL: 'http://localhost:3000',
     secret: 'isolated-integration-fixture-secret-not-a-real-credential',
     database: (options: BetterAuthOptions) => createSimAuthAdapter(options, testDatabase),
+    emailAndPassword: { enabled: true },
+    hooks: { after: createAuthMiddleware(recordCustomerRestoreAfterHook) },
     plugins: [
       stripePlugin({
         stripeClient: stripe.client,
@@ -104,24 +111,27 @@ function createWebhookEndpoint() {
             )
           },
         },
-        onEvent: reconcileSubscriptionSyncFromStripe,
+        onEvent: async (event) => {
+          await beforeReconcile?.()
+          await reconcileSubscriptionSyncFromStripe(event)
+        },
       }),
     ],
   })
-
-  return async function deliver(event: Stripe.Event) {
-    const response = await auth.handler(
-      new Request('http://localhost:3000/api/auth/stripe/webhook', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'stripe-signature': 't=1,v1=fixture' },
-        body: JSON.stringify(event),
-      })
-    )
-    expect(response.status).toBe(200)
-  }
 }
 
-let deliver: ReturnType<typeof createWebhookEndpoint>
+let auth: ReturnType<typeof createTestAuth>
+
+async function deliver(event: Stripe.Event) {
+  const response = await auth.handler(
+    new Request('http://localhost:3000/api/auth/stripe/webhook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'stripe-signature': 't=1,v1=fixture' },
+      body: JSON.stringify(event),
+    })
+  )
+  expect(response.status).toBe(200)
+}
 
 beforeAll(async () => {
   await connection`CREATE SCHEMA ${connection(schemaName)}`
@@ -134,6 +144,9 @@ beforeAll(async () => {
     'workspace',
     'permissions',
     'audit_log',
+    'session',
+    'account',
+    'verification',
   ]) {
     await connection.unsafe(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`)
   }
@@ -143,7 +156,8 @@ beforeAll(async () => {
 beforeEach(() => {
   stripe = createInMemoryStripe()
   stripeClientMock.requireStripeClient.mockReturnValue(stripe.client)
-  deliver = createWebhookEndpoint()
+  beforeReconcile = undefined
+  auth = createTestAuth()
 })
 
 afterAll(async () => {
@@ -199,8 +213,8 @@ async function addMember(organizationId: string, userId: string, role = 'member'
 }
 
 /** A user on personal Pro, synced with Stripe, who belongs to a paid Team organization. */
-async function createProUserInPaidOrganization() {
-  const proUser = await createUser('pro')
+async function createProUserInPaidOrganization(existingUserId?: string) {
+  const proUser = existingUserId ? { id: existingUserId } : await createUser('pro')
   const subscriptionId = generateId()
   const stripeSubscriptionId = `sub_${subscriptionId}`
   await testDatabase.insert(subscription).values({
@@ -276,6 +290,45 @@ async function deliverUnrelatedUpdate(stripeSubscriptionId: string) {
   await deliver(stripe.events.at(-1) as Stripe.Event)
 }
 
+async function signUp(label: string) {
+  const email = `${label}-${generateId()}@example.com`
+  const response = await auth.api.signUpEmail({
+    body: { email, password: 'integration-fixture-password', name: label },
+    asResponse: true,
+  })
+  expect(response.status).toBe(200)
+  const { user: created } = (await response.json()) as { user: { id: string } }
+  const cookie = response.headers
+    .getSetCookie()
+    .map((header) => header.split(';')[0])
+    .join('; ')
+  return { userId: created.id, cookie }
+}
+
+function restoreSubscription(cookie: string) {
+  return auth.handler(
+    new Request('http://localhost:3000/api/auth/subscription/restore', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: 'http://localhost:3000' },
+      body: '{}',
+    })
+  )
+}
+
+async function cancelValuesOfRetryableSyncs(subscriptionId: string) {
+  const rows = await testDatabase
+    .select({ payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END),
+        sql`${outboxEvent.status} in ('pending', 'processing', 'dead_letter')`,
+        sql`${outboxEvent.payload} ->> 'subscriptionId' = ${subscriptionId}`
+      )
+    )
+  return rows.map((row) => (row.payload as { cancelAtPeriodEnd?: boolean }).cancelAtPeriodEnd)
+}
+
 async function storedSubscription(subscriptionId: string) {
   const [row] = await testDatabase
     .select({ cancelAtPeriodEnd: subscription.cancelAtPeriodEnd, seats: subscription.seats })
@@ -306,7 +359,7 @@ describe('cancel_at_period_end sync', () => {
       pro.subscriptionId
     )
 
-    const gate = stripe.holdNextUpdate('subscriptions')
+    const gate = stripe.holdNextRequest('subscriptions.update')
     const pausing = processEvent(pauseSync)
     await gate.reached
 
@@ -336,13 +389,13 @@ describe('cancel_at_period_end sync', () => {
       pro.subscriptionId
     )
 
-    const stalePush = stripe.holdNextUpdate('subscriptions')
+    const stalePush = stripe.holdNextRequest('subscriptions.update')
     const pausing = processEvent(pauseSync)
     await stalePush.reached
     await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
     await restoreUserProSubscription(pro.userId)
 
-    const correctingPush = stripe.holdNextUpdate('subscriptions')
+    const correctingPush = stripe.holdNextRequest('subscriptions.update')
     stalePush.release()
     await correctingPush.reached
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
@@ -473,7 +526,7 @@ describe('cancel_at_period_end sync', () => {
       OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
       pro.subscriptionId
     )
-    const slowPush = stripe.holdNextUpdate('subscriptions')
+    const slowPush = stripe.holdNextRequest('subscriptions.update')
     const pausing = processEvent(pauseSync)
     await slowPush.reached
 
@@ -547,6 +600,61 @@ describe('cancel_at_period_end sync', () => {
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
   })
 
+  it('pushes the committed value when its sync runs between the plugin write and the reconcile', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    beforeReconcile = async () => {
+      beforeReconcile = undefined
+      await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    }
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+  })
+
+  it('keeps a value Sim committed after the reconcile read Stripe', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    const liveRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const delivering = deliver(stripe.events.at(-1) as Stripe.Event)
+    await liveRead.reached
+    await testDatabase.transaction(async (tx) => {
+      await tx
+        .update(subscription)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(subscription.id, pro.subscriptionId))
+      await enqueueCancelAtPeriodEndSync(tx, {
+        stripeSubscriptionId: pro.stripeSubscriptionId,
+        subscriptionId: pro.subscriptionId,
+        cancelAtPeriodEnd: true,
+        reason: 'admin-cancel-at-period-end',
+      })
+    })
+    liveRead.release()
+    await delivering
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    const adminSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(adminSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+  })
+
   it('does not revive an older value when a retry path resets its sync without re-committing', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
@@ -601,8 +709,9 @@ describe('cancel_at_period_end sync', () => {
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
   })
 
-  it("keeps a customer's restore made while an earlier sync is retrying", async () => {
-    const pro = await createProUserInPaidOrganization()
+  it("records a customer's restore through the real endpoint while an earlier sync is retrying", async () => {
+    const customer = await signUp('restorer')
+    const pro = await createProUserInPaidOrganization(customer.userId)
     await pauseProSubscriptionForOrgCoverage(pro.userId)
     const pauseSync = await latestOutboxEventId(
       OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
@@ -611,15 +720,12 @@ describe('cancel_at_period_end sync', () => {
     stripe.failNextUpdateAfterApplying('subscriptions')
     await expect(processEvent(pauseSync)).resolves.toBe('pending')
 
-    const restored = await stripe.client.subscriptions.update(pro.stripeSubscriptionId, {
-      cancel_at_period_end: false,
-    })
+    expect((await restoreSubscription(customer.cookie)).status).toBe(200)
     const restoreEvent = stripe.events.at(-1) as Stripe.Event
-    await testDatabase
-      .update(subscription)
-      .set({ cancelAtPeriodEnd: false, cancelAt: null, canceledAt: null })
-      .where(eq(subscription.id, pro.subscriptionId))
-    await commitCustomerRestoredSubscription(restored)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(new Set(await cancelValuesOfRetryableSyncs(pro.subscriptionId))).toEqual(
+      new Set([false])
+    )
 
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
     await makeDue(pauseSync)
@@ -628,6 +734,15 @@ describe('cancel_at_period_end sync', () => {
 
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
+  it('records nothing when the restore endpoint refuses the request', async () => {
+    const customer = await signUp('not-cancelling')
+    const pro = await createProUserInPaidOrganization(customer.userId)
+
+    expect((await restoreSubscription(customer.cookie)).status).toBe(400)
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    expect(await cancelValuesOfRetryableSyncs(pro.subscriptionId)).toEqual([])
   })
 })
 
@@ -802,7 +917,7 @@ describe('customer contact sync', () => {
     }
 
     const firstSync = await transferOwnership(first.id, second.id)
-    const gate = stripe.holdNextUpdate('customers')
+    const gate = stripe.holdNextRequest('customers.update')
     const firstSyncRun = processEvent(firstSync)
     await gate.reached
 
@@ -840,6 +955,26 @@ describe('Team seat sync', () => {
     await expect(processEvent(seatSync)).resolves.toBe('completed')
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
   })
+  it('pushes the committed seats when its sync runs between the plugin write and the reconcile', async () => {
+    const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
+    const org = await createOrganizationWithPlan('team', 1)
+    await addMember(org.organizationId, owner.id, 'owner')
+    await addMember(org.organizationId, joiner.id)
+    await reconcileOrganizationSeats({ organizationId: org.organizationId, reason: 'member-added' })
+    const seatSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+      org.subscriptionId
+    )
+
+    beforeReconcile = async () => {
+      beforeReconcile = undefined
+      await expect(processEvent(seatSync)).resolves.toBe('completed')
+    }
+    await deliverUnrelatedUpdate(org.stripeSubscriptionId)
+
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
+  })
+
   it('does not revive an older seat count when its dead-lettered sync is requeued', async () => {
     const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
     const org = await createOrganizationWithPlan('team', 1)

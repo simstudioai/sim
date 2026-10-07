@@ -406,6 +406,16 @@ export async function findDeadLetteredEvents(
     .limit(DEAD_LETTER_SCAN_LIMIT)
 }
 
+/** The event's current payload, read fresh rather than from the copy its handler was claimed with. */
+export async function readOutboxEventPayload(eventId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, eventId))
+    .limit(1)
+  return row?.payload
+}
+
 /** Statuses of an event whose side effect may still run. */
 export const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
 /**

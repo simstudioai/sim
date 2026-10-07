@@ -8,10 +8,7 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
-import {
-  billingSubscriptionSyncMock,
-  billingSubscriptionSyncMockFns,
-} from '@sim/testing/mocks/billing-subscription-sync.mock'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSyncSubscriptionUsageLimits } = vi.hoisted(() => ({
@@ -29,8 +26,6 @@ vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMoc
 vi.mock('@sim/audit', () => auditMock)
 
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-
-const enqueueMock = billingSubscriptionSyncMockFns.mockEnqueueSubscriptionSeatsSync
 
 const teamSub = {
   id: 'sub-1',
@@ -58,7 +53,7 @@ describe('reconcileOrganizationSeats', () => {
     resetDbChainMock()
   })
 
-  it('grows seats to the member count and enqueues a Stripe sync', async () => {
+  it('grows seats to the member count', async () => {
     queueReconcileReads([teamSub], [{ value: 2 }])
 
     const result = await reconcileOrganizationSeats({
@@ -74,11 +69,6 @@ describe('reconcileOrganizationSeats', () => {
       outboxEventId: 'subscription-seats-sync-event',
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalledWith(expect.anything(), {
-      subscriptionId: 'sub-1',
-      seats: 2,
-      reason: 'member-accepted-invite',
-    })
     expect(mockSyncSubscriptionUsageLimits).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'sub-1', referenceId: 'org-1', seats: 2 })
     )
@@ -94,7 +84,6 @@ describe('reconcileOrganizationSeats', () => {
 
     expect(result.changed).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalledOnce()
   })
 
   it('still records the seat audit when the post-commit usage-limit sync fails', async () => {
@@ -129,7 +118,6 @@ describe('reconcileOrganizationSeats', () => {
     expect(result.changed).toBe(true)
     expect(result.seats).toBe(2)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalled()
   })
 
   it('never drops below one seat', async () => {

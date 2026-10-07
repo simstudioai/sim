@@ -104,8 +104,8 @@ import {
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
 import {
-  commitCustomerRestoredSubscription,
   reconcileSubscriptionSyncFromStripe,
+  recordCustomerRestoreAfterHook,
 } from '@/lib/billing/webhooks/subscription-sync'
 import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
@@ -1104,15 +1104,7 @@ export const auth = betterAuth({
       return
     }),
     after: createAuthMiddleware(async (ctx) => {
-      if (isBillingEnabled && ctx.path === '/subscription/restore') {
-        try {
-          await commitCustomerRestoredSubscription(ctx.context.returned)
-        } catch (error) {
-          logger.error('Failed to record a restored subscription as the committed value', {
-            error,
-          })
-        }
-      }
+      if (isBillingEnabled) await recordCustomerRestoreAfterHook(ctx)
 
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const checkoutContext = ctx as typeof ctx & {

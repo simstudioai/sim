@@ -30,7 +30,8 @@ export const billingSubscriptionSyncMockFns = {
     (eventId: string) => `outbox-sync-cancel-at-period-end:${eventId}:key`
   ),
   mockReconcileSubscriptionSyncFromStripe: vi.fn(async () => undefined),
-  mockCommitCustomerRestoredSubscription: vi.fn(async () => undefined),
+  mockRecordCustomerRestoreAfterHook: vi.fn(async () => undefined),
+  mockReadRecordedSyncValue: vi.fn(async () => undefined),
 }
 
 /**
@@ -52,6 +53,6 @@ export const billingSubscriptionSyncMock = {
     billingSubscriptionSyncMockFns.mockCancelAtPeriodEndSyncIdempotencyKey,
   reconcileSubscriptionSyncFromStripe:
     billingSubscriptionSyncMockFns.mockReconcileSubscriptionSyncFromStripe,
-  commitCustomerRestoredSubscription:
-    billingSubscriptionSyncMockFns.mockCommitCustomerRestoredSubscription,
+  recordCustomerRestoreAfterHook: billingSubscriptionSyncMockFns.mockRecordCustomerRestoreAfterHook,
+  readRecordedSyncValue: billingSubscriptionSyncMockFns.mockReadRecordedSyncValue,
 }
