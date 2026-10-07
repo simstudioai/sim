@@ -5235,7 +5235,7 @@ export function useChat(
     const activeChatKey = chatKeyRef.current
     const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
     const msg = queue.find((m) => m.id === id)
-    if (!msg) return undefined
+    if (!msg || msg.admissionUnknown) return undefined
     // Evict any sessionStorage handoff — a failed prior dispatch may have left
     // a pre-edit content snapshot that the recovery effect would otherwise replay.
     clearQueuedSendHandoffState(id)
@@ -5352,6 +5352,7 @@ export function useChat(
             id: generateId(),
             content: send.content,
             resumeUserMessageId: send.userMessageId,
+            admissionUnknown: true,
             ...(send.fileAttachments ? { fileAttachments: send.fileAttachments } : {}),
             ...(send.contexts ? { contexts: send.contexts } : {}),
             ...(send.requestMode ? { requestMode: send.requestMode } : {}),

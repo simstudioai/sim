@@ -34,6 +34,12 @@ export interface QueuedMessage {
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
+  /**
+   * A first message withdrawn before the server answered. The server may
+   * already hold it as sent, so it goes out exactly as written, under its
+   * original id, and cannot be edited into a different message.
+   */
+  admissionUnknown?: boolean
 }
 
 export const ToolCallStatus = {
