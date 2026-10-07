@@ -411,22 +411,38 @@ export class TerminalRegistry {
   }
 
   /**
+   * Stops what a call's `run` handed back as still going once Sim is done with the call without
+   * its result reaching the model: a plain shell's command, or a tmux run, this process's or a
+   * previous one's. A run recorded as handed back is the model's, and is left going.
+   */
+  async stopUndeliveredRun(callId: string): Promise<void> {
+    await Promise.allSettled(
+      [...this.entries.values()].map((entry) => entry.service.stopAgentCommand(callId))
+    )
+    await this.stopRecordedRuns({ callId, keep: (run) => run.state === 'delivered' })
+  }
+
+  /**
    * Stops the recorded tmux runs, each only while its pane still carries its tag, and drops the
    * records with nothing left to stop. `excludeLive` skips the runs this process has started;
-   * `keep` names runs to leave going, such as a previous process's runs whose results the model
-   * already has and may come back to.
+   * `callId` limits it to the run that call started; `keep` names runs to leave going, such as a
+   * previous process's runs whose results the model already has and may come back to.
    */
   async stopRecordedRuns(
     options: {
       excludeLive?: boolean
+      callId?: string
       /** Runs to leave going; their records are only dropped once their panes are gone. */
       keep?: (run: RunRecord) => boolean
     } = {}
   ): Promise<void> {
     const ledger = this.runLedger
     if (!ledger) return
+    const runs = ledger
+      .list({ excludeLive: options.excludeLive })
+      .filter((run) => options.callId === undefined || run.callId === options.callId)
     await Promise.allSettled(
-      ledger.list({ excludeLive: options.excludeLive }).map(async (run) => {
+      runs.map(async (run) => {
         let keeping = options.keep?.(run) ?? false
         let state = keeping ? await recordedRunState(run, process.env) : 'ours'
         // A kept run whose command already ended leaves only its dead pane (`remain-on-exit`).

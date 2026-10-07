@@ -610,6 +610,9 @@ function main(): void {
     // A result the model has makes a tmux run it handed back as still going collectable across a
     // restart.
     onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
+    // A result the model never got leaves such a run with no one to come back to it, so it is
+    // stopped, as the launch sweep stops a previous process's.
+    onResultNotDelivered: (toolCallId) => void terminal.stopUndeliveredRun(toolCallId),
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,

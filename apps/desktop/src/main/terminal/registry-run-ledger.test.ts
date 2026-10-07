@@ -119,6 +119,32 @@ describe('stopping recorded tmux runs', () => {
     expect(ledger.list()).toEqual([])
   })
 
+  it("stops only the run of a call whose result never reached the model, this process's or a previous one's", async () => {
+    const dir = ledgerDir()
+    createRunLedger(dir).record(run('previous', '%1'))
+    const ledger = createRunLedger(dir)
+    ledger.record(run('current', '%2'))
+    ledger.record(run('other', '%3'))
+    // Recorded as handed back: the model has its pane.
+    ledger.record(run('handed-back', '%4', 'delivered'))
+    const registry = new TerminalRegistry(undefined, undefined, ledger)
+
+    await registry.stopUndeliveredRun('call-current')
+    await registry.stopUndeliveredRun('call-previous')
+    await registry.stopUndeliveredRun('call-handed-back')
+
+    expect(panes.get('current')).toBe('stopped')
+    expect(panes.get('previous')).toBe('stopped')
+    expect(panes.get('other')).toBeUndefined()
+    expect(panes.get('handed-back')).toBeUndefined()
+    expect(
+      ledger
+        .list()
+        .map((record) => record.runId)
+        .sort()
+    ).toEqual(['handed-back', 'other'])
+  })
+
   it('notes the run of a call whose result reached the model as handed back', () => {
     const dir = ledgerDir()
     const ledger = createRunLedger(dir)
