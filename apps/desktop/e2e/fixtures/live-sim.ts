@@ -9,6 +9,7 @@ import {
 } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import type { Duplex } from 'node:stream'
+import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { toArray } from '@sim/utils/object'
 import postgres from 'postgres'
@@ -255,7 +256,7 @@ export class SimProxy {
         throw new Error(
           `Requests still unanswered: ${waiting.map((entry) => entry.path).join(', ')}`
         )
-      await new Promise((resolve) => setTimeout(resolve, 250))
+      await sleep(250)
     }
   }
 
