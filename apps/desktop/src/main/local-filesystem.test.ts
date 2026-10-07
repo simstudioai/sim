@@ -107,6 +107,27 @@ describe('LocalFilesystemService', () => {
     })
   })
 
+  it('trims long runs of slashes in grep and glob paths in linear time', async () => {
+    const granted = await mount(service)
+    const slashes = `${'/'.repeat(200_000)}x`
+    const startedAt = performance.now()
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { operation: 'grep', uri: granted.uri, pattern: 'TODO', requestId: 'grep-tool' },
+        { toolName: 'grep', args: { path: slashes, pattern: 'TODO' } }
+      )
+    ).toBe(false)
+    await service.handle({
+      operation: 'glob',
+      uri: granted.uri,
+      pattern: '**/*.ts',
+      pathPrefix: slashes,
+    })
+
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+  })
+
   it('binds privileged client reads and searches to server-persisted tool args', async () => {
     const granted = await mount(service)
     const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`

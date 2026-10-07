@@ -3646,6 +3646,7 @@ function closeLiveTabs(): void {
   currentScope.automationActive = false
   currentScope.automationNeedsAttention = false
   currentScope.visibleTabUserSelected = false
+  currentScope.userIntervention = null
   clearFocusedBrowserTab()
 }
 
