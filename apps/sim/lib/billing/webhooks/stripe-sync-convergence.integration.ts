@@ -265,7 +265,11 @@ async function latestOutboxEventId(eventType: string, subscriptionId: string) {
         sql`${outboxEvent.payload} ->> 'subscriptionId' = ${subscriptionId}`
       )
     )
-    .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
+    .orderBy(
+      desc(outboxEvent.createdAt),
+      sql`(${outboxEvent.payload} ->> 'committedAt')::numeric desc nulls last`,
+      desc(outboxEvent.id)
+    )
     .limit(1)
   if (!latest) throw new Error(`No ${eventType} event for ${subscriptionId}`)
   return latest.id

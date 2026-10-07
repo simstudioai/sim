@@ -16,6 +16,11 @@ import { captureServerEvent } from '@/lib/posthog/server'
 const logger = createLogger('OrganizationSeats')
 
 export interface ReconcileOrganizationSeatsResult {
+  /**
+   * True only when the seat count changed. Repairing a row the Stripe plugin left stale, back to
+   * the committed count, still rewrites the row and re-records the sync (`outboxEventId` is set)
+   * but reports false and records no seat audit or analytics event.
+   */
   changed: boolean
   previousSeats?: number
   seats?: number
@@ -170,6 +175,15 @@ export async function reconcileOrganizationSeats({
     reason,
     outboxEventId: outcome.outboxEventId,
   })
+
+  if (outcome.seats === outcome.previousSeats) {
+    return {
+      changed: false,
+      previousSeats: outcome.previousSeats,
+      seats: outcome.seats,
+      outboxEventId: outcome.outboxEventId,
+    }
+  }
 
   const increased = outcome.seats > outcome.previousSeats
   if (actorId) {
