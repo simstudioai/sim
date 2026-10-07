@@ -5,6 +5,7 @@ import { act, type ReactNode } from 'react'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,7 +57,16 @@ async function render(device: { deviceId: string } | null) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root?.render(<Desktop />))
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  })
+  await act(async () =>
+    root?.render(
+      <QueryClientProvider client={queryClient}>
+        <Desktop />
+      </QueryClientProvider>
+    )
+  )
   return container
 }
 
