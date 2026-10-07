@@ -26,10 +26,17 @@ import {
 } from '@/lib/core/outbox/queries'
 import {
   hasDueOutboxWork,
+  type LazyOutboxHandlerGroup,
   type OutboxHandler,
+  type OutboxHandlerRegistry,
   processOutboxEvents,
   withOutboxHandlerTimeout,
 } from '@/lib/core/outbox/service'
+
+/** Serves an eager handler map as one group, the shape `processOutboxEvents` takes. */
+const asGroups = (handlers: OutboxHandlerRegistry): LazyOutboxHandlerGroup[] => [
+  { events: Object.keys(handlers), load: async () => handlers },
+]
 
 interface QueryPlan {
   'Node Type': string
@@ -196,7 +203,9 @@ describe('outbox scheduling in PostgreSQL', () => {
       { eventType: 'test.outbox.z-ready' },
     ])
     await expectBoundedDiscovery(now)
-    expect(await processOutboxEvents({ 'test.outbox.z-ready': async () => {} })).toMatchObject({
+    expect(
+      await processOutboxEvents(asGroups({ 'test.outbox.z-ready': async () => {} }))
+    ).toMatchObject({
       processed: 1,
     })
     expect(await db.execute(readyEventTypesQuery(new Date()))).toEqual([])
@@ -205,10 +214,55 @@ describe('outbox scheduling in PostgreSQL', () => {
   it('retains bounded retries for a type missing during a rolling deployment', async () => {
     const [event] = await enqueue('test.outbox.unknown', 1)
 
-    expect(await processOutboxEvents({})).toMatchObject({ retried: 1 })
+    expect(await processOutboxEvents(asGroups({}))).toMatchObject({ retried: 1 })
     const [pending] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, event.id))
     expect(pending).toMatchObject({ status: 'pending', attempts: 1 })
     expect(pending.availableAt.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('leaves the events of a handler module that fails to import untouched until it loads', async () => {
+    const [stranded] = await enqueue('test.outbox.unloadable', 1)
+    const [delivered] = await enqueue('test.outbox.loadable', 1)
+    const [before] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    const unloadable = {
+      events: ['test.outbox.unloadable'],
+      load: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Cannot find module'))
+        .mockResolvedValue({ 'test.outbox.unloadable': async () => {} }),
+    }
+    const groups = [
+      unloadable,
+      {
+        events: ['test.outbox.loadable'],
+        load: async () => ({ 'test.outbox.loadable': async () => {} }),
+      },
+    ]
+
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      retried: 0,
+      deadLettered: 0,
+      unloadedEventTypes: ['test.outbox.unloadable'],
+    })
+    const [pending] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    expect(pending).toMatchObject({
+      status: 'pending',
+      attempts: before.attempts,
+      lockedAt: null,
+      lastError: null,
+      processedAt: null,
+      availableAt: before.availableAt,
+    })
+    const [completed] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, delivered.id))
+    expect(completed.status).toBe('completed')
+
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      unloadedEventTypes: [],
+    })
+    const [recovered] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    expect(recovered.status).toBe('completed')
   })
 
   it('lets claims skip a locked head without hiding other rows of that type', async () => {
@@ -216,11 +270,13 @@ describe('outbox scheduling in PostgreSQL', () => {
     const delivered: string[] = []
     await connection.begin(async (transaction) => {
       await transaction`SELECT id FROM outbox_event WHERE id = ${locked.id} FOR UPDATE`
-      const result = await processOutboxEvents({
-        'test.outbox.locked': async (_payload, context) => {
-          delivered.push(context.eventId)
-        },
-      })
+      const result = await processOutboxEvents(
+        asGroups({
+          'test.outbox.locked': async (_payload, context) => {
+            delivered.push(context.eventId)
+          },
+        })
+      )
       expect(result.processed).toBe(1)
     })
     expect(delivered).toEqual([available.id])
@@ -236,11 +292,11 @@ describe('outbox scheduling in PostgreSQL', () => {
     }
 
     const result = await processOutboxEvents(
-      {
+      asGroups({
         'test.outbox.cleanup': handler,
         'test.outbox.dispatch': handler,
         'test.outbox.billing': handler,
-      },
+      }),
       { batchSize: 20 }
     )
 
@@ -256,7 +312,9 @@ describe('outbox scheduling in PostgreSQL', () => {
       delivered.push(context.eventId)
     }
 
-    const result = await processOutboxEvents({ 'test.outbox.cleanup': handler }, { batchSize: 25 })
+    const result = await processOutboxEvents(asGroups({ 'test.outbox.cleanup': handler }), {
+      batchSize: 25,
+    })
 
     expect(result.processed).toBe(25)
     expect(delivered).toEqual(rows.slice(0, 25).map((row) => row.id))
@@ -274,10 +332,12 @@ describe('outbox scheduling in PostgreSQL', () => {
       delivered.push(context.eventId)
     }
 
-    const result = await processOutboxEvents({
-      'test.outbox.future': handler,
-      'test.outbox.cleanup': handler,
-    })
+    const result = await processOutboxEvents(
+      asGroups({
+        'test.outbox.future': handler,
+        'test.outbox.cleanup': handler,
+      })
+    )
 
     expect(result.processed).toBe(5)
     expect(delivered).not.toContain(future.id)
@@ -293,8 +353,8 @@ describe('outbox scheduling in PostgreSQL', () => {
     const handlers = { 'test.outbox.cleanup': handler, 'test.outbox.dispatch': handler }
 
     const results = await Promise.all([
-      processOutboxEvents(handlers, { batchSize: 40 }),
-      processOutboxEvents(handlers, { batchSize: 40 }),
+      processOutboxEvents(asGroups(handlers), { batchSize: 40 }),
+      processOutboxEvents(asGroups(handlers), { batchSize: 40 }),
     ])
 
     expect(results.reduce((sum, result) => sum + result.processed, 0)).toBe(52)
@@ -335,11 +395,11 @@ describe('outbox scheduling in PostgreSQL', () => {
       delivered.push(context.eventId)
     }
     const result = await processOutboxEvents(
-      {
+      asGroups({
         'test.outbox.cleanup': handler,
         'test.outbox.dispatch': handler,
         'test.outbox.billing': handler,
-      },
+      }),
       { batchSize: 20 }
     )
 
@@ -356,12 +416,12 @@ describe('outbox scheduling in PostgreSQL', () => {
       delivered.push(context.eventId)
     }
     const result = await processOutboxEvents(
-      {
+      asGroups({
         'test.outbox.long': withOutboxHandlerTimeout(async () => {
           throw new Error('Long handler must remain pending')
         }, 550_000),
         'test.outbox.short': handler,
-      },
+      }),
       { maxRuntimeMs: 110_000 }
     )
 
@@ -374,7 +434,7 @@ describe('outbox scheduling in PostgreSQL', () => {
   it('bounds stale-lease recovery and leaves excess rows for the next invocation', async () => {
     await seedBacklog('test.outbox.stale', 1_005, 'processing')
 
-    const first = await processOutboxEvents({}, { batchSize: 0 })
+    const first = await processOutboxEvents(asGroups({}), { batchSize: 0 })
     expect(first.reaped).toBe(1_000)
     const counts = await db
       .select({ status: outboxEvent.status, count: sql<number>`count(*)::int` })
@@ -388,7 +448,7 @@ describe('outbox scheduling in PostgreSQL', () => {
       ])
     )
 
-    const second = await processOutboxEvents({}, { batchSize: 0 })
+    const second = await processOutboxEvents(asGroups({}), { batchSize: 0 })
     expect(second.reaped).toBe(5)
   })
 

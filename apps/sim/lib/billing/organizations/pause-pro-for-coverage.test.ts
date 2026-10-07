@@ -10,7 +10,7 @@ vi.mock('@/lib/billing/storage/payer-transfer', () => ({
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 
 const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
 

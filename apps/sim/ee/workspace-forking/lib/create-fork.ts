@@ -16,6 +16,7 @@ import {
   collectReferencedFileFolderPaths,
 } from '@/lib/workflows/references/reference-scan'
 import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
+import { WORKSPACE_OPERATION_OBSERVE_EVENT } from '@/lib/workspaces/operations/outbox-events'
 import {
   findWorkspaceOperationReceipt,
   insertWorkspaceOperationReceipt,
@@ -625,7 +626,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           requestId: admission.requestId,
         })
       }
-      await enqueueOutboxEvent(tx, 'workspace.operation.observe', {
+      await enqueueOutboxEvent(tx, WORKSPACE_OPERATION_OBSERVE_EVENT, {
         workspaceId: report.workspaceId,
         operationId: report.operationId,
       })

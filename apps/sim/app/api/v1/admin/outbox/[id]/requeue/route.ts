@@ -6,11 +6,11 @@ import { and, eq, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1RequeueOutboxEventContract } from '@/lib/api/contracts/v1/admin'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { enterpriseMetadataSyncPayloadSchema } from '@/lib/billing/enterprise-outbox'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
-  enterpriseMetadataSyncPayloadSchema,
-} from '@/lib/billing/enterprise-outbox'
+} from '@/lib/billing/enterprise-outbox-events'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 

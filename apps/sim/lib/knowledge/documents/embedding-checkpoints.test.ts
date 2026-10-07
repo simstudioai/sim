@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/embeddings/client', () => ({ EMBEDDING_RETRY_BUDGET_MS: 150000 }))
 
+import { EMBEDDING_CHECKPOINT_CLEANUP_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import {
   cleanupEmbeddingCheckpoint,
   createEmbeddingCheckpoints,
-  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/embedding-checkpoints'
 
 const identity = { key: sha256Hex('request'), itemCount: 2, dimensions: 2 }

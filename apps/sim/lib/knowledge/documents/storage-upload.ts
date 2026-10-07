@@ -7,8 +7,8 @@ import type { DbTransaction } from '@/lib/db/types'
 import {
   enqueueKnowledgeStorageCleanup,
   isKnowledgeBaseOwnedStorageKey,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { StorageService } from '@/lib/uploads'
 import { insertImmutableFileMetadata } from '@/lib/uploads/server/metadata'
 

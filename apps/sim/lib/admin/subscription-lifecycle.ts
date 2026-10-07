@@ -7,7 +7,7 @@ import type { AdminMutationActor } from '@/lib/admin/dashboard'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const RECENT_INVOICE_LIMIT = 12
