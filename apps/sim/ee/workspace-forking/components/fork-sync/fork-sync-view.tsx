@@ -706,7 +706,7 @@ function CopyKindSections({ controller, byKind }: CopyKindSectionsProps) {
             onToggleAll={toggleAll}
             onToggleItem={(id, checked) => toggleMany([id], checked)}
             onToggleMany={toggleMany}
-            disabled={controller.submitting}
+            disabled={controller.submitting || !controller.comparisonReady}
           />
         ) : (
           <ResourceKindRow
@@ -719,7 +719,7 @@ function CopyKindSections({ controller, byKind }: CopyKindSectionsProps) {
             selected={selectedIds}
             onToggleMany={toggleMany}
             onToggleItem={(id, checked) => toggleMany([id], checked)}
-            disabled={controller.submitting}
+            disabled={controller.submitting || !controller.comparisonReady}
           />
         )
       })}
@@ -862,6 +862,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           <ChipSwitch
             value={controller.direction}
             onChange={onDirectionChange}
+            disabled={controller.saving || controller.submitting}
             aria-label='Sync direction'
             options={[
               { value: 'push', label: 'Push' },

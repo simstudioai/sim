@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
@@ -25,6 +26,7 @@ const ADD_DOMAIN_FIELD_ID = 'sso-add-domain'
 
 interface VerifiedDomainsSectionProps {
   organizationId: string
+  active?: boolean
 }
 
 interface DomainRowProps {
@@ -102,7 +104,10 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
 /**
  * Domain ownership shared by SSO and SCIM, managed in the Domains tab.
  */
-export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectionProps) {
+export function VerifiedDomainsSection({
+  organizationId,
+  active = true,
+}: VerifiedDomainsSectionProps) {
   const { data, isLoading, isError, error, isFetching, refetch } =
     useOrganizationDomains(organizationId)
   const addDomain = useAddOrganizationDomain()
@@ -112,13 +117,18 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null)
   const domains = data?.domains ?? []
   const pendingRemoval = domains.find((domain) => domain.id === pendingRemovalId) ?? null
+  useSettingsUnsavedGuard({
+    isDirty: newDomain.trim().length > 0,
+    navigationBlocked: addDomain.isPending || removeDomain.isPending,
+    onDiscard: () => setNewDomain(''),
+  })
 
   async function handleAdd() {
     const value = newDomain.trim()
     if (!value) return
     try {
       await addDomain.mutateAsync({ orgId: organizationId, body: { domain: value } })
-      setNewDomain('')
+      setNewDomain((current) => (current.trim() === value ? '' : current))
       toast.success(`${value} added — add the DNS record and verify`)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to add domain'))
@@ -196,7 +206,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
       </SettingsSection>
 
       <ChipConfirmModal
-        open={pendingRemoval !== null}
+        open={active && pendingRemoval !== null}
         onOpenChange={(open) => !open && setPendingRemovalId(null)}
         title='Remove domain'
         text={[

@@ -5,18 +5,15 @@ import { ChipInput, ChipSelect, toast } from '@sim/emcn'
 import { ArrowLeft, Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { CADENCE_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { DESTINATION_TYPES } from '@/lib/data-drains/types'
-import {
-  CredentialDetailHeading,
-  UnsavedChangesModal,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { CredentialDetailHeading } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SettingRow } from '@/ee/components/setting-row'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import { useCreateDataDrain } from '@/ee/data-drains/hooks/data-drains'
@@ -65,9 +62,21 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
     cadence !== 'daily' ||
     destinationType !== DESTINATION_TYPES[0]
 
-  const guard = useSettingsUnsavedGuard({ isDirty })
+  const resetDraft = () => {
+    setName('')
+    setSource('workflow_logs')
+    setCadence('daily')
+    setDestinationType(DESTINATION_TYPES[0])
+    setDestState(DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState)
+  }
+  const guard = useSettingsUnsavedGuard({
+    isDirty,
+    navigationBlocked: createDrain.isPending,
+    onDiscard: resetDraft,
+  })
 
   const handleDestinationChange = (next: (typeof DESTINATION_TYPES)[number]) => {
+    if (createDrain.isPending) return
     setDestinationType(next)
     setDestState(DESTINATION_FORM_REGISTRY[next].initialState)
   }
@@ -108,72 +117,78 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
         title='New drain'
         actions={actions}
       >
-        <div className='flex flex-col gap-7'>
-          <CredentialDetailHeading
-            leading={<ResourceTile icon={Database} />}
-            title='New drain'
-            subtitle='Export logs, chats, and runs to your own storage or observability stack on a schedule.'
-          />
+        <fieldset disabled={createDrain.isPending} className='min-w-0'>
+          <div className='flex flex-col gap-7'>
+            <CredentialDetailHeading
+              leading={<ResourceTile icon={Database} />}
+              title='New drain'
+              subtitle='Export logs, chats, and runs to your own storage or observability stack on a schedule.'
+            />
 
-          <SettingsSection label='Drain'>
-            <div className='flex flex-col gap-4'>
-              <SettingRow label='Name' htmlFor='data-drain-name'>
-                <ChipInput
-                  id='data-drain-name'
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder='Workflow logs export'
-                />
-              </SettingRow>
-              <SettingRow label='Source'>
-                <ChipSelect
-                  aria-label='Source'
-                  value={source}
-                  onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
-                  options={SOURCE_OPTIONS}
-                  align='start'
-                />
-              </SettingRow>
-              <SettingRow label='Cadence'>
-                <ChipSelect
-                  aria-label='Cadence'
-                  value={cadence}
-                  onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
-                  options={CADENCE_OPTIONS}
-                  align='start'
-                />
-              </SettingRow>
-            </div>
-          </SettingsSection>
+            <SettingsSection label='Drain'>
+              <div className='flex flex-col gap-4'>
+                <SettingRow label='Name' htmlFor='data-drain-name'>
+                  <ChipInput
+                    id='data-drain-name'
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder='Workflow logs export'
+                  />
+                </SettingRow>
+                <SettingRow label='Source'>
+                  <ChipSelect
+                    disabled={createDrain.isPending}
+                    aria-label='Source'
+                    value={source}
+                    onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
+                    options={SOURCE_OPTIONS}
+                    align='start'
+                  />
+                </SettingRow>
+                <SettingRow label='Cadence'>
+                  <ChipSelect
+                    disabled={createDrain.isPending}
+                    aria-label='Cadence'
+                    value={cadence}
+                    onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
+                    options={CADENCE_OPTIONS}
+                    align='start'
+                  />
+                </SettingRow>
+              </div>
+            </SettingsSection>
 
-          <SettingsSection label='Destination'>
-            <div className='flex flex-col gap-4'>
-              <SettingRow label='Type'>
-                <ChipSelect
-                  aria-label='Destination type'
-                  value={destinationType}
-                  onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
-                  options={DESTINATION_OPTIONS}
-                  displayLabel={DESTINATION_LABELS[destinationType]}
-                  align='start'
+            <SettingsSection label='Destination'>
+              <div className='flex flex-col gap-4'>
+                <SettingRow label='Type'>
+                  <ChipSelect
+                    disabled={createDrain.isPending}
+                    aria-label='Destination type'
+                    value={destinationType}
+                    onChange={(v) =>
+                      handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])
+                    }
+                    options={DESTINATION_OPTIONS}
+                    displayLabel={DESTINATION_LABELS[destinationType]}
+                    align='start'
+                  />
+                </SettingRow>
+                <spec.FormFields
+                  state={destState}
+                  setState={(state) => {
+                    if (!createDrain.isPending) setDestState(state)
+                  }}
                 />
-              </SettingRow>
-              <spec.FormFields state={destState} setState={setDestState} />
-              {submitError && (
-                <p role='alert' className='text-[var(--text-error)] text-caption'>
-                  {submitError}
-                </p>
-              )}
-            </div>
-          </SettingsSection>
-        </div>
+                {submitError && (
+                  <p role='alert' className='text-[var(--text-error)] text-caption'>
+                    {submitError}
+                  </p>
+                )}
+              </div>
+            </SettingsSection>
+          </div>
+        </fieldset>
       </SettingsPanel>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
     </>
   )
 }

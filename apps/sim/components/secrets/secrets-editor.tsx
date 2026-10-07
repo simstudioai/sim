@@ -8,6 +8,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
 import { useRouter } from 'next/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { setRecordValue } from '@/lib/core/utils/records'
 import {
   clearPendingCredentialCreateRequest,
@@ -16,7 +17,6 @@ import {
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import type { SecretChanges } from '@/lib/organization-secrets/validation'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -24,7 +24,6 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
@@ -107,6 +106,21 @@ function updateEnvVarArray(
 
   const lastIndex = updated.length - 1
   return updated.filter((v, i) => i === lastIndex || v.key !== '' || v.value !== '')
+}
+
+function applyVariableEdits(
+  baseline: Record<string, string>,
+  edited: Record<string, string>,
+  latest: Record<string, string>
+): Record<string, string> {
+  const merged = { ...latest }
+  for (const [key, value] of Object.entries(edited)) {
+    if (baseline[key] !== value) setRecordValue(merged, key, value)
+  }
+  for (const key of Object.keys(baseline)) {
+    if (!Object.hasOwn(edited, key)) delete merged[key]
+  }
+  return merged
 }
 
 /**
@@ -374,22 +388,23 @@ export function SecretsEditor({
   const personalEnvData = personal?.variables
   const hasPersonal = Boolean(personal)
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
-  const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
-    createEmptyEnvVar(),
-  ])
+  const [workspaceDraft, setWorkspaceDraft] = useState<{
+    variables: Record<string, string>
+    rows: UIEnvironmentVariable[]
+  }>(() => ({ variables: {}, rows: [createEmptyEnvVar()] }))
+  const workspaceVars = workspaceDraft.variables
+  const newWorkspaceRows = workspaceDraft.rows
   const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
-  const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
-  const hasChangesRef = useRef(false)
-  const hasSavedPersonalRef = useRef(false)
-  const hasSavedWorkspaceRef = useRef(false)
-  const shouldBlockNavRef = useRef(false)
-  const pendingNavigationUrlRef = useRef<string | null>(null)
+  const acknowledgedPersonalRef = useRef<{
+    data: typeof personalEnvData
+    hasPersonal: boolean
+  } | null>(null)
+  const acknowledgedWorkspaceRef = useRef<typeof variables>(undefined)
 
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -455,10 +470,23 @@ export function SecretsEditor({
       if (before[key] !== after[key]) return true
     }
 
-    if (newWorkspaceRows.some((row) => row.key && row.value)) return true
+    if (newWorkspaceRows.some((row) => row.key || row.value)) return true
+    if (renamingKey && pendingKeyValue !== renamingKey) return true
 
     return false
-  }, [envVars, workspaceVars, newWorkspaceRows])
+  }, [envVars, workspaceVars, newWorkspaceRows, renamingKey, pendingKeyValue])
+
+  const initialPersonalVariables = Object.fromEntries(
+    initialVarsRef.current.filter((row) => row.key).map(({ key, value }) => [key, value])
+  )
+  const hasIncompleteRows =
+    newWorkspaceRows.some((row) => Boolean(row.key) !== Boolean(row.value)) ||
+    envVars.some(
+      (row) =>
+        Boolean(row.key) !== Boolean(row.value) &&
+        (!Object.hasOwn(initialPersonalVariables, row.key) ||
+          initialPersonalVariables[row.key] !== row.value)
+    )
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && allWorkspaceKeys.has(envVar.key))
@@ -470,23 +498,17 @@ export function SecretsEditor({
     return personalInvalid || workspaceInvalid
   }, [envVars, newWorkspaceRows])
 
-  hasChangesRef.current = hasChanges
-  shouldBlockNavRef.current = hasChanges
-
-  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
-  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
-
-  useEffect(() => {
-    setNavGuardDirty(hasChanges)
-  }, [hasChanges, setNavGuardDirty])
-
-  useEffect(() => () => resetNavGuard(), [resetNavGuard])
+  const guard = useSettingsUnsavedGuard({
+    isDirty: hasChanges,
+    navigationBlocked: isListSaving,
+    onDiscard: () => resetToSaved(),
+  })
 
   useEffect(() => {
-    if (hasSavedPersonalRef.current) {
-      hasSavedPersonalRef.current = false
-      return
-    }
+    if (hasChanges || isListSaving) return
+    const acknowledged = acknowledgedPersonalRef.current
+    if (acknowledged?.data === personalEnvData && acknowledged?.hasPersonal === hasPersonal) return
+    acknowledgedPersonalRef.current = { data: personalEnvData, hasPersonal }
 
     const existingVars = Object.values(personalEnvData || {})
     const initialVars = [
@@ -498,17 +520,15 @@ export function SecretsEditor({
     ]
     initialVarsRef.current = structuredClone(initialVars)
     setEnvVars(structuredClone(initialVars))
-  }, [personalEnvData, hasPersonal])
+  }, [personalEnvData, hasPersonal, hasChanges, isListSaving])
 
   useEffect(() => {
-    if (!variables || hasChangesRef.current) return
-    if (hasSavedWorkspaceRef.current) {
-      hasSavedWorkspaceRef.current = false
+    if (!variables || hasChanges || isListSaving || acknowledgedWorkspaceRef.current === variables)
       return
-    }
-    setWorkspaceVars(variables)
+    acknowledgedWorkspaceRef.current = variables
+    setWorkspaceDraft((current) => ({ ...current, variables }))
     initialWorkspaceVarsRef.current = variables
-  }, [variables])
+  }, [variables, hasChanges, isListSaving])
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -517,46 +537,6 @@ export function SecretsEditor({
         behavior: 'smooth',
       })
     })
-  }, [])
-
-  /**
-   * Navigation guard: intercept link clicks in the capture phase before
-   * Next.js App Router processes them. This is needed because Next.js
-   * internally bypasses window.history.pushState overrides.
-   */
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (!shouldBlockNavRef.current) return
-
-      const anchor = (e.target as HTMLElement).closest('a[href]')
-      if (!anchor) return
-
-      const href = anchor.getAttribute('href')
-      if (!href || href.startsWith('http') || href.startsWith('#')) return
-
-      const currentPath = window.location.pathname
-      if (href === currentPath) return
-
-      e.preventDefault()
-      e.stopPropagation()
-      pendingNavigationUrlRef.current = href
-      setShowUnsavedChanges(true)
-    }
-
-    const handlePopState = () => {
-      if (shouldBlockNavRef.current) {
-        window.history.pushState(null, '', window.location.href)
-        setShowUnsavedChanges(true)
-      }
-    }
-
-    document.addEventListener('click', handleClick, true)
-    window.addEventListener('popstate', handlePopState)
-
-    return () => {
-      document.removeEventListener('click', handleClick, true)
-      window.removeEventListener('popstate', handlePopState)
-    }
   }, [])
 
   const applyPendingCredentialCreateRequest = useCallback(
@@ -615,12 +595,7 @@ export function SecretsEditor({
   const handleViewDetails = (envKey: string) => {
     const url = rowAccess?.get(envKey)?.detailsHref
     if (!url) return
-    if (shouldBlockNavRef.current) {
-      pendingNavigationUrlRef.current = url
-      setShowUnsavedChanges(true)
-      return
-    }
-    router.push(url)
+    guard.guardBack(() => router.push(url))
   }
 
   const handleWorkspaceKeyRename = (currentKey: string, currentValue: string) => {
@@ -633,28 +608,34 @@ export function SecretsEditor({
       return
     }
 
-    setWorkspaceVars((prev) => {
-      const next = { ...prev }
+    setWorkspaceDraft((current) => {
+      const next = { ...current.variables }
       delete next[currentKey]
       setRecordValue(next, newKey, currentValue)
-      return next
+      return { ...current, variables: next }
     })
   }
 
   const handleWorkspaceValueChange = (key: string, value: string) => {
-    setWorkspaceVars((prev) => ({ ...prev, [key]: value }))
+    setWorkspaceDraft((current) => ({
+      ...current,
+      variables: { ...current.variables, [key]: value },
+    }))
   }
 
   const handleDeleteWorkspaceVar = (key: string) => {
-    setWorkspaceVars((prev) => {
-      const next = { ...prev }
+    setWorkspaceDraft((current) => {
+      const next = { ...current.variables }
       delete next[key]
-      return next
+      return { ...current, variables: next }
     })
   }
 
   const updateNewWorkspaceRow = (index: number, field: 'key' | 'value', value: string) => {
-    setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
+    setWorkspaceDraft((current) => ({
+      ...current,
+      rows: updateEnvVarArray(current.rows, index, field, value),
+    }))
   }
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
@@ -757,29 +738,29 @@ export function SecretsEditor({
     const parsedVars = parseValidEnvVars(lines)
     if (parsedVars.length > 0) {
       e.preventDefault()
-      setNewWorkspaceRows((prev) => {
-        const existing = prev.filter((v) => v.key || v.value)
-        return [...existing, ...parsedVars, createEmptyEnvVar()]
+      setWorkspaceDraft((current) => {
+        const existing = current.rows.filter((v) => v.key || v.value)
+        return { ...current, rows: [...existing, ...parsedVars, createEmptyEnvVar()] }
       })
       scrollToBottom()
     }
   }
 
   const resetToSaved = () => {
+    if (isListSaving) return
     setEnvVars(structuredClone(initialVarsRef.current))
-    setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
-    setNewWorkspaceRows([createEmptyEnvVar()])
-    setShowUnsavedChanges(false)
+    setWorkspaceDraft({
+      variables: { ...initialWorkspaceVarsRef.current },
+      rows: [createEmptyEnvVar()],
+    })
+    setRenamingKey(null)
+    setPendingKeyValue('')
   }
 
-  const handleCancel = resetToSaved
-
   const handleSave = async () => {
-    if (isListSaving) return
+    if (isListSaving || hasIncompleteRows || hasConflicts || hasInvalidKeys) return
 
     const mutations: Promise<unknown>[] = []
-
-    setShowUnsavedChanges(false)
 
     const mergedWorkspaceVars = { ...workspaceVars }
     for (const row of newWorkspaceRows) {
@@ -789,7 +770,15 @@ export function SecretsEditor({
     }
 
     const validVariables = Object.fromEntries(
-      envVars.filter((v) => v.key && v.value).map(({ key, value }) => [key, value])
+      envVars.filter((v) => v.key).map(({ key, value }) => [key, value])
+    )
+    const latestPersonalVariables = Object.fromEntries(
+      Object.values(personalEnvData ?? {}).map(({ key, value }) => [key, value])
+    )
+    const personalVariablesToSave = applyVariableEdits(
+      initialPersonalVariables,
+      validVariables,
+      latestPersonalVariables
     )
 
     const before = initialWorkspaceVarsRef.current
@@ -810,7 +799,7 @@ export function SecretsEditor({
     const personalChanged = (() => {
       const initialMap = new Map<string, string>()
       for (const v of initialVarsRef.current) {
-        if (v.key && v.value) initialMap.set(v.key, v.value)
+        if (v.key) initialMap.set(v.key, v.value)
       }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
@@ -823,45 +812,82 @@ export function SecretsEditor({
     const workspaceChanged = Object.keys(toUpsert).length > 0 || toDelete.length > 0
 
     if (personalChanged && personal) {
-      mutations.push(personal.save(validVariables))
+      mutations.push(personal.save(personalVariablesToSave))
     }
     if (workspaceChanged) {
       mutations.push(save({ upsert: toUpsert, remove: toDelete }))
     }
-
-    hasSavedPersonalRef.current = personalChanged
-    hasSavedWorkspaceRef.current = Boolean(workspaceChanged)
 
     try {
       const results = await Promise.allSettled(mutations)
       const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
       if (firstFailure) throw firstFailure.reason
 
-      initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
-      initialVarsRef.current = structuredClone(envVars.filter((v) => v.key && v.value))
+      if (personalChanged) acknowledgedPersonalRef.current = { data: personalEnvData, hasPersonal }
+      if (workspaceChanged) acknowledgedWorkspaceRef.current = variables
+      const savedWorkspaceVars = applyVariableEdits(
+        before,
+        mergedWorkspaceVars,
+        variables ?? before
+      )
+      initialWorkspaceVarsRef.current = savedWorkspaceVars
+      const savedPersonalRows = Object.entries(personalVariablesToSave).map(([key, value]) => ({
+        key,
+        value,
+        id: generateRowId(),
+      }))
+      initialVarsRef.current = structuredClone(savedPersonalRows)
+      setEnvVars((current) => {
+        const rowIds = new Map(current.map((row) => [row.key, row.id]))
+        const currentVariables = Object.fromEntries(
+          current.filter((row) => row.key).map(({ key, value }) => [key, value])
+        )
+        const rebasedVariables = applyVariableEdits(
+          validVariables,
+          currentVariables,
+          personalVariablesToSave
+        )
+        const incompleteRows = current.filter(
+          (row) => !row.key || (!row.value && validVariables[row.key] !== row.value)
+        )
+        const incompleteKeys = new Set(incompleteRows.map((row) => row.key).filter(Boolean))
+        const rows = Object.entries(rebasedVariables)
+          .filter(([key]) => !incompleteKeys.has(key))
+          .map(([key, value]) => ({
+            key,
+            value,
+            id: rowIds.get(key) ?? generateRowId(),
+          }))
+        return [...rows, ...incompleteRows]
+      })
 
-      setWorkspaceVars(mergedWorkspaceVars)
-      setNewWorkspaceRows([createEmptyEnvVar()])
+      const submittedRows = new Map(
+        newWorkspaceRows.filter((row) => row.key && row.value).map((row) => [row.id, row])
+      )
+      setWorkspaceDraft((current) => {
+        const variables = { ...savedWorkspaceVars }
+        for (const submitted of submittedRows.values()) {
+          if (Object.hasOwn(workspaceVars, submitted.key))
+            setRecordValue(variables, submitted.key, workspaceVars[submitted.key])
+          else delete variables[submitted.key]
+        }
+        const rows: UIEnvironmentVariable[] = []
+        for (const row of current.rows) {
+          if (submittedRows.has(row.id) && row.key && row.value)
+            setRecordValue(variables, row.key, row.value)
+          else rows.push(row)
+        }
+        return {
+          variables: applyVariableEdits(workspaceVars, current.variables, variables),
+          rows: rows.length > 0 ? rows : [createEmptyEnvVar()],
+        }
+      })
       if (mutations.length > 0) {
         toast.success('Secrets saved')
       }
     } catch (error) {
-      hasSavedPersonalRef.current = false
-      hasSavedWorkspaceRef.current = false
       logger.error('Failed to save environment variables:', error)
       toast.error(getErrorMessage(error, 'Failed to save secrets'))
-    }
-  }
-
-  const handleDiscardAndNavigate = () => {
-    shouldBlockNavRef.current = false
-    resetNavGuard()
-    resetToSaved()
-
-    if (pendingNavigationUrlRef.current) {
-      const url = pendingNavigationUrlRef.current
-      pendingNavigationUrlRef.current = null
-      router.push(url)
     }
   }
 
@@ -932,8 +958,6 @@ export function SecretsEditor({
     )
   }
 
-  const isPendingNavigation = pendingNavigationUrlRef.current !== null
-
   return (
     <>
       <div className='hidden' aria-hidden='true'>
@@ -970,12 +994,7 @@ export function SecretsEditor({
               back: {
                 text: back.text,
                 icon: ArrowLeft,
-                onSelect: () => {
-                  if (shouldBlockNavRef.current) {
-                    pendingNavigationUrlRef.current = back.href
-                    setShowUnsavedChanges(true)
-                  } else router.push(back.href)
-                },
+                onSelect: () => guard.guardBack(() => router.push(back.href)),
               },
             }
           : { title: undefined, back: undefined })}
@@ -989,13 +1008,15 @@ export function SecretsEditor({
           dirty: hasChanges,
           saving: isListSaving,
           onSave: handleSave,
-          onDiscard: handleCancel,
-          saveDisabled: hasConflicts || hasInvalidKeys || isLoading,
+          onDiscard: resetToSaved,
+          saveDisabled: hasConflicts || hasInvalidKeys || hasIncompleteRows || isLoading,
           saveTooltip: hasConflicts
             ? 'Resolve all conflicts before saving'
             : hasInvalidKeys
               ? 'Fix invalid variable names before saving'
-              : undefined,
+              : hasIncompleteRows
+                ? 'Enter both a name and value for each secret'
+                : undefined,
         })}
       >
         {!isLoading && (
@@ -1074,12 +1095,6 @@ export function SecretsEditor({
           </div>
         )}
       </SettingsPanel>
-
-      <UnsavedChangesModal
-        open={showUnsavedChanges}
-        onOpenChange={setShowUnsavedChanges}
-        onDiscard={isPendingNavigation ? handleDiscardAndNavigate : handleCancel}
-      />
     </>
   )
 }
