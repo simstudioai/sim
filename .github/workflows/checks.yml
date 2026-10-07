@@ -15,8 +15,9 @@ jobs:
     #
     # The two paths build different schemas (migrations add triggers, checks and NOT VALID
     # constraints that `db:push` does not), so each runs the whole suite. Vitest splits each
-    # suite's files across four shards; a shard runs its files one at a time against its own
-    # database. Files run serially, so a shard barely uses more than one core: 4 vCPU is enough.
+    # suite's files across four shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
+    # shard runs its files one at a time against its own database. Files run serially, so a shard
+    # barely uses more than one core: 4 vCPU is enough.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 20
@@ -272,6 +273,23 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
+      # Turbopack's dev cache turns the spec's route warm-up from a cold compile (~4 min) into a
+      # restore. It is content-addressed, so a pull request's changed modules still recompile; the
+      # key carries the installed Next version so an upgrade starts from an empty cache, and the
+      # event and fork segments keep untrusted runs off the cache trusted runs read.
+      - name: Resolve Turbopack dev cache key
+        id: next-cache
+        run: echo "key=${GITHUB_REPOSITORY}-next-dev-desktop-live-${GITHUB_EVENT_NAME}${FORK_SUFFIX}-$(jq -r .version node_modules/next/package.json)" >> "$GITHUB_OUTPUT"
+        env:
+          FORK_SUFFIX: ${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+
+      - name: Mount Turbopack dev cache
+        uses: ./.github/actions/cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ steps.next-cache.outputs.key }}
+          path: ./apps/sim/.next/dev
+
       # Chat switches, Stop, sign-out, approval and the flag-off foreground round trip. The spec
       # runs the recording proxy (the app's public origin) and the stand-in worker.
       - name: Verify desktop tools in the Electron app against a local app
@@ -292,39 +310,80 @@ jobs:
           READY_TIMEOUT_SECONDS: 300
         run: |
           report_dir="$RUNNER_TEMP/e2e"
+          next_log="$report_dir/desktop-tools-next.log"
           mkdir -p "$report_dir"
+          # Each app runs in its own session under an E2E_APP tag, and stop-session.sh returns once
+          # every process it started has exited.
+          realtime_tag="desktop-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          server_tag="desktop-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          # Keeps the restored cache under the cap the dev scripts apply locally.
+          (cd apps/sim && bun run dev:cache:cap)
+          start_sim() {
+            (cd apps/sim && E2E_APP="$server_tag" exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+              --port 3021 >> "$next_log" 2>&1) &
+            server_pid=$!
+          }
+          # A corrupted cache aborts Turbopack instead of falling back. Only then is the shared cache
+          # dropped: a failing test must not cost every later run its warm cache.
+          cache_broken() {
+            grep -qiE 'cache corruption|turbopack.*panic|panicked' "$next_log" 2>/dev/null
+          }
+          # The cache directory is a mount point: empty it rather than remove it.
+          clear_cache() {
+            find apps/sim/.next/dev -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          }
+          # SIGINT first: `next dev` SIGKILLs its server 100ms after SIGTERM, which discards a cache
+          # write in flight. stop-session.sh then removes anything still running.
+          stop_sim() {
+            kill -INT "$server_pid" 2>/dev/null || return 0
+            for _ in $(seq 1 30); do kill -0 "$server_pid" 2>/dev/null || break; sleep 1; done
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+          }
+          (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
+            E2E_APP="$realtime_tag" exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
+          realtime_pid=$!
+          start_sim
+          finish() {
+            status=$?
+            stop_sim || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
+            wait "$server_pid" "$realtime_pid" 2>/dev/null || true
+            if cache_broken; then
+              echo "::warning::Turbopack reported a broken dev cache; clearing it for the next run."
+              clear_cache
+            fi
+            exit "$status"
+          }
+          trap finish EXIT
+          # The apps boot while the runner installs Electron's libraries and bundles the shell.
           sudo apt-get update -q
           sudo apt-get install -yq xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 \
             libxtst6 libatk-bridge2.0-0t64 libxkbcommon0 > /dev/null
           # Bundle only: `bun run build` also fetches the macOS node-pty prebuilds for packaging,
           # which a Linux run does not use.
           (cd apps/desktop && bun run scripts/build.ts)
-          # Each app runs in its own session under an E2E_APP tag, and stop-session.sh returns once
-          # every process it started has exited.
-          realtime_tag="desktop-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
-          server_tag="desktop-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
-          (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
-            E2E_APP="$realtime_tag" exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
-          realtime_pid=$!
-          (cd apps/sim && E2E_APP="$server_tag" exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
-            --port 3021 > "$report_dir/desktop-tools-next.log" 2>&1) &
-          server_pid=$!
-          finish() {
-            status=$?
-            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag" || status=1
-            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
-            wait "$server_pid" "$realtime_pid" 2>/dev/null || true
-            exit "$status"
-          }
-          trap finish EXIT
           started=$SECONDS
+          retried=0
           until curl --fail --silent --max-time 10 http://127.0.0.1:3021/api/health > /dev/null &&
             curl --fail --silent --max-time 10 http://127.0.0.1:3023/health > /dev/null; do
-            kill -0 "$server_pid" 2>/dev/null || { tail -n 200 "$report_dir/desktop-tools-next.log"; exit 1; }
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              tail -n 200 "$next_log"
+              if [ "$retried" = 0 ] && cache_broken; then
+                echo "::warning::Turbopack rejected the restored dev cache; restarting from an empty cache."
+                bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+                clear_cache
+                : > "$next_log"
+                retried=1
+                start_sim
+                continue
+              fi
+              exit 1
+            fi
             kill -0 "$realtime_pid" 2>/dev/null || { tail -n 200 "$report_dir/desktop-tools-realtime.log"; exit 1; }
             [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] || { echo '::error::Local app did not become ready'; exit 1; }
             sleep 2
           done
+          echo "Local apps ready $((SECONDS - started))s after the Electron bundle"
           cd apps/desktop
           SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
           SIM_DESKTOP_E2E_PROXY_PORT=3020 \
