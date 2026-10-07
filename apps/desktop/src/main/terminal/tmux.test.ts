@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   awaitRun,
+  closeRunPane,
   isDescendantOf,
   parseFormatLines,
   pollRun,
@@ -15,12 +16,32 @@ import {
   type TmuxRunHandle,
 } from '@/main/terminal/tmux'
 
+/** What real tmux 2.9a writes for `set-option -p`, captured from the binary. */
+const TMUX_29_NO_PANE_OPTIONS =
+  'tmux: unknown option -- p\nusage: set-option [-aFgosquw] [-t target-window] option [value]\n'
+/** The same refusal from a tmux built against BSD getopt, as on macOS. */
+const TMUX_29_BSD_NO_PANE_OPTIONS =
+  'tmux: illegal option -- p\nusage: set-option [-aFgosquw] [-t target-window] option [value]\n'
+
 /** The separator the format strings use. */
-const F = '|~sim~|'
+const F = '<~sim~>'
 
 describe('parseFormatLines', () => {
   it('drops lines with the wrong field count rather than mis-assigning them', () => {
     expect(parseFormatLines(`a${F}b\nonly-one\n`, 2)).toEqual([['a', 'b']])
+  })
+
+  it('reads a field that ends with part of the separator as it is', () => {
+    // A cwd or window name may end with any text, including all but the separator's last character.
+    const partial = F.slice(0, -1)
+    expect(parseFormatLines(`/tmp/x/p${partial}${F}1\n`, 2)).toEqual([[`/tmp/x/p${partial}`, '1']])
+    expect(parseFormatLines(`tail${partial}${F}%3${F}zsh\n`, 3)).toEqual([
+      [`tail${partial}`, '%3', 'zsh'],
+    ])
+  })
+
+  it('drops a line whose field holds the whole separator rather than misread it', () => {
+    expect(parseFormatLines(`a${F}b${F}c\n`, 2)).toEqual([])
   })
 })
 
@@ -100,13 +121,17 @@ describe('run status files', () => {
 interface FakeTmuxState {
   nextWindow: number
   nextPane: number
-  panes: Record<string, { window: string; options: Record<string, string> }>
+  panes: Record<string, { window: string; options: Record<string, string>; command?: string }>
   /** Every command that reached a pane: `send-keys %1 C-c`, `kill-pane %1`. */
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
   fail?: Record<string, string>
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
+  /** Commands the fake holds until the file named here exists, like a busy tmux server. */
+  hold?: Record<string, string>
+  /** Commands the fake is holding right now. */
+  held?: string[]
 }
 
 const FAKE_TMUX = `
@@ -123,12 +148,20 @@ const escaped = (text) =>
   text
     .replace(/\\\\/g, '\\\\\\\\')
     .replace(/[\\x00-\\x1f]/g, (c) => '\\\\' + c.charCodeAt(0).toString(8).padStart(3, '0'))
+if (state.hold && state.hold[args[0]]) {
+  state.held = [...(state.held ?? []), args[0]]
+  save()
+  while (!fs.existsSync(state.hold[args[0]])) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+  }
+  state.held = state.held.filter((command) => command !== args[0])
+}
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
   case 'new-window': {
     const window = '@' + state.nextWindow++
     const pane = '%' + state.nextPane++
-    state.panes[pane] = { window, options: {} }
+    state.panes[pane] = { window, options: {}, command: args[args.length - 1] }
     save()
     // Runs the pane's command for real, the way tmux would, when a test asks for it.
     if (process.env.FAKE_TMUX_EXEC) {
@@ -147,10 +180,17 @@ switch (args[0]) {
     break
   }
   case 'display-message': {
+    // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
-    if (!pane) fail("can't find pane")
     const name = args[args.length - 1].slice(2, -1)
-    process.stdout.write((pane.options[name] ?? '') + '\\n')
+    const value = !pane
+      ? ''
+      : name === 'pane_id'
+        ? target()
+        : name === 'pane_start_command'
+          ? (pane.command ?? '')
+          : (pane.options[name] ?? '')
+    process.stdout.write(value + '\\n')
     break
   }
   case 'list-clients': {
@@ -287,16 +327,84 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('never lets a run it could not tag start, and closes no pane by id to stop it', async () => {
+  it.each([
+    ['tmux 2.9a', TMUX_29_NO_PANE_OPTIONS],
+    ['BSD getopt', TMUX_29_BSD_NO_PANE_OPTIONS],
+  ])(
+    'starts a run untracked on a tmux without pane options (%s), and never stops it by a pane id',
+    async (_build, refusal) => {
+      const tmux = fakeTmux()
+      dirs.push(tmux.dir)
+      // tmux before 3.0 has no pane options.
+      tmux.write({ ...tmux.read(), fail: { 'set-option': refusal } })
+
+      const run = await startRun('agent', 'sleep 600', null, tmux.env)
+      if ('error' in run) throw new Error(run.error)
+
+      expect(run.runId).toBeNull()
+      expect(existsSync(join(run.statusPath, '..', 'go'))).toBe(true)
+      expect(await runPaneState(run, tmux.env)).toBe('unknown')
+      await stopRun(run, tmux.env, 0)
+      // No pane is touched by an id that a restarted server might have handed to the user.
+      expect(tmux.read().log).toEqual([])
+      expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
+
+      // Once its pane is gone, it can be let go.
+      const state = tmux.read()
+      delete state.panes[run.pane]
+      tmux.write(state)
+      expect(await runPaneState(run, tmux.env)).toBe('gone')
+    }
+  )
+
+  it.each(['tmux did not respond', 'server exited unexpectedly'])(
+    'refuses a run that a tmux able to tag panes did not tag (%s)',
+    async (failure) => {
+      const tmux = fakeTmux()
+      dirs.push(tmux.dir)
+      tmux.write({ ...tmux.read(), fail: { 'set-option': failure } })
+
+      const result = await startRun('agent', 'sleep 600', null, tmux.env)
+
+      // Untagged on a tmux that tags, nothing could stop it later, so it never starts.
+      expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+      expect(tmux.read().log).toEqual([])
+    }
+  )
+
+  it("closes a finished untracked run's pane, and only once it has finished", async () => {
     const tmux = fakeTmux()
     dirs.push(tmux.dir)
-    tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
+    tmux.write({ ...tmux.read(), fail: { 'set-option': TMUX_29_NO_PANE_OPTIONS } })
+    const run = await startRun('agent', 'make build', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
 
-    const result = await startRun('agent', 'sleep 600', null, tmux.env)
+    await closeRunPane(run, tmux.env)
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
 
-    expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
-    // No pane is closed by an id that a restarted server might have handed to the user.
+    // Its command ended; with `remain-on-exit` its dead pane would otherwise stay open.
+    writeFileSync(run.statusPath, '0')
+    await closeRunPane(run, tmux.env)
+    expect(Object.keys(tmux.read().panes)).toEqual([])
+  })
+
+  it("never closes a pane that took a finished untracked run's id after tmux restarted", async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), fail: { 'set-option': TMUX_29_NO_PANE_OPTIONS } })
+    const run = await startRun('agent', 'make build', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
+    writeFileSync(run.statusPath, '0')
+    tmux.restart()
+    // The user's own shell gets the ids the run's pane had.
+    const state = tmux.read()
+    state.panes[run.pane] = { window: run.window, options: {}, command: 'zsh' }
+    tmux.write(state)
+
+    await closeRunPane(run, tmux.env)
+
     expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
   })
 
   it('lets a tagged run start only once its pane is tagged', async () => {
@@ -318,7 +426,7 @@ describe('stopping a tmux run touches only its own pane', () => {
     expect(tmux.read().log).toEqual([])
   })
 
-  it('runs a tagged command for real, and never runs one it could not tag', async () => {
+  it('runs a command for real whether or not tmux could tag its pane', async () => {
     const tagged = fakeTmux({ exec: true })
     dirs.push(tagged.dir)
     const run = await startRun('agent', 'echo ran', null, tagged.env)
@@ -332,11 +440,31 @@ describe('stopping a tmux run touches only its own pane', () => {
 
     const untagged = fakeTmux({ exec: true })
     dirs.push(untagged.dir)
-    untagged.write({ ...untagged.read(), fail: { 'set-option': 'invalid option' } })
-    const marker = join(untagged.dir, 'ran')
-    await startRun('agent', `touch ${JSON.stringify(marker)}`, null, untagged.env)
-    await sleep(6_000)
+    untagged.write({ ...untagged.read(), fail: { 'set-option': TMUX_29_NO_PANE_OPTIONS } })
+    const untracked = await startRun('agent', 'echo ran', null, untagged.env)
+    if ('error' in untracked) throw new Error(untracked.error)
+    await expect
+      .poll(() => pollRun(untracked), { timeout: 10_000 })
+      .toMatchObject({ done: true, exitCode: 0, output: 'ran\n' })
+  }, 20_000)
 
+  it('holds a command until tmux has finished tagging its pane', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    const release = join(tmux.dir, 'release')
+    tmux.write({ ...tmux.read(), hold: { 'set-option': release } })
+    const marker = join(tmux.dir, 'ran')
+
+    const starting = startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env)
+    // The pane is open and the tagging call is in flight, held by tmux.
+    await expect.poll(() => tmux.read().held ?? [], { timeout: 10_000 }).toEqual(['set-option'])
+    // Time enough for an ungated command to have run.
+    await sleep(1_000)
     expect(existsSync(marker)).toBe(false)
+
+    writeFileSync(release, '')
+    const run = await starting
+    if ('error' in run) throw new Error(run.error)
+    await expect.poll(() => existsSync(marker), { timeout: 10_000 }).toBe(true)
   }, 20_000)
 })

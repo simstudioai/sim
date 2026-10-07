@@ -16,6 +16,10 @@ const tmuxFake = vi.hoisted(() => ({
   stopped: [] as string[],
   /** Panes no longer the run's (closed by the user, or reused after a tmux restart). */
   gone: new Set<string>(),
+  /** Runs start untracked, as on a tmux too old to tag their panes. */
+  untracked: false,
+  /** Run panes tmux still shows, kept open after their command ends (`remain-on-exit`). */
+  open: new Set<string>(),
   statusPaths: new Map<string, string>(),
 }))
 
@@ -37,10 +41,11 @@ vi.mock('@/main/terminal/tmux', async () => {
       const statusPath = join(dir, 'status')
       writeFileSync(join(dir, 'out'), 'partial output')
       tmuxFake.statusPaths.set(pane, statusPath)
+      tmuxFake.open.add(pane)
       return {
         window: `@${pane.slice(1)}`,
         pane,
-        runId: `run-${pane}`,
+        runId: tmuxFake.untracked ? null : `run-${pane}`,
         outPath: join(dir, 'out'),
         statusPath,
         dispose: () => rmSync(dir, { recursive: true, force: true }),
@@ -48,17 +53,19 @@ vi.mock('@/main/terminal/tmux', async () => {
     },
     runPaneState: async (...args: Parameters<typeof actual.runPaneState>) => {
       if (!tmuxFake.on) return actual.runPaneState(...args)
-      return tmuxFake.gone.has(args[0].pane) ? 'gone' : 'ours'
+      if (tmuxFake.gone.has(args[0].pane)) return 'gone'
+      return args[0].runId === null ? 'unknown' : 'ours'
     },
     stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
       if (!tmuxFake.on) return actual.stopRun(...args)
       const [handle] = args
-      if (tmuxFake.gone.has(handle.pane)) return
+      if (tmuxFake.gone.has(handle.pane) || handle.runId === null) return
       tmuxFake.stopped.push(handle.pane)
       writeFileSync(handle.statusPath, '130')
     },
     closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
       if (!tmuxFake.on) return actual.closeRunPane(...args)
+      tmuxFake.open.delete(args[0].pane)
     },
   }
 })
@@ -582,6 +589,56 @@ describe('agent commands in tmux', () => {
         ok: true,
         result: { status: 'completed', exitCode: 130 },
       })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it('reports an untracked run it could not stop as still running, and keeps tracking it', async () => {
+    tmuxFake.on = true
+    tmuxFake.untracked = true
+    tmuxFake.statusPaths.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-untracked', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 60,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+      const [, statusPath = ''] = [...tmuxFake.statusPaths][0] ?? []
+
+      await terminal.cancelTool('call-untracked')
+
+      await expect(running).resolves.toMatchObject({ ok: true, result: { status: 'running' } })
+      expect(existsSync(join(statusPath, '..'))).toBe(true)
+
+      // Once it does finish, the next run's bookkeeping reaps it.
+      writeFileSync(statusPath, '0')
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+      expect(existsSync(join(statusPath, '..'))).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.untracked = false
+    }
+  })
+
+  it("closes a run's pane when a later run reaps it after it finished", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      // It finishes after its call returned, and its dead pane stays open.
+      writeFileSync(statusPath, '0')
+      expect(tmuxFake.open.has(pane)).toBe(true)
+
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+
+      expect(tmuxFake.open.has(pane)).toBe(false)
     } finally {
       tmuxFake.on = false
     }

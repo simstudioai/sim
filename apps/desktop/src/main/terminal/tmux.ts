@@ -19,7 +19,7 @@
 import { spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { TerminalPaneState } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -41,10 +41,11 @@ const RUN_POLL_INTERVAL_MS = 250
 /**
  * Field separator for `-F` output. Printable on purpose: tmux 3.4 and 3.5 print a control
  * character as its octal escape, so a control-character separator arrived as the text `\037` and
- * no line split. No tmux escapes these characters, and a field that happened to contain the
- * separator would change the line's field count, so that line is dropped rather than misread.
+ * no line split. No tmux escapes these characters. No proper prefix of the separator is also a
+ * suffix of it, so it can only be found where it was written or wholly inside a field: a field
+ * holding it changes the line's field count, and that line is dropped rather than misread.
  */
-const FIELD = '|~sim~|'
+const FIELD = '<~sim~>'
 
 export interface TmuxCommandResult {
   ok: boolean
@@ -311,9 +312,11 @@ export interface TmuxRunHandle {
   pane: string
   /**
    * Tagged on the pane as the `@sim-run-id` user option. Window and pane ids restart from zero
-   * with the tmux server, so only the tag proves a pane is still this run's.
+   * with the tmux server, so only the tag proves a pane is still this run's. Null when tmux could
+   * not tag the pane (tmux before 3.0 has no pane options): the run goes ahead untracked, and
+   * nothing ever stops it, since nothing could tell its pane from one of the user's.
    */
-  runId: string
+  runId: string | null
   outPath: string
   statusPath: string
   dispose(): void
@@ -327,6 +330,14 @@ const RUN_GATE_POLLS = Math.ceil((2 * TMUX_TIMEOUT_MS + 5_000) / 50)
 
 /** The tmux user option that marks a pane as one run's own. */
 const RUN_ID_OPTION = '@sim-run-id'
+
+/**
+ * How tmux before 3.0, which has no pane options, refuses `set-option -p`. Its own getopt prints
+ * `unknown option -- p` (BSD getopt on macOS: `illegal option -- p`) followed by set-option's usage
+ * line; later wordings are kept for any build that phrases it so.
+ */
+const NO_PANE_OPTIONS =
+  /unknown option -- p|illegal option -- p|usage: set-option|unknown flag|invalid option/i
 
 /**
  * Starts a command in a dedicated tmux window.
@@ -368,10 +379,10 @@ export async function startRun(
   // into the pipeline and print `No such file or directory` into the user's own
   // tmux window, minutes after they closed the tab.
   //
-  // The command waits for its pane to be tagged as this run's (the go file), so nothing runs that
-  // a later stop could not recognize. Untagged, the script gives up once the tagging call has
-  // surely failed, and its pane closes on its own; no one has to close a pane whose id might no
-  // longer be its own.
+  // The command waits for the tagging call to finish (the go file), so a tagged run's command
+  // never runs before a later stop could recognize its pane. If Sim never releases it (it quit
+  // mid-start), the script gives up once the tagging call has surely ended and its pane closes on
+  // its own; no one has to close a pane whose id might no longer be its own.
   //
   // The script is a file rather than a `bash -c` string: tmux hands its command to `sh -c`, which
   // would expand `$` references meant for bash (the gate's counter, PIPESTATUS) before bash ran.
@@ -410,18 +421,24 @@ export async function startRun(
     return { error: created.stderr.trim() || 'tmux could not open a window for the command.' }
   }
   const [window = '', pane = ''] = created.stdout.trim().split(' ')
-  const runId = generateId()
+  const tag = generateId()
   // An untagged pane is never treated as the run's: without the tag a stop could not tell it from
-  // a pane the user opened later under the same id, so it sends nothing at all.
-  const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, runId], env)
-  if (!tagged.ok) {
-    // Untagged, nothing could stop it safely later, so it never starts: without the go file the
-    // wrapper exits by itself.
+  // a pane the user opened later under the same id.
+  const tagged = await runTmux(['set-option', '-p', '-t', pane, RUN_ID_OPTION, tag], env)
+  if (!tagged.ok && !NO_PANE_OPTIONS.test(tagged.stderr)) {
+    // A tmux that can tag panes but did not (it timed out, or failed otherwise) gets no command
+    // that nothing could stop: without the go file the wrapper exits by itself.
     dispose()
     return {
       error: `tmux could not mark the command's pane (${tagged.stderr.trim() || 'no detail'}), so the command was not run.`,
     }
   }
+  if (!tagged.ok) {
+    logger.warn('This tmux cannot tag a run pane; the run goes ahead untracked', {
+      error: tagged.stderr.trim(),
+    })
+  }
+  const runId = tagged.ok ? tag : null
   try {
     writeFileSync(goPath, '')
   } catch (error) {
@@ -435,18 +452,22 @@ export async function startRun(
 /**
  * Whether the run's pane is still the run's: `ours`, or `gone` when tmux has no such pane or the
  * pane under that id is not tagged as this run's (the user closed it, or a restarted tmux server
- * handed the id to one of the user's own panes). `unknown` when tmux could not be asked: such a
- * pane is neither touched nor given up on.
+ * handed the id to one of the user's own panes). `unknown` when tmux could not be asked, or an
+ * untracked run's pane still exists, since nothing proves whose it is: such a pane is neither
+ * touched nor given up on.
  */
 export async function runPaneState(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv
 ): Promise<'ours' | 'gone' | 'unknown'> {
   if (!handle.pane) return 'gone'
-  const shown = await runTmux(
-    ['display-message', '-p', '-t', handle.pane, `#{${RUN_ID_OPTION}}`],
-    env
-  )
+  // An untracked run's pane can still be found missing, with a format every tmux knows.
+  const format = handle.runId === null ? '#{pane_id}' : `#{${RUN_ID_OPTION}}`
+  const shown = await runTmux(['display-message', '-p', '-t', handle.pane, format], env)
+  // tmux 3.x answers for a missing pane with an empty line rather than an error.
+  if (shown.ok && handle.runId === null) {
+    return shown.stdout.trim() === handle.pane ? 'unknown' : 'gone'
+  }
   if (shown.ok) return shown.stdout.trim() === handle.runId ? 'ours' : 'gone'
   return /can't find|no server running/i.test(shown.stderr) ? 'gone' : 'unknown'
 }
@@ -529,11 +550,32 @@ export async function killPane(target: string, env: NodeJS.ProcessEnv): Promise<
 }
 
 /**
+ * Whether the pane under an untracked run's id was started with that run's own script, whose path
+ * is unique to the run. Every tmux reports a pane's start command, so this holds where tags do not.
+ */
+async function startedByRun(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<boolean> {
+  const script = join(dirname(handle.statusPath), 'run.sh')
+  const shown = await runTmux(
+    ['display-message', '-p', '-t', handle.pane, '#{pane_start_command}'],
+    env
+  )
+  return shown.ok && shown.stdout.includes(script)
+}
+
+/**
  * Closes the pane opened by {@link startRun}, and with it the window once that pane is the last
- * one in it. Only the run's own pane, and only while it is still the run's.
+ * one in it. Only the run's own pane, and only while it is still the run's. An untracked run's
+ * pane is closed only once the run has written its exit status, and only if the pane was started
+ * by the run's own script: a restarted tmux may have handed the id to one of the user's panes.
  */
 export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
-  if ((await runPaneState(handle, env)) !== 'ours') return
+  const state = await runPaneState(handle, env)
+  const finishedUntracked =
+    handle.runId === null &&
+    state === 'unknown' &&
+    isRunComplete(handle) &&
+    (await startedByRun(handle, env))
+  if (state !== 'ours' && !finishedUntracked) return
   const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
   if (!killed.ok) {
     logger.warn('Could not close the tmux run pane', { error: killed.stderr.trim() })

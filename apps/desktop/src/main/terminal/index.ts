@@ -494,7 +494,10 @@ export class TerminalService {
     }
     for (const handle of this.pendingRuns.get(terminalId) ?? []) {
       if (this.awaitedRuns.has(handle)) continue
-      if (isRunComplete(handle) || (await runPaneState(handle, env)) === 'gone') {
+      const complete = isRunComplete(handle)
+      if (complete || (await runPaneState(handle, env)) === 'gone') {
+        // A pane kept open after its command ended (`remain-on-exit`) closes with its run.
+        if (complete) await closeRunPane(handle, env)
         this.untrackRun(terminalId, handle)
         handle.dispose()
       }
@@ -521,7 +524,8 @@ export class TerminalService {
     const pending = this.pendingRuns.get(terminalId)
     if (!pending) return
     for (const handle of pending) {
-      if (env && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
+      // An untracked run is never stopped, so there is nothing to keep it for.
+      if (env && handle.runId !== null && !isRunComplete(handle)) this.orphanedRuns.set(handle, env)
       this.releaseRun(handle)
     }
     this.pendingRuns.delete(terminalId)
@@ -1300,7 +1304,11 @@ export class TerminalService {
     if (latch.signal.aborted) void latch.stopRunning()
     const outcome = await Promise.race([
       awaitRun(handle, waitMs),
-      stopped.then(() => ({ ...pollRun(handle), done: true })),
+      // A stopped run's closed pane never writes its status. An untracked run is never stopped,
+      // so it is still going unless its status says otherwise.
+      stopped.then(() =>
+        handle.runId === null ? pollRun(handle) : { ...pollRun(handle), done: true }
+      ),
     ]).finally(() => {
       this.awaitedRuns.delete(handle)
       if (this.releasedAwaitedRuns.delete(handle)) handle.dispose()
