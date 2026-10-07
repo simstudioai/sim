@@ -32,7 +32,7 @@ const {
   mockResolveWebhookRecordProviderConfig,
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
-  mockExecuteWithIdempotency,
+  mockExecuteOrSkipInProgress,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
   mockExecutionSnapshot,
@@ -42,7 +42,7 @@ const {
     mockResolveWebhookRecordProviderConfig: vi.fn(),
     mockExecuteWorkflowCore: vi.fn(),
     mockWasExecutionFinalizedByCore: vi.fn(),
-    mockExecuteWithIdempotency: vi.fn(),
+    mockExecuteOrSkipInProgress: vi.fn(),
     mockGetProviderHandler: vi.fn(() => ({})),
     mockSetResolvedSecretTraceRegistry: vi.fn(),
     mockExecutionSnapshot: vi.fn(),
@@ -84,7 +84,7 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
 vi.mock('@/lib/core/idempotency', () => ({
   IdempotencyService: { createWebhookIdempotencyKey: vi.fn(() => 'idempotency-key') },
   webhookIdempotency: {
-    executeWithIdempotency: mockExecuteWithIdempotency,
+    executeOrSkipInProgress: mockExecuteOrSkipInProgress,
   },
 }))
 
@@ -254,8 +254,11 @@ describe('executeWebhookJob fault vs error handling', () => {
       .mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({})
     mockEnqueue.mockReset().mockResolvedValue('run_retry')
-    mockExecuteWithIdempotency.mockImplementation(
-      (_provider: string, _key: string, operation: () => Promise<unknown>) => operation()
+    mockExecuteOrSkipInProgress.mockImplementation(
+      async (_provider: string, _key: string, operation: () => Promise<unknown>) => ({
+        outcome: 'resolved',
+        result: await operation(),
+      })
     )
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
       success: true,
@@ -634,12 +637,28 @@ describe('executeWebhookJob fault vs error handling', () => {
       workflowId: 'workflow-1',
       executionId: 'original-execution',
     }
-    mockExecuteWithIdempotency.mockResolvedValueOnce(cachedResult)
+    mockExecuteOrSkipInProgress.mockResolvedValueOnce({ outcome: 'resolved', result: cachedResult })
 
     await expect(executeWebhookJob(payload)).resolves.toBe(cachedResult)
 
     expect(executionPreprocessingMockFns.mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+  })
+
+  it('acknowledges a duplicate of an in-progress delivery without running it and frees its reservation', async () => {
+    mockExecuteOrSkipInProgress.mockResolvedValueOnce({ outcome: 'in-progress' })
+
+    await expect(executeWebhookJob(payload)).resolves.toMatchObject({
+      success: true,
+      duplicate: true,
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
   })
 
   it('rejects queued webhook work without an immutable attribution snapshot', async () => {
@@ -705,7 +724,7 @@ describe('executeWebhookJob fault vs error handling', () => {
 
     expect(redisGet).toHaveBeenCalledWith('usage:reservation:execution-1')
     expect(result).toMatchObject({ success: false, requeued: true })
-    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
+    expect(mockExecuteOrSkipInProgress).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
@@ -750,7 +769,7 @@ describe('executeWebhookJob fault vs error handling', () => {
     })
 
     expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
+    expect(mockExecuteOrSkipInProgress).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
     expect(loggingSessionMockFns.mockSafeStart).toHaveBeenCalledTimes(1)
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledExactlyOnceWith(
@@ -784,12 +803,12 @@ describe('executeWebhookJob fault vs error handling', () => {
 
     expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
     expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
+    expect(mockExecuteOrSkipInProgress).not.toHaveBeenCalled()
   })
 
   it('does not treat an ambiguous idempotency claim timeout as a safe setup retry', async () => {
     const error = new Error('Command timed out')
-    mockExecuteWithIdempotency.mockRejectedValueOnce(error)
+    mockExecuteOrSkipInProgress.mockRejectedValueOnce(error)
 
     await expect(executeWebhookJob(payload)).rejects.toBe(error)
 

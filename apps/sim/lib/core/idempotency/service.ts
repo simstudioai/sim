@@ -73,6 +73,15 @@ export interface IdempotencyExecutionOptions {
   inProgressExpiresAt?: number
 }
 
+/**
+ * Outcome of {@link IdempotencyService.executeOrSkipInProgress}. `resolved` covers both a
+ * fresh run and a replayed completed result; `in-progress` means another holder owns a live
+ * claim on the key and this caller did nothing.
+ */
+export type IdempotentExecution<T> = { outcome: 'resolved'; result: T } | { outcome: 'in-progress' }
+
+type InProgressPolicy = 'wait' | 'skip'
+
 export interface AtomicClaimResult {
   claimed: boolean
   existingResult?: ProcessingResult
@@ -559,6 +568,12 @@ export class IdempotencyService {
     return deleted.length > 0
   }
 
+  /**
+   * Runs `operation` at most once per key. A caller that finds another holder's live claim
+   * polls until that holder finishes and returns (or rethrows) its outcome, so use this when
+   * the caller's own response depends on the result (e.g. Stripe must not get a 2xx before
+   * the first attempt settles).
+   */
   async executeWithIdempotency<T>(
     provider: string,
     identifier: string,
@@ -566,6 +581,57 @@ export class IdempotencyService {
     additionalContext?: Record<string, any>,
     options?: IdempotencyExecutionOptions
   ): Promise<T> {
+    const execution = await this.execute(
+      provider,
+      identifier,
+      operation,
+      additionalContext,
+      options,
+      'wait'
+    )
+    return execution.result
+  }
+
+  /**
+   * Like {@link executeWithIdempotency}, but returns `{ outcome: 'in-progress' }` immediately
+   * when another holder owns a live claim instead of polling until it finishes. Use it when
+   * nobody consumes the duplicate's result, so waiting would only pin the caller's worker and
+   * leases. Completed and failed keys behave exactly as in `executeWithIdempotency`.
+   */
+  async executeOrSkipInProgress<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext?: Record<string, unknown>,
+    options?: IdempotencyExecutionOptions
+  ): Promise<IdempotentExecution<T>> {
+    return this.execute(provider, identifier, operation, additionalContext, options, 'skip')
+  }
+
+  private execute<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext: Record<string, unknown> | undefined,
+    options: IdempotencyExecutionOptions | undefined,
+    inProgressPolicy: 'wait'
+  ): Promise<{ outcome: 'resolved'; result: T }>
+  private execute<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext: Record<string, unknown> | undefined,
+    options: IdempotencyExecutionOptions | undefined,
+    inProgressPolicy: InProgressPolicy
+  ): Promise<IdempotentExecution<T>>
+  private async execute<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext: Record<string, unknown> | undefined,
+    options: IdempotencyExecutionOptions | undefined,
+    inProgressPolicy: InProgressPolicy
+  ): Promise<IdempotentExecution<T>> {
     const claimResult = await this.atomicallyClaim(provider, identifier, additionalContext, options)
 
     if (!claimResult.claimed) {
@@ -576,7 +642,7 @@ export class IdempotencyService {
         if (existingResult.success === false) {
           throw new Error(existingResult.error || 'Previous operation failed')
         }
-        return existingResult.result as T
+        return { outcome: 'resolved', result: existingResult.result as T }
       }
 
       if (existingResult?.status === 'failed') {
@@ -585,12 +651,13 @@ export class IdempotencyService {
             observedResult: existingResult,
             observedValue: claimResult.observedValue,
           })
-          return this.executeWithIdempotency(
+          return this.execute(
             provider,
             identifier,
             operation,
             additionalContext,
-            options
+            options,
+            inProgressPolicy
           )
         }
         logger.info(`Previous operation failed for: ${claimResult.normalizedKey}`)
@@ -598,17 +665,22 @@ export class IdempotencyService {
       }
 
       if (existingResult?.status === 'in-progress') {
+        if (inProgressPolicy === 'skip') {
+          logger.info(`Skipping duplicate of in-progress operation: ${claimResult.normalizedKey}`)
+          return { outcome: 'in-progress' }
+        }
         logger.info(`Waiting for in-progress operation: ${claimResult.normalizedKey}`)
-        return await this.waitForResult<T>(
+        const result = await this.waitForResult<T>(
           claimResult.normalizedKey,
           claimResult.storageMethod,
           existingResult.inProgressExpiresAt ??
             (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
         )
+        return { outcome: 'resolved', result }
       }
 
       if (existingResult) {
-        return existingResult.result as T
+        return { outcome: 'resolved', result: existingResult.result as T }
       }
 
       throw new Error(`Unexpected state: key claimed but no existing result found`)
@@ -630,7 +702,7 @@ export class IdempotencyService {
       )
 
       logger.debug(`Successfully completed operation: ${claimResult.normalizedKey}`)
-      return result
+      return { outcome: 'resolved', result }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error')
 
@@ -741,9 +813,23 @@ export const webhookIdempotency = new IdempotencyService({
   storeResultBody: false,
 })
 
+/**
+ * Longest an unfinished polled-item claim stays live.
+ *
+ * One item's operation is a payload build (plus attachment download for mail
+ * providers), the enqueue, and an optional mark-as-read — seconds, not minutes.
+ * The whole poll pass runs under a per-provider lock that the polling route
+ * holds for its 180-second `maxDuration`, so five minutes outlives any healthy
+ * pass with margin. Left unset, the lease would fall back to the three-day
+ * dedupe TTL, so a pass killed mid-item would leave every later poll of that
+ * item waiting on a holder that no longer exists.
+ */
+const POLLING_IN_PROGRESS_LEASE_SECONDS = 5 * 60
+
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
+  inProgressTtlSeconds: POLLING_IN_PROGRESS_LEASE_SECONDS,
   retryFailures: true,
   storeResultBody: false,
 })
