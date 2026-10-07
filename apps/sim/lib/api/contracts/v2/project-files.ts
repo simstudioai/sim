@@ -34,7 +34,7 @@ export const v2ProjectFileSchema = v2FileSchema
         entityId: nonEmptyIdSchema.describe('Identifier of the owning Project.'),
       })
       .describe('Canonical owner of the shared file.'),
-    uploadedBy: nonEmptyIdSchema.nullable().describe('Creator identifier, when available.'),
+    uploadedBy: nonEmptyIdSchema.describe('Creator or successor identifier.'),
     revision: writtenFileRevisionSchema,
     folderPath: v2FileSchema.shape.folderPath.describe(
       'Canonical containing-folder path. `/` is the Project root.'

@@ -19,7 +19,7 @@ export const listWorkspaceFileFoldersQuerySchema = z.object({
 export const workspaceFileFolderSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
-  userId: z.string().nullable(),
+  userId: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
   path: z.string(),

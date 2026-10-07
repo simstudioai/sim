@@ -47,7 +47,7 @@ import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/v2/files/[fileId]/route'
 
-const { mockFindUserEmailsByIds } = usersQueriesMockFns
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -103,7 +103,7 @@ describe('v2 single-file routes', () => {
       workspaceId: WORKSPACE_ID,
       deleted: true,
     })
-    mockFindUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
     mocks.authorizeDownload.mockResolvedValue(undefined)
   })
 

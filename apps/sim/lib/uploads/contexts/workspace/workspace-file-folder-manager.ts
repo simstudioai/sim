@@ -91,7 +91,7 @@ export class WorkspaceFileItemsNotFoundError extends OrchestrationError {
 export interface WorkspaceFileFolderRecord {
   id: string
   workspaceId: string
-  userId: string | null
+  userId: string
   name: string
   parentId: string | null
   path: string
@@ -147,7 +147,7 @@ export async function loadWorkspaceFileOperationContext(
 interface RawWorkspaceFileFolder {
   id: string
   workspaceId: string
-  userId: string | null
+  userId: string
   name: string
   parentId: string | null
   sortOrder: number

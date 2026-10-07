@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import {
   folder,
   permissions,
+  project,
   projectWorkspace,
   user,
   userStats,
@@ -17,12 +18,13 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import { changeProjectStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import {
   createWorkspaceFileFolder,
   listFileFolders,
@@ -46,6 +48,7 @@ setUploadDirServer(storageRoot)
 const creatorId = generateId()
 const collaboratorId = generateId()
 const workspaceId = generateId()
+const secondWorkspaceId = generateId()
 const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
 
 afterAll(async () => {
@@ -61,7 +64,7 @@ afterAll(async () => {
       await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, binding.projectId))
       await db.delete(folder).where(eq(folder.projectId, binding.projectId))
     }
-    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, secondWorkspaceId]))
     await db.delete(user).where(inArray(user.id, [creatorId, collaboratorId]))
   } finally {
     await db.$client.end()
@@ -74,7 +77,7 @@ afterAll(async () => {
   }
 })
 
-it('departure revokes access without erasing attribution; account deletion retains shared bytes, folders and history', async () => {
+it('partial departure retains Project attribution; successor handoff and prior-departure deletion preserve bytes and actors', async () => {
   const started = performance.now()
   const name = 'real departure, account deletion, current collaborator reads and writes'
   try {
@@ -103,6 +106,22 @@ it('departure revokes access without erasing attribution; account deletion retai
         userId: id,
         entityType: 'workspace' as const,
         entityId: workspaceId,
+        permissionType: 'admin' as const,
+      }))
+    )
+    await insertWorkspaceFixture(db, {
+      id: secondWorkspaceId,
+      ownerId: collaboratorId,
+      billedAccountUserId: collaboratorId,
+      name: 'Second environment',
+      forkedFromWorkspaceId: workspaceId,
+    })
+    await db.insert(permissions).values(
+      [creatorId, collaboratorId].map((userId) => ({
+        id: generateId(),
+        userId,
+        entityType: 'workspace' as const,
+        entityId: secondWorkspaceId,
         permissionType: 'admin' as const,
       }))
     )
@@ -153,6 +172,16 @@ it('departure revokes access without erasing attribution; account deletion retai
       context: 'project',
       folderId: projectFolderId,
     })
+    await db.transaction((tx) =>
+      changeProjectStoragePayersInTx(tx, [
+        {
+          projectId: binding.projectId,
+          ownerId: creatorId,
+          organizationId: null,
+          expectedCurrentOwner: { ownerId: collaboratorId, organizationId: null },
+        },
+      ])
+    )
     const billingBefore = await resolveStorageBillingContext(workspaceId)
     const creator = createSessionPrincipal({ userId: creatorId })
     const collaborator = createSessionPrincipal({ userId: collaboratorId })
@@ -167,7 +196,7 @@ it('departure revokes access without erasing attribution; account deletion retai
       revokeWorkspaceAccessTx(tx, { workspaceId, userId: creatorId })
     )
     expect(revoked.revoked).toBe(true)
-    expect((await getWorkspaceFile(workspaceId, uploaded.id))?.uploadedBy).toBe(creatorId)
+    expect((await getWorkspaceFile(workspaceId, uploaded.id))?.uploadedBy).toBe(collaboratorId)
     await expect(
       readWorkspaceFileMetadata.execute({
         principal: creator,
@@ -178,26 +207,84 @@ it('departure revokes access without erasing attribution; account deletion retai
       expect(await verifyFileAccess(before.key, creatorId, undefined, context)).toBe(false)
       expect(await verifyFileAccess(before.key, collaboratorId, undefined, context)).toBe(true)
     }
+    expect(
+      (await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, projectFileId)))[0].userId
+    ).toBe(creatorId)
+    await db
+      .update(permissions)
+      .set({ permissionType: 'write' })
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
+    await expect(
+      db.transaction((tx) =>
+        revokeWorkspaceAccessTx(tx, { workspaceId: secondWorkspaceId, userId: creatorId })
+      )
+    ).rejects.toThrow(/Project.*successor/)
+    expect(
+      (await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, projectFileId)))[0].userId
+    ).toBe(creatorId)
+    expect(
+      await db
+        .select()
+        .from(permissions)
+        .where(and(eq(permissions.userId, creatorId), eq(permissions.entityId, secondWorkspaceId)))
+    ).toHaveLength(1)
+    await db
+      .update(permissions)
+      .set({ permissionType: 'admin' })
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
+    expect(
+      (
+        await db.transaction((tx) =>
+          revokeWorkspaceAccessTx(tx, { workspaceId: secondWorkspaceId, userId: creatorId })
+        )
+      ).revoked
+    ).toBe(true)
+    expect(
+      (await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, projectFileId)))[0].userId
+    ).toBe(collaboratorId)
+    expect(
+      (await db.select().from(project).where(eq(project.id, binding.projectId)))[0].ownerId
+    ).toBe(collaboratorId)
+    expect(
+      (await db.select().from(userStats).where(eq(userStats.userId, creatorId)))[0].storageUsedBytes
+    ).toBe(0)
+    await db
+      .update(workspaceFiles)
+      .set({ userId: creatorId, deletedAt: new Date() })
+      .where(eq(workspaceFiles.id, projectFileId))
+    await db.update(folder).set({ userId: creatorId }).where(eq(folder.id, projectFolderId))
+    await db
+      .update(permissions)
+      .set({ permissionType: 'write' })
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
+    await expect(deleteUserAccount(creatorId)).rejects.toThrow(/Project.*successor/)
+    expect(await db.select({ id: user.id }).from(user).where(eq(user.id, creatorId))).toHaveLength(
+      1
+    )
+    await db
+      .update(permissions)
+      .set({ permissionType: 'admin' })
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
     const deletion = await deleteUserAccount(creatorId)
     expect(deletion.blockers).toEqual([])
     expect(await db.select({ id: user.id }).from(user).where(eq(user.id, creatorId))).toEqual([])
     const retained = await getWorkspaceFile(workspaceId, uploaded.id, { throwOnError: true })
     if (!retained) throw new Error('Shared file was deleted with its creator')
-    expect(retained.uploadedBy).toBeNull()
+    expect(retained.uploadedBy).toBe(collaboratorId)
     expect((await fetchWorkspaceFileBuffer(retained, { maxBytes: 1024 })).toString()).toBe(
       'current'
     )
     expect(
       (await listWorkspaceFileFolders(workspaceId)).find((folder) => folder.id === createdFolder.id)
         ?.userId
-    ).toBeNull()
+    ).toBe(collaboratorId)
     expect(
       (await listFileFolders({ entityType: 'project', entityId: binding.projectId }))[0].userId
-    ).toBeNull()
+    ).toBe(collaboratorId)
     expect(
       (await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, projectFileId)))[0].userId
-    ).toBeNull()
-    expect((await toV2File(retained)).uploadedByEmail).toBeNull()
+    ).toBe(collaboratorId)
+    expect((await toV2File(retained)).uploadedByEmail).toBe(`${collaboratorId}@creator.invalid`)
     await expect(
       readWorkspaceFileMetadata.execute({
         principal: collaborator,
@@ -217,7 +304,7 @@ it('departure revokes access without erasing attribution; account deletion retai
       undefined,
       { version: { source: 'api', authorUserId: collaboratorId }, syncLiveDoc: false }
     )
-    expect((await getWorkspaceFile(workspaceId, uploaded.id))?.uploadedBy).toBeNull()
+    expect((await getWorkspaceFile(workspaceId, uploaded.id))?.uploadedBy).toBe(collaboratorId)
     expect(await resolveStorageBillingContext(workspaceId)).toEqual(billingBefore)
     checks.push({ name, status: 'passed', durationMs: performance.now() - started })
   } catch (error) {

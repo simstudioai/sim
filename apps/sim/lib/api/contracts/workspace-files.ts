@@ -152,7 +152,7 @@ export const workspaceFileRecordSchema = z.object({
   /** Intrinsic image dimensions (px), populated lazily; null for non-images/un-backfilled rows. */
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
-  uploadedBy: z.string().nullable(),
+  uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),
   deletedAt: z.coerce.date().nullable().optional(),

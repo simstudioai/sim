@@ -274,7 +274,7 @@ export const ResourceContent = memo(function ResourceContent({
       return (
         <div className='flex h-full flex-col overflow-hidden'>
           <FileViewer
-            file={{ ...syntheticFile, owner, uploadedBy: null }}
+            file={{ ...syntheticFile, owner }}
             owner={owner}
             canEdit={false}
             previewMode={previewMode ?? 'preview'}

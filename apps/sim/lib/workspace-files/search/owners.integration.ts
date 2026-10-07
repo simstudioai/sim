@@ -36,6 +36,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
 import { readProjectFileArtifact } from '@/lib/projects/files/application/artifacts'
 import {
@@ -47,6 +48,7 @@ import { lockProject } from '@/lib/projects/membership'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
@@ -451,8 +453,12 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
     }
   )
 
-  check('keeps empty and recursive folder scopes exact after the creator is detached', async () => {
+  check('keeps empty and recursive folder scopes exact after creator handoff', async () => {
     const f = await fixture()
+    await db
+      .update(permissions)
+      .set({ permissionType: 'write' })
+      .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, f.workspaceId)))
     const folder = await createProjectFileFolder.execute({
       principal: f.principal,
       input: { projectId: f.projectId, name: 'Architecture' },
@@ -461,23 +467,37 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       principal: f.principal,
       input: { projectId: f.projectId, name: 'Backend', parentId: folder.folder.id },
     })
-    const created = await create(f, 'folderneedle', { folderId: child.folder.id })
-    await db
-      .update(workspaceFiles)
-      .set({ userId: null })
-      .where(eq(workspaceFiles.id, created.file.id))
+    const created = await create({ ...f, principal: f.reader }, 'folderneedle', {
+      folderId: child.folder.id,
+    })
+    const [creatorMembership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, f.organizationId), eq(member.userId, f.readerId)))
+    if (!creatorMembership) throw new Error('Creator membership missing')
+    const removal = await removeUserFromOrganization({
+      userId: f.readerId,
+      organizationId: f.organizationId,
+      memberId: creatorMembership.id,
+      actorUserId: f.ownerId,
+      skipBillingLogic: true,
+      onError: 'throw',
+    })
+    expect(removal.success).toBe(true)
+    await deleteUserAccount(f.readerId)
+    const surviving = { ...f, reader: f.principal }
     await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
-    expect((await search(f, 'folderneedle', { folderPaths: [] })).results).toEqual([])
+    expect((await search(surviving, 'folderneedle', { folderPaths: [] })).results).toEqual([])
     expect(
       (
-        await search(f, 'folderneedle', {
+        await search(surviving, 'folderneedle', {
           folderPaths: ['/Architecture'],
           includeSubfolders: false,
         })
       ).results
     ).toEqual([])
     expect(
-      (await search(f, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
+      (await search(surviving, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
         (hit) => hit.fileId
       )
     ).toEqual([created.file.id])

@@ -53,6 +53,7 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
@@ -1278,21 +1279,21 @@ describe('Project file content against PostgreSQL and the local object store', (
         })
       ).rejects.toMatchObject({ code: 'not_found' })
       expect((await rows(f.projectId))[0].userId).toBe(f.editorId)
-      await db.delete(user).where(eq(user.id, f.editorId))
+      await deleteUserAccount(f.editorId)
       const principal = createSessionPrincipal({ userId: f.ownerId })
       const read = await readProjectFileContent.execute({
         principal,
         input: { projectId: f.projectId, fileId: created.file.id },
       })
       expect(read.file).toMatchObject({
-        uploadedBy: null,
+        uploadedBy: f.ownerId,
         folderPath: 'Authored',
       })
       const [retainedFolder] = await db
         .select()
         .from(folder)
         .where(eq(folder.id, directory.folder.id))
-      expect(retainedFolder).toMatchObject({ userId: null, projectId: f.projectId })
+      expect(retainedFolder).toMatchObject({ userId: f.ownerId, projectId: f.projectId })
       await updateProjectFileContent.execute({
         principal,
         input: {
@@ -1311,7 +1312,7 @@ describe('Project file content against PostgreSQL and the local object store', (
       const [maintained] = await rows(f.projectId)
       expect(maintained).toMatchObject({
         id: created.file.id,
-        userId: null,
+        userId: f.ownerId,
         projectId: f.projectId,
         folderId: directory.folder.id,
       })

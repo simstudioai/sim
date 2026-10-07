@@ -413,7 +413,7 @@ async function pruneExcessWorkspaceFileVersionsInTx(
 type WorkspaceFileVersionSubject = Pick<
   WorkspaceFileRecord,
   'id' | 'key' | 'size' | 'type' | 'uploadedAt' | 'updatedAt' | 'contentUpdatedAt'
-> & { uploadedBy: string | null }
+> & { uploadedBy: string }
 
 /** One version of a workspace file as readers see it. */
 export interface WorkspaceFileVersionRecord {

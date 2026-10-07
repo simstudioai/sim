@@ -31,7 +31,7 @@ type AbortFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -138,7 +138,7 @@ type AbortProjectFileUploadResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -1600,7 +1600,7 @@ type CompleteFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -1707,7 +1707,7 @@ type CompleteProjectFileUploadResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -1828,7 +1828,7 @@ export type CopyFileItemsResponse = {
       type: string
       width?: number | null
       height?: number | null
-      uploadedBy: string | null
+      uploadedBy: string
       folderId: string | null
       folderPath?: string | null
       deletedAt: string | null
@@ -1843,7 +1843,7 @@ export type CopyFileItemsResponse = {
     }>
     folders: Array<{
       id: string
-      userId: string | null
+      userId: string
       name: string
       parentId: string | null
       path: string
@@ -2025,7 +2025,7 @@ type CreateFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -2079,7 +2079,7 @@ type CreateFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -2881,7 +2881,7 @@ type CreateProjectFileResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -2904,7 +2904,7 @@ export type CreateProjectFileFolderBody = {
 export type CreateProjectFileFolderResponse = {
   data: {
     id: string
-    userId: string | null
+    userId: string
     name: string
     parentId: string | null
     path: string
@@ -2950,7 +2950,7 @@ type CreateProjectFileUploadResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -5194,7 +5194,7 @@ type EditFileContentResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -5789,7 +5789,7 @@ type GetFileResponseRef1 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -5848,7 +5848,7 @@ type GetFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -6550,7 +6550,7 @@ type GetProjectFileMetadataResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -6608,7 +6608,7 @@ type GetProjectFileUploadResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -8432,7 +8432,7 @@ type ListFilesResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -9540,7 +9540,7 @@ export type ListProjectFileFoldersQuery = {
 export type ListProjectFileFoldersResponse = {
   data: Array<{
     id: string
-    userId: string | null
+    userId: string
     name: string
     parentId: string | null
     path: string
@@ -9600,7 +9600,7 @@ type ListProjectFilesResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -12131,7 +12131,7 @@ type RenameFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -12167,7 +12167,7 @@ type RenameProjectFileResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -12583,7 +12583,7 @@ type RestoreFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -12693,7 +12693,7 @@ type RestoreProjectFileResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -12715,7 +12715,7 @@ export type RestoreProjectFileFolderResponse = {
   data: {
     folder: {
       id: string
-      userId: string | null
+      userId: string
       name: string
       parentId: string | null
       path: string
@@ -12926,7 +12926,7 @@ type RevertFileVersionResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -12988,7 +12988,7 @@ type RevertProjectFileVersionResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -13770,7 +13770,7 @@ type UpdateFileContentResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string | null
+  uploadedByEmail: string
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -14291,7 +14291,7 @@ type UpdateProjectFileContentResponseRef0 = {
     entityType: 'project'
     entityId: string
   }
-  uploadedBy: string | null
+  uploadedBy: string
   revision?: string
 }
 
@@ -14316,7 +14316,7 @@ export type UpdateProjectFileFolderBody = {
 export type UpdateProjectFileFolderResponse = {
   data: {
     id: string
-    userId: string | null
+    userId: string
     name: string
     parentId: string | null
     path: string
