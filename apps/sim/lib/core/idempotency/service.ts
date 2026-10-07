@@ -615,7 +615,6 @@ export class IdempotencyService {
       options
     )
     if (execution.outcome === 'resolved') return execution
-    logger.info(`Skipping duplicate of in-progress operation: ${provider}:${identifier}`)
     return { outcome: 'in-progress' }
   }
 
