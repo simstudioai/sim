@@ -167,6 +167,8 @@ describe('an import keeps its lease while it runs', () => {
     stopped: boolean
     renewalsReceived: number
     transient: number[]
+    /** How long the server takes to answer the next renewal it receives. */
+    nextAnswerDelayMs: number
   }
   let scanMs: number
   let finishUpload: () => void
@@ -176,7 +178,14 @@ describe('an import keeps its lease while it runs', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    server = { leaseUntil: 0, claimed: false, stopped: false, renewalsReceived: 0, transient: [] }
+    server = {
+      leaseUntil: 0,
+      claimed: false,
+      stopped: false,
+      renewalsReceived: 0,
+      transient: [],
+      nextAnswerDelayMs: 0,
+    }
     scanMs = 0
     mocks.invoke.mockImplementation(async (request: { operation: string }) => {
       if (request.operation !== 'manifest')
@@ -195,10 +204,14 @@ describe('an import keeps its lease while it runs', () => {
     mocks.json.mockImplementation(async (contract: unknown) => {
       if (contract !== renewDesktopToolLeaseContract) return { folder: { id: 'created-folder' } }
       server.renewalsReceived += 1
+      const delayMs = server.nextAnswerDelayMs
+      server.nextAnswerDelayMs = 0
       const transient = server.transient.shift()
+      const refused = server.stopped || !server.claimed || !leaseLive()
+      if (!transient && !refused) server.leaseUntil = Date.now() + LEASE_MS
+      await sleep(delayMs)
       if (transient) return answer(transient)
-      if (server.stopped || !server.claimed || !leaseLive()) return answer(410)
-      server.leaseUntil = Date.now() + LEASE_MS
+      if (refused) return answer(410)
       return { renewed: true }
     })
   })
@@ -218,6 +231,18 @@ describe('an import keeps its lease while it runs', () => {
     await run
     await vi.advanceTimersByTimeAsync(LEASE_MS + 1_000)
     expect(leaseLive()).toBe(false)
+  })
+
+  it('a refusal of a renewal sent before the claim does not stop it, however late it arrives', async () => {
+    // The first renewal goes out before the desktop claims the call; its 410 arrives only after
+    // the manifest confirmed the claim.
+    server.nextAnswerDelayMs = 5_000
+    scanMs = 1_000
+    const run = executeNativeFileTool('tool', 'import_local_files')
+    await vi.advanceTimersByTimeAsync(90_000)
+    expect(leaseLive()).toBe(true)
+    finishUpload()
+    await run
   })
 
   it('stops renewing once the server refuses the claimed call', async () => {

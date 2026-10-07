@@ -123,9 +123,12 @@ function keepImportLeased(toolCallId: string): { claimed(): void; stop(): void }
   let stopped = false
   const renew = () => {
     if (stopped) return
+    // Whether the claim was confirmed when this renewal was sent: a refusal of one sent before it
+    // may arrive after, and says nothing about the running import.
+    const sentAfterClaim = claimed
     requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
       (error) => {
-        if (claimed && error instanceof ApiClientError && error.status === 410) {
+        if (sentAfterClaim && error instanceof ApiClientError && error.status === 410) {
           stop()
           return
         }
