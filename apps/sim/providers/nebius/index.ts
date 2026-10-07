@@ -6,6 +6,7 @@ import {
   getModelCapabilities,
   getProviderDefaultModel,
   getProviderModels,
+  supportsForcedToolUse,
 } from '@/providers/models'
 import {
   type ChatCompletionPayload,
@@ -58,16 +59,24 @@ export const nebiusProvider: ProviderConfig = {
       (model) => model.toLowerCase() === request.model.toLowerCase()
     )
     const requestedModel = (catalogModel ?? request.model).replace(/^nebius\//i, '')
-    return executeChatCompletionRequest(request, {
-      providerId: 'nebius',
-      providerName: 'Nebius',
-      client,
-      requestedModel,
-      reportedModel: request.model,
-      logger,
-      applyResponseFormat,
-      reasoningFields: ['reasoning_content', 'reasoning'],
-      recordPendingUsage: true,
-    })
+    const tools = supportsForcedToolUse(`nebius/${requestedModel}`)
+      ? request.tools
+      : request.tools?.map((tool) =>
+          tool.usageControl === 'force' ? { ...tool, usageControl: 'auto' as const } : tool
+        )
+    return executeChatCompletionRequest(
+      { ...request, tools },
+      {
+        providerId: 'nebius',
+        providerName: 'Nebius',
+        client,
+        requestedModel,
+        reportedModel: request.model,
+        logger,
+        applyResponseFormat,
+        reasoningFields: ['reasoning_content', 'reasoning'],
+        recordPendingUsage: true,
+      }
+    )
   },
 }

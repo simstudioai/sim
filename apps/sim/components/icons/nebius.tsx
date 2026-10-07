@@ -1,6 +1,8 @@
 import type { SVGProps } from 'react'
 
-export function NebiusIcon(props: SVGProps<SVGSVGElement>) {
+interface NebiusIconProps extends SVGProps<SVGSVGElement> {}
+
+export function NebiusIcon(props: NebiusIconProps) {
   return (
     <svg {...props} viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <rect width='32' height='32' fill='#052B42' rx='8' />

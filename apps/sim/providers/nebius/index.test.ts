@@ -5,7 +5,7 @@ import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { nebiusProvider } from '@/providers/nebius'
-import type { ProviderResponse } from '@/providers/types'
+import type { ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
 vi.mock('@/providers', () => providersMock)
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
@@ -88,6 +88,50 @@ describe('Nebius Chat Completions wire contract', () => {
         schema: { type: 'object', properties: { answer: { type: 'number' } } },
       },
     })
+  })
+
+  it.each([
+    { model: 'nebius/deepseek-ai/DeepSeek-V4.1-Flash', forced: false },
+    { model: 'nebius/openbmb/MiniCPM-V-4_5', forced: false },
+    { model: 'nebius/openbmb/minicpm-v-4_5', forced: false },
+    { model: MODEL, forced: true },
+  ])('honors the forced-tool wire contract for $model', async (scenario) => {
+    const tools: ProviderToolConfig[] = [
+      {
+        id: 'http_request',
+        description: 'Fetch a URL',
+        params: {},
+        parameters: { type: 'object', properties: {}, required: [] },
+        usageControl: 'force',
+      },
+      {
+        id: 'disabled_tool',
+        description: 'Disabled tool',
+        params: {},
+        parameters: { type: 'object', properties: {}, required: [] },
+        usageControl: 'none',
+      },
+    ]
+    const payloads: Array<{
+      tool_choice: unknown
+      tools: Array<{ function: { name: string } }>
+    }> = []
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      payloads.push(JSON.parse(String(init?.body)))
+      return jsonResponse(completion('42'))
+    })
+    const result = (await nebiusProvider.executeRequest({
+      ...REQUEST,
+      model: scenario.model,
+      tools,
+    })) as ProviderResponse
+    expect(payloads[0]?.tool_choice).toEqual(
+      scenario.forced ? { type: 'function', function: { name: 'http_request' } } : 'auto'
+    )
+    expect(payloads[0]?.tools.map((tool) => tool.function.name)).toEqual(['http_request'])
+    expect(result.content).toBe('42')
+    expect(tools[0].usageControl).toBe('force')
+    expect(tools[1].usageControl).toBe('none')
   })
 
   it('decodes SSE reasoning and usage while retaining Nebius pricing', async () => {
