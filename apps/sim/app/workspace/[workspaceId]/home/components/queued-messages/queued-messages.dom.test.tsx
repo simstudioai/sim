@@ -19,8 +19,12 @@ class ResizeObserverStub {
   disconnect() {}
 }
 
+interface EditableQueueProps {
+  admissionUnknown: boolean
+}
+
 /** The queue as the chat composer drives it: Edit opens the entry, Cancel edit closes it. */
-function EditableQueue({ admissionUnknown }: { admissionUnknown: boolean }) {
+function EditableQueue({ admissionUnknown }: EditableQueueProps) {
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   return (
     <QueuedMessages
