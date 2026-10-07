@@ -356,9 +356,7 @@ function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbel
       rerun = true
       return
     }
-    inFlight = drain().catch((error) =>
-      logger.error('executor pull failed', { error: getErrorMessage(error) })
-    )
+    inFlight = drain().catch((error) => logger.error('executor pull failed', error))
   }
   const offDoorbell = doorbell.onEvent(pull)
   const timer = setInterval(pull, RECONCILE_MS)
