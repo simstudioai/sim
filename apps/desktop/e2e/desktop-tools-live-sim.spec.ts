@@ -182,7 +182,8 @@ test.describe('desktop tools against a live Sim', () => {
       )
       agent.script('[warm-stop]', async (turn) => {
         turn.text('Stopping soon.')
-        await new Promise<void>(() => {})
+        // The leg stays open until Stop ends it.
+        await turn.closed
       })
       const page = await openApp(user, 'Warm chat', COMPILE_MS)
       await send(page, '[warm-up] read and import', COMPILE_MS)

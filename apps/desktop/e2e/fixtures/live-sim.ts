@@ -170,6 +170,8 @@ export class SimProxy {
   rewrittenChatBodies = 0
   private readonly server: Server
   private holds: HeldRequest[] = []
+  /** Requests a hold is keeping from Sim right now. */
+  private readonly heldEntries = new Set<ProxiedRequest>()
   private chatBodyRewrite: ((body: Record<string, unknown>) => void) | undefined
   private readonly sockets = new Set<Duplex>()
 
@@ -248,9 +250,12 @@ export class SimProxy {
     let quietSince = Date.now()
     for (;;) {
       const waiting = this.requests.filter(
-        (entry) => entry.status === undefined && entry.clientClosedAt === undefined
+        (entry) =>
+          entry.status === undefined &&
+          entry.clientClosedAt === undefined &&
+          !this.heldEntries.has(entry)
       )
-      if (waiting.length > this.holds.length) quietSince = Date.now()
+      if (waiting.length > 0) quietSince = Date.now()
       else if (Date.now() - quietSince >= 3_000) return
       if (Date.now() > deadline)
         throw new Error(
@@ -287,7 +292,10 @@ export class SimProxy {
     const held = this.holds.find((candidate) => candidate.matches(method, url.pathname))
     if (held) {
       this.holds = this.holds.filter((candidate) => candidate !== held)
-      if (!(await held.hold(entry, response)) && !held.deliverIfAbandoned) return
+      this.heldEntries.add(entry)
+      const deliver = await held.hold(entry, response)
+      this.heldEntries.delete(entry)
+      if (!deliver && !held.deliverIfAbandoned) return
     }
     if (this.chatBodyRewrite && method === 'POST' && url.pathname === '/api/mothership/chat') {
       const parsed: Record<string, unknown> = JSON.parse(body.toString('utf8'))
@@ -346,6 +354,9 @@ interface Resume {
 /** A chat turn Sim opened against the agent, written to as the scripted model acts. */
 class AgentTurn {
   readonly toolCallIds: string[] = []
+  /** Settles once this leg's stream has ended, from either side. */
+  readonly closed: Promise<void>
+  private markClosed!: () => void
   private seq = 0
   private readonly keepAlive: ReturnType<typeof setInterval>
   private ended = false
@@ -355,6 +366,9 @@ class AgentTurn {
     readonly streamId: string,
     private readonly response: ServerResponse
   ) {
+    this.closed = new Promise((resolve) => {
+      this.markClosed = resolve
+    })
     response.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -432,6 +446,7 @@ class AgentTurn {
     this.ended = true
     clearInterval(this.keepAlive)
     this.response.end()
+    this.markClosed()
   }
 }
 

@@ -442,35 +442,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Pull requests run the live desktop suite only when they touch what it exercises. The diff
-  # comes from git against the pull request's base, so it needs no API access.
+  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
+  # app it drives (docs, other apps, published content). Anything else, and any failure to work
+  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
   desktop-live-changes:
     name: Detect desktop tool changes
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
-      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed == 'true' }}
+      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         if: github.event_name == 'pull_request'
         with:
           fetch-depth: 2
-      - name: Diff desktop tool paths
+      - name: Diff against the pull request's base
         id: diff
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          git fetch --quiet --depth=1 origin "$BASE"
-          paths='^(\.github/workflows/test-build\.yml|\.github/scripts/stop-session\.sh|bun\.lock'
-          paths="$paths|apps/desktop/|apps/realtime/|packages/(browser-protocol|db|desktop-bridge|terminal-protocol)/"
-          paths="$paths|apps/sim/app/api/(auth|copilot|desktop|mothership)/|apps/sim/app/workspace/[^/]+/(home|chat)/"
-          paths="$paths|apps/sim/lib/(auth|desktop|mothership)/|apps/sim/stores/)"
-          if git diff --name-only "$BASE" HEAD | grep -qE "$paths"; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
+        run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
 
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
