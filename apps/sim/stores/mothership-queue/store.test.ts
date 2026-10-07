@@ -30,6 +30,24 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
+    it('treats any message resuming an earlier attempt as possibly sent, unless told otherwise', () => {
+      useMothershipQueueStore
+        .getState()
+        .enqueue('chat-A', { id: 'resumed', content: 'original', resumeUserMessageId: 'attempt-1' })
+      useMothershipQueueStore.getState().insertAt('chat-A', 0, {
+        id: 'refused',
+        content: 'original',
+        resumeUserMessageId: 'attempt-2',
+        admissionUnknown: false,
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'resumed', { content: 'edited' })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'refused', { content: 'edited' })
+
+      const [refused, resumed] = useMothershipQueueStore.getState().queues['chat-A'] ?? []
+      expect(resumed).toMatchObject({ content: 'original', resumeUserMessageId: 'attempt-1' })
+      expect(refused?.content).toBe('edited')
+    })
+
     it('leaves a first message the server may already hold unchanged, with its id', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'm1',
@@ -50,6 +68,8 @@ describe('useMothershipQueueStore', () => {
         content: 'original',
         retryRequired: true,
         resumeUserMessageId: 'prior-request',
+        /** Its Stop never settled, so it was never sent: the server cannot hold it. */
+        admissionUnknown: false,
         queuedSendHandoff: {
           id: 'm1',
           chatId: 'chat-A',

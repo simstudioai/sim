@@ -35,9 +35,10 @@ export interface QueuedMessage {
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
   /**
-   * A first message withdrawn before the server answered. The server may
-   * already hold it as sent, so it goes out exactly as written, under its
-   * original id, and cannot be edited into a different message.
+   * An earlier attempt at this message got no answer, so the server may
+   * already hold it as sent. It goes out exactly as written, under that
+   * attempt's id, and cannot be edited into a different message. False once
+   * the server is known not to have it (it refused it, or it was never sent).
    */
   admissionUnknown?: boolean
 }

@@ -234,6 +234,18 @@ interface WithdrawnSendResult {
   busy?: boolean
   /** Not sent at all (its Stop handoff failed); kept queued for the user to send. */
   held?: boolean
+  /**
+   * The server refused this id outright (busy, or a predecessor still shutting
+   * down). It answers a retry of an admitted id as a duplicate instead, so the
+   * server is known not to have it, and its queue entry can be edited.
+   */
+  notAdmitted?: boolean
+  /**
+   * This attempt never reached the server (its Stop did not settle). That says
+   * nothing about an earlier attempt the message resumes, whose uncertainty it
+   * keeps.
+   */
+  neverSent?: boolean
 }
 
 /**
@@ -3887,7 +3899,7 @@ export function useChat(
             setError(getErrorMessage(err, 'Failed to stop the previous response'))
             /* Nothing was sent. Hand the message back so it stays in its chat's queue
                even if the user has switched chats since the Stop began. */
-            return { userMessageId, held: true }
+            return { userMessageId, held: true, neverSent: true }
           }
         }
 
@@ -4004,7 +4016,7 @@ export function useChat(
               }
               if (viewOnSend)
                 setError('Previous response is still shutting down; queued message was restored.')
-              return { userMessageId, held: true }
+              return { userMessageId, held: true, notAdmitted: true }
             }
             /** Withdraws this refused send so the queue retries it, under the same id, later. */
             const releaseRefusedSend = () => {
@@ -4040,7 +4052,7 @@ export function useChat(
                   exact: true,
                   refetchType: 'none',
                 })
-              return { userMessageId, busy: true }
+              return { userMessageId, busy: true, notAdmitted: true }
             }
             /* "Already sent" with no stream for it means the earlier attempt is still
                in flight on the server (or died before starting a turn), not that a turn
@@ -4414,6 +4426,11 @@ export function useChat(
           : {}),
         ...(result.held ? { retryRequired: true } : {}),
         ...(result.busy ? busyRetry(1) : {}),
+        admissionUnknown: result.notAdmitted
+          ? false
+          : result.neverSent
+            ? options?.resumeUserMessageId !== undefined
+            : true,
         ...((result.unreachable || result.busy) && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
           ? { heldSurface: heldSendSurface }
           : {}),
@@ -5043,6 +5060,17 @@ export function useChat(
             ? { heldSurface: heldSendSurface }
             : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
+          /* A refusal of this id settles it; an attempt that never left keeps the
+             earlier uncertainty; any other withdrawal may have reached the server. */
+          ...(withdrawn
+            ? {
+                admissionUnknown: withdrawn.notAdmitted
+                  ? false
+                  : withdrawn.neverSent
+                    ? dispatched.admissionUnknown === true
+                    : true,
+              }
+            : {}),
         })
       }
 
