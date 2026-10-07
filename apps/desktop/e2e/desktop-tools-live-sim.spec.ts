@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +6,7 @@ import {
   type ElectronApplication,
   _electron as electron,
   expect,
+  type Locator,
   type Page,
   test,
 } from '@playwright/test'
@@ -32,6 +33,10 @@ import {
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const config = liveSimConfig()
 const PICKUP_GRACE_MS = 15_000
+/** How long a held request may take to arrive once the step that sends it ran. */
+const ARRIVAL_MS = 60_000
+/** First requests to a route compile it, which takes minutes on a cold dev app. */
+const COMPILE_MS = 300_000
 
 type DesktopWindow = typeof globalThis & { simDesktop: SimDesktopApi }
 
@@ -45,14 +50,18 @@ test.describe('desktop tools against a live Sim', () => {
   let db: SimDatabase
   let app: ElectronApplication | undefined
   let scratch: string
+  /** Errors the current window reported, shown when a click is blocked. */
+  let pageErrors: string[] = []
 
   test.beforeAll(async () => {
+    test.setTimeout(900_000)
     if (typeof config === 'string') throw new Error(config)
     sim = config
     proxy = new SimProxy(sim)
     agent = new ScriptedAgent(sim.agentPort)
     db = new SimDatabase(sim)
     await Promise.all([proxy.start(), agent.start()])
+    await test.step('warm up the routes the tests use', warmUp)
   })
 
   test.afterAll(async () => {
@@ -76,11 +85,72 @@ test.describe('desktop tools against a live Sim', () => {
     rmSync(scratch, { recursive: true, force: true })
   })
 
+  /**
+   * A dev app compiles each route on its first request, which can outlast the timeouts the
+   * tests depend on (Electron gives a tool authorization 8 s). One full pass over every route,
+   * page and client chunk the tests use compiles them all before any timed step.
+   */
+  async function warmUp(): Promise<void> {
+    scratch = mkdtempSync(join(tmpdir(), 'sim-desktop-tools-warm-'))
+    try {
+      const user = await db.seedUser(['Warm chat', 'Warm other chat'])
+      const headers = {
+        'Content-Type': 'application/json',
+        Cookie: `better-auth.session_token=${user.cookie}`,
+        Origin: proxy.origin,
+      }
+      const compile = (path: string, method: 'GET' | 'POST' = 'GET') =>
+        fetch(new URL(path, sim.upstream), {
+          method,
+          headers,
+          body: method === 'POST' ? '{}' : undefined,
+          redirect: 'manual',
+          signal: AbortSignal.timeout(COMPILE_MS),
+        }).then((response) => response.arrayBuffer())
+      for (const path of [
+        chatPath(user, 'Warm chat'),
+        '/login',
+        `/api/mothership/chats/${user.chats['Warm other chat']}`,
+        `/api/workspaces/${user.workspaceId}/files/folders`,
+      ])
+        await compile(path)
+      for (const path of [
+        '/api/mothership/chat/stop',
+        '/api/desktop/tool/authorize',
+        '/api/copilot/confirm',
+        '/api/files/uploads',
+        '/api/files/uploads/warm-up/parts',
+        '/api/files/uploads/warm-up/complete',
+        `/api/workspaces/${user.workspaceId}/files/folders`,
+      ])
+        await compile(path, 'POST')
+
+      const file = writeFile(join(scratch, 'warm.txt'), 'warm')
+      agent.script(
+        '[warm-up]',
+        (turn) => {
+          turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
+          turn.pause()
+        },
+        (_resume, turn) => turn.complete('Warmed up.')
+      )
+      const page = await openApp(user, 'Warm chat', COMPILE_MS)
+      await send(page, '[warm-up] read it', COMPILE_MS)
+      await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: COMPILE_MS })
+      await openChat(page, user, 'Warm other chat', COMPILE_MS)
+      await openChat(page, user, 'Warm chat', COMPILE_MS)
+    } finally {
+      await app?.close().catch(() => {})
+      app = undefined
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  }
+
   const chatPath = (user: SeededUser, title: string) =>
     `/workspace/${user.workspaceId}/chat/${user.chats[title]}`
 
   /** Launches the app signed in as `user`, showing the chat titled `title`. */
-  async function openApp(user: SeededUser, title: string): Promise<Page> {
+  async function openApp(user: SeededUser, title: string, timeout = 120_000): Promise<Page> {
     app = await electron.launch({
       args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
       cwd: DESKTOP_DIR,
@@ -91,25 +161,71 @@ test.describe('desktop tools against a live Sim', () => {
       },
     })
     const page = await app.firstWindow()
+    pageErrors = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() === 'error') pageErrors.push(message.text())
+    })
     const signIn = new URL('/__e2e/sign-in', proxy.origin)
     signIn.searchParams.set('cookie', user.cookie)
     signIn.searchParams.set('to', chatPath(user, title))
-    await page.goto(signIn.toString(), { waitUntil: 'commit', timeout: 180_000 })
-    await expect(composer(page)).toBeVisible({ timeout: 180_000 })
+    await page.goto(signIn.toString(), { waitUntil: 'commit', timeout })
+    await expect(composer(page)).toBeVisible({ timeout })
     return page
   }
 
   const composer = (page: Page) => page.getByRole('textbox').last()
 
-  async function send(page: Page, message: string): Promise<void> {
-    await composer(page).fill(message)
-    await page.getByRole('button', { name: 'Send message' }).click()
+  /**
+   * Clicks `target`, failing at once with the dev app's error instead of waiting out a click the
+   * Next.js error overlay intercepts.
+   */
+  async function click(page: Page, target: Locator, timeout = 15_000): Promise<void> {
+    const overlay = page.locator('nextjs-portal [data-nextjs-dialog]')
+    const blocked = async () =>
+      (await overlay.count()) > 0
+        ? `Next.js error overlay: ${await overlay.first().innerText()}\n${pageErrors.join('\n')}`
+        : undefined
+    const before = await blocked()
+    if (before) throw new Error(before)
+    try {
+      await target.click({ timeout })
+    } catch (error) {
+      throw new Error((await blocked()) ?? String(error))
+    }
+  }
+
+  /**
+   * Sends `message` and waits until the turn reached Sim. A page still hydrating can drop the
+   * typed text or the click, so the message is typed and sent again only while no turn went out.
+   */
+  async function send(page: Page, message: string, timeout = 60_000): Promise<void> {
+    const since = Date.now()
+    const sent = () =>
+      proxy
+        .seen(since)
+        .some((entry) => entry.method === 'POST' && entry.path === '/api/mothership/chat')
+    const deadline = Date.now() + timeout
+    while (!sent()) {
+      if (Date.now() > deadline) throw new Error(`The message was never sent: ${message}`)
+      if ((await composer(page).inputValue()) !== message) await composer(page).fill(message)
+      await click(page, page.getByRole('button', { name: 'Send message' }))
+      await expect
+        .poll(sent, { timeout: 10_000 })
+        .toBe(true)
+        .catch(() => {})
+    }
   }
 
   /** Switches chats in-app, the way the sidebar does, without reloading the page. */
-  async function openChat(page: Page, user: SeededUser, title: string): Promise<void> {
-    await page.getByRole('link', { name: title }).first().click()
-    await expect(page).toHaveURL(new RegExp(`${user.chats[title]}$`))
+  async function openChat(
+    page: Page,
+    user: SeededUser,
+    title: string,
+    timeout = 30_000
+  ): Promise<void> {
+    await click(page, page.getByRole('link', { name: title }).first())
+    await expect(page).toHaveURL(new RegExp(`${user.chats[title]}$`), { timeout })
   }
 
   function writeFile(path: string, contents: string): string {
@@ -133,6 +249,9 @@ test.describe('desktop tools against a live Sim', () => {
     method === 'POST' && /^\/api\/workspaces\/[^/]+\/files\/folders$/.test(path)
   const isDesktopClaim = (method: string, path: string) =>
     method === 'POST' && path === '/api/desktop/tool/authorize'
+  /** A client tool's report of its own result. */
+  const isToolReport = (method: string, path: string) =>
+    method === 'POST' && path === '/api/copilot/confirm'
 
   test('a browser call issued after the user switched chats fails as not started after the pickup grace', async () => {
     const user = await db.seedUser(['Browser chat', 'Other chat'])
@@ -178,8 +297,10 @@ test.describe('desktop tools against a live Sim', () => {
     const page = await openApp(user, 'Read chat')
     const claim = proxy.hold(isDesktopClaim)
     await send(page, '[leave-read] read my notes')
-    await claim.reached
-    await openChat(page, user, 'Other chat')
+    await claim.arrival(ARRIVAL_MS, 'The read’s claim')
+    // Electron gives the claim 8 s, so the view change it spans must be quick: the warm-up
+    // compiled the chat route.
+    await openChat(page, user, 'Other chat', 5_000)
     claim.release()
 
     await agent.waitForResume(() => Boolean(callId && agent.resultFor(callId)), 60_000)
@@ -192,6 +313,7 @@ test.describe('desktop tools against a live Sim', () => {
 
   test('an import keeps running across chat switches, and Stop from the reopened chat ends it', async () => {
     const user = await db.seedUser(['Import chat', 'Other chat'])
+    const chatId = user.chats['Import chat']
     const source = importSource()
     agent.script('[stop-import]', (turn) => {
       turn.toolCall({
@@ -203,7 +325,7 @@ test.describe('desktop tools against a live Sim', () => {
     const page = await openApp(user, 'Import chat')
     const firstUpload = proxy.hold(isUploadStart)
     await send(page, '[stop-import] import my reports')
-    await firstUpload.reached
+    await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
 
     await openChat(page, user, 'Other chat')
     await openChat(page, user, 'Import chat')
@@ -213,23 +335,31 @@ test.describe('desktop tools against a live Sim', () => {
     await expect
       .poll(() => db.workspaceFileNames(user.workspaceId), { timeout: 30_000 })
       .toContain('a.txt')
-    await laterFolder.reached
+    await laterFolder.arrival(ARRIVAL_MS, 'The next folder')
 
-    await page.getByRole('button', { name: 'Stop generation' }).click()
-    // Stop cancels the import's request in flight; nothing after it runs.
+    // Hold the import's own report until Stop has settled the call, so the outcome is Stop's.
+    const report = proxy.hold(isToolReport)
+    await click(page, page.getByRole('button', { name: 'Stop generation' }))
+    // Stop cancels the import's request in flight, and the import ends and reports.
     await expect.poll(() => laterFolder.isAbandoned, { timeout: 15_000 }).toBe(true)
+    const reported = await report.arrival(ARRIVAL_MS, 'The import’s report')
+    await expect
+      .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 30_000 })
+      .toBe('cancelled')
     laterFolder.release()
-    await page.waitForTimeout(3_000)
+    report.release()
+    // The late report is answered without overwriting what Stop recorded.
+    await expect.poll(() => reported.status, { timeout: 30_000 }).toBeDefined()
+    const [call] = await db.toolCalls(chatId)
+    expect(call).toMatchObject({ toolName: 'import_local_files', status: 'cancelled' })
+    // The import has ended, so nothing after the stopped folder can still arrive.
     expect(await db.workspaceFolderNames(user.workspaceId)).not.toContain('later')
     expect(await db.workspaceFileNames(user.workspaceId)).toEqual(['a.txt'])
-    // Whichever lands first, the cancelled import's report or Stop's settlement, it never completes.
-    const [call] = await db.toolCalls(user.chats['Import chat'])
-    expect(call.toolName).toBe('import_local_files')
-    expect(['cancelled', 'failed']).toContain(call.status)
   })
 
   test('signing out ends a desktop tool still running', async () => {
     const user = await db.seedUser(['Import chat'])
+    const chatId = user.chats['Import chat']
     const source = importSource()
     agent.script('[sign-out-import]', (turn) => {
       turn.toolCall({
@@ -241,20 +371,20 @@ test.describe('desktop tools against a live Sim', () => {
     const page = await openApp(user, 'Import chat')
     const firstUpload = proxy.hold(isUploadStart)
     await send(page, '[sign-out-import] import my reports')
-    await firstUpload.reached
+    await firstUpload.arrival(ARRIVAL_MS, 'The first upload')
 
     // The desktop reloads into the login page once signing out completes, which would end any
     // tool; holding the sign-out shows the tool ends at sign-out itself, not at that reload.
     const signOut = proxy.hold((method, path) => method === 'POST' && path === '/api/auth/sign-out')
-    await page.getByRole('button', { name: user.name }).click()
-    await page.getByRole('menuitem', { name: 'Sign out' }).click()
-    await signOut.reached
+    await click(page, page.getByRole('button', { name: user.name }))
+    await click(page, page.getByRole('menuitem', { name: 'Sign out' }))
+    await signOut.arrival(ARRIVAL_MS, 'The sign-out')
     await expect.poll(() => firstUpload.isAbandoned, { timeout: 15_000 }).toBe(true)
     const abandonedAt = Date.now()
-    signOut.release()
-    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 })
-    firstUpload.release()
-    await page.waitForTimeout(3_000)
+    // The import ended and reported its own failure while the session was still valid.
+    await expect
+      .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 30_000 })
+      .toBe('failed')
     const toolRequests = proxy
       .seen(abandonedAt)
       .filter(
@@ -262,6 +392,9 @@ test.describe('desktop tools against a live Sim', () => {
           isUploadStart(entry.method, entry.path) || isFolderCreate(entry.method, entry.path)
       )
     expect(toolRequests).toEqual([])
+    signOut.release()
+    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 })
+    firstUpload.release()
     expect(await db.workspaceFileNames(user.workspaceId)).toEqual([])
     expect(await db.workspaceFolderNames(user.workspaceId)).not.toContain('later')
   })
@@ -314,10 +447,9 @@ test.describe('desktop tools against a live Sim', () => {
     expect(after).toMatchObject({ status: 'pending', claimedBy: null })
   })
 
-  test("a terminal command awaiting the user's approval cannot be claimed or run", async () => {
+  test("a terminal command awaiting the user's approval cannot be claimed", async () => {
     const user = await db.seedUser(['Approval chat'])
-    const touched = join(scratch, 'terminal-ran')
-    const command = `touch '${touched}'`
+    const command = `touch '${join(scratch, 'terminal-ran')}'`
     agent.script('[unapproved-run]', (turn) => {
       turn.toolCall({ toolName: 'terminal', args: { operation: 'run', command } })
       turn.pause()
@@ -326,6 +458,9 @@ test.describe('desktop tools against a live Sim', () => {
     const chatId = user.chats['Approval chat']
     const run = await gatedCall(page, chatId, '[unapproved-run] run a command', 'terminal')
 
+    // The guard is the claim: Sim must not hand an unapproved command to the desktop, so the call
+    // stays pending and unclaimed. Whether a handed-over command then runs depends on a terminal
+    // being open for the chat, which this test does not set up, so it checks the claim only.
     const response = await page.evaluate(
       ({ toolCallId, command }) =>
         (globalThis as DesktopWindow).simDesktop.terminal
@@ -333,8 +468,6 @@ test.describe('desktop tools against a live Sim', () => {
           .catch((error: unknown) => ({ ok: false, error: String(error) })),
       { toolCallId: run.toolCallId, command }
     )
-    await page.waitForTimeout(3_000)
-    expect(existsSync(touched)).toBe(false)
     expect(response).toMatchObject({ ok: false })
     const [after] = await db.toolCalls(chatId)
     expect(after).toMatchObject({ status: 'pending', claimedBy: null })
@@ -351,8 +484,8 @@ test.describe('desktop tools against a live Sim', () => {
     const chatId = user.chats['Stop chat']
     const lateClaim = proxy.hold(isDesktopClaim)
     await send(page, '[stopped-claim] read my secret')
-    const claim = await lateClaim.reached
-    await page.getByRole('button', { name: 'Stop generation' }).click()
+    const claim = await lateClaim.arrival(ARRIVAL_MS, 'The read’s claim')
+    await click(page, page.getByRole('button', { name: 'Stop generation' }))
     // Stop settles the call nobody has claimed yet as never started.
     await expect
       .poll(async () => (await db.toolCalls(chatId))[0]?.status, { timeout: 15_000 })
@@ -387,6 +520,7 @@ test.describe('desktop tools against a live Sim', () => {
           platform: `${process.platform}-${process.arch}`,
           capabilities: { executor: 1, browser: true, terminal: true, localFiles: true },
         }),
+        signal: AbortSignal.timeout(COMPILE_MS),
       })
       expect(registration.status).toBe(200)
       expect(await registration.json()).toMatchObject({ enabled: false })

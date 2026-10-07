@@ -129,6 +129,22 @@ class HeldRequest {
     })
   }
 
+  /** The held request, once it arrives; fails if it has not within `timeoutMs`. */
+  async arrival(timeoutMs: number, label: string): Promise<ProxiedRequest> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`${label} did not arrive in ${timeoutMs} ms`)),
+        timeoutMs
+      )
+    })
+    try {
+      return await Promise.race([this.reached, timeout])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   release(): void {
     this.released = true
     this.releaseHeld?.()
