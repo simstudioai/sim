@@ -4,7 +4,7 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -23,6 +23,8 @@ vi.mock('@/lib/mothership/tools/client/completion', () => ({
 }))
 
 import type { DesktopLocalFileManifest } from '@sim/desktop-bridge'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { renewDesktopToolLeaseContract } from '@/lib/api/contracts/desktop-executor'
 import {
   executeNativeFileTool,
   importNativeFiles,
@@ -149,4 +151,71 @@ it('a read the user stopped while the desktop was reading reports nothing', asyn
   })
   await executeNativeFileTool('tool', 'read_local_file', stop.signal)
   expect(mocks.complete).not.toHaveBeenCalled()
+})
+
+describe('an import keeps its lease while it runs', () => {
+  /** The import's upload, which the test finishes when it chooses. */
+  let finishUpload: () => void
+  /** What the server answers each lease renewal, in turn. */
+  let renewals: Array<() => Promise<unknown>>
+  const renewalsSent = () =>
+    mocks.json.mock.calls.filter(([contract]) => contract === renewDesktopToolLeaseContract).length
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    renewals = []
+    mocks.invoke.mockImplementation(async (request: { operation: string }) =>
+      request.operation === 'manifest'
+        ? { ok: true, data: manifest }
+        : { ok: true, data: { kind: 'chunk', bytes: new Uint8Array([65, 66, 67]), eof: true } }
+    )
+    mocks.upload.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishUpload = () => resolve({ id: 'saved-file', name: 'report.txt' })
+        })
+    )
+    mocks.json.mockImplementation(async (contract: unknown) => {
+      if (contract !== renewDesktopToolLeaseContract) return { folder: { id: 'created-folder' } }
+      const answer = renewals.shift()
+      return answer ? answer() : { renewed: true }
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const refused = (status: number) => () =>
+    Promise.reject(new ApiClientError({ message: `HTTP ${status}`, status, body: {} }))
+
+  it('renews at once, then every heartbeat, and stops when the import ends', async () => {
+    const run = executeNativeFileTool('tool', 'import_local_files')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(renewalsSent()).toBe(1)
+    await vi.advanceTimersByTimeAsync(40_000)
+    expect(renewalsSent()).toBe(3)
+    finishUpload()
+    await run
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(renewalsSent()).toBe(3)
+  })
+
+  it('stops renewing once the server refuses the call', async () => {
+    renewals.push(refused(410))
+    const run = executeNativeFileTool('tool', 'import_local_files')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(renewalsSent()).toBe(1)
+    finishUpload()
+    await run
+  })
+
+  it('keeps renewing through failures that may pass', async () => {
+    renewals.push(refused(401), refused(429), refused(503))
+    const run = executeNativeFileTool('tool', 'import_local_files')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(renewalsSent()).toBe(4)
+    finishUpload()
+    await run
+  })
 })

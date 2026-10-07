@@ -95,12 +95,3 @@ export const STOPPED_WHILE_RUNNING_MESSAGE =
 export function chatViewDesktopLeaseOwnerToken(sessionId: string): string {
   return `chat-view:${sessionId}`
 }
-
-/**
- * Desktop calls the chat view keeps alive with a renewed lease while they run: imports, which
- * take as long as their files do (up to 1,000 entries of up to 64 MB each). Reads finish in
- * seconds and keep the default budget.
- */
-export function isLeasedChatViewDesktopTool(toolName: string): boolean {
-  return toolName === 'import_local_files'
-}

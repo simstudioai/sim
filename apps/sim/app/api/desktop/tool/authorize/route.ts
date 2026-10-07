@@ -21,7 +21,6 @@ import {
   chatViewDesktopLeaseOwnerToken,
   getDesktopToolClaimOwner,
   isDesktopToolCall,
-  isLeasedChatViewDesktopTool,
   isLocalReadToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
 
@@ -116,13 +115,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 409 }
         )
       if (toolCall.status !== 'pending') return alreadyStarted()
-      // The import's lease is held by this session; the chat view renews it while the import runs.
+      // An import runs as long as its files take, so its claim takes a lease this session holds:
+      // the chat view renews it while the import runs. Reads finish in seconds and take none.
       const { outcome } = await claimDesktopToolCall({
         toolCallId: toolCall.toolCallId,
         runId: toolCall.runId,
         userId,
         claimedBy: DESKTOP_TOOL_CLAIM_OWNER.files,
-        ...(principal && isLeasedChatViewDesktopTool(toolCall.toolName)
+        ...(principal
           ? { chatView: { ownerToken: chatViewDesktopLeaseOwnerToken(principal.sessionId) } }
           : {}),
       })

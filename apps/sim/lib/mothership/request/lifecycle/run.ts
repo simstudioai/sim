@@ -22,7 +22,10 @@ import {
   getChatViewDesktopLeaseRemainingMs,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
-import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
+import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
+  TOOL_WATCHDOG_RESUME_GRACE_MS,
+} from '@/lib/mothership/constants'
 import {
   type CopilotEnvironmentContext,
   prepareCopilotEnvironmentContext,
@@ -1371,6 +1374,12 @@ async function runCheckpointLoop(
           }>
           deadlineAt: number
           waitBudgetMs: number
+          /** When this wait began. */
+          startedAt: number
+          /** Past this, the call is given up however its lease stands: any client tool's cap. */
+          ceilingAt: number
+          /** Why the deadline was moved past the plain budget, if it was. */
+          extendedBy?: 'lease' | 'lease_lookup'
           /** Until when a failing lease lookup is retried before the call is given up. */
           leaseLookupRetryUntil?: number
         }
@@ -1403,6 +1412,8 @@ async function runCheckpointLoop(
             ),
             deadlineAt: now + waitBudgetMs,
             waitBudgetMs,
+            startedAt: now,
+            ceilingAt: now + Math.max(waitBudgetMs, CLIENT_TOOL_RESULT_TIMEOUT_MS),
           })
           maximumWaitBudgetMs = Math.max(maximumWaitBudgetMs, waitBudgetMs)
         }
@@ -1426,6 +1437,16 @@ async function runCheckpointLoop(
         const expiredTools = overdueTools.filter(([toolCallId, watchdog], index) => {
           const lease = leases[index]
           const checkedAt = Date.now()
+          if (checkedAt >= watchdog.ceilingAt) return true
+          const extendTo = (deadlineAt: number, reason: 'lease' | 'lease_lookup') => {
+            watchdog.deadlineAt = Math.min(deadlineAt, watchdog.ceilingAt)
+            watchdog.extendedBy = reason
+            maximumWaitBudgetMs = Math.max(
+              maximumWaitBudgetMs,
+              watchdog.deadlineAt - watchdog.startedAt
+            )
+            return false
+          }
           if ('error' in lease) {
             watchdog.leaseLookupRetryUntil ??= checkedAt + SIM_TOOL_EXECUTION_LEASE_SECONDS * 1000
             if (checkedAt >= watchdog.leaseLookupRetryUntil) return true
@@ -1433,23 +1454,26 @@ async function runCheckpointLoop(
               toolCallId,
               error: getErrorMessage(lease.error),
             })
-            watchdog.deadlineAt = checkedAt + LEASE_LOOKUP_RETRY_MS
-            return false
+            return extendTo(checkedAt + LEASE_LOOKUP_RETRY_MS, 'lease_lookup')
           }
           watchdog.leaseLookupRetryUntil = undefined
           if (typeof lease.remainingMs !== 'number' || lease.remainingMs <= 0) return true
-          watchdog.deadlineAt = checkedAt + lease.remainingMs + LEASE_RECHECK_SLACK_MS
-          return false
+          return extendTo(checkedAt + lease.remainingMs + LEASE_RECHECK_SLACK_MS, 'lease')
         })
         if (expiredTools.length > 0) {
           await Promise.all(
             expiredTools.map(async ([toolCallId, watchdog]) => {
+              const waitedMs = Date.now() - watchdog.startedAt
               logger.error(
-                'Pending tool execution exceeded its resume wait budget; force-failing',
+                watchdog.extendedBy
+                  ? 'Pending tool execution outlived its renewed lease or its cap; force-failing'
+                  : 'Pending tool execution exceeded its resume wait budget; force-failing',
                 {
                   checkpointId: continuation.checkpointId,
                   toolCallId,
                   waitBudgetMs: watchdog.waitBudgetMs,
+                  waitedMs,
+                  ...(watchdog.extendedBy ? { extendedBy: watchdog.extendedBy } : {}),
                 }
               )
               await failPendingToolCall(toolCallId, context, execContext)

@@ -221,6 +221,7 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
 
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
+import { CLIENT_TOOL_RESULT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -3619,6 +3620,7 @@ describe('runCopilotLifecycle', () => {
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
     } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
     }
   })
@@ -3639,6 +3641,43 @@ describe('runCopilotLifecycle', () => {
       expect((await turn.lifecycle).success).toBe(true)
       expect(turn.resumedWithLostImport()).toBe(true)
     } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up a renewed import at the client result cap, however long the renewals go on', async () => {
+    vi.useFakeTimers()
+    try {
+      // The page stays alive and renews, but the import itself never finishes.
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn()
+      await vi.advanceTimersByTimeAsync(CLIENT_TOOL_RESULT_TIMEOUT_MS - 1_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up an import whose lease cannot be read for a whole lease', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockRejectedValue(
+        new Error('database unavailable')
+      )
+      const turn = runImportTurn()
+      // The first failed lookup comes at the default budget (90 s); retries go on for one lease.
+      await vi.advanceTimersByTimeAsync(145_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
     }
   })
