@@ -1,6 +1,7 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
+import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { serializeExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
@@ -9,6 +10,7 @@ import { executeFunction } from '@/lib/function-execution/application/execute-fu
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { TOOL_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/tool-execution/application/operations'
 
 export type TrustedFunctionToolExecutionContext = InternalToolOperationContext
 
@@ -78,8 +80,17 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
       },
     })
   }
-  let principal: DelegatedPrincipal
-  if (context.copilotToolExecution === true) {
+  let principal: Principal
+  if (context.callerPrincipal && !context.executorDelegationOrigin) {
+    // A direct tool call has no workflow run to bind, so the authenticated caller is the
+    // authority; the function-execution policy admits or refuses whoever that is.
+    principal = bindCopilotWorkspaceOperation(
+      context.callerPrincipal,
+      context.workspaceId,
+      [TOOL_EXECUTION_DELEGATION_AUDIENCE],
+      executeFunction
+    )
+  } else if (context.copilotToolExecution === true) {
     if (!context.userId) throw new Error('Copilot Function execution requires a user')
     principal = {
       kind: 'delegated',

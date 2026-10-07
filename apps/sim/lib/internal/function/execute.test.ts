@@ -1,3 +1,5 @@
+import type { Principal } from '@sim/auth/principal'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   executorPrincipalMock,
   executorPrincipalMockFns,
@@ -12,15 +14,18 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
-  executeFunction: { execute: mocks.execute },
+  executeFunction: { execute: mocks.execute, delegationAudience: 'sim:function-executions' },
 }))
 
 vi.mock('@/lib/function-execution/application/execute-chat-function', () => ({
   executeChatFunction: { execute: mocks.executeChat },
 }))
 
+import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { TOOL_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/tool-execution/application/operations'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
@@ -168,5 +173,58 @@ describe('executeFunctionTool', () => {
     ).rejects.toThrow('trusted Build or Plan chat scope')
     expect(mocks.executeChat).not.toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  describe('direct tool calls (POST /api/v2/tools/{id}/execute)', () => {
+    function directContext(callerPrincipal: Principal) {
+      return {
+        workflowId: '',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        callerPrincipal,
+      }
+    }
+
+    it('rebinds an admitted Mothership caller to the function-execution audience', async () => {
+      const caller = createCopilotChatPrincipal(
+        { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat-1' },
+        TOOL_EXECUTION_DELEGATION_AUDIENCE
+      )
+      markCopilotWorkspaceInvocation(caller)
+
+      await executeFunctionTool({
+        body: { code: 'return 1' },
+        headers: new Headers(),
+        requestId: 'request-1',
+        context: directContext(caller),
+      })
+
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'delegated',
+            serviceId: 'copilot',
+            subjectUserId: 'user-1',
+            workspaceId: 'workspace-1',
+            audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
+          }),
+        })
+      )
+    })
+
+    it('hands any other caller to the function-execution policy unchanged', async () => {
+      const caller = createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' })
+
+      await executeFunctionTool({
+        body: { code: 'return 1' },
+        headers: new Headers(),
+        requestId: 'request-1',
+        context: directContext(caller),
+      })
+
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
+      expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ principal: caller }))
+    })
   })
 })
