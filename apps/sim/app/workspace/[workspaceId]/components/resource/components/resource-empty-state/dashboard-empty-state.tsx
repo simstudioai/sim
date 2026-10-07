@@ -21,7 +21,7 @@ const CORNER_FADE =
 
 type Point = readonly [number, number]
 
-const SPARKLINE: Point[] = [
+const SPARKLINE = [
   [52, 62],
   [66, 56],
   [80, 59],
@@ -30,9 +30,9 @@ const SPARKLINE: Point[] = [
   [122, 44],
   [136, 47],
   [150, 40],
-]
+] as const
 
-const TREND: Point[] = [
+const TREND = [
   [52, 140],
   [82, 128],
   [112, 133],
@@ -43,7 +43,7 @@ const TREND: Point[] = [
   [262, 86],
   [292, 92],
   [322, 76],
-]
+] as const
 
 const LEGEND = [
   { y: 33, width: 34, fill: INK.strong },
@@ -53,7 +53,7 @@ const LEGEND = [
 
 const DONUT = { cx: 202, cy: 44, r: 16, strokeWidth: 6 } as const
 
-function toPath(points: Point[]): string {
+function toPath(points: readonly Point[]): string {
   return points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ')
 }
 
