@@ -1811,7 +1811,7 @@ describe('useChat remount send recovery', () => {
         await waitFor(() => state.postBodies.length === 2)
         expect(state.postBodies[1]).toMatchObject({
           message: queued.content,
-          userMessageId: failed.queuedSendHandoff?.userMessageId,
+          userMessageId: failed.resumeUserMessageId,
         })
         expect(state.abortBodies).toHaveLength(4)
         expect(state.abortBodies[3]).toEqual(state.abortBodies[0])
@@ -1967,8 +1967,8 @@ describe('useChat remount send recovery', () => {
           expect.objectContaining({
             id: 'queued-correction',
             hold: 'user',
+            resumeUserMessageId: 'prepared-correction-request',
             queuedSendHandoff: expect.objectContaining({
-              userMessageId: 'prepared-correction-request',
               supersededStreamId: 'previous-response',
               stopRequired: true,
             }),
@@ -1999,11 +1999,11 @@ describe('useChat remount send recovery', () => {
       id: 'earlier-correction',
       content: 'inspect the second invoice instead',
       hold: 'user',
+      resumeUserMessageId: 'prepared-correction',
       queuedSendHandoff: {
         id: 'earlier-correction',
         chatId: 'chat-a',
         supersededStreamId: 'earlier-response',
-        userMessageId: 'prepared-correction',
         stopRequired: true,
       },
     })
@@ -2039,9 +2039,9 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies).toHaveLength(1)
     expect(allQueuedMessages()[0]).toMatchObject({
       hold: 'user',
+      resumeUserMessageId: 'prepared-correction',
       queuedSendHandoff: {
         supersededStreamId: newerStreamId,
-        userMessageId: 'prepared-correction',
         stopRequired: true,
       },
     })

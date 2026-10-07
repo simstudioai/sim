@@ -76,4 +76,50 @@ describe('useMothershipQueueStore rehydration', () => {
     expect(refused?.admissionUnknown).toBe(false)
     expect(plain?.admissionUnknown).toBeUndefined()
   })
+
+  it('moves the reused id a saved Stop handoff carried onto the entry', async () => {
+    const seed = { chatId: 'chat-A', supersededStreamId: 'previous-response', stopRequired: true }
+    sessionStorage.setItem(
+      'mothership-queue',
+      JSON.stringify({
+        state: {
+          queues: {
+            'chat-A': [
+              {
+                id: 'seed-only',
+                content: 'a',
+                queuedSendHandoff: { id: 'seed-only', ...seed, userMessageId: 'attempt-1' },
+              },
+              {
+                id: 'never-sent',
+                content: 'b',
+                admissionUnknown: false,
+                queuedSendHandoff: { id: 'never-sent', ...seed, userMessageId: 'attempt-2' },
+              },
+            ],
+          },
+        },
+        version: 0,
+      })
+    )
+
+    await useMothershipQueueStore.persist.rehydrate()
+
+    expect(useMothershipQueueStore.getState().queues['chat-A']).toEqual([
+      {
+        id: 'seed-only',
+        content: 'a',
+        resumeUserMessageId: 'attempt-1',
+        admissionUnknown: true,
+        queuedSendHandoff: { id: 'seed-only', ...seed },
+      },
+      {
+        id: 'never-sent',
+        content: 'b',
+        resumeUserMessageId: 'attempt-2',
+        admissionUnknown: false,
+        queuedSendHandoff: { id: 'never-sent', ...seed },
+      },
+    ])
+  })
 })

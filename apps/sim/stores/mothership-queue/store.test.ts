@@ -39,11 +39,11 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'legacy',
         content: 'original',
+        resumeUserMessageId: 'earlier-attempt',
         queuedSendHandoff: {
           id: 'legacy',
           chatId: 'chat-A',
           supersededStreamId: 'previous-response',
-          userMessageId: 'earlier-attempt',
           stopRequired: true,
         },
       })
@@ -59,21 +59,21 @@ describe('useMothershipQueueStore', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'sent',
         content: 'original',
+        resumeUserMessageId: 'send-now-request',
         queuedSendHandoff: {
           id: 'sent',
           chatId: 'chat-A',
           supersededStreamId: 'previous-response',
-          userMessageId: 'send-now-request',
         },
       })
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'waiting',
         content: 'original',
+        resumeUserMessageId: 'not-sent-yet',
         queuedSendHandoff: {
           id: 'waiting',
           chatId: 'chat-A',
           supersededStreamId: 'previous-response',
-          userMessageId: 'not-sent-yet',
           stopRequired: true,
         },
         /** A fresh id still waiting on its Stop, as the hook records it. */
@@ -85,7 +85,7 @@ describe('useMothershipQueueStore', () => {
       const [sent, waiting] = useMothershipQueueStore.getState().queues['chat-A'] ?? []
       expect(sent).toMatchObject({
         content: 'original',
-        queuedSendHandoff: { userMessageId: 'send-now-request' },
+        resumeUserMessageId: 'send-now-request',
       })
       expect(waiting?.content).toBe('edited')
     })
@@ -134,7 +134,6 @@ describe('useMothershipQueueStore', () => {
           id: 'm1',
           chatId: 'chat-A',
           supersededStreamId: 'previous-response',
-          userMessageId: 'prior-request',
           stopRequired: true,
         },
       })
@@ -150,7 +149,6 @@ describe('useMothershipQueueStore', () => {
           stopRequired: true,
         },
       })
-      expect(edited?.queuedSendHandoff?.userMessageId).toBeUndefined()
       expect(edited?.resumeUserMessageId).toBeUndefined()
       expect(edited?.hold).toBeUndefined()
     })

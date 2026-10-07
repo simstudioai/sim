@@ -137,7 +137,6 @@ import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import {
   liveQueueKey,
   liveQueuePosition,
-  reusedRequestId,
   useMothershipQueueStore,
 } from '@/stores/mothership-queue/store'
 import type {
@@ -3551,7 +3550,7 @@ export function useChat(
 
       /* A retry of a withdrawn send reuses its id so the server deduplicates
          the two attempts; anything else mints a fresh one. */
-      const reusedId = queuedSendHandoff?.userMessageId ?? options?.resumeUserMessageId
+      const reusedId = options?.resumeUserMessageId
       const userMessageId = reusedId ?? generateId()
       /* Whether the server may already hold `userMessageId`: the one fact that keeps a
          queued message from being edited into a second turn. A reused id may have been
@@ -4583,9 +4582,10 @@ export function useChat(
         id: handoff.id,
         chatId: handoff.chatId,
         supersededStreamId: handoff.supersededStreamId,
-        userMessageId: handoff.userMessageId,
         ...(handoff.stopRequired ? { stopRequired: true } : {}),
       },
+      /** The stored record's id is the one this entry goes out under. */
+      resumeUserMessageId: handoff.userMessageId,
       ...(handoff.admissionUnknown !== undefined
         ? { admissionUnknown: handoff.admissionUnknown }
         : {}),
@@ -4935,7 +4935,6 @@ export function useChat(
         handoff?: QueuedSendHandoffSeed,
         withdrawn?: WithdrawnSendResult
       ) => {
-        const withdrawnUserMessageId = withdrawn?.userMessageId
         /* The send may have waited on a Stop that saw the new chat's first message
            admitted, which moved this queue to that chat. */
         const { chatKey: restoreKey, index: restoreIndex } = liveQueuePosition(
@@ -4944,13 +4943,16 @@ export function useChat(
         )
         const chatless = restoreKey.startsWith(PENDING_CHAT_KEY_PREFIX)
         const savedHandoff = readQueuedSendHandoffState()
+        /** The id it went out under: the withdrawal's, else its stored handoff record's. */
+        const restoredRequestId =
+          withdrawn?.userMessageId ??
+          (savedHandoff?.id === msg.id ? savedHandoff.userMessageId : undefined)
         const retainedHandoff =
           savedHandoff?.id === msg.id
             ? {
                 id: savedHandoff.id,
                 chatId: savedHandoff.chatId,
                 supersededStreamId: savedHandoff.supersededStreamId,
-                userMessageId: savedHandoff.userMessageId,
                 stopRequired: savedHandoff.stopRequired,
               }
             : handoff
@@ -4999,7 +5001,7 @@ export function useChat(
             dispatched.retry?.attempt ?? 0,
             chatless ? heldSendSurface : undefined
           ),
-          ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
+          ...(restoredRequestId ? { resumeUserMessageId: restoredRequestId } : {}),
           ...(withdrawn ? { admissionUnknown: withdrawn.admissionUnknown } : {}),
         })
       }
@@ -5288,7 +5290,7 @@ export function useChat(
     const accepted = acceptedMessageIds(chatHistory)
     for (const queued of messageQueue) {
       if (queuedMessageDispatchIds.has(queued.id)) continue
-      const requestId = reusedRequestId(queued)
+      const requestId = queued.resumeUserMessageId
       if (!requestId || !accepted.has(requestId)) continue
       discardQueuedSend(chatHistory.id, queued.id)
     }

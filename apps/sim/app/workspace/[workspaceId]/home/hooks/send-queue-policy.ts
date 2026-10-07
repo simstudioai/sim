@@ -1,7 +1,6 @@
 import { backoffWithJitter } from '@sim/utils/retry'
 import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
-import { reusedRequestId } from '@/stores/mothership-queue/store'
 import type { QueuedMothershipMessage, SendRetry } from '@/stores/mothership-queue/types'
 
 /**
@@ -104,7 +103,7 @@ export function acceptedMessageIds(history: MothershipChatHistory): Set<string> 
  * goes out: it may already be a turn on the server, under the id it reuses.
  */
 export function needsResendCheck(entry: QueuedMothershipMessage): boolean {
-  return entry.admissionUnknown === true && reusedRequestId(entry) !== undefined
+  return entry.admissionUnknown === true && entry.resumeUserMessageId !== undefined
 }
 
 /** What to do with a queued message about to go out. */
@@ -121,7 +120,7 @@ export function resendVerdict(
   entry: QueuedMothershipMessage,
   history: MothershipChatHistory | null
 ): ResendVerdict {
-  const requestId = reusedRequestId(entry)
+  const requestId = entry.resumeUserMessageId
   if (!needsResendCheck(entry) || requestId === undefined) return 'send'
   if (!history) return 'wait'
   return acceptedMessageIds(history).has(requestId) ? 'drop' : 'send'
