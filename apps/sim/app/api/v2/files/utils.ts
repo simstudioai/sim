@@ -6,11 +6,7 @@ import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import {
-  findUserEmailsByIds,
-  getUserEmailsByIds,
-  requireResolvedUserEmail,
-} from '@/lib/users/queries'
+import { findUserEmailsByIds } from '@/lib/users/queries'
 import type { ReadWorkspaceFileTextResult } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
@@ -22,7 +18,7 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
  */
 function serializeV2File(
   record: WorkspaceFileRecord,
-  uploadedByEmail: string,
+  uploadedByEmail: string | null,
   baseUrl: string
 ): V2File {
   const folderPath = record.folderId
@@ -51,20 +47,22 @@ function serializeV2File(
 
 /** Resolves and serializes one public file attribution. */
 export async function toV2File(record: WorkspaceFileRecord): Promise<V2File> {
-  const emailByUserId = await getUserEmailsByIds([record.uploadedBy])
-  return serializeV2File(
-    record,
-    requireResolvedUserEmail(emailByUserId, record.uploadedBy),
-    getBaseUrl()
-  )
+  const [file] = await toV2Files([record])
+  return file
 }
 
 /** Resolves a file page's attribution in one query before serialization. */
 export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[]> {
-  const emailByUserId = await getUserEmailsByIds(records.map((record) => record.uploadedBy))
+  const emailByUserId = await findUserEmailsByIds(
+    records.flatMap((record) => (record.uploadedBy ? [record.uploadedBy] : []))
+  )
   const baseUrl = getBaseUrl()
   return records.map((record) =>
-    serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy), baseUrl)
+    serializeV2File(
+      record,
+      record.uploadedBy ? (emailByUserId.get(record.uploadedBy) ?? null) : null,
+      baseUrl
+    )
   )
 }
 

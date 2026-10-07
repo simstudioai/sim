@@ -130,6 +130,11 @@ export async function verifyFileAccess(
   try {
     const canonical = await getFileMetadataByKey(cloudKey, undefined, { includeDeleted: true })
     if (canonical?.projectId != null || canonical?.context === 'project') return false
+    if (canonical && isWorkspaceScopedContext(canonical.context)) {
+      if (canonical.deletedAt || !canonical.workspaceId) return false
+      const permission = await getUserEntityPermissions(userId, 'workspace', canonical.workspaceId)
+      return workspacePermissionSatisfies(permission, requireWrite)
+    }
     const keyContext = inferContextFromKey(cloudKey)
     /** Organization logos are changed only through the organization-authorized upload lifecycle. */
     if (keyContext === 'organization-logos') return !requireWrite

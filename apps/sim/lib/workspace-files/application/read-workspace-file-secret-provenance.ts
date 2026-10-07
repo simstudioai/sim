@@ -21,7 +21,7 @@ export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUs
     resolveActiveWorkspaceFileContext(input),
   async execute({ input, context }): Promise<{
     provenance: WorkspaceFileSecretProvenance
-    ownerUserId: string
+    ownerUserId: string | null
   }> {
     const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
     if (!file) throw new OrchestrationError('not_found', 'File not found')

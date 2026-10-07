@@ -8553,12 +8553,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "original_creator_user_id": {
-          "name": "original_creator_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "text",
@@ -8847,7 +8841,7 @@
       "checkConstraints": {
         "folder_creator_lifetime_check": {
           "name": "folder_creator_lifetime_check",
-          "value": "\"folder\".\"user_id\" IS NOT NULL OR coalesce(\"folder\".\"project_id\" IS NOT NULL AND char_length(\"folder\".\"original_creator_user_id\") > 0, false)"
+          "value": "\"folder\".\"user_id\" IS NOT NULL OR (\"folder\".\"resource_type\" = 'file' AND num_nonnulls(\"folder\".\"workspace_id\", \"folder\".\"project_id\") = 1)"
         },
         "folder_owner_check": {
           "name": "folder_owner_check",
@@ -28277,12 +28271,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "original_creator_user_id": {
-          "name": "original_creator_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "text",
@@ -28738,7 +28726,7 @@
       "checkConstraints": {
         "workspace_files_creator_lifetime_check": {
           "name": "workspace_files_creator_lifetime_check",
-          "value": "\"workspace_files\".\"user_id\" IS NOT NULL OR coalesce(\"workspace_files\".\"project_id\" IS NOT NULL AND char_length(\"workspace_files\".\"original_creator_user_id\") > 0, false)"
+          "value": "\"workspace_files\".\"user_id\" IS NOT NULL OR (\"workspace_files\".\"context\" IN ('workspace', 'project') AND num_nonnulls(\"workspace_files\".\"workspace_id\", \"workspace_files\".\"project_id\") = 1 AND \"workspace_files\".\"organization_id\" IS NULL)"
         },
         "workspace_files_organization_binding_check": {
           "name": "workspace_files_organization_binding_check",

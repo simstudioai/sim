@@ -24,7 +24,7 @@ try {
       for (const chunk of source.split('--> statement-breakpoint')) {
         const statement = chunk.replace(/^(?:\s|--[^\n]*(?:\n|$))*/, '')
         if (
-          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP TRIGGER)\b/i.test(
+          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP (?:TRIGGER|FUNCTION))\b/i.test(
             statement
           )
         )

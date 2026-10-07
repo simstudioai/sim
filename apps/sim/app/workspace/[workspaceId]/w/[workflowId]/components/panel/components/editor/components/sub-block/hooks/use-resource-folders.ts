@@ -84,13 +84,12 @@ export function useResourceFolders(
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 
-  const rows = useMemo<WorkflowFolder[]>(() => {
+  const rows = useMemo<Omit<WorkflowFolder, 'userId'>[]>(() => {
     if (isFileResource) {
       return (files.data ?? []).map((folder) => ({
         id: folder.id,
         resourceType: 'file' as const,
         name: folder.name,
-        userId: folder.userId,
         workspaceId: folder.workspaceId,
         parentId: folder.parentId,
         locked: false,

@@ -167,7 +167,7 @@ export interface WorkspaceFileRecord {
   /** Intrinsic image pixel dimensions, populated lazily on first view. Null/absent for non-images. */
   width?: number | null
   height?: number | null
-  uploadedBy: string
+  uploadedBy: string | null
   folderId?: string | null
   folderPath?: string | null
   deletedAt?: Date | null
@@ -198,12 +198,7 @@ export interface VersionedWorkspaceFileRecord extends WorkspaceFileRecord {
 
 /** Shared file metadata never substitutes an environment ID for its owning Project. */
 export interface OwnedFileRecord<O extends EditableFileOwner = EditableFileOwner>
-  extends Omit<
-    WorkspaceFileRecord,
-    'workspaceId' | 'storageContext' | 'vfsNamespace' | 'uploadedBy'
-  > {
-  uploadedBy: string | null
-  originalCreatorUserId: string | null
+  extends Omit<WorkspaceFileRecord, 'workspaceId' | 'storageContext' | 'vfsNamespace'> {
   owner: O
   folderId: string | null
   folderPath: string | null
@@ -1393,13 +1388,10 @@ function mapWorkspaceFileRecord(
   workspaceId: string,
   folderPaths: Map<string, string>
 ): WorkspaceFileRecord {
-  if (!file.userId) throw new Error('Workspace file is missing its creator')
   return {
     ...omit(mapFileRecord(file, { entityType: 'workspace', entityId: workspaceId }, folderPaths), [
       'owner',
-      'originalCreatorUserId',
     ]),
-    uploadedBy: file.userId,
     workspaceId: file.workspaceId || workspaceId,
   }
 }
@@ -1425,7 +1417,6 @@ export function mapFileRecord<const O extends EditableFileOwner>(
     width: file.width,
     height: file.height,
     uploadedBy: file.userId,
-    originalCreatorUserId: file.originalCreatorUserId,
     folderId: file.folderId,
     folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
     deletedAt: file.deletedAt,
@@ -1598,7 +1589,6 @@ const workspaceFileListColumns = {
   id: workspaceFiles.id,
   key: workspaceFiles.key,
   userId: workspaceFiles.userId,
-  originalCreatorUserId: workspaceFiles.originalCreatorUserId,
   workspaceId: workspaceFiles.workspaceId,
   folderId: workspaceFiles.folderId,
   originalName: workspaceFiles.originalName,
@@ -1745,10 +1735,8 @@ export async function queryWorkspaceFiles(
   const result = await queryFileRecords({ entityType: 'workspace', entityId: workspaceId }, options)
   return {
     files: result.files.map((file) => {
-      if (!file.uploadedBy) throw new Error('Workspace file is missing its creator')
       return {
-        ...omit(file, ['owner', 'originalCreatorUserId']),
-        uploadedBy: file.uploadedBy,
+        ...omit(file, ['owner']),
         workspaceId,
       }
     }),
@@ -2627,28 +2615,19 @@ export async function updateWorkspaceFileContent(
       }
     }
 
-    const pathPrefix = getServePathPrefix()
     const currentFolderPath =
       finalized.file.folderId === fileRecord.folderId ? fileRecord.folderPath : null
 
     logger.info(`Successfully updated workspace file content: ${finalized.file.originalName}`)
 
-    if (!finalized.file.userId) throw new Error('Workspace file is missing its creator')
     return {
-      id: finalized.file.id,
-      workspaceId: finalized.file.workspaceId || workspaceId,
-      name: finalized.file.originalName,
-      key: finalized.file.key,
-      path: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
-      size: getWorkspaceFileSize(finalized.file),
-      type: finalized.file.contentType,
-      uploadedBy: finalized.file.userId,
-      folderId: finalized.file.folderId,
-      folderPath: currentFolderPath,
-      deletedAt: finalized.file.deletedAt,
-      uploadedAt: finalized.file.uploadedAt,
-      updatedAt: finalized.file.updatedAt,
-      contentUpdatedAt: finalized.file.contentUpdatedAt,
+      ...mapWorkspaceFileRecord(
+        finalized.file,
+        workspaceId,
+        finalized.file.folderId && currentFolderPath
+          ? new Map([[finalized.file.folderId, currentFolderPath]])
+          : new Map()
+      ),
       currentVersion: finalized.currentVersion,
     }
   } catch (error) {

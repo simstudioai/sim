@@ -42,7 +42,7 @@ vi.mock('@/lib/users/queries', () => usersQueriesMock)
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { PATCH, PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
-const { mockGetUserEmailsByIds } = usersQueriesMockFns
+const { mockFindUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -104,7 +104,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     mocks.admit.mockResolvedValue(undefined)
     mocks.editContent.mockResolvedValue({ file: record, lineCount: 1 })
     mocks.updateContent.mockResolvedValue({ file: record })
-    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockFindUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('performs authenticated admission before parsing a large or malformed body', async () => {

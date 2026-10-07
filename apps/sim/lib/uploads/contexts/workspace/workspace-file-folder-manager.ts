@@ -91,7 +91,7 @@ export class WorkspaceFileItemsNotFoundError extends OrchestrationError {
 export interface WorkspaceFileFolderRecord {
   id: string
   workspaceId: string
-  userId: string
+  userId: string | null
   name: string
   parentId: string | null
   path: string
@@ -103,11 +103,9 @@ export interface WorkspaceFileFolderRecord {
 
 type FileFolderRecord<O extends EditableFileOwner = EditableFileOwner> = Omit<
   WorkspaceFileFolderRecord,
-  'workspaceId' | 'userId'
+  'workspaceId'
 > & {
   owner: O
-  userId: string | null
-  originalCreatorUserId: string | null
 }
 
 interface FileFolderListOptions {
@@ -150,7 +148,6 @@ interface RawWorkspaceFileFolder {
   id: string
   workspaceId: string
   userId: string | null
-  originalCreatorUserId?: string | null
   name: string
   parentId: string | null
   sortOrder: number
@@ -324,10 +321,10 @@ function mapFolder(
 }
 
 function workspaceFolderRecord(folder: FileFolderRecord): WorkspaceFileFolderRecord {
-  if (folder.owner.entityType !== 'workspace' || !folder.userId)
+  if (folder.owner.entityType !== 'workspace')
     throw new OrchestrationError('not_found', 'Folder not found')
-  const { owner, originalCreatorUserId, ...record } = folder
-  return { ...record, userId: folder.userId, workspaceId: owner.entityId }
+  const { owner, ...record } = folder
+  return { ...record, workspaceId: owner.entityId }
 }
 
 function mapFileFolder<O extends EditableFileOwner>(
@@ -339,7 +336,6 @@ function mapFileFolder<O extends EditableFileOwner>(
     id: folder.id,
     owner,
     userId: folder.userId,
-    originalCreatorUserId: folder.originalCreatorUserId ?? null,
     name: folder.name,
     parentId: folder.parentId,
     path: paths.get(folder.id) ?? folder.name,
