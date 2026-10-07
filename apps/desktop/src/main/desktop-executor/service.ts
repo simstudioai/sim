@@ -7,6 +7,7 @@
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import type { DesktopExecutorDevice } from '@sim/desktop-bridge'
+import type { DesktopToolCompletion } from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -61,6 +62,8 @@ export interface DesktopExecutorServiceDeps {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Whether any chat has desktop work claimed on this machine changed. */
   onBusyChange?: (busy: boolean) => void
+  /** Sim has taken a call's result as the call's own, so the model has it. */
+  onResultDelivered?: (toolCallId: string, completion: DesktopToolCompletion) => void
 }
 
 export interface DesktopExecutorService {
@@ -68,6 +71,12 @@ export interface DesktopExecutorService {
   /** Re-registers after a sign-in, a session change, or a change to what this device can run. */
   refreshRegistration(): void
   getDevice(): DesktopExecutorDevice | null
+  /**
+   * The calls whose real result (not one reported as not started or outcome unknown) is in the
+   * journal and not yet acknowledged, so recovery will hand it to the model. Read before recovery
+   * changes the journal; empty when it cannot be read.
+   */
+  pendingResults(): Promise<Set<string>>
   /** Stores one entry of a claimed import, as this device's registered session. */
   importEntry(
     request: DesktopImportEntryRequest,
@@ -239,6 +248,7 @@ export function createDesktopExecutorService(
         onUnregistered: handleUnrecognized,
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
         ...(deps.onBusyChange ? { onBusyChange: deps.onBusyChange } : {}),
+        ...(deps.onResultDelivered ? { onResultDelivered: deps.onResultDelivered } : {}),
       })
       await executor.recover()
       // Signed out while recovering: sign-out already disposed this executor.
@@ -442,6 +452,22 @@ export function createDesktopExecutorService(
     },
     getDevice() {
       return device
+    },
+    async pendingResults() {
+      const pending = new Set<string>()
+      try {
+        for (const entry of await journal.load()) {
+          if (entry.state !== 'result') continue
+          const data = entry.completion.data
+          if (data?.outcomeUnknown === true || data?.notStarted === true) continue
+          pending.add(entry.toolCallId)
+        }
+      } catch (error) {
+        logger.warn('Could not read the executor journal for pending results', {
+          error: getErrorMessage(error),
+        })
+      }
+      return pending
     },
     importEntry(request, signal) {
       if (!client) throw new Error('The Sim desktop app is not signed in to Sim.')

@@ -67,6 +67,11 @@ export interface DesktopExecutorOptions {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Called whenever the number of held calls changes between zero and more. */
   onBusyChange?: (busy: boolean) => void
+  /**
+   * Called once Sim has taken a call's result as the call's own (recorded, or a duplicate of one
+   * it recorded): the model has it, so anything it hands back (a pane still running) is in use.
+   */
+  onResultDelivered?: (toolCallId: string, completion: DesktopToolCompletion) => void
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
@@ -401,6 +406,8 @@ export class DesktopExecutor {
           completion: pending,
         })
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
+        // Superseded: Sim settled the call first, so this result never reached the model.
+        if (outcome !== 'superseded') this.options.onResultDelivered?.(toolCallId, pending)
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.

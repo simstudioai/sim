@@ -12,6 +12,7 @@ import {
   resolveAttachment,
   runPaneState,
   startRun,
+  stopRecordedRun,
   stopRun,
   type TmuxRunHandle,
 } from '@/main/terminal/tmux'
@@ -71,6 +72,7 @@ describe('run status files', () => {
     window: '@1',
     pane: '%1',
     runId: 'run-1',
+    socket: null,
     outPath: join(dir, 'out'),
     statusPath: join(dir, 'status'),
     dispose: () => {},
@@ -119,6 +121,8 @@ describe('run status files', () => {
  * reshapes the server directly (a split, a closed window, a restart) by rewriting that file.
  */
 interface FakeTmuxState {
+  /** The server's socket; `-S` naming any other reaches no server. */
+  socket: string
   nextWindow: number
   nextPane: number
   panes: Record<string, { window: string; options: Record<string, string>; command?: string }>
@@ -126,6 +130,14 @@ interface FakeTmuxState {
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
   fail?: Record<string, string>
+  /** Once a key is sent, tmux stops answering: every later command fails like a dying server. */
+  dieAfterKeys?: boolean
+  /** On this many-th display-message, the pane is retagged as another run's (a restart race). */
+  retagAtCheck?: number
+  /** display-message calls so far. */
+  checks?: number
+  /** tmux restarts and the user's pane takes the id just before the next guarded action. */
+  retagBeforeAction?: boolean
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
@@ -138,8 +150,16 @@ const FAKE_TMUX = `
 const fs = require('node:fs')
 const file = process.env.FAKE_TMUX_STATE
 const state = JSON.parse(fs.readFileSync(file, 'utf8'))
-const args = process.argv.slice(2)
+let args = process.argv.slice(2)
 const save = () => fs.writeFileSync(file, JSON.stringify(state))
+// \`-S socket\` names the server; any server but this one does not exist.
+if (args[0] === '-S') {
+  if (args[1] !== state.socket) {
+    process.stderr.write('no server running on ' + args[1])
+    process.exit(1)
+  }
+  args = args.slice(2)
+}
 const target = () => args[args.indexOf('-t') + 1]
 const fail = (message) => { process.stderr.write(message); process.exit(1) }
 // Prints a format's output as tmux 3.4 and 3.5 do: a backslash doubled, and every other control
@@ -155,6 +175,18 @@ if (state.hold && state.hold[args[0]]) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
   }
   state.held = state.held.filter((command) => command !== args[0])
+}
+// \`if-shell -F -t pane '#{==:#{option},value}' command\`: the check and the action in one command.
+if (args[0] === 'if-shell') {
+  const pane = state.panes[target()]
+  if (pane && state.retagBeforeAction) {
+    pane.options['@sim-run-id'] = 'someone-else'
+    state.retagBeforeAction = false
+    save()
+  }
+  const check = /^#\\{==:#\\{([^}]+)\\},(.*)\\}$/.exec(args[args.length - 2])
+  if (!pane || !check || (pane.options[check[1]] ?? '') !== check[2]) process.exit(0)
+  args = args[args.length - 1].split(' ')
 }
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
@@ -180,6 +212,11 @@ switch (args[0]) {
     break
   }
   case 'display-message': {
+    state.checks = (state.checks ?? 0) + 1
+    if (state.retagAtCheck === state.checks && state.panes[target()]) {
+      state.panes[target()].options['@sim-run-id'] = 'someone-else'
+    }
+    save()
     // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
     const name = args[args.length - 1].slice(2, -1)
@@ -187,6 +224,8 @@ switch (args[0]) {
       ? ''
       : name === 'pane_id'
         ? target()
+        : name === 'socket_path'
+          ? state.socket
         : name === 'pane_start_command'
           ? (pane.command ?? '')
           : (pane.options[name] ?? '')
@@ -208,6 +247,9 @@ switch (args[0]) {
   case 'kill-pane': {
     if (!state.panes[target()]) fail("can't find pane")
     state.log.push(args[0] + ' ' + target() + (args[0] === 'send-keys' ? ' ' + args[args.length - 1] : ''))
+    if (args[0] === 'send-keys' && state.dieAfterKeys) {
+      state.fail = { 'display-message': 'server exited unexpectedly', 'kill-pane': 'server exited unexpectedly' }
+    }
     if (args[0] === 'kill-pane') delete state.panes[target()]
     save()
     break
@@ -224,7 +266,7 @@ function fakeTmux(options: { exec?: boolean } = {}) {
   writeFileSync(binary, `#!${process.execPath}\n${FAKE_TMUX}`)
   chmodSync(binary, 0o755)
   const write = (state: FakeTmuxState) => writeFileSync(stateFile, JSON.stringify(state))
-  write({ nextWindow: 0, nextPane: 0, panes: {}, log: [] })
+  write({ nextWindow: 0, nextPane: 0, panes: {}, log: [], socket: join(dir, 'server.sock') })
   const read = (): FakeTmuxState => JSON.parse(readFileSync(stateFile, 'utf8'))
   return {
     dir,
@@ -274,6 +316,177 @@ describe('finding the tmux session a shell runs', () => {
   })
 })
 
+describe('stopping a run another process started, from its record', () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  async function recorded(tmux: ReturnType<typeof fakeTmux>) {
+    dirs.push(tmux.dir)
+    const run = await startRun('agent', 'sleep 600', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
+    return { run, record: { runId: run.runId ?? '', pane: run.pane, socket: run.socket ?? '' } }
+  }
+
+  it('records the server a tagged run runs on', async () => {
+    const tmux = fakeTmux()
+    const { run } = await recorded(tmux)
+
+    expect(run.socket).toBe(tmux.read().socket)
+  })
+
+  it('interrupts and then closes the pane while it still carries the run tag', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`, `kill-pane ${record.pane}`])
+    expect(tmux.read().panes).toEqual({})
+  })
+
+  it('never touches a pane that took the recorded id after tmux restarted', async () => {
+    const tmux = fakeTmux()
+    const { run, record } = await recorded(tmux)
+    tmux.restart()
+    const state = tmux.read()
+    state.panes[run.pane] = { window: run.window, options: {}, command: 'zsh' }
+    tmux.write(state)
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
+  })
+
+  it('never asks a different tmux server about the pane', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+
+    const elsewhere = { ...record, socket: join(tmux.dir, 'another.sock') }
+    expect(await stopRecordedRun(elsewhere, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('checks the pane is still the run once more right before closing it', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    // The first check (before Ctrl-C) sees the run; the next, right before closing, does not.
+    tmux.write({ ...tmux.read(), checks: 0, retagAtCheck: 2 })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('gone')
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('never starts a tagged run whose server it cannot name for a record', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), socket: '' })
+    const marker = join(tmux.dir, 'ran')
+
+    const result = await startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env, {
+      beforeStart: () => true,
+    })
+
+    expect(result).toMatchObject({ error: expect.stringContaining('was not run') })
+    // The pane it opened and tagged is closed with it.
+    expect(tmux.read().panes).toEqual({})
+    await sleep(1_500)
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it('forgets the saved record of a run that then could not start', async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    const saved = new Set<string>()
+    let runDir = ''
+
+    const result = await startRun('agent', 'sleep 600', null, tmux.env, {
+      beforeStart: (run) => {
+        // The run's directory turns read-only, so its go file cannot be written.
+        const command = tmux.read().panes[run.pane]?.command ?? ''
+        const script = /"([^"]+)\/run\.sh"/.exec(command)?.[1] ?? ''
+        runDir = script
+        chmodSync(runDir, 0o500)
+        saved.add(run.runId)
+        return true
+      },
+      abandon: (runId) => saved.delete(runId),
+    })
+
+    if (runDir) chmodSync(runDir, 0o700)
+    if (runDir) dirs.push(runDir)
+    expect(result).toMatchObject({ error: expect.stringContaining('could not be started') })
+    expect([...saved]).toEqual([])
+  })
+
+  it('acts on no pane that took the recorded id between the last check and the action', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), retagBeforeAction: true })
+
+    await stopRecordedRun(record, tmux.env, 0)
+
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
+  it('keeps the record when tmux stops answering part-way through the stop', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), dieAfterKeys: true })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('unknown')
+    // Its pane could not be confirmed as the run's, so it was not closed.
+    expect(tmux.read().log).toEqual([`send-keys ${record.pane} C-c`])
+  })
+
+  it('saves the record before the command may start, and never starts one it could not save', async () => {
+    const tmux = fakeTmux({ exec: true })
+    dirs.push(tmux.dir)
+    const marker = join(tmux.dir, 'ran')
+    let ranBeforeRecord = true
+    const run = await startRun('agent', `touch ${JSON.stringify(marker)}`, null, tmux.env, {
+      beforeStart: () => {
+        // Time enough for a command already released to have run.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_000)
+        ranBeforeRecord = existsSync(marker)
+        return true
+      },
+    })
+    if ('error' in run) throw new Error(run.error)
+    expect(ranBeforeRecord).toBe(false)
+    await expect.poll(() => existsSync(marker), { timeout: 10_000 }).toBe(true)
+
+    const unsaved = fakeTmux({ exec: true })
+    dirs.push(unsaved.dir)
+    const unsavedMarker = join(unsaved.dir, 'ran')
+    const refused = await startRun(
+      'agent',
+      `touch ${JSON.stringify(unsavedMarker)}`,
+      null,
+      unsaved.env,
+      {
+        beforeStart: () => false,
+      }
+    )
+    expect(refused).toMatchObject({ error: expect.stringContaining('was not run') })
+    await sleep(1_500)
+    expect(existsSync(unsavedMarker)).toBe(false)
+  }, 20_000)
+
+  it('leaves the record for later while tmux cannot be asked', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), fail: { 'display-message': 'server exited unexpectedly' } })
+
+    expect(await stopRecordedRun(record, tmux.env, 0)).toBe('unknown')
+    expect(tmux.read().log).toEqual([])
+  })
+})
+
 describe('stopping a tmux run touches only its own pane', () => {
   const dirs: string[] = []
 
@@ -297,6 +510,17 @@ describe('stopping a tmux run touches only its own pane', () => {
 
     expect(tmux.read().log).toEqual([`send-keys ${run.pane} C-c`, `kill-pane ${run.pane}`])
     expect(Object.keys(tmux.read().panes)).toEqual([users])
+  })
+
+  it('sends a live run nothing once its pane is retagged between the check and the action', async () => {
+    const tmux = fakeTmux()
+    const run = await started(tmux)
+    tmux.write({ ...tmux.read(), retagBeforeAction: true })
+
+    await stopRun(run, tmux.env, 0)
+
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
   })
 
   it('sends nothing to a pane that reused the run pane id after tmux restarted', async () => {

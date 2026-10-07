@@ -317,6 +317,8 @@ export interface TmuxRunHandle {
    * nothing ever stops it, since nothing could tell its pane from one of the user's.
    */
   runId: string | null
+  /** The tmux server's socket, for a record a later process can act on; null if unknown. */
+  socket: string | null
   outPath: string
   statusPath: string
   dispose(): void
@@ -355,7 +357,16 @@ export async function startRun(
   session: string,
   command: string,
   cwd: string | null,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  options: {
+    /**
+     * Records a tagged run before its command may start; false keeps the command from starting,
+     * since a run no later process could find must not outlive this one.
+     */
+    beforeStart?: (run: RecordedRun) => boolean
+    /** Undoes `beforeStart` for a run that then could not start after all. */
+    abandon?: (runId: string) => void
+  } = {}
 ): Promise<TmuxRunHandle | { error: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-run-'))
   const outPath = join(dir, 'out')
@@ -439,14 +450,27 @@ export async function startRun(
     })
   }
   const runId = tagged.ok ? tag : null
+  // Which server the pane lives on, so a later process stops it there and nowhere else.
+  const shown = runId
+    ? await runTmux(['display-message', '-p', '-t', pane, '#{socket_path}'], env)
+    : null
+  const socket = shown?.ok && shown.stdout.trim().startsWith('/') ? shown.stdout.trim() : null
+  if (runId && options.beforeStart && !(socket && options.beforeStart({ runId, pane, socket }))) {
+    // The pane was tagged a moment ago, so it is closed as the run's; without the go file its
+    // command never starts in any case.
+    await runTmux(ifTagged(pane, runId, `kill-pane -t ${pane}`), env)
+    dispose()
+    return { error: 'The command could not be recorded for a later stop, so it was not run.' }
+  }
   try {
     writeFileSync(goPath, '')
   } catch (error) {
+    if (runId) options.abandon?.(runId)
     dispose()
     return { error: `The command could not be started: ${getErrorMessage(error)}` }
   }
 
-  return { window, pane, runId, outPath, statusPath, dispose }
+  return { window, pane, runId, socket, outPath, statusPath, dispose }
 }
 
 /**
@@ -477,16 +501,92 @@ export async function runPaneState(
  * step first checks the pane is still the run's, and only that pane is ever closed, so a pane the
  * user split off beside it, or a window that reused its ids, is never touched.
  */
+/**
+ * Arguments for one tmux command that runs `command` on a pane only while the pane carries the
+ * run's tag. tmux checks the tag and acts within the one command, so a restart between a check
+ * and an action can never hand the action to a pane that took the id.
+ */
+function ifTagged(pane: string, runId: string, command: string, socket?: string): string[] {
+  return [
+    ...(socket ? ['-S', socket] : []),
+    'if-shell',
+    '-F',
+    '-t',
+    pane,
+    `#{==:#{${RUN_ID_OPTION}},${runId}}`,
+    command,
+  ]
+}
+
 export async function stopRun(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv,
   graceMs: number
 ): Promise<void> {
-  if ((await runPaneState(handle, env)) !== 'ours') return
-  await sendKey(handle.pane, 'C-c', env)
+  if ((await runPaneState(handle, env)) !== 'ours' || !handle.runId) return
+  await runTmux(ifTagged(handle.pane, handle.runId, `send-keys -t ${handle.pane} C-c`), env)
   const deadline = Date.now() + graceMs
   while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
   if (!isRunComplete(handle)) await closeRunPane(handle, env)
+}
+
+/** A recorded run as a later process finds it: what it takes to find its pane again. */
+export interface RecordedRun {
+  /** The tag on the run's pane; only a pane carrying it is ever acted on. */
+  runId: string
+  pane: string
+  /** The tmux server's socket, so a different server is never asked about this pane. */
+  socket: string
+}
+
+/**
+ * Whether a recorded run's pane still carries its tag, asked of the run's own server only: `gone`
+ * when that server or pane no longer exists or the pane is not tagged as this run's, `unknown`
+ * when tmux could not be asked.
+ */
+export async function recordedRunState(
+  run: RecordedRun,
+  env: NodeJS.ProcessEnv
+): Promise<'ours' | 'gone' | 'unknown'> {
+  const shown = await runTmux(
+    ['-S', run.socket, 'display-message', '-p', '-t', run.pane, `#{${RUN_ID_OPTION}}`],
+    env
+  )
+  if (shown.ok) return shown.stdout.trim() === run.runId ? 'ours' : 'gone'
+  return /can't find|no server running|error connecting|no such file/i.test(shown.stderr)
+    ? 'gone'
+    : 'unknown'
+}
+
+/**
+ * Stops a run another process started, from its record: Ctrl-C in its pane, then closing that pane
+ * if the command ignored it. Every step first checks, on the run's own server, that the pane still
+ * carries the run's tag, so a pane that took its id after a tmux restart is never touched.
+ * Resolves `gone` once nothing of the run is left to stop, and `unknown` when tmux could not say.
+ */
+export async function stopRecordedRun(
+  run: RecordedRun,
+  env: NodeJS.ProcessEnv,
+  graceMs: number
+): Promise<'gone' | 'unknown'> {
+  const before = await recordedRunState(run, env)
+  if (before !== 'ours') return before
+  await runTmux(ifTagged(run.pane, run.runId, `send-keys -t ${run.pane} C-c`, run.socket), env)
+  const deadline = Date.now() + graceMs
+  let state: 'ours' | 'gone' | 'unknown' = 'ours'
+  while (Date.now() < deadline) {
+    await sleep(100)
+    state = await recordedRunState(run, env)
+    if (state !== 'ours') break
+  }
+  // The pane is closed only while it is confirmed the run's; a pane tmux could not answer for is
+  // left alone, and its record kept for the next sweep.
+  if (state === 'ours') state = await recordedRunState(run, env)
+  if (state === 'ours') {
+    await runTmux(ifTagged(run.pane, run.runId, `kill-pane -t ${run.pane}`, run.socket), env)
+    state = await recordedRunState(run, env)
+  }
+  return state === 'gone' ? 'gone' : 'unknown'
 }
 
 function readIfPresent(path: string): string | null {
@@ -576,7 +676,12 @@ export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv
     isRunComplete(handle) &&
     (await startedByRun(handle, env))
   if (state !== 'ours' && !finishedUntracked) return
-  const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
+  const killed = await runTmux(
+    handle.runId
+      ? ifTagged(handle.pane, handle.runId, `kill-pane -t ${handle.pane}`)
+      : ['kill-pane', '-t', handle.pane],
+    env
+  )
   if (!killed.ok) {
     logger.warn('Could not close the tmux run pane', { error: killed.stderr.trim() })
   }

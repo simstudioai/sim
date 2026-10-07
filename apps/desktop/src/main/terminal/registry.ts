@@ -19,6 +19,11 @@ import {
   type TerminalServiceOptions,
   type TerminalSink,
 } from '@/main/terminal'
+import type { RunLedger, RunRecord } from '@/main/terminal/run-ledger'
+import { recordedRunState, stopRecordedRun } from '@/main/terminal/tmux'
+
+/** How long a recorded run gets to end on Ctrl-C before its pane is closed. */
+const RECORDED_RUN_GRACE_MS = 2_000
 
 /** Native PTYs and their headless xterm buffers are process-wide resources. */
 export const MAX_TERMINALS_PER_PROCESS = 48
@@ -106,7 +111,8 @@ export class TerminalRegistry {
 
   constructor(
     private readonly persistence?: TerminalScopePersistence,
-    private readonly serviceFactory: TerminalServiceFactory = createTerminalService
+    private readonly serviceFactory: TerminalServiceFactory = createTerminalService,
+    private readonly runLedger?: RunLedger
   ) {}
 
   setSink(sink: ScopedTerminalSink | null): void {
@@ -369,10 +375,69 @@ export class TerminalRegistry {
     return true
   }
 
-  /** Stops every command the agent started in any chat's terminals; the user's own are untouched. */
+  /**
+   * Stops every command the agent started in any chat's terminals; the user's own are untouched.
+   * That includes tmux runs no live terminal holds any more: a chat put away, or a previous
+   * process that quit or crashed while they ran.
+   */
   async stopAgentCommands(): Promise<void> {
     await Promise.allSettled(
       [...this.entries.values()].map((entry) => entry.service.stopAgentCommands())
+    )
+    await this.stopRecordedRuns()
+  }
+
+  /**
+   * At launch, for the same user: leaves a previous process's tmux run going only when the model
+   * has, or will get, the result that handed it back as still going: Sim acknowledged it
+   * (`delivered`), or the executor's journal holds it for recovery to send (`pendingResults`).
+   * Every other run is stopped, as is one a stop for everything could not confirm.
+   */
+  stopUncollectableRuns(pendingResults: ReadonlySet<string>): Promise<void> {
+    return this.stopRecordedRuns({
+      excludeLive: true,
+      keep: (run) => !run.mustStop && (run.delivered || pendingResults.has(run.callId)),
+    })
+  }
+
+  /**
+   * Notes that a call's result reached the model, so a tmux run it handed back as still going may
+   * be left to the model across a restart.
+   */
+  markRunDelivered(callId: string): void {
+    const ledger = this.runLedger
+    if (!ledger) return
+    for (const run of ledger.list()) {
+      if (run.callId === callId) ledger.markDelivered(run.runId)
+    }
+  }
+
+  /**
+   * Stops the recorded tmux runs, each only while its pane still carries its tag, and drops the
+   * records with nothing left to stop. `excludeLive` skips the runs this process has started;
+   * `keep` names runs to leave going, such as a previous process's runs whose results the model
+   * already has and may come back to.
+   */
+  async stopRecordedRuns(
+    options: {
+      excludeLive?: boolean
+      /** Runs to leave going; their records are only dropped once their panes are gone. */
+      keep?: (run: RunRecord) => boolean
+    } = {}
+  ): Promise<void> {
+    const ledger = this.runLedger
+    if (!ledger) return
+    await Promise.allSettled(
+      ledger.list({ excludeLive: options.excludeLive }).map(async (run) => {
+        const keeping = options.keep?.(run) ?? false
+        const state = keeping
+          ? await recordedRunState(run, process.env)
+          : await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
+        if (state === 'gone') ledger.forget(run.runId)
+        // A run this sweep meant to stop but could not confirm stays meant to stop, so no later
+        // sweep keeps it.
+        else if (!keeping) ledger.markMustStop(run.runId)
+      })
     )
   }
 
@@ -405,6 +470,7 @@ export class TerminalRegistry {
       service: this.serviceFactory(scope, {
         loadCwd: () => this.entries.get(scope)?.persisted?.tabs[0]?.cwd,
         canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
+        runLedger: this.runLedger,
       }),
       persisted,
       restoreApplied: false,
@@ -457,6 +523,7 @@ export class TerminalRegistry {
         replacement = this.serviceFactory(entry.scope, {
           loadCwd: () => entry.persisted?.tabs[0]?.cwd,
           canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
+          runLedger: this.runLedger,
         })
       } catch {
         this.entries.delete(entry.scope)

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { net } from 'electron'
+import { createExecutorJournal } from '@/main/desktop-executor/journal'
 import { createDesktopExecutorService, deviceName } from '@/main/desktop-executor/service'
 
 /** Sim's device routes, with registration answers held until the test releases them. */
@@ -94,6 +95,36 @@ async function service(protocolVersion = 1, userDataPath?: string) {
   })
   return { sim, desktopExecutor, busy }
 }
+
+describe('results recovery will hand to the model', () => {
+  it('names the calls whose real result the journal holds for recovery to send', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+    const journal = createExecutorJournal(join(userData, 'desktop-executor-journal.json'))
+    await journal.put({ toolCallId: 'claimed', state: 'claimed', executionToken: 't1' })
+    await journal.put({ toolCallId: 'started', state: 'started', executionToken: 't2' })
+    await journal.put({
+      toolCallId: 'unknown',
+      state: 'result',
+      executionToken: 't3',
+      completion: { status: 'error', message: 'x', data: { outcomeUnknown: true } },
+    })
+    await journal.put({
+      toolCallId: 'not-started',
+      state: 'result',
+      executionToken: 't4',
+      completion: { status: 'error', message: 'x', data: { notStarted: true } },
+    })
+    await journal.put({
+      toolCallId: 'handed-back',
+      state: 'result',
+      executionToken: 't5',
+      completion: { status: 'success', message: 'running', data: { status: 'running' } },
+    })
+    const { desktopExecutor } = await service(1, userData)
+
+    expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
+  })
+})
 
 describe('desktop executor registration', () => {
   it('offers the device for binding once Sim enables it', async () => {

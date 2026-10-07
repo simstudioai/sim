@@ -101,6 +101,7 @@ import {
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
@@ -167,15 +168,20 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
-  const terminal = new TerminalRegistry({
-    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
-    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
-    migrate: (fromScopeId, toScopeId) =>
-      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
-    disposeScope: (scopeId) => {
-      desktopChatSessions.deleteScope(processOrigin, scopeId)
+  const terminal = new TerminalRegistry(
+    {
+      load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+      save: (scopeId, snapshot) =>
+        desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
+      migrate: (fromScopeId, toScopeId) =>
+        desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
+      disposeScope: (scopeId) => {
+        desktopChatSessions.deleteScope(processOrigin, scopeId)
+      },
     },
-  })
+    undefined,
+    createRunLedger(join(userDataPath, 'terminal-runs'))
+  )
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -601,6 +607,13 @@ function main(): void {
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
     onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    // A result the model has (not one reported as not started or outcome unknown) makes a tmux
+    // run it handed back as still going collectable across a restart.
+    onResultDelivered: (toolCallId, completion) => {
+      if (completion.data?.outcomeUnknown !== true && completion.data?.notStarted !== true) {
+        terminal.markRunDelivered(toolCallId)
+      }
+    },
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,
@@ -804,6 +817,14 @@ function main(): void {
       }
     }
 
+    // The same user's tmux runs from a previous process: a run whose call never handed back its
+    // result (or whose result the journal will report as unknown) has nothing left to collect what
+    // it does, so it is stopped, while its pane still carries its tag. A run already handed back as
+    // still going, with its pane, is left to the model, which may come back to it. Read before the
+    // executor starts, since its recovery rewrites the journal.
+    const pendingResults = desktopExecutor.pendingResults()
+    void pendingResults.then((pending) => terminal.stopUncollectableRuns(pending))
+
     if (!accountDataAvailable()) {
       logger.warn(
         'Account-bearing browser, terminal, and local filesystem APIs are unavailable until local recovery succeeds'
@@ -953,6 +974,7 @@ function main(): void {
       ensureAppSession().cookies.on('changed', (_event, cookie, _cause, removed) => {
         if (!removed && isSessionCookieName(cookie.name)) desktopExecutor.refreshRegistration()
       })
+      await pendingResults
       desktopExecutor.start()
     }
     await ensureMainWindow()
