@@ -6,7 +6,10 @@ import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { enqueueSubscriptionSeatsSync } from '@/lib/billing/webhooks/subscription-sync'
+import {
+  enqueueSubscriptionSeatsSync,
+  readCommittedSeats,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -100,7 +103,11 @@ export async function reconcileOrganizationSeats({
       .where(eq(member.organizationId, organizationId))
 
     const targetSeats = Math.max(1, memberCountRow?.value ?? 1)
-    const currentSeats = orgSubscription.seats ?? 1
+    const currentSeats = await readCommittedSeats(
+      tx,
+      orgSubscription.id,
+      orgSubscription.seats ?? 1
+    )
 
     if (targetSeats === currentSeats) {
       return { kind: 'noop', seats: currentSeats }

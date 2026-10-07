@@ -48,7 +48,10 @@ import {
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
-import { enqueueCancelAtPeriodEndSync } from '@/lib/billing/webhooks/subscription-sync'
+import {
+  enqueueCancelAtPeriodEndSync,
+  readCommittedCancelAtPeriodEnd,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -259,7 +262,13 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .for('update')
       .limit(1)
 
-    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) return
+    if (!personalPro?.stripeSubscriptionId) return
+    const pausing = await readCommittedCancelAtPeriodEnd(
+      tx,
+      personalPro.id,
+      Boolean(personalPro.cancelAtPeriodEnd)
+    )
+    if (!pausing) return
     result.subscriptionId = personalPro.id
 
     const organizationMemberships = await tx
@@ -405,7 +414,15 @@ export async function pauseProSubscriptionForOrgCoverage(
 
     result.subscriptionId = personalPro.id
 
-    if (personalPro.cancelAtPeriodEnd) return
+    if (
+      await readCommittedCancelAtPeriodEnd(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd)
+      )
+    ) {
+      return
+    }
 
     await tx
       .update(subscriptionTable)
@@ -855,7 +872,14 @@ async function applyPaidOrgJoinBillingTx(
     .for('update')
     .limit(1)
 
-  if (personalPro && !personalPro.cancelAtPeriodEnd) {
+  const alreadyPausing =
+    personalPro &&
+    (await readCommittedCancelAtPeriodEnd(
+      tx,
+      personalPro.id,
+      Boolean(personalPro.cancelAtPeriodEnd)
+    ))
+  if (personalPro && !alreadyPausing) {
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: true })

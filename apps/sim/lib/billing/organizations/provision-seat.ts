@@ -19,6 +19,8 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import {
   enqueueCancelAtPeriodEndSync,
   enqueueSubscriptionSeatsSync,
+  readCommittedCancelAtPeriodEnd,
+  readCommittedSeats,
   recordCancelAtPeriodEnd,
 } from '@/lib/billing/webhooks/subscription-sync'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -267,13 +269,13 @@ async function activateTeamSubscription(
   if (planChanged) {
     await enqueueSubscriptionSeatsSync(tx, {
       subscriptionId: sub.id,
-      seats: locked?.seats ?? 1,
+      seats: await readCommittedSeats(tx, sub.id, locked?.seats ?? 1),
       reason: 'pro-to-team-conversion',
     })
   }
 
   if (!locked?.stripeSubscriptionId) return
-  if (locked.cancelAtPeriodEnd) {
+  if (await readCommittedCancelAtPeriodEnd(tx, sub.id, Boolean(locked.cancelAtPeriodEnd))) {
     await enqueueCancelAtPeriodEndSync(tx, {
       stripeSubscriptionId: locked.stripeSubscriptionId,
       subscriptionId: sub.id,

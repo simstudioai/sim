@@ -215,18 +215,18 @@ export async function recommitSubscriptionSync(
     .limit(1)
   if (!current) return
 
-  const pending = await readSyncIntents(tx, subscriptionId)
   if (eventType === CANCEL_SYNC) {
-    const intent = pending.cancelAtPeriodEnd
     await commitIntent(tx, eventType, subscriptionId, {
-      cancelAtPeriodEnd:
-        intent.status === 'value' ? intent.value : Boolean(current.cancelAtPeriodEnd),
+      cancelAtPeriodEnd: await readCommittedCancelAtPeriodEnd(
+        tx,
+        subscriptionId,
+        Boolean(current.cancelAtPeriodEnd)
+      ),
     })
     return
   }
-  const intent = pending.seats
   await commitIntent(tx, eventType, subscriptionId, {
-    seats: intent.status === 'value' ? intent.value : (current.seats ?? 1),
+    seats: await readCommittedSeats(tx, subscriptionId, current.seats ?? 1),
   })
 }
 
@@ -302,6 +302,31 @@ export async function readRecordedSyncValue(
       : {}),
     ...(typeof payload.seats === 'number' ? { seats: payload.seats } : {}),
   }
+}
+
+/**
+ * The subscription's latest committed `cancelAtPeriodEnd`: the newest value an in-flight sync
+ * records, else `stored` (the row). Until the reconcile step runs, the row can hold the Stripe
+ * plugin's stale webhook payload, so a writer deciding whether a change is needed compares
+ * against this, never the row alone. The caller holds the subscription row lock.
+ */
+export async function readCommittedCancelAtPeriodEnd(
+  tx: DbOrTx,
+  subscriptionId: string,
+  stored: boolean
+): Promise<boolean> {
+  const intent = (await readSyncIntents(tx, subscriptionId)).cancelAtPeriodEnd
+  return intent.status === 'value' ? intent.value : stored
+}
+
+/** The seat-count counterpart of {@link readCommittedCancelAtPeriodEnd}. */
+export async function readCommittedSeats(
+  tx: DbOrTx,
+  subscriptionId: string,
+  stored: number
+): Promise<number> {
+  const intent = (await readSyncIntents(tx, subscriptionId)).seats
+  return intent.status === 'value' ? intent.value : stored
 }
 
 /** A fresh key per Stripe write: the SDK reuses it across its own network retries of that call. */

@@ -3,7 +3,8 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/lib/billing/webhooks/subscription-sync`. The enqueue
  * functions resolve to a fixed event id; drive them with `mockResolvedValueOnce`.
- * `mockIsSubscriptionSyncEventType` keeps the real logic.
+ * `mockIsSubscriptionSyncEventType` keeps the real logic; the `mockReadCommitted*` readers
+ * return the stored value they are given, as when nothing is in flight.
  *
  * @example
  * ```ts
@@ -32,6 +33,12 @@ export const billingSubscriptionSyncMockFns = {
   mockReconcileSubscriptionSyncFromStripe: vi.fn(async () => undefined),
   mockRecordCustomerRestoreAfterHook: vi.fn(async () => undefined),
   mockReadRecordedSyncValue: vi.fn(async () => undefined),
+  mockReadCommittedCancelAtPeriodEnd: vi.fn(
+    async (_tx: unknown, _subscriptionId: string, stored: boolean) => stored
+  ),
+  mockReadCommittedSeats: vi.fn(
+    async (_tx: unknown, _subscriptionId: string, stored: number) => stored
+  ),
 }
 
 /**
@@ -55,4 +62,6 @@ export const billingSubscriptionSyncMock = {
     billingSubscriptionSyncMockFns.mockReconcileSubscriptionSyncFromStripe,
   recordCustomerRestoreAfterHook: billingSubscriptionSyncMockFns.mockRecordCustomerRestoreAfterHook,
   readRecordedSyncValue: billingSubscriptionSyncMockFns.mockReadRecordedSyncValue,
+  readCommittedCancelAtPeriodEnd: billingSubscriptionSyncMockFns.mockReadCommittedCancelAtPeriodEnd,
+  readCommittedSeats: billingSubscriptionSyncMockFns.mockReadCommittedSeats,
 }

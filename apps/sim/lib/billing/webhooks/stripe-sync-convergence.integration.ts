@@ -853,6 +853,26 @@ describe('cancel_at_period_end sync', () => {
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
   })
 
+  it('restores the personal Pro when its member leaves while the plugin has overwritten the row', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    beforeReconcile = async () => {
+      beforeReconcile = undefined
+      await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+      await restoreUserProSubscription(pro.userId)
+    }
+    await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
   it('does not revive an older value when a retry path resets its sync without re-committing', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
@@ -1235,6 +1255,32 @@ describe('Team seat sync', () => {
     await makeDue(seatSync)
     await expect(processEvent(seatSync)).resolves.toBe('completed')
     expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(2)
+  })
+
+  it('drops a seat when a member leaves while the plugin has overwritten the row', async () => {
+    const [owner, joiner] = await Promise.all([createUser('owner'), createUser('joiner')])
+    const org = await createOrganizationWithPlan('team', 1)
+    await addMember(org.organizationId, owner.id, 'owner')
+    await addMember(org.organizationId, joiner.id)
+    await reconcileOrganizationSeats({ organizationId: org.organizationId, reason: 'member-added' })
+    const growSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+      org.subscriptionId
+    )
+
+    beforeReconcile = async () => {
+      beforeReconcile = undefined
+      await leaveOrganization(joiner.id, org.organizationId)
+      await reconcileOrganizationSeats({
+        organizationId: org.organizationId,
+        reason: 'member-removed',
+      })
+    }
+    await deliverUnrelatedUpdate(org.stripeSubscriptionId)
+
+    expect((await storedSubscription(org.subscriptionId)).seats).toBe(1)
+    await expect(processEvent(growSync)).resolves.toBe('completed')
+    expect(stripe.subscription(org.stripeSubscriptionId).items.data[0].quantity).toBe(1)
   })
 
   it('does not revive an older seat count when its dead-lettered sync is requeued', async () => {
