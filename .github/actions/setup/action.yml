@@ -1,13 +1,21 @@
-name: Setup Workspace
+name: setup
 description: Install the pinned Bun and Node toolchain, mount the dependency (and optionally Turbo) caches, and install workspace dependencies.
 
 inputs:
   provider:
-    description: The CI_PROVIDER repo variable, forwarded to cache-mount.
+    description: The CI_PROVIDER repo variable, forwarded to the cache action.
     required: false
     default: ''
   turbo-cache-key:
     description: Suffix for a Turbo cache mounted at ./.turbo. Empty skips the mount. Jobs that write Turbo entries need distinct suffixes, or last-writer-wins commits evict each other's entries.
+    required: false
+    default: ''
+  node-version:
+    description: Node version to install. Empty keeps the runner's preinstalled Node, for jobs that only ever ran Bun.
+    required: false
+    default: '24'
+  registry-url:
+    description: npm registry to write an .npmrc for, so `npm publish` reads NODE_AUTH_TOKEN. Empty writes none.
     required: false
     default: ''
 
@@ -30,19 +38,21 @@ runs:
         bun-version: 1.4.2
 
     - name: Setup Node
+      if: inputs.node-version != ''
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
-        node-version: 24
+        node-version: ${{ inputs.node-version }}
+        registry-url: ${{ inputs.registry-url }}
 
     - name: Mount Bun cache
-      uses: ./.github/actions/cache-mount
+      uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
         path: ~/.bun/install/cache
 
     - name: Mount node_modules
-      uses: ./.github/actions/cache-mount
+      uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
@@ -50,7 +60,7 @@ runs:
 
     - name: Mount Turbo cache
       if: inputs.turbo-cache-key != ''
-      uses: ./.github/actions/cache-mount
+      uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}

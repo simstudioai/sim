@@ -1,4 +1,4 @@
-name: Cache Mount
+name: cache
 description: Mount a build cache directory using Blacksmith sticky disks, or the GitHub Actions cache when running on GitHub-hosted runners.
 
 inputs:

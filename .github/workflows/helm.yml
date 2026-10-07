@@ -1,4 +1,4 @@
-name: Helm Chart
+name: helm
 
 on:
   push:
@@ -33,11 +33,11 @@ permissions:
 
 jobs:
   chart:
-    name: Lint, test, and validate chart
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    name: chart
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # ct diffs the chart against the PR base to decide whether the version
           # was bumped, so a shallow clone would leave it nothing to compare.
@@ -154,12 +154,12 @@ jobs:
           done
 
   install:
-    name: Install on kind and run helm test
+    name: install
     needs: chart
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -198,9 +198,9 @@ jobs:
   # and a release becoming public between two independent API calls would be
   # enough to make the OCI artifact and the HTTP repo install different Sims.
   release-version:
-    name: Resolve the app release
+    name: release-version
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
     permissions:
       contents: read # Read the release list.
@@ -211,7 +211,7 @@ jobs:
       # it -- so the subject is the only source available, and the latest release
       # is the source of truth for every other push.
       #
-      # The subject pattern MUST stay identical to detect-version in ci.yml, which
+      # The subject pattern MUST stay identical to the `version` job in ci.yml, which
       # is what actually creates the tag and builds the images. If this one
       # matched a subject that one rejects, the chart would publish naming a
       # release that was never cut.
@@ -246,10 +246,10 @@ jobs:
   # rendered clean under kubeconform, and actually installed on a kind cluster.
   # A separate workflow would race those instead of waiting for them.
   publish:
-    name: Publish chart to GHCR
+    name: publish
     needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 15
     permissions:
       contents: read # Read the chart source.
@@ -257,7 +257,7 @@ jobs:
       id-token: write # Sigstore signs against the runner's OIDC identity; no key material is stored.
       attestations: write # Let actions/attest-build-provenance record the SLSA provenance.
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -439,15 +439,15 @@ jobs:
   # to cut a release and push the index, and there is no reason to hand that to
   # the job holding the signing identity.
   publish-http:
-    name: Publish chart to the Helm repo
+    name: publish-http
     needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 15
     permissions:
       contents: write # Cut the chart release and push index.yaml to the pages branch.
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # chart-releaser diffs against the previous tag to decide which charts
           # changed, so it needs the full history rather than a shallow clone.

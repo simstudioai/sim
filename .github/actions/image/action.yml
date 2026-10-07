@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: image
 description: Set up a buildx builder and build/push an image, using Blacksmith's builder or the upstream Docker actions on GitHub-hosted runners.
 
 inputs:
@@ -35,7 +35,7 @@ inputs:
     required: false
 
 # Registry logins must precede this action. provenance/sbom stay off: attestation
-# manifests break `imagetools create` retagging in promote-images.
+# manifests break `imagetools create` retagging in the `promote` job of ci.yml.
 runs:
   using: composite
   steps:

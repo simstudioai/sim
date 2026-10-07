@@ -1,0 +1,40 @@
+name: docs
+
+on:
+  workflow_call:
+    secrets:
+      DATABASE_URL:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: read
+
+jobs:
+  embeddings:
+    name: embeddings
+    # Network-bound on the embeddings API: ~9% CPU and ~3% peak memory on 8 vCPU.
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: '22'
+
+      - name: Process docs embeddings
+        working-directory: ./apps/sim
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: bun run scripts/process-docs.ts --clear 

@@ -1,4 +1,4 @@
-name: Desktop E2E
+name: desktop-e2e
 
 # Smoke coverage of the real Electron shell on desktop changes, plus a weekly
 # advisory canary against electron@latest so Chromium-cadence breakage surfaces
@@ -57,18 +57,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e-pinned:
-    name: E2E (pinned)
+  e2e:
+    name: e2e
     if: github.event_name != 'schedule'
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -100,19 +115,34 @@ jobs:
           path: apps/desktop/test-results
           retention-days: 7
 
-  e2e-latest-canary:
-    name: E2E (electron@latest canary)
+  e2e-canary:
+    name: e2e-canary
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -149,12 +179,15 @@ jobs:
           retention-days: 7
 
   package-smoke:
-    name: Unsigned package smoke
+    name: package-smoke
     if: github.event_name != 'schedule'
     runs-on: macos-26
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -162,9 +195,21 @@ jobs:
           bun-version: 1.4.2
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

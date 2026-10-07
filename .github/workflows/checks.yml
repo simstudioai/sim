@@ -1,4 +1,4 @@
-name: Test and Build
+name: checks
 
 on:
   workflow_call:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  postgres-integration:
+  integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
     # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
     # provisioning path produces. A new integration suite needs no workflow change.
@@ -18,7 +18,7 @@ jobs:
     # suite's files across four shards; a shard runs its files one at a time against its own
     # database. Files run serially, so a shard barely uses more than one core: 4 vCPU is enough.
     name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -74,7 +74,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
 
@@ -128,7 +128,7 @@ jobs:
   #
   # SCIM runs two suites against a hosted app and is the longest group, so it keeps the 8 vCPU
   # runner; the others boot a smaller self-hosted app and fit on 4.
-  http-e2e:
+  e2e:
     name: e2e (${{ matrix.group }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
     timeout-minutes: 20
@@ -160,7 +160,7 @@ jobs:
           --health-retries 10
       # Only the desktop executor's app is given REDIS_URL: its doorbell and presence live there.
       redis:
-        image: redis:7-alpine
+        image: redis:8.2-alpine
         ports:
           - 6379:6379
         options: >-
@@ -178,7 +178,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
 
@@ -205,9 +205,9 @@ jobs:
   # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
   # app it drives (docs, other apps, published content). Anything else, and any failure to work
   # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
-  desktop-live-changes:
-    name: Detect desktop tool changes
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  desktop-changes:
+    name: desktop-changes
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
@@ -224,11 +224,11 @@ jobs:
         run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
 
   # Desktop tools in the real Electron app against a local app, on its own runner: the
-  # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
-  desktop-live-e2e:
-    name: Desktop tools against a local app
-    needs: desktop-live-changes
-    if: needs.desktop-live-changes.outputs.changed == 'true'
+  # Electron app, the dev app and its realtime server together outgrow the e2e runner.
+  desktop-live:
+    name: desktop-live
+    needs: desktop-changes
+    if: needs.desktop-changes.outputs.changed == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     services:
@@ -246,7 +246,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7-alpine
+        image: redis:8.2-alpine
         ports:
           - 6379:6379
         options: >-
@@ -264,7 +264,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
 
@@ -348,7 +348,7 @@ jobs:
   # kept off the test shards so neither waits on the other.
   lint:
     name: lint
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-4vcpu
     timeout-minutes: 15
 
     steps:
@@ -366,7 +366,7 @@ jobs:
           fetch-depth: 2
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
           turbo-cache-key: turbo-cache
@@ -448,6 +448,20 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
+      # Workflow syntax, expressions, `needs` references and runner labels. ShellCheck stays off
+      # here: the existing run blocks carry info-level findings that are their own cleanup.
+      - name: Lint workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color -shellcheck= -pyflakes=
+
       # Every zero-argument `check:*` script, run concurrently. The list is derived in
       # scripts/run-audits.ts, which also writes the per-audit timing table to the job
       # summary and annotates failures. Audits needing a base ref stay separate below.
@@ -463,7 +477,7 @@ jobs:
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
       # source was covered only as a side effect of `next build` in the separate
-      # Build App job. Note this does NOT cover apps/sim's tests — its tsconfig
+      # `build` job. Note this does NOT cover apps/sim's tests — its tsconfig
       # excludes *.test.ts(x), and including them today surfaces ~2.2k errors,
       # so that is its own cleanup rather than a gate to switch on here.
       - name: Type-check all workspaces
@@ -502,7 +516,7 @@ jobs:
           fetch-depth: 2
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
           turbo-cache-key: turbo-cache-test-${{ matrix.shard }}
@@ -530,7 +544,7 @@ jobs:
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
   # wins, so concurrent mounts are safe. The bun/node_modules disks are shared
-  # with test-build (the lockfile-hashed key means they only ever share when the
+  # with the test jobs (the lockfile-hashed key means they only ever share when the
   # dependency tree really is identical, so LWW loss is harmless), but the Turbo
   # cache gets its own key: with a shared key, only the last committer's new
   # entries survive each run, so the test and build Turbo entries would evict
@@ -541,7 +555,7 @@ jobs:
   # peaked 51 GB. NODE_OPTIONS' --max-old-space-size caps only Node's JS heap,
   # not the native Turbopack workers that dominate, so it cannot prevent this.
   build:
-    name: Build App
+    name: build
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
     # 14m44 after the folders/desktop/library merges, then two straight
@@ -554,7 +568,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
+        uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
           turbo-cache-key: turbo-cache-build
@@ -599,9 +613,9 @@ jobs:
   # suite skips on pull requests that cannot affect it); a failure or a cancellation is not.
   ci:
     name: ci
-    needs: [postgres-integration, http-e2e, desktop-live-changes, desktop-live-e2e, lint, test, build]
+    needs: [integration, e2e, desktop-changes, desktop-live, lint, test, build]
     if: ${{ !cancelled() }}
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
     steps:
       - name: Require every check to pass

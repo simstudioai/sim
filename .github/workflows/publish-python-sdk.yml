@@ -1,4 +1,4 @@
-name: Publish Python SDK
+name: publish-python-sdk
 
 on:
   push:
@@ -9,13 +9,21 @@ on:
 permissions:
   contents: write
 
+# A newer push waits for the running publish rather than racing its version check.
+concurrency:
+  group: publish-python-sdk-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  publish-pypi:
+  publish:
+    name: publish
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -40,12 +48,17 @@ jobs:
 
       - name: Check if version already exists
         id: version_check
+        # Exact lookup: PyPI answers 404 only for a version it has never published. Anything other
+        # than 200 or 404 stops the job rather than guessing.
+        env:
+          VERSION: ${{ steps.package_version.outputs.version }}
         run: |
-          if pip index versions simstudio-sdk | grep -q "${{ steps.package_version.outputs.version }}"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+          status="$(curl -sS -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/simstudio-sdk/$VERSION/json")"
+          case "$status" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::PyPI returned HTTP $status for simstudio-sdk $VERSION" >&2; exit 1 ;;
+          esac
 
       - name: Build package
         if: steps.version_check.outputs.exists == 'false'
@@ -67,11 +80,13 @@ jobs:
 
       - name: Log skipped publish
         if: steps.version_check.outputs.exists == 'true'
-        run: echo "Skipped publishing because version ${{ steps.package_version.outputs.version }} already exists on PyPI"
+        env:
+          VERSION: ${{ steps.package_version.outputs.version }}
+        run: echo "Skipped publishing because version $VERSION already exists on PyPI"
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.exists == 'false'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
