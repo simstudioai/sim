@@ -63,19 +63,19 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     logger.error('Completed outbox pruning failed', { error: toError(error).message })
   }
 
-  const output = { result, reapedBackgroundWork, recoveredDocuments, prunedEvents }
-  logger.info('Outbox processing completed', {
+  const summary = {
     ...result,
     reapedBackgroundWork,
     recoveredDocuments,
     prunedEvents,
     durationMs: Date.now() - startedAt,
-  })
+  }
   /** Fail the run so a broken handler module stays as visible as the crash its static import caused. */
   if (result.unloadedEventTypes.length > 0) {
-    throw new Error(
-      `Outbox handler modules failed to load; left pending: ${result.unloadedEventTypes.join(', ')}`
-    )
+    const message = `Outbox handler modules failed to load; left pending: ${result.unloadedEventTypes.join(', ')}`
+    logger.warn(message, summary)
+    throw new Error(message)
   }
-  return output
+  logger.info('Outbox processing completed', summary)
+  return { result, reapedBackgroundWork, recoveredDocuments, prunedEvents }
 }
