@@ -16,6 +16,17 @@ const config: NextConfig = {
     webpackMemoryOptimizations: true,
     webpackBuildWorker: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/llms-full.txt',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=86400, must-revalidate' },
+        ],
+      },
+    ]
+  },
   async redirects() {
     return DOCS_REDIRECTS
   },
