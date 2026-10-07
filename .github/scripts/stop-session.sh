@@ -44,14 +44,20 @@ while read_stat "$pid" && [ "$parent" -gt 0 ]; do
 done
 
 # This script, an ancestor of it, or one of its own subshells and commands, which inherit the tag
-# when the caller exported it. A process whose ancestry vanished mid-walk is left to the next scan.
+# when the caller exported it. When a process on the walk exits mid-walk, the candidate has been
+# reparented, so the walk restarts from it; ancestry that still won't resolve counts as not ours,
+# so an app process is never spared by accident.
 is_own() {
-  local pid=$1
-  [[ "$ancestors" == *" $pid "* ]] && return 0
-  while [ "$pid" -gt 1 ]; do
-    [ "$pid" -eq $$ ] && return 0
-    read_stat "$pid" || return 0
-    pid=$parent
+  local candidate=$1 pid attempt
+  [[ "$ancestors" == *" $candidate "* ]] && return 0
+  for attempt in 1 2 3; do
+    pid=$candidate
+    while [ "$pid" -gt 1 ]; do
+      [ "$pid" -eq $$ ] && return 0
+      read_stat "$pid" || continue 2
+      pid=$parent
+    done
+    return 1
   done
   return 1
 }
@@ -98,14 +104,20 @@ now_cs() {
   echo "${uptime/./}"
 }
 
-# Re-sends the signal every 0.1s while the check holds, until the shared deadline.
-# Succeeds once the check stops holding.
+# Re-sends the signal every 0.1s while the check holds, until the shared deadline. Succeeds
+# once the check has stopped holding on two scans 0.1s apart, so a process missed by one scan
+# (spawned, or mid-reparenting, while it ran) is still caught.
 signal_while() {
-  local signal=$1
+  local signal=$1 clear=0
   shift
   while ((10#$(now_cs) < deadline)); do
-    "$@" || return 0
-    signal_app "$signal"
+    if "$@"; then
+      clear=0
+      signal_app "$signal"
+    else
+      clear=$((clear + 1))
+      ((clear >= 2)) && return 0
+    fi
     sleep 0.1
   done
   ! "$@"
