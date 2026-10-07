@@ -212,6 +212,24 @@ describe('useMothershipQueueStore', () => {
       ])
     })
 
+    it('keeps the first move when the same new-chat queue is migrated again', () => {
+      useMothershipQueueStore.getState().enqueue('chat-W', message('older'))
+      useMothershipQueueStore.getState().enqueue('pending::twice', message('moved'))
+      useMothershipQueueStore.getState().migrate('pending::twice', 'chat-W')
+      useMothershipQueueStore.getState().enqueue('chat-W', message('written-later'))
+      useMothershipQueueStore.getState().migrate('pending::twice', 'chat-W')
+
+      const position = liveQueuePosition('pending::twice', [])
+      useMothershipQueueStore.getState().insertAt(position.chatKey, position.index, message('late'))
+
+      expect(useMothershipQueueStore.getState().queues['chat-W']?.map((m) => m.id)).toEqual([
+        'older',
+        'late',
+        'moved',
+        'written-later',
+      ])
+    })
+
     it('keeps a late write in order when messages ahead of it were removed meanwhile', () => {
       useMothershipQueueStore.getState().enqueue('chat-Z', message('older'))
       useMothershipQueueStore.getState().enqueue('pending::sent', message('later'))
