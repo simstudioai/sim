@@ -8,6 +8,10 @@ import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/mem
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  enqueueCancelAtPeriodEndSync,
+  recommitCancelAtPeriodEndSync,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const RECENT_INVOICE_LIMIT = 12
@@ -301,6 +305,7 @@ export async function requestDashboardSubscriptionCancellation({
           if (!restoredSubscription) {
             throw new Error('Cancellation subscription no longer exists')
           }
+          await recommitCancelAtPeriodEndSync(tx, existingOperation.id, true)
         }
         await tx
           .update(outboxEvent)
@@ -384,18 +389,15 @@ export async function requestDashboardSubscriptionCancellation({
         .set({ cancelAtPeriodEnd: true })
         .where(eq(subscription.id, subscriptionRow.id))
     }
-    const eventId = await enqueueOutboxEvent(
-      tx,
-      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
-      {
-        operationId,
-        organizationId,
-        subscriptionId: subscriptionRow.id,
-        stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
-        reason: normalizedReason,
-        requestedBy: actor,
-      }
-    )
+    const eventId = await enqueueCancelAtPeriodEndSync(tx, {
+      operationId,
+      organizationId,
+      subscriptionId: subscriptionRow.id,
+      stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
+      cancelAtPeriodEnd: true,
+      reason: normalizedReason,
+      requestedBy: actor,
+    })
     return {
       operationId,
       outboxEventId: eventId,

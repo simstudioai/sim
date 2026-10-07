@@ -103,6 +103,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { reconcileSubscriptionSyncFromStripe } from '@/lib/billing/webhooks/subscription-sync'
 import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
@@ -1727,6 +1728,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await reconcileSubscriptionSyncFromStripe(event)
                     await handleSubscriptionUsageUpdate(event)
                     break
                   }

@@ -8,7 +8,10 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
-import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSyncSubscriptionUsageLimits } = vi.hoisted(() => ({
@@ -19,7 +22,7 @@ vi.mock('@/lib/billing/organization', () => ({
   syncSubscriptionUsageLimits: mockSyncSubscriptionUsageLimits,
 }))
 
-vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
@@ -27,7 +30,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 
-const enqueueMock = outboxServiceMockFns.mockEnqueueOutboxEvent
+const enqueueMock = billingSubscriptionSyncMockFns.mockEnqueueSubscriptionSeatsSync
 
 const teamSub = {
   id: 'sub-1',
@@ -48,7 +51,6 @@ afterAll(resetEnvFlagsMock)
 describe('reconcileOrganizationSeats', () => {
   beforeEach(() => {
     resetDbChainMock()
-    enqueueMock.mockResolvedValue('evt-1')
     setEnvFlags({ isBillingEnabled: true })
   })
 
@@ -69,11 +71,12 @@ describe('reconcileOrganizationSeats', () => {
       previousSeats: 1,
       seats: 2,
       reason: undefined,
-      outboxEventId: 'evt-1',
+      outboxEventId: 'subscription-seats-sync-event',
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 2 })
-    expect(enqueueMock).toHaveBeenCalledWith(expect.anything(), 'stripe.sync-subscription-seats', {
+    expect(enqueueMock).toHaveBeenCalledWith(expect.anything(), {
       subscriptionId: 'sub-1',
+      seats: 2,
       reason: 'member-accepted-invite',
     })
     expect(mockSyncSubscriptionUsageLimits).toHaveBeenCalledWith(

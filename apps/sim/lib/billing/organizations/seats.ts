@@ -6,9 +6,8 @@ import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import { enqueueSubscriptionSeatsSync } from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('OrganizationSeats')
@@ -112,14 +111,11 @@ export async function reconcileOrganizationSeats({
       .set({ seats: targetSeats })
       .where(eq(subscription.id, orgSubscription.id))
 
-    const outboxEventId = await enqueueOutboxEvent(
-      tx,
-      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
-      {
-        subscriptionId: orgSubscription.id,
-        reason,
-      }
-    )
+    const outboxEventId = await enqueueSubscriptionSeatsSync(tx, {
+      subscriptionId: orgSubscription.id,
+      seats: targetSeats,
+      reason,
+    })
 
     return {
       kind: 'changed',

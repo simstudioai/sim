@@ -48,6 +48,7 @@ import {
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import { enqueueCancelAtPeriodEndSync } from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -288,9 +289,10 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .set({ cancelAtPeriodEnd: false })
       .where(eq(subscriptionTable.id, personalPro.id))
 
-    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+    await enqueueCancelAtPeriodEndSync(tx, {
       stripeSubscriptionId: personalPro.stripeSubscriptionId,
       subscriptionId: personalPro.id,
+      cancelAtPeriodEnd: false,
       reason: 'member-left-paid-org',
     })
 
@@ -411,9 +413,10 @@ export async function pauseProSubscriptionForOrgCoverage(
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'covered-by-organization',
       })
     }
@@ -859,9 +862,10 @@ async function applyPaidOrgJoinBillingTx(
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'joined-paid-org',
         ...(options.sourceOperationId ? { sourceOperationId: options.sourceOperationId } : {}),
       })

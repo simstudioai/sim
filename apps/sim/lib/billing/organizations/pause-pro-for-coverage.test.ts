@@ -1,5 +1,9 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from '@sim/testing/mocks/billing-subscription-sync.mock'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
@@ -8,11 +12,12 @@ vi.mock('@/lib/billing/storage/payer-transfer', () => ({
   changeWorkspaceStoragePayersInTx: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 
-const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
+const mockEnqueueCancelAtPeriodEndSync =
+  billingSubscriptionSyncMockFns.mockEnqueueCancelAtPeriodEndSync
 
 const ACTIVE_PERSONAL_PRO = {
   id: 'sub-personal',
@@ -68,15 +73,12 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
       organizationId: 'org-1',
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
-    expect(mockEnqueueOutboxEvent).toHaveBeenCalledWith(
-      expect.anything(),
-      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
-      {
-        stripeSubscriptionId: 'stripe-sub-personal',
-        subscriptionId: 'sub-personal',
-        reason: 'covered-by-organization',
-      }
-    )
+    expect(mockEnqueueCancelAtPeriodEndSync).toHaveBeenCalledWith(expect.anything(), {
+      stripeSubscriptionId: 'stripe-sub-personal',
+      subscriptionId: 'sub-personal',
+      cancelAtPeriodEnd: true,
+      reason: 'covered-by-organization',
+    })
   })
 
   it('reports covered even when no entitled personal Pro row exists', async () => {
@@ -94,7 +96,7 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
       organizationId: 'org-1',
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockEnqueueCancelAtPeriodEndSync).not.toHaveBeenCalled()
   })
 
   it('reports covered without pausing again when the personal Pro is already pausing', async () => {
@@ -113,6 +115,6 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
       organizationId: 'org-1',
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockEnqueueCancelAtPeriodEndSync).not.toHaveBeenCalled()
   })
 })

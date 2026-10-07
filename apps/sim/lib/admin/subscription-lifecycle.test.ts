@@ -2,6 +2,10 @@ import { outboxEvent, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
@@ -24,6 +28,7 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 import {
   refundDashboardSubscriptionPayment,
@@ -119,6 +124,11 @@ describe('admin subscription cancellation', () => {
       expect.objectContaining({ status: 'pending', attempts: 0, lastError: null })
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
+    expect(billingSubscriptionSyncMockFns.mockRecommitCancelAtPeriodEndSync).toHaveBeenCalledWith(
+      expect.anything(),
+      'outbox-1',
+      true
+    )
     expect(result).toMatchObject({
       operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
       status: 'pending',

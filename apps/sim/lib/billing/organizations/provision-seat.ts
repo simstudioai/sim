@@ -16,8 +16,10 @@ import {
 } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import {
+  enqueueCancelAtPeriodEndSync,
+  enqueueSubscriptionSeatsSync,
+} from '@/lib/billing/webhooks/subscription-sync'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ProvisionSeat')
@@ -248,22 +250,25 @@ async function activateTeamSubscription(
     Boolean(sub.cancelAtPeriodEnd) && Boolean(sub.stripeSubscriptionId)
 
   const apply = async (tx: DbOrTx) => {
-    await tx
+    const [activated] = await tx
       .update(subscriptionTable)
       .set({ plan: targetPlan, cancelAtPeriodEnd: false })
       .where(eq(subscriptionTable.id, sub.id))
+      .returning({ seats: subscriptionTable.seats })
 
     if (planChanged) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS, {
+      await enqueueSubscriptionSeatsSync(tx, {
         subscriptionId: sub.id,
+        seats: activated?.seats ?? 1,
         reason: 'pro-to-team-conversion',
       })
     }
 
     if (shouldClearCancellation) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: sub.stripeSubscriptionId as string,
         subscriptionId: sub.id,
+        cancelAtPeriodEnd: false,
         reason: 'pro-to-team-conversion',
       })
     }
