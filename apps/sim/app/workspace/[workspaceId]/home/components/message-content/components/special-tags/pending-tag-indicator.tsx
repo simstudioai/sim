@@ -12,18 +12,23 @@ interface PendingTagIndicatorProps {
   waitingSince?: number
 }
 
+interface ElapsedCountProps {
+  since?: number
+}
+
 /**
  * The wait's elapsed time, ticking in its own component so the loader beside it
  * never re-renders on the clock. Hidden from assistive tech: the loader's status
  * already announces the wait, and a count changing every second would be noise.
  */
-function ElapsedCount({ since }: { since: number | undefined }) {
-  const elapsedMs = useElapsedMs(since !== undefined, since)
+function ElapsedCount({ since }: ElapsedCountProps) {
+  const elapsedMs = useElapsedMs({ active: since !== undefined, startedAt: since })
   if (elapsedMs < ELAPSED_VISIBLE_AFTER_MS) return null
   return (
     <span
       aria-hidden='true'
-      className='animate-stream-fade-in text-[14px] text-[var(--text-muted)] tabular-nums'
+      data-wait-elapsed
+      className='animate-stream-fade-in text-[var(--text-muted)] text-sm tabular-nums'
     >
       {formatDuration(elapsedMs)}
     </span>

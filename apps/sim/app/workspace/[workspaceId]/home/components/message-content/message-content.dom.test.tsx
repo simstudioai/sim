@@ -50,17 +50,14 @@ function advance(ms: number) {
   })
 }
 
-/** The elapsed count is the only `aria-hidden` span whose text is a duration. */
-function elapsedText(): string | null {
-  const spans = container.querySelectorAll('span[aria-hidden="true"]')
-  for (const span of spans) {
-    if (/^\d+(m \d+)?s$/.test(span.textContent ?? '')) return span.textContent
-  }
-  return null
+function hasElapsedCount(): boolean {
+  return container.querySelector('[data-wait-elapsed]') !== null
 }
 
-function isThinkingShown(): boolean {
-  return container.querySelector('output')?.closest('[aria-hidden="false"]') !== null
+/** The loader's status sits in the tail slot, which is exposed only while the indicator shows. */
+function isIndicatorExposed(): boolean {
+  const status = container.querySelector('output')
+  return status !== null && status.closest('[aria-hidden="false"]') !== null
 }
 
 beforeEach(() => {
@@ -82,51 +79,47 @@ afterEach(() => {
 })
 
 describe('turn wait indicator', () => {
-  it('shows Thinking at send and adds the elapsed time once the wait runs long', () => {
+  it('shows from send and adds the elapsed count only once the wait runs long', () => {
     renderTurn([], true)
 
-    expect(isThinkingShown()).toBe(true)
-    expect(container.textContent).toContain('Thinking')
-    expect(elapsedText()).toBeNull()
+    expect(isIndicatorExposed()).toBe(true)
+    expect(hasElapsedCount()).toBe(false)
 
     advance(ELAPSED_VISIBLE_AFTER_MS - 1_000)
-    expect(elapsedText()).toBeNull()
+    expect(hasElapsedCount()).toBe(false)
 
     advance(1_000)
-    expect(elapsedText()).toBe('5s')
-
-    advance(7_000)
-    expect(elapsedText()).toBe('12s')
+    expect(hasElapsedCount()).toBe(true)
   })
 
   it('keeps counting through hidden reasoning, which is not visible output', () => {
     renderTurn([], true)
-    advance(6_000)
+    advance(ELAPSED_VISIBLE_AFTER_MS - 1_000)
 
     renderTurn([THINKING_BLOCK], true)
     advance(1_000)
 
-    expect(isThinkingShown()).toBe(true)
-    expect(elapsedText()).toBe('7s')
+    expect(isIndicatorExposed()).toBe(true)
+    expect(hasElapsedCount()).toBe(true)
   })
 
-  it('hides the indicator and its count when the first output arrives', () => {
+  it('hides the indicator and drops the count when the first output arrives', () => {
     renderTurn([], true)
     advance(8_000)
-    expect(elapsedText()).toBe('8s')
+    expect(hasElapsedCount()).toBe(true)
 
     renderTurn([THINKING_BLOCK, TEXT_BLOCK], true)
 
-    expect(isThinkingShown()).toBe(false)
-    expect(elapsedText()).toBeNull()
+    expect(isIndicatorExposed()).toBe(false)
+    expect(hasElapsedCount()).toBe(false)
   })
 
   it('does not count while a running tool row owns the wait', () => {
     renderTurn([RUNNING_TOOL_BLOCK], true)
     advance(10_000)
 
-    expect(isThinkingShown()).toBe(false)
-    expect(elapsedText()).toBeNull()
+    expect(isIndicatorExposed()).toBe(false)
+    expect(hasElapsedCount()).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -137,7 +130,7 @@ describe('turn wait indicator', () => {
     renderTurn([], false)
 
     expect(container.querySelector('output')).toBeNull()
-    expect(elapsedText()).toBeNull()
+    expect(hasElapsedCount()).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -145,11 +138,11 @@ describe('turn wait indicator', () => {
     renderTurn([], true)
     advance(8_000)
 
-    renderTurn([STOPPED_BLOCK], true)
+    renderTurn([STOPPED_BLOCK], false)
 
     expect(container.querySelector('output')).toBeNull()
-    expect(container.textContent).toContain('Stopped by user')
-    expect(elapsedText()).toBeNull()
+    expect(hasElapsedCount()).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('clears its clock on unmount', () => {

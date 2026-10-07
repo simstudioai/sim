@@ -1020,7 +1020,7 @@ function MessageContentInner({
    * wait. A ref, not state — every stream chunk moves it, and it is only read on
    * the renders that show the shimmer.
    */
-  const waitStartedAtRef = useRef(Date.now())
+  const waitStartedAtRef = useRef<number>(Date.now())
 
   const segments = useMemo<MessageSegment[]>(
     () =>

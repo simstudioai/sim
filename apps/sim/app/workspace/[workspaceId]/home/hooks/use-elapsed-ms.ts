@@ -15,11 +15,18 @@ const ELAPSED_TICK_MS = 250
  * no start to give. A sample taken under a different `resetKey` reads as 0, so
  * switching subjects never flashes the previous subject's count.
  */
-export function useElapsedMs(
-  active: boolean,
-  startedAt: number | undefined,
-  resetKey: string | number | undefined = startedAt
-): number {
+interface UseElapsedMsProps {
+  active: boolean
+  startedAt?: number
+  /** Identity of what is being timed; defaults to `startedAt`. */
+  resetKey?: string | number
+}
+
+export function useElapsedMs({
+  active,
+  startedAt,
+  resetKey = startedAt,
+}: UseElapsedMsProps): number {
   const [sample, setSample] = useState({ resetKey, elapsedMs: 0 })
 
   useEffect(() => {

@@ -61,7 +61,11 @@ export function useToolCallTitle(tool: ToolCallTitleInput | undefined): ToolCall
     [toolName, streamingArgs]
   )
   const isCountingDown = toolName === WaitTool.id && tool?.status === 'executing'
-  const elapsedMs = useElapsedMs(isCountingDown, tool?.startedAt, tool?.toolCallId)
+  const elapsedMs = useElapsedMs({
+    active: isCountingDown,
+    startedAt: tool?.startedAt,
+    resetKey: tool?.toolCallId,
+  })
   if (!tool) return undefined
   const liveTitle = isCountingDown
     ? getWaitCountdownTitle(tool.params, elapsedMs)
