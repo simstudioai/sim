@@ -91,7 +91,9 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
+import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import {
   readQueuedSendHandoffState,
   writeQueuedSendHandoffState,
@@ -469,6 +471,77 @@ function renderHomeLikeSurface(): {
     },
     claimedByOwnListener: () => claims,
     unmount: () => act(() => root.unmount()),
+  }
+}
+
+/** Holds the chat POST of the first send until the test settles it. */
+function holdFirstSend(): PromiseWithResolvers<Response> {
+  const post = Promise.withResolvers<Response>()
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+      return fetchStub(input, init)
+    }
+    state.postBodies.push(JSON.parse(String(init.body)))
+    return post.promise
+  })
+  return post
+}
+
+/**
+ * Mounts a chatless surface shaped like `home.tsx`, with real composers: the empty-state one
+ * swaps for the chat view's once messages show, and the chat view's names the resolved chat.
+ */
+function renderComposerSwap(): {
+  container: HTMLElement
+  getResult: () => ReturnType<typeof useChat>
+  shownEffort: () => string | null | undefined
+  visit: (pathname: string) => void
+} {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  useMothershipEffortStore.getState().reset()
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  mountedRoots.push(root)
+  let result: ReturnType<typeof useChat> | undefined
+
+  function HomeLike() {
+    result = useChat('ws-1', undefined)
+    return result.messages.length > 0 ? (
+      <section key='chat'>
+        <ChatSurfaceProvider chatId={result.resolvedChatId}>
+          <ModelSelector />
+        </ChatSurfaceProvider>
+      </section>
+    ) : (
+      <main key='empty'>
+        <ModelSelector />
+      </main>
+    )
+  }
+
+  const render = () =>
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <HomeLike />
+        </QueryClientProvider>
+      )
+    })
+  render()
+
+  return {
+    container,
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    shownEffort: () =>
+      container.querySelector('[aria-label="Reasoning effort"]')?.getAttribute('aria-description'),
+    visit: (pathname) => {
+      mockUsePathname.mockReturnValue(pathname)
+      render()
+    },
   }
 }
 
@@ -4700,6 +4773,96 @@ describe('useChat remount send recovery', () => {
       { params: { chatId: DEDUPED_CHAT_ID }, body: { effort: 'high' } },
     ])
   })
+
+  it('keeps the new-chat effort across the composer swap of a first send that fails', async () => {
+    const post = holdFirstSend()
+    const surface = renderComposerSwap()
+    act(() => useMothershipEffortStore.getState().setNewChatEffort('low'))
+    expect(surface.shownEffort()).toBe('Low')
+
+    await act(async () => {
+      void surface.getResult().sendMessage('Plan the launch')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0].effort).toBe('low')
+    expect(surface.container.querySelector('section')).not.toBeNull()
+    expect(surface.shownEffort()).toBe('Low')
+
+    await act(async () => {
+      post.reject(new TypeError('Failed to fetch'))
+    })
+    await waitFor(() => surface.container.querySelector('main') !== null)
+
+    expect(useMothershipEffortStore.getState().newChatEffort).toBe('low')
+    expect(surface.shownEffort()).toBe('Low')
+  })
+
+  it('keeps a new-chat effort picked while the first send is pending when that send fails', async () => {
+    const post = holdFirstSend()
+    const surface = renderComposerSwap()
+    act(() => useMothershipEffortStore.getState().setNewChatEffort('low'))
+    await act(async () => {
+      void surface.getResult().sendMessage('Plan the launch')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    act(() => useMothershipEffortStore.getState().setNewChatEffort('medium'))
+
+    await act(async () => {
+      post.reject(new TypeError('Failed to fetch'))
+    })
+    await waitFor(() => surface.container.querySelector('main') !== null)
+
+    expect(surface.shownEffort()).toBe('Medium')
+  })
+
+  it('starts the next new chat at the default after a first send stopped before admission', async () => {
+    const surface = renderComposerSwap()
+    act(() => useMothershipEffortStore.getState().setNewChatEffort('low'))
+    await act(async () => {
+      void surface.getResult().sendMessage('Plan the launch')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      await surface.getResult().stopGeneration()
+    })
+    await waitFor(() => surface.getResult().resolvedChatId === DEDUPED_CHAT_ID)
+
+    surface.visit(`/workspace/ws-1/chat/${DEDUPED_CHAT_ID}`)
+    surface.visit('/workspace/ws-1/home')
+    await waitFor(() => surface.container.querySelector('main') !== null)
+
+    expect(surface.shownEffort()).toBe('High')
+  })
+
+  it.each(['leaves the page', 'opens another chat'] as const)(
+    'drops an unsent new-chat effort when the surface %s',
+    (leave) => {
+      useMothershipEffortStore.getState().reset()
+      ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+      queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const root = createRoot(document.createElement('div'))
+      mountedRoots.push(root)
+      function Surface({ chatId }: { chatId?: string }) {
+        useChat('ws-1', chatId)
+        return null
+      }
+      const render = (chatId?: string) =>
+        act(() =>
+          root.render(
+            <QueryClientProvider client={queryClient}>
+              <Surface chatId={chatId} />
+            </QueryClientProvider>
+          )
+        )
+      render()
+      useMothershipEffortStore.getState().setNewChatEffort('low')
+
+      if (leave === 'leaves the page') act(() => root.unmount())
+      else render('chat-other')
+
+      expect(useMothershipEffortStore.getState().newChatEffort).toBeNull()
+    }
+  )
 
   it('loads the saved transcript once when its own stream completes', async () => {
     const chatId = 'chat-own-completion'

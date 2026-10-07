@@ -213,6 +213,13 @@ export function createSSEStream(request: NextRequest, config: SSEStreamConfig): 
           )
       }
 
+      // An abort listener never fires for a signal that is already aborted, so a client that left
+      // while the route was authorizing would otherwise hold its subscriptions until rotation.
+      if (request.signal.aborted) {
+        close('aborted')
+        return
+      }
+
       try {
         // The runtime sends the status and headers with the first body chunk, so the stream writes
         // one as soon as it opens. A client reads its state once the stream opens, so it opens once

@@ -15,8 +15,8 @@ interface MothershipEffortState {
   setModel: (model: ModelSelection['model']) => void
   setFastMode: (fastMode: boolean) => void
   /**
-   * The effort picked in a composer whose chat does not exist yet. Its first send records
-   * it on the new chat; leaving that composer unsent drops it.
+   * The effort picked on a chat surface whose chat does not exist yet. Its first send records
+   * it on the new chat; leaving that surface unsent drops it.
    */
   newChatEffort: MothershipEffort | null
   setNewChatEffort: (effort: MothershipEffort | null) => void

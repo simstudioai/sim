@@ -1001,7 +1001,7 @@ export function useChat(
     new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  /** Cleared on unmount, so a late rollback cannot hand a pick to a surface the user left. */
+  /** Cleared on unmount, so late async work cannot act on a surface the user left. */
   const surfaceMountedRef = useRef(true)
   useEffect(() => {
     surfaceMountedRef.current = true
@@ -1009,6 +1009,14 @@ export function useChat(
       surfaceMountedRef.current = false
     }
   }, [])
+  /* The new-chat effort pick belongs to this surface, not to one composer: it outlives the swap
+     from the empty-state composer to the chat view during a first send, so a withdrawn send
+     leaves it in place. It drops when the surface unmounts or switches chats, and when it adopts
+     a chat (`adoptResolvedChatId`). */
+  useEffect(() => {
+    if (initialChatId) return
+    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
+  }, [initialChatId])
   const tableViewContextsRef = useRef({
     scopeId: desktopScopeId,
     views: new Map<string, MothershipTableViewContext>(),
@@ -1278,6 +1286,10 @@ export function useChat(
       const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
       if (wasPending) {
         useChatPanelStore.getState().migrate(pendingDesktopScopeId, resolvedDesktopScopeId)
+        // Leaving the new chat. An admitted send has already moved the pick onto its chat; any
+        // other way out (a Stop before admission, a recovered handoff) must not carry it into
+        // the next new chat.
+        useMothershipEffortStore.getState().setNewChatEffort(null)
       }
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
@@ -3736,16 +3748,6 @@ export function useChat(
       }
 
       const rollbackOptimisticSend = () => {
-        // A withdrawn first send hands its pick back to the new-chat composer for the retry,
-        // only while that surface is still open on the new chat.
-        if (
-          !requestChatId &&
-          effortChoice &&
-          surfaceMountedRef.current &&
-          !chatIdRef.current &&
-          !selectedChatIdRef.current
-        )
-          useMothershipEffortStore.getState().setNewChatEffort(effortChoice)
         if (requestChatId) {
           upsertChatHistory(requestChatId, (current) => ({
             ...current,

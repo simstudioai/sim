@@ -133,6 +133,22 @@ describe('createWorkspaceSSE', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 
+  it('never subscribes when the request aborted before the stream started', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const subscribe = vi.fn(() => () => {})
+    const { body } = await openConnection(controller.signal, [{ subscribe }])
+    let closed = false
+    void drain(body).then(() => {
+      closed = true
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(closed).toBe(true)
+    expect(subscribe).not.toHaveBeenCalled()
+  })
+
   it('runs every teardown when one unsubscribe throws', async () => {
     const first = vi.fn(() => {
       throw new Error('unsubscribe failed')

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,11 +51,6 @@ export function ModelSelector() {
     if (chatId) saveChatEffort(choice)
     else setNewChatEffort(choice)
   }
-
-  useEffect(() => {
-    if (chatId) return
-    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
-  }, [chatId])
 
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
 
