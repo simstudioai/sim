@@ -5,6 +5,7 @@ import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastruc
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
@@ -215,6 +216,62 @@ try {
       }
       await sql`UPDATE workspace SET owner_id = ${ownerId} WHERE id = ${workspaceId}`
       await sql`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
+    }
+  )
+  await check(
+    'A stale membership-ID removal preserves a replacement grant and creator references',
+    async () => {
+      const [original] =
+        await sql`SELECT id FROM permissions WHERE entity_id = ${workspaceId} AND user_id = ${departingId}`
+      const replacementId = generateId()
+      let pending: Promise<{ error: unknown } | null> | undefined
+      try {
+        await sql.begin(async (tx) => {
+          const [connection] = await tx`SELECT pg_backend_pid() AS pid`
+          await tx`SELECT id FROM workspace WHERE id = ${workspaceId} FOR NO KEY UPDATE`
+          pending = request(
+            ownerId,
+            `/api/v1/admin/workspaces/${workspaceId}/members/${original.id}`,
+            'DELETE',
+            undefined,
+            404
+          ).then(
+            () => null,
+            (error: unknown) => ({ error })
+          )
+          const deadline = Date.now() + 10_000
+          let waiting = false
+          while (Date.now() < deadline) {
+            const blocked = await tx`SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database() AND ${connection.pid} = ANY(pg_blocking_pids(pid))`
+            if (blocked.length) {
+              waiting = true
+              break
+            }
+            await sleep(25)
+          }
+          assert(waiting, 'Removal must reach the workspace lock after reading the original grant')
+          await tx`DELETE FROM permissions WHERE id = ${original.id}`
+          await tx`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type)
+          VALUES (${replacementId}, ${departingId}, 'workspace', ${workspaceId}, 'admin')`
+        })
+        const outcome = await pending
+        assert.deepEqual(
+          {
+            grants: Array.from(
+              await sql`SELECT id FROM permissions WHERE entity_id = ${workspaceId} AND user_id = ${departingId}`,
+              (row) => ({ id: row.id })
+            ),
+            creator: (await sql`SELECT user_id FROM workspace_files WHERE id = ${fileId}`)[0]
+              .user_id,
+          },
+          { grants: [{ id: replacementId }], creator: departingId }
+        )
+        if (outcome) throw outcome.error
+        await request(departingId, `/api/workspaces/${workspaceId}/files/${fileId}`)
+      } finally {
+        await pending
+      }
     }
   )
   await check('Remove member atomically and deny subsequent read and create requests', async () => {

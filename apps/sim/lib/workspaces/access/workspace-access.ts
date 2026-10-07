@@ -1,4 +1,4 @@
-import { permissions } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
@@ -121,12 +121,36 @@ export type RevokeWorkspaceAccessResult =
   | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkflows: string[] }
   /** The user owns the workspace and it has no billed account to hand it to. */
   | { revoked: false; reason: 'workspace-owner-without-successor' }
+  /** The requested membership no longer exists; a replacement grant must remain untouched. */
+  | { revoked: false; reason: 'membership-changed' }
 
 /** Reassigns shared resources and workspace ownership before revoking access in the same transaction. */
 export async function revokeWorkspaceAccessTx(
   tx: DbTransaction,
-  params: { workspaceId: string; userId: string }
+  params: { workspaceId: string; userId: string; expectedPermissionId?: string }
 ): Promise<RevokeWorkspaceAccessResult> {
+  if (params.expectedPermissionId !== undefined) {
+    /** Match the handoff's workspace-before-grant lock order before validating the selected row. */
+    await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, params.workspaceId))
+      .for('no key update')
+    const [selectedGrant] = await tx
+      .select({ id: permissions.id })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.id, params.expectedPermissionId),
+          eq(permissions.userId, params.userId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, params.workspaceId)
+        )
+      )
+      .for('update')
+    if (!selectedGrant) return { revoked: false, reason: 'membership-changed' }
+  }
+
   const reassignment = await reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx({
     tx,
     workspaceIds: [params.workspaceId],
@@ -160,7 +184,10 @@ export async function revokeWorkspaceAccessTx(
       and(
         eq(permissions.userId, params.userId),
         eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, params.workspaceId)
+        eq(permissions.entityId, params.workspaceId),
+        params.expectedPermissionId !== undefined
+          ? eq(permissions.id, params.expectedPermissionId)
+          : undefined
       )
     )
 

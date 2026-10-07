@@ -273,13 +273,19 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      await db.transaction(async (tx) => {
+      const removed = await db.transaction(async (tx) => {
         const result = await revokeWorkspaceAccessTx(tx, {
           workspaceId,
           userId: existingMember.userId,
+          expectedPermissionId: existingMember.id,
         })
-        if (!result.revoked) throw new WorkspaceBillingAccountRemovalError()
+        if (!result.revoked) {
+          if (result.reason === 'membership-changed') return false
+          throw new WorkspaceBillingAccountRemovalError()
+        }
+        return true
       })
+      if (!removed) return notFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,
