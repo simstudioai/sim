@@ -49,6 +49,7 @@ const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
   cleared: {} as Record<string, number>,
+  migratedTo: {} as Record<string, string>,
 }
 
 /**
@@ -105,6 +106,17 @@ const setQueueForChat = (
   next: QueuedMothershipMessage[]
 ): Record<string, QueuedMothershipMessage[]> =>
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
+
+/**
+ * The queue key a write captured before an `await` should use now: the key a
+ * new-chat queue migrated to once its chat became known, if it did.
+ */
+export function liveQueueKey(chatKey: string): string {
+  const { migratedTo } = useMothershipQueueStore.getState()
+  let key = chatKey
+  for (let hops = 0; hops < 8 && migratedTo[key] !== undefined; hops++) key = migratedTo[key]
+  return key
+}
 
 export const useMothershipQueueStore = create<MothershipQueueState>()(
   devtools(
@@ -191,9 +203,10 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         migrate: (fromKey, toKey) =>
           set((state) => {
             if (fromKey === toKey) return state
+            const migratedTo = { ...state.migratedTo, [fromKey]: toKey }
             const fromQueue = state.queues[fromKey]
             const fromEditing = state.editing[fromKey]
-            if (!fromQueue && fromEditing === undefined) return state
+            if (!fromQueue && fromEditing === undefined) return { migratedTo }
 
             const queues = omitKey(state.queues, fromKey)
             /** A chat deleted meanwhile takes nothing: its queue is gone with it. */
@@ -211,7 +224,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (fromEditing !== undefined) {
               editing[toKey] = fromEditing
             }
-            return { queues, editing }
+            return { queues, editing, migratedTo }
           }),
 
         releaseHeldUntilOnline: () =>

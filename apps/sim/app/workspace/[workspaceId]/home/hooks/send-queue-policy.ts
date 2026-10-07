@@ -42,9 +42,10 @@ export function sendRetry(attempt: number): ScheduledRetry {
  * - `stop-failed` and `failed` wait for the user;
  * - `withdrawn` goes out again as soon as the queue drains.
  *
- * A message held by a chatless surface carries that surface (`chatlessSurface`),
- * whose queue key dies with its mount, so the next mount of it adopts the
- * message. Only sends that wait on the network or the server are held that way.
+ * A message re-queued on a chatless surface carries that surface
+ * (`chatlessSurface`), whose queue key dies with its mount, so the next mount of
+ * it adopts the message. That holds for every reason: a re-queue can land after
+ * the surface unmounted, when nothing else marks the dead key's queue.
  */
 export function requeuedFields(
   reason: RequeueReason,
@@ -60,7 +61,7 @@ export function requeuedFields(
       return { ...sendRetry(previousAttempts + 1), ...surface }
     case 'stop-failed':
     case 'failed':
-      return { retryRequired: true }
+      return { retryRequired: true, ...surface }
     case 'withdrawn':
       return {}
   }

@@ -2829,6 +2829,57 @@ describe('useChat remount send recovery', () => {
     expect(allQueuedMessages()).toHaveLength(0)
   })
 
+  /**
+   * Send-now on the new-chat surface stops the first message, which the Stop sees
+   * admitted into a chat: the surface moves to that chat and its queue moves with
+   * it. A busy refusal of the follow-up arriving after that must go back to the
+   * chat's queue, where the surface shows and retries it, not to the dead
+   * new-chat key it was dispatched from.
+   */
+  it('re-queues a Send-now refused as busy in the chat the new-chat surface moved to', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (
+        url === '/api/mothership/chat' &&
+        init?.method === 'POST' &&
+        state.postBodies.length > 0
+      ) {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return Response.json(
+          { error: 'A response is already in progress for this chat.' },
+          { status: 409 }
+        )
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('inspect the workspace')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    await act(async () => {
+      void getResult().sendMessage('Follow-up')
+    })
+    await waitFor(() => allQueuedMessages().length === 1)
+
+    await act(async () => {
+      void getResult()
+        .sendNow()
+        .catch(() => {})
+    })
+    await waitFor(() => state.postBodies.length === 2)
+    await act(async () => {
+      await sleep(200)
+    })
+
+    const queues = useMothershipQueueStore.getState().queues
+    expect(queues[DEDUPED_CHAT_ID]?.map((message) => message.content)).toEqual(['Follow-up'])
+    expect(
+      Object.entries(queues).filter(([key, queue]) => key.startsWith('pending::') && queue.length)
+    ).toEqual([])
+    expect(getResult().messageQueue.map((message) => message.content)).toEqual(['Follow-up'])
+  })
+
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
     const executionStore = useExecutionStore.getState()
     executionStore.setIsExecuting('manual-workflow', true)

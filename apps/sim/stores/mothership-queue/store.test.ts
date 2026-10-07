@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { liveQueueKey, useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type { QueuedMothershipMessage } from '@/stores/mothership-queue/types'
 
 const message = (id: string, content = `content-${id}`): QueuedMothershipMessage => ({
@@ -181,6 +181,15 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('migrate', () => {
+    it('points a late write at the chat a new-chat queue moved to, even an empty one', () => {
+      useMothershipQueueStore.getState().migrate('pending::empty', 'chat-X')
+      useMothershipQueueStore.getState().migrate('chat-X', 'chat-X')
+
+      expect(liveQueueKey('pending::empty')).toBe('chat-X')
+      expect(liveQueueKey('pending::never-moved')).toBe('pending::never-moved')
+      expect(liveQueueKey('chat-X')).toBe('chat-X')
+    })
+
     it('merges into an existing destination bucket instead of overwriting', () => {
       useMothershipQueueStore.getState().enqueue('chat-X', message('existing-1'))
       useMothershipQueueStore.getState().enqueue('chat-X', message('existing-2'))

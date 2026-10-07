@@ -65,6 +65,12 @@ export interface MothershipQueueState {
    * handed back); restoring the chat lifts it.
    */
   cleared: Record<string, number>
+  /**
+   * Where each new-chat key's queue moved when its chat became known
+   * (`migrate`). A write that captured the old key before an `await` follows
+   * this (`liveQueueKey`), so it lands in the chat's queue, not a dead key.
+   */
+  migratedTo: Record<string, string>
 
   enqueue: (chatKey: string, message: QueuedMothershipMessage) => void
   insertAt: (chatKey: string, index: number, message: QueuedMothershipMessage) => void
