@@ -12,6 +12,7 @@ import {
 } from '@/lib/core/resource-scope'
 import type { DbOrTx } from '@/lib/db/types'
 import { checkpointIo } from '@/lib/knowledge/documents/processing-checkpoint-io'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadataByIdentity, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { headProviderObject, uploadStorageProvider } from '@/lib/uploads/upload-session/provider'
@@ -20,7 +21,6 @@ import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 const logger = createLogger('KnowledgeStorageCleanup')
 const ENQUEUE_BATCH_SIZE = 100
 const STORAGE_TIMEOUT_MS = 15_000
-export const KNOWLEDGE_STORAGE_CLEANUP_EVENT = 'knowledge.document.storage.cleanup'
 
 export interface KnowledgeStorageCleanupDocument extends ResourceOwner {
   id: string

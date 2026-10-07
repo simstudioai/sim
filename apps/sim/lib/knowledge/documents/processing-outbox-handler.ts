@@ -49,17 +49,15 @@ import {
   canScheduleDocumentProcessingQuotaContinuation,
   scheduleDocumentProcessingQuotaContinuation,
 } from '@/lib/knowledge/documents/processing-quota-continuation'
-import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import {
   getKnowledgeDocument,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
-import {
-  cleanupKnowledgeStorage,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
-} from '@/lib/knowledge/documents/storage-cleanup'
+import { cleanupKnowledgeStorage } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
   if (!isRecordLike(payload)) {

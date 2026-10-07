@@ -29,8 +29,8 @@ import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/processing-outbox-event'
-import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
-import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 import {
@@ -54,8 +54,8 @@ import { FORK_CONTENT_COPY_EVENT } from '@/ee/workspace-forking/application/cont
 /**
  * Every handler module the outbox processor serves, with the event types its handler map
  * registers. A module is imported only when one of its event types is due, so a run never loads
- * the dependencies of handlers it will not call. Event types come from dependency-free modules
- * (or ones the processor already loads), so naming them here costs nothing.
+ * the dependencies of handlers it will not call. Event types come from dependency-free modules,
+ * so naming them here costs nothing.
  *
  * `handlers.test.ts` checks every group against its module. Each `load` destructures its import
  * so the unused-export audit can see which export it reads; `(await import(x)).y` marks every

@@ -20,7 +20,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
-import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 
 const mockGetKnowledgeDocument = knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocument
 const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue

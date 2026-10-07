@@ -220,6 +220,51 @@ describe('outbox scheduling in PostgreSQL', () => {
     expect(pending.availableAt.getTime()).toBeGreaterThan(Date.now())
   })
 
+  it('leaves the events of a handler module that fails to import untouched until it loads', async () => {
+    const [stranded] = await enqueue('test.outbox.unloadable', 1)
+    const [delivered] = await enqueue('test.outbox.loadable', 1)
+    const [before] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    const unloadable = {
+      events: ['test.outbox.unloadable'],
+      load: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Cannot find module'))
+        .mockResolvedValue({ 'test.outbox.unloadable': async () => {} }),
+    }
+    const groups = [
+      unloadable,
+      {
+        events: ['test.outbox.loadable'],
+        load: async () => ({ 'test.outbox.loadable': async () => {} }),
+      },
+    ]
+
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      retried: 0,
+      deadLettered: 0,
+      unloadedEventTypes: ['test.outbox.unloadable'],
+    })
+    const [pending] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    expect(pending).toMatchObject({
+      status: 'pending',
+      attempts: before.attempts,
+      lockedAt: null,
+      lastError: null,
+      processedAt: null,
+      availableAt: before.availableAt,
+    })
+    const [completed] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, delivered.id))
+    expect(completed.status).toBe('completed')
+
+    expect(await processOutboxEvents(groups)).toMatchObject({
+      processed: 1,
+      unloadedEventTypes: [],
+    })
+    const [recovered] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, stranded.id))
+    expect(recovered.status).toBe('completed')
+  })
+
   it('lets claims skip a locked head without hiding other rows of that type', async () => {
     const [locked, available] = await enqueue('test.outbox.locked', 2)
     const delivered: string[] = []
