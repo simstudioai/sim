@@ -52,15 +52,19 @@ const initialState = {
 }
 
 /**
- * A message resuming an earlier attempt (`resumeUserMessageId`) may already be
- * a turn on the server, unless the writer knows it is not
- * (`admissionUnknown: false`). Every queue write goes through this, so no path
- * can queue such a message as editable by leaving the flag out.
+ * A message carrying an earlier attempt's id may already be a turn on the
+ * server, unless the writer knows it is not (`admissionUnknown: false`). The id
+ * rides as `resumeUserMessageId` (a withdrawn send) or as its Stop handoff's
+ * `userMessageId` (a Send-now restored from its stored handoff). A handoff
+ * still waiting on its Stop (`stopRequired`) never sent that id: the handoff is
+ * rewritten without it just before the POST. Every queue write goes through
+ * this, so no path can queue such a message as editable by leaving the flag out.
  */
 function withAdmissionGuard(message: QueuedMothershipMessage): QueuedMothershipMessage {
-  if (message.resumeUserMessageId === undefined || message.admissionUnknown !== undefined) {
-    return message
-  }
+  const handoff = message.queuedSendHandoff
+  const earlierAttempt =
+    message.resumeUserMessageId ?? (handoff?.stopRequired ? undefined : handoff?.userMessageId)
+  if (earlierAttempt === undefined || message.admissionUnknown !== undefined) return message
   return { ...message, admissionUnknown: true }
 }
 

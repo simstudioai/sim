@@ -30,6 +30,39 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
+    it('treats a Send-now whose Stop settled as possibly sent under its handoff id', () => {
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'sent',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'sent',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'send-now-request',
+        },
+      })
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'waiting',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'waiting',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'not-sent-yet',
+          stopRequired: true,
+        },
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'sent', { content: 'edited' })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'waiting', { content: 'edited' })
+
+      const [sent, waiting] = useMothershipQueueStore.getState().queues['chat-A'] ?? []
+      expect(sent).toMatchObject({
+        content: 'original',
+        queuedSendHandoff: { userMessageId: 'send-now-request' },
+      })
+      expect(waiting?.content).toBe('edited')
+    })
+
     it('treats any message resuming an earlier attempt as possibly sent, unless told otherwise', () => {
       useMothershipQueueStore
         .getState()

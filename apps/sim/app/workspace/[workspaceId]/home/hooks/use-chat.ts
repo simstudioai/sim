@@ -239,8 +239,9 @@ interface WithdrawnSendResult {
   held?: boolean
   /**
    * The server refused this id outright (busy, or a predecessor still shutting
-   * down). It answers a retry of an admitted id as a duplicate instead, so the
-   * server is known not to have it, and its queue entry can be edited.
+   * down). Within the 1-hour claim TTL it answers a retry of an admitted id as a
+   * duplicate instead, so the server is known not to have it, and its queue
+   * entry can be edited.
    */
   notAdmitted?: boolean
   /**
@@ -4066,6 +4067,10 @@ export function useChat(
                   exact: true,
                   refetchType: 'none',
                 })
+              /* Admission's "superseded" conflict (another attempt re-took this id's
+                 claim) also lands here with no stream named. That needs this attempt to
+                 hold its claim past the 60s in-progress TTL before admitting, which a
+                 lock wait of at most 5s does not reach. */
               return { userMessageId, busy: true, notAdmitted: true }
             }
             /* "Already sent" with no stream for it means the earlier attempt is still
@@ -4445,11 +4450,9 @@ export function useChat(
         ...(result.heldUntilOnline ? { retryRequired: true, heldUntilOnline: true } : {}),
         ...(result.held ? { retryRequired: true } : {}),
         ...((result.unreachable && !result.heldUntilOnline) || result.busy ? sendRetry(1) : {}),
-        admissionUnknown: result.notAdmitted
-          ? false
-          : result.neverSent
-            ? options?.resumeUserMessageId !== undefined
-            : true,
+        /* Only a refusal of this id settles it. A direct send never waits on a Stop
+           (one pending queues it instead), so `neverSent` cannot occur here. */
+        admissionUnknown: !result.notAdmitted,
         ...((result.unreachable || result.busy) && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
           ? { heldSurface: heldSendSurface }
           : {}),

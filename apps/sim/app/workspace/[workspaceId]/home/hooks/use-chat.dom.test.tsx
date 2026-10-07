@@ -2330,6 +2330,70 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
+   * A Send-now whose Stop settled has its POST out under the id its stored
+   * handoff carries. Reloaded before the answer, the handoff comes back into the
+   * queue; the server may already have admitted that id, so the restored entry
+   * must not be editable into a second message.
+   */
+  it.each([
+    { stopRequired: false, editable: false },
+    { stopRequired: true, editable: true },
+  ])(
+    'guards a Send-now restored from its stored handoff (Stop still required: $stopRequired)',
+    async ({ stopRequired, editable }) => {
+      const history: MothershipChatHistory = {
+        id: 'chat-a',
+        mode: 'agent',
+        title: 'Restored handoff',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      let loadHistory: (() => void) | undefined
+      mockRequestJson.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            loadHistory = () => resolve({ chat: history })
+          })
+      )
+      writeQueuedSendHandoffState({
+        id: 'restored-send-now',
+        chatId: 'chat-a',
+        workspaceId: 'ws-1',
+        supersededStreamId: 'previous-response',
+        userMessageId: 'send-now-request',
+        message: 'inspect the second invoice instead',
+        ...(stopRequired ? { stopRequired: true } : {}),
+        requestedAt: Date.now(),
+      })
+      const { getResult } = renderUseChatInChat('chat-a')
+      /** The first moment a user could act on the restored entry, before dispatch. */
+      const editAtRestore: Array<ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>> = []
+      let tried = false
+      const unsubscribe = useMothershipQueueStore.subscribe((queueState) => {
+        if (tried) return
+        if (!queueState.queues['chat-a']?.some((message) => message.id === 'restored-send-now'))
+          return
+        /** Set first: opening the entry for editing writes the store and re-enters here. */
+        tried = true
+        editAtRestore.push(getResult().editQueuedMessage('restored-send-now'))
+      })
+      try {
+        await waitFor(() => loadHistory !== undefined)
+        await act(async () => {
+          loadHistory?.()
+          await sleep(50)
+        })
+        await waitFor(() => editAtRestore.length === 1)
+      } finally {
+        unsubscribe()
+      }
+
+      expect(editAtRestore[0] !== undefined).toBe(editable)
+    }
+  )
+
+  /**
    * A held message the server then refuses as busy is known not to be a turn
    * there: the server answers a retry of an admitted id as a duplicate, never
    * as busy. The user can edit it again.
