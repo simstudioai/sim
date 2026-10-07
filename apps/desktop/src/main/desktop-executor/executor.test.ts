@@ -568,6 +568,23 @@ describe('restarting', () => {
     expect(notDelivered).toEqual([])
   })
 
+  it('still leaves a recovered result open when Sim held one, after parking it', async () => {
+    const { sim, journal, executor, onUnregistered, delivered, notDelivered } = setup()
+    sim.completeErrors = [new DeviceRequestError(401, 'unregistered')]
+    sim.completionOutcome = 'duplicate'
+    await journal.put({ toolCallId: 'started-1', state: 'started', executionToken: 't-started' })
+    await executor.recover()
+    await vi.waitFor(() => expect(onUnregistered).toHaveBeenCalledTimes(1))
+
+    // Registered again.
+    executor.resumeParked()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+    expect(delivered).toEqual([])
+    expect(notDelivered).toEqual([])
+  })
+
   it('reports a recovered result too large to send, then held as a duplicate, as never reaching the model', async () => {
     const { sim, journal, executor, delivered, notDelivered } = setup()
     // No run could have sent this result: it is too large every time.

@@ -129,6 +129,11 @@ export class DesktopExecutor {
   private recovering: Promise<void> | null = null
   /** Results a previous app run left, still on their way to Sim. */
   private readonly recoveringIds = new Set<string>()
+  /**
+   * Results a previous app run left, until Sim answers for them, parked ones included: that run's
+   * send of the real result may already have landed.
+   */
+  private readonly recoveredResults = new Set<string>()
   /** Results that have failed to reach Sim for longer than {@link DELIVERY_AWAKE_LIMIT_MS}. */
   private readonly stalledDeliveries = new Set<string>()
   /** Results Sim refused because it no longer recognized this device; sent once it registers again. */
@@ -190,6 +195,7 @@ export class DesktopExecutor {
       })
       // Held awake like a running call: the result exists only on this machine until Sim has it.
       this.recoveringIds.add(entry.toolCallId)
+      this.recoveredResults.add(entry.toolCallId)
       this.updateBusy()
       void this.deliver(entry.toolCallId, entry.executionToken, completion).finally(() => {
         this.recoveringIds.delete(entry.toolCallId)
@@ -434,7 +440,7 @@ export class DesktopExecutor {
         // A duplicate holds what this app run sent, unless the result was recovered unchanged from
         // an earlier run, whose send of the real result may have landed before the restart.
         const takenEarlier =
-          outcome === 'duplicate' && pending === completion && this.recoveringIds.has(toolCallId)
+          outcome === 'duplicate' && pending === completion && this.recoveredResults.has(toolCallId)
         notDelivered = !delivered && !takenEarlier
         break
       } catch (error) {
@@ -492,6 +498,7 @@ export class DesktopExecutor {
         )
       }
     }
+    this.recoveredResults.delete(toolCallId)
     if (this.disposed) return
     if (notDelivered) this.options.onResultNotDelivered?.(toolCallId)
     await this.forget(toolCallId)
