@@ -18,7 +18,7 @@ import {
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 export const WORKSPACE = 'ws-e2e'
-export const LEASE_RENEW_MS = 1_000
+const LEASE_RENEW_MS = 1_000
 export const RECONCILE_MS = 2_000
 
 type CallStatus = 'pending' | 'awaiting_approval' | 'running' | 'completed' | 'failed' | 'cancelled'

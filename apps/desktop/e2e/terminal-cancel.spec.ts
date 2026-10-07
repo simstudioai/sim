@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { sleep } from '@sim/utils/helpers'
+import { randomInt } from '@sim/utils/random'
 import { FixtureSim, launch, processRunning, registeredDevice, settled } from './executor-sim'
 
 /**
@@ -53,7 +54,7 @@ const REAL_TMUX = findTmux()
  * Unique to this run of the suite, so its processes are never confused with those of another run on
  * the same machine (CI boxes run several at once).
  */
-const RUN_NONCE = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')
+const RUN_NONCE = String(randomInt(0, 1_000_000)).padStart(6, '0')
 
 /** A sleep that runs for about `seconds` and that only this test names. */
 function slept(seconds: number): string {
