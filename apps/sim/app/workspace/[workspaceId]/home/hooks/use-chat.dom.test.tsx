@@ -2860,9 +2860,13 @@ describe('useChat remount send recovery', () => {
           })
         )
         network.online = true
-        await act(async () => {
-          window.dispatchEvent(new Event('online'))
-        })
+        /* Only a browser that went offline sees `online`; the event also makes
+           React Query refetch the chat, which would drop the entry by itself. */
+        if (!browserStaysOnline) {
+          await act(async () => {
+            window.dispatchEvent(new Event('online'))
+          })
+        }
 
         await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
         await act(async () => {
