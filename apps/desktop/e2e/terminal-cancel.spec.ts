@@ -29,24 +29,22 @@ const TMUX_SESSION = 'agent-e2e'
 const STUBBORN = "trap '' HUP INT TERM"
 
 const sim = new FixtureSim()
-/** The app's own log output for the current test, printed when it fails. */
+/** The app's own log output for the current test, attached when it fails. */
 const appOutput: string[] = []
+/** Each scenario's outcome, written to `TERMINAL_CANCEL_REPORT_PATH` when the suite ends. */
+const report: Array<{ name: string; status: string; durationMs: number }> = []
 
-/** The process tree and tmux's clients, for a failure that is about who started what. */
-function diagnose(): string {
-  const run = (command: string, args: string[]) => {
-    try {
-      return execFileSync(command, args).toString()
-    } catch (error) {
-      return String(error)
-    }
-  }
-  return [
-    run('ps', ['-eo', 'pid,ppid,pgid,args'])
+/** The shells, sleeps and tmux processes running, for a failure about who started what. */
+function processes(): string {
+  try {
+    return execFileSync('ps', ['-eo', 'pid,ppid,pgid,args'])
+      .toString()
       .split('\n')
       .filter((line) => /tmux|sleep|bash|zsh/.test(line))
-      .join('\n'),
-  ].join('\n')
+      .join('\n')
+  } catch (error) {
+    return String(error)
+  }
 }
 const REAL_TMUX = findTmux()
 
@@ -268,6 +266,11 @@ test.describe('terminal cancel', () => {
 
   test.afterEach(async () => {
     const testInfo = test.info()
+    report.push({
+      name: testInfo.title,
+      status: testInfo.status ?? 'unknown',
+      durationMs: testInfo.duration,
+    })
     if (testInfo.status !== testInfo.expectedStatus) {
       // What each call came back with, and the panes tmux held, explain most failures.
       const calls = [...sim.calls.values()].map((call) => ({
@@ -283,18 +286,8 @@ test.describe('terminal cancel', () => {
       await testInfo.attach('calls', {
         body: JSON.stringify({ calls, panes: tmux.panes() }, null, 2),
       })
-      console.log(JSON.stringify({ calls, panes: tmux.panes() }, null, 2))
-      console.log(appOutput.join('').slice(-6_000))
-      console.log(diagnose())
-      console.log(
-        (() => {
-          try {
-            return tmux.run(['list-clients', '-F', '#{client_pid} #{client_tty} #{client_session}'])
-          } catch (error) {
-            return String(error)
-          }
-        })()
-      )
+      await testInfo.attach('app-output', { body: appOutput.join('').slice(-6_000) })
+      await testInfo.attach('processes', { body: processes() })
     }
     appOutput.length = 0
     // Quitting with a command still running in a tab asks first (natively, on macOS), and nobody
@@ -322,6 +315,13 @@ test.describe('terminal cancel', () => {
 
   test.afterAll(async () => {
     await sim.stop()
+    const reportPath = process.env.TERMINAL_CANCEL_REPORT_PATH
+    if (reportPath) {
+      writeFileSync(
+        reportPath,
+        JSON.stringify({ suite: 'terminal-cancel', checks: report }, null, 2)
+      )
+    }
   })
 
   async function start(
@@ -393,19 +393,23 @@ test.describe('terminal cancel', () => {
     }
   })
 
-  test('a session ended by another account signing in stops every agent command', async () => {
+  test('a session ended by another account signing in stops every agent command and leaves the user pane running', async () => {
     const { window, deviceId } = await start('account')
-    leftovers.push(slept(731), slept(733))
+    leftovers.push(slept(731), slept(733), slept(734))
     await agentRunsPlain(deviceId, 731)
     const run = REAL_TMUX ? await agentRunsInTmux(deviceId, tmux, 733) : null
+    const users = run ? tmux.split(run.pane.id, stubborn(734)) : null
+    if (users) await expect.poll(() => processRunning(slept(734)), { timeout: 15_000 }).toBe(true)
 
     // Another account signing in replaces the session: the old session cookie goes away.
     await window.goto(`${sim.origin}/session-ended`)
 
     await expect.poll(() => processRunning(slept(731)), { timeout: 30_000 }).toBe(false)
-    if (run) {
+    if (run && users) {
       await expect.poll(() => processRunning(slept(733)), { timeout: 15_000 }).toBe(false)
       await expect.poll(() => tmux.hasPane(run.pane.id), { timeout: 10_000 }).toBe(false)
+      expect(tmux.hasPane(users)).toBe(true)
+      expect(processRunning(slept(734))).toBe(true)
     }
   })
 
