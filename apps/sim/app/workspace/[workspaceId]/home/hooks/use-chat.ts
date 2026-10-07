@@ -138,7 +138,6 @@ import { reusedRequestId, useMothershipQueueStore } from '@/stores/mothership-qu
 import type {
   QueuedMothershipMessage,
   QueuedSendHandoffSeed,
-  ScheduledRetry,
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -153,6 +152,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
   QueuedMessage,
+  SendPayload,
   ToolCallInfo,
 } from '../types'
 import {
@@ -178,6 +178,7 @@ import {
 } from './send-handoff'
 import {
   requeuedFields,
+  sendPayload,
   sendRetry,
   type WithdrawalReason,
   withoutRequeueFields,
@@ -277,14 +278,8 @@ interface PendingChatAdmission {
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
-interface WithdrawnSend {
-  content: string
-  fileAttachments?: FileAttachmentForApi[]
-  contexts?: ChatContext[]
+interface WithdrawnSend extends SendPayload {
   userMessageId: string
-  requestMode?: ChatRequestMode
-  assistantSearch?: WorkspaceSearchFilters
-  assistantSearchLevel?: AssistantSearchLevel
 }
 
 export interface UseChatReturn {
@@ -3391,15 +3386,7 @@ export function useChat(
   )
 
   const createQueuedMessage = useCallback(
-    (
-      message: string,
-      fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[],
-      resumeUserMessageId?: string,
-      requestMode?: ChatRequestMode,
-      assistantSearch?: WorkspaceSearchFilters,
-      assistantSearchLevel?: AssistantSearchLevel
-    ): QueuedMothershipMessage => {
+    (payload: SendPayload, resumeUserMessageId?: string): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
       const cachedActiveStreamId = handoffChatId
@@ -3415,13 +3402,8 @@ export function useChat(
 
       return {
         id,
-        content: message,
-        fileAttachments,
-        contexts,
+        ...sendPayload(payload),
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
-        ...(requestMode ? { requestMode } : {}),
-        ...(assistantSearch ? { assistantSearch } : {}),
-        ...(assistantSearchLevel !== undefined ? { assistantSearchLevel } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3610,9 +3592,18 @@ export function useChat(
         if (!admittedThisSend || latestChoice !== effortChoice)
           saveMothershipChatEffort(queryClient, chatId, latestChoice)
       }
+      const payload = sendPayload({
+        content: message,
+        fileAttachments,
+        contexts,
+        requestMode: options?.requestMode,
+        assistantSearch: options?.assistantSearch,
+        assistantSearchLevel: options?.assistantSearchLevel,
+      })
       const writeQueuedSendHandoff = (chatId?: string) => {
         if (!queuedSendHandoff) return
         if (!chatId && !queuedSendHandoff.supersededStreamId) return
+        const { content, ...payloadFields } = payload
         writeQueuedSendHandoffState({
           id: queuedSendHandoff.id,
           ...(chatId ? { chatId } : {}),
@@ -3622,14 +3613,8 @@ export function useChat(
           ...(queuedSendHandoff.stopRequired ? { stopRequired: true } : {}),
           admissionUnknown,
           userMessageId,
-          message,
-          ...(fileAttachments ? { fileAttachments } : {}),
-          ...(contexts ? { contexts } : {}),
-          ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
-          ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-          ...(options?.assistantSearchLevel !== undefined
-            ? { assistantSearchLevel: options?.assistantSearchLevel }
-            : {}),
+          message: content,
+          ...payloadFields,
           requestedAt: Date.now(),
         })
       }
@@ -3802,17 +3787,7 @@ export function useChat(
           settled: new Promise((resolve) => {
             resolveAdmission = resolve
           }),
-          send: {
-            content: message,
-            userMessageId,
-            ...(fileAttachments ? { fileAttachments } : {}),
-            ...(contexts ? { contexts } : {}),
-            ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
-            ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-            ...(options?.assistantSearchLevel !== undefined
-              ? { assistantSearchLevel: options.assistantSearchLevel }
-              : {}),
-          },
+          send: { ...payload, userMessageId },
         }
         pendingChatAdmissionRef.current = admission
       }
@@ -4297,31 +4272,11 @@ export function useChat(
     (send: WithdrawnSend) => {
       /** The unmount already queued it ahead of its follow-ups; see the unmount cleanup. */
       if (withdrawnHeldAtUnmountRef.current?.delete(send.userMessageId)) return
-      if (
-        sendMothershipMessage(
-          send.content,
-          send.contexts,
-          send.fileAttachments,
-          send.userMessageId,
-          send.requestMode,
-          send.assistantSearch,
-          send.assistantSearchLevel
-        )
-      ) {
-        return
-      }
+      const payload = sendPayload(send)
+      if (sendMothershipMessage(payload, send.userMessageId)) return
+      const { content, ...payloadFields } = payload
       MothershipHandoffStorage.store(
-        {
-          message: send.content,
-          ...(send.contexts?.length ? { contexts: send.contexts } : {}),
-          ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
-          resumeUserMessageId: send.userMessageId,
-          ...(send.requestMode ? { requestMode: send.requestMode } : {}),
-          ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
-          ...(send.assistantSearchLevel !== undefined
-            ? { assistantSearchLevel: send.assistantSearchLevel }
-            : {}),
-        },
+        { message: content, ...payloadFields, resumeUserMessageId: send.userMessageId },
         organizationId ? { organizationId } : workspaceId!
       )
     },
@@ -4365,6 +4320,14 @@ export function useChat(
       }
 
       options = { ...options, requestMode: options?.requestMode ?? requestModeRef.current }
+      const payload = sendPayload({
+        content: message,
+        fileAttachments,
+        contexts,
+        requestMode: options.requestMode,
+        assistantSearch: options.assistantSearch,
+        assistantSearchLevel: options.assistantSearchLevel,
+      })
 
       // An in-flight send drains the queue from `finalize`; a pending stop kicks
       // the dispatcher itself, since nothing else will once the stop settles.
@@ -4380,18 +4343,7 @@ export function useChat(
           queuedAheadCount
         )
       ) {
-        queueStore.enqueue(
-          activeChatKey,
-          createQueuedMessage(
-            message,
-            fileAttachments,
-            contexts,
-            options?.resumeUserMessageId,
-            options?.requestMode,
-            options?.assistantSearch,
-            options?.assistantSearchLevel
-          )
-        )
+        queueStore.enqueue(activeChatKey, createQueuedMessage(payload, options.resumeUserMessageId))
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
           void enqueueQueueDispatchRef.current({ type: 'send_head' })
         }
@@ -4407,34 +4359,17 @@ export function useChat(
          whichever one they opened next. Only a send an unmount withdrew from a
          chatless surface, whose key dies with the mount, goes to the
          cross-surface lanes. */
-      const withdrawn = {
-        content: message,
-        fileAttachments,
-        contexts,
-        userMessageId: result.userMessageId,
-        ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
-        ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-        ...(options?.assistantSearchLevel !== undefined
-          ? { assistantSearchLevel: options?.assistantSearchLevel }
-          : {}),
-      }
       const chatless = activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
       if (result.reason === 'withdrawn' && chatless) {
-        handOffWithdrawnSend(withdrawn)
+        handOffWithdrawnSend({ ...payload, userMessageId: result.userMessageId })
         return
       }
       /* Back at the head: a direct send only goes out with nothing queued ahead of
-         it, so anything queued while its POST was out was written after it. */
+         it, so anything queued while its POST was out was written after it. The one
+         exception is a held send adopted from a dead mount of this surface in that
+         window, which can be older; it lands behind this one. */
       useMothershipQueueStore.getState().insertAt(activeChatKey, 0, {
-        ...createQueuedMessage(
-          message,
-          fileAttachments,
-          contexts,
-          result.userMessageId,
-          options?.requestMode,
-          options?.assistantSearch,
-          options?.assistantSearchLevel
-        ),
+        ...createQueuedMessage(payload, result.userMessageId),
         ...requeuedFields(result.reason, 0, chatless ? heldSendSurface : undefined),
         admissionUnknown: result.admissionUnknown,
       })
@@ -4634,14 +4569,7 @@ export function useChat(
     /** Recovered sends join the queue so dispatch, failure and retry have one owner. */
     useMothershipQueueStore.getState().insertAt(chatHistory.id, 0, {
       id: handoff.id,
-      content: handoff.message,
-      fileAttachments: handoff.fileAttachments,
-      contexts: handoff.contexts,
-      ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
-      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-      ...(handoff.assistantSearchLevel !== undefined
-        ? { assistantSearchLevel: handoff.assistantSearchLevel }
-        : {}),
+      ...sendPayload({ ...handoff, content: handoff.message }),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -5037,14 +4965,7 @@ export function useChat(
         if (withdrawn?.reason === 'withdrawn' && chatless) {
           clearQueuedSendHandoffState(msg.id)
           handOffWithdrawnSend({
-            content: dispatched.content,
-            fileAttachments: dispatched.fileAttachments,
-            contexts: dispatched.contexts,
-            ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
-            ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
-            ...(dispatched.assistantSearchLevel !== undefined
-              ? { assistantSearchLevel: dispatched.assistantSearchLevel }
-              : {}),
+            ...sendPayload(dispatched),
             userMessageId: withdrawn.userMessageId,
           })
           return
@@ -5083,27 +5004,19 @@ export function useChat(
         dispatched = liveMsg
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
 
-        const sendResult = await startSendMessage(
-          liveMsg.content,
-          liveMsg.fileAttachments,
-          liveMsg.contexts,
-          {
-            pendingStop: options.pendingStop,
-            onOptimisticSendApplied: removeQueuedMessage,
-            queuedSendHandoff: activeQueuedSendHandoff,
-            ...(liveMsg.resumeUserMessageId
-              ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
-              : {}),
-            ...(liveMsg.admissionUnknown !== undefined
-              ? { admissionUnknown: liveMsg.admissionUnknown }
-              : {}),
-            ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
-            ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
-            ...(liveMsg.assistantSearchLevel !== undefined
-              ? { assistantSearchLevel: liveMsg.assistantSearchLevel }
-              : {}),
-          }
-        )
+        const { content, fileAttachments, contexts, ...sendOptions } = sendPayload(liveMsg)
+        const sendResult = await startSendMessage(content, fileAttachments, contexts, {
+          ...sendOptions,
+          pendingStop: options.pendingStop,
+          onOptimisticSendApplied: removeQueuedMessage,
+          queuedSendHandoff: activeQueuedSendHandoff,
+          ...(liveMsg.resumeUserMessageId
+            ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
+            : {}),
+          ...(liveMsg.admissionUnknown !== undefined
+            ? { admissionUnknown: liveMsg.admissionUnknown }
+            : {}),
+        })
 
         if (sendResult !== true) {
           restoreQueuedMessage(
@@ -5400,16 +5313,9 @@ export function useChat(
           const { send } = withdrawing
           queueStore.insertAt(deadKey, 0, {
             id: generateId(),
-            content: send.content,
+            ...sendPayload(send),
             resumeUserMessageId: send.userMessageId,
             admissionUnknown: true,
-            ...(send.fileAttachments ? { fileAttachments: send.fileAttachments } : {}),
-            ...(send.contexts ? { contexts: send.contexts } : {}),
-            ...(send.requestMode ? { requestMode: send.requestMode } : {}),
-            ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
-            ...(send.assistantSearchLevel !== undefined
-              ? { assistantSearchLevel: send.assistantSearchLevel }
-              : {}),
           })
           withdrawnHeldAtUnmountRef.current ??= new Set()
           withdrawnHeldAtUnmountRef.current.add(send.userMessageId)

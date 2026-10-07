@@ -4,6 +4,7 @@ import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
+  SendPayload,
 } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
@@ -54,28 +55,17 @@ export interface MothershipSendMessageDetail {
  * was listening — callers that can fall back (e.g. cross-route navigation) use
  * this to decide whether to persist a handoff instead.
  */
-export function sendMothershipMessage(
-  message: string,
-  contexts?: ChatContext[],
-  fileAttachments?: FileAttachmentForApi[],
-  resumeUserMessageId?: string,
-  requestMode?: ChatRequestMode,
-  assistantSearch?: WorkspaceSearchFilters,
-  assistantSearchLevel?: AssistantSearchLevel
-): boolean {
-  const trimmed = message.trim()
-  if (!trimmed && !fileAttachments?.length) {
+export function sendMothershipMessage(payload: SendPayload, resumeUserMessageId?: string): boolean {
+  const { content, ...payloadFields } = payload
+  const trimmed = content.trim()
+  if (!trimmed && !payloadFields.fileAttachments?.length) {
     logger.warn('sendMothershipMessage called with empty message')
     return false
   }
   const consumed = dispatchClaimable<MothershipSendMessageDetail>(MOTHERSHIP_SEND_MESSAGE_EVENT, {
     message: trimmed,
-    contexts,
-    fileAttachments,
+    ...payloadFields,
     ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
-    ...(requestMode ? { requestMode } : {}),
-    ...(assistantSearch ? { assistantSearch } : {}),
-    ...(assistantSearchLevel !== undefined ? { assistantSearchLevel } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed
