@@ -2630,9 +2630,17 @@ describe('useChat remount send recovery', () => {
      * stream it would have opened does not exist.
      */
     const network = { online: false, acceptedPosts: 0 }
-    function stubUnreachableSend() {
+    /**
+     * By default the browser knows it is offline until the network is back; with
+     * `browserStaysOnline` it reports itself online throughout, as when a
+     * connection drops without the browser noticing.
+     */
+    function stubUnreachableSend({ browserStaysOnline = false } = {}) {
       network.online = false
       network.acceptedPosts = 0
+      vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(
+        () => browserStaysOnline || network.online
+      )
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         if (url === '/api/mothership/chat' && init?.method === 'POST') {
@@ -2676,6 +2684,66 @@ describe('useChat remount send recovery', () => {
 
       expect(state.postBodies[1].message).toBe('Written while offline')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
+    /**
+     * A connection can drop while the browser stays online (`ERR_NETWORK_CHANGED`
+     * when an interface changes, a proxy that resets), so no `online` event follows
+     * the failure. The message, and a follow-up sent behind it, must still go out.
+     */
+    it('sends a message whose POST failed while the browser stayed online', async () => {
+      const history = idleHistory('chat-network-changed')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend({ browserStaysOnline: true })
+      const { getResult } = renderUseChatInChat(history.id, history)
+
+      await act(async () => {
+        await getResult().sendMessage('Sent as the network changed')
+      })
+      network.online = true
+      await act(async () => {
+        await getResult().sendMessage('Sent after it')
+      })
+      await waitFor(() => network.acceptedPosts === 2, 5000)
+
+      expect(state.postBodies.map((body) => body.message)).toEqual([
+        'Sent as the network changed',
+        'Sent as the network changed',
+        'Sent after it',
+      ])
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
+    })
+
+    /** Sim stays unreachable while the browser reports itself online: retried on a growing delay. */
+    it('backs off retrying a send that keeps failing while the browser stays online', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const history = idleHistory('chat-unreachable-online')
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        const { getResult } = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void getResult().sendMessage('Sent while Sim is unreachable')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        for (let second = 0; second < 60; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+
+        /** 1, 2, 4, 8, 16 and 30 s apart (give or take a fifth): about six attempts in a minute. */
+        expect(state.postBodies.length).toBeGreaterThan(2)
+        expect(state.postBodies.length).toBeLessThanOrEqual(8)
+
+        network.online = true
+        for (let second = 0; second < 45; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+        expect(network.acceptedPosts).toBe(1)
+        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('keeps a queued follow-up whose dispatch could not reach the server', async () => {

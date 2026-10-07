@@ -139,7 +139,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               retryRequired: _retry,
               heldUntilOnline: _held,
               heldSurface: _surface,
-              busyRetries: _busyRetries,
+              sendRetries: _sendRetries,
               notBefore: _notBefore,
               ...rest
             } = next[index]
