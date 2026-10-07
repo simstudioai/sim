@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
+import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const HISTORY_INDEX = '__simSettingsIndex'
+const HISTORY_GENERATION = '__simSettingsGeneration'
 const TRACKER_INSTALLED = Symbol.for('sim.settings.historyTracker')
+const logger = createLogger('SettingsBrowserNavigation')
 
 interface TrackedHistory extends History {
   [TRACKER_INSTALLED]?: boolean
@@ -19,75 +23,146 @@ function installBrowserNavigationGuard() {
   history[TRACKER_INSTALLED] = true
   const originalPush = history.pushState
   const originalReplace = history.replaceState
+  const originalGo = history.go
   const navigation = (
     window as Window & { navigation?: { currentEntry: { index: number } | null } }
   ).navigation
-  const storedIndex = navigation?.currentEntry?.index ?? toRecord(history.state)[HISTORY_INDEX]
-  let currentIndex = typeof storedIndex === 'number' ? storedIndex : 0
+  const initialState = toRecord(history.state)
+  let generation =
+    typeof initialState[HISTORY_GENERATION] === 'string'
+      ? initialState[HISTORY_GENERATION]
+      : generateId()
+  const entryIndex = (data: unknown): number | null => {
+    if (navigation?.currentEntry) return navigation.currentEntry.index
+    const state = toRecord(data)
+    return state[HISTORY_GENERATION] === generation && typeof state[HISTORY_INDEX] === 'number'
+      ? state[HISTORY_INDEX]
+      : null
+  }
+  let currentIndex: number | null = entryIndex(history.state) ?? 0
   let restoring = false
   let pendingDelta = 0
   let allowTraversal = false
+  let warnedUnindexed = false
+  let currentUrl = new URL(window.location.href)
 
-  const stamp = (data: unknown, index: number) =>
-    data == null || isRecordLike(data) ? { ...toRecord(data), [HISTORY_INDEX]: index } : data
+  const stamp = (data: unknown, index: number, entryGeneration = generation) =>
+    data == null || isRecordLike(data)
+      ? { ...toRecord(data), [HISTORY_INDEX]: index, [HISTORY_GENERATION]: entryGeneration }
+      : data
 
   history.pushState = (data: unknown, unused, url) => {
-    const nextIndex = currentIndex + 1
-    originalPush.call(history, stamp(data, nextIndex), unused, url)
+    const nextGeneration = currentIndex === null ? generateId() : generation
+    const nextIndex = (currentIndex ?? -1) + 1
+    originalPush.call(history, stamp(data, nextIndex, nextGeneration), unused, url)
+    generation = nextGeneration
     currentIndex = nextIndex
+    currentUrl = new URL(window.location.href)
   }
   history.replaceState = (data: unknown, unused, url) => {
-    originalReplace.call(history, stamp(data, currentIndex), unused, url)
+    originalReplace.call(
+      history,
+      currentIndex === null ? data : stamp(data, currentIndex),
+      unused,
+      url
+    )
+    currentUrl = new URL(window.location.href)
   }
   history.replaceState(history.state, '', window.location.href)
+
+  history.go = (delta) => {
+    if (!delta) {
+      originalGo.call(history, delta)
+      return
+    }
+    const { isDirty, navigationBlocked, requestLeave } = useSettingsDirtyStore.getState()
+    if (!isDirty && !navigationBlocked) {
+      originalGo.call(history, delta)
+      return
+    }
+    requestLeave(() => {
+      pendingDelta = delta
+      allowTraversal = true
+      originalGo.call(history, delta)
+    })
+  }
+  history.back = () => history.go(-1)
+  history.forward = () => history.go(1)
 
   window.addEventListener(
     'popstate',
     (event) => {
-      const storedIndex = navigation?.currentEntry?.index ?? toRecord(event.state)[HISTORY_INDEX]
-      // Older unstamped entries precede the document's indexed navigation history.
-      const index =
-        typeof storedIndex === 'number'
-          ? storedIndex
-          : currentIndex + (allowTraversal ? pendingDelta : -1)
+      const index = entryIndex(event.state)
+      const destinationUrl = new URL(window.location.href)
+      if (
+        allowTraversal &&
+        (index === null || currentIndex === null || index - currentIndex === pendingDelta)
+      ) {
+        currentIndex = index ?? (currentIndex === null ? null : currentIndex + pendingDelta)
+        allowTraversal = false
+        restoring = false
+        currentUrl = destinationUrl
+        if (index === null && currentIndex !== null)
+          history.replaceState(event.state, '', window.location.href)
+        return
+      }
+      allowTraversal = false
+      if (
+        !restoring &&
+        destinationUrl.pathname === currentUrl.pathname &&
+        destinationUrl.search === currentUrl.search
+      ) {
+        currentIndex = index
+        currentUrl = destinationUrl
+        return
+      }
+      if (index === null || currentIndex === null) {
+        currentIndex = index
+        currentUrl = destinationUrl
+        restoring = false
+        pendingDelta = 0
+        if (!warnedUnindexed && index === null) {
+          warnedUnindexed = true
+          logger.warn('Cannot guard unindexed native history without the Navigation API')
+        }
+        return
+      }
       const delta = index - currentIndex
       if (restoring) {
         event.stopImmediatePropagation()
-        if (typeof storedIndex !== 'number') {
-          pendingDelta--
-          history.go(1)
-          return
-        }
         if (delta !== 0) {
-          history.go(-delta)
+          originalGo.call(history, -delta)
           return
         }
         restoring = false
         const requestedDelta = pendingDelta
         useSettingsDirtyStore.getState().requestLeave(() => {
           allowTraversal = true
-          history.go(requestedDelta)
+          originalGo.call(history, requestedDelta)
         })
         return
       }
       const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
-      if (!delta || allowTraversal || (!isDirty && !navigationBlocked)) {
+      if (!delta || (!isDirty && !navigationBlocked)) {
         currentIndex = index
+        currentUrl = destinationUrl
         allowTraversal = false
-        if (typeof storedIndex !== 'number')
-          history.replaceState(event.state, '', window.location.href)
         return
       }
       event.stopImmediatePropagation()
       pendingDelta = delta
       restoring = true
-      history.go(-delta)
+      originalGo.call(history, -delta)
     },
     true
   )
 }
 
-/** Protects refresh and Back/Forward for every registered settings editor. */
+/**
+ * Protects refresh, programmatic traversal, and indexed native Back/Forward.
+ * Without the Navigation API, unindexed native entries (including legacy entries)
+ * cannot be guarded: popstate does not expose their traversal direction.
+ */
 export function useSettingsBrowserNavigation() {
   const shouldBlock = useSettingsDirtyStore((state) => state.isDirty || state.navigationBlocked)
   useEffect(installBrowserNavigationGuard, [])

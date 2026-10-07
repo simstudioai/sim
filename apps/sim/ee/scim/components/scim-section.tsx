@@ -396,9 +396,12 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
   const [credentialExpiry, setCredentialExpiry] = useState<CredentialExpiry>('never')
   useSettingsUnsavedGuard({
-    isDirty: credentialExpiry !== 'never',
+    isDirty: credentialExpiry !== 'never' || issuedSecret !== null,
     navigationBlocked: issueCredential.isPending,
-    onDiscard: () => setCredentialExpiry('never'),
+    onDiscard: () => {
+      setCredentialExpiry('never')
+      setIssuedSecret(null)
+    },
   })
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
   const pendingRevoke =

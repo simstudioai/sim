@@ -342,7 +342,13 @@ shells. Reach for it before hand-rolling a `Chip`.
   forms. Dirty computation stays local and derived; fetched defaults stay clean.
 - **`onDiscard` resets the registered draft.** The root `SettingsNavigationGuard`
   owns the discard dialog, internal link interception, browser Back/Forward, and
-  refresh protection. Do not add a per-page dialog or history listener.
+  refresh protection for registered editors. Do not add a per-page dialog or
+  history listener for an editor using this hook. Skill create/detail pages retain
+  their existing `useUnsavedChangesGuard` and local dialog until they migrate to
+  the shared registration.
+- **Native history needs entry indexes.** The Navigation API supplies them for
+  legacy entries. Without it, native traversal to an unindexed entry cannot be
+  cancelled reliably; never guess a direction or rewrite the history stack.
 - **Detail back controls** call `guard.guardBack(closeFn)`. Other destructive view
   transitions, such as switching an editor's direction or environment, also use
   the shared `requestLeave` action before resetting their draft.

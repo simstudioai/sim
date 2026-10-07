@@ -4,6 +4,7 @@ import { type MouseEvent, useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { useRouter } from 'next/navigation'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -31,14 +32,6 @@ interface CredentialMetadata {
   displayName: string
   description: string
   unredacted: boolean
-}
-
-function sameMetadata(left: CredentialMetadata, right: CredentialMetadata) {
-  return (
-    left.displayName === right.displayName &&
-    left.description === right.description &&
-    left.unredacted === right.unredacted
-  )
 }
 
 interface UseCredentialDetailFormParams {
@@ -78,34 +71,48 @@ export function useCredentialDetailForm({
   }
   const [draft, setDraft] = useState<{
     credentialId: string
-    baseline: typeof savedValues
-    values: typeof savedValues
+    values: Partial<CredentialMetadata>
   } | null>(null)
 
   if (draft && credential && draft.credentialId !== credential.id) setDraft(null)
 
-  const values = draft?.values ?? savedValues
-  const baseline = draft?.baseline ?? savedValues
+  const values = { ...savedValues, ...draft?.values }
   const displayNameDraft = values.displayName
   const descriptionDraft = values.description
   const unredactedDraft = values.unredacted
-  const isDisplayNameDirty = values.displayName.trim() !== baseline.displayName.trim()
-  const isDescriptionDirty = values.description.trim() !== baseline.description.trim()
-  const isUnredactedDirty = values.unredacted !== baseline.unredacted
+  const isDisplayNameDirty = values.displayName.trim() !== savedValues.displayName.trim()
+  const isDescriptionDirty = values.description.trim() !== savedValues.description.trim()
+  const isUnredactedDirty = values.unredacted !== savedValues.unredacted
   const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty || isUnredactedDirty
+
+  if (
+    draft &&
+    !isSaving &&
+    values.displayName === savedValues.displayName &&
+    values.description === savedValues.description &&
+    values.unredacted === savedValues.unredacted
+  )
+    setDraft(null)
 
   const updateDraft = useCallback(
     (change: Partial<typeof savedValues>) => {
       if (!credential) return
       setDraft((current) => {
-        const baseline = current?.baseline ?? {
+        const saved = {
           displayName: credential.displayName,
           description: credential.description ?? '',
           unredacted: credential.unredacted,
         }
-        const values = { ...(current?.values ?? baseline), ...change }
-        if (!isSaving && sameMetadata(values, baseline)) return null
-        return { credentialId: credential.id, baseline, values }
+        const values = { ...current?.values, ...change }
+        if (!isSaving) {
+          if (values.displayName === saved.displayName) values.displayName = undefined
+          if (values.description === saved.description) values.description = undefined
+          if (values.unredacted === saved.unredacted) values.unredacted = undefined
+        }
+        const overrides = filterUndefined(values)
+        return Object.keys(overrides).length
+          ? { credentialId: credential.id, values: overrides }
+          : null
       })
     },
     [credential, isSaving]
@@ -147,21 +154,13 @@ export function useCredentialDetailForm({
     [guard.guardBack, router, backHref]
   )
 
-  const releaseUnchangedDraft = useCallback(() => {
-    setDraft((current) =>
-      current && sameMetadata(current.values, current.baseline) ? null : current
-    )
-  }, [])
-
   const save = useCallback(async () => {
     if (!credential || isSaving) return
     const submitted = draft
     if (isSectionDirty && !(await section?.save())) {
-      releaseUnchangedDraft()
       return
     }
     if (!isAdmin || !isMetadataDirty) {
-      releaseUnchangedDraft()
       return
     }
 
@@ -176,17 +175,14 @@ export function useCredentialDetailForm({
         if (current === submitted) return null
         if (!current || !submitted || current.credentialId !== submitted.credentialId)
           return current
-        return {
-          ...current,
-          baseline: {
-            displayName: submitted.values.displayName.trim(),
-            description: submitted.values.description.trim(),
-            unredacted: submitted.values.unredacted,
-          },
-        }
+        const values = { ...current.values }
+        if (values.displayName === submitted.values.displayName) values.displayName = undefined
+        if (values.description === submitted.values.description) values.description = undefined
+        if (values.unredacted === submitted.values.unredacted) values.unredacted = undefined
+        const overrides = filterUndefined(values)
+        return Object.keys(overrides).length ? { ...current, values: overrides } : null
       })
     } catch (error) {
-      releaseUnchangedDraft()
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
@@ -207,7 +203,6 @@ export function useCredentialDetailForm({
     descriptionDraft,
     unredactedDraft,
     updateCredential.mutateAsync,
-    releaseUnchangedDraft,
   ])
 
   return {

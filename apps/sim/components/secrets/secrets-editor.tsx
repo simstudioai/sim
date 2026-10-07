@@ -388,11 +388,13 @@ export function SecretsEditor({
   const personalEnvData = personal?.variables
   const hasPersonal = Boolean(personal)
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
-  const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
-    createEmptyEnvVar(),
-  ])
+  const [workspaceDraft, setWorkspaceDraft] = useState<{
+    variables: Record<string, string>
+    rows: UIEnvironmentVariable[]
+  }>(() => ({ variables: {}, rows: [createEmptyEnvVar()] }))
+  const workspaceVars = workspaceDraft.variables
+  const newWorkspaceRows = workspaceDraft.rows
   const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
@@ -472,9 +474,17 @@ export function SecretsEditor({
     return false
   }, [envVars, workspaceVars, newWorkspaceRows, renamingKey, pendingKeyValue])
 
-  const hasIncompleteRows = [...envVars, ...newWorkspaceRows].some(
-    (row) => Boolean(row.key) !== Boolean(row.value)
+  const initialPersonalVariables = Object.fromEntries(
+    initialVarsRef.current.filter((row) => row.key).map(({ key, value }) => [key, value])
   )
+  const hasIncompleteRows =
+    newWorkspaceRows.some((row) => Boolean(row.key) !== Boolean(row.value)) ||
+    envVars.some(
+      (row) =>
+        Boolean(row.key) !== Boolean(row.value) &&
+        (!Object.hasOwn(initialPersonalVariables, row.key) ||
+          initialPersonalVariables[row.key] !== row.value)
+    )
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && allWorkspaceKeys.has(envVar.key))
@@ -519,7 +529,7 @@ export function SecretsEditor({
       hasSavedWorkspaceRef.current = false
       return
     }
-    setWorkspaceVars(variables)
+    setWorkspaceDraft((current) => ({ ...current, variables }))
     initialWorkspaceVarsRef.current = variables
   }, [variables])
 
@@ -601,28 +611,34 @@ export function SecretsEditor({
       return
     }
 
-    setWorkspaceVars((prev) => {
-      const next = { ...prev }
+    setWorkspaceDraft((current) => {
+      const next = { ...current.variables }
       delete next[currentKey]
       setRecordValue(next, newKey, currentValue)
-      return next
+      return { ...current, variables: next }
     })
   }
 
   const handleWorkspaceValueChange = (key: string, value: string) => {
-    setWorkspaceVars((prev) => ({ ...prev, [key]: value }))
+    setWorkspaceDraft((current) => ({
+      ...current,
+      variables: { ...current.variables, [key]: value },
+    }))
   }
 
   const handleDeleteWorkspaceVar = (key: string) => {
-    setWorkspaceVars((prev) => {
-      const next = { ...prev }
+    setWorkspaceDraft((current) => {
+      const next = { ...current.variables }
       delete next[key]
-      return next
+      return { ...current, variables: next }
     })
   }
 
   const updateNewWorkspaceRow = (index: number, field: 'key' | 'value', value: string) => {
-    setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
+    setWorkspaceDraft((current) => ({
+      ...current,
+      rows: updateEnvVarArray(current.rows, index, field, value),
+    }))
   }
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
@@ -725,9 +741,9 @@ export function SecretsEditor({
     const parsedVars = parseValidEnvVars(lines)
     if (parsedVars.length > 0) {
       e.preventDefault()
-      setNewWorkspaceRows((prev) => {
-        const existing = prev.filter((v) => v.key || v.value)
-        return [...existing, ...parsedVars, createEmptyEnvVar()]
+      setWorkspaceDraft((current) => {
+        const existing = current.rows.filter((v) => v.key || v.value)
+        return { ...current, rows: [...existing, ...parsedVars, createEmptyEnvVar()] }
       })
       scrollToBottom()
     }
@@ -736,8 +752,10 @@ export function SecretsEditor({
   const resetToSaved = () => {
     if (isListSaving) return
     setEnvVars(structuredClone(initialVarsRef.current))
-    setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
-    setNewWorkspaceRows([createEmptyEnvVar()])
+    setWorkspaceDraft({
+      variables: { ...initialWorkspaceVarsRef.current },
+      rows: [createEmptyEnvVar()],
+    })
     setRenamingKey(null)
     setPendingKeyValue('')
   }
@@ -755,12 +773,7 @@ export function SecretsEditor({
     }
 
     const validVariables = Object.fromEntries(
-      envVars.filter((v) => v.key && v.value).map(({ key, value }) => [key, value])
-    )
-    const initialPersonalVariables = Object.fromEntries(
-      initialVarsRef.current
-        .filter((row) => row.key && row.value)
-        .map(({ key, value }) => [key, value])
+      envVars.filter((v) => v.key).map(({ key, value }) => [key, value])
     )
     const latestPersonalVariables = Object.fromEntries(
       Object.values(personalEnvData ?? {}).map(({ key, value }) => [key, value])
@@ -789,7 +802,7 @@ export function SecretsEditor({
     const personalChanged = (() => {
       const initialMap = new Map<string, string>()
       for (const v of initialVarsRef.current) {
-        if (v.key && v.value) initialMap.set(v.key, v.value)
+        if (v.key) initialMap.set(v.key, v.value)
       }
       const currentKeys = Object.keys(validVariables)
       if (initialMap.size !== currentKeys.length) return true
@@ -824,38 +837,49 @@ export function SecretsEditor({
       }))
       initialVarsRef.current = structuredClone(savedPersonalRows)
       setEnvVars((current) => {
+        const rowIds = new Map(current.map((row) => [row.key, row.id]))
         const currentVariables = Object.fromEntries(
-          current.filter((row) => row.key && row.value).map(({ key, value }) => [key, value])
+          current.filter((row) => row.key).map(({ key, value }) => [key, value])
         )
         const rebasedVariables = applyVariableEdits(
           validVariables,
           currentVariables,
           personalVariablesToSave
         )
-        const incompleteRows = current.filter((row) => !row.key || !row.value)
+        const incompleteRows = current.filter(
+          (row) => !row.key || (!row.value && validVariables[row.key] !== row.value)
+        )
         const incompleteKeys = new Set(incompleteRows.map((row) => row.key).filter(Boolean))
         const rows = Object.entries(rebasedVariables)
           .filter(([key]) => !incompleteKeys.has(key))
           .map(([key, value]) => ({
             key,
             value,
-            id: current.find((row) => row.key === key)?.id ?? generateRowId(),
+            id: rowIds.get(key) ?? generateRowId(),
           }))
         return [...rows, ...incompleteRows]
       })
 
-      setWorkspaceVars((current) => applyVariableEdits(workspaceVars, current, mergedWorkspaceVars))
-      setNewWorkspaceRows((current) => {
-        const remaining = current.filter(
-          (row) =>
-            !newWorkspaceRows.some(
-              (submitted) =>
-                submitted.id === row.id &&
-                submitted.key === row.key &&
-                submitted.value === row.value
-            )
-        )
-        return remaining.length > 0 ? remaining : [createEmptyEnvVar()]
+      const submittedRows = new Map(
+        newWorkspaceRows.filter((row) => row.key && row.value).map((row) => [row.id, row])
+      )
+      setWorkspaceDraft((current) => {
+        const variables = { ...mergedWorkspaceVars }
+        for (const submitted of submittedRows.values()) {
+          if (Object.hasOwn(workspaceVars, submitted.key))
+            setRecordValue(variables, submitted.key, workspaceVars[submitted.key])
+          else delete variables[submitted.key]
+        }
+        const rows: UIEnvironmentVariable[] = []
+        for (const row of current.rows) {
+          if (submittedRows.has(row.id) && row.key && row.value)
+            setRecordValue(variables, row.key, row.value)
+          else rows.push(row)
+        }
+        return {
+          variables: applyVariableEdits(workspaceVars, current.variables, variables),
+          rows: rows.length > 0 ? rows : [createEmptyEnvVar()],
+        }
       })
       if (mutations.length > 0) {
         toast.success('Secrets saved')

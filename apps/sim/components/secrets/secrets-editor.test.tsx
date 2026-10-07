@@ -77,6 +77,147 @@ async function change(input: HTMLInputElement, value: string) {
 }
 
 describe('shared secrets editor', () => {
+  it.each(['existing value', 'remove new row'])(
+    'preserves the surviving shared secret when a submitted duplicate changes: %s',
+    async (changeKind) => {
+      const request = createDeferred<void>()
+      const persisted: Record<string, string> = { TOKEN: 'original' }
+      let first = true
+      await render({
+        variables: { TOKEN: 'original' },
+        save: async ({ upsert, remove }) => {
+          if (first) {
+            first = false
+            await request.promise
+          }
+          for (const key of remove) delete persisted[key]
+          Object.assign(persisted, upsert)
+        },
+      })
+      const key = container.querySelector<HTMLInputElement>('input[name^="new_workspace_key_"]')
+      const value = container.querySelector<HTMLInputElement>('input[name^="new_workspace_value_"]')
+      const existing = container.querySelector<HTMLInputElement>(
+        'input[name^="workspace_env_value_TOKEN"]'
+      )
+      if (!key || !value || !existing) throw new Error('Missing shared secret rows')
+      await change(key, 'TOKEN')
+      await change(value, 'submitted')
+      act(() => button('Save').click())
+      if (changeKind === 'existing value') await change(existing, 'later')
+      else {
+        await change(key, '')
+        await change(value, '')
+      }
+      await act(async () => request.resolve())
+      await act(async () => button('Save').click())
+      expect(persisted).toEqual({ TOKEN: changeKind === 'existing value' ? 'later' : 'original' })
+    }
+  )
+
+  it.each(['rename', 'value', 'delete'])(
+    'rebases a new shared secret row changed during Save: %s',
+    async (changeKind) => {
+      const request = createDeferred<void>()
+      const persisted: Record<string, string> = {}
+      let first = true
+      await render({
+        save: async ({ upsert, remove }) => {
+          if (first) {
+            first = false
+            await request.promise
+          }
+          for (const key of remove) delete persisted[key]
+          Object.assign(persisted, upsert)
+        },
+      })
+      const key = container.querySelector<HTMLInputElement>('input[name^="new_workspace_key_"]')
+      const value = container.querySelector<HTMLInputElement>('input[name^="new_workspace_value_"]')
+      if (!key || !value) throw new Error('Missing new shared secret row')
+      await change(key, 'TOKEN')
+      await change(value, 'submitted')
+      act(() => button('Save').click())
+      if (changeKind === 'rename') await change(key, 'RENAMED')
+      else if (changeKind === 'value') await change(value, 'later')
+      else {
+        await change(key, '')
+        await change(value, '')
+      }
+      await act(async () => request.resolve())
+      const populated = [
+        ...container.querySelectorAll<HTMLInputElement>('input[name*="value"]'),
+      ].filter((field) => field.value)
+      expect(populated).toHaveLength(changeKind === 'delete' ? 0 : 1)
+      await act(async () => button('Save').click())
+      expect(persisted).toEqual(
+        changeKind === 'delete'
+          ? {}
+          : changeKind === 'rename'
+            ? { RENAMED: 'submitted' }
+            : { TOKEN: 'later' }
+      )
+    }
+  )
+
+  it.each(['', 'remotely-populated'])(
+    'preserves a saved empty personal secret refreshed to %s while saving another edited secret',
+    async (remoteValue) => {
+      let persisted: unknown
+      const personal = {
+        variables: {
+          EMPTY: { key: 'EMPTY', value: '' },
+          TOKEN: { key: 'TOKEN', value: 'original' },
+        },
+        save: async (variables: Record<string, string>) => {
+          persisted = variables
+        },
+      }
+      await render({ personal })
+      const fields = [
+        ...container.querySelectorAll<HTMLInputElement>('input[name^="env_variable_value_"]'),
+      ]
+      const token = fields.find((field) => field.value === 'original')
+      if (!token) throw new Error('Missing saved token')
+      await change(token, 'updated')
+      await render({
+        personal: {
+          ...personal,
+          variables: { ...personal.variables, EMPTY: { key: 'EMPTY', value: remoteValue } },
+        },
+      })
+      await act(async () => button('Save').click())
+      expect(persisted).toEqual({ EMPTY: remoteValue, TOKEN: 'updated' })
+      let left = false
+      act(() =>
+        useSettingsDirtyStore.getState().requestLeave(() => {
+          left = true
+        })
+      )
+      expect(left).toBe(true)
+    }
+  )
+
+  it('persists deletion of a saved empty personal secret', async () => {
+    let persisted: unknown
+    await render({
+      personal: {
+        variables: {
+          EMPTY: { key: 'EMPTY', value: '' },
+          TOKEN: { key: 'TOKEN', value: 'original' },
+        },
+        save: async (variables) => {
+          persisted = variables
+        },
+      },
+    })
+    const empty = [
+      ...container.querySelectorAll<HTMLInputElement>('input[name^="env_variable_name_"]'),
+    ].find((field) => field.value === 'EMPTY')
+    if (!empty) throw new Error('Missing empty secret')
+    await change(empty, '')
+    await act(async () => button('Save').click())
+    expect(persisted).toEqual({ TOKEN: 'original' })
+  })
+
   it.each([
     { scope: 'workspace', kind: 'key', prefix: 'new_workspace_key_' },
     { scope: 'workspace', kind: 'value', prefix: 'new_workspace_value_' },

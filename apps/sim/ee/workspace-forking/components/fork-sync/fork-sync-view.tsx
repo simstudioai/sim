@@ -706,7 +706,7 @@ function CopyKindSections({ controller, byKind }: CopyKindSectionsProps) {
             onToggleAll={toggleAll}
             onToggleItem={(id, checked) => toggleMany([id], checked)}
             onToggleMany={toggleMany}
-            disabled={controller.submitting}
+            disabled={controller.submitting || !controller.comparisonReady}
           />
         ) : (
           <ResourceKindRow
@@ -719,7 +719,7 @@ function CopyKindSections({ controller, byKind }: CopyKindSectionsProps) {
             selected={selectedIds}
             onToggleMany={toggleMany}
             onToggleItem={(id, checked) => toggleMany([id], checked)}
-            disabled={controller.submitting}
+            disabled={controller.submitting || !controller.comparisonReady}
           />
         )
       })}

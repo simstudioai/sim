@@ -293,11 +293,10 @@ function takenTargetOwners(
 /**
  * The full sync surface's state for one fork edge, in the chosen direction: the editable
  * resource mapping (in-session target overrides + dependent re-picks, persisted via Save or
- * as part of Sync), the copy-resources selection (seeded once the diff settles), the reactive
+ * as part of Sync), the copy-resources selection (derived from referenced candidates), the reactive
  * would-clear blockers, the per-kind status summaries, the Sync gate, and the promote run
  * itself. A direction switch drops every in-session choice — the mapping set, copy candidates,
- * and blockers all depend on the direction — and the copy selection re-seeds only from a
- * settled (non-placeholder) diff so a stale payload can't latch wrong keys.
+ * and blockers all depend on the direction. Placeholder copy controls remain read-only.
  */
 export function useForkSync(params: {
   workspaceId: string
@@ -323,7 +322,7 @@ export function useForkSync(params: {
   const [reconfig, setReconfig] = useState<DependentReconfigState>({})
   const [copyOverrides, setCopyOverrides] = useState<Record<string, boolean>>({})
   // Source-deleted references the user explicitly accepted losing in the target (keyed by
-  // `${kind}:${sourceId}`). In-session only, like `copySelected` - an acknowledgment is a decision
+  // `${kind}:${sourceId}`). In-session only, like `copyOverrides` - an acknowledgment is a decision
   // about THIS sync, never a stored mapping. The server re-checks that each source really is gone
   // before honouring one.
   const [droppedRefs, setDroppedRefs] = useState<Set<string>>(new Set())
@@ -500,6 +499,7 @@ export function useForkSync(params: {
     direction === 'push' ? takenTargetOwners(items, targets, entry) : EMPTY_TARGET_OWNERS
 
   const toggleCopyKeys = (keys: string[], checked: boolean) => {
+    if (!comparisonReady) return
     const toggledKeys = new Set(keys)
     setCopyOverrides((prev) => {
       const next = { ...prev }
@@ -1075,6 +1075,7 @@ export function useForkSync(params: {
       ? getErrorMessage(diff.error, "Couldn't load sync details. Reload the page to retry.")
       : null,
     hasDiff: Boolean(diff.data),
+    comparisonReady,
     hasMapping: Boolean(mapping.data),
     groups,
     kindSummaries,
@@ -1104,7 +1105,6 @@ export function useForkSync(params: {
     blockingRefs,
     dependentClears,
     workflowChanges,
-    comparisonReady,
     comparisonSelection,
     openComparison,
     closeComparison,

@@ -202,7 +202,7 @@ function diffData(dependentReconfigs: ForkDependentReconfig[]) {
 
 const mountedRoots: Root[] = []
 
-function renderForkSync(): { get: () => ForkSyncController } {
+function renderForkSync(): { get: () => ForkSyncController; rerender: () => void } {
   const container = document.createElement('div')
   const root = createRoot(container)
   mountedRoots.push(root)
@@ -224,6 +224,7 @@ function renderForkSync(): { get: () => ForkSyncController } {
   })
 
   return {
+    rerender: () => act(() => root.render(<Probe />)),
     get: () => {
       if (!result) throw new Error('hook result is not ready')
       return result
@@ -273,6 +274,42 @@ afterEach(() => {
 })
 
 describe('useForkSync dependent payload', () => {
+  it('ignores copy choices made against a placeholder diff', async () => {
+    const data = {
+      ...diffData([]),
+      copyableUnmapped: [
+        {
+          kind: 'table',
+          sourceId: 'table-a',
+          label: 'Table',
+          parentId: null,
+          parentLabel: null,
+          referenced: true,
+        },
+      ],
+    }
+    mockUseForkDiff.mockReturnValue({
+      data,
+      isError: false,
+      error: null,
+      isPlaceholderData: true,
+    })
+    const { get, rerender } = renderForkSync()
+    act(() => get().toggleCopyKeys(['table:table-a'], false))
+    mockUseForkDiff.mockReturnValue({
+      data,
+      isError: false,
+      error: null,
+      isPlaceholderData: false,
+    })
+    rerender()
+    await act(async () => {
+      await get().sync()
+    })
+    const [request] = mockPromote.mock.calls[0]
+    expect(request.body.copyResources?.tables).toEqual(['table-a'])
+  })
+
   it('guards sync-only choices and becomes clean after restoring defaults or discarding', async () => {
     vi.useFakeTimers()
     const refreshDiff = (includeNewCandidate = false) =>

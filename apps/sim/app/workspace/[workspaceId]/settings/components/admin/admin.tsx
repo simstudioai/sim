@@ -244,7 +244,7 @@ export function Admin() {
             <Chip
               aria-label={`Impersonate ${u.email}`}
               onClick={() => handleImpersonate(u.id, u.email)}
-              disabled={pendingUserIds.has(u.id)}
+              disabled={importWorkflow.isPending || pendingUserIds.has(u.id)}
             >
               {impersonatingUserId === u.id ? 'Switching...' : 'Impersonate'}
             </Chip>

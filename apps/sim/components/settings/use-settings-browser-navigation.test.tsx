@@ -52,6 +52,7 @@ function LinkedEditor() {
 }
 
 const nativePush = window.history.pushState
+const nativeGo = window.history.go
 
 let root: Root
 let container: HTMLDivElement
@@ -98,16 +99,67 @@ afterEach(async () => {
 })
 
 describe('native settings navigation', () => {
+  it('guards programmatic Forward to an entry created before tracking began', async () => {
+    nativePush.call(window.history, { router: 'legacy-forward' }, '', '/legacy-forward')
+    nativeGo.call(window.history, -1)
+    await settle()
+    routedPaths = []
+    render(true)
+    window.history.forward()
+    await settle()
+    expect(window.location.pathname).toBe('/editor')
+    expect(routedPaths).toEqual([])
+    expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    await settle()
+    expect(window.location.pathname).toBe('/legacy-forward')
+  })
+
+  it.each([false, true])(
+    'does not guess an unindexed native direction and recovers indexed history after a rejected push: %s',
+    async (rejectPush) => {
+      nativePush.call(window.history, { router: 'legacy-forward' }, '', '/legacy-forward')
+      nativePush.call(window.history, { router: 'legacy-far' }, '', '/legacy-far')
+      nativeGo.call(window.history, -2)
+      await settle()
+      routedPaths = []
+      render(true)
+      nativeGo.call(window.history, 1)
+      await settle()
+      expect(window.location.pathname).toBe('/legacy-forward')
+      expect(routedPaths).toEqual(['/legacy-forward'])
+      if (rejectPush)
+        expect(() => window.history.pushState({}, '', 'https://other.example.com')).toThrow()
+      nativeGo.call(window.history, -1)
+      await settle()
+      expect(window.location.pathname).toBe('/editor')
+      nativeGo.call(window.history, -1)
+      await settle()
+      expect(window.location.pathname).toBe('/editor')
+      expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
+    }
+  )
+
+  it('allows native traversal within the same page hash while a draft is protected', async () => {
+    window.history.pushState({ router: 'hash' }, '', '/editor#first')
+    render(true)
+    nativeGo.call(window.history, -1)
+    await settle()
+    expect(window.location.pathname).toBe('/editor')
+    expect(window.location.hash).toBe('')
+    expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
+  })
+
   it('keeps Back and Forward on the edited page until discard is confirmed', async () => {
     render(true)
-    window.history.back()
+    nativeGo.call(window.history, -1)
     await settle()
     expect(window.location.pathname).toBe('/editor')
     expect(routedPaths).toEqual([])
     expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
     act(() => useSettingsDirtyStore.getState().cancelLeave())
     expect(window.location.pathname).toBe('/editor')
-    window.history.back()
+    nativeGo.call(window.history, -1)
     await settle()
     expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
     act(() => useSettingsDirtyStore.getState().confirmLeave())
@@ -115,7 +167,7 @@ describe('native settings navigation', () => {
     expect(window.location.pathname).toBe('/prior')
     expect(routedPaths).toEqual(['/prior'])
     expect(useSettingsDirtyStore.getState().isDirty).toBe(true)
-    window.history.forward()
+    nativeGo.call(window.history, 1)
     await settle()
     expect(window.location.pathname).toBe('/prior')
     expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()

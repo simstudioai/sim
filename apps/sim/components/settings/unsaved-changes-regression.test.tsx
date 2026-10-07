@@ -252,6 +252,27 @@ function expectLeave(allowed: boolean) {
 }
 
 describe('credential metadata drafts', () => {
+  it('becomes clean when an authored field converges with a same-ID saved refresh', async () => {
+    client.setQueryData(workspaceCredentialKeys.detail(credential.id), credential)
+    await render(<CredentialEditor />)
+    edit('[aria-label="Description"]', 'Shared description')
+    expectLeave(false)
+    await act(async () => {
+      client.setQueryData(workspaceCredentialKeys.detail(credential.id), {
+        ...credential,
+        displayName: 'Remote name',
+        description: 'Shared description',
+      })
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expectLeave(true)
+    expect(input('[aria-label="Name"]').value).toBe('Remote name')
+    edit('[aria-label="Description"]', 'Another edit')
+    expectLeave(false)
+    edit('[aria-label="Description"]', 'Shared description')
+    expectLeave(true)
+  })
+
   it('follows same-ID refreshes while untouched, preserves authored edits, and resumes saved values on revert', async () => {
     client.setQueryData(workspaceCredentialKeys.detail(credential.id), credential)
     await render(<CredentialEditor />)
@@ -277,7 +298,7 @@ describe('credential metadata drafts', () => {
     })
     expect(input('[aria-label="Description"]').value).toBe('My draft')
     expectLeave(false)
-    edit('[aria-label="Description"]', credential.description ?? '')
+    edit('[aria-label="Description"]', 'Latest description')
     expectLeave(true)
     expect(input('[aria-label="Name"]').value).toBe('Latest name')
   })
@@ -634,6 +655,41 @@ async function renderScim() {
   client.setQueryData(permissionGroupKeys.orgWorkspaces('org-a'), [])
   await render(<ScimSection organizationId='org-a' active onOpenDomains={() => {}} />)
 }
+
+it('protects the only retrievable SCIM token until its modal is dismissed', async () => {
+  await renderScim()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((_url: string, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === 'POST'
+          ? jsonResponse(
+              {
+                secret: 'test-only-scim-token',
+                credential: {
+                  id: 'token-a',
+                  tokenPrefix: 'test-only',
+                  scopes: ['users:read'],
+                  expiresAt: null,
+                  lastUsedAt: null,
+                  createdAt: '2026-01-01T00:00:00Z',
+                },
+              },
+              201
+            )
+          : jsonResponse(client.getQueryData(scimKeys.connection('org-a')))
+      )
+    )
+  )
+  click('Issue token')
+  await act(async () => {
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  expectLeave(false)
+  click('Done')
+  expectLeave(true)
+})
 
 function select(label: string, optionText: string) {
   const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
