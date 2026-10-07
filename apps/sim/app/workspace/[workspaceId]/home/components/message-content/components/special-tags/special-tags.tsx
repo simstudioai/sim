@@ -117,6 +117,7 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import type { ChatContext } from '@/stores/panel'
 
 export interface OptionsItemData {
   title: string
@@ -333,9 +334,14 @@ export interface FileTagData {
   content: string
 }
 
-export const QUESTION_TYPES = ['single_select', 'multi_select'] as const
+const CHOICE_QUESTION_TYPES = ['single_select', 'multi_select'] as const
 
-export type QuestionType = (typeof QUESTION_TYPES)[number]
+type ChoiceQuestionType = (typeof CHOICE_QUESTION_TYPES)[number]
+
+/** Workspace resource families a `resource_select` question can list. */
+const QUESTION_RESOURCE_TYPES = ['workflow', 'table', 'file', 'knowledgebase'] as const
+
+export type QuestionResourceType = (typeof QUESTION_RESOURCE_TYPES)[number]
 
 export interface QuestionOption {
   id: string
@@ -343,16 +349,37 @@ export interface QuestionOption {
 }
 
 /**
- * One question in a `<question>` tag: a single_select or multi_select with at
- * least one real option. The card always appends its own free-text "Something
- * else" row, so agent-supplied catch-all options ("Other", "Something else",
- * ...) are stripped during parsing.
+ * A single_select or multi_select question with at least one real option. The
+ * card always appends its own free-text "Something else" row, so
+ * agent-supplied catch-all options ("Other", "Something else", ...) are
+ * stripped during parsing.
  */
-export interface QuestionItem {
-  type: QuestionType
+interface ChoiceQuestionItem {
+  type: ChoiceQuestionType
   prompt: string
   options: QuestionOption[]
 }
+
+/**
+ * Picks one existing workspace resource. The card lists and searches the
+ * workspace's live resources of `resourceType` itself, so the agent supplies
+ * no options and the choice is not capped at what fits in a handful of rows.
+ */
+interface ResourceQuestionItem {
+  type: 'resource_select'
+  prompt: string
+  resourceType: QuestionResourceType
+}
+
+/** One question in a `<question>` tag. */
+export type QuestionItem = ChoiceQuestionItem | ResourceQuestionItem
+
+/**
+ * Sends an interactive card's answer as the user's next message. A card that
+ * picked workspace resources attaches them as chat contexts, the same way a
+ * typed mention would, so the agent receives their ids alongside the answer.
+ */
+export type InteractionAnswerHandler = (message: string, contexts?: ChatContext[]) => void
 
 /** Normalized `<question>` payload: single-object bodies become a one-element array. */
 export type QuestionTagData = QuestionItem[]
@@ -701,13 +728,19 @@ const SELF_PROVIDED_OPTION_LABELS = new Set([
 
 function isQuestionItem(value: unknown): value is QuestionItem {
   if (!isRecordLike(value)) return false
+  if (typeof value.prompt !== 'string' || value.prompt.trim().length === 0) return false
+  if (value.type === 'resource_select') {
+    return (
+      typeof value.resourceType === 'string' &&
+      (QUESTION_RESOURCE_TYPES as readonly string[]).includes(value.resourceType)
+    )
+  }
   if (
     typeof value.type !== 'string' ||
-    !(QUESTION_TYPES as readonly string[]).includes(value.type)
+    !(CHOICE_QUESTION_TYPES as readonly string[]).includes(value.type)
   ) {
     return false
   }
-  if (typeof value.prompt !== 'string' || value.prompt.trim().length === 0) return false
   return (
     Array.isArray(value.options) &&
     value.options.length > 0 &&
@@ -715,8 +748,14 @@ function isQuestionItem(value: unknown): value is QuestionItem {
   )
 }
 
-/** Strips agent-supplied catch-all options; null when none remain. */
+/**
+ * Strips agent-supplied catch-all options; null when none remain. A resource
+ * question keeps only its own fields, so stray agent keys never reach the card.
+ */
 function sanitizeQuestionItem(item: QuestionItem): QuestionItem | null {
+  if (item.type === 'resource_select') {
+    return { type: item.type, prompt: item.prompt, resourceType: item.resourceType }
+  }
   const options = item.options.filter(
     (option) => !SELF_PROVIDED_OPTION_LABELS.has(option.label.trim().toLowerCase())
   )
@@ -1799,7 +1838,7 @@ interface SpecialTagsProps {
   credentialSubmission?: CredentialSubmissionPayload
   /** The user moved on without submitting this message's credential card. */
   credentialAbandoned?: boolean
-  onOptionSelect?: (id: string) => void
+  onOptionSelect?: InteractionAnswerHandler
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
 }

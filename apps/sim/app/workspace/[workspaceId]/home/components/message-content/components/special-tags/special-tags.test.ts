@@ -183,6 +183,27 @@ describe('parseQuestionTagBody', () => {
     }
     expect(parseQuestionTagBody(JSON.stringify(onlyOther))).toBe(null)
   })
+
+  it('accepts a resource_select question without options and drops stray fields', () => {
+    const pick = { type: 'resource_select', prompt: 'Which workflow?', resourceType: 'workflow' }
+    expect(
+      parseQuestionTagBody(JSON.stringify({ ...pick, options: [{ id: 'x', label: 'X' }] }))
+    ).toEqual([pick])
+    expect(parseQuestionTagBody(JSON.stringify([pick, SINGLE_SELECT]))).toEqual([
+      pick,
+      SINGLE_SELECT,
+    ])
+  })
+
+  it('rejects a resource_select question without a listable resource type', () => {
+    for (const resourceType of [undefined, 'dashboard', 'credential', 42]) {
+      expect(
+        parseQuestionTagBody(
+          JSON.stringify({ type: 'resource_select', prompt: 'Which one?', resourceType })
+        )
+      ).toBe(null)
+    }
+  })
 })
 
 describe('parseSpecialTags with <question>', () => {

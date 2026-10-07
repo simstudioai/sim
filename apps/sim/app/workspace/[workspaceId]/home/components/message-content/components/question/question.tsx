@@ -19,7 +19,14 @@ import {
   InteractionCardInputRow,
   InteractionCardRecap,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
-import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { ResourceQuestionRows } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question/resource-question-rows'
+import type {
+  InteractionAnswerHandler,
+  QuestionItem,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { mapResourceToContext } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatContext } from '@/stores/panel'
 
 /**
  * Builds the single user message sent after the final question is answered:
@@ -88,8 +95,11 @@ interface QuestionDisplayProps {
    * — it IS the user turn; the paired message bubble is hidden by the chat.
    */
   answers?: string[]
-  /** Reports the combined answer; undefined renders the card inert. */
-  onSelect?: (message: string) => void
+  /**
+   * Reports the combined answer, with any resources picked by
+   * `resource_select` steps attached as contexts; undefined renders the card inert.
+   */
+  onSelect?: InteractionAnswerHandler
   /** Reports that the active card was dismissed so its message actions can return. */
   onDismiss?: () => void
   /** Whether the active card can be dismissed without answering. */
@@ -102,7 +112,9 @@ interface QuestionDisplayProps {
  * (and a `‹ N of M ›` stepper for multi-step batches) at the top right, and
  * suggested-action option rows beneath, always followed by a custom-answer
  * text field whose placeholder reads "Something else". `single_select`
- * answers and advances on click (or on submitting typed text); `multi_select`
+ * answers and advances on click (or on submitting typed text);
+ * `resource_select` does the same over the workspace's live resources of one
+ * family, with the text field filtering them; `multi_select`
  * rows toggle checkboxes and an option-styled Submit row confirms the step.
  * Answering the last question sends one combined user message and collapses
  * the div to a question/answer recap.
@@ -121,6 +133,10 @@ export function QuestionDisplay({
   const [step, setStep] = useState(0)
   const [selectedByStep, setSelectedByStep] = useState<string[][]>(() => data.map(() => []))
   const [customByStep, setCustomByStep] = useState<string[]>(() => data.map(() => ''))
+  // resource_select only: the resource behind a step's picked row, sent as a
+  // chat context so the agent gets its id, not just the displayed name.
+  // Only read on submit, so it never needs to re-render the card.
+  const resourceByStep = useRef<(MothershipResource | null)[]>(data.map(() => null))
   const [freeText, setFreeText] = useState('')
   // multi_select only: whether the typed "Something else" text is included in
   // the answer. Unchecking keeps the text; it just stops counting.
@@ -157,7 +173,8 @@ export function QuestionDisplay({
 
   const question = data[step]
   const isLast = step === data.length - 1
-  const options = question.options
+  const isResource = question.type === 'resource_select'
+  const options = isResource ? [] : question.options
   const selected = selectedByStep[step] ?? []
   const isMulti = question.type === 'multi_select'
 
@@ -183,21 +200,26 @@ export function QuestionDisplay({
       return
     }
     setPhase('answered')
+    const contexts = resourceByStep.current
+      .map((resource) => (resource ? mapResourceToContext(resource) : null))
+      .filter((context): context is ChatContext => context !== null)
     onSelect?.(
       formatQuestionAnswerMessage(
         data,
         data.map((q, i) => answerFor(q, selections[i] ?? [], customFor(i, customs)))
-      )
+      ),
+      contexts.length > 0 ? contexts : undefined
     )
   }
 
-  const handleSingleSelect = (label: string) => {
+  const handleSingleSelect = (label: string, resource: MothershipResource | null = null) => {
     const selections = [...selectedByStep]
     selections[step] = [label]
     setSelectedByStep(selections)
     const customs = [...customByStep]
     customs[step] = ''
     setCustomByStep(customs)
+    resourceByStep.current[step] = resource
     setFreeText('')
     finishStep(selections, customs)
   }
@@ -239,6 +261,7 @@ export function QuestionDisplay({
     const selections = [...selectedByStep]
     selections[step] = []
     setSelectedByStep(selections)
+    resourceByStep.current[step] = null
     finishStep(selections, customs)
   }
 
@@ -316,6 +339,14 @@ export function QuestionDisplay({
       }
     >
       <div className='flex flex-col'>
+        {question.type === 'resource_select' && (
+          <ResourceQuestionRows
+            resourceType={question.resourceType}
+            query={freeText}
+            disabled={disabled}
+            onPick={(resource) => handleSingleSelect(resource.title, resource)}
+          />
+        )}
         {options.map((option, i) => {
           const isSelected = selected.includes(option.label)
           return (
@@ -343,7 +374,7 @@ export function QuestionDisplay({
         })}
         <InteractionCardInputRow
           ref={freeTextInputRef}
-          divided={options.length > 0}
+          divided={options.length > 0 || isResource}
           leading={
             isMulti ? (
               <div className='flex size-[16px] shrink-0 items-center justify-center'>
@@ -389,7 +420,7 @@ export function QuestionDisplay({
           }
           type='text'
           value={freeText}
-          placeholder='Something else'
+          placeholder={isResource ? 'Search or type something else' : 'Something else'}
           disabled={disabled}
           onFocus={() => {
             if (isMulti) setCustomChecked(true)
@@ -438,9 +469,12 @@ export function QuestionDisplay({
 /**
  * A step's combined answer: selected option labels in option order, with the
  * typed "Something else" entry appended last. single_select carries at most
- * one selection, so this collapses to the chosen label or the typed text.
+ * one selection, so this collapses to the chosen label or the typed text; a
+ * resource_select pick is not one of the question's options, so it is the
+ * picked resource's name or the typed text.
  */
 function answerFor(question: QuestionItem, selected: string[], custom: string): string {
+  if (question.type === 'resource_select') return selected[0] ?? custom.trim()
   const ordered = question.options
     .map((option) => option.label)
     .filter((label) => selected.includes(label))
