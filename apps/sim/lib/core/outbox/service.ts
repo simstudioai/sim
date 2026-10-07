@@ -5,7 +5,12 @@ import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
-import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
+import {
+  dueOutboxWorkQuery,
+  isStuckProcessing,
+  readyEventTypesQuery,
+  STUCK_PROCESSING_THRESHOLD_MS,
+} from '@/lib/core/outbox/queries'
 
 const logger = createLogger('OutboxService')
 
@@ -24,7 +29,6 @@ const MAX_REAPED_EVENTS = 1_000
 function toPersistedHandlerError(error: unknown): string {
   return truncate(toError(error).message.split(/\nparams: /)[0], MAX_PERSISTED_ERROR_LENGTH)
 }
-const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
 /** Ordinary handlers keep a short window; longer handlers explicitly opt in below the stale-lease limit. */
@@ -543,17 +547,25 @@ export async function processOutboxEventById(
 }
 
 /**
+ * Whether {@link processOutboxEvents} would find anything at `now`: a pending event the claim
+ * phase may take, or a stale lease the reaper may reclaim.
+ */
+export async function hasDueOutboxWork(now: Date): Promise<boolean> {
+  const [row] = await db.execute<{ due: boolean }>(dueOutboxWorkQuery(now))
+  return row?.due === true
+}
+
+/**
  * Reaper: move `processing` rows whose worker died (stale `lockedAt`)
  * back to `pending` so another worker can pick them up. Without this,
  * a SIGKILL between claim and result-write would permanently strand
  * the row in `processing`.
  */
 async function reapStuckProcessingRows(): Promise<number> {
-  const stuckBefore = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
   const stuckRows = db
     .select({ id: outboxEvent.id })
     .from(outboxEvent)
-    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .where(isStuckProcessing(new Date()))
     .orderBy(asc(outboxEvent.lockedAt), asc(outboxEvent.id))
     .limit(MAX_REAPED_EVENTS)
     .for('update', { skipLocked: true })

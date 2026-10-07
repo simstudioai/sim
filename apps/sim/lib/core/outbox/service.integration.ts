@@ -19,8 +19,13 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 import {
+  dueOutboxWorkQuery,
+  readyEventTypesQuery,
+  STUCK_PROCESSING_THRESHOLD_MS,
+} from '@/lib/core/outbox/queries'
+import {
+  hasDueOutboxWork,
   type OutboxHandler,
   processOutboxEvents,
   withOutboxHandlerTimeout,
@@ -385,5 +390,63 @@ describe('outbox scheduling in PostgreSQL', () => {
 
     const second = await processOutboxEvents({}, { batchSize: 0 })
     expect(second.reaped).toBe(5)
+  })
+
+  describe('due-work gate', () => {
+    const now = new Date('2026-09-16T12:34:00.000Z')
+
+    async function insertRow(
+      status: 'pending' | 'processing' | 'completed' | 'dead_letter',
+      times: { availableAt?: Date; lockedAt?: Date | null }
+    ) {
+      eventTypes.add('test.outbox.gate')
+      await db.insert(outboxEvent).values({
+        id: generateId(),
+        eventType: 'test.outbox.gate',
+        payload: {},
+        status,
+        createdAt: new Date(now.getTime() - 60 * 60_000),
+        availableAt: times.availableAt ?? new Date(now.getTime() - 60 * 60_000),
+        lockedAt: times.lockedAt ?? null,
+      })
+    }
+
+    it('reports no work for future, freshly leased, completed and dead-lettered rows', async () => {
+      expect(await hasDueOutboxWork(now)).toBe(false)
+      await insertRow('pending', { availableAt: new Date(now.getTime() + 1) })
+      await insertRow('processing', {
+        lockedAt: new Date(now.getTime() - STUCK_PROCESSING_THRESHOLD_MS + 1),
+      })
+      await insertRow('completed', {})
+      await insertRow('dead_letter', {})
+      expect(await hasDueOutboxWork(now)).toBe(false)
+    })
+
+    it('reports a pending event due exactly now, as the claim phase would take it', async () => {
+      await insertRow('pending', { availableAt: now })
+      expect(await hasDueOutboxWork(now)).toBe(true)
+    })
+
+    it('reports a lease exactly at the stale threshold, as the reaper would reclaim it', async () => {
+      await insertRow('processing', {
+        lockedAt: new Date(now.getTime() - STUCK_PROCESSING_THRESHOLD_MS),
+      })
+      expect(await hasDueOutboxWork(now)).toBe(true)
+    })
+
+    it('probes both legs through indexes beside a large completed and future backlog', async () => {
+      await seedBacklog('test.outbox.gate', 50_000, 'completed')
+      await seedBacklog('test.outbox.gate', 50_000, 'pending', new Date(Date.now() + 60 * 60_000))
+      await connection`VACUUM (ANALYZE) outbox_event`
+      const gateNow = new Date()
+      expect(await hasDueOutboxWork(gateNow)).toBe(false)
+
+      const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(sql`
+        EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${dueOutboxWorkQuery(gateNow)}
+      `)
+      const plan = plans[0]['QUERY PLAN'][0].Plan
+      expect(planNodes(plan).some((node) => node['Node Type'] === 'Seq Scan')).toBe(false)
+      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(100)
+    }, 60_000)
   })
 })
