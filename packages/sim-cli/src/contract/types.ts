@@ -95,6 +95,16 @@ export interface FlagSpec {
    * including a deliberate `--details basic`.
    */
   requestDefault?: string
+  /**
+   * Value an embedded invocation sends when the caller passes nothing; wins over
+   * `requestDefault` there and is ignored by the installed CLI.
+   *
+   * The embedding host returns stdout to a model or writes it to the model's
+   * workbench, which addresses files and run state by id rather than reading
+   * bulk payloads inline. A field whose server default inlines such a payload
+   * names the leaner value here. Whatever the caller types still wins.
+   */
+  embeddedRequestDefault?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
   /**

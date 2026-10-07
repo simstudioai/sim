@@ -2,7 +2,16 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, dialog, net, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  crashReporter,
+  dialog,
+  Notification,
+  net,
+  session,
+  shell,
+} from 'electron'
 import {
   beginAccountDataTeardown,
   completeDeploymentScopedTeardown,
@@ -17,9 +26,13 @@ import {
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
+  cancelTool as cancelAgentBrowserTool,
   clearBrowserProfile as clearAgentBrowserProfile,
   closeBrowserSession as closeAgentBrowserSession,
+  executeTool as executeAgentBrowserTool,
+  hasBrowserScopeSession,
   initDriver as initBrowserAgentDriver,
+  restoreBrowserScope as restoreAgentBrowserScope,
 } from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
@@ -47,6 +60,9 @@ import {
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
 import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
+import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
+import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
+import { createDesktopExecutorService } from '@/main/desktop-executor/service'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
@@ -56,7 +72,8 @@ import {
 } from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
-import { LocalFilesystemService } from '@/main/local-filesystem'
+import { executeLocalFileRequest } from '@/main/local-files'
+import { LocalFilesystemService, mountVfsRoot } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
 import {
   attachLocalPageProtocol,
@@ -75,6 +92,7 @@ import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
+  isSessionCookieName,
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
@@ -316,7 +334,22 @@ function main(): void {
           // Shells are account-scoped runtime state. Leaving them alive across
           // sign-out would stream the previous account's output into the next
           // renderer and keep its local processes running invisibly.
-          { label: 'terminal sessions', clear: () => terminal.dispose() },
+          {
+            label: 'background executor',
+            clear: async () => {
+              approvalNotifier.clear()
+              await desktopExecutor.signOut()
+            },
+          },
+          {
+            label: 'terminal sessions',
+            // Agent commands are stopped by their own process groups first: closing a shell only
+            // hangs up its foreground, and a tmux run outlives the Sim terminal entirely.
+            clear: async () => {
+              await terminal.stopAgentCommands()
+              terminal.dispose()
+            },
+          },
           { label: 'task resource state', clear: clearDesktopChatSessions },
           { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
         ]
@@ -511,9 +544,17 @@ function main(): void {
     // pinned strip survive, so switching back on resumes rather than restarts.
     setBrowserEnabled: (enabled) => {
       if (!enabled) closeAgentBrowserSession()
+      desktopExecutor.refreshRegistration()
     },
     setTerminalEnabled: (enabled) => {
-      if (!enabled) terminal.dispose()
+      // Agent commands are stopped by their process groups first; a tmux run outlives its shell.
+      if (!enabled) {
+        void terminal.stopAgentCommands().then(() => {
+          // Switched back on while the commands stopped: the shells opened since are the user's.
+          if (!desktopSettings.getPreferences().terminalEnabled) terminal.dispose()
+        })
+      }
+      desktopExecutor.refreshRegistration()
     },
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
@@ -539,6 +580,50 @@ function main(): void {
         : await dialog.showOpenDialog(options)
       return result.canceled ? null : (result.filePaths[0] ?? null)
     },
+  })
+
+  const approvalNotifier = createApprovalNotifier({
+    preferences: () => desktopSettings.getPreferences(),
+    focusedChatId: () => {
+      const win = focusedAppWindow()
+      if (!win) return null
+      const route = routeFromAppUrl(win.webContents.getURL())
+      return route ? (/\/chat\/([^/?#]+)/.exec(route)?.[1] ?? null) : null
+    },
+    openRoute: (route) => void openMainWindowAt(route),
+    createNotification: (options) =>
+      Notification.isSupported() ? new Notification(options) : null,
+  })
+
+  const desktopExecutor = createDesktopExecutorService({
+    userDataPath,
+    origin: appOrigin,
+    appSession: ensureAppSession,
+    preferences: () => desktopSettings.getPreferences(),
+    accountDataAvailable,
+    onApprovals: (items) => approvalNotifier.update(items),
+    runner: createDesktopToolRunner({
+      preferences: () => desktopSettings.getPreferences(),
+      accountDataAvailable,
+      browser: {
+        executeTool: executeAgentBrowserTool,
+        cancelTool: cancelAgentBrowserTool,
+        hasSession: hasBrowserScopeSession,
+        restoreScope: restoreAgentBrowserScope,
+      },
+      terminal,
+      localFiles: {
+        read: (call) =>
+          executeLocalFileRequest(
+            { operation: 'read', toolCallId: call.toolCallId },
+            { toolName: call.toolName, args: call.args }
+          ),
+      },
+      localFilesystem: {
+        handle: (request) => localFilesystem.handle(request),
+        vfsRoot: mountVfsRoot,
+      },
+    }),
   })
 
   const serverWindow = createServerWindow({
@@ -684,7 +769,14 @@ function main(): void {
         ...(kind === 'account' && origin
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
-              { label: 'terminal sessions', clear: () => terminal.dispose() },
+              { label: 'background executor', clear: () => desktopExecutor.signOut() },
+              {
+                label: 'terminal sessions',
+                clear: async () => {
+                  await terminal.stopAgentCommands()
+                  terminal.dispose()
+                },
+              },
               { label: 'task resource state', clear: clearDesktopChatSessions },
               {
                 label: 'app session storage',
@@ -852,7 +944,15 @@ function main(): void {
         getConfiguration: () => serverWindow.getConfiguration(),
         setOrigin: (origin) => serverWindow.setOrigin(origin),
       },
+      getExecutorDevice: () => desktopExecutor.getDevice(),
     })
+    if (accountDataAvailable()) {
+      // A sign-in, or a session rotation, binds the device to the new session.
+      ensureAppSession().cookies.on('changed', (_event, cookie, _cause, removed) => {
+        if (!removed && isSessionCookieName(cookie.name)) desktopExecutor.refreshRegistration()
+      })
+      desktopExecutor.start()
+    }
     await ensureMainWindow()
     // Rebuilt after a shell choice so the radio reflects it; Electron menus
     // are immutable once built.

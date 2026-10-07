@@ -38,22 +38,29 @@ export function mothershipEffortOptions(model: ModelSelection['model']) {
     : MOTHERSHIP_EFFORT_OPTIONS
 }
 
-/** Shared by the visible controls, send path and server admission so hidden preferences cannot leak. */
+/**
+ * Shared by the visible controls, send path and server admission so hidden preferences cannot leak.
+ * Without the model picker no selection is sent, so the worker routes every model role itself.
+ */
 export function resolveMothershipModelSettings(
   settings: { effort?: MothershipEffort; modelSelection?: ModelSelection },
   advanced: boolean
-): { effort: MothershipEffort; modelSelection: ModelSelection } {
+): { effort: MothershipEffort; modelSelection: ModelSelection | undefined } {
   let effort = settings.effort ?? DEFAULT_MOTHERSHIP_EFFORT
   if (!advanced) {
     if (effort === 'none') effort = DEFAULT_MOTHERSHIP_EFFORT
     if (effort === 'max') effort = 'xhigh'
-    return { effort, modelSelection: { model: 'gpt-6-astra', fastMode: false } }
+    return { effort, modelSelection: undefined }
   }
-  const stored = settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
+  const modelSelection = normalizeModelSelection(
+    settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
+  )
+  if (effort === 'none' && modelSelection.model !== 'gpt-6-sol') effort = DEFAULT_MOTHERSHIP_EFFORT
+  return { effort, modelSelection }
+}
+
+/** A stored pick on the current catalog: Opus 5 reads as Opus 5.5, which has no Fast mode. */
+export function normalizeModelSelection(stored: ModelSelection): ModelSelection {
   const model = stored.model === 'claude-opus-5' ? 'claude-opus-5-5' : stored.model
-  if (effort === 'none' && model !== 'gpt-6-sol') effort = DEFAULT_MOTHERSHIP_EFFORT
-  return {
-    effort,
-    modelSelection: { model, fastMode: model === 'claude-opus-5-5' ? false : stored.fastMode },
-  }
+  return { model, fastMode: model === 'claude-opus-5-5' ? false : stored.fastMode }
 }

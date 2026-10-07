@@ -523,10 +523,13 @@
         "@sim/browser-protocol": "workspace:*",
         "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
+        "micromatch": "4.0.8",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
+        "@types/micromatch": "4.0.10",
         "typescript": "^7.0.2",
+        "vitest": "^5.0.1",
       },
     },
     "packages/emcn": {

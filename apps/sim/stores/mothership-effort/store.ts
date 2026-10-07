@@ -2,10 +2,7 @@ import { omit, toRecord } from '@sim/utils/object'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { type ModelSelection, ModelSelectionSchema } from '@/lib/mothership/generated/protocol'
-import {
-  type MothershipEffort,
-  resolveMothershipModelSettings,
-} from '@/lib/mothership/model-options'
+import { type MothershipEffort, normalizeModelSelection } from '@/lib/mothership/model-options'
 
 /** A chat's effort pick and the token that tells it apart from other picks of the same value. */
 interface ChatEffortPick {
@@ -52,7 +49,7 @@ let lastChatEffortPick = 0
 function withModelSelection(
   modelSelection: ModelSelection
 ): Pick<MothershipEffortState, 'modelSelection'> {
-  return { modelSelection: resolveMothershipModelSettings({ modelSelection }, true).modelSelection }
+  return { modelSelection: normalizeModelSelection(modelSelection) }
 }
 
 export const useMothershipEffortStore = create<MothershipEffortState>()(

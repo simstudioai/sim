@@ -1175,7 +1175,7 @@ export function usePromptEditor({
 
     // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
     // paste-back. Rewrite each link span to its `@label ` token (the trailing
-    // space is REQUIRED so useContextManagement's sync effect doesn't purge the
+    // space is REQUIRED so useContextManagement's pruning doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
     const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
@@ -1198,7 +1198,7 @@ export function usePromptEditor({
         pastedContexts.push(ctx)
         // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
         // else) so the chip re-renders with its proper trigger glyph and the
-        // context-sync effect (keyed on the same per-kind prefix) keeps it. Append
+        // context pruning (keyed on the same per-kind prefix) keeps it. Append
         // a single separator ONLY when the next source char is non-whitespace
         // (chip→chip / chip→word); existing whitespace and end-of-string already
         // supply the boundary, so re-pasting never accumulates spaces.
@@ -1312,7 +1312,7 @@ export function usePromptEditor({
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       // When the selection holds a portable chip (skill or resource) we take over
       // the clipboard, so the selected text must be removed here (default prevented).
-      // Either way the context-sync effect prunes contexts whose token is now gone.
+      // Either way the context pruning drops contexts whose token is now gone.
       if (!writeSanitizedClipboard(e)) return
       const textarea = e.currentTarget
       const start = textarea.selectionStart ?? 0

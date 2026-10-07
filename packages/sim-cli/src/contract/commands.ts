@@ -419,6 +419,16 @@ export const CLI_CONTRACT: CliContract = {
   getLog: {
     describe: 'Show run diagnostics',
     expandedTrace: true,
+    flags: {
+      // The snapshot repeats the block configuration `workflows get` already
+      // serves, and is the bulk of a log after its trace. An agent diagnosing a
+      // run reads the trace, so the agent's invocations leave it out unless asked.
+      includeWorkflowState: {
+        embeddedRequestDefault: 'false',
+        describe:
+          'Include the saved workflow snapshot (default: true; Sim’s in-app agent leaves it out unless this flag is passed). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
     fields: [
       { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflow.name' },
@@ -1926,6 +1936,12 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Its embedded default lives with the synchronous request in
+      // `workflow-run-follow.ts`, because an `--async` run rejects the field.
+      includeFileBase64: {
+        describe:
+          'Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true.',
+      },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling
       // surfaced. The describe denies idempotency outright because the name

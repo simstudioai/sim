@@ -289,6 +289,7 @@ describe('registerIpcHandlers', () => {
     mockCoordinator.fillCredential.mockClear()
     deps = {
       appOrigin: () => APP,
+      getExecutorDevice: () => null,
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
