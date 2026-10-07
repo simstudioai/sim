@@ -14,11 +14,13 @@
  */
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { createLogger } from '@sim/logger'
 
 interface JsonReport {
   testResults: { name: string; startTime: number; endTime: number }[]
 }
 
+const logger = createLogger('UpdateIntegrationDurations')
 const REPORT_NAME = 'integration.json'
 const ROOT = path.resolve(import.meta.dir, '..')
 const OUTPUT = path.join(ROOT, 'vitest.integration-durations.json')
@@ -38,7 +40,7 @@ function repoPath(absolute: string): string | null {
 
 const source = process.argv[2]
 if (!source) {
-  console.error('Usage: bun run scripts/update-integration-durations.ts <downloaded-reports-dir>')
+  logger.error('Usage: bun run scripts/update-integration-durations.ts <downloaded-reports-dir>')
   process.exit(1)
 }
 
@@ -62,7 +64,7 @@ for (const reportPath of reports) {
 }
 
 if (samples.size === 0) {
-  console.error(`No ${REPORT_NAME} reports with test results under ${source}`)
+  logger.error(`No ${REPORT_NAME} reports with test results under ${source}`)
   process.exit(1)
 }
 
@@ -74,4 +76,4 @@ const durations = Object.fromEntries(
   })
 )
 await writeFile(OUTPUT, `${JSON.stringify(durations, null, 2)}\n`)
-console.log(`Wrote ${samples.size} file weights from ${reports.length} reports to ${OUTPUT}`)
+logger.info(`Wrote ${samples.size} file weights from ${reports.length} reports to ${OUTPUT}`)

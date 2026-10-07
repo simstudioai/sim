@@ -27,6 +27,8 @@ export default defineConfig({
 
 /** Seconds a file of unknown duration is assumed to take: about the median measured file. */
 const UNKNOWN_FILE_SECONDS = 6
+/** Floor for any file: one that skips every test in CI still pays its import and collection. */
+const MIN_FILE_SECONDS = 1
 const DURATIONS_FILE = 'vitest.integration-durations.json'
 
 function findRepoRoot(from: string): string {
@@ -63,7 +65,11 @@ class DurationBalancedSequencer extends BaseSequencer {
 
     const weighted = files.map((spec) => {
       const key = path.relative(root, spec.moduleId).split(path.sep).join('/')
-      return { spec, key, seconds: durations[key] ?? UNKNOWN_FILE_SECONDS }
+      return {
+        spec,
+        key,
+        seconds: Math.max(durations[key] ?? UNKNOWN_FILE_SECONDS, MIN_FILE_SECONDS),
+      }
     })
     weighted.sort((a, b) => b.seconds - a.seconds || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 
