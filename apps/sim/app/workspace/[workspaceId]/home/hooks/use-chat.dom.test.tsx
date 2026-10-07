@@ -92,6 +92,7 @@ import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
+import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import {
   readQueuedSendHandoffState,
   writeQueuedSendHandoffState,
@@ -4700,6 +4701,94 @@ describe('useChat remount send recovery', () => {
       { params: { chatId: DEDUPED_CHAT_ID }, body: { effort: 'high' } },
     ])
   })
+
+  it('keeps the new-chat effort across the composer swap of a first send that fails', async () => {
+    useMothershipEffortStore.getState().reset()
+    const post = Promise.withResolvers<Response>()
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+        return fetchStub(input, init)
+      }
+      state.postBodies.push(JSON.parse(String(init.body)))
+      return post.promise
+    })
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    mountedRoots.push(root)
+    let result: ReturnType<typeof useChat> | undefined
+    /** Like home.tsx: the empty-state composer swaps for the chat view's once messages show. */
+    function HomeLike() {
+      result = useChat('ws-1', undefined)
+      return result.messages.length > 0 ? (
+        <section key='chat'>
+          <ModelSelector />
+        </section>
+      ) : (
+        <main key='empty'>
+          <ModelSelector />
+        </main>
+      )
+    }
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <HomeLike />
+        </QueryClientProvider>
+      )
+    })
+    const shownEffort = () =>
+      container.querySelector('[aria-label="Reasoning effort"]')?.getAttribute('aria-description')
+    act(() => useMothershipEffortStore.getState().setNewChatEffort('low'))
+    expect(shownEffort()).toBe('Low')
+
+    await act(async () => {
+      void result?.sendMessage('Plan the launch')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0].effort).toBe('low')
+    expect(container.querySelector('section')).not.toBeNull()
+    expect(shownEffort()).toBe('Low')
+
+    await act(async () => {
+      post.reject(new TypeError('Failed to fetch'))
+    })
+    await waitFor(() => container.querySelector('main') !== null)
+
+    expect(useMothershipEffortStore.getState().newChatEffort).toBe('low')
+    expect(shownEffort()).toBe('Low')
+  })
+
+  it.each(['leaves the page', 'opens another chat'] as const)(
+    'drops an unsent new-chat effort when the surface %s',
+    (leave) => {
+      useMothershipEffortStore.getState().reset()
+      ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+      queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const root = createRoot(document.createElement('div'))
+      mountedRoots.push(root)
+      function Surface({ chatId }: { chatId?: string }) {
+        useChat('ws-1', chatId)
+        return null
+      }
+      const render = (chatId?: string) =>
+        act(() =>
+          root.render(
+            <QueryClientProvider client={queryClient}>
+              <Surface chatId={chatId} />
+            </QueryClientProvider>
+          )
+        )
+      render()
+      useMothershipEffortStore.getState().setNewChatEffort('low')
+
+      if (leave === 'leaves the page') act(() => root.unmount())
+      else render('chat-other')
+
+      expect(useMothershipEffortStore.getState().newChatEffort).toBeNull()
+    }
+  )
 
   it('loads the saved transcript once when its own stream completes', async () => {
     const chatId = 'chat-own-completion'

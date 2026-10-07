@@ -1009,6 +1009,13 @@ export function useChat(
       surfaceMountedRef.current = false
     }
   }, [])
+  /* The new-chat effort pick belongs to this surface, not to one composer: it outlives the swap
+     from the empty-state composer to the chat view during a first send, and drops only when the
+     surface leaves the new chat. */
+  useEffect(() => {
+    if (initialChatId) return
+    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
+  }, [initialChatId])
   const tableViewContextsRef = useRef({
     scopeId: desktopScopeId,
     views: new Map<string, MothershipTableViewContext>(),
