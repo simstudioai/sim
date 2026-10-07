@@ -58,6 +58,7 @@ import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/applica
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { createFileCopyAuthorizer } from '@/lib/workspace-files/application/copy-authorization'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -1079,6 +1080,143 @@ describe('Project file authority at the database boundary', () => {
       expect((await projectTransport(`${endpoint}${filePath}`)).status).toBe(200)
       context.boundWorkflowExecutionId = 'workflow-run'
       expect((await transport(`${endpoint}${filePath}`)).status).toBe(403)
+    }
+  )
+})
+
+describe('shared file identity and current actor authority', () => {
+  check('creator attribution grants neither scope access nor access after departure', async () => {
+    const f = await fixture()
+    const workspaceFileId = generateId()
+    const projectFileId = generateId()
+    await db.insert(workspaceFiles).values([
+      {
+        id: workspaceFileId,
+        userId: f.readerId,
+        workspaceId: f.workspaces[0],
+        context: 'workspace',
+        key: `workspace/${f.workspaces[0]}/${workspaceFileId}`,
+        originalName: 'workspace.md',
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+      },
+      {
+        id: projectFileId,
+        userId: f.readerId,
+        projectId: f.projectId,
+        context: 'project',
+        key: `project/${f.projectId}/${projectFileId}`,
+        originalName: 'project.md',
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+      },
+    ])
+    const workspaceArgs = { principal: f.reader, input: { fileId: workspaceFileId } }
+    const projectArgs = {
+      principal: f.reader,
+      input: { projectId: f.projectId, fileId: projectFileId },
+    }
+    await readWorkspaceFileMetadata.authorize(workspaceArgs)
+    await getProjectFileMetadata.authorize(projectArgs)
+    await expect(
+      readWorkspaceFileMetadata.authorize({
+        ...workspaceArgs,
+        input: { fileId: workspaceFileId, assertedWorkspaceId: f.workspaces[1] },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      readWorkspaceFileMetadata.authorize({ ...workspaceArgs, input: { fileId: projectFileId } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      getProjectFileMetadata.authorize({
+        ...projectArgs,
+        input: { projectId: f.projectId, fileId: workspaceFileId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await db.delete(permissions).where(eq(permissions.userId, f.readerId))
+    await expect(readWorkspaceFileMetadata.authorize(workspaceArgs)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    await expect(getProjectFileMetadata.authorize(projectArgs)).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    const collaborator = createSessionPrincipal({ userId: f.ownerId })
+    await readWorkspaceFileMetadata.authorize({ ...workspaceArgs, principal: collaborator })
+    await getProjectFileMetadata.authorize({ ...projectArgs, principal: collaborator })
+    const rows = await db
+      .select({ userId: workspaceFiles.userId })
+      .from(workspaceFiles)
+      .where(inArray(workspaceFiles.id, [workspaceFileId, projectFileId]))
+    expect(rows.map((row) => row.userId)).toEqual([f.readerId, f.readerId])
+  })
+
+  check(
+    'workspace metadata keeps deleted-file opt-in separate from workspace archival',
+    async () => {
+      const f = await fixture()
+      const fileId = generateId()
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        userId: f.ownerId,
+        workspaceId: f.workspaces[0],
+        context: 'workspace',
+        key: `workspace/${f.workspaces[0]}/${fileId}`,
+        originalName: 'archived.md',
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+        deletedAt: new Date(),
+      })
+      const args = { principal: f.reader, input: { fileId } }
+      await expect(readWorkspaceFileMetadata.authorize(args)).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      await readWorkspaceFileMetadata.authorize({
+        ...args,
+        input: { fileId, includeDeleted: true },
+      })
+      await db
+        .update(workspace)
+        .set({ archivedAt: new Date() })
+        .where(eq(workspace.id, f.workspaces[0]))
+      await expect(
+        readWorkspaceFileMetadata.authorize({ ...args, input: { fileId, includeDeleted: true } })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  )
+
+  check(
+    'a ban or permission revocation during preparation prevents a committed write',
+    async () => {
+      for (const revoke of ['permission', 'ban'] as const) {
+        const f = await fixture()
+        await grant(f.readerId, f.workspaces[0], 'admin')
+        const folderId = generateId()
+        const mutation = defineAuthorizedProjectFileUseCase({
+          operation: projectFileOperations.createFolder,
+          async prepare() {
+            if (revoke === 'ban')
+              await db.update(user).set({ banned: true }).where(eq(user.id, f.readerId))
+            else await grant(f.readerId, f.workspaces[0], 'read')
+            return folderId
+          },
+          async execute({ tx, prepared }) {
+            if (!prepared) throw new Error('Prepared folder ID missing')
+            await tx.insert(folder).values({
+              id: prepared,
+              projectId: f.projectId,
+              userId: f.readerId,
+              resourceType: 'file',
+              name: 'Must not commit',
+            })
+          },
+        })
+        await expect(
+          mutation.execute({ principal: f.reader, input: { projectId: f.projectId } })
+        ).rejects.toMatchObject({ code: 'forbidden' })
+        expect(
+          await db.select({ id: folder.id }).from(folder).where(eq(folder.id, folderId))
+        ).toEqual([])
+      }
     }
   )
 })

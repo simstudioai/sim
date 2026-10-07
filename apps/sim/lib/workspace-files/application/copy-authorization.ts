@@ -1,12 +1,7 @@
-import {
-  type Principal,
-  type ResourceFileCopyScope,
-  requirePrincipalSubjectUserId,
-} from '@sim/auth/principal'
-import { projectWorkspace, user, workspace } from '@sim/db/schema'
+import type { Principal, ResourceFileCopyScope } from '@sim/auth/principal'
+import { projectWorkspace, workspace } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
-import { getActivelyBannedUserIds, isAccountBlocked } from '@/lib/auth/ban'
+import { and, asc, inArray, isNull } from 'drizzle-orm'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import {
   isResourceFileCopyScope,
@@ -36,6 +31,10 @@ import {
   fileCopyOperation,
 } from '@/lib/workspace-files/application/copy-operation'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import {
+  requireCurrentFileSubject,
+  requireFileSubject,
+} from '@/lib/workspace-files/application/subject'
 import {
   type FileOwnerAdapters,
   requireFileOwnerAdapter,
@@ -76,10 +75,10 @@ interface CopyOwnerPolicyInput {
 type CopyOwnerPolicy = (input: CopyOwnerPolicyInput) => Promise<FileCopyOwnerContext>
 
 const COPY_OWNER_POLICIES: FileOwnerAdapters<CopyOwnerPolicy> = {
-  async project({ tx, principal, userId, owner, mode, projects }) {
+  async project({ tx, principal, owner, mode, projects }) {
     const access = projects.get(owner.entityId)
     if (!access) throw new OrchestrationError('not_found', 'Project not found')
-    const context = await requireProjectFileOwnerRole(tx, userId, access, mode)
+    const context = await requireProjectFileOwnerRole(tx, principal, access, mode)
     await requireProjectFileOwnerCapabilities(tx, principal, access, fileCopyOperation.capability)
     return context
   },
@@ -152,10 +151,7 @@ export async function createFileCopyAuthorizer(
   requireCopyPrincipal(principal, input)
   await requireProjectFileApiEnabled()
   // actorless-unsupported: files.copy rejects executors and workspace keys; both owner policies require the acting human.
-  const userId = requirePrincipalSubjectUserId(principal)
-  if ((await getActivelyBannedUserIds([userId])).length) {
-    throw new OrchestrationError('forbidden', 'User account is suspended')
-  }
+  const userId = await requireFileSubject(principal)
   const invocationScope =
     principal.kind === 'resource_delegated'
       ? await resolveCopilotProjectScope(principal)
@@ -224,15 +220,7 @@ export async function createFileCopyAuthorizer(
     ].sort(compareStrings)
     for (const organizationId of organizationIds)
       await acquirePermissionGroupOrgLock(tx, organizationId)
-    const [actor] = await tx
-      .select({ banned: user.banned, banExpires: user.banExpires, suspendedAt: user.suspendedAt })
-      .from(user)
-      .where(eq(user.id, userId))
-      .for('share')
-      .limit(1)
-    if (!actor || isAccountBlocked(actor)) {
-      throw new OrchestrationError('forbidden', 'User account is suspended')
-    }
+    await requireCurrentFileSubject(tx, principal)
     if (principal.kind === 'resource_delegated') {
       if (!invocationScope) throw new Error('Copilot copy invocation was not prepared')
       for (const access of projects.values()) {

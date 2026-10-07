@@ -1,7 +1,6 @@
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import { copilotChats, user, type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
+import { copilotChats, type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import { getActivelyBannedUserIds, isAccountBlocked } from '@/lib/auth/ban'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
@@ -24,7 +23,11 @@ import {
   projectFileOperations,
 } from '@/lib/projects/files/application/operations'
 import { requireProjectFileApiEnabled } from '@/lib/projects/rollout.server'
-import { resolveFileOwner } from '@/lib/workspace-files/ownership'
+import {
+  requireCurrentFileSubject,
+  requireFileSubject,
+} from '@/lib/workspace-files/application/subject'
+import { matchesFileOwner, resolveFileOwner } from '@/lib/workspace-files/ownership'
 
 export interface ProjectFileTarget {
   projectId: string
@@ -153,19 +156,12 @@ export async function requireCurrentCopilotProjectInvocation(
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
 export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
-  userId: string,
+  principal: ProjectFilePrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   accessMode: 'read' | 'write'
 ): Promise<ProjectFileAuthorizationContext> {
   if (access.record.archivedAt) throw new OrchestrationError('conflict', 'Project is archived')
-  const [actor] = await tx
-    .select({ banned: user.banned, banExpires: user.banExpires, suspendedAt: user.suspendedAt })
-    .from(user)
-    .where(eq(user.id, userId))
-    .for('share')
-    .limit(1)
-  if (!actor || isAccountBlocked(actor))
-    throw new OrchestrationError('forbidden', 'User account is suspended')
+  await requireCurrentFileSubject(tx, principal)
   const canWrite =
     access.orgAdmin ||
     access.active.some((row) => row.permission === 'admin') ||
@@ -224,10 +220,7 @@ export async function createProjectFileAuthorizer(
 ): Promise<(tx: DbTransaction) => Promise<ProjectFileAuthorizationContext>> {
   requirePrincipal(principal, operation, input)
   await requireProjectFileApiEnabled()
-  const userId = requirePrincipalSubjectUserId(principal)
-  if ((await getActivelyBannedUserIds([userId])).length) {
-    throw new OrchestrationError('forbidden', 'User account is suspended')
-  }
+  const userId = await requireFileSubject(principal)
   const invocationScope =
     principal.kind === 'resource_delegated' && principal.serviceId === 'copilot'
       ? await resolveCopilotProjectScope(principal)
@@ -236,7 +229,7 @@ export async function createProjectFileAuthorizer(
   return async (tx) => {
     requirePrincipal(principal, operation, input)
     const access = await loadProjectAccess(tx, userId, { projectId: input.projectId })
-    const context = await requireProjectFileOwnerRole(tx, userId, access, operation.access)
+    const context = await requireProjectFileOwnerRole(tx, principal, access, operation.access)
     let file: WorkspaceFileRow | undefined
     if (operation.target === 'file') {
       const query = tx
@@ -253,7 +246,7 @@ export async function createProjectFileAuthorizer(
       const rows = await (operation.access === 'write' ? query : query.for('share')).limit(1)
       file = rows[0]
       const owner = file ? resolveFileOwner(file) : null
-      if (!owner || owner.entityType !== 'project' || owner.entityId !== access.record.id) {
+      if (!matchesFileOwner(owner, context.owner)) {
         throw new OrchestrationError('not_found', 'File not found')
       }
     }

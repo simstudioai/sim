@@ -112,7 +112,7 @@ import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import {
   type EditableFileOwner,
   editableFileOwnerColumns,
-  type FileOwner,
+  matchesFileOwner,
   resolveFileOwner,
 } from '@/lib/workspace-files/ownership'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -2048,63 +2048,12 @@ export async function resolveWorkspaceFileReference(
   return findWorkspaceFileRecord(files, fileReference)
 }
 
-/**
- * Load the canonical authorization context for an active workspace file by resource ID.
- * Database failures propagate so callers never confuse unavailable state with a missing file.
- * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
- */
-export async function loadActiveWorkspaceFileContext(
+async function loadWorkspaceFileContext(
   fileId: string,
-  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
-): Promise<ActiveWorkspaceFileContext | null> {
-  const [context] = await db
-    .select({
-      fileId: workspaceFiles.id,
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
-      ownership: {
-        projectId: workspaceFiles.projectId,
-        context: workspaceFiles.context,
-        workspaceId: workspaceFiles.workspaceId,
-        organizationId: workspaceFiles.organizationId,
-        userId: workspaceFiles.userId,
-        chatId: workspaceFiles.chatId,
-      },
-    })
-    .from(workspaceFiles)
-    .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        workspaceFileContextCondition(options?.includeChatUploads),
-        ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
-        isNull(workspace.archivedAt)
-      )
-    )
-    .limit(1)
-
-  if (
-    !context ||
-    !matchesWorkspaceFileOwner(resolveFileOwner(context.ownership), context.workspaceId)
-  ) {
-    return null
+  options: WorkspaceFileLookupOptions & {
+    includeDeleted?: boolean
+    includeArchivedWorkspace?: boolean
   }
-  return omit(context, ['ownership'])
-}
-
-function matchesWorkspaceFileOwner(owner: FileOwner | null, workspaceId: string): boolean {
-  return owner?.entityType === 'workspace' && owner.entityId === workspaceId
-}
-
-/**
- * Load a workspace file for a lifecycle transition, including archived files.
- * The workspace archive state is returned by the canonical workspace record and is enforced by
- * the operation's manager primitive where the transition requires an active workspace.
- */
-export async function loadWorkspaceFileLifecycleContext(
-  fileId: string
 ): Promise<WorkspaceFileLifecycleContext | null> {
   const [context] = await db
     .select({
@@ -2125,16 +2074,45 @@ export async function loadWorkspaceFileLifecycleContext(
     })
     .from(workspaceFiles)
     .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
-    .where(and(eq(workspaceFiles.id, fileId), eq(workspaceFiles.context, 'workspace')))
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        workspaceFileContextCondition(options.includeChatUploads),
+        options.includeDeleted ? undefined : isNull(workspaceFiles.deletedAt),
+        options.includeArchivedWorkspace ? undefined : isNull(workspace.archivedAt)
+      )
+    )
     .limit(1)
 
   if (
     !context ||
-    !matchesWorkspaceFileOwner(resolveFileOwner(context.ownership), context.workspaceId)
+    !matchesFileOwner(resolveFileOwner(context.ownership), {
+      entityType: 'workspace',
+      entityId: context.workspaceId,
+    })
   ) {
     return null
   }
   return omit(context, ['ownership'])
+}
+
+/** Loads canonical active-workspace identity; chat uploads and deleted files require explicit opt-in. */
+export async function loadActiveWorkspaceFileContext(
+  fileId: string,
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
+): Promise<ActiveWorkspaceFileContext | null> {
+  const context = await loadWorkspaceFileContext(fileId, {
+    includeDeleted: options?.includeDeleted,
+    includeChatUploads: options?.includeChatUploads,
+  })
+  return context ? omit(context, ['deletedAt']) : null
+}
+
+/** Loads workspace files for lifecycle transitions; the manager enforces the operation's archive policy. */
+export async function loadWorkspaceFileLifecycleContext(
+  fileId: string
+): Promise<WorkspaceFileLifecycleContext | null> {
+  return loadWorkspaceFileContext(fileId, { includeDeleted: true, includeArchivedWorkspace: true })
 }
 
 /**
