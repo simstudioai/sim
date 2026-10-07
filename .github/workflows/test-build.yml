@@ -442,10 +442,44 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Pull requests run the live desktop suite only when they touch what it exercises.
+  desktop-live-changes:
+    name: Detect desktop tool changes
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ github.event_name != 'pull_request' || steps.filter.outputs.desktop == 'true' }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        id: filter
+        with:
+          filters: |
+            desktop:
+              - '.github/workflows/test-build.yml'
+              - '.github/scripts/stop-session.sh'
+              - 'apps/desktop/**'
+              - 'apps/realtime/**'
+              - 'apps/sim/app/api/copilot/**'
+              - 'apps/sim/app/api/desktop/**'
+              - 'apps/sim/app/api/mothership/**'
+              - 'apps/sim/app/workspace/*/home/**'
+              - 'apps/sim/lib/auth/**'
+              - 'apps/sim/lib/desktop/**'
+              - 'apps/sim/lib/mothership/**'
+              - 'apps/sim/stores/**'
+              - 'packages/browser-protocol/**'
+              - 'packages/db/**'
+              - 'packages/desktop-bridge/**'
+              - 'packages/terminal-protocol/**'
+              - 'bun.lock'
+
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
   desktop-live-e2e:
     name: Desktop tools against a local app
+    needs: desktop-live-changes
+    if: needs.desktop-live-changes.outputs.changed == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     services:
@@ -518,16 +552,18 @@ jobs:
           (cd apps/desktop && bun run scripts/build.ts)
           # Each app runs in its own session under an E2E_APP tag, and stop-session.sh returns once
           # every process it started has exited.
+          realtime_tag="desktop-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          server_tag="desktop-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
           (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
-            E2E_APP=desktop-realtime exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
+            E2E_APP="$realtime_tag" exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
           realtime_pid=$!
-          (cd apps/sim && E2E_APP=desktop-tools exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+          (cd apps/sim && E2E_APP="$server_tag" exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
             --port 3021 > "$report_dir/desktop-tools-next.log" 2>&1) &
           server_pid=$!
           finish() {
             status=$?
-            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" desktop-tools || status=1
-            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" desktop-realtime || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag" || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
             wait "$server_pid" "$realtime_pid" 2>/dev/null || true
             exit "$status"
           }
@@ -548,7 +584,7 @@ jobs:
           SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
           SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
-            --output "$report_dir/desktop-tools-results"
+            --output "$report_dir/desktop-tools-results" --retries=0
 
       - name: Upload Electron E2E results and server logs
         if: failure()

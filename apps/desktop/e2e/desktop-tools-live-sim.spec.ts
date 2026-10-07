@@ -108,9 +108,12 @@ test.describe('desktop tools against a live Sim', () => {
   })
 
   /**
-   * A dev app compiles each route on its first request, which can outlast the timeouts the
-   * tests depend on (Electron gives a tool authorization 8 s). One full pass over every route,
-   * page and client chunk the tests use compiles them all before any timed step.
+   * A dev app compiles each route on its first request, one at a time, so a route first reached
+   * mid-test stalls every other request (Electron gives a tool authorization 8 s). The warm-up runs
+   * the tests' own flows once: a read and an import, a chat switch during a live turn and back,
+   * Stop, and the login page. It then waits until every request the app made has been answered,
+   * so no route the tests reach is left to compile. It ends with a marker request
+   * (`/api/health?e2e=warm-up-done`) so the dev server's log shows anything compiled after it.
    */
   async function warmUp(): Promise<void> {
     scratch = mkdtempSync(join(tmpdir(), 'sim-desktop-tools-warm-'))
@@ -121,23 +124,31 @@ test.describe('desktop tools against a live Sim', () => {
         Cookie: `better-auth.session_token=${user.cookie}`,
         Origin: proxy.origin,
       }
-      const compile = (path: string, method: 'GET' | 'POST' = 'GET') =>
+      const compile = (path: string, method: 'GET' | 'POST' | 'PUT' = 'GET') =>
         fetch(new URL(path, sim.upstream), {
           method,
           headers,
-          body: method === 'POST' ? '{}' : undefined,
+          body: method === 'GET' ? undefined : '{}',
           redirect: 'manual',
           signal: AbortSignal.timeout(COMPILE_MS),
         }).then((response) => response.arrayBuffer())
+      // Routes the tests reach that a warm-up turn alone would not: Stop's, registration, and the
+      // ones a running app loads in the background.
       for (const path of [
         chatPath(user, 'Warm chat'),
         '/login',
         `/api/mothership/chats/${user.chats['Warm other chat']}`,
+        `/api/mothership/chat/stream?chatId=${user.chats['Warm chat']}`,
         `/api/workspaces/${user.workspaceId}/files/folders`,
+        '/api/copilot/chats',
+        '/api/users/me/settings',
+        '/api/auth/oauth/connections',
       ])
         await compile(path)
       for (const path of [
         '/api/mothership/chat/stop',
+        '/api/mothership/chat/abort',
+        '/api/desktop/devices',
         '/api/desktop/tool/authorize',
         '/api/copilot/confirm',
         '/api/files/uploads',
@@ -146,21 +157,49 @@ test.describe('desktop tools against a live Sim', () => {
         `/api/workspaces/${user.workspaceId}/files/folders`,
       ])
         await compile(path, 'POST')
+      await compile('/api/v2/uploads/warm-up', 'PUT')
 
       const file = writeFile(join(scratch, 'warm.txt'), 'warm')
+      const folder = join(scratch, 'Warm folder')
+      writeFile(join(folder, 'warm.txt'), 'warm')
+      let proceed!: () => void
+      const proceeding = new Promise<void>((resolve) => {
+        proceed = resolve
+      })
       agent.script(
         '[warm-up]',
-        (turn) => {
+        async (turn) => {
+          turn.text('Warming up.')
+          await proceeding
           turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
+          turn.toolCall({
+            toolName: 'import_local_files',
+            args: { path: folder, targetWorkspaceId: user.workspaceId },
+          })
           turn.pause()
         },
         (_resume, turn) => turn.complete('Warmed up.')
       )
+      agent.script('[warm-stop]', async (turn) => {
+        turn.text('Stopping soon.')
+        await new Promise<void>(() => {})
+      })
       const page = await openApp(user, 'Warm chat', COMPILE_MS)
-      await send(page, '[warm-up] read it', COMPILE_MS)
-      await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: 2 * COMPILE_MS })
+      await send(page, '[warm-up] read and import', COMPILE_MS)
+      await expect(page.getByText('Warming up.')).toBeVisible({ timeout: COMPILE_MS })
+      // Leaving and reopening a chat while its turn runs re-attaches to the turn's stream.
       await openChat(page, user, 'Warm other chat', COMPILE_MS)
       await openChat(page, user, 'Warm chat', COMPILE_MS)
+      proceed()
+      await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: 2 * COMPILE_MS })
+      await send(page, '[warm-stop] wait for Stop', COMPILE_MS)
+      await expect(page.getByText('Stopping soon.')).toBeVisible({ timeout: COMPILE_MS })
+      await click(page, page.getByRole('button', { name: 'Stop generation' }), COMPILE_MS)
+      await expect(page.getByRole('button', { name: 'Stop generation' })).toBeHidden({
+        timeout: COMPILE_MS,
+      })
+      await proxy.settled(COMPILE_MS)
+      await compile('/api/health?e2e=warm-up-done')
     } finally {
       await app?.close().catch(() => {})
       app = undefined
@@ -233,23 +272,22 @@ test.describe('desktop tools against a live Sim', () => {
   }
 
   /**
-   * Sends `message` and waits until the turn reached Sim. A page still hydrating can drop the
-   * typed text (the Send button only shows for a non-empty message) or the click, so the message
-   * is typed and sent again only while no turn went out.
+   * Sends `message` and waits for its turn to reach Sim. Before the page hydrates, typing or the
+   * click can be lost: the Send button is missing or does nothing and the composer is not emptied,
+   * and only then is the message typed and sent again. Once the UI takes the message (the
+   * composer empties after the click), a turn that never reaches Sim is a lost send and fails.
    */
   async function send(page: Page, message: string, timeout = 60_000): Promise<void> {
     const since = Date.now()
+    const deadline = since + timeout
     const sent = () =>
       proxy
         .seen(since)
         .some((entry) => entry.method === 'POST' && entry.path === '/api/mothership/chat')
-    const deadline = Date.now() + timeout
     while (!sent()) {
       if (Date.now() > deadline)
         throw new Error(
-          `The message was never sent: ${message} (composer: ${JSON.stringify(
-            await composer(page).inputValue()
-          )}; errors: ${pageErrors.join(' | ')})`
+          `The UI never took the message: ${message} (errors: ${pageErrors.join(' | ')})`
         )
       if ((await composer(page).inputValue()) !== message) await composer(page).fill(message)
       const clicked = await click(page, page.getByRole('button', { name: 'Send message' }), 5_000)
@@ -258,11 +296,21 @@ test.describe('desktop tools against a live Sim', () => {
           if (String(error).includes('Next.js error overlay')) throw error
           return false
         })
-      if (clicked)
-        await expect
-          .poll(sent, { timeout: 10_000 })
-          .toBe(true)
-          .catch(() => {})
+      if (!clicked) continue
+      const taken = await expect
+        .poll(() => composer(page).inputValue(), { timeout: 5_000 })
+        .toBe('')
+        .then(
+          () => true,
+          () => false
+        )
+      if (!taken) continue
+      await expect
+        .poll(sent, {
+          timeout: Math.max(deadline - Date.now(), 30_000),
+          message: `The UI took the message but its turn never reached Sim: ${message} (errors: ${pageErrors.join(' | ')})`,
+        })
+        .toBe(true)
     }
   }
 
@@ -407,20 +455,18 @@ test.describe('desktop tools against a live Sim', () => {
       .toMatch(/^a\.txt /)
     await laterFolder.arrival(ARRIVAL_MS, 'The next folder')
 
-    // Hold the import's own report until Stop has settled the call, so the outcome is Stop's.
-    const report = proxy.hold(isToolReport)
+    const stoppedAt = Date.now()
     await click(page, page.getByRole('button', { name: 'Stop generation' }))
-    // Stop cancels the import's request in flight, and the import ends and reports.
+    // Stop cancels the import's request in flight, which ends the import, and records the call as
+    // cancelled; the stopped import reports nothing that could contest that record.
     await expect.poll(() => laterFolder.isAbandoned, { timeout: 15_000 }).toBe(true)
-    const reported = await report.arrival(ARRIVAL_MS, 'The import’s report')
-    await expect.poll(async () => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
+    await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     laterFolder.release()
-    report.release()
-    // The late report is answered without overwriting what Stop recorded.
-    await expect.poll(() => reported.status, { timeout: 30_000 }).toBeDefined()
+    expect(proxy.seen(stoppedAt).filter((entry) => isToolReport(entry.method, entry.path))).toEqual(
+      []
+    )
     const [call] = await db.toolCalls(chatId)
     expect(call).toMatchObject({ toolName: 'import_local_files', status: 'cancelled' })
-    // The import has ended, so nothing after the stopped folder can still arrive.
     expect(await db.workspaceFolderNames(user.workspaceId)).not.toContain('later')
     expect(await db.workspaceFileNames(user.workspaceId)).toEqual(['a.txt'])
   })
@@ -449,18 +495,21 @@ test.describe('desktop tools against a live Sim', () => {
     await signOut.arrival(ARRIVAL_MS, 'The sign-out')
     await expect.poll(() => firstUpload.isAbandoned, { timeout: 15_000 }).toBe(true)
     const abandonedAt = Date.now()
-    // The import ended and reported its own failure while the session was still valid.
-    await expect.poll(async () => callState(chatId), { timeout: 30_000 }).toMatch(/^failed/)
+    signOut.release()
+    // The reload into the login page replaces the document, so nothing of the import can run after.
+    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 })
+    firstUpload.release()
+    // Between sign-out and that reload the cancelled import sent nothing more, not even a report.
     const toolRequests = proxy
       .seen(abandonedAt)
       .filter(
         (entry) =>
-          isUploadStart(entry.method, entry.path) || isFolderCreate(entry.method, entry.path)
+          isUploadStart(entry.method, entry.path) ||
+          isFolderCreate(entry.method, entry.path) ||
+          isToolReport(entry.method, entry.path)
       )
     expect(toolRequests).toEqual([])
-    signOut.release()
-    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 })
-    firstUpload.release()
+    expect(await callState(chatId)).toMatch(/^running/)
     expect(await db.workspaceFileNames(user.workspaceId)).toEqual([])
     expect(await db.workspaceFolderNames(user.workspaceId)).not.toContain('later')
   })
@@ -550,16 +599,12 @@ test.describe('desktop tools against a live Sim', () => {
     const chatId = user.chats['Stop chat']
     // Delivered to Sim on release even should Electron have given up on it meanwhile.
     const lateClaim = proxy.hold(isDesktopClaim, { deliverIfAbandoned: true })
-    // Should Electron give up on the held claim first, the read reports its own failure; hold that
-    // too, so the call's outcome is Stop's.
-    const report = proxy.hold(isToolReport)
     await send(page, '[stopped-claim] read my secret')
     const claim = await lateClaim.arrival(ARRIVAL_MS, 'The read’s claim')
     await click(page, page.getByRole('button', { name: 'Stop generation' }))
     // Stop settles the call nobody has claimed yet as never started.
     await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     lateClaim.release()
-    report.release()
     // The claim held across Stop reaches Sim after it and is refused, and so is a replay of it.
     await expect.poll(() => claim.status, { timeout: 15_000 }).toBe(410)
     const [call] = await db.toolCalls(chatId)
@@ -603,8 +648,13 @@ test.describe('desktop tools against a live Sim', () => {
         }),
         signal: AbortSignal.timeout(COMPILE_MS),
       })
+      // Each layer of the dormant executor is checked on its own (soft), so a regression shows
+      // every layer it reaches: the answer to registration, the device record, the turn's
+      // binding, the routes the app calls, and the doorbell.
       expect(registration.status).toBe(200)
-      expect(await registration.json()).toMatchObject({ enabled: false })
+      expect
+        .soft(await registration.json(), 'registration answer')
+        .toMatchObject({ enabled: false })
       proxy.rewriteChatBody((body) => {
         const desktop = toRecord(body.desktopCapabilities)
         // The app offers its own install when it speaks the executor protocol; otherwise offer
@@ -630,33 +680,43 @@ test.describe('desktop tools against a live Sim', () => {
       const since = Date.now()
       const page = await openApp(user, 'Round trip')
       await send(page, '[round-trip] what does my plan say?')
-      await expect(page.getByText('The plan says go.')).toBeVisible({ timeout: 60_000 })
+      await expect
+        .soft(page.getByText('The plan says go.'), 'foreground round trip')
+        .toBeVisible({ timeout: 60_000 })
+      expect.soft(agent.resultFor(callId)?.success, 'read result').toBe(true)
+      expect(proxy.rewrittenChatBodies).toBeGreaterThan(0)
 
-      expect(agent.resultFor(callId)?.success).toBe(true)
-      expect(await db.desktopDeviceCount(user.userId)).toBe(0)
-      const runs = await db.runs(user.chats['Round trip'])
-      expect(runs.length).toBeGreaterThan(0)
-      for (const run of runs) expect(run.desktopDeviceId).toBeNull()
-      const [call] = await db.toolCalls(user.chats['Round trip'])
-      expect(call).toMatchObject({ toolName: 'read_local_file', status: 'completed' })
-      expect(call.persistSeq).not.toBeNull()
-      // From launch on, the app only registers and claims the foreground call: no inbox, doorbell,
-      // executor claim, lease or completion. It registers once signed out (refused) and again on
-      // sign-in, which Sim answers as not enabled and does not record.
+      // The app registers once signed out (refused) and again on sign-in.
       const registeredSignedIn = () =>
         proxy
           .seen(since, '/api/desktop/devices')
           .some((entry) => entry.method === 'POST' && entry.status === 200)
       await expect.poll(registeredSignedIn, { timeout: 30_000 }).toBe(true)
-      expect(await db.desktopDeviceCount(user.userId)).toBe(0)
-      const desktopRequests = proxy.seen(since, '/api/desktop/')
-      const desktopRoutes = new Set(desktopRequests.map((entry) => entry.path))
-      expect(desktopRoutes).toContain('/api/desktop/tool/authorize')
+      expect.soft(await db.desktopDeviceCount(user.userId), 'device records').toBe(0)
+
+      const runs = await db.runs(user.chats['Round trip'])
+      expect(runs.length).toBeGreaterThan(0)
+      expect
+        .soft(
+          runs.map((run) => run.desktopDeviceId),
+          'turn binding'
+        )
+        .toEqual(runs.map(() => null))
+      const [call] = await db.toolCalls(user.chats['Round trip'])
+      expect
+        .soft(call, 'foreground call')
+        .toMatchObject({ toolName: 'read_local_file', status: 'completed' })
+      expect.soft(call?.persistSeq, 'persist order').not.toBeNull()
+
+      // Only registration and the foreground claim: no inbox, doorbell stream, executor claim,
+      // lease or completion.
+      const desktopRoutes = new Set(proxy.seen(since, '/api/desktop/').map((entry) => entry.path))
       desktopRoutes.delete('/api/desktop/devices')
-      expect(desktopRoutes).toEqual(new Set(['/api/desktop/tool/authorize']))
-      expect(proxy.rewrittenChatBodies).toBeGreaterThan(0)
+      expect
+        .soft(desktopRoutes, 'desktop routes the app called')
+        .toEqual(new Set(['/api/desktop/tool/authorize']))
       expect(monitor.lines.length).toBeGreaterThan(0)
-      expect(monitor.publishesTo('desktop:inbox')).toEqual([])
+      expect.soft(monitor.publishesTo('desktop:inbox'), 'doorbell').toEqual([])
     } finally {
       monitor.stop()
     }

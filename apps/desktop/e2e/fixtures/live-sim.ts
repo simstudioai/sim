@@ -238,6 +238,27 @@ export class SimProxy {
     this.chatBodyRewrite = rewrite
   }
 
+  /**
+   * Resolves once every request the app made has been answered (held ones aside), staying so for
+   * a moment, which on a dev app means none is waiting on a route to compile.
+   */
+  async settled(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    let quietSince = Date.now()
+    for (;;) {
+      const waiting = this.requests.filter(
+        (entry) => entry.status === undefined && entry.clientClosedAt === undefined
+      )
+      if (waiting.length > this.holds.length) quietSince = Date.now()
+      else if (Date.now() - quietSince >= 3_000) return
+      if (Date.now() > deadline)
+        throw new Error(
+          `Requests still unanswered: ${waiting.map((entry) => entry.path).join(', ')}`
+        )
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+
   /** The requests seen since `since`, optionally only those under a path prefix. */
   seen(since = 0, prefix = '/'): ProxiedRequest[] {
     return this.requests.filter((entry) => entry.at >= since && entry.path.startsWith(prefix))
