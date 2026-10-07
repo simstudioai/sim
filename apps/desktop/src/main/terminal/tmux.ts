@@ -19,7 +19,7 @@
 import { spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { TerminalPaneState } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -544,14 +544,31 @@ export async function killPane(target: string, env: NodeJS.ProcessEnv): Promise<
 }
 
 /**
+ * Whether the pane under an untracked run's id was started with that run's own script, whose path
+ * is unique to the run. Every tmux reports a pane's start command, so this holds where tags do not.
+ */
+async function startedByRun(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<boolean> {
+  const script = join(dirname(handle.statusPath), 'run.sh')
+  const shown = await runTmux(
+    ['display-message', '-p', '-t', handle.pane, '#{pane_start_command}'],
+    env
+  )
+  return shown.ok && shown.stdout.includes(script)
+}
+
+/**
  * Closes the pane opened by {@link startRun}, and with it the window once that pane is the last
  * one in it. Only the run's own pane, and only while it is still the run's. An untracked run's
- * pane is closed only once the run has written its exit status: its command has just ended in
- * that pane, so the id is still the one the run opened.
+ * pane is closed only once the run has written its exit status, and only if the pane was started
+ * by the run's own script: a restarted tmux may have handed the id to one of the user's panes.
  */
 export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv): Promise<void> {
   const state = await runPaneState(handle, env)
-  const finishedUntracked = handle.runId === null && state === 'unknown' && isRunComplete(handle)
+  const finishedUntracked =
+    handle.runId === null &&
+    state === 'unknown' &&
+    isRunComplete(handle) &&
+    (await startedByRun(handle, env))
   if (state !== 'ours' && !finishedUntracked) return
   const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
   if (!killed.ok) {

@@ -101,7 +101,7 @@ describe('run status files', () => {
 interface FakeTmuxState {
   nextWindow: number
   nextPane: number
-  panes: Record<string, { window: string; options: Record<string, string> }>
+  panes: Record<string, { window: string; options: Record<string, string>; command?: string }>
   /** Every command that reached a pane: `send-keys %1 C-c`, `kill-pane %1`. */
   log: string[]
   /** Commands the fake fails, with the error tmux would print. */
@@ -149,7 +149,7 @@ switch (args[0]) {
   case 'new-window': {
     const window = '@' + state.nextWindow++
     const pane = '%' + state.nextPane++
-    state.panes[pane] = { window, options: {} }
+    state.panes[pane] = { window, options: {}, command: args[args.length - 1] }
     save()
     // Runs the pane's command for real, the way tmux would, when a test asks for it.
     if (process.env.FAKE_TMUX_EXEC) {
@@ -171,7 +171,13 @@ switch (args[0]) {
     // Like tmux 3.x, a pane that is gone answers with an empty line rather than an error.
     const pane = state.panes[target()]
     const name = args[args.length - 1].slice(2, -1)
-    const value = !pane ? '' : name === 'pane_id' ? target() : (pane.options[name] ?? '')
+    const value = !pane
+      ? ''
+      : name === 'pane_id'
+        ? target()
+        : name === 'pane_start_command'
+          ? (pane.command ?? '')
+          : (pane.options[name] ?? '')
     process.stdout.write(value + '\\n')
     break
   }
@@ -365,6 +371,25 @@ describe('stopping a tmux run touches only its own pane', () => {
     writeFileSync(run.statusPath, '0')
     await closeRunPane(run, tmux.env)
     expect(Object.keys(tmux.read().panes)).toEqual([])
+  })
+
+  it("never closes a pane that took a finished untracked run's id after tmux restarted", async () => {
+    const tmux = fakeTmux()
+    dirs.push(tmux.dir)
+    tmux.write({ ...tmux.read(), fail: { 'set-option': 'invalid option: @sim-run-id' } })
+    const run = await startRun('agent', 'make build', null, tmux.env)
+    if ('error' in run) throw new Error(run.error)
+    writeFileSync(run.statusPath, '0')
+    tmux.restart()
+    // The user's own shell gets the ids the run's pane had.
+    const state = tmux.read()
+    state.panes[run.pane] = { window: run.window, options: {}, command: 'zsh' }
+    tmux.write(state)
+
+    await closeRunPane(run, tmux.env)
+
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
   })
 
   it('lets a tagged run start only once its pane is tagged', async () => {
