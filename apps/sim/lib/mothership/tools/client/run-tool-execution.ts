@@ -186,10 +186,17 @@ function releaseRunToolSlot(
   }
 }
 
-function releaseInterruptedHold(workflowId: string, slot: WorkflowRunSlot, executionId: string) {
+async function releaseInterruptedHold(
+  workflowId: string,
+  slot: WorkflowRunSlot,
+  executionId: string
+): Promise<void> {
   if (slot.owner?.kind !== 'interrupted' || slot.owner.executionId !== executionId) return
-  // A reconnect cancelled by navigating away leaves the settled run marked current.
+  // A reconnect cancelled by navigating away leaves the settled run marked current and its
+  // pointer saved; both go before the next run can write its own.
   clearVisibleExecution(workflowId, executionId)
+  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  if (pointer?.executionId === executionId) await clearExecutionPointer(workflowId)
   slot.owner = null
   admitNextRunTool(workflowId, slot)
 }
@@ -218,7 +225,7 @@ function watchInterruptedExecution(workflowId: string, slot: WorkflowRunSlot): v
         serverSettled = true
         if (isReconnectStreamOpen(workflowId, executionId)) continue
       }
-      releaseInterruptedHold(workflowId, slot, executionId)
+      await releaseInterruptedHold(workflowId, slot, executionId)
       break
     }
     slot.watchingInterrupted = false

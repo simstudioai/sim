@@ -913,6 +913,12 @@ describe('run tool execution cancellation', () => {
         getWorkflowExecution.mockImplementation(() => ({ isExecuting: false }))
       })
 
+      loadExecutionPointer.mockResolvedValue({
+        workflowId: 'wf-1',
+        executionId: 'exec-abandoned',
+        lastEventId: 3,
+      })
+
       executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
       executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
       await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
@@ -928,6 +934,11 @@ describe('run tool execution cancellation', () => {
 
       reconnect.close()
       await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      // The abandoned run's pointer is gone before the next run saves its own.
+      expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+      expect(clearExecutionPointer.mock.invocationCallOrder[0]).toBeLessThan(
+        saveExecutionPointer.mock.invocationCallOrder.at(-1) ?? 0
+      )
       finish('tool-b')
       await drain()
       expect(confirmStatuses()).toEqual([
