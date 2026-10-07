@@ -77,7 +77,7 @@ describe('useMothershipQueueStore rehydration', () => {
     expect(plain?.admissionUnknown).toBeUndefined()
   })
 
-  it('moves the reused id a saved Stop handoff carried onto the entry', async () => {
+  it('moves the reused id a saved Stop handoff carried onto the entry, over its own', async () => {
     const seed = { chatId: 'chat-A', supersededStreamId: 'previous-response', stopRequired: true }
     sessionStorage.setItem(
       'mothership-queue',
@@ -95,6 +95,12 @@ describe('useMothershipQueueStore rehydration', () => {
                 content: 'b',
                 admissionUnknown: false,
                 queuedSendHandoff: { id: 'never-sent', ...seed, userMessageId: 'attempt-2' },
+              },
+              {
+                id: 'both',
+                content: 'c',
+                resumeUserMessageId: 'withdrawn-attempt',
+                queuedSendHandoff: { id: 'both', ...seed, userMessageId: 'send-now-attempt' },
               },
             ],
           },
@@ -119,6 +125,14 @@ describe('useMothershipQueueStore rehydration', () => {
         resumeUserMessageId: 'attempt-2',
         admissionUnknown: false,
         queuedSendHandoff: { id: 'never-sent', ...seed },
+      },
+      {
+        id: 'both',
+        content: 'c',
+        /** The id that build sent: the handoff's, ahead of the entry's. */
+        resumeUserMessageId: 'send-now-attempt',
+        admissionUnknown: true,
+        queuedSendHandoff: { id: 'both', ...seed },
       },
     ])
   })

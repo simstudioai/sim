@@ -34,11 +34,13 @@ export type QueuedMothershipMessage = QueuedMessage & {
    */
   retry?: SendRetry
   /**
-   * Message id of a prior attempt at this send that an unmount cleanup
-   * withdrew. Reused when the entry is dispatched so the server deduplicates
-   * against that attempt — it never sees the client's abort, so a request it
-   * had already accepted still opened the chat and billed the turn. Persisted,
-   * so a retry after a reload deduplicates too.
+   * Message id of an earlier attempt at this send, the one id it goes out
+   * under: a send an unmount cleanup withdrew, a Send-now restored from its
+   * stored Stop handoff, or a dispatch put back in the queue. Reused when the
+   * entry is dispatched so the server deduplicates against that attempt — it
+   * never sees the client's abort, so a request it had already accepted still
+   * opened the chat and billed the turn. Persisted, so a retry after a reload
+   * deduplicates too.
    */
   resumeUserMessageId?: string
 }
