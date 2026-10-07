@@ -1071,6 +1071,22 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
   })
 
+  it('forgets the user input marker when the session closes, so a reused tab id starts clean', () => {
+    const agent = session.ensureAutomationTab()
+    const keyDown = (agent.view as unknown as MockView).webContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-input-event'
+    )?.[1]
+    if (typeof keyDown !== 'function') throw new Error('no before-input-event listener bound')
+    keyDown({ preventDefault: vi.fn() }, { type: 'keyDown', isAutoRepeat: false })
+    expect(session.msSinceUserIntervention()).not.toBeNull()
+
+    session.closeSession()
+    const reopened = session.ensureAutomationTab()
+
+    expect(reopened.id).toBe(agent.id)
+    expect(session.msSinceUserIntervention()).toBeNull()
+  })
+
   it('opens, switches, and closes tabs with stable ids', () => {
     const first = session.ensureTab()
     const second = session.addTab()

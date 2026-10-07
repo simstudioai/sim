@@ -372,6 +372,17 @@ export function escapeRegExp(value: string): string {
 }
 
 /**
+ * Removes every trailing `/`. A backward scan rather than `/\/+$/`: that regex
+ * restarts at each `/` in a long run that does not reach the end, so it is
+ * quadratic in the run length.
+ */
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end--
+  return value.slice(0, end)
+}
+
+/**
  * Escapes the SQL LIKE/ILIKE metacharacters `%`, `_`, and `\` in `value` so
  * each matches itself. Postgres uses `\` as the default LIKE escape character,
  * so the result needs no explicit `ESCAPE` clause.

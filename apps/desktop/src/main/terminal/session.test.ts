@@ -188,4 +188,36 @@ describe('TerminalSession command lifecycle', () => {
       session.dispose()
     }
   })
+
+  it('ends the wait between keystrokes on Stop while the program keeps redrawing', async () => {
+    vi.useFakeTimers()
+    const session = TerminalSession.create({
+      terminalId: 'terminal-redraw',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+    const redraw = setInterval(() => ptyStub.dataHandler?.('frame'), 20)
+    try {
+      const writesBefore = ptyStub.writes.length
+      const stop = new AbortController()
+      let settled = false
+      const typing = session.type('first\nsecond', stop.signal).then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(300)
+      expect(settled).toBe(false)
+
+      stop.abort()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toBe(true)
+      await typing
+
+      expect(ptyStub.writes.slice(writesBefore)).toEqual(['first'])
+    } finally {
+      clearInterval(redraw)
+      session.dispose()
+    }
+  })
 })
