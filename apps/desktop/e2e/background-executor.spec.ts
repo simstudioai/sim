@@ -359,6 +359,11 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; win
       SIM_DESKTOP_USER_DATA: userData,
     },
   })
+  // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own handling
+  // decides their outcome exactly as it does in production.
+  const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
+  app.context().pages().forEach(leaveDialogsToDesktop)
+  app.context().on('page', leaveDialogsToDesktop)
   const window = await app.firstWindow()
   return { app, window }
 }
@@ -728,6 +733,116 @@ test.describe('background executor', () => {
         ).simDesktop.desktopExecutor?.getDevice()
       )
       expect(device).toEqual({ deviceId, protocolVersion: 1 })
+    })
+  })
+
+  test('I: the agent yields its page while the user works in it, then takes it back', async () => {
+    app = (await launch(mkdtempSync(join(tmpdir(), 'sim-executor-i-')))).app
+    const deviceId = await registeredDevice()
+    const opened = sim.issue(deviceId, CHAT_A, 'browser_open_url', {
+      url: `${sim.origin}/counter?chat=I`,
+    })
+    const outline = ((await settled(opened)).data?.snapshot as { outline: string }).outline
+    const button = refFor(outline, 'Count visit')
+
+    const typeInAgentPage = () =>
+      app?.evaluate(({ webContents }) => {
+        const page = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().includes('/counter?chat=I'))
+        page?.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+        page?.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+      })
+    await typeInAgentPage()
+    const click = sim.issue(deviceId, CHAT_A, 'browser_click', { elementId: button })
+    for (let i = 0; i < 4; i++) {
+      await sleep(500)
+      await typeInAgentPage()
+    }
+    const lastUserInputAt = Date.now()
+
+    await check('I: the click waits until the user stops, then runs once', async () => {
+      const completion = await settled(click, 30_000)
+      expect(completion.status, completion.message).toBe('success')
+      expect(completion.at - lastUserInputAt).toBeGreaterThanOrEqual(3_000)
+      await expect.poll(() => sim.hits.get('I')).toBe(1)
+    })
+  })
+
+  test('I: an action the user never stops working long enough for does not run', async () => {
+    app = (await launch(mkdtempSync(join(tmpdir(), 'sim-executor-i2-')))).app
+    const deviceId = await registeredDevice()
+    const opened = sim.issue(deviceId, CHAT_A, 'browser_open_url', {
+      url: `${sim.origin}/counter?chat=I2`,
+    })
+    const outline = ((await settled(opened)).data?.snapshot as { outline: string }).outline
+    const button = refFor(outline, 'Count visit')
+    const typeInAgentPage = () =>
+      app?.evaluate(({ webContents }) => {
+        const page = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().includes('/counter?chat=I2'))
+        page?.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
+        page?.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+      })
+
+    await typeInAgentPage()
+    const click = sim.issue(deviceId, CHAT_A, 'browser_click', { elementId: button })
+    let typing = true
+    const keepTyping = (async () => {
+      while (typing) {
+        await typeInAgentPage()
+        await sleep(1_000)
+      }
+    })()
+
+    await check('I: the click reports it never ran, instead of timing out', async () => {
+      const completion = await settled(click, 60_000)
+      typing = false
+      await keepTyping
+      expect(completion.status).toBe('error')
+      expect(completion.message).toContain('Not run: the user kept working in this page')
+      expect(completion.data).not.toMatchObject({ outcomeUnknown: true })
+      expect(sim.hits.get('I2') ?? 0).toBe(0)
+    })
+  })
+
+  test('J: the machine stays awake only while a chat has work running', async () => {
+    app = (await launch(mkdtempSync(join(tmpdir(), 'sim-executor-j-')))).app
+    await app.evaluate(({ powerSaveBlocker }) => {
+      const log: string[] = []
+      const active = new Set<number>()
+      let next = 1
+      const target = globalThis as typeof globalThis & { __sleepBlocks?: string[] }
+      target.__sleepBlocks = log
+      powerSaveBlocker.start = (type) => {
+        log.push(`start:${type}`)
+        active.add(next)
+        return next++
+      }
+      powerSaveBlocker.stop = (id) => {
+        log.push('stop')
+        active.delete(id)
+        return true
+      }
+      powerSaveBlocker.isStarted = (id) => active.has(id)
+    })
+    const deviceId = await registeredDevice()
+    const sleepLog = () =>
+      app?.evaluate(() => (globalThis as { __sleepBlocks?: string[] }).__sleepBlocks ?? [])
+
+    const run = sim.issue(deviceId, CHAT_B, 'terminal', {
+      operation: 'run',
+      args: { command: 'sleep 3; echo awake', waitSeconds: 30 },
+    })
+    await check('J: a blocker is held while the command runs', async () => {
+      await expect.poll(sleepLog, { timeout: 15_000 }).toEqual(['start:prevent-app-suspension'])
+    })
+    await check('J: it is released once the result is delivered', async () => {
+      await settled(run)
+      await expect
+        .poll(sleepLog, { timeout: 10_000 })
+        .toEqual(['start:prevent-app-suspension', 'stop'])
     })
   })
 })

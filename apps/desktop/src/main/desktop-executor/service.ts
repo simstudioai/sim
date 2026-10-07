@@ -57,6 +57,8 @@ export interface DesktopExecutorServiceDeps {
   accountDataAvailable: () => boolean
   runner: DesktopToolRunner
   onApprovals?: (items: DesktopApprovalItem[]) => void
+  /** Whether any chat has desktop work claimed on this machine changed. */
+  onBusyChange?: (busy: boolean) => void
 }
 
 export interface DesktopExecutorService {
@@ -229,6 +231,7 @@ export function createDesktopExecutorService(
         leaseRenewMs: nextTiming.leaseRenewMs,
         onUnregistered: handleUnrecognized,
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
+        ...(deps.onBusyChange ? { onBusyChange: deps.onBusyChange } : {}),
       })
       await executor.recover()
       // Signed out while recovering: sign-out already disposed this executor.

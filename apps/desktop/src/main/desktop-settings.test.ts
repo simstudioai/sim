@@ -29,6 +29,7 @@ function service(window: { url: string; focused: boolean } | null) {
     setBrowserTheme: vi.fn(),
     setBrowserDefaultZoom: vi.fn(),
     setTerminalDefaultZoom: vi.fn(),
+    setPreventSleepWhileRunning: vi.fn(),
     getDefaultBrowserDownloadDirectory: () => '/tmp',
     chooseBrowserDownloadDirectory: async () => null,
   })

@@ -811,6 +811,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
           : deps.settings.getPreferences(),
     },
+    'desktop:settings:set-prevent-sleep': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setPreventSleepWhileRunning(enabled)
+          : deps.settings.getPreferences(),
+    },
     'desktop:settings:set-appearance': {
       kind: 'invoke',
       gate: 'app-origin',

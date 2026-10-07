@@ -298,6 +298,11 @@ interface BrowserScopeState {
    */
   findingTabId: string | null
   findingRequestId: number | null
+  /**
+   * When the user last clicked, scrolled or typed in the tab the agent drives, and in which tab:
+   * activity in a tab the agent no longer drives (closed, replaced) holds nothing up.
+   */
+  userIntervention: { tabId: string; at: number } | null
 }
 
 function createBrowserScopeState(): BrowserScopeState {
@@ -319,6 +324,7 @@ function createBrowserScopeState(): BrowserScopeState {
     automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
+    userIntervention: null,
   }
 }
 
@@ -2368,6 +2374,7 @@ function initializeTabView(
         return
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
+      if (tab && tab.id === currentScope.automationTabId) noteUserIntervention(tab.id)
       if (tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (mouse.type === 'mouseDown') tab.lastRealUserGestureAt = Date.now()
@@ -2484,6 +2491,14 @@ function initializeTabView(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
       const tab = tabs.find((entry) => entry.view === view)
+      if (
+        !isDispatchingAgentInput(contents) &&
+        input.type === 'keyDown' &&
+        tab &&
+        tab.id === currentScope.automationTabId
+      ) {
+        noteUserIntervention(tab.id)
+      }
       if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
@@ -3117,8 +3132,21 @@ export function claimActiveTabForUser(): AgentTab | null {
   return tab
 }
 
+/** The user just acted in the page the agent drives; the agent yields until they stop. */
+function noteUserIntervention(tabId: string): void {
+  currentScope.userIntervention = { tabId, at: Date.now() }
+}
+
+/** How long ago the user last acted in the tab the agent drives now, or null if never. */
+export function msSinceUserIntervention(): number | null {
+  const intervention = currentScope.userIntervention
+  if (!intervention || intervention.tabId !== currentScope.automationTabId) return null
+  return Math.max(0, Date.now() - intervention.at)
+}
+
 /** Explicit hand-back after takeover lets automation resume in the same page. */
 export function returnAutomationTabToAgent(): void {
+  currentScope.userIntervention = null
   if (currentScope.activeTabId === currentScope.automationTabId) {
     currentScope.visibleTabUserSelected = false
   }

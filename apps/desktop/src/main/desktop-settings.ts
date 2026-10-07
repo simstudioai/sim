@@ -37,6 +37,7 @@ export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
   setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
   setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
+  setPreventSleepWhileRunning(enabled: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
     value: DesktopAppearanceTheme
@@ -60,6 +61,8 @@ interface DesktopSettingsServiceDeps {
   setBrowserEnabled: (enabled: boolean) => void
   /** Ends every open agent shell when the surface is turned off. */
   setTerminalEnabled: (enabled: boolean) => void
+  /** Starts or stops keeping the machine awake for background work already running. */
+  setPreventSleepWhileRunning: (enabled: boolean) => void
   /** Repaints current browser tabs when their persisted appearance changes. */
   setBrowserTheme: (theme: DesktopAppearanceTheme) => void
   /** Applies a new default zoom to current and future browser tabs. */
@@ -93,6 +96,7 @@ function readPreferences(
     browserEnabled: config.get('browserEnabled') ?? true,
     browserSearchSuggestionsEnabled: config.get('browserSearchSuggestionsEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
+    preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
     browserDownloadDirectory:
@@ -173,6 +177,12 @@ export function createDesktopSettingsService(
     setBrowserSearchSuggestionsEnabled(enabled) {
       deps.config.set('browserSearchSuggestionsEnabled', enabled)
       deps.config.flush()
+      return read()
+    },
+    setPreventSleepWhileRunning(enabled) {
+      deps.config.set('preventSleepWhileRunning', enabled)
+      deps.config.flush()
+      deps.setPreventSleepWhileRunning(enabled)
       return read()
     },
     setAppearancePreference(key, value) {
