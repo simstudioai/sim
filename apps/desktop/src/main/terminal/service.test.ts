@@ -662,8 +662,8 @@ describe('agent commands in tmux', () => {
           pane,
           socket: '/tmp/tmux-fake/default',
           callId: 'call-long',
-          // Handed back as still running, with its pane: a restart must leave it be.
-          delivered: true,
+          // Handed back, but only the executor's journal can make that durable.
+          delivered: false,
         },
       ])
 

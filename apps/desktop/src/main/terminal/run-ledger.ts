@@ -27,6 +27,8 @@ export interface RunRecord extends RecordedRun {
    * pane): from then on the model can come back to the pane, so a restart must leave it be.
    */
   delivered: boolean
+  /** A stop for everything (sign-out, Terminal off) could not confirm this run ended. */
+  mustStop?: boolean
 }
 
 export interface RunLedger {
@@ -34,6 +36,8 @@ export interface RunLedger {
   record(run: RunRecord): boolean
   /** Notes that the run's call has handed back its result, with the run still going. */
   markDelivered(runId: string): void
+  /** Notes that the run must be stopped, whatever a later launch would otherwise decide. */
+  markMustStop(runId: string): void
   forget(runId: string): void
   /** Every recorded run; `excludeLive` leaves out runs this process recorded. */
   list(options?: { excludeLive?: boolean }): RunRecord[]
@@ -61,6 +65,7 @@ function parseRecord(text: string): RunRecord | null {
         socket: parsed.socket,
         callId: parsed.callId,
         delivered: parsed.delivered,
+        ...(parsed.mustStop === true ? { mustStop: true } : {}),
       }
     }
   } catch {
@@ -83,6 +88,24 @@ export function createRunLedger(dir: string): RunLedger {
   const live = new Set<string>()
   const pathFor = (runId: string) => join(dir, `${runId}.json`)
 
+  /** Rewrites a saved record; `change` returns null to leave it as it is. */
+  const update = (runId: string, change: (record: RunRecord) => RunRecord | null): void => {
+    if (!RUN_ID.test(runId)) return
+    let record: RunRecord | null = null
+    try {
+      record = parseRecord(readFileSync(pathFor(runId), 'utf8'))
+    } catch {
+      record = null
+    }
+    const changed = record ? change(record) : null
+    if (!changed) return
+    try {
+      writeJsonFileAtomicallySync(pathFor(runId), changed)
+    } catch (error) {
+      logger.warn('Could not update a tmux run record', { error: getErrorMessage(error) })
+    }
+  }
+
   return {
     record(run) {
       if (!RUN_ID.test(run.runId)) return false
@@ -96,20 +119,11 @@ export function createRunLedger(dir: string): RunLedger {
       }
     },
     markDelivered(runId) {
-      if (!RUN_ID.test(runId)) return
-      let record: RunRecord | null = null
-      try {
-        record = parseRecord(readFileSync(pathFor(runId), 'utf8'))
-      } catch {
-        record = null
-      }
-      if (!record || record.delivered) return
-      try {
-        writeJsonFileAtomicallySync(pathFor(runId), { ...record, delivered: true })
-      } catch (error) {
-        // Left undelivered, a restart stops the run: the conservative side.
-        logger.warn('Could not note a tmux run as handed back', { error: getErrorMessage(error) })
-      }
+      // Left undelivered, a restart stops the run: the conservative side.
+      update(runId, (record) => (record.delivered ? null : { ...record, delivered: true }))
+    },
+    markMustStop(runId) {
+      update(runId, (record) => (record.mustStop ? null : { ...record, mustStop: true }))
     },
     forget(runId) {
       live.delete(runId)

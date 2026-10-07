@@ -88,6 +88,35 @@ describe('stopping recorded tmux runs', () => {
     expect(ledger.list().map((record) => record.runId)).toEqual(['handed-back'])
   })
 
+  it('keeps meaning to stop a run a stop for everything could not confirm', async () => {
+    const dir = ledgerDir()
+    createRunLedger(dir).record(run('unconfirmed', '%1', true))
+    panes.set('unconfirmed', 'unknown')
+    const ledger = createRunLedger(dir)
+    // Sign-out could not confirm the run ended.
+    await new TerminalRegistry(undefined, undefined, ledger).stopAgentCommands()
+    panes.set('unconfirmed', 'running')
+
+    // A later launch for the same user, with the journal cleared, still stops it.
+    await new TerminalRegistry(undefined, undefined, ledger).stopUncollectableRuns(new Set())
+
+    expect(panes.get('unconfirmed')).toBe('stopped')
+    expect(ledger.list()).toEqual([])
+  })
+
+  it('notes a run as handed back once its call result is durable', () => {
+    const dir = ledgerDir()
+    const ledger = createRunLedger(dir)
+    ledger.record(run('watched', '%1'))
+    ledger.record(run('other', '%2'))
+
+    new TerminalRegistry(undefined, undefined, ledger).markRunDelivered('call-watched')
+
+    expect(
+      Object.fromEntries(ledger.list().map((record) => [record.runId, record.delivered]))
+    ).toEqual({ watched: true, other: false })
+  })
+
   it("at launch, stops the previous process's runs and none this one has started", async () => {
     const dir = ledgerDir()
     createRunLedger(dir).record(run('previous', '%1'))

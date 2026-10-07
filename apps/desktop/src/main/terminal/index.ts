@@ -1351,8 +1351,8 @@ export class TerminalService {
       handle.dispose()
     }
     // Still going, it stays tracked, and nothing polls the status file again: `read` captures
-    // the pane instead. Its result now points the model at that pane, so a restart must not end it.
-    if (!outcome.done && handle.runId) ledger?.markDelivered(handle.runId)
+    // the pane instead. Its record is marked handed back only once that result is durable
+    // (the executor's journal); see `TerminalRegistry.markRunDelivered`.
 
     const { text, truncated } = elideOutput(outcome.output)
     return {

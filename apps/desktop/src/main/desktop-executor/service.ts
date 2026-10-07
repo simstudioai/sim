@@ -7,6 +7,7 @@
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import type { DesktopExecutorDevice } from '@sim/desktop-bridge'
+import type { DesktopToolCompletion } from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -61,6 +62,8 @@ export interface DesktopExecutorServiceDeps {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Whether any chat has desktop work claimed on this machine changed. */
   onBusyChange?: (busy: boolean) => void
+  /** A call's result is in the journal, so it reaches Sim even across a restart. */
+  onResultRecorded?: (toolCallId: string, completion: DesktopToolCompletion) => void
 }
 
 export interface DesktopExecutorService {
@@ -245,6 +248,7 @@ export function createDesktopExecutorService(
         onUnregistered: handleUnrecognized,
         ...(deps.onApprovals ? { onApprovals: deps.onApprovals } : {}),
         ...(deps.onBusyChange ? { onBusyChange: deps.onBusyChange } : {}),
+        ...(deps.onResultRecorded ? { onResultRecorded: deps.onResultRecorded } : {}),
       })
       await executor.recover()
       // Signed out while recovering: sign-out already disposed this executor.

@@ -67,6 +67,11 @@ export interface DesktopExecutorOptions {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Called whenever the number of held calls changes between zero and more. */
   onBusyChange?: (busy: boolean) => void
+  /**
+   * Called once a call's result is in the journal: from then on it reaches Sim, now or after a
+   * restart, so anything it hands back (a pane still running) can be counted on.
+   */
+  onResultRecorded?: (toolCallId: string, completion: DesktopToolCompletion) => void
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
@@ -375,7 +380,9 @@ export class DesktopExecutor {
   ): Promise<void> {
     if (this.disposed) return
     // Best effort: unrecorded, a crash reports the call from its `started` entry as outcome unknown.
-    await this.record({ toolCallId, state: 'result', executionToken, completion })
+    if (await this.record({ toolCallId, state: 'result', executionToken, completion })) {
+      this.options.onResultRecorded?.(toolCallId, completion)
+    }
     const sendingSince = Date.now()
     try {
       await this.sendResult(toolCallId, executionToken, completion, sendingSince)

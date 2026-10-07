@@ -499,13 +499,30 @@ export async function runPaneState(
  * step first checks the pane is still the run's, and only that pane is ever closed, so a pane the
  * user split off beside it, or a window that reused its ids, is never touched.
  */
+/**
+ * Arguments for one tmux command that runs `command` on a pane only while the pane carries the
+ * run's tag. tmux checks the tag and acts within the one command, so a restart between a check
+ * and an action can never hand the action to a pane that took the id.
+ */
+function ifTagged(pane: string, runId: string, command: string, socket?: string): string[] {
+  return [
+    ...(socket ? ['-S', socket] : []),
+    'if-shell',
+    '-F',
+    '-t',
+    pane,
+    `#{==:#{${RUN_ID_OPTION}},${runId}}`,
+    command,
+  ]
+}
+
 export async function stopRun(
   handle: TmuxRunHandle,
   env: NodeJS.ProcessEnv,
   graceMs: number
 ): Promise<void> {
-  if ((await runPaneState(handle, env)) !== 'ours') return
-  await sendKey(handle.pane, 'C-c', env)
+  if ((await runPaneState(handle, env)) !== 'ours' || !handle.runId) return
+  await runTmux(ifTagged(handle.pane, handle.runId, `send-keys -t ${handle.pane} C-c`), env)
   const deadline = Date.now() + graceMs
   while (!isRunComplete(handle) && Date.now() < deadline) await sleep(100)
   if (!isRunComplete(handle)) await closeRunPane(handle, env)
@@ -552,7 +569,7 @@ export async function stopRecordedRun(
 ): Promise<'gone' | 'unknown'> {
   const before = await recordedRunState(run, env)
   if (before !== 'ours') return before
-  await runTmux(['-S', run.socket, 'send-keys', '-t', run.pane, 'C-c'], env)
+  await runTmux(ifTagged(run.pane, run.runId, `send-keys -t ${run.pane} C-c`, run.socket), env)
   const deadline = Date.now() + graceMs
   let state: 'ours' | 'gone' | 'unknown' = 'ours'
   while (Date.now() < deadline) {
@@ -564,7 +581,7 @@ export async function stopRecordedRun(
   // left alone, and its record kept for the next sweep.
   if (state === 'ours') state = await recordedRunState(run, env)
   if (state === 'ours') {
-    await runTmux(['-S', run.socket, 'kill-pane', '-t', run.pane], env)
+    await runTmux(ifTagged(run.pane, run.runId, `kill-pane -t ${run.pane}`, run.socket), env)
     state = await recordedRunState(run, env)
   }
   return state === 'gone' ? 'gone' : 'unknown'
@@ -657,7 +674,12 @@ export async function closeRunPane(handle: TmuxRunHandle, env: NodeJS.ProcessEnv
     isRunComplete(handle) &&
     (await startedByRun(handle, env))
   if (state !== 'ours' && !finishedUntracked) return
-  const killed = await runTmux(['kill-pane', '-t', handle.pane], env)
+  const killed = await runTmux(
+    handle.runId
+      ? ifTagged(handle.pane, handle.runId, `kill-pane -t ${handle.pane}`)
+      : ['kill-pane', '-t', handle.pane],
+    env
+  )
   if (!killed.ok) {
     logger.warn('Could not close the tmux run pane', { error: killed.stderr.trim() })
   }

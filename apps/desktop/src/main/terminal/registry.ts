@@ -396,8 +396,20 @@ export class TerminalRegistry {
   stopUncollectableRuns(unresolvedCalls: ReadonlySet<string> | null): Promise<void> {
     return this.stopRecordedRuns({
       excludeLive: true,
-      keep: (run) => run.delivered && !unresolvedCalls?.has(run.callId),
+      keep: (run) => run.delivered && !run.mustStop && !unresolvedCalls?.has(run.callId),
     })
+  }
+
+  /**
+   * Notes that a call's result is durable (in the executor's journal), so a tmux run it handed
+   * back as still going may be left to the model across a restart.
+   */
+  markRunDelivered(callId: string): void {
+    const ledger = this.runLedger
+    if (!ledger) return
+    for (const run of ledger.list()) {
+      if (run.callId === callId) ledger.markDelivered(run.runId)
+    }
   }
 
   /**
@@ -417,10 +429,14 @@ export class TerminalRegistry {
     if (!ledger) return
     await Promise.allSettled(
       ledger.list({ excludeLive: options.excludeLive }).map(async (run) => {
-        const state = options.keep?.(run)
+        const keeping = options.keep?.(run) ?? false
+        const state = keeping
           ? await recordedRunState(run, process.env)
           : await stopRecordedRun(run, process.env, RECORDED_RUN_GRACE_MS)
         if (state === 'gone') ledger.forget(run.runId)
+        // A run this sweep meant to stop but could not confirm stays meant to stop, so no later
+        // sweep keeps it.
+        else if (!keeping) ledger.markMustStop(run.runId)
       })
     )
   }

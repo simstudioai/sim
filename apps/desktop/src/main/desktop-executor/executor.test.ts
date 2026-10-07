@@ -168,6 +168,8 @@ function setup(
   const runner = new FakeRunner()
   const onUnregistered = vi.fn()
   const busy: boolean[] = []
+  /** Calls whose result the executor reported as journaled, in order. */
+  const journaled: string[] = []
   const executor = new DesktopExecutor({
     client: sim.client,
     journal,
@@ -177,12 +179,13 @@ function setup(
     onUnregistered,
     onBusyChange: (value) => busy.push(value),
     onApprovals: (items) => approvals.push(items),
+    onResultRecorded: (toolCallId) => journaled.push(toolCallId),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
     ...(options.deliveryAwakeLimitMs !== undefined
       ? { deliveryAwakeLimitMs: options.deliveryAwakeLimitMs }
       : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered, busy, approvals }
+  return { sim, journal, runner, executor, onUnregistered, busy, approvals, journaled }
 }
 
 describe('claiming', () => {
@@ -201,6 +204,22 @@ describe('claiming', () => {
     })
     await vi.waitFor(() => expect(journal.entries.size).toBe(0))
     expect(executor.heldCallCount()).toBe(0)
+  })
+
+  it('reports a result as durable only once the journal holds it', async () => {
+    const { sim, journal, runner, executor, journaled } = setup()
+    runner.immediate = DONE
+    journal.failOn = 'result'
+    sim.inbox = [callItem('call-unjournaled', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    expect(journaled).toEqual([])
+
+    journal.failOn = null
+    sim.inbox = [callItem('call-journaled', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(2))
+    expect(journaled).toEqual(['call-journaled'])
   })
 
   it('claims a whole backlog at once, before any of it runs', async () => {

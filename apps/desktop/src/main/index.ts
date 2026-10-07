@@ -607,6 +607,13 @@ function main(): void {
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
     onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    // A result that will reach the model (not one reported as not started or outcome unknown)
+    // makes a tmux run it handed back as still going collectable across a restart.
+    onResultRecorded: (toolCallId, completion) => {
+      if (completion.data?.outcomeUnknown !== true && completion.data?.notStarted !== true) {
+        terminal.markRunDelivered(toolCallId)
+      }
+    },
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,

@@ -136,6 +136,8 @@ interface FakeTmuxState {
   retagAtCheck?: number
   /** display-message calls so far. */
   checks?: number
+  /** tmux restarts and the user's pane takes the id just before the next guarded action. */
+  retagBeforeAction?: boolean
   /** Attached clients, as `list-clients` reports them. */
   clients?: Array<{ pid: string; tty: string; session: string }>
   /** Commands the fake holds until the file named here exists, like a busy tmux server. */
@@ -173,6 +175,18 @@ if (state.hold && state.hold[args[0]]) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
   }
   state.held = state.held.filter((command) => command !== args[0])
+}
+// \`if-shell -F -t pane '#{==:#{option},value}' command\`: the check and the action in one command.
+if (args[0] === 'if-shell') {
+  const pane = state.panes[target()]
+  if (pane && state.retagBeforeAction) {
+    pane.options['@sim-run-id'] = 'someone-else'
+    state.retagBeforeAction = false
+    save()
+  }
+  const check = /^#\\{==:#\\{([^}]+)\\},(.*)\\}$/.exec(args[args.length - 2])
+  if (!pane || !check || (pane.options[check[1]] ?? '') !== check[2]) process.exit(0)
+  args = args[args.length - 1].split(' ')
 }
 if (state.fail && state.fail[args[0]]) fail(state.fail[args[0]])
 switch (args[0]) {
@@ -406,6 +420,17 @@ describe('stopping a run another process started, from its record', () => {
     expect([...saved]).toEqual([])
   })
 
+  it('acts on no pane that took the recorded id between the last check and the action', async () => {
+    const tmux = fakeTmux()
+    const { record } = await recorded(tmux)
+    tmux.write({ ...tmux.read(), retagBeforeAction: true })
+
+    await stopRecordedRun(record, tmux.env, 0)
+
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([record.pane])
+  })
+
   it('keeps the record when tmux stops answering part-way through the stop', async () => {
     const tmux = fakeTmux()
     const { record } = await recorded(tmux)
@@ -483,6 +508,17 @@ describe('stopping a tmux run touches only its own pane', () => {
 
     expect(tmux.read().log).toEqual([`send-keys ${run.pane} C-c`, `kill-pane ${run.pane}`])
     expect(Object.keys(tmux.read().panes)).toEqual([users])
+  })
+
+  it('sends a live run nothing once its pane is retagged between the check and the action', async () => {
+    const tmux = fakeTmux()
+    const run = await started(tmux)
+    tmux.write({ ...tmux.read(), retagBeforeAction: true })
+
+    await stopRun(run, tmux.env, 0)
+
+    expect(tmux.read().log).toEqual([])
+    expect(Object.keys(tmux.read().panes)).toEqual([run.pane])
   })
 
   it('sends nothing to a pane that reused the run pane id after tmux restarted', async () => {
