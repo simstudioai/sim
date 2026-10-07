@@ -12,18 +12,21 @@ interface SettingsDirtyStore {
   isDirty: boolean
   navigationBlocked: boolean
   guards: Record<string, SettingsGuardState>
-  /** Leave action deferred until the user confirms discard. */
+  /** Confirmed leave action, including its discard policy. */
   pendingLeave: (() => void) | null
   setGuard: (id: string, guard: SettingsGuardState) => void
   removeGuard: (id: string) => void
   /**
    * Call before leaving the current settings surface. If clean, runs `leave` immediately
    * and returns `true`. If dirty, stashes `leave` and returns `false` so the shared
-   * discard dialog can confirm before running it.
+   * discard dialog can confirm before running it. History defers discard until
+   * an actual traversal is observed by passing `discardOnConfirm: false`.
    */
-  requestLeave: (leave: () => void) => boolean
-  /** Discards registered drafts and runs the deferred leave action. */
+  requestLeave: (leave: () => void, options?: { discardOnConfirm?: boolean }) => boolean
+  /** Runs the deferred leave action after confirmation. */
   confirmLeave: () => void
+  /** Discards each registered dirty draft. */
+  discardDrafts: () => void
   /** Cancels a pending leave without clearing dirty state. */
   cancelLeave: () => void
   /** Resets the entire settings surface. Individual editors remove their own guard. */
@@ -58,13 +61,18 @@ export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
 
       removeGuard: (id) => set((state) => summarizeGuards(omit(state.guards, [id]))),
 
-      requestLeave: (leave) => {
+      requestLeave: (leave, { discardOnConfirm = true } = {}) => {
         if (get().navigationBlocked) return false
         if (!get().isDirty) {
           leave()
           return true
         }
-        set({ pendingLeave: leave })
+        set({
+          pendingLeave: () => {
+            if (discardOnConfirm) get().discardDrafts()
+            leave()
+          },
+        })
         return false
       },
 
@@ -72,11 +80,14 @@ export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
         const { navigationBlocked, pendingLeave } = get()
         if (navigationBlocked) return
         if (!pendingLeave) return
+        set({ pendingLeave: null })
+        pendingLeave()
+      },
+
+      discardDrafts: () => {
         for (const guard of Object.values(get().guards)) {
           if (guard.isDirty) guard.onDiscard?.()
         }
-        set({ pendingLeave: null })
-        pendingLeave()
       },
 
       cancelLeave: () => set({ pendingLeave: null }),

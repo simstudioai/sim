@@ -349,6 +349,11 @@ shells. Reach for it before hand-rolling a `Chip`.
 - **Native history needs entry indexes.** The Navigation API supplies them for
   legacy entries. Without it, native traversal to an unindexed entry cannot be
   cancelled reliably; never guess a direction or rewrite the history stack.
+- **History confirmation authorizes traversal before discarding.** Drafts are
+  discarded only when the browser reports the confirmed traversal, so a no-op
+  Back or Forward retains edits. Known cross-document traversal uses native unload
+  protection. An unknown cross-document target on a classic History browser can
+  require a second native confirmation after the shared dialog.
 - **Detail back controls** call `guard.guardBack(closeFn)`. Other destructive view
   transitions, such as switching an editor's direction or environment, also use
   the shared `requestLeave` action before resetting their draft.

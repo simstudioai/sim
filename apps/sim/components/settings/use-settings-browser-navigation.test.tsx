@@ -26,10 +26,15 @@ function Surface({ dirty, blocked }: SurfaceProps) {
   return null
 }
 
-function LinkedEditor() {
+interface LinkedEditorProps {
+  blocked?: boolean
+}
+
+function LinkedEditor({ blocked }: LinkedEditorProps) {
   const [value, setValue] = useState('')
   const guard = useSettingsUnsavedGuard({
     isDirty: value.length > 0,
+    navigationBlocked: blocked,
     onDiscard: () => setValue(''),
   })
   return (
@@ -116,6 +121,133 @@ describe('native settings navigation', () => {
     expect(window.history.state).toEqual(state)
   })
 
+  it.each(['first Back', 'last Forward', 'large Back', 'large Forward'] as const)(
+    'retains a draft when %s has no destination',
+    async (operation) => {
+      if (operation === 'first Back') {
+        nativeGo.call(window.history, -(window.history.length - 1))
+        await settle()
+      }
+      routedPaths = []
+      act(() => root.render(<LinkedEditor />))
+      const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!field || !setter) throw new Error('Missing draft input')
+      act(() => {
+        setter.call(field, 'authored')
+        field.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      const currentUrl = window.location.href
+      if (operation === 'first Back') window.history.back()
+      else if (operation === 'last Forward') window.history.forward()
+      else window.history.go(operation === 'large Back' ? -2_147_483_647 : 2_147_483_647)
+      act(() => useSettingsDirtyStore.getState().confirmLeave())
+      await settle()
+      expect(field.value).toBe('authored')
+      expect(window.location.href).toBe(currentUrl)
+      expect(routedPaths).toEqual([])
+      expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
+      const unload = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(unload)
+      expect(unload.defaultPrevented).toBe(true)
+    }
+  )
+
+  it.each([false, true])(
+    'discards a confirmed draft only after actual traversal (unstamped: %s)',
+    async (unstamped) => {
+      if (unstamped) {
+        nativePush.call(window.history, { router: 'legacy-forward' }, '', '/legacy-forward')
+        nativeGo.call(window.history, -1)
+        await settle()
+      }
+      act(() => root.render(<LinkedEditor />))
+      const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!field || !setter) throw new Error('Missing draft input')
+      act(() => {
+        setter.call(field, 'authored')
+        field.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      if (unstamped) window.history.forward()
+      else window.history.back()
+      act(() => useSettingsDirtyStore.getState().confirmLeave())
+      expect(field.value).toBe('authored')
+      await settle()
+      expect(window.location.pathname).toBe(unstamped ? '/legacy-forward' : '/prior')
+      expect(field.value).toBe('')
+      expect(useSettingsDirtyStore.getState().isDirty).toBe(false)
+    }
+  )
+
+  it('retains a confirmed draft if a save begins before traversal', async () => {
+    act(() => root.render(<LinkedEditor />))
+    const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (!field || !setter) throw new Error('Missing draft input')
+    act(() => {
+      setter.call(field, 'authored')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    window.history.back()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    act(() => root.render(<LinkedEditor blocked />))
+    await settle()
+    expect(field.value).toBe('authored')
+    expect(window.location.pathname).toBe('/editor')
+    expect(routedPaths).not.toContain('/prior')
+    expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
+    act(() => root.render(<LinkedEditor />))
+    window.history.back()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    await settle()
+    expect(window.location.pathname).toBe('/prior')
+    expect(field.value).toBe('')
+  })
+
+  it.each([-1.5, 4_294_967_295])(
+    'confirms the browser-converted traversal delta %s',
+    async (delta) => {
+      act(() => root.render(<LinkedEditor />))
+      const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!field || !setter) throw new Error('Missing draft input')
+      act(() => {
+        setter.call(field, 'authored')
+        field.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      window.history.go(delta)
+      act(() => useSettingsDirtyStore.getState().confirmLeave())
+      await settle()
+      expect(window.location.pathname).toBe('/prior')
+      expect(field.value).toBe('')
+      expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()
+    }
+  )
+
+  it.each([false, true])(
+    'retains a draft when an unresolved traversal only changes the hash (saving: %s)',
+    async (blocked) => {
+      window.history.pushState(new Date('2026-01-01T00:00:00Z'), '', '/editor#opaque')
+      act(() => root.render(<LinkedEditor />))
+      const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!field || !setter) throw new Error('Missing draft input')
+      act(() => {
+        setter.call(field, 'authored')
+        field.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      window.history.back()
+      act(() => useSettingsDirtyStore.getState().confirmLeave())
+      act(() => root.render(<LinkedEditor blocked={blocked} />))
+      await settle()
+      expect(field.value).toBe('authored')
+      expect(window.location.pathname).toBe('/editor')
+      expect(window.location.hash).toBe('')
+      expect(useSettingsDirtyStore.getState().isDirty).toBe(true)
+    }
+  )
+
   it('does not reuse confirmation from a traversal that emitted no event for a later draft', async () => {
     act(() => root.render(<LinkedEditor />))
     const field = container.querySelector<HTMLInputElement>('input[aria-label="Draft"]')
@@ -130,7 +262,7 @@ describe('native settings navigation', () => {
     act(() => useSettingsDirtyStore.getState().confirmLeave())
     await settle()
     expect(window.location.pathname).toBe('/editor')
-    expect(field.value).toBe('')
+    expect(field.value).toBe('original draft')
     for (let index = 0; index < steps; index++)
       window.history.pushState({ router: 'later' }, '', `/later-${index}`)
     const currentPath = window.location.pathname

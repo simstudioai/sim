@@ -93,14 +93,20 @@ function installBrowserNavigationGuard() {
   }
 
   history.go = (delta) => {
+    // History.go converts its delta to a signed 32-bit integer before traversing.
+    delta = (delta ?? 0) | 0
     cancelPendingTraversal()
-    if (!delta) {
+    if (!delta || Math.abs(delta) >= history.length) {
       originalGo.call(history, delta)
       return
     }
     const sourceIndex = entryIndex(history.state)
     const targetIndex = sourceIndex === null ? null : sourceIndex + delta
     const target = navigation?.entries().find((entry) => entry.index === targetIndex)
+    if (navigation?.currentEntry && (!target || !target.sameDocument)) {
+      originalGo.call(history, delta)
+      return
+    }
     const targetRoute = navigation
       ? target?.sameDocument && target.url
         ? route(new URL(target.url))
@@ -113,7 +119,7 @@ function installBrowserNavigationGuard() {
       originalGo.call(history, delta)
       return
     }
-    requestLeave(() => traverse(delta))
+    requestLeave(() => traverse(delta), { discardOnConfirm: false })
   }
   history.back = () => history.go(-1)
   history.forward = () => history.go(1)
@@ -124,10 +130,23 @@ function installBrowserNavigationGuard() {
       const index = entryIndex(event.state)
       const destinationUrl = new URL(window.location.href)
       if (index !== null) trackedRoutes.set(index, route(destinationUrl))
+      if (!restoring && route(destinationUrl) === route(currentUrl)) {
+        currentIndex = index
+        currentUrl = destinationUrl
+        allowTraversal = false
+        return
+      }
       if (
         allowTraversal &&
         (index === null || currentIndex === null || index - currentIndex === pendingDelta)
       ) {
+        if (useSettingsDirtyStore.getState().navigationBlocked) {
+          event.stopImmediatePropagation()
+          allowTraversal = false
+          originalGo.call(history, -pendingDelta)
+          return
+        }
+        useSettingsDirtyStore.getState().discardDrafts()
         currentIndex = index ?? (currentIndex === null ? null : currentIndex + pendingDelta)
         allowTraversal = false
         restoring = false
@@ -137,15 +156,6 @@ function installBrowserNavigationGuard() {
         return
       }
       allowTraversal = false
-      if (
-        !restoring &&
-        destinationUrl.pathname === currentUrl.pathname &&
-        destinationUrl.search === currentUrl.search
-      ) {
-        currentIndex = index
-        currentUrl = destinationUrl
-        return
-      }
       if (index === null || currentIndex === null) {
         currentIndex = index
         currentUrl = destinationUrl
@@ -166,7 +176,9 @@ function installBrowserNavigationGuard() {
         }
         restoring = false
         const requestedDelta = pendingDelta
-        useSettingsDirtyStore.getState().requestLeave(() => traverse(requestedDelta))
+        useSettingsDirtyStore
+          .getState()
+          .requestLeave(() => traverse(requestedDelta), { discardOnConfirm: false })
         return
       }
       const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
