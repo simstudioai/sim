@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
@@ -31,8 +31,32 @@ const STUBBORN = "trap '' HUP INT TERM"
 const sim = new FixtureSim()
 /** The app's own log output for the current test, attached when it fails. */
 const appOutput: string[] = []
-/** Each scenario's outcome, written to `TERMINAL_CANCEL_REPORT_PATH` when the suite ends. */
-const report: Array<{ name: string; status: string; durationMs: number }> = []
+interface ReportCheck {
+  name: string
+  status: string
+  durationMs: number
+  retry: number
+}
+
+/**
+ * Adds a scenario's outcome to the report at `TERMINAL_CANCEL_REPORT_PATH` as soon as it is known.
+ * Playwright replaces the worker after a failure, so the file, not the worker's memory, holds what
+ * came before: a failure and its retry both stay in it.
+ */
+function reportCheck(check: ReportCheck): void {
+  const reportPath = process.env.TERMINAL_CANCEL_REPORT_PATH
+  if (!reportPath) return
+  let checks: ReportCheck[] = []
+  try {
+    checks = (JSON.parse(readFileSync(reportPath, 'utf8')) as { checks: ReportCheck[] }).checks
+  } catch {
+    // The first check of the run.
+  }
+  writeFileSync(
+    reportPath,
+    JSON.stringify({ suite: 'terminal-cancel', checks: [...checks, check] }, null, 2)
+  )
+}
 
 /** The shells, sleeps and tmux processes running, for a failure about who started what. */
 function processes(): string {
@@ -266,10 +290,11 @@ test.describe('terminal cancel', () => {
 
   test.afterEach(async () => {
     const testInfo = test.info()
-    report.push({
+    reportCheck({
       name: testInfo.title,
       status: testInfo.status ?? 'unknown',
       durationMs: testInfo.duration,
+      retry: testInfo.retry,
     })
     if (testInfo.status !== testInfo.expectedStatus) {
       // What each call came back with, and the panes tmux held, explain most failures.
@@ -315,13 +340,6 @@ test.describe('terminal cancel', () => {
 
   test.afterAll(async () => {
     await sim.stop()
-    const reportPath = process.env.TERMINAL_CANCEL_REPORT_PATH
-    if (reportPath) {
-      writeFileSync(
-        reportPath,
-        JSON.stringify({ suite: 'terminal-cancel', checks: report }, null, 2)
-      )
-    }
   })
 
   async function start(
