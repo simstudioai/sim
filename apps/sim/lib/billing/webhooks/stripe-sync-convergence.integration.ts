@@ -519,6 +519,66 @@ describe('cancel_at_period_end sync', () => {
     expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
   })
 
+  it('records a later Stripe read even when every sync already carries its value', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    stripe.failNextUpdateAfterApplying('subscriptions')
+    await expect(processEvent(pauseSync)).resolves.toBe('pending')
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    const restoreRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const reconcilingRestore = deliver(stripe.events.at(-1) as Stripe.Event)
+    await restoreRead.reached
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: true })
+    const cancelRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const reconcilingCancel = deliver(stripe.events.at(-1) as Stripe.Event)
+    await cancelRead.reached
+
+    cancelRead.release()
+    await reconcilingCancel
+    restoreRead.release()
+    await reconcilingRestore
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    await makeDue(pauseSync)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+  })
+
+  it('keeps a pending value when an unrelated Stripe update moves the cancellation date', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    const periodEnd = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at: periodEnd })
+    await deliver(stripe.events.at(-1) as Stripe.Event)
+
+    await leaveOrganization(pro.userId, pro.paidOrganization.organizationId)
+    await restoreUserProSubscription(pro.userId)
+    const restoreSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at: periodEnd + 335 * 24 * 60 * 60 })
+    const moved = stripe.events.at(-1) as Stripe.Event
+    expect(Object.keys(moved.data.previous_attributes ?? {})).toEqual(['cancel_at'])
+    await deliver(moved)
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(false)
+    await expect(processEvent(restoreSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(false)
+  })
+
   it('lets a change made in Stripe while a sync is pending win over the pending value', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)

@@ -101,8 +101,9 @@ async function readDatabaseClock(executor: DbOrTx): Promise<number> {
  *
  * A Sim commit is stamped with the clock under that lock and rewrites every such event. A value
  * taken from Stripe passes `observedAt`, the clock read just before Stripe was read, so it orders
- * by when it was observed (a slower reconcile of an earlier Stripe read cannot outrank a later
- * one), and rewrites only the events that do not already carry it.
+ * by when it was observed: it rewrites (value and stamp) only the events last stamped before that
+ * observation, including ones already holding the value, so a slower reconcile of an earlier
+ * Stripe read cannot outrank a later one and never overwrites a newer commit.
  */
 async function commitIntent<T extends SyncIntentFields>(
   tx: DbOrTx,
@@ -120,7 +121,7 @@ async function commitIntent<T extends SyncIntentFields>(
     eventType,
     subscriptionSubject(subscriptionId),
     committed,
-    observedAt === undefined ? undefined : fields
+    observedAt === undefined ? undefined : 'committedAt'
   )
   return committed
 }
@@ -358,15 +359,18 @@ async function readSyncIntents(executor: DbOrTx, subscriptionId: string) {
 }
 
 /**
- * True when the event records a cancellation change made in Stripe, not by Sim's sync. A change
- * to `cancel_at` counts too: Better Auth's restore clears `cancel_at` when it is set, and Stripe
- * may then list only `cancel_at` among the previous attributes.
+ * True when the event records a cancellation change made in Stripe, not by Sim's sync. A
+ * `cancel_at` that was set or cleared counts too: Better Auth's restore clears `cancel_at` when it
+ * is set, and Stripe may then list only `cancel_at` among the previous attributes. A `cancel_at`
+ * that only moved (e.g. a billing-interval switch on a subscription already ending) is not a
+ * cancellation change.
  */
 function isCancellationChangedInStripe(event: Stripe.Event): boolean {
   const previousAttributes = toRecord(event.data.previous_attributes)
-  if (!('cancel_at_period_end' in previousAttributes) && !('cancel_at' in previousAttributes)) {
-    return false
-  }
+  const scheduledOrCleared =
+    'cancel_at' in previousAttributes &&
+    (previousAttributes.cancel_at == null) !== (toRecord(event.data.object).cancel_at == null)
+  if (!('cancel_at_period_end' in previousAttributes) && !scheduledOrCleared) return false
   const idempotencyKey = event.request?.idempotency_key
   const issuedBySimSync =
     idempotencyKey?.startsWith(CANCEL_AT_PERIOD_END_SYNC_KEY_PREFIX) ||
@@ -410,9 +414,10 @@ function cancelAtPeriodEndSource(
  * - `cancelAtPeriodEnd`: while a cancel sync is in flight, its committed value wins over
  *   snapshots and over echoes of Sim's own writes. A change made in Stripe itself (customer
  *   portal, dashboard, Better Auth's cancel/restore endpoints), recognised by a non-Sim request
- *   changing `cancel_at_period_end` or `cancel_at`, wins and is committed onto every
- *   sync that can still run, unless Sim committed a newer value after Stripe was read. With no
- *   sync in flight Stripe wins, read live so out-of-order delivery cannot regress it.
+ *   changing `cancel_at_period_end` or setting or clearing `cancel_at`, wins and is committed
+ *   onto every sync that can still run, unless Sim committed a newer value after Stripe was
+ *   read. With no sync in flight Stripe wins, read live so out-of-order delivery cannot regress
+ *   it.
  * - Precedence across the two systems is arrival order, not wall-clock order: a Stripe-side
  *   change whose webhook is processed after a Sim commit wins even if the customer made it
  *   earlier. Stripe's `event.created` is not compared with the database clock, because skew

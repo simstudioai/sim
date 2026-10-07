@@ -461,16 +461,17 @@ export async function listInflightOutboxEvents(
 
 /**
  * Shallow-merges `patch` into the payload of every `pending`, `processing`, or `dead_letter`
- * event of the type for one subject, skipping events whose payload already contains
- * `unlessPayloadContains`. One UPDATE; nothing is read into memory. Callers serialize writers
- * for the subject with their domain lock.
+ * event of the type for one subject. With `onlyIfOlderThanPatch`, naming a numeric payload key
+ * that `patch` sets, an event whose own value for that key is already at least the patch's is
+ * left alone, so a stale writer never overwrites a newer one. One UPDATE; nothing is read into
+ * memory. Callers serialize writers for the subject with their domain lock.
  */
 export async function patchRetryableOutboxEvents(
   executor: Pick<typeof db, 'update'>,
   eventType: string,
   subject: OutboxPayloadSubject,
   patch: Record<string, unknown>,
-  unlessPayloadContains?: Record<string, unknown>
+  onlyIfOlderThanPatch?: string
 ): Promise<number> {
   const patched = await executor
     .update(outboxEvent)
@@ -480,8 +481,8 @@ export async function patchRetryableOutboxEvents(
     .where(
       and(
         eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES),
-        unlessPayloadContains
-          ? sql`not (${outboxEvent.payload}::jsonb @> ${JSON.stringify(unlessPayloadContains)}::jsonb)`
+        onlyIfOlderThanPatch
+          ? sql`coalesce((${outboxEvent.payload} ->> ${onlyIfOlderThanPatch})::numeric, -1) < ${String(patch[onlyIfOlderThanPatch])}::numeric`
           : undefined
       )
     )
