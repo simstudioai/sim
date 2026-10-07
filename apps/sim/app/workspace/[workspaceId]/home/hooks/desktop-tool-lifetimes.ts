@@ -26,21 +26,30 @@ interface DesktopToolLease {
   release(): void
 }
 
-/** A turn's stream, bound to the session it started in. */
+/** A turn's desktop tools, in the session of the chat surface that runs the turn. */
 export interface DesktopToolTurn {
   /** Starts one desktop tool for the turn. */
   lease(): DesktopToolLease
 }
 
+/** The desktop tools a chat surface starts, bound to the session the surface mounted in. */
+export interface DesktopToolSession {
+  turn(streamId: string): DesktopToolTurn
+}
+
 /**
- * Binds a turn's stream to the current session. Take it once, when the stream starts: its tool
- * events can still arrive after a sign-out, and each of them then gets an already-aborted lease.
+ * Binds a chat surface to the current session. Take it once, when the surface mounts: a send or
+ * reconnect still in flight at sign-out can deliver tool events after the stop, and each of them
+ * then gets an already-aborted lease. Signing out leaves or reloads every chat surface, so a
+ * surface mounted after sign-in binds to the new session.
  */
-export function desktopToolTurn(streamId: string): DesktopToolTurn {
+export function desktopToolSession(): DesktopToolSession {
   const startedIn = session.signal
   return {
-    lease: () =>
-      startedIn.aborted ? { signal: startedIn, release() {} } : leaseDesktopTool(streamId),
+    turn: (streamId) => ({
+      lease: () =>
+        startedIn.aborted ? { signal: startedIn, release() {} } : leaseDesktopTool(streamId),
+    }),
   }
 }
 

@@ -93,8 +93,9 @@ import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import {
+  type DesktopToolSession,
   type DesktopToolTurn,
-  desktopToolTurn,
+  desktopToolSession,
   stopDesktopTools,
 } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -1004,6 +1005,8 @@ export function useChat(
   const chatIdRef = useRef<string | undefined>(initialChatId)
   /** Cleared on unmount, so late async work cannot act on a surface the user left. */
   const surfaceMountedRef = useRef(true)
+  const desktopToolsRef = useRef<DesktopToolSession | null>(null)
+  const desktopTools = (desktopToolsRef.current ??= desktopToolSession())
   useEffect(() => {
     surfaceMountedRef.current = true
     return () => {
@@ -2298,7 +2301,7 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const desktopTurn = streamIdRef.current ? desktopToolTurn(streamIdRef.current) : undefined
+      const desktopTurn = streamIdRef.current ? desktopTools.turn(streamIdRef.current) : undefined
       const activityTracker = getResourceActivityTracker(
         expectedGen ?? streamGenRef.current,
         options?.targetChatId
