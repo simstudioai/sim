@@ -99,7 +99,11 @@ describe('handleResourceSideEffects', () => {
     }
   )
   it.each([
-    { chat: 'organization', organizationId: 'org', expected: { workspaceId: 'workspace-a' } },
+    {
+      chat: 'organization',
+      organizationId: 'org',
+      expected: { owner: { entityType: 'workspace', entityId: 'workspace-a' } },
+    },
     { chat: 'workspace', organizationId: undefined, expected: {} },
   ])(
     'addresses extracted exports in a $chat chat like its open tabs',

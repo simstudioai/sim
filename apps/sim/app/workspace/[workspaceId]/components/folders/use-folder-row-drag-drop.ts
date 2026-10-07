@@ -1,11 +1,16 @@
 'use client'
 
 import { type DragEvent, useCallback, useMemo, useRef, useState } from 'react'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import {
   readRowDragPayload,
   writeRowDragPayload,
 } from '@/app/workspace/[workspaceId]/components/folders/drag-payload'
-import { parseFolderedRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
+import {
+  folderRowId,
+  parseFolderedRowId,
+  splitFolderedRowIds,
+} from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
 import { useDragTeardown } from '@/app/workspace/[workspaceId]/components/folders/use-drag-teardown'
 import { useRowDragGhost } from '@/app/workspace/[workspaceId]/components/folders/use-row-drag-ghost'
 import type { SpringOpenOptions } from '@/app/workspace/[workspaceId]/components/folders/use-spring-loaded-folder'
@@ -119,6 +124,7 @@ export interface UseFolderRowDragDropOptions {
    * never mistaken for one of these rows — see {@link writeRowDragPayload}.
    */
   dragMime: string
+  owner?: EditableFileOwner
   /** Drag and drop are edits; a reader gets neither draggable rows nor drop targets. */
   canEdit: boolean
   /** Row currently being renamed inline, which must stay editable rather than draggable. */
@@ -203,6 +209,7 @@ export interface UseFolderRowDragDropOptions {
  */
 export function useFolderRowDragDrop({
   dragMime,
+  owner,
   canEdit,
   editingRowId,
   descendantsByFolderId,
@@ -224,6 +231,8 @@ export function useFolderRowDragDrop({
    * synchronously.
    */
   const draggedRowIdsRef = useRef<string[]>([])
+  const sourceParentsRef = useRef<Map<string, string | null | undefined> | null>(null)
+  sourceParentsRef.current ??= new Map()
 
   const optionsRef = useRef({
     descendantsByFolderId,
@@ -259,6 +268,7 @@ export function useFolderRowDragDrop({
     springNav.end()
     dragGhost.remove()
     draggedRowIdsRef.current = []
+    sourceParentsRef.current?.clear()
     setDraggedRowIds(EMPTY_ROW_IDS)
     setActiveDropTarget(null)
   }, [dragGhost, springNav])
@@ -278,7 +288,16 @@ export function useFolderRowDragDrop({
    */
   const resolveMoveToFolder = useCallback(
     (targetFolderId: string | null, sourceRowIds: string[]): FolderedRowMove | null => {
-      const { descendantsByFolderId, getFolderParentId, getResourceFolderId } = optionsRef.current
+      const options = optionsRef.current
+      const { descendantsByFolderId } = options
+      const getFolderParentId = (id: string) =>
+        options.getFolderParentId(id) !== undefined
+          ? options.getFolderParentId(id)
+          : sourceParentsRef.current?.get(folderRowId(id))
+      const getResourceFolderId = (id: string) =>
+        options.getResourceFolderId(id) !== undefined
+          ? options.getResourceFolderId(id)
+          : sourceParentsRef.current?.get(id)
       const folderIds: string[] = []
       const resourceIds: string[] = []
 
@@ -288,11 +307,11 @@ export function useFolderRowDragDrop({
           if (source.id === targetFolderId) return null
           if (targetFolderId !== null && descendantsByFolderId.get(source.id)?.has(targetFolderId))
             return null
-          if ((getFolderParentId(source.id) ?? null) === targetFolderId) continue
+          if (getFolderParentId(source.id) === targetFolderId) continue
           folderIds.push(source.id)
           continue
         }
-        if ((getResourceFolderId(source.id) ?? null) === targetFolderId) continue
+        if (getResourceFolderId(source.id) === targetFolderId) continue
         resourceIds.push(source.id)
       }
 
@@ -335,22 +354,47 @@ export function useFolderRowDragDrop({
          * Read the selection in display order rather than insertion order, so a shift-range
          * drag carries its rows the way the user sees them.
          */
-        const sourceRowIds = selection?.selectedRowIds.has(rowId)
+        const selectedSourceRowIds = selection?.selectedRowIds.has(rowId)
           ? selection.visibleRowIds.filter((visibleRowId) =>
               selection.selectedRowIds.has(visibleRowId)
             )
           : [rowId]
         if (selection && !selection.selectedRowIds.has(rowId)) selection.replaceSelection([rowId])
 
+        const carried = dropRowsCarriedByDraggedFolders(
+          splitFolderedRowIds(selectedSourceRowIds),
+          optionsRef.current
+        )
+        const keptIds = new Set([...carried.folderIds.map(folderRowId), ...carried.resourceIds])
+        const sourceRowIds = owner
+          ? selectedSourceRowIds.filter((id) => keptIds.has(id))
+          : selectedSourceRowIds
+        if (sourceRowIds.length === 0) {
+          e.preventDefault()
+          endDrag()
+          return
+        }
+        sourceParentsRef.current = new Map(
+          sourceRowIds.map((rowId) => {
+            const parsed = parseFolderedRowId(rowId)
+            return [
+              rowId,
+              parsed.kind === 'folder'
+                ? optionsRef.current.getFolderParentId(parsed.id)
+                : optionsRef.current.getResourceFolderId(parsed.id),
+            ]
+          })
+        )
         draggedRowIdsRef.current = sourceRowIds
         setDraggedRowIds(new Set(sourceRowIds))
 
         e.dataTransfer.effectAllowed = 'move'
-        writeRowDragPayload(e.dataTransfer, dragMime, sourceRowIds)
+        writeRowDragPayload(e.dataTransfer, dragMime, sourceRowIds, owner)
 
         dragGhost.attach(e, optionsRef.current.getRowLabel(sourceRowIds[0]), sourceRowIds.length)
       },
       onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
+        if (!canEdit || parseFolderedRowId(rowId).kind !== 'folder') return
         const sourceRowIds = draggedRowIdsRef.current
         const isExternal = optionsRef.current.externalDrop?.matches(e.dataTransfer) ?? false
         if (isExternal) {
@@ -407,6 +451,7 @@ export function useFolderRowDragDrop({
         )
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
+        if (!canEdit) return
         e.preventDefault()
         e.stopPropagation()
 
@@ -426,7 +471,8 @@ export function useFolderRowDragDrop({
         // Prefer the dataTransfer payload over the ref so a drag that started in another
         // mount of this page still resolves to real row ids.
         const sourceRowIds =
-          readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
+          readRowDragPayload(e.dataTransfer, dragMime, owner) ??
+          (owner ? [] : draggedRowIdsRef.current)
         const move =
           target.kind === 'folder' && sourceRowIds.length > 0
             ? resolveMove(rowId, sourceRowIds)
@@ -453,6 +499,7 @@ export function useFolderRowDragDrop({
       breadcrumb: {
         activeIndex: activeDropTarget?.kind === 'crumb' ? activeDropTarget.index : null,
         onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
+          if (!canEdit) return
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           const sourceRowIds = draggedRowIdsRef.current
           const canDrop =
@@ -479,11 +526,13 @@ export function useFolderRowDragDrop({
           )
         },
         onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
+          if (!canEdit) return
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           e.preventDefault()
           e.stopPropagation()
           const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
+            readRowDragPayload(e.dataTransfer, dragMime, owner) ??
+            (owner ? [] : draggedRowIdsRef.current)
           const move = sourceRowIds.length > 0 ? resolveMoveToFolder(folderId, sourceRowIds) : null
           if (move) springNav.markDropHandled()
           endDrag()
@@ -493,6 +542,7 @@ export function useFolderRowDragDrop({
       body: {
         isActive: activeDropTarget?.kind === 'body',
         onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          if (!canEdit) return
           /** Declined: a page-level upload overlay owns the whole region for an OS file drag. */
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           const sourceRowIds = draggedRowIdsRef.current
@@ -520,6 +570,7 @@ export function useFolderRowDragDrop({
           setActiveDropTarget((current) => (current?.kind === 'body' ? null : current))
         },
         onDrop: (e: DragEvent<HTMLDivElement>) => {
+          if (!canEdit) return
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           /**
            * Read from the ref, not the closure. This config is memoized, and during a drag the
@@ -533,7 +584,8 @@ export function useFolderRowDragDrop({
           e.preventDefault()
           e.stopPropagation()
           const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
+            readRowDragPayload(e.dataTransfer, dragMime, owner) ??
+            (owner ? [] : draggedRowIdsRef.current)
           const move =
             sourceRowIds.length > 0 ? resolveMoveToFolder(targetFolderId, sourceRowIds) : null
           if (move) springNav.markDropHandled()
@@ -547,6 +599,7 @@ export function useFolderRowDragDrop({
       draggedRowIds,
       canEdit,
       dragMime,
+      owner,
       editingRowId,
       resolveMove,
       resolveMoveToFolder,

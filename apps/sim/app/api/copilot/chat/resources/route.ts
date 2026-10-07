@@ -5,12 +5,13 @@ import {
 } from '@/lib/api/contracts/copilot'
 import {
   defineInternalJsonRoute,
-  internalJsonPresenters,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
+import { presentChatResourceForBrowser } from '@/lib/mothership/resources/presentation'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 const policy = {
   auth: internalSessionAuth,
@@ -20,7 +21,10 @@ const policy = {
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
   useCase: changeChatResources,
-  present: internalJsonPresenters.withSuccess,
+  present: ({ resources }: { resources: MothershipResource[] }) => ({
+    success: true as const,
+    resources: resources.map(presentChatResourceForBrowser),
+  }),
 }
 
 export const POST = defineInternalJsonRoute({
@@ -53,7 +57,14 @@ export const DELETE = defineInternalJsonRoute({
     chatId: body.chatId,
     change: {
       kind: 'remove' as const,
-      resources: [{ type: body.resourceType, id: body.resourceId, workspaceId: body.workspaceId }],
+      resources: [
+        {
+          type: body.resourceType,
+          id: body.resourceId,
+          workspaceId: body.workspaceId,
+          owner: body.owner,
+        },
+      ],
     },
   }),
 })

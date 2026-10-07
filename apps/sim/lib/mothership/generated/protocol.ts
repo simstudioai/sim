@@ -1,6 +1,7 @@
 // GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/protocol.ts
 // Regenerate with `bun run contracts:sync` in the worker.
 
+import { FileOwnerContext } from "./file-owner";
 /**
  * The sim⇄worker wire protocol surface — THE shared source of truth (P3, S31).
  *
@@ -18,6 +19,7 @@
 import { z } from "zod";
 import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
 import { IntegrationCatalogContext } from "./integration-catalog";
+import { ResourceAddress } from "./resources";
 import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 2;
@@ -178,6 +180,7 @@ export const ChatPayloadSchema = z
           content: z.string(),
           tag: z.string().optional(),
           path: z.string().optional(),
+          resource: ResourceAddress.optional(),
         }),
       )
       .default([]),
@@ -193,6 +196,9 @@ export const ChatPayloadSchema = z
     modelSelection: ModelSelectionSchema.optional(),
     /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
     inventory: WorkspaceInventorySchema.optional(),
+    fileOwnerProtocolVersion: FileOwnerContext.shape.fileOwnerProtocolVersion.optional(),
+    project: FileOwnerContext.shape.project,
+    fileOwnerCapabilities: FileOwnerContext.shape.fileOwnerCapabilities.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
@@ -252,6 +258,9 @@ export interface StreamToolReplay {
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  fileOwnerProtocolVersion?: 1 | undefined;
+  project?: FileOwnerContext["project"] | undefined;
+  fileOwnerCapabilities?: FileOwnerContext["fileOwnerCapabilities"] | undefined;
   desktop?: DesktopContext | undefined;
   effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" | undefined;
   modelSelection?: ModelSelection | undefined;
@@ -324,6 +333,8 @@ export interface ChatContextItem {
   content: string;
   tag?: string | undefined;
   path?: string | undefined;
+  /** Requested resource identity; Sim authorizes access independently on every read. */
+  resource?: ResourceAddress | undefined;
 }
 
 /** POST /api/tools/resume — deferred tool results. */

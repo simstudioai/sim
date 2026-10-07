@@ -3,7 +3,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toArray, toRecord } from '@sim/utils/object'
-import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
+import {
+  createOwnedFileContentSource,
+  createPublicFileContentSource,
+} from '@/hooks/use-file-content-source'
 
 const base = new URL(required(process.env.PROJECT_INLINE_SOURCE_BASE_URL))
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))
@@ -24,6 +27,7 @@ const contentPath = `/api/files/public/${token}/content`
 const ownPath = `/api/projects/${owner.entityId}/files/${required(doc.imageId)}/content`
 const foreignPath = `/api/projects/${required(foreign.projectId)}/files/${required(foreign.fileId)}/content`
 const publicSource = createPublicFileContentSource(token, contentPath, owner)
+const privateSource = createOwnedFileContentSource(owner, required(doc.fileId))
 const checks: { name: string; passed: boolean; durationMs: number; error?: string }[] = []
 
 function required(value: unknown): string {
@@ -109,8 +113,9 @@ await check(
     )
   }
 )
-await check('Public sources omit foreign-owner private image URLs', async () => {
+await check('Public and private sources omit foreign-owner private image URLs', async () => {
   assert.equal(publicSource.resolveImageSrc(foreignPath), undefined)
+  assert.equal(privateSource.resolveImageSrc(foreignPath), undefined)
 })
 
 await mkdir(dirname(reportPath), { recursive: true })

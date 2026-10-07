@@ -3,12 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
-  Button,
-  ChipCombobox,
-  ChipConfirmModal,
-  Columns2,
   type ComboboxOption,
-  Eye,
   Folder,
   FolderPlus,
   Loader,
@@ -19,20 +14,17 @@ import {
   Upload,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { Check, Download, Link, Send } from '@sim/emcn/icons'
+import { Check, Clock, Download, Duplicate, Link, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import type { FileCopySource } from '@/lib/api/contracts/file-copy-input'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
-import {
-  type FileDownloadSource,
-  triggerArchiveDownload,
-  triggerFileDownload,
-} from '@/lib/uploads/client/download'
+import { triggerArchiveDownload, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
@@ -44,16 +36,14 @@ import {
   isVideoFileType,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file-utils'
+import { isSupportedExtension } from '@/lib/uploads/utils/validation'
 import {
-  isSupportedExtension,
-  SUPPORTED_ARCHIVE_EXTENSIONS,
-  SUPPORTED_AUDIO_EXTENSIONS,
-  SUPPORTED_CODE_EXTENSIONS,
-  SUPPORTED_DOCUMENT_EXTENSIONS,
-  SUPPORTED_IMAGE_EXTENSIONS,
-  SUPPORTED_VIDEO_EXTENSIONS,
-} from '@/lib/uploads/utils/validation'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+  FILE_BROWSER_COLUMNS,
+  FILE_BROWSER_SIZE_BOUNDARIES,
+  FILE_BROWSER_SORT_OPTIONS,
+  FILE_ROW_DRAG_MIME,
+  formatFileBrowserType,
+} from '@/lib/workspace-files/browser'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type {
@@ -94,10 +84,6 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import {
-  ResourceFilterPanel,
-  ResourceFilterSection,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import type {
@@ -112,20 +98,19 @@ import {
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
-import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
-import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileCopyModal } from '@/app/workspace/[workspaceId]/files/components/file-copy-modal'
 import {
-  FileViewer,
-  isCsvStreamOnly,
-  isMarkdownFile,
-  isPreviewable,
-  isTextEditable,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
-import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
+  FileDetail,
+  useFileNavigation,
+} from '@/app/workspace/[workspaceId]/files/components/file-detail'
+import { FileExtractionModal } from '@/app/workspace/[workspaceId]/files/components/file-extraction-modal'
+import { FileFilterControls } from '@/app/workspace/[workspaceId]/files/components/file-filter-controls'
+import { FileHistoryModal } from '@/app/workspace/[workspaceId]/files/components/file-history-modal'
+import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
+import { FileUploadOverlay } from '@/app/workspace/[workspaceId]/files/components/file-upload-overlay'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
-import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
+import { useFileUploadDrop, useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import {
   filesFilterParsers,
@@ -141,6 +126,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { hasExternalFiles, isSupportedFileUpload } from '@/app/workspace/[workspaceId]/files/utils'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
@@ -149,7 +135,6 @@ import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/
 import {
   useBulkArchiveWorkspaceFileItems,
   useCreateWorkspaceFileFolder,
-  useExtractWorkspaceFile,
   useMoveWorkspaceFileItems,
   useUpdateWorkspaceFileFolder,
   useWorkspaceFileFolders,
@@ -171,7 +156,6 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
   | { kind: 'file'; id: string; file: WorkspaceFileRecord }
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
@@ -182,12 +166,6 @@ type FileListEntry =
   | { kind: 'file'; file: WorkspaceFileRecord }
 
 const logger = createLogger('Files')
-
-/**
- * This list's private drag MIME, so a drag started on another list is never mistaken for one of
- * these rows.
- */
-const FILE_ROW_DRAG_MIME = 'application/x-sim-workspace-file-rows'
 
 const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 
@@ -202,25 +180,7 @@ const FOLDER_TYPE_LABEL = 'Folder' as const
  */
 const FILES_SEARCH_DEBOUNCE_MS = 200 as const
 
-const SUPPORTED_EXTENSIONS = [
-  ...SUPPORTED_DOCUMENT_EXTENSIONS,
-  ...SUPPORTED_CODE_EXTENSIONS,
-  ...SUPPORTED_AUDIO_EXTENSIONS,
-  ...SUPPORTED_VIDEO_EXTENSIONS,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
-  ...SUPPORTED_ARCHIVE_EXTENSIONS,
-] as const
-
-const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
-
-const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', widthMultiplier: 1.15 },
-  { id: 'size', header: 'Size', widthMultiplier: 0.85 },
-  { id: 'type', header: 'Type', widthMultiplier: 1.0 },
-  { id: 'created', header: 'Created' },
-  { id: 'owner', header: 'Owner' },
-  { id: 'updated', header: 'Last Updated' },
-]
+const COLUMNS: ResourceColumn[] = [...FILE_BROWSER_COLUMNS]
 
 /**
  * Deliberately absent from {@link filesSortParams}, so the location column is not offered in
@@ -229,47 +189,9 @@ const COLUMNS: ResourceColumn[] = [
  */
 const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
-const MIME_TYPE_LABELS: Record<string, string> = {
-  'application/pdf': 'PDF',
-  'application/zip': 'ZIP',
-  'application/msword': 'Word',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
-  'application/vnd.ms-excel': 'Excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
-  'application/vnd.ms-powerpoint': 'PowerPoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
-  'application/json': 'JSON',
-  'application/x-yaml': 'YAML',
-  'text/csv': 'CSV',
-  'text/plain': 'Text',
-  'text/html': 'HTML',
-  'text/x-sim-page': 'Page',
-  'text/markdown': 'Markdown',
-}
-
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
-
-const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
-  dataTransfer.types.includes('Files')
-
-function formatFileType(storedType: string | null, filename: string): string {
-  const mimeType = resolveEffectiveMimeType(storedType, filename)
-
-  if (MIME_TYPE_LABELS[mimeType]) {
-    return MIME_TYPE_LABELS[mimeType]
-  }
-
-  if (mimeType.startsWith('audio/')) return 'Audio'
-  if (mimeType.startsWith('video/')) return 'Video'
-  if (mimeType.startsWith('image/')) return 'Image'
-
-  const ext = getFileExtension(filename)
-  if (ext) return ext.toUpperCase()
-
-  return storedType ?? 'File'
-}
 
 export function Files() {
   return (
@@ -281,15 +203,21 @@ export function Files() {
 
 function FilesContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const saveRef = useRef<(() => Promise<void>) | null>(null)
-  const downloadSourceRef = useRef<FileDownloadSource | null>(null)
-  const discardRef = useRef<(() => void) | null>(null)
+  const [copySource, setCopySource] = useState<FileCopySource | null>(null)
 
   const params = useParams()
   const router = useRouter()
-  const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
-    useQueryStates(filesParsers, filesUrlKeys)
+  const [
+    { folderId: currentFolderId, new: isNewFile, shareFileId, historyFileId },
+    setFilesParams,
+  ] = useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
+  const {
+    downloadSourceRef,
+    setIsDirty,
+    setSaveStatus,
+    navigate: handleNavigateFromFileDetail,
+  } = useFileNavigation({ entityType: 'workspace', entityId: workspaceId })
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -343,7 +271,6 @@ function FilesContent() {
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
   const createFolder = useCreateWorkspaceFileFolder()
-  const extractFile = useExtractWorkspaceFile()
   const updateFolder = useUpdateWorkspaceFileFolder()
   const moveItems = useMoveWorkspaceFileItems()
   const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
@@ -388,20 +315,6 @@ function FilesContent() {
   })
   /** An upload batch is in flight exactly while a total is set — matches the Tables page. */
   const uploading = uploadProgress.total > 0
-  const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const dragCounterRef = useRef(0)
-  /**
-   * Takes down the "Drop to upload" overlay.
-   *
-   * Every path that consumes an OS file drag has to call this, including the one that never
-   * reaches the page-level handler: a drop on a folder row is handled by the drag hook, which
-   * stops propagation, so `handleDrop` below never runs and the counter it would have zeroed
-   * keeps the overlay on screen over the finished upload.
-   */
-  const dismissUploadOverlay = useCallback(() => {
-    dragCounterRef.current = 0
-    setIsDraggingOver(false)
-  }, [])
   const [
     { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
     setFileFilters,
@@ -500,18 +413,6 @@ function FilesContent() {
   )
 
   const [creatingFile, setCreatingFile] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
-    if (isNewFile) return 'editor'
-    if (fileIdFromRoute) {
-      const file = files.find((f) => f.id === fileIdFromRoute)
-      if (file && isPreviewable(file)) return 'preview'
-      return 'editor'
-    }
-    return 'preview'
-  })
-  const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [extractTargetId, setExtractTargetId] = useState<string | null>(null)
   const extractTarget = extractTargetId ? (fileById.get(extractTargetId) ?? null) : null
@@ -576,6 +477,22 @@ function FilesContent() {
     [workspaceId]
   )
 
+  const historyFile = historyFileId ? files.find((file) => file.id === historyFileId) : undefined
+  const browserModals = (
+    <>
+      {historyFile && (
+        <FileHistoryModal
+          key={`${workspaceId}:${historyFile.id}`}
+          owner={{ entityType: 'workspace', entityId: workspaceId }}
+          fileId={historyFile.id}
+          fileName={historyFile.name}
+          canWrite={canEdit}
+          onClose={() => void setFilesParams({ historyFileId: null }, { history: 'replace' })}
+        />
+      )}
+      {copySource && <FileCopyModal source={copySource} onClose={() => setCopySource(null)} />}
+    </>
+  )
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
     <ShareModal
@@ -583,7 +500,7 @@ function FilesContent() {
       onOpenChange={(open) =>
         !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
       }
-      workspaceId={workspaceId}
+      owner={{ entityType: 'workspace', entityId: workspaceId }}
       fileId={shareFile.id}
       fileName={shareFile.name}
       initialShare={shareFile.share ?? null}
@@ -678,10 +595,15 @@ function FilesContent() {
 
     if (sizeFilter.length > 0) {
       result = result.filter((f) => {
-        if (sizeFilter.includes('small') && f.size < 1_048_576) return true
-        if (sizeFilter.includes('medium') && f.size >= 1_048_576 && f.size <= 10_485_760)
+        if (sizeFilter.includes('small') && f.size < FILE_BROWSER_SIZE_BOUNDARIES.small) return true
+        if (
+          sizeFilter.includes('medium') &&
+          f.size >= FILE_BROWSER_SIZE_BOUNDARIES.small &&
+          f.size <= FILE_BROWSER_SIZE_BOUNDARIES.medium
+        )
           return true
-        if (sizeFilter.includes('large') && f.size > 10_485_760) return true
+        if (sizeFilter.includes('large') && f.size > FILE_BROWSER_SIZE_BOUNDARIES.medium)
+          return true
         return false
       })
     }
@@ -736,7 +658,7 @@ function FilesContent() {
           sortColumn === 'size'
             ? file.size
             : sortColumn === 'type'
-              ? formatFileType(file.type, file.name)
+              ? formatFileBrowserType(file.type, file.name)
               : sortColumn === 'created'
                 ? new Date(file.uploadedAt).getTime()
                 : sortColumn === 'updated'
@@ -817,7 +739,7 @@ function FilesContent() {
             },
             type: {
               icon: <Icon className='size-[14px]' />,
-              label: formatFileType(file.type, file.name),
+              label: formatFileBrowserType(file.type, file.name),
             },
             created: timeCell(file.uploadedAt),
             owner: file.uploadedBy
@@ -979,8 +901,7 @@ function FilesContent() {
 
       const unsupported: string[] = []
       const allowedFiles = sizeFiltered.filter((f) => {
-        const ext = getFileExtension(f.name)
-        const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
+        const ok = isSupportedFileUpload(f.name)
         if (!ok) unsupported.push(f.name)
         return ok
       })
@@ -1030,11 +951,12 @@ function FilesContent() {
 
   const rowDragDropConfig = useFolderRowDragDrop({
     dragMime: FILE_ROW_DRAG_MIME,
+    owner: { entityType: 'workspace', entityId: workspaceId },
     canEdit,
     editingRowId: listRename.editingId,
     descendantsByFolderId: descendantFolderIdsByFolderId,
-    getFolderParentId: (folderId) => folderByIdRef.current.get(folderId)?.parentId ?? null,
-    getResourceFolderId: (fileId) => fileByIdRef.current.get(fileId)?.folderId ?? null,
+    getFolderParentId: (folderId) => folderByIdRef.current.get(folderId)?.parentId,
+    getResourceFolderId: (fileId) => fileByIdRef.current.get(fileId)?.folderId,
     getRowLabel: (rowId) => {
       const parsed = parseFolderedRowId(rowId)
       return parsed.kind === 'folder'
@@ -1071,7 +993,7 @@ function FilesContent() {
     externalDrop: {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
-        dismissUploadOverlay()
+        uploadDrop.dismiss()
         const dropped = Array.from(dataTransfer.files ?? [])
         if (dropped.length > 0) void uploadFiles(dropped, targetFolderId)
       },
@@ -1085,38 +1007,13 @@ function FilesContent() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleDragEnter = (e: React.DragEvent) => {
-    if (!hasExternalFiles(e.dataTransfer)) return
-    e.preventDefault()
-    dragCounterRef.current++
-    setIsDraggingOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!hasExternalFiles(e.dataTransfer)) return
-    dragCounterRef.current--
-    if (dragCounterRef.current === 0) setIsDraggingOver(false)
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!hasExternalFiles(e.dataTransfer)) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    if (!hasExternalFiles(e.dataTransfer)) return
-    e.preventDefault()
-    /**
-     * The upload lands in the folder currently open, so the view must stay there. Without this
-     * the window-level teardown treats the drag as unconsumed and returns to the folder it
-     * began in — pulling the user out of the folder they just spring-opened to receive it.
-     */
-    rowDragDropConfig.externalDropHandled()
-    dismissUploadOverlay()
-    const dropped = Array.from(e.dataTransfer.files)
-    if (dropped.length > 0) await uploadFiles(dropped)
-  }
+  const uploadDrop = useFileUploadDrop({
+    enabled: canEdit,
+    onDrop: (files) => {
+      rowDragDropConfig.externalDropHandled()
+      if (files.length > 0) void uploadFiles(files)
+    },
+  })
 
   const handleDownload = useCallback(
     async (file: WorkspaceFileRecord) => {
@@ -1173,40 +1070,6 @@ function FilesContent() {
       logger.error('Failed to delete file:', err)
     }
   }, [workspaceId, router, currentFolderId])
-
-  const isDirtyRef = useRef(isDirty)
-  isDirtyRef.current = isDirty
-  const saveStatusRef = useRef(saveStatus)
-  saveStatusRef.current = saveStatus
-  const pendingFileNavigationUrlRef = useRef<string | null>(null)
-
-  const handleSave = useCallback(async () => {
-    if (!saveRef.current || !isDirtyRef.current || saveStatusRef.current === 'saving') return
-    await saveRef.current()
-  }, [])
-
-  const handleSaveStatusChange = useCallback((status: SaveStatus, retry?: () => Promise<void>) => {
-    setSaveStatus(status)
-    if (status === 'error') {
-      toast.error(`Failed to save "${selectedFileRef.current?.name ?? 'file'}"`, {
-        action: { label: 'Retry', onClick: () => void retry?.() },
-      })
-    }
-  }, [])
-
-  const handleNavigateFromFileDetail = useCallback(
-    (url: string) => {
-      if (isDirtyRef.current) {
-        pendingFileNavigationUrlRef.current = url
-        setShowUnsavedChangesAlert(true)
-        return
-      }
-
-      setPreviewMode('editor')
-      router.push(url)
-    },
-    [router]
-  )
 
   const handleStartHeaderRename = useCallback(() => {
     const file = selectedFileRef.current
@@ -1332,19 +1195,6 @@ function FilesContent() {
     handleDeleteSelected,
   ])
 
-  const handleDiscardChanges = () => {
-    discardRef.current?.()
-    setShowUnsavedChangesAlert(false)
-    setIsDirty(false)
-    setSaveStatus('idle')
-    setPreviewMode('editor')
-    const folderId = selectedFileRef.current?.folderId ?? null
-    const targetUrl =
-      pendingFileNavigationUrlRef.current ?? folderedResourceListHref('file', workspaceId, folderId)
-    pendingFileNavigationUrlRef.current = null
-    router.push(targetUrl)
-  }
-
   const creatingFileRef = useRef(creatingFile)
   creatingFileRef.current = creatingFile
 
@@ -1468,6 +1318,23 @@ function FilesContent() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
+  const handleCopySelection = useCallback(() => {
+    if (selectedFileIds.length + selectedFolderIds.length === 0) return
+    setCopySource({
+      owner: { entityType: 'workspace', entityId: workspaceId },
+      fileIds: selectedFileIds,
+      folderIds: selectedFolderIds,
+    })
+    closeContextMenu()
+  }, [workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu])
+
+  const handleContextMenuHistory = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file')
+      void setFilesParams({ historyFileId: item.file.id }, { history: 'replace' })
+    closeContextMenu()
+  }, [setFilesParams, closeContextMenu])
+
   const handleContextMenuCopyLink = useCallback(() => {
     const item = contextMenuItemRef.current
     if (item?.kind === 'file') {
@@ -1563,49 +1430,11 @@ function FilesContent() {
     closeListContextMenu()
   }, [canEdit, uploading, closeListContextMenu])
 
-  /**
-   * Tracks the route target whose preview mode has been applied. Starts at
-   * null (the list view) rather than the initial route id because on a hard
-   * load the files list may not have arrived when the mode initializer ran —
-   * a deep-linked previewable file would otherwise be locked into the code
-   * editor. The effect therefore defers until the routed file is resolvable:
-   * either its record exists, or the files query has settled (so a missing
-   * id decides 'editor' instead of waiting forever).
-   */
-  const appliedModeFileIdRef = useRef<string | null>(null)
-  const routedFileResolved = selectedFile != null || !isLoading
-  useEffect(() => {
-    if (fileIdFromRoute === appliedModeFileIdRef.current) return
-    const isJustCreated =
-      isNewFile || (fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute)
-    if (justCreatedFileIdRef.current && !isJustCreated) {
-      justCreatedFileIdRef.current = null
-    }
-    if (fileIdFromRoute != null && !routedFileResolved && !isJustCreated) return
-    appliedModeFileIdRef.current = fileIdFromRoute
-    const file = fileIdFromRoute ? selectedFileRef.current : null
-    const nextMode: PreviewMode =
-      !isJustCreated && file && isPreviewable(file) ? 'preview' : 'editor'
-    setPreviewMode((current) => (nextMode === current ? current : nextMode))
-  }, [fileIdFromRoute, isNewFile, routedFileResolved])
-
   useEffect(() => {
     if (isNewFile && fileIdFromRoute) {
       void setFilesParams({ new: null }, { history: 'replace', scroll: false })
     }
   }, [isNewFile, fileIdFromRoute, setFilesParams])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!fileIdFromRouteRef.current) return
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        handleSave()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave])
 
   const selectedRowIdsRef = useRef(selectedRowIds)
   selectedRowIdsRef.current = selectedRowIds
@@ -1661,54 +1490,9 @@ function FilesContent() {
     onOpen: handleFindOpen,
   })
 
-  const handleCyclePreviewMode = useCallback(() => {
-    setPreviewMode((prev) => {
-      if (prev === 'editor') return 'split'
-      if (prev === 'split') return 'preview'
-      return 'editor'
-    })
-  }, [])
-
-  const handleTogglePreview = useCallback(() => {
-    setPreviewMode((prev) => (prev === 'preview' ? 'editor' : 'preview'))
-  }, [])
-
   const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
-    // A large CSV renders as a read-only streamed preview (no editor), so it gets neither the
-    // edit/split/preview toggle nor autosave — just like a non-editable file.
-    const streamOnly = isCsvStreamOnly(selectedFile)
-    const canEditText = isTextEditable(selectedFile) && !streamOnly
-    const canPreview = isPreviewable(selectedFile) && !streamOnly
-    // Markdown renders in the single-surface inline editor, which has no raw/split/preview modes.
-    const isInlineMarkdown = isMarkdownFile(selectedFile)
-    // A Sim page is locked to its rendered view — no code view to toggle to.
-    const isSimPage = selectedFile.type === SIM_PAGE_CONTENT_TYPE
-    const hasSplitView = canEditText && canPreview && !isInlineMarkdown && !isSimPage
-    const showPreviewToggle = canPreview && !isInlineMarkdown && !isSimPage
-    const nextModeLabel =
-      previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
-    const nextModeIcon =
-      previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
-
     return [
-      ...(hasSplitView
-        ? [
-            {
-              text: nextModeLabel,
-              icon: nextModeIcon,
-              onSelect: handleCyclePreviewMode,
-            },
-          ]
-        : showPreviewToggle
-          ? [
-              {
-                text: previewMode === 'preview' ? 'Edit' : 'Preview',
-                icon: previewMode === 'preview' ? Pencil : Eye,
-                onSelect: handleTogglePreview,
-              },
-            ]
-          : []),
       {
         id: 'copy-link',
         text: copiedFileLink ? 'Copied!' : 'Copy Link',
@@ -1722,6 +1506,24 @@ function FilesContent() {
         text: 'Download',
         icon: Download,
         onSelect: handleDownloadSelected,
+      },
+      {
+        id: 'history',
+        text: 'Version History',
+        icon: Clock,
+        onSelect: () =>
+          void setFilesParams({ historyFileId: selectedFile.id }, { history: 'replace' }),
+      },
+      {
+        id: 'copy',
+        text: 'Copy to...',
+        icon: Duplicate,
+        onSelect: () =>
+          setCopySource({
+            owner: { entityType: 'workspace', entityId: workspaceId },
+            fileIds: [selectedFile.id],
+            folderIds: [],
+          }),
       },
       ...(canEdit
         ? [
@@ -1741,10 +1543,8 @@ function FilesContent() {
     ]
   }, [
     selectedFile,
+    setFilesParams,
     canEdit,
-    previewMode,
-    handleCyclePreviewMode,
-    handleTogglePreview,
     handleDownloadSelected,
     copiedFileLink,
     copyFileLink,
@@ -1786,21 +1586,6 @@ function FilesContent() {
     },
     [router, workspaceId, navigateToFolder]
   )
-
-  const handleExtract = async () => {
-    if (!extractTarget || !canEdit) return
-    try {
-      await extractFile.mutateAsync({
-        workspaceId,
-        fileId: extractTarget.id,
-        fileName: extractTarget.name,
-      })
-    } catch (error) {
-      logger.error('Failed to unzip archive:', error)
-    } finally {
-      setExtractTargetId(null)
-    }
-  }
 
   const handleUploadClick = useCallback(() => {
     if (!canEdit || uploading) return
@@ -1963,14 +1748,7 @@ function FilesContent() {
 
   const sortConfig: SortConfig = useMemo(
     () => ({
-      options: [
-        { id: 'name', label: 'Name' },
-        { id: 'size', label: 'Size' },
-        { id: 'type', label: 'Type' },
-        { id: 'created', label: 'Created' },
-        { id: 'updated', label: 'Last Updated' },
-        { id: 'owner', label: 'Owner' },
-      ],
+      options: [...FILE_BROWSER_SORT_OPTIONS],
       active: activeSort,
       onSort: setListSort,
       onClear: clearListSort,
@@ -1978,117 +1756,30 @@ function FilesContent() {
     [activeSort, setListSort, clearListSort]
   )
 
-  const hasActiveFilters =
-    typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
-
-  const filterContent = useMemo(() => {
-    const typeDisplayLabel =
-      typeFilter.length === 0
-        ? 'All'
-        : typeFilter.length === 1
-          ? ((
-              {
-                document: 'Documents',
-                image: 'Images',
-                audio: 'Audio',
-                video: 'Video',
-              } as Record<string, string>
-            )[typeFilter[0]] ?? typeFilter[0])
-          : `${typeFilter.length} selected`
-
-    const sizeDisplayLabel =
-      sizeFilter.length === 0
-        ? 'All'
-        : sizeFilter.length === 1
-          ? (({ small: 'Small', medium: 'Medium', large: 'Large' } as Record<string, string>)[
-              sizeFilter[0]
-            ] ?? sizeFilter[0])
-          : `${sizeFilter.length} selected`
-
-    const uploadedByDisplayLabel =
-      uploadedByFilter.length === 0
-        ? 'All'
-        : uploadedByFilter.length === 1
-          ? (membersById.get(uploadedByFilter[0])?.name ?? '1 member')
-          : `${uploadedByFilter.length} members`
-
-    return (
-      <ResourceFilterPanel>
-        <ResourceFilterSection label='File Type'>
-          <ChipCombobox
-            options={[
-              { value: 'document', label: 'Documents' },
-              { value: 'image', label: 'Images' },
-              { value: 'audio', label: 'Audio' },
-              { value: 'video', label: 'Video' },
-            ]}
-            multiSelect
-            multiSelectValues={typeFilter}
-            onMultiSelectChange={setTypeFilter}
-            overlayLabel={typeDisplayLabel}
-            overlayContent={typeDisplayLabel}
-            showAllOption
-            allOptionLabel='All'
-            className='w-full'
-          />
-        </ResourceFilterSection>
-        <ResourceFilterSection label='Size'>
-          <ChipCombobox
-            options={[
-              { value: 'small', label: 'Small (< 1 MB)' },
-              { value: 'medium', label: 'Medium (1–10 MB)' },
-              { value: 'large', label: 'Large (> 10 MB)' },
-            ]}
-            multiSelect
-            multiSelectValues={sizeFilter}
-            onMultiSelectChange={setSizeFilter}
-            overlayLabel={sizeDisplayLabel}
-            overlayContent={sizeDisplayLabel}
-            showAllOption
-            allOptionLabel='All'
-            className='w-full'
-          />
-        </ResourceFilterSection>
-        {memberOptions.length > 0 && (
-          <ResourceFilterSection label='Uploaded By'>
-            <ChipCombobox
-              options={memberOptions}
-              multiSelect
-              multiSelectValues={uploadedByFilter}
-              onMultiSelectChange={setUploadedByFilter}
-              overlayLabel={uploadedByDisplayLabel}
-              overlayContent={uploadedByDisplayLabel}
-              searchable
-              searchPlaceholder='Search members...'
-              showAllOption
-              allOptionLabel='All'
-              className='w-full'
-            />
-          </ResourceFilterSection>
-        )}
-        {hasActiveFilters && (
-          <Button
-            variant='ghost'
-            onClick={clearFileFilters}
-            className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
-          >
-            Clear all filters
-          </Button>
-        )}
-      </ResourceFilterPanel>
-    )
-  }, [
-    typeFilter,
-    sizeFilter,
-    uploadedByFilter,
-    memberOptions,
-    membersById,
-    hasActiveFilters,
-    setTypeFilter,
-    setSizeFilter,
-    setUploadedByFilter,
-    clearFileFilters,
-  ])
+  const filterContent = useMemo(
+    () => (
+      <FileFilterControls
+        types={typeFilter}
+        sizes={sizeFilter}
+        creatorIds={uploadedByFilter}
+        creators={memberOptions}
+        onTypes={setTypeFilter}
+        onSizes={setSizeFilter}
+        onCreators={setUploadedByFilter}
+        onClear={clearFileFilters}
+      />
+    ),
+    [
+      typeFilter,
+      sizeFilter,
+      uploadedByFilter,
+      memberOptions,
+      setTypeFilter,
+      setSizeFilter,
+      setUploadedByFilter,
+      clearFileFilters,
+    ]
+  )
 
   /** Stable identity so the memoized `Resource.Options` can bail; an inline object cannot. */
   const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
@@ -2170,45 +1861,23 @@ function FilesContent() {
   if (selectedFile) {
     return (
       <>
-        {/* The room provider scopes "who's in this file" presence to the open document: the
-            editor (inside FileViewer) publishes the server-authenticated roster and the
-            header's FileDocAvatars reads it — both must be descendants. */}
-        <FileDocRoomProvider>
-          <Resource>
-            <Resource.Header
-              icon={FILES_HEADER.rootIcon}
-              breadcrumbs={fileDetailBreadcrumbs}
-              actions={fileActions}
-              aside={<FileDocAvatars />}
-            />
-            <FileViewer
-              key={selectedFile.id}
-              file={selectedFile}
-              workspaceId={workspaceId}
-              canEdit={canEdit}
-              previewMode={previewMode}
-              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-              onDirtyChange={setIsDirty}
-              onSaveStatusChange={handleSaveStatusChange}
-              saveRef={saveRef}
-              downloadSourceRef={downloadSourceRef}
-              discardRef={discardRef}
-              collaborative
-              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
-              enableFind
-            />
-
-            <ChipConfirmModal
-              open={showUnsavedChangesAlert}
-              onOpenChange={setShowUnsavedChangesAlert}
-              srTitle='Unsaved Changes'
-              title='Unsaved Changes'
-              text='You have unsaved changes. Are you sure you want to discard them?'
-              dismissLabel='Keep editing'
-              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-            />
-          </Resource>
-        </FileDocRoomProvider>
+        <FileDetail
+          key={selectedFile.id}
+          header={{
+            icon: FILES_HEADER.rootIcon,
+            breadcrumbs: fileDetailBreadcrumbs,
+            actions: fileActions,
+          }}
+          viewer={{
+            file: selectedFile,
+            workspaceId,
+            canEdit,
+            autoFocus: isNewFile || justCreatedFileIdRef.current === selectedFile.id,
+            collaborative: true,
+            onDeriveTitleFromHeading: handleDeriveTitleFromHeading,
+            enableFind: true,
+          }}
+        />
 
         <DeleteConfirmModal
           open={showDeleteConfirm}
@@ -2220,6 +1889,7 @@ function FilesContent() {
           isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
 
+        {browserModals}
         {shareModal}
       </>
     )
@@ -2236,13 +1906,7 @@ function FilesContent() {
     : false
 
   return (
-    <div
-      className='relative flex h-full flex-col overflow-hidden'
-      onDragEnter={canEdit ? handleDragEnter : undefined}
-      onDragLeave={canEdit ? handleDragLeave : undefined}
-      onDragOver={canEdit ? handleDragOver : undefined}
-      onDrop={canEdit ? handleDrop : undefined}
-    >
+    <div className='relative flex h-full flex-col overflow-hidden' {...uploadDrop.handlers}>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
           icon={FILES_HEADER.rootIcon}
@@ -2299,6 +1963,7 @@ function FilesContent() {
               <ResourceActionBar
                 selectedCount={selectedRowIds.size}
                 onDownload={handleBulkDownload}
+                onCopy={handleCopySelection}
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
@@ -2306,17 +1971,7 @@ function FilesContent() {
                   bulkArchiveItems.isPending || moveItems.isPending || isDownloadingArchive
                 }
               />
-              {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--white)] transition-colors dark:bg-[var(--surface-4)]'>
-                  <Upload className='size-5 text-[var(--brand-secondary)]' />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      Release files here to add them to this workspace
-                    </p>
-                  </div>
-                </div>
-              ) : null}
+              {uploadDrop.isDraggingOver && <FileUploadOverlay destination='this workspace' />}
             </>
           }
         />
@@ -2341,6 +1996,8 @@ function FilesContent() {
         onOpen={handleContextMenuOpen}
         onCopyLink={contextMenuItem?.kind === 'file' ? handleContextMenuCopyLink : undefined}
         onDownload={handleContextMenuDownload}
+        onCopy={handleCopySelection}
+        onHistory={contextMenuItem?.kind === 'file' ? handleContextMenuHistory : undefined}
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
@@ -2362,26 +2019,18 @@ function FilesContent() {
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
 
-      <ChipConfirmModal
-        open={Boolean(extractTarget)}
-        onOpenChange={(open) => !open && setExtractTargetId(null)}
-        title='Unzip archive?'
-        defaultAction='confirm'
-        text={[
-          'This will unzip ',
-          { text: extractTarget?.name ?? 'this archive', bold: true },
-          ' into a new folder beside it.',
-        ]}
-        confirm={{
-          label: 'Unzip',
-          onClick: () => void handleExtract(),
-          variant: 'primary',
-          pending: extractFile.isPending,
-          pendingLabel: 'Unzipping...',
-          disabled: !canEdit,
-        }}
-      />
+      {extractTarget && (
+        <FileExtractionModal
+          key={extractTarget.id}
+          owner={{ entityType: 'workspace', entityId: workspaceId }}
+          fileId={extractTarget.id}
+          fileName={extractTarget.name}
+          canWrite={canEdit}
+          onClose={() => setExtractTargetId(null)}
+        />
+      )}
 
+      {browserModals}
       {shareModal}
 
       <input
@@ -2390,7 +2039,6 @@ function FilesContent() {
         className='hidden'
         onChange={handleFileChange}
         disabled={uploading || !canEdit}
-        accept={ACCEPT_ATTR}
         multiple
       />
     </div>

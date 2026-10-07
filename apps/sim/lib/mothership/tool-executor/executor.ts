@@ -1,11 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { openResourceInputSchema } from '@/lib/api/contracts/mothership-resource-tools'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASSISTANT_TOOLS } from '@/lib/mothership/assistant/tool-policy'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
@@ -39,6 +41,22 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (toolId === 'open_resource') {
+    const parsed = openResourceInputSchema.safeParse(params)
+    if (
+      parsed.success &&
+      parsed.data.resources.every(
+        (resource) =>
+          resource.type === 'file' &&
+          resource.owner &&
+          getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'owner'
+      )
+    ) {
+      if (context.targetWorkspaceId)
+        return { success: false, error: 'These file owners do not take a workspace target' }
+      return executeBoundTool(toolId, params, context)
+    }
+  }
   if (context.organizationId) {
     if (
       context.workspaceId ||

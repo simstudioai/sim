@@ -367,8 +367,22 @@ export const listWorkspacesInputSchema = z.object({
   cursor: z.string().uuid().optional().describe('Copy nextCursor from the preceding page.'),
 })
 
+/** Project discovery accepts pagination only; the conversation determines the accessible scope. */
+export const listUserProjectsInputSchema = z.object({
+  cursor: z.string().uuid().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+})
+export type ListUserProjectsInput = z.output<typeof listUserProjectsInputSchema>
+
 /** Executor identity belongs to Sim; model-facing profile guidance belongs to its caller. */
 export const assistantToolContracts = [
+  {
+    id: 'list_user_projects',
+    route: 'sim',
+    description:
+      'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.',
+    inputSchema: listUserProjectsInputSchema,
+  },
   {
     id: 'list_workspaces',
     route: 'sim',

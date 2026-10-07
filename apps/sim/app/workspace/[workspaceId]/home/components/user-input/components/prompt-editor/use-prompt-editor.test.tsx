@@ -3,6 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -34,6 +35,9 @@ function renderPromptEditor(props: UsePromptEditorProps) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root: Root = createRoot(container)
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+  })
   let latest: ReturnType<typeof usePromptEditor>
 
   function Probe() {
@@ -42,7 +46,7 @@ function renderPromptEditor(props: UsePromptEditorProps) {
   }
 
   function Wrapper({ children }: { children: ReactNode }) {
-    return <>{children}</>
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   }
 
   act(() => {
@@ -62,6 +66,7 @@ function renderPromptEditor(props: UsePromptEditorProps) {
     textarea,
     unmount: () => {
       act(() => root.unmount())
+      queryClient.clear()
       container.remove()
       textarea.remove()
     },

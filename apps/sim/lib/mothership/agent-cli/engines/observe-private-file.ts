@@ -13,7 +13,8 @@ export async function observePrivateFile(
     buffer: Buffer
     name: string
     path: string
-    source: 'sandbox' | 'upload' | 'knowledge'
+    source: 'sandbox' | 'upload' | 'knowledge' | 'project'
+    fileId?: string
     contentType?: string
     knowledge?: {
       documentId: string
@@ -24,7 +25,7 @@ export async function observePrivateFile(
     }
   },
   flags: AgentCliFlags,
-  options: { offset?: number; limit?: number },
+  options: { offset?: number; limit?: number; visual?: boolean },
   signal?: AbortSignal
 ) {
   const type = file.contentType ?? getMimeTypeFromExtension(getFileExtension(file.name))
@@ -33,10 +34,11 @@ export async function observePrivateFile(
     path: file.path,
     type,
     source: file.source,
+    ...(file.fileId ? { fileId: file.fileId } : {}),
     ...file.knowledge,
   }
   const textRange = options.offset !== undefined || options.limit !== undefined
-  const visual = flags.render !== undefined || flags.pages !== undefined
+  const visual = options.visual || flags.render !== undefined || flags.pages !== undefined
   if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
     const decoded = await decodeFileVisual({
       buffer: file.buffer,
@@ -60,6 +62,7 @@ export async function observePrivateFile(
       observations: [
         {
           name: file.name,
+          ...(file.fileId ? { resourceId: file.fileId } : {}),
           mediaType: decoded.mediaType,
           data: decoded.buffer.toString('base64'),
           ...(decoded.pages ? { pageCount: decoded.pages.last - decoded.pages.first + 1 } : {}),
@@ -100,9 +103,11 @@ export async function observePrivateFile(
       bytes: file.buffer.length,
       contentAvailable: false,
       note:
-        file.source === 'knowledge'
-          ? 'Content was not inspected: this original has no model-readable decoder.'
-          : 'Content was not inspected: this file has no model-readable decoder. Process its mounted sandbox path with run_code.',
+        file.source === 'project'
+          ? 'Content was not inspected: this file has no model-readable decoder. Download its stored bytes to inspect it.'
+          : file.source === 'knowledge'
+            ? 'Content was not inspected: this original has no model-readable decoder.'
+            : 'Content was not inspected: this file has no model-readable decoder. Process its mounted sandbox path with run_code.',
     })
   )
 }

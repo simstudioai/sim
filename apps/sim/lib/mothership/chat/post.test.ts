@@ -1086,7 +1086,8 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       'chat-1',
       expect.any(ResolvedSecretTraceRegistry),
-      undefined
+      undefined,
+      'agent'
     )
     expect(resolveActiveResourceContext).toHaveBeenCalledWith(
       'table',
@@ -1202,7 +1203,8 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       'chat-1',
       expect.any(ResolvedSecretTraceRegistry),
-      undefined
+      undefined,
+      'agent'
     )
   })
 

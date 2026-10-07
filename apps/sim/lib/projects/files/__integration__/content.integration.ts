@@ -42,6 +42,7 @@ vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 import * as tracking from '@/lib/billing/storage/tracking'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as sandboxTask from '@/lib/execution/sandbox/run-task'
+import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import {
   createProjectFile,
   readProjectFileContent,
@@ -2547,6 +2548,238 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
   )
 })
 
+describe('private compound copy transport', () => {
+  check(
+    'native paired copy dispatch returns the destination resource and persists the current actor bytes',
+    async () => {
+      const { createCopilotResourceAdmission } = await import(
+        '@/lib/mothership/auth/application-delegation'
+      )
+      const { uploadWorkspaceFile } = await import(
+        '@/lib/uploads/contexts/workspace/workspace-file-manager'
+      )
+      const f = await fixture()
+      const original = await uploadWorkspaceFile(
+        f.workspaceId,
+        f.ownerId,
+        Buffer.from('native paired copy bytes'),
+        'native-copy.txt',
+        'text/plain'
+      )
+      const destinationFolder = await createProjectFileFolder.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, name: 'Architecture' },
+      })
+      const target = {
+        source: {
+          owner: { entityType: 'workspace' as const, entityId: f.workspaceId },
+          fileIds: [original.id],
+          folderIds: [],
+        },
+        destination: {
+          owner: { entityType: 'project' as const, entityId: f.projectId },
+          folderId: destinationFolder.folder.id,
+        },
+      }
+      const result = await executeAgentCliRequest(
+        {
+          invocation: {
+            kind: 'file-copy',
+            ...target,
+            argv: [
+              'files',
+              'copy',
+              '--source',
+              JSON.stringify(target.source),
+              '--destination',
+              JSON.stringify(target.destination),
+            ],
+          },
+        },
+        {
+          userId: f.editorId,
+          workspaceId: f.workspaceId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.editorId,
+            invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+          }),
+        }
+      )
+      expect(result, result.stderr).toMatchObject({ exitCode: 0 })
+      const [copied] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.projectId, f.projectId))
+      if (!copied) throw new Error('Native paired copy created no durable Project file')
+      expect(copied.id).not.toBe(original.id)
+      expect(copied.userId).toBe(f.editorId)
+      expect(copied.folderId).toBe(destinationFolder.folder.id)
+      expect(await storage.downloadFile({ key: copied.key, context: 'project' })).toEqual(
+        Buffer.from('native paired copy bytes')
+      )
+      expect(result.resources).toContainEqual({
+        op: 'upsert',
+        resource: {
+          type: 'file',
+          owner: target.destination.owner,
+          id: copied.id,
+          title: 'native-copy.txt',
+          path: `projects/${f.projectId}/files/Architecture/native-copy.txt`,
+        },
+      })
+    }
+  )
+
+  check(
+    'private copy transport retains the acting user through the real v2 route and stored bytes',
+    async () => {
+      const { createFileCopyCliTransport } = await import(
+        '@/lib/mothership/agent-cli/file-copy-transport'
+      )
+      const { createCopilotResourceAdmission } = await import(
+        '@/lib/mothership/auth/application-delegation'
+      )
+      const f = await fixture()
+      const original = await createProjectFile.execute({
+        principal: createSessionPrincipal({ userId: f.ownerId }),
+        input: createInput(f.projectId, 'private compound copy bytes'),
+      })
+      const input = {
+        source: {
+          owner: { entityType: 'project' as const, entityId: f.projectId },
+          fileIds: [original.file.id],
+          folderIds: [],
+        },
+        destination: {
+          owner: { entityType: 'workspace' as const, entityId: f.workspaceId },
+          folderId: null,
+        },
+      }
+      const transport = createFileCopyCliTransport(
+        'http://localhost:3000',
+        {
+          userId: f.editorId,
+          workspaceId: f.workspaceId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.editorId,
+            invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+          }),
+        },
+        input
+      )
+      const before = await ledger(f.organizationId)
+      const response = await transport('http://localhost:3000/api/v2/files/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      expect(response.status).toBe(201)
+      const [copied] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.workspaceId, f.workspaceId))
+      if (!copied || copied.sizeBytes === null)
+        throw new Error('Private copy created no sized durable file')
+      expect(copied.userId).toBe(f.editorId)
+      expect(copied.id).not.toBe(original.file.id)
+      expect(await storage.downloadFile({ key: copied.key, context: 'workspace' })).toEqual(
+        Buffer.from('private compound copy bytes')
+      )
+      expect(await ledger(f.organizationId)).toBe(before + copied.sizeBytes)
+    }
+  )
+
+  check(
+    'private copy transport binds immutable selections and refuses changed owners, routes and revoked access',
+    async () => {
+      const { createFileCopyCliTransport } = await import(
+        '@/lib/mothership/agent-cli/file-copy-transport'
+      )
+      const { createCopilotResourceAdmission } = await import(
+        '@/lib/mothership/auth/application-delegation'
+      )
+      const f = await fixture()
+      const original = await createProjectFile.execute({
+        principal: f.principal,
+        input: createInput(f.projectId),
+      })
+      const input = {
+        source: {
+          owner: { entityType: 'project' as const, entityId: f.projectId },
+          fileIds: [original.file.id],
+          folderIds: [],
+        },
+        destination: {
+          owner: { entityType: 'workspace' as const, entityId: f.workspaceId },
+          folderId: null,
+        },
+      }
+      const expected = structuredClone(input)
+      const transport = createFileCopyCliTransport(
+        'http://localhost:3000',
+        {
+          userId: f.editorId,
+          workspaceId: f.workspaceId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.editorId,
+            invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+          }),
+        },
+        input
+      )
+      input.source.fileIds.push(generateId())
+      for (const body of [
+        input,
+        { ...expected, destination: { ...expected.destination, folderId: generateId() } },
+        {
+          ...expected,
+          source: { ...expected.source, owner: { entityType: 'project', entityId: generateId() } },
+        },
+      ]) {
+        expect(
+          (
+            await transport('http://localhost:3000/api/v2/files/copy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+          ).status
+        ).toBe(403)
+      }
+      expect(
+        (await transport(`http://localhost:3000/api/v2/projects/${f.projectId}/files`)).status
+      ).toBe(400)
+      expect(
+        (
+          await transport('http://other.invalid/api/v2/files/copy', {
+            method: 'POST',
+            body: JSON.stringify(expected),
+          })
+        ).status
+      ).toBe(400)
+      await db.delete(permissions).where(eq(permissions.userId, f.editorId))
+      expect(
+        (
+          await transport('http://localhost:3000/api/v2/files/copy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(expected),
+          })
+        ).status
+      ).toBe(403)
+      expect(
+        await db.select().from(workspaceFiles).where(eq(workspaceFiles.workspaceId, f.workspaceId))
+      ).toEqual([])
+    }
+  )
+})
+
 describe('Project archive download and Markdown snapshot export', () => {
   check(
     'Project recursive download retains nested paths, deduplicates selections, and excludes archived or foreign items',
@@ -2873,7 +3106,28 @@ describe('Project archive download and Markdown snapshot export', () => {
         .from(workspaceFiles)
         .where(eq(workspaceFiles.id, source.file.id))
       expect(headAfter).toEqual(headBefore)
-
+      const { executeCopilotProjectFileUseCase } = await import(
+        '@/lib/mothership/application/execute-project-file-use-case'
+      )
+      const { createCopilotResourceAdmission } = await import(
+        '@/lib/mothership/auth/application-delegation'
+      )
+      const delegated = await executeCopilotProjectFileUseCase(
+        {
+          userId: f.editorId,
+          workspaceId: f.workspaceId,
+          toolCallId: generateId(),
+          copilotToolExecution: true,
+          copilotResourceAdmission: createCopilotResourceAdmission({
+            userId: f.editorId,
+            invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+          }),
+        },
+        exportProjectFileSnapshot,
+        { projectId: f.projectId, fileId: source.file.id, content: 'unclassified visible text' },
+        { projectId: f.projectId, fileId: source.file.id }
+      )
+      expect(delegated.secretProvenance.status).toBe('unknown')
       await updateProjectFileContent.execute({
         principal: f.principal,
         input: {

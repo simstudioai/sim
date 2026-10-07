@@ -11,12 +11,10 @@ import { useImportTrayStore } from '@/stores/table/import-tray/store'
 export type CsvImportFileDescriptor = Pick<WorkspaceFileRecord, 'id' | 'key' | 'name'>
 
 /**
- * Wires the "Import as a table" affordance for a capped CSV preview. When the preview is
- * `truncated`, raises a one-time warning toast whose action kicks off a background import of the
- * existing workspace file — no re-upload, source preserved — and navigates to the new table.
+ * Warns when a CSV preview is capped. Editable workspace files also offer a background table import.
  */
 export function useCsvTruncationImport(
-  workspaceId: string,
+  workspaceId: string | undefined,
   file: CsvImportFileDescriptor,
   truncated: boolean,
   readOnly = false
@@ -29,7 +27,7 @@ export function useCsvTruncationImport(
   const importingRef = useRef(false)
 
   const importAsTable = useCallback(() => {
-    if (importingRef.current) return
+    if (!workspaceId || importingRef.current) return
     importingRef.current = true
     let importId: string | null = null
     toast.success(`Importing "${file.name}" as a table`, {
@@ -64,14 +62,18 @@ export function useCsvTruncationImport(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, file.id, file.key, file.name])
 
-  // Surface the cap as a warning toast with an import action, once per file.
   const notifiedKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (readOnly || !truncated || notifiedKeyRef.current === file.key) return
+    if (!truncated || notifiedKeyRef.current === file.key) return
     notifiedKeyRef.current = file.key
-    toast.warning(`Showing the first ${CSV_PREVIEW_MAX_ROWS.toLocaleString()} rows`, {
-      description: 'Import this file as a table to view all of its rows.',
-      action: { label: 'Import as a table', onClick: importAsTable },
-    })
-  }, [readOnly, truncated, file.key, importAsTable])
+    toast.warning(
+      `Showing the first ${CSV_PREVIEW_MAX_ROWS.toLocaleString()} rows`,
+      workspaceId && !readOnly
+        ? {
+            description: 'Import this file as a table to view all of its rows.',
+            action: { label: 'Import as a table', onClick: importAsTable },
+          }
+        : { description: 'This preview does not include all rows.' }
+    )
+  }, [workspaceId, readOnly, truncated, file.key, importAsTable])
 }

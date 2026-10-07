@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import {
   readXlsxPreviewData,
@@ -32,8 +32,8 @@ export const XlsxPreview = memo(function XlsxPreview({
   file,
   workspaceId,
 }: {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
 }) {
   const scrollRef = useHorizontalWheelScroll()
   const preview = useDocPreviewBinary(workspaceId, file)
