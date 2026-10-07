@@ -571,7 +571,8 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
      */
     const recover = async (orphan: Awaited<ReturnType<typeof admittedRun>>) => {
       if (!(await acquirePendingChatStream(orphan.chatId, orphan.streamId, 0))) return false
-      const lease = getLocalChatStreamLease(orphan.chatId, orphan.streamId)!
+      const lease = getLocalChatStreamLease(orphan.chatId, orphan.streamId)
+      if (!lease) throw new Error('Recovery acquired the chat lock without a local lease')
       await assertChatStreamLease(lease)
       const claimed = await claimRunController({
         runId: orphan.runId,
