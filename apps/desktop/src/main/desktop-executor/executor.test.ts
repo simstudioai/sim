@@ -256,6 +256,23 @@ describe('claiming', () => {
     expect(delivered).toEqual([])
   })
 
+  it('reports a stand-in Sim holds as a duplicate as never reaching the model, within one app run', async () => {
+    const { sim, runner, executor, delivered, notDelivered } = setup()
+    // Too large to send, so Sim never took the real result; the stand-in's first answer was lost.
+    runner.immediate = DONE
+    sim.completeErrors = [
+      new DeviceRequestError(413, 'too large'),
+      new DeviceRequestError(0, 'connection reset'),
+    ]
+    sim.completionOutcome = 'duplicate'
+    sim.inbox = [callItem('call-1', 'chat-a', 'terminal')]
+
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-1']))
+    expect(delivered).toEqual([])
+  })
+
   it('reports a result Sim refused as never reaching the model', async () => {
     const { sim, runner, executor, notDelivered } = setup()
     runner.immediate = DONE
@@ -549,6 +566,24 @@ describe('restarting', () => {
     expect(sim.completions).toHaveLength(1)
     expect(delivered).toEqual([])
     expect(notDelivered).toEqual([])
+  })
+
+  it('reports a recovered result too large to send, then held as a duplicate, as never reaching the model', async () => {
+    const { sim, journal, executor, delivered, notDelivered } = setup()
+    // No run could have sent this result: it is too large every time.
+    sim.completeErrors = [new DeviceRequestError(413, 'too large')]
+    sim.completionOutcome = 'duplicate'
+    await journal.put({
+      toolCallId: 'result-1',
+      state: 'result',
+      executionToken: 't',
+      completion: DONE,
+    })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['result-1']))
+    expect(delivered).toEqual([])
   })
 })
 

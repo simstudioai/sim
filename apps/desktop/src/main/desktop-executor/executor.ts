@@ -431,9 +431,11 @@ export class DesktopExecutor {
         // Superseded: Sim settled the call first, so this result never reached the model.
         const delivered = outcome !== 'superseded' && isDeliveredResult(pending)
         if (delivered) this.options.onResultDelivered?.(toolCallId)
-        // A stand-in Sim already holds leaves open which result it took first: a send from before
-        // a restart may have carried the real one.
-        notDelivered = !delivered && outcome !== 'duplicate'
+        // A duplicate holds what this app run sent, unless the result was recovered unchanged from
+        // an earlier run, whose send of the real result may have landed before the restart.
+        const takenEarlier =
+          outcome === 'duplicate' && pending === completion && this.recoveringIds.has(toolCallId)
+        notDelivered = !delivered && !takenEarlier
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.
