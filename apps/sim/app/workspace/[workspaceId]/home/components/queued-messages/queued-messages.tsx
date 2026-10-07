@@ -146,7 +146,7 @@ export function QueuedMessages({
                               isDispatching
                                 ? 'Sending now'
                                 : msg.admissionUnknown
-                                  ? 'Already sent; editing it would send a second message'
+                                  ? 'May already be sent; editing could send a second message'
                                   : 'Edit queued message'
                             }
                             type='button'
@@ -164,7 +164,7 @@ export function QueuedMessages({
                           {isDispatching
                             ? 'Sending now'
                             : msg.admissionUnknown
-                              ? 'Already sent; editing it would send a second message'
+                              ? 'May already be sent; editing could send a second message'
                               : 'Edit queued message'}
                         </Tooltip.Content>
                       </Tooltip.Root>
