@@ -176,28 +176,31 @@ test.describe('desktop tools against a live Sim', () => {
 
   const composer = (page: Page) => page.getByRole('textbox').last()
 
+  /** The dev app's error overlay, if it is up, with the errors the window reported. */
+  async function devOverlayError(page: Page): Promise<string | undefined> {
+    const overlay = page.locator('nextjs-portal [data-nextjs-dialog]')
+    if ((await overlay.count()) === 0) return undefined
+    return `Next.js error overlay: ${await overlay.first().innerText()}\n${pageErrors.join('\n')}`
+  }
+
   /**
    * Clicks `target`, failing at once with the dev app's error instead of waiting out a click the
    * Next.js error overlay intercepts.
    */
   async function click(page: Page, target: Locator, timeout = 15_000): Promise<void> {
-    const overlay = page.locator('nextjs-portal [data-nextjs-dialog]')
-    const blocked = async () =>
-      (await overlay.count()) > 0
-        ? `Next.js error overlay: ${await overlay.first().innerText()}\n${pageErrors.join('\n')}`
-        : undefined
-    const before = await blocked()
+    const before = await devOverlayError(page)
     if (before) throw new Error(before)
     try {
       await target.click({ timeout })
     } catch (error) {
-      throw new Error((await blocked()) ?? String(error))
+      throw new Error((await devOverlayError(page)) ?? String(error))
     }
   }
 
   /**
    * Sends `message` and waits until the turn reached Sim. A page still hydrating can drop the
-   * typed text or the click, so the message is typed and sent again only while no turn went out.
+   * typed text (the Send button only shows for a non-empty message) or the click, so the message
+   * is typed and sent again only while no turn went out.
    */
   async function send(page: Page, message: string, timeout = 60_000): Promise<void> {
     const since = Date.now()
@@ -207,13 +210,20 @@ test.describe('desktop tools against a live Sim', () => {
         .some((entry) => entry.method === 'POST' && entry.path === '/api/mothership/chat')
     const deadline = Date.now() + timeout
     while (!sent()) {
+      const overlay = await devOverlayError(page)
+      if (overlay) throw new Error(overlay)
       if (Date.now() > deadline) throw new Error(`The message was never sent: ${message}`)
       if ((await composer(page).inputValue()) !== message) await composer(page).fill(message)
-      await click(page, page.getByRole('button', { name: 'Send message' }))
-      await expect
-        .poll(sent, { timeout: 10_000 })
-        .toBe(true)
-        .catch(() => {})
+      const clicked = await page
+        .getByRole('button', { name: 'Send message' })
+        .click({ timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (clicked)
+        await expect
+          .poll(sent, { timeout: 10_000 })
+          .toBe(true)
+          .catch(() => {})
     }
   }
 
@@ -224,7 +234,7 @@ test.describe('desktop tools against a live Sim', () => {
     title: string,
     timeout = 30_000
   ): Promise<void> {
-    await click(page, page.getByRole('link', { name: title }).first())
+    await click(page, page.getByRole('link', { name: title }).first(), timeout)
     await expect(page).toHaveURL(new RegExp(`${user.chats[title]}$`), { timeout })
   }
 
