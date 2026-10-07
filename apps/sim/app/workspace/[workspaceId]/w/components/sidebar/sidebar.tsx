@@ -185,10 +185,10 @@ const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-const DESKTOP_ACTIVITY_COLOR: Record<DesktopChatActivity['state'], string> = {
-  running: '#EAB308',
-  needs_input: 'var(--warning)',
-  blocked: 'var(--text-error)',
+const DESKTOP_ACTIVITY_COLOR_CLASS: Record<DesktopChatActivity['state'], string> = {
+  running: 'bg-[#EAB308]',
+  needs_input: 'bg-[var(--warning)]',
+  blocked: 'bg-[var(--text-error)]',
 }
 
 function desktopActivityLabel({ state, deviceName }: DesktopChatActivity): string {
@@ -211,8 +211,7 @@ function DesktopActivityDot({ activity }: DesktopActivityDotProps) {
     <span
       role='img'
       aria-label={desktopActivityLabel(activity)}
-      className='size-[6px] rounded-full'
-      style={{ backgroundColor: DESKTOP_ACTIVITY_COLOR[activity.state] }}
+      className={cn('size-[6px] rounded-full', DESKTOP_ACTIVITY_COLOR_CLASS[activity.state])}
     />
   )
 }
