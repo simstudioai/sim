@@ -18,10 +18,6 @@ vi.mock('@/lib/workspace-files/search/indexing', () => ({
   indexWorkspaceFileForSearch: vi.fn(),
   markWorkspaceFileSearchIndexFailed: vi.fn(),
 }))
-vi.mock('@/lib/workspace-files/search/index-state', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/workspace-files/search/index-state')>()),
-  cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
-}))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
@@ -38,6 +34,19 @@ import {
   hasWorkspaceFileSearchDispatchWork,
   prepareWorkspaceFileSearchDispatch,
 } from '@/lib/workspace-files/search/dispatcher'
+
+interface QueryPlan {
+  'Node Type': string
+  'Relation Name'?: string
+  'Index Name'?: string
+  'Shared Hit Blocks': number
+  'Shared Read Blocks': number
+  Plans?: QueryPlan[]
+}
+
+function planNodes(plan: QueryPlan): QueryPlan[] {
+  return [plan, ...(plan.Plans ?? []).flatMap(planNodes)]
+}
 
 describe('workspace file search dispatch PostgreSQL deadlines', () => {
   const schemaName = `dispatch_test_${generateId().replaceAll('-', '')}`
@@ -93,7 +102,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       ON workspace_file_search_revision
       (workspace_id, updated_at, file_id, source_content_updated_at)
       WHERE status = 'pending' AND dispatched_at IS NULL`
-    await connection`CREATE INDEX ON workspace_file_search_revision (workspace_id, dispatched_at)
+    await connection`CREATE INDEX workspace_file_search_revision_active_idx
+      ON workspace_file_search_revision (dispatched_at, workspace_id)
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, expires_at timestamp)`
     await connection`CREATE INDEX workspace_file_search_build_cleanup_idx
@@ -627,22 +637,39 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       await expect(hasWorkspaceFileSearchDispatchWork(new Date())).resolves.toBe(true)
     })
 
-    it('probes the cleanup and active-claim indexes rather than scanning', async () => {
+    it('probes builds and claims through their indexes beside a large settled backlog', async () => {
       await seedIdleDeployment()
+      await connection`INSERT INTO workspace_file_search_revision
+        (file_id, workspace_id, source_content_updated_at, status)
+        SELECT 'settled-' || n, 'workspace-' || (n % 50), '2026-09-16', 'ready'
+        FROM generate_series(1, 100000) n`
+      await connection`INSERT INTO workspace_file_search_build (id, expires_at)
+        SELECT 'published-' || n, NULL FROM generate_series(1, 100000) n`
+      await connection`VACUUM (ANALYZE) workspace_file_search_revision, workspace_file_search_build`
       statements.length = 0
       await expect(hasWorkspaceFileSearchDispatchWork(new Date())).resolves.toBe(false)
 
       const probe = statements.find((statement) => statement.query.includes('"hasWork"'))
       expect(probe).toBeDefined()
-      const plan = await connection.begin(async (tx) => {
-        await tx`SET LOCAL enable_seqscan = off`
-        const rows = await tx.unsafe(`EXPLAIN ${probe?.query}`, probe?.params as never[])
-        return rows.map((row: Record<string, unknown>) => row['QUERY PLAN']).join('\n')
-      })
+      const [explained] = await connection.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${probe?.query}`,
+        probe?.params as never[]
+      )
+      const plan = (explained['QUERY PLAN'] as { Plan: QueryPlan }[])[0].Plan
+      const nodes = planNodes(plan)
+      const indexes = nodes.map((node) => node['Index Name'])
 
-      expect(plan).toContain('workspace_file_search_build_cleanup_idx')
-      expect(plan).toMatch(/using workspace_file_search_revision_workspace_id_dispatched_at_idx/)
-      expect(plan).not.toMatch(/Seq Scan/)
-    })
+      expect(indexes).toContain('workspace_file_search_build_cleanup_idx')
+      expect(indexes).toContain('workspace_file_search_revision_active_idx')
+      expect(
+        nodes.filter(
+          (node) =>
+            node['Node Type'] === 'Seq Scan' &&
+            node['Relation Name'] !== 'workspace_file_search_dispatch_queue'
+        )
+      ).toEqual([])
+      /** Buffer work, unlike wall-clock time, catches a backlog scan even on a warm local database. */
+      expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(100)
+    }, 60_000)
   })
 })

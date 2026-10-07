@@ -84,6 +84,31 @@ function createMockTask<T extends object>(config: T) {
 }
 
 /**
+ * A `tasks.trigger` implementation that deduplicates like Trigger.dev: a trigger whose task already
+ * holds its `idempotencyKey` returns that run's id, and a new key (or no key) starts a new run
+ * (`run-1`, `run-2`, …). Key TTLs are not modelled: a key is held for the fake's lifetime.
+ *
+ * @example
+ * ```ts
+ * triggerSdkMockFns.mockTasksTrigger.mockImplementation(createIdempotentTasksTrigger())
+ * ```
+ */
+export function createIdempotentTasksTrigger() {
+  const runIdByKey = new Map<string, string>()
+  let runCount = 0
+  return async (taskId: string, _payload?: unknown, options?: unknown): Promise<unknown> => {
+    const key = (options as { idempotencyKey?: unknown } | undefined)?.idempotencyKey
+    const scopedKey = typeof key === 'string' ? `${taskId}:${key}` : null
+    const existing = scopedKey ? runIdByKey.get(scopedKey) : undefined
+    if (existing) return { id: existing }
+    runCount += 1
+    const id = `run-${runCount}`
+    if (scopedKey) runIdByKey.set(scopedKey, id)
+    return { id }
+  }
+}
+
+/**
  * Controllable mock functions for `@trigger.dev/sdk` (globally mocked in `apps/sim/vitest.setup.ts`).
  *
  * Defaults:

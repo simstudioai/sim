@@ -1,6 +1,10 @@
 import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
 import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import {
+  createIdempotentTasksTrigger,
+  triggerSdkMockFns,
+} from '@sim/testing/mocks/trigger-sdk.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
@@ -10,12 +14,11 @@ vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 vi.mock('@/lib/core/outbox/processor', () => ({ runOutboxProcessor: hoisted.processor }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-import { tasks } from '@trigger.dev/sdk'
 import { enqueueOutboxProcessor } from '@/lib/core/outbox/enqueue'
 
 const mocks = {
   ...hoisted,
-  trigger: vi.mocked(tasks.trigger),
+  trigger: triggerSdkMockFns.mockTasksTrigger,
   hasDueWork: outboxServiceMockFns.mockHasDueOutboxWork,
 }
 
@@ -48,7 +51,7 @@ describe('outbox processor enqueue', () => {
     vi.useFakeTimers()
     vi.setSystemTime(IDLE_MINUTE)
     setEnvFlags({ isTriggerDevEnabled: true })
-    mocks.trigger.mockResolvedValue({ id: 'run-1' })
+    mocks.trigger.mockImplementation(createIdempotentTasksTrigger())
     mocks.processor.mockReset()
     mocks.processor.mockResolvedValue(INLINE_OUTPUT)
     mocks.hasDueWork.mockReset()
@@ -56,28 +59,20 @@ describe('outbox processor enqueue', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('deduplicates duplicate ticks while allowing the next minute to drain more work', async () => {
-    await enqueueOutboxProcessor()
-    await enqueueOutboxProcessor()
-    vi.advanceTimersByTime(60_000)
-    await enqueueOutboxProcessor()
-    const keys = mocks.trigger.mock.calls.map((call) => call[2].idempotencyKey)
-    expect(keys[0]).toBe(keys[1])
-    expect(keys[2]).not.toBe(keys[0])
-  })
-
-  it('keys the run by the window its tick was gated in when the work check outlasts it', async () => {
+  it('folds ticks into the run of the minute their work check was made in', async () => {
+    const first = await enqueueOutboxProcessor()
+    const duplicate = await enqueueOutboxProcessor()
     mocks.hasDueWork.mockImplementationOnce(async () => {
       vi.advanceTimersByTime(60_000)
       return true
     })
-    await enqueueOutboxProcessor()
-    expect(mocks.trigger).toHaveBeenCalledWith('process-outbox', undefined, {
-      idempotencyKey: 'process-outbox:29826034',
-      idempotencyKeyTTL: '5m',
-      maxDuration: 900,
-      region: 'us-east-1',
-    })
+    const checkedAcrossTheBoundary = await enqueueOutboxProcessor()
+    const nextMinute = await enqueueOutboxProcessor()
+
+    expect(first.jobId).toBe('run-1')
+    expect(duplicate.jobId).toBe('run-1')
+    expect(checkedAcrossTheBoundary.jobId).toBe('run-1')
+    expect(nextMinute.jobId).toBe('run-2')
   })
 
   it('fails closed on an enqueue error without starting concurrent inline work', async () => {
