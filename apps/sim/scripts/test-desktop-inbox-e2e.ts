@@ -358,22 +358,17 @@ function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbel
       inFlight = null
     }
   }
+  /** Callers that join a pull in flight share it, so its failure is logged once, here. */
   const pull = () => {
     if (inFlight) {
       rerun = true
-      return inFlight
+      return
     }
-    inFlight = drain()
-    return inFlight
+    inFlight = drain().catch((error) => logger.error('executor pull failed', error))
   }
-  const offDoorbell = doorbell.onEvent(
-    () => void pull().catch((error) => logger.error('pull failed', error))
-  )
-  const timer = setInterval(
-    () => void pull().catch((error) => logger.error('reconcile failed', error)),
-    RECONCILE_MS
-  )
-  void pull().catch((error) => logger.error('pull failed', error))
+  const offDoorbell = doorbell.onEvent(pull)
+  const timer = setInterval(pull, RECONCILE_MS)
+  pull()
   return {
     ran,
     completed,
@@ -385,7 +380,7 @@ function startExecutor(desktop: Desktop, doorbell: ReturnType<typeof openDoorbel
       stopped = true
       offDoorbell()
       clearInterval(timer)
-      await inFlight?.catch(() => {})
+      await inFlight
     },
   }
 }

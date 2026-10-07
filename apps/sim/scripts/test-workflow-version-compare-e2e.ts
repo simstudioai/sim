@@ -356,10 +356,18 @@ async function get(path: string, auth: { key?: string; session?: string } = {}, 
   assert.match(response.headers.get('content-type') ?? '', /application\/json/)
   if (path.startsWith('/api/v2/'))
     assert.equal(response.headers.get('cache-control'), 'private, no-store')
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_RESPONSE_BYTES,
-    label: 'Version comparison E2E response',
-  })
+  let text: string
+  try {
+    text = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_RESPONSE_BYTES,
+      label: 'Version comparison E2E response',
+    })
+  } catch (error) {
+    /** `get` passes no signal of its own, so an abort here is the request timeout. */
+    if (!(error instanceof DOMException && ['TimeoutError', 'AbortError'].includes(error.name)))
+      throw error
+    throw new Error(`GET ${path}: response body not complete within ${REQUEST_TIMEOUT_MS / 1000}s`)
+  }
   return record(JSON.parse(text))
 }
 
