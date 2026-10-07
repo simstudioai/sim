@@ -252,6 +252,7 @@ async function seed(name: string) {
   await mkdir(directory, { mode: 0o700 })
   const ownerId = generateId()
   const token = generateShortId(48)
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
   const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${await makeSignature(token, authSecret)}`)}`
   const personalKey = `sk-sim-http-${generateShortId(32)}`
   const workspaceKey = `sk-sim-http-${generateShortId(32)}`
@@ -263,7 +264,7 @@ async function seed(name: string) {
     await tx`insert into user_stats (id,user_id) values (${generateId()},${ownerId})`
     await tx`insert into subscription (id,plan,reference_id,status) values (${generateId()},'pro',${ownerId},'active')`
     await tx`insert into session (id,token,user_id,expires_at,created_at,updated_at)
-      values (${generateId()},${token},${ownerId},now()+interval '2 hours',now(),now())`
+      values (${generateId()},${token},${ownerId},${expiresAt},now(),now())`
     await tx`insert into api_key (id,user_id,name,key,key_hash,type)
       values (${generateId()},${ownerId},'Disposable HTTP personal key',${personalKey},${sha256Hex(personalKey)},'personal')`
   })
