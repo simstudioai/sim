@@ -32,6 +32,7 @@ import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
@@ -939,9 +940,9 @@ const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
 /**
  * Claims this send so a retry of it can be recognised.
  *
- * Fails open: a missed deduplication costs a duplicate chat and turn, but
- * refusing the send loses the user's message. Returns `undefined` when the
- * store is unreachable, which sends normally with no claim to finalize.
+ * Fails closed: the claim is stored in Postgres (`chatSendIdempotency` forces
+ * database storage), so a store failure throws and the send is answered with a
+ * 500 rather than run without deduplication.
  *
  * The key is scoped to the caller — `userMessageId` is client-supplied, so an
  * unscoped one would let a user probe another's sends for their chat id.
@@ -1627,6 +1628,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
 
     const applicationError = asOrchestrationError(error)
+    /* Another attempt with this id holds its claim and may admit the turn. Answer
+       as a duplicate (naming this id), so the client keeps the message under it
+       rather than reading a refusal it could edit into a second turn. */
+    if (applicationError instanceof ChatSendSupersededError) {
+      return NextResponse.json(
+        { error: 'This message was already sent.', activeStreamId: userMessageId },
+        { status: 409 }
+      )
+    }
     if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
       return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
     }

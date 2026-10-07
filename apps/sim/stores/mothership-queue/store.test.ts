@@ -30,6 +30,62 @@ describe('useMothershipQueueStore', () => {
   })
 
   describe('replaceAt', () => {
+    it('treats a flagless handoff still waiting on its Stop as possibly sent', () => {
+      /** Its id may be a re-queued message's earlier attempt, which a pending Stop says nothing about. */
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'legacy',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'legacy',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'earlier-attempt',
+          stopRequired: true,
+        },
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'legacy', { content: 'edited' })
+
+      expect(useMothershipQueueStore.getState().queues['chat-A']?.[0]).toMatchObject({
+        content: 'original',
+        admissionUnknown: true,
+      })
+    })
+
+    it('reads a reused handoff id as possibly sent unless the entry says otherwise', () => {
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'sent',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'sent',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'send-now-request',
+        },
+      })
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'waiting',
+        content: 'original',
+        queuedSendHandoff: {
+          id: 'waiting',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'not-sent-yet',
+          stopRequired: true,
+        },
+        /** A fresh id still waiting on its Stop, as the hook records it. */
+        admissionUnknown: false,
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'sent', { content: 'edited' })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'waiting', { content: 'edited' })
+
+      const [sent, waiting] = useMothershipQueueStore.getState().queues['chat-A'] ?? []
+      expect(sent).toMatchObject({
+        content: 'original',
+        queuedSendHandoff: { userMessageId: 'send-now-request' },
+      })
+      expect(waiting?.content).toBe('edited')
+    })
+
     it('treats any message resuming an earlier attempt as possibly sent, unless told otherwise', () => {
       useMothershipQueueStore
         .getState()

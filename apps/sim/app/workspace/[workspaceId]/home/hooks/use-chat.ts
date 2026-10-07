@@ -134,7 +134,7 @@ import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { reusedRequestId, useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
   QueuedSendHandoffSeed,
@@ -237,18 +237,8 @@ interface WithdrawnSendResult {
   busy?: boolean
   /** Not sent at all (its Stop handoff failed); kept queued for the user to send. */
   held?: boolean
-  /**
-   * The server refused this id outright (busy, or a predecessor still shutting
-   * down). It answers a retry of an admitted id as a duplicate instead, so the
-   * server is known not to have it, and its queue entry can be edited.
-   */
-  notAdmitted?: boolean
-  /**
-   * This attempt never reached the server (its Stop did not settle). That says
-   * nothing about an earlier attempt the message resumes, whose uncertainty it
-   * keeps.
-   */
-  neverSent?: boolean
+  /** Whether the server may hold `userMessageId`; see `admissionUnknown` in `startSendMessage`. */
+  admissionUnknown: boolean
 }
 
 /**
@@ -272,6 +262,8 @@ interface StartSendMessageOptions {
    * opening a second chat and billing a second turn.
    */
   resumeUserMessageId?: string
+  /** The queued entry's `admissionUnknown`, for the id it reuses. */
+  admissionUnknown?: boolean
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
@@ -3585,8 +3577,15 @@ export function useChat(
 
       /* A retry of a withdrawn send reuses its id so the server deduplicates
          the two attempts; anything else mints a fresh one. */
-      const userMessageId =
-        queuedSendHandoff?.userMessageId ?? options?.resumeUserMessageId ?? generateId()
+      const reusedId = queuedSendHandoff?.userMessageId ?? options?.resumeUserMessageId
+      const userMessageId = reusedId ?? generateId()
+      /* Whether the server may already hold `userMessageId`: the one fact that keeps a
+         queued message from being edited into a second turn. A reused id may have been
+         sent before, unless its entry knows the server refused it; a fresh id is unsent
+         until its POST goes out. Only the server refusing the id clears it again
+         (within the 1-hour claim TTL a retry of an admitted id is answered as a
+         duplicate, never refused). It rides the stored handoff and every withdrawal. */
+      let admissionUnknown = reusedId !== undefined && options?.admissionUnknown !== false
       const assistantId = getLiveAssistantMessageId(userMessageId)
 
       const storedAttachments: PersistedFileAttachment[] | undefined =
@@ -3636,6 +3635,7 @@ export function useChat(
           organizationId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
           ...(queuedSendHandoff.stopRequired ? { stopRequired: true } : {}),
+          admissionUnknown,
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
@@ -3910,7 +3910,7 @@ export function useChat(
             setError(getErrorMessage(err, 'Failed to stop the previous response'))
             /* Nothing was sent. Hand the message back so it stays in its chat's queue
                even if the user has switched chats since the Stop began. */
-            return { userMessageId, held: true, neverSent: true }
+            return { userMessageId, held: true, admissionUnknown }
           }
         }
 
@@ -3934,6 +3934,9 @@ export function useChat(
             ? {}
             : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
+        admissionUnknown = true
+        /** A reload from here on may find the server holding this id. */
+        writeQueuedSendHandoff(requestChatId)
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4019,7 +4022,11 @@ export function useChat(
             /** Whether this view still shows the send; otherwise only its own chat changes. */
             const viewOnSend = streamGenRef.current === gen
             const supersededStreamId = queuedSendHandoff?.supersededStreamId ?? pendingStopStreamId
-            if (supersededStreamId && conflictStreamId === supersededStreamId) {
+            if (
+              supersededStreamId &&
+              conflictStreamId === supersededStreamId &&
+              conflictStreamId !== userMessageId
+            ) {
               rollbackOptimisticSend()
               if (streamGenRef.current === gen) {
                 streamGenRef.current++
@@ -4030,7 +4037,7 @@ export function useChat(
               }
               if (viewOnSend)
                 setError('Previous response is still shutting down; queued message was restored.')
-              return { userMessageId, held: true, notAdmitted: true }
+              return { userMessageId, held: true, admissionUnknown: false }
             }
             /** Withdraws this refused send so the queue retries it, under the same id, later. */
             const releaseRefusedSend = () => {
@@ -4066,7 +4073,10 @@ export function useChat(
                   exact: true,
                   refetchType: 'none',
                 })
-              return { userMessageId, busy: true, notAdmitted: true }
+              /* Only the chat lock refuses without naming this id. Admission's
+                 "superseded" conflict, where another attempt took this id's claim and may
+                 admit it, is answered as a duplicate naming this id instead. */
+              return { userMessageId, busy: true, admissionUnknown: false }
             }
             /* "Already sent" with no stream for it means the earlier attempt is still
                in flight on the server (or died before starting a turn), not that a turn
@@ -4088,7 +4098,7 @@ export function useChat(
             )
             if (!dedupedStreamExists) {
               releaseRefusedSend()
-              return { userMessageId, busy: true }
+              return { userMessageId, busy: true, admissionUnknown }
             }
             /** The user may have moved on (another chat, another send) during the check. */
             if (streamGenRef.current !== gen) return consumedByTranscript
@@ -4199,7 +4209,7 @@ export function useChat(
                server deduplicates it against that turn instead of billing
                another one. */
             rollbackOptimisticSend()
-            return { userMessageId }
+            return { userMessageId, admissionUnknown }
           }
           return consumedByTranscript
         }
@@ -4241,6 +4251,7 @@ export function useChat(
           )
           return {
             userMessageId,
+            admissionUnknown,
             unreachable: true,
             ...(retryLater ? {} : { heldUntilOnline: true }),
           }
@@ -4445,11 +4456,7 @@ export function useChat(
         ...(result.heldUntilOnline ? { retryRequired: true, heldUntilOnline: true } : {}),
         ...(result.held ? { retryRequired: true } : {}),
         ...((result.unreachable && !result.heldUntilOnline) || result.busy ? sendRetry(1) : {}),
-        admissionUnknown: result.notAdmitted
-          ? false
-          : result.neverSent
-            ? options?.resumeUserMessageId !== undefined
-            : true,
+        admissionUnknown: result.admissionUnknown,
         ...((result.unreachable || result.busy) && activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)
           ? { heldSurface: heldSendSurface }
           : {}),
@@ -4665,6 +4672,9 @@ export function useChat(
         userMessageId: handoff.userMessageId,
         ...(handoff.stopRequired ? { stopRequired: true } : {}),
       },
+      ...(handoff.admissionUnknown !== undefined
+        ? { admissionUnknown: handoff.admissionUnknown }
+        : {}),
     })
     clearQueuedSendHandoffState(handoff.id)
     clearQueuedSendHandoffClaim(handoff.id)
@@ -5081,17 +5091,7 @@ export function useChat(
             ? { heldSurface: heldSendSurface }
             : {}),
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
-          /* A refusal of this id settles it; an attempt that never left keeps the
-             earlier uncertainty; any other withdrawal may have reached the server. */
-          ...(withdrawn
-            ? {
-                admissionUnknown: withdrawn.notAdmitted
-                  ? false
-                  : withdrawn.neverSent
-                    ? dispatched.admissionUnknown === true
-                    : true,
-              }
-            : {}),
+          ...(withdrawn ? { admissionUnknown: withdrawn.admissionUnknown } : {}),
         })
       }
 
@@ -5122,6 +5122,9 @@ export function useChat(
             queuedSendHandoff: activeQueuedSendHandoff,
             ...(liveMsg.resumeUserMessageId
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
+              : {}),
+            ...(liveMsg.admissionUnknown !== undefined
+              ? { admissionUnknown: liveMsg.admissionUnknown }
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
             ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
@@ -5158,7 +5161,7 @@ export function useChat(
    */
   const mustNotResend = useCallback(
     async (chatKey: string, msg: QueuedMothershipMessage): Promise<boolean> => {
-      const requestId = msg.queuedSendHandoff?.userMessageId ?? msg.resumeUserMessageId
+      const requestId = reusedRequestId(msg)
       if (!msg.admissionUnknown || !requestId || chatKey.startsWith(PENDING_CHAT_KEY_PREFIX))
         return false
       const history = await queryClient
@@ -5360,7 +5363,7 @@ export function useChat(
     const accepted = acceptedMessageIds(chatHistory)
     for (const queued of messageQueue) {
       if (queuedMessageDispatchIds.has(queued.id)) continue
-      const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
+      const requestId = reusedRequestId(queued)
       if (!requestId || !accepted.has(requestId)) continue
       clearQueuedSendHandoffState(queued.id)
       clearQueuedSendHandoffClaim(queued.id)
