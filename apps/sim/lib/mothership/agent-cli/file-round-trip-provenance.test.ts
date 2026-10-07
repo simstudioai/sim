@@ -107,7 +107,7 @@ workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementati
 workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
   (name: string) => name
 )
-usersQueriesMockFns.mockGetUserEmailsByIds.mockImplementation(
+usersQueriesMockFns.mockFindUserEmailsByIds.mockImplementation(
   async () => new Map([['reader', 'reader@example.test']])
 )
 usersQueriesMockFns.mockRequireResolvedUserEmail.mockImplementation(

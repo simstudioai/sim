@@ -11,7 +11,6 @@ import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/002
 import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
-import { backfillProjectFileCreatorsMigration } from '@sim/db/script-migrations/0032_backfill_project_file_creators'
 import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0033_backfill_public_share_entities'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
@@ -66,7 +65,6 @@ export const scriptMigrations: readonly ScriptMigration[] = [
    * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
    */
   validateFileOwnershipMigration,
-  backfillProjectFileCreatorsMigration,
   backfillPublicShareEntitiesMigration,
 ]
 

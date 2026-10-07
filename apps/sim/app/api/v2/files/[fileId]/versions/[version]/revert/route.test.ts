@@ -28,7 +28,7 @@ vi.mock('@/lib/users/queries', () => usersQueriesMock)
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { POST } from '@/app/api/v2/files/[fileId]/versions/[version]/revert/route'
 
-const { mockGetUserEmailsByIds, mockFindUserEmailsByIds } = usersQueriesMockFns
+const { mockFindUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -93,7 +93,6 @@ describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
       reverted: true,
       revertedFrom: 3,
     })
-    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
     mockFindUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 

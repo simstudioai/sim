@@ -3948,10 +3948,17 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
-            "description": "Current email address of the uploader.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current email address of the creator, or null after account deletion.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -4085,10 +4092,17 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
-            "description": "Current email address of the uploader.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current email address of the creator, or null after account deletion.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -5421,10 +5435,17 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
-            "description": "Current email address of the uploader.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current email address of the creator, or null after account deletion.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {
@@ -6324,10 +6345,17 @@
             "maxLength": 4096
           },
           "uploadedByEmail": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
-            "description": "Current email address of the uploader.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current email address of the creator, or null after account deletion.",
             "examples": ["jane@example.com"]
           },
           "uploadedAt": {

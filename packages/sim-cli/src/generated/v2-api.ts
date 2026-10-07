@@ -31,7 +31,7 @@ type AbortFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -1522,7 +1522,7 @@ type CompleteFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -1833,7 +1833,7 @@ type CreateFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -1887,7 +1887,7 @@ type CreateFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -4826,7 +4826,7 @@ type EditFileContentResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -5406,7 +5406,7 @@ type GetFileResponseRef1 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -5465,7 +5465,7 @@ type GetFileUploadResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -7879,7 +7879,7 @@ type ListFilesResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -11413,7 +11413,7 @@ type RenameFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -11831,7 +11831,7 @@ type RestoreFileResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -12108,7 +12108,7 @@ type RevertFileVersionResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
@@ -12825,7 +12825,7 @@ type UpdateFileContentResponseRef0 = {
   type: string
   key: string
   folderPath: string
-  uploadedByEmail: string
+  uploadedByEmail: string | null
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null

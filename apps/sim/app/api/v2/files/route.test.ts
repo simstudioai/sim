@@ -33,7 +33,7 @@ vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { GET, POST } from '@/app/api/v2/files/route'
 
-const { mockGetUserEmailsByIds } = usersQueriesMockFns
+const { mockFindUserEmailsByIds } = usersQueriesMockFns
 
 const mockQueryFiles = workspaceFilesListMockFns.mockQueryWorkspaceFilePage
 
@@ -81,7 +81,7 @@ describe('/api/v2/files', () => {
       nextKeys: undefined,
     })
     mocks.createFile.mockResolvedValue({ file: FILE })
-    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockFindUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   /**

@@ -227,12 +227,7 @@ export async function recordWorkspaceFileVersionInTx(
         ...contentColumns(previous, params.previousProvenance),
         contentHash: null,
         source: original ? 'upload' : 'unknown',
-        authorUserIds:
-          original && (previous.originalCreatorUserId ?? previous.userId)
-            ? [previous.originalCreatorUserId ?? previous.userId].filter(
-                (id): id is string => id !== null
-              )
-            : [],
+        authorUserIds: original && previous.userId ? [previous.userId] : [],
         createdAt: previous.contentUpdatedAt,
         updatedAt: previous.contentUpdatedAt,
       })
@@ -418,7 +413,7 @@ async function pruneExcessWorkspaceFileVersionsInTx(
 type WorkspaceFileVersionSubject = Pick<
   WorkspaceFileRecord,
   'id' | 'key' | 'size' | 'type' | 'uploadedAt' | 'updatedAt' | 'contentUpdatedAt'
-> & { uploadedBy: string | null; originalCreatorUserId?: string | null }
+> & { uploadedBy: string | null }
 
 /** One version of a workspace file as readers see it. */
 export interface WorkspaceFileVersionRecord {
@@ -489,7 +484,7 @@ function implicitCurrentVersion(
   const contentUpdatedAt = contentVersionTime(file)
   const original =
     !head && isOriginalUploadContent({ uploadedAt: file.uploadedAt, contentUpdatedAt })
-  const originalAuthor = file.originalCreatorUserId ?? file.uploadedBy
+  const originalAuthor = file.uploadedBy
   return {
     fileId: file.id,
     version: (head?.version ?? 0) + 1,
@@ -523,7 +518,6 @@ function withVersionSnapshot<T>(
         sizeBytes: workspaceFiles.sizeBytes,
         contentType: workspaceFiles.contentType,
         userId: workspaceFiles.userId,
-        originalCreatorUserId: workspaceFiles.originalCreatorUserId,
         uploadedAt: workspaceFiles.uploadedAt,
         updatedAt: workspaceFiles.updatedAt,
         contentUpdatedAt: workspaceFiles.contentUpdatedAt,
@@ -539,7 +533,6 @@ function withVersionSnapshot<T>(
           size: getWorkspaceFileSize(row),
           type: row.contentType,
           uploadedBy: row.userId,
-          originalCreatorUserId: row.originalCreatorUserId,
           uploadedAt: row.uploadedAt,
           updatedAt: row.updatedAt,
           contentUpdatedAt: row.contentUpdatedAt,

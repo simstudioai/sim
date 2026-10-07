@@ -123,7 +123,8 @@ export const v2FileSchema = z
     ),
     uploadedByEmail: z
       .email({ pattern: z.regexes.html5Email })
-      .describe('Current email address of the uploader.')
+      .nullable()
+      .describe('Current email address of the creator, or null after account deletion.')
       .meta({ examples: ['jane@example.com'] }),
     /** ISO-8601 timestamp. */
     uploadedAt: z

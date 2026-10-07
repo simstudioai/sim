@@ -35,7 +35,7 @@ function check(name: string, run: () => Promise<void>) {
   })
 }
 
-describe('Project creator lifetime in PostgreSQL', () => {
+describe('Shared file creator lifetime in PostgreSQL', () => {
   const schemaName = `file_creator_${generateId().replaceAll('-', '')}`
   let sql: Sql
   let admin: Sql
@@ -127,7 +127,7 @@ describe('Project creator lifetime in PostgreSQL', () => {
   })
 
   check(
-    'creator deletion preserves Project folders, heads, history and immutable attribution',
+    'creator deletion preserves Project folders, heads and history with a nullable creator',
     async () => {
       await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
       VALUES ('folder', 'Docs', 'user-a', 'file', 'project-a')`
@@ -138,11 +138,11 @@ describe('Project creator lifetime in PostgreSQL', () => {
       const [before] =
         await sql`SELECT key, content_updated_at, secret_provenance_version FROM workspace_files`
       await sql`DELETE FROM "user" WHERE id = 'user-a'`
-      expect(
-        await sql`SELECT user_id, original_creator_user_id, project_id FROM workspace_files`
-      ).toEqual([{ user_id: null, original_creator_user_id: 'user-a', project_id: 'project-a' }])
-      expect(await sql`SELECT user_id, original_creator_user_id, project_id FROM folder`).toEqual([
-        { user_id: null, original_creator_user_id: 'user-a', project_id: 'project-a' },
+      expect(await sql`SELECT user_id, project_id FROM workspace_files`).toEqual([
+        { user_id: null, project_id: 'project-a' },
+      ])
+      expect(await sql`SELECT user_id, project_id FROM folder`).toEqual([
+        { user_id: null, project_id: 'project-a' },
       ])
       expect(
         (
@@ -155,97 +155,68 @@ describe('Project creator lifetime in PostgreSQL', () => {
     }
   )
 
-  check(
-    'legacy workspace and personal creator cascades still remove only their own rows',
-    async () => {
-      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+  check('workspace creator deletion preserves durable files, folders and history', async () => {
+    await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
       VALUES ('folder', 'Docs', 'user-a', 'workspace-a', 'file')`
-      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, folder_id)
-      VALUES ('file', 'workspace', 'user-a', 'workspace-a', 'folder'),
-        ('personal', 'copilot', 'user-a', NULL, NULL)`
-      await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
-      await sql`DELETE FROM "user" WHERE id = 'user-a'`
-      expect(await sql`SELECT id FROM workspace_files`).toHaveLength(0)
-      expect(await sql`SELECT id FROM folder`).toHaveLength(0)
-      expect(await sql`SELECT id FROM workspace_file_version`).toHaveLength(0)
-      expect(await sql`SELECT id FROM workspace`).toHaveLength(3)
+    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, folder_id)
+      VALUES ('file', 'workspace', 'user-a', 'workspace-a', 'folder')`
+    await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
+    await sql`DELETE FROM "user" WHERE id = 'user-a'`
+    expect(await sql`SELECT id, user_id FROM workspace_files`).toEqual([
+      { id: 'file', user_id: null },
+    ])
+    expect(await sql`SELECT id, user_id FROM folder`).toEqual([{ id: 'folder', user_id: null }])
+    expect(await sql`SELECT id FROM workspace_file_version`).toEqual([{ id: 'version' }])
+  })
+
+  check('other file contexts and folder types retain creator cascades', async () => {
+    for (const context of [
+      'mothership',
+      'chat',
+      'execution',
+      'knowledge-base',
+      'workspace-logos',
+      'copilot',
+      'profile-pictures',
+      'general',
+    ]) {
+      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
+        VALUES (${context}, ${context}, 'user-a', ${['copilot', 'profile-pictures', 'general'].includes(context) ? null : 'workspace-a'})`
     }
-  )
+    await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+      VALUES ('workflow', 'Workflows', 'user-a', 'workspace-a', 'workflow')`
+    await sql`DELETE FROM "user" WHERE id = 'user-a'`
+    expect(await sql`SELECT id FROM workspace_files`).toEqual([])
+    expect(await sql`SELECT id FROM folder`).toEqual([])
+  })
+
+  check('new resources require a live creator in either scope', async () => {
+    for (const context of ['workspace', 'project']) {
+      for (const userId of [null, 'missing-user']) {
+        await expect(sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id)
+          VALUES ('missing', ${context}, ${userId}, ${context === 'workspace' ? 'workspace-a' : null}, ${context === 'project' ? 'project-a' : null})`).rejects.toMatchObject(
+          { code: userId === null ? '23514' : '23503' }
+        )
+        await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, workspace_id, project_id)
+          VALUES ('missing', 'Docs', ${userId}, 'file', ${context === 'workspace' ? 'workspace-a' : null}, ${context === 'project' ? 'project-a' : null})`).rejects.toMatchObject(
+          { code: userId === null ? '23514' : '23503' }
+        )
+      }
+    }
+  })
 
   check(
-    'backfills legacy Project attribution in bounded pages without changing live creator or content',
+    'surviving workspace content remains editable without claiming creator attribution',
     async () => {
-      await sql`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_creator_lifetime`
-      await sql`ALTER TABLE folder DISABLE TRIGGER folder_creator_lifetime`
-      try {
-        await sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_name)
-        SELECT 'file-' || lpad(id::text, 4, '0'), 'project', 'user-a', 'project-a', 'document-' || id
-        FROM generate_series(1, 507) id`
-        await sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
-        SELECT 'folder-' || lpad(id::text, 4, '0'), 'Docs ' || id, 'user-a', 'file', 'project-a'
-        FROM generate_series(1, 507) id`
-      } finally {
-        await sql`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_creator_lifetime`
-        await sql`ALTER TABLE folder ENABLE TRIGGER folder_creator_lifetime`
-      }
-      const { backfillProjectFileCreators } = await import(
-        '@sim/db/script-migrations/0032_backfill_project_file_creators'
-      )
-      expect(await backfillProjectFileCreators(sql)).toEqual({ files: 507, folders: 507 })
-      expect(await backfillProjectFileCreators(sql)).toEqual({ files: 0, folders: 0 })
-      expect(
-        await sql`SELECT DISTINCT user_id, original_creator_user_id, key, secret_provenance_version FROM workspace_files`
-      ).toEqual([
-        {
-          user_id: 'user-a',
-          original_creator_user_id: 'user-a',
-          key: 'unchanged-object-key',
-          secret_provenance_version: 1,
-        },
+      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
+      VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
+      await sql`DELETE FROM "user" WHERE id = 'user-a'`
+      await sql`UPDATE workspace_files SET key = 'edited-content' WHERE id = 'file'`
+      expect(await sql`SELECT user_id, key FROM workspace_files`).toEqual([
+        { user_id: null, key: 'edited-content' },
       ])
-      await sql`DELETE FROM "user" WHERE id = 'user-a'`
-      expect(
-        (
-          await sql`SELECT count(*)::integer AS count FROM workspace_files WHERE user_id IS NULL AND original_creator_user_id = 'user-a'`
-        )[0].count
-      ).toBe(507)
-      expect(
-        (
-          await sql`SELECT count(*)::integer AS count FROM folder WHERE user_id IS NULL AND original_creator_user_id = 'user-a'`
-        )[0].count
-      ).toBe(507)
-    }
-  )
-
-  check(
-    'rejects missing and forged Project creators and immutable snapshot replacement',
-    async () => {
-      await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_creator_user_id)
-      VALUES ('missing', 'project', NULL, 'project-a', 'user-a')`).rejects.toMatchObject({
-        code: '23514',
-      })
-      await expect(sql`INSERT INTO workspace_files (id, context, user_id, project_id, original_creator_user_id)
-      VALUES ('forged', 'project', 'user-a', 'project-a', 'user-b')`).rejects.toMatchObject({
-        code: '23514',
-      })
-      await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
-      VALUES ('file', 'project', 'user-a', 'project-a')`
-      for (const creator of ['user-b', null]) {
-        await expect(
-          sql`UPDATE workspace_files SET original_creator_user_id = ${creator} WHERE id = 'file'`
-        ).rejects.toMatchObject({ code: '23514' })
-      }
-      await expect(
-        sql`UPDATE workspace_files SET user_id = 'user-b' WHERE id = 'file'`
-      ).rejects.toMatchObject({ code: '23514' })
-      await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id, original_creator_user_id)
-      VALUES ('forged', 'Docs', 'user-a', 'file', 'project-a', 'user-b')`).rejects.toMatchObject({
-        code: '23514',
-      })
-      await expect(sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
-      VALUES ('legacy-null', 'workspace', NULL, 'workspace-a')`).rejects.toMatchObject({
-        code: '23514',
-      })
+      await sql`DELETE FROM workspace WHERE id = 'workspace-a'`
+      expect(await sql`SELECT id FROM workspace_files`).toEqual([])
     }
   )
 
@@ -258,92 +229,119 @@ describe('Project creator lifetime in PostgreSQL', () => {
       await expect(sql`DELETE FROM "user" WHERE id = 'user-a'`).rejects.toMatchObject({
         code: '23503',
       })
-      expect((await sql`SELECT user_id, original_creator_user_id FROM workspace_files`)[0]).toEqual(
-        { user_id: 'user-a', original_creator_user_id: 'user-a' }
-      )
+      expect((await sql`SELECT user_id FROM workspace_files`)[0]).toEqual({ user_id: 'user-a' })
       await expect(sql`DELETE FROM project WHERE id = 'project-a'`).rejects.toMatchObject({
         code: '23503',
       })
     }
   )
 
-  for (const isolation of ['read committed', 'repeatable read'] as const) {
+  for (const context of ['workspace', 'project'] as const) {
+    for (const isolation of ['read committed', 'repeatable read'] as const) {
+      check(
+        `queued ${isolation} creator deletion preserves a committed concurrent ${context} file or retries`,
+        async () => {
+          const snapshot = createDeferred<void>()
+          const startDelete = createDeferred<void>()
+          const deletePid = createDeferred<number>()
+          const inserted = createDeferred<void>()
+          const releaseInsert = createDeferred<void>()
+          const deletion = sql.begin(`isolation level ${isolation}`, async (tx) => {
+            const [connection] = await tx`SELECT pg_backend_pid() AS pid, count(*) FROM "user"`
+            deletePid.resolve(connection.pid)
+            snapshot.resolve()
+            await startDelete.promise
+            await tx`DELETE FROM "user" WHERE id = 'user-a'`
+          })
+          const deletionOutcome = deletion.then(
+            () => ({ code: null }),
+            (error: unknown) => ({ code: (error as { code: string }).code })
+          )
+          await snapshot.promise
+          const insertion = sql.begin(async (tx) => {
+            await tx`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id)
+          VALUES ('file', ${context}, 'user-a', ${context === 'workspace' ? 'workspace-a' : null}, ${context === 'project' ? 'project-a' : null})`
+            inserted.resolve()
+            await releaseInsert.promise
+          })
+          await Promise.race([insertion, inserted.promise])
+          startDelete.resolve()
+          try {
+            await waitForDatabaseLock(await deletePid.promise)
+          } finally {
+            releaseInsert.resolve()
+          }
+          await insertion
+          const outcome = await deletionOutcome
+          expect(outcome.code).toBe(isolation === 'repeatable read' ? '40001' : null)
+          expect((await sql`SELECT user_id FROM workspace_files`)[0]).toEqual({
+            user_id: isolation === 'repeatable read' ? 'user-a' : null,
+          })
+        }
+      )
+    }
+
     check(
-      `queued ${isolation} creator deletion preserves a committed concurrent Project file or retries`,
+      `a ${context} insert queued behind creator deletion cannot resurrect a missing creator`,
       async () => {
-        const snapshot = createDeferred<void>()
-        const startDelete = createDeferred<void>()
-        const deletePid = createDeferred<number>()
-        const inserted = createDeferred<void>()
-        const releaseInsert = createDeferred<void>()
-        const deletion = sql.begin(`isolation level ${isolation}`, async (tx) => {
-          const [connection] = await tx`SELECT pg_backend_pid() AS pid, count(*) FROM "user"`
-          deletePid.resolve(connection.pid)
-          snapshot.resolve()
-          await startDelete.promise
+        const deleted = createDeferred<void>()
+        const releaseDelete = createDeferred<void>()
+        const insertPid = createDeferred<number>()
+        const deletion = sql.begin(async (tx) => {
           await tx`DELETE FROM "user" WHERE id = 'user-a'`
+          deleted.resolve()
+          await releaseDelete.promise
         })
-        const deletionOutcome = deletion.then(
+        await Promise.race([deletion, deleted.promise])
+        const insertion = sql.begin(async (tx) => {
+          const [connection] = await tx`SELECT pg_backend_pid() AS pid`
+          insertPid.resolve(connection.pid)
+          await tx`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id)
+          VALUES ('file', ${context}, 'user-a', ${context === 'workspace' ? 'workspace-a' : null}, ${context === 'project' ? 'project-a' : null})`
+        })
+        const insertionOutcome = insertion.then(
           () => ({ code: null }),
           (error: unknown) => ({ code: (error as { code: string }).code })
         )
-        await snapshot.promise
-        const insertion = sql.begin(async (tx) => {
-          await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
-          VALUES ('file', 'project', 'user-a', 'project-a')`
-          inserted.resolve()
-          await releaseInsert.promise
+        try {
+          await waitForDatabaseLock(await insertPid.promise)
+        } finally {
+          releaseDelete.resolve()
+        }
+        await deletion
+        expect((await insertionOutcome).code).toBe('23503')
+        expect(await sql`SELECT id FROM workspace_files`).toHaveLength(0)
+      }
+    )
+    check(
+      `${context} content write racing creator deletion retains the committed content`,
+      async () => {
+        await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id)
+        VALUES ('file', ${context}, 'user-a', ${context === 'workspace' ? 'workspace-a' : null}, ${context === 'project' ? 'project-a' : null})`
+        const updated = createDeferred<void>()
+        const releaseUpdate = createDeferred<void>()
+        const deletePid = createDeferred<number>()
+        const update = sql.begin(async (tx) => {
+          await tx`UPDATE workspace_files SET key = 'committed-content' WHERE id = 'file'`
+          updated.resolve()
+          await releaseUpdate.promise
         })
-        await Promise.race([insertion, inserted.promise])
-        startDelete.resolve()
+        await Promise.race([update, updated.promise])
+        const deletion = sql.begin(async (tx) => {
+          const [connection] = await tx`SELECT pg_backend_pid() AS pid`
+          deletePid.resolve(connection.pid)
+          await tx`DELETE FROM "user" WHERE id = 'user-a'`
+        })
         try {
           await waitForDatabaseLock(await deletePid.promise)
         } finally {
-          releaseInsert.resolve()
+          releaseUpdate.resolve()
         }
-        await insertion
-        const outcome = await deletionOutcome
-        expect(outcome.code).toBe(isolation === 'repeatable read' ? '40001' : null)
-        expect(
-          (await sql`SELECT user_id, original_creator_user_id FROM workspace_files`)[0]
-        ).toEqual({
-          user_id: isolation === 'repeatable read' ? 'user-a' : null,
-          original_creator_user_id: 'user-a',
-        })
+        await Promise.all([update, deletion])
+        expect(await sql`SELECT user_id, key FROM workspace_files`).toEqual([
+          { user_id: null, key: 'committed-content' },
+        ])
       }
     )
   }
-
-  check(
-    'a Project insert queued behind creator deletion cannot resurrect a missing creator',
-    async () => {
-      const deleted = createDeferred<void>()
-      const releaseDelete = createDeferred<void>()
-      const insertPid = createDeferred<number>()
-      const deletion = sql.begin(async (tx) => {
-        await tx`DELETE FROM "user" WHERE id = 'user-a'`
-        deleted.resolve()
-        await releaseDelete.promise
-      })
-      await Promise.race([deletion, deleted.promise])
-      const insertion = sql.begin(async (tx) => {
-        const [connection] = await tx`SELECT pg_backend_pid() AS pid`
-        insertPid.resolve(connection.pid)
-        await tx`INSERT INTO workspace_files (id, context, user_id, project_id)
-        VALUES ('file', 'project', 'user-a', 'project-a')`
-      })
-      const insertionOutcome = insertion.then(
-        () => ({ code: null }),
-        (error: unknown) => ({ code: (error as { code: string }).code })
-      )
-      try {
-        await waitForDatabaseLock(await insertPid.promise)
-      } finally {
-        releaseDelete.resolve()
-      }
-      await deletion
-      expect((await insertionOutcome).code).toBe('23503')
-      expect(await sql`SELECT id FROM workspace_files`).toHaveLength(0)
-    }
-  )
 })

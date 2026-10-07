@@ -1,75 +1,49 @@
-ALTER TABLE "folder" ADD COLUMN IF NOT EXISTS "original_creator_user_id" text;--> statement-breakpoint
-ALTER TABLE "workspace_files" ADD COLUMN IF NOT EXISTS "original_creator_user_id" text;--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_file_uploader_delete_guard ON "user";--> statement-breakpoint
+DROP FUNCTION IF EXISTS project_file_uploader_delete_guard();--> statement-breakpoint
 ALTER TABLE "folder" ALTER COLUMN "user_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "workspace_files" ALTER COLUMN "user_id" DROP NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_creator_lifetime_check' AND conrelid = 'folder'::regclass) THEN
     ALTER TABLE folder ADD CONSTRAINT folder_creator_lifetime_check CHECK (
-      user_id IS NOT NULL OR coalesce(project_id IS NOT NULL AND char_length(original_creator_user_id) > 0, false)
+      user_id IS NOT NULL OR (resource_type = 'file' AND num_nonnulls(workspace_id, project_id) = 1)
     ) NOT VALID;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_files_creator_lifetime_check' AND conrelid = 'workspace_files'::regclass) THEN
     ALTER TABLE workspace_files ADD CONSTRAINT workspace_files_creator_lifetime_check CHECK (
-      user_id IS NOT NULL OR coalesce(project_id IS NOT NULL AND char_length(original_creator_user_id) > 0, false)
+      user_id IS NOT NULL OR (context IN ('workspace', 'project') AND num_nonnulls(workspace_id, project_id) = 1 AND organization_id IS NULL)
     ) NOT VALID;
   END IF;
 END $$;--> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_file_creator_snapshot()
+CREATE OR REPLACE FUNCTION file_require_creator()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE
-  original_creator text;
 BEGIN
-  IF TG_OP = 'INSERT' THEN
-    IF NEW.user_id IS NULL THEN
-      RAISE EXCEPTION 'New file resources require their actual creator' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.project_id IS NOT NULL THEN
-      IF NEW.original_creator_user_id IS NOT NULL AND NEW.original_creator_user_id IS DISTINCT FROM NEW.user_id THEN
-        RAISE EXCEPTION 'Project creator snapshot must match its actual creator' USING ERRCODE = '23514';
-      END IF;
-      NEW.original_creator_user_id := NEW.user_id;
-    ELSIF NEW.original_creator_user_id IS NOT NULL THEN
-      RAISE EXCEPTION 'Creator snapshots are reserved for Project resources' USING ERRCODE = '23514';
-    END IF;
-  ELSE
-    original_creator := coalesce(OLD.original_creator_user_id,
-      CASE WHEN OLD.project_id IS NOT NULL OR NEW.project_id IS NOT NULL THEN OLD.user_id ELSE NULL END);
-    IF original_creator IS NOT NULL THEN
-      IF (OLD.original_creator_user_id IS NOT NULL AND NEW.original_creator_user_id IS DISTINCT FROM OLD.original_creator_user_id)
-        OR (NEW.original_creator_user_id IS NOT NULL AND NEW.original_creator_user_id IS DISTINCT FROM original_creator)
-        OR (NEW.user_id IS NOT NULL AND NEW.user_id IS DISTINCT FROM original_creator) THEN
-        RAISE EXCEPTION 'Project original creator attribution cannot be changed' USING ERRCODE = '23514';
-      END IF;
-      NEW.original_creator_user_id := original_creator;
-    ELSIF NEW.original_creator_user_id IS NOT NULL THEN
-      RAISE EXCEPTION 'Project original creator attribution is unavailable' USING ERRCODE = '23514';
-    END IF;
-  END IF;
-  IF NEW.user_id IS NULL AND (NEW.project_id IS NULL
-    OR NEW.original_creator_user_id IS NULL OR NEW.original_creator_user_id = '') THEN
-    RAISE EXCEPTION 'Only attributed Project resources may outlive their creator account' USING ERRCODE = '23514';
+  IF NEW.user_id IS NULL THEN
+    RAISE EXCEPTION 'New file resources require their actual creator' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;
 END;
 $$;--> statement-breakpoint
-DROP TRIGGER IF EXISTS folder_creator_lifetime ON folder;--> statement-breakpoint
-CREATE TRIGGER folder_creator_lifetime
-BEFORE INSERT OR UPDATE OF user_id, original_creator_user_id, project_id ON folder
-FOR EACH ROW EXECUTE FUNCTION project_file_creator_snapshot();--> statement-breakpoint
-DROP TRIGGER IF EXISTS workspace_files_creator_lifetime ON workspace_files;--> statement-breakpoint
-CREATE TRIGGER workspace_files_creator_lifetime
-BEFORE INSERT OR UPDATE OF user_id, original_creator_user_id, project_id ON workspace_files
-FOR EACH ROW EXECUTE FUNCTION project_file_creator_snapshot();--> statement-breakpoint
-CREATE OR REPLACE FUNCTION project_file_uploader_delete_guard()
+DROP TRIGGER IF EXISTS folder_require_creator ON folder;--> statement-breakpoint
+CREATE TRIGGER folder_require_creator
+BEFORE INSERT ON folder
+FOR EACH ROW EXECUTE FUNCTION file_require_creator();--> statement-breakpoint
+DROP TRIGGER IF EXISTS workspace_files_require_creator ON workspace_files;--> statement-breakpoint
+CREATE TRIGGER workspace_files_require_creator
+BEFORE INSERT ON workspace_files
+FOR EACH ROW EXECUTE FUNCTION file_require_creator();--> statement-breakpoint
+CREATE OR REPLACE FUNCTION shared_file_creator_delete()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  -- Retain original authorship without substituting a new owner, payer, or creator.
-  UPDATE workspace_files
-    SET original_creator_user_id = coalesce(original_creator_user_id, user_id), user_id = NULL
-    WHERE project_id IS NOT NULL AND user_id = OLD.id;
-  UPDATE folder
-    SET original_creator_user_id = coalesce(original_creator_user_id, user_id), user_id = NULL
-    WHERE project_id IS NOT NULL AND user_id = OLD.id;
+  UPDATE workspace_files SET user_id = NULL
+    WHERE user_id = OLD.id AND context IN ('workspace', 'project')
+      AND num_nonnulls(workspace_id, project_id) = 1 AND organization_id IS NULL;
+  UPDATE folder SET user_id = NULL
+    WHERE user_id = OLD.id AND resource_type = 'file'
+      AND num_nonnulls(workspace_id, project_id) = 1;
   RETURN OLD;
 END;
 $$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS shared_file_creator_delete ON "user";--> statement-breakpoint
+CREATE TRIGGER shared_file_creator_delete
+BEFORE DELETE ON "user"
+FOR EACH ROW EXECUTE FUNCTION shared_file_creator_delete();
