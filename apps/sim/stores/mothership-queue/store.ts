@@ -3,7 +3,11 @@ import { toError } from '@sim/utils/errors'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
-import type { MothershipQueueState, QueuedMothershipMessage } from '@/stores/mothership-queue/types'
+import type {
+  MothershipQueueState,
+  QueuedMothershipMessage,
+  QueueMigration,
+} from '@/stores/mothership-queue/types'
 
 const logger = createLogger('MothershipQueueStore')
 
@@ -49,7 +53,7 @@ const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
   cleared: {} as Record<string, number>,
-  migratedTo: {} as Record<string, string>,
+  migratedTo: {} as Record<string, QueueMigration>,
 }
 
 /**
@@ -108,14 +112,27 @@ const setQueueForChat = (
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
 /**
- * The queue key a write captured before an `await` should use now: the key a
- * new-chat queue migrated to once its chat became known, if it did.
+ * Where a position a write captured before an `await` lies now: in the queue a
+ * new-chat queue migrated to once its chat became known, if it did, behind the
+ * messages that queue already held.
  */
-export function liveQueueKey(chatKey: string): string {
+export function liveQueuePosition(
+  chatKey: string,
+  index: number
+): { chatKey: string; index: number } {
   const { migratedTo } = useMothershipQueueStore.getState()
-  let key = chatKey
-  for (let hops = 0; hops < 8 && migratedTo[key] !== undefined; hops++) key = migratedTo[key]
-  return key
+  let position = { chatKey, index }
+  for (let hops = 0; hops < 8; hops++) {
+    const migration = migratedTo[position.chatKey]
+    if (!migration) break
+    position = { chatKey: migration.key, index: position.index + migration.behind }
+  }
+  return position
+}
+
+/** The queue key a write captured before an `await` should use now (see `liveQueuePosition`). */
+export function liveQueueKey(chatKey: string): string {
+  return liveQueuePosition(chatKey, 0).chatKey
 }
 
 export const useMothershipQueueStore = create<MothershipQueueState>()(
@@ -203,7 +220,10 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         migrate: (fromKey, toKey) =>
           set((state) => {
             if (fromKey === toKey) return state
-            const migratedTo = { ...state.migratedTo, [fromKey]: toKey }
+            const migratedTo = {
+              ...state.migratedTo,
+              [fromKey]: { key: toKey, behind: state.queues[toKey]?.length ?? 0 },
+            }
             const fromQueue = state.queues[fromKey]
             const fromEditing = state.editing[fromKey]
             if (!fromQueue && fromEditing === undefined) return { migratedTo }
