@@ -815,7 +815,7 @@ describe('handleUnifiedChatPost', () => {
     ['xhigh', 'xhigh'],
     ['max', 'xhigh'],
     ['low', 'low'],
-    ['none', 'high'],
+    ['none', 'low'],
   ])(
     'leaves the model to the worker and enforces the effort range on submitted %s effort',
     async (effort, expected) => {
@@ -838,16 +838,19 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
+  const solSelection = { model: 'gpt-6-sol', fastMode: false } as const
   it.each([
-    { stored: null, sent: undefined, runs: 'high' },
-    { stored: 'medium', sent: undefined, runs: 'medium' },
-    { stored: 'low', sent: undefined, runs: 'low' },
-    { stored: 'high', sent: 'low', runs: 'low' },
-    { stored: 'high', sent: 'max', runs: 'xhigh' },
+    { stored: null, sent: undefined, runs: 'high', modelSelection: undefined },
+    { stored: 'medium', sent: undefined, runs: 'medium', modelSelection: undefined },
+    { stored: 'low', sent: undefined, runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'low', runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'max', runs: 'xhigh', modelSelection: undefined },
+    { stored: 'none', sent: undefined, runs: 'low', modelSelection: solSelection },
+    { stored: 'high', sent: 'none', runs: 'low', modelSelection: solSelection },
   ] as const)(
-    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent',
-    async ({ stored, sent, runs }) => {
-      flags.models.mockResolvedValue(false)
+    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent with $modelSelection',
+    async ({ stored, sent, runs, modelSelection }) => {
+      flags.models.mockResolvedValue(Boolean(modelSelection))
       resolveOrCreateChat.mockResolvedValue({
         chatId: 'chat-1',
         chat: { id: 'chat-1', effort: stored },
@@ -860,13 +863,14 @@ describe('handleUnifiedChatPost', () => {
             message: 'Continue',
             workspaceId: 'ws-1',
             chatId: 'chat-1',
+            ...(modelSelection ? { modelSelection } : {}),
             ...(sent ? { effort: sent } : {}),
           }),
         })
       )
       expect(response.status).toBe(200)
       expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({ effort: runs })
+        expect.objectContaining({ effort: runs, modelSelection })
       )
       expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
     }
