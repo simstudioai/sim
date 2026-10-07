@@ -167,13 +167,16 @@ function prepareE2BCommand(
   }
 }
 
+/** Only a command whose own timeout would outlive the cap can have been ended by it. */
 function reachedE2BProviderLimit(
   error: unknown,
   providerLimitAtMs: number,
+  commandDeadlineAtMs: number,
   signal?: AbortSignal
 ): boolean {
   return (
     !signal?.aborted &&
+    commandDeadlineAtMs >= providerLimitAtMs &&
     Date.now() >= providerLimitAtMs - E2B_PROVIDER_LIMIT_CLASSIFICATION_WINDOW_MS &&
     isE2BExecutionTimeout(error)
   )
@@ -497,6 +500,7 @@ class E2BSandboxHandle implements SandboxHandle {
     operation: 'code' | 'command'
   ): Promise<SandboxCommandResult> {
     if (this.sessionKey !== undefined) options.signal?.throwIfAborted()
+    const commandDeadlineAtMs = Date.now() + e2bTimeoutMs(options.timeoutMs)
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
@@ -675,7 +679,9 @@ class E2BSandboxHandle implements SandboxHandle {
       if (outputBudget.error) throw outputBudget.error
       if (isSandboxOutputLimitError(error)) throw error
       if (isNonRetryableExecutionError(error)) throw error
-      if (reachedE2BProviderLimit(error, this.providerLimitAtMs, options.signal)) {
+      if (
+        reachedE2BProviderLimit(error, this.providerLimitAtMs, commandDeadlineAtMs, options.signal)
+      ) {
         recordSandboxProviderLimit({ provider: 'e2b', operation })
         return {
           stdout: '',

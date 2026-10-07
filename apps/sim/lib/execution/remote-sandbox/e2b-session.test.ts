@@ -767,4 +767,13 @@ describe('E2B continuous-runtime cap', () => {
     expect(result?.providerFailure).toBe('provider_limit')
     expect(result?.timedOut).toBeUndefined()
   })
+
+  it('keeps a command that reaches its own timeout near the cap a user timeout', async () => {
+    cappedPlane(CAP_MS - 50_000)
+    pause.mockRejectedValueOnce(new Error('pause unavailable'))
+    const sandbox = await e2bProvider.findSessionSandbox?.('chat', { lifetimeMs: LEASE_MS })
+    const result = await sandbox?.runCommand('short job', { timeoutMs: 1000 })
+    expect(result?.providerFailure).toBeUndefined()
+    expect(result?.timedOut).toBe(true)
+  })
 })
