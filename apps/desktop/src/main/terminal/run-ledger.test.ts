@@ -17,7 +17,7 @@ const RUN = {
   pane: '%3',
   socket: '/tmp/tmux-501/default',
   callId: 'call-1',
-  delivered: false,
+  state: 'started' as const,
 }
 
 afterEach(() => {
@@ -54,6 +54,11 @@ describe('the tmux run ledger', () => {
     writeFileSync(join(dir, 'run-9.json'), JSON.stringify({ ...RUN, socket: 'relative.sock' }))
     // A record under another run's name could stop the wrong run.
     writeFileSync(join(dir, 'run-8.json'), JSON.stringify({ ...RUN, runId: 'run-7' }))
+    // A state no version wrote: nothing could tell what to do with the run.
+    writeFileSync(
+      join(dir, 'run-5.json'),
+      JSON.stringify({ ...RUN, runId: 'run-5', state: 'done' })
+    )
     // Only a pane id names one pane; a target like this one names whatever pane is active there.
     writeFileSync(
       join(dir, 'run-6.json'),
@@ -95,14 +100,59 @@ describe('the tmux run ledger', () => {
     expect(ledger.record(RUN)).toBe(false)
   })
 
-  it('notes a run handed back as still going, for the next process too', () => {
+  it('moves a run forward only, for the next process too', () => {
     const dir = scratch()
     const ledger = createRunLedger(dir)
     ledger.record(RUN)
 
-    ledger.markDelivered(RUN.runId)
+    ledger.advance(RUN.runId, 'delivered')
+    expect(createRunLedger(dir).list()).toEqual([{ ...RUN, state: 'delivered' }])
 
-    expect(createRunLedger(dir).list()).toEqual([{ ...RUN, delivered: true }])
+    ledger.advance(RUN.runId, 'stop')
+    // A late acknowledgement never undoes a stop.
+    ledger.advance(RUN.runId, 'delivered')
+    expect(createRunLedger(dir).list()).toEqual([{ ...RUN, state: 'stop' }])
+  })
+
+  it('reads a record saved before runs had a state as the state it meant', () => {
+    const dir = scratch()
+    mkdirSync(dir, { recursive: true })
+    const { state: _state, ...saved } = RUN
+    const legacy = {
+      'run-started': { delivered: false },
+      'run-delivered': { delivered: true },
+      'run-stop': { delivered: false, mustStop: true },
+      // A stop wins over an acknowledgement.
+      'run-stop-delivered': { delivered: true, mustStop: true },
+    }
+    for (const [runId, fields] of Object.entries(legacy)) {
+      writeFileSync(join(dir, `${runId}.json`), JSON.stringify({ ...saved, runId, ...fields }))
+    }
+
+    const states = Object.fromEntries(
+      createRunLedger(dir)
+        .list()
+        .map((record) => [record.runId, record.state])
+    )
+    expect(states).toEqual({
+      'run-started': 'started',
+      'run-delivered': 'delivered',
+      'run-stop': 'stop',
+      'run-stop-delivered': 'stop',
+    })
+  })
+
+  it('finds the run a call started, a previous process recorded it or this one', () => {
+    const dir = scratch()
+    // Recovery may hand the model the result of a previous process's call.
+    createRunLedger(dir).record(RUN)
+    const ledger = createRunLedger(dir)
+    ledger.record({ ...RUN, runId: 'run-2', callId: 'call-2' })
+
+    expect(ledger.runOf(RUN.callId)).toBe(RUN.runId)
+    expect(ledger.runOf('call-2')).toBe('run-2')
+    ledger.forget(RUN.runId)
+    expect(ledger.runOf(RUN.callId)).toBeUndefined()
   })
 
   it('records nothing for a run tag that is not a plain id', () => {

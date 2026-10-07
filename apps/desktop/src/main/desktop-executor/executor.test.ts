@@ -224,6 +224,27 @@ describe('claiming', () => {
     await vi.waitFor(() => expect(delivered).toEqual(['call-recorded']))
   })
 
+  it('reports no result that stands in for what the action produced as reaching the model', async () => {
+    const { sim, runner, executor, delivered } = setup()
+    const standIns: DesktopToolCompletion[] = [
+      { status: 'cancelled', message: 'Stopped.' },
+      { status: 'error', message: 'Too large.', data: { resultOmitted: true } },
+      { status: 'error', message: 'Not started.', data: { notStarted: true } },
+      { status: 'error', message: 'Unknown.', data: { outcomeUnknown: true } },
+    ]
+    for (const [index, completion] of standIns.entries()) {
+      runner.immediate = completion
+      sim.inbox = [callItem(`stand-in-${index}`, 'chat-a')]
+      await executor.reconcile()
+      await vi.waitFor(() => expect(sim.completions).toHaveLength(index + 1))
+    }
+
+    runner.immediate = DONE
+    sim.inbox = [callItem('real', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(delivered).toEqual(['real']))
+  })
+
   it('claims a whole backlog at once, before any of it runs', async () => {
     const { sim, runner, executor } = setup()
     sim.inbox = [callItem('a-1', 'chat-a'), callItem('a-2', 'chat-a'), callItem('a-3', 'chat-a')]

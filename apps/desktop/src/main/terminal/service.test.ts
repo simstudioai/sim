@@ -666,8 +666,8 @@ describe('agent commands in tmux', () => {
           pane,
           socket: '/tmp/tmux-fake/default',
           callId: 'call-long',
-          // Handed back, but only the executor's journal can make that durable.
-          delivered: false,
+          // Handed back, but the model has it only once Sim acknowledges the result.
+          state: 'started',
         },
       ])
 

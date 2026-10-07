@@ -56,6 +56,20 @@ export interface DesktopToolRunner {
 
 export type DesktopApprovalItem = Extract<DesktopInboxItem, { kind: 'approval_needed' }>
 
+/**
+ * Whether a result hands the model what the action produced: not a stop, and not one standing in
+ * for an action that did not start, whose outcome is unknown, or whose output was too large to send.
+ */
+export function isDeliveredResult(completion: DesktopToolCompletion): boolean {
+  const data = completion.data
+  return (
+    completion.status !== 'cancelled' &&
+    data?.notStarted !== true &&
+    data?.outcomeUnknown !== true &&
+    data?.resultOmitted !== true
+  )
+}
+
 export interface DesktopExecutorOptions {
   client: DesktopExecutorClient
   journal: ExecutorJournal
@@ -68,10 +82,11 @@ export interface DesktopExecutorOptions {
   /** Called whenever the number of held calls changes between zero and more. */
   onBusyChange?: (busy: boolean) => void
   /**
-   * Called once Sim has taken a call's result as the call's own (recorded, or a duplicate of one
-   * it recorded): the model has it, so anything it hands back (a pane still running) is in use.
+   * Called once Sim has taken a call's real result ({@link isDeliveredResult}) as the call's own
+   * (recorded, or a duplicate of one it recorded): the model has it, so anything it hands back (a
+   * pane still running) is in use.
    */
-  onResultDelivered?: (toolCallId: string, completion: DesktopToolCompletion) => void
+  onResultDelivered?: (toolCallId: string) => void
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
@@ -407,7 +422,9 @@ export class DesktopExecutor {
         })
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
         // Superseded: Sim settled the call first, so this result never reached the model.
-        if (outcome !== 'superseded') this.options.onResultDelivered?.(toolCallId, pending)
+        if (outcome !== 'superseded' && isDeliveredResult(pending)) {
+          this.options.onResultDelivered?.(toolCallId)
+        }
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.
