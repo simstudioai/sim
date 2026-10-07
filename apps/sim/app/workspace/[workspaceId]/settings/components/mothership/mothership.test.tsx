@@ -29,8 +29,46 @@ vi.mock('@sim/emcn', () => ({
     onChange?: ChangeEventHandler<HTMLInputElement>
     placeholder?: string
   }) => <input placeholder={placeholder} value={value ?? ''} onChange={onChange} />,
-  ChipModalTabs: () => <div />,
-  ChipSelect: () => <div />,
+  ChipModalTabs: ({
+    tabs,
+    onChange,
+  }: {
+    tabs: Array<{ label: string; value: string }>
+    onChange: (value: string) => void
+  }) => (
+    <div>
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          type='button'
+          data-tab={tab.value}
+          onClick={() => onChange(tab.value)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  ),
+  ChipSelect: ({
+    options,
+    onChange,
+  }: {
+    options: Array<{ label: string; value: string }>
+    onChange: (value: string) => void
+  }) => (
+    <div>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type='button'
+          data-env={option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Skeleton: () => <div />,
 }))
@@ -55,6 +93,7 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 let container: HTMLDivElement
 let root: Root
+let urlSearch: string
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -66,9 +105,15 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  urlSearch = '?tab=licenses'
   act(() =>
     root.render(
-      <NuqsTestingAdapter searchParams='?tab=licenses'>
+      <NuqsTestingAdapter
+        searchParams={urlSearch}
+        onUrlUpdate={(event) => {
+          urlSearch = event.queryString
+        }}
+      >
         <Mothership />
       </NuqsTestingAdapter>
     )
@@ -96,7 +141,7 @@ function generateKey() {
   type('e.g. Acme Corp', 'Acme')
   type('Signed order form or written approval', 'order-1')
   const generate = Array.from(container.querySelectorAll('button')).find(
-    (button) => !button.disabled
+    (button) => !button.dataset.tab && !button.dataset.env && !button.disabled
   )
   act(() => generate?.click())
 }
@@ -105,26 +150,28 @@ function licenseKey() {
   return container.querySelector<HTMLInputElement>('[data-testid="license-key"]')?.value
 }
 
-describe('Mothership license generation', () => {
-  it('asks before leaving while the shown-once license key is on screen', () => {
-    generateKey()
-    const leave = vi.fn()
+function switchToByok() {
+  act(() => container.querySelector<HTMLButtonElement>('[data-tab="byok"]')?.click())
+}
 
-    const left = useSettingsDirtyStore.getState().requestLeave(leave)
+describe('Mothership license generation', () => {
+  it('stays on the tab while the shown-once license key is on screen', () => {
+    generateKey()
+
+    switchToByok()
 
     expect(licenseKey()).toBe('sim_license_once')
-    expect(left).toBe(false)
-    expect(leave).not.toHaveBeenCalled()
+    expect(urlSearch).not.toContain('byok')
+    expect(useSettingsDirtyStore.getState().pendingLeave).not.toBeNull()
   })
 
-  it('drops the license key when the admin confirms leaving', () => {
+  it('drops the license key when the admin confirms switching environments', async () => {
     generateKey()
-    const leave = vi.fn()
-    useSettingsDirtyStore.getState().requestLeave(leave)
+    act(() => container.querySelector<HTMLButtonElement>('[data-env="prod"]')?.click())
 
-    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    await act(async () => useSettingsDirtyStore.getState().confirmLeave())
 
-    expect(leave).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(urlSearch).toContain('env=prod'))
     expect(licenseKey()).toBeUndefined()
     expect(useSettingsDirtyStore.getState().isDirty).toBe(false)
   })
