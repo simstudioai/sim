@@ -15,6 +15,7 @@ export const CLEANUP_DISPATCH_MAX_ATTEMPTS = 3
  */
 export const cleanupDispatchTask = task({
   id: 'cleanup-dispatch',
+  maxDuration: 900,
   queue: { concurrencyLimit: 1 },
   retry: { maxAttempts: CLEANUP_DISPATCH_MAX_ATTEMPTS },
   run: ({ jobType }: CleanupDispatchPayload) => dispatchCleanupJobs(jobType),

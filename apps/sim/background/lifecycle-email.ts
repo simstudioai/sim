@@ -59,6 +59,8 @@ async function sendLifecycleEmail({ userId, type }: LifecycleEmailParams): Promi
 
 export const lifecycleEmailTask = task({
   id: LIFECYCLE_EMAIL_TASK_ID,
+  maxDuration: 120,
+  queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 2 },
   run: async (params: LifecycleEmailParams) => {
     await sendLifecycleEmail(params)

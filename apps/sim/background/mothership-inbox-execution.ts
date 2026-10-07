@@ -11,6 +11,7 @@ export interface MothershipInboxExecutionParams {
 export const mothershipInboxExecution = task({
   id: 'mothership-inbox-execution',
   machine: { preset: 'medium-1x' },
+  queue: { concurrencyLimit: 10 },
   retry: {
     maxAttempts: 2,
     minTimeoutInMs: 5000,

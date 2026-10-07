@@ -306,13 +306,16 @@ export async function runDocumentProcessing(
  */
 export const interactiveProcessingQueue = queue({
   name: INTERACTIVE_PROCESSING_QUEUE_NAME,
-  concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
+  concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20, { min: 1, integer: true }),
 })
 
 /** Referenced by no dispatch site: named per trigger, declared here so the deploy registers it. */
 export const backfillProcessingQueue = queue({
   name: BACKFILL_PROCESSING_QUEUE_NAME,
-  concurrencyLimit: envNumber(env.KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT, 20),
+  concurrencyLimit: envNumber(env.KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT, 20, {
+    min: 1,
+    integer: true,
+  }),
 })
 
 export const processDocument = task({

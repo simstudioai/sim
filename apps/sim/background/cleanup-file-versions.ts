@@ -188,7 +188,13 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
 
 export const cleanupFileVersionsTask = task({
   id: 'cleanup-file-versions',
-  machine: 'large-1x',
+  /**
+   * Sized from production telemetry: peak RSS 219 MB across ~15,600 runs, so
+   * `small-2x` (1 GB) holds over four times the worst case. Each pass works in
+   * bounded batches of version rows, so the peak does not grow with backlog.
+   */
+  machine: 'small-2x',
+  maxDuration: 600,
   queue: retentionCleanupQueue,
   retry: { maxAttempts: 1 },
   run: runCleanupFileVersions,

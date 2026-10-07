@@ -20,6 +20,14 @@ import {
 export const forkContentCopyTask = task({
   id: 'fork-content-copy',
   machine: 'large-2x',
+  /**
+   * Inside `STALE_ACTIVE_MS` (30 minutes, in the background-work store), after
+   * which the outbox cron marks the fork's status row failed. A run outliving
+   * that would keep copying under a status that already says it failed; the
+   * remaining five minutes absorb queue wait, since the row starts its clock at
+   * fork time.
+   */
+  maxDuration: 1500,
   retry: { maxAttempts: 1 },
   queue: {
     name: 'fork-content-copy',
