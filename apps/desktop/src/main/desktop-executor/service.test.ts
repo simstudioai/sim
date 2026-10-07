@@ -6,7 +6,31 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
+/** How many journal loads still fail, like a read that throws. */
+const journalFaults = vi.hoisted(() => ({ loads: 0 }))
+
+vi.mock('@/main/desktop-executor/journal', async () => {
+  const actual = await vi.importActual<typeof import('@/main/desktop-executor/journal')>(
+    '@/main/desktop-executor/journal'
+  )
+  return {
+    ...actual,
+    createExecutorJournal: (...args: Parameters<typeof actual.createExecutorJournal>) => {
+      const journal = actual.createExecutorJournal(...args)
+      return {
+        ...journal,
+        load: () => {
+          if (journalFaults.loads <= 0) return journal.load()
+          journalFaults.loads -= 1
+          return Promise.reject(new Error('The disk went away.'))
+        },
+      }
+    },
+  }
+})
+
 import { net } from 'electron'
+import { DesktopExecutor } from '@/main/desktop-executor/executor'
 import { createExecutorJournal } from '@/main/desktop-executor/journal'
 import { createDesktopExecutorService, deviceName } from '@/main/desktop-executor/service'
 
@@ -156,18 +180,40 @@ describe('results recovery will hand to the model', () => {
       executionToken: 't1',
       completion: { status: 'success', message: 'running', data: { status: 'running' } },
     })
-    const { sim, desktopExecutor } = await service(1, userData)
+    // Recovery returns only once Sim has the result and the journal no longer holds it, so a
+    // snapshot taken any time after recovery started would come back empty.
+    const recover = DesktopExecutor.prototype.recover
+    const recovered = vi
+      .spyOn(DesktopExecutor.prototype, 'recover')
+      .mockImplementation(async function (this: DesktopExecutor) {
+        await recover.call(this)
+        await vi.waitFor(async () => expect(await createExecutorJournal(path).load()).toEqual([]))
+      })
+    try {
+      const { sim, desktopExecutor } = await service(1, userData)
+      desktopExecutor.start()
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+      sim.registrations[0]?.(true)
+      await vi.waitFor(() => expect(sim.requests).toContain('POST /api/desktop/tool/complete'))
+      await vi.waitFor(() => expect(recovered).toHaveBeenCalled())
+
+      expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
+      await desktopExecutor.signOut()
+    } finally {
+      recovered.mockRestore()
+    }
+  })
+
+  it('counts a journal that cannot be loaded at all as holding none, and still starts', async () => {
+    journalFaults.loads = 1
+    const { sim, desktopExecutor } = await service()
+
+    expect([...(await desktopExecutor.pendingResults())]).toEqual([])
     desktopExecutor.start()
     await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
     sim.registrations[0]?.(true)
 
-    // Recovery hands the result to Sim and drops it from the journal.
-    await vi.waitFor(async () => {
-      expect(sim.requests).toContain('POST /api/desktop/tool/complete')
-      expect(await createExecutorJournal(path).load()).toEqual([])
-    })
-
-    expect([...(await desktopExecutor.pendingResults())]).toEqual(['handed-back'])
+    await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
     await desktopExecutor.signOut()
   })
 })
