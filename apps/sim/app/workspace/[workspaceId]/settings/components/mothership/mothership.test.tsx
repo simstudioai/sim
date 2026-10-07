@@ -12,6 +12,7 @@ const { mockGenerate } = vi.hoisted(() => ({ mockGenerate: vi.fn() }))
 vi.mock('@sim/emcn', () => ({
   ...emcnMock,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type='button' {...props}>
       {children}
