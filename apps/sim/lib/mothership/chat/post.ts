@@ -32,6 +32,7 @@ import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
@@ -1627,6 +1628,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
 
     const applicationError = asOrchestrationError(error)
+    /* Another attempt with this id holds its claim and may admit the turn. Answer
+       as a duplicate (naming this id), so the client keeps the message under it
+       rather than reading a refusal it could edit into a second turn. */
+    if (applicationError instanceof ChatSendSupersededError) {
+      return NextResponse.json(
+        { error: 'This message was already sent.', activeStreamId: userMessageId },
+        { status: 409 }
+      )
+    }
     if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
       return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
     }

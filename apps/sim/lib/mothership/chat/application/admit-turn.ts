@@ -12,6 +12,7 @@ import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/avail
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import { withChatEffortChoice } from '@/lib/mothership/chat/intent'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
@@ -167,8 +168,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
           )
         )
         .returning({ key: idempotencyKey.key })
-      if (!claim)
-        throw new OrchestrationError('conflict', 'This send was superseded; retry the message')
+      if (!claim) throw new ChatSendSupersededError()
       return run
     })
   },

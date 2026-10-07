@@ -4067,10 +4067,9 @@ export function useChat(
                   exact: true,
                   refetchType: 'none',
                 })
-              /* Admission's "superseded" conflict (another attempt re-took this id's
-                 claim) also lands here with no stream named. That needs this attempt to
-                 hold its claim past the 60s in-progress TTL before admitting, which a
-                 lock wait of at most 5s does not reach. */
+              /* Only the chat lock refuses without naming this id. Admission's
+                 "superseded" conflict, where another attempt took this id's claim and may
+                 admit it, is answered as a duplicate naming this id instead. */
               return { userMessageId, busy: true, notAdmitted: true }
             }
             /* "Already sent" with no stream for it means the earlier attempt is still
