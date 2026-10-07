@@ -869,9 +869,9 @@ describe('handleUnifiedChatPost', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({ effort: runs, modelSelection })
-      )
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      expect(requestPayload?.effort).toBe(runs)
+      expect(requestPayload?.modelSelection).toEqual(modelSelection)
       expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
     }
   )
