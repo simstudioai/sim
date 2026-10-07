@@ -4443,7 +4443,9 @@ export function useChat(
         handOffWithdrawnSend(withdrawn)
         return
       }
-      useMothershipQueueStore.getState().enqueue(activeChatKey, {
+      /* Back at the head: a direct send only goes out with nothing queued ahead of
+         it, so anything queued while its POST was out was written after it. */
+      useMothershipQueueStore.getState().insertAt(activeChatKey, 0, {
         ...createQueuedMessage(
           message,
           fileAttachments,
