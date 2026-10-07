@@ -99,14 +99,22 @@ async function readDatabaseClock(executor: DbOrTx): Promise<number> {
  * an older value for the webhook reconcile to restore. The caller must hold the subscription row
  * lock (`FOR UPDATE`, or the `UPDATE` itself), per the lock order on
  * {@link lockSubscriptionForSyncRetry}.
+ *
+ * A Sim commit is stamped with the clock under that lock. A value taken from Stripe passes
+ * `observedAt`, the clock read just before Stripe was read, so it orders by when it was observed:
+ * a slower reconcile of an earlier Stripe read cannot outrank a later one.
  */
 async function commitIntent<T extends SyncIntentFields>(
   tx: DbOrTx,
   eventType: SubscriptionSyncEventType,
   subscriptionId: string,
-  fields: T
+  fields: T,
+  observedAt?: number
 ): Promise<T & { committedAt: number }> {
-  const committed = await withCommittedAt(tx, fields)
+  const committed =
+    observedAt === undefined
+      ? await withCommittedAt(tx, fields)
+      : { ...fields, committedAt: observedAt }
   await patchRetryableOutboxEvents(tx, eventType, subscriptionSubject(subscriptionId), committed)
   return committed
 }
@@ -446,7 +454,7 @@ export async function reconcileSubscriptionSyncFromStripe(event: Stripe.Event): 
         if (liveCancelAtPeriodEnd === undefined) return false
         cancelAtPeriodEnd = liveCancelAtPeriodEnd
         if (intents.cancelSyncCarriesOtherThan(cancelAtPeriodEnd)) {
-          await commitIntent(tx, CANCEL_SYNC, row.id, { cancelAtPeriodEnd })
+          await commitIntent(tx, CANCEL_SYNC, row.id, { cancelAtPeriodEnd }, liveReadAt)
         }
       }
       const seats = intents.seats.status === 'value' ? intents.seats.value : current.seats

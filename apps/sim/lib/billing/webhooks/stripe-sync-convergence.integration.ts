@@ -618,6 +618,38 @@ describe('cancel_at_period_end sync', () => {
     expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
   })
 
+  it('orders concurrent reconciles of Stripe-side changes by when each read Stripe', async () => {
+    const pro = await createProUserInPaidOrganization()
+    await pauseProSubscriptionForOrgCoverage(pro.userId)
+    const pauseSync = await latestOutboxEventId(
+      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
+      pro.subscriptionId
+    )
+    stripe.failNextUpdateAfterApplying('subscriptions')
+    await expect(processEvent(pauseSync)).resolves.toBe('pending')
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: false })
+    const renewal = stripe.events.at(-1) as Stripe.Event
+    const firstRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const secondRead = stripe.holdNextRequest('subscriptions.retrieve')
+    const reconcilingRenewal = deliver(renewal)
+    await firstRead.reached
+
+    stripe.updateOutsideSim(pro.stripeSubscriptionId, { cancel_at_period_end: true })
+    const reconcilingCancel = deliver(stripe.events.at(-1) as Stripe.Event)
+    await secondRead.reached
+
+    firstRead.release()
+    await reconcilingRenewal
+    secondRead.release()
+    await reconcilingCancel
+
+    expect((await storedSubscription(pro.subscriptionId)).cancelAtPeriodEnd).toBe(true)
+    await makeDue(pauseSync)
+    await expect(processEvent(pauseSync)).resolves.toBe('completed')
+    expect(stripe.subscription(pro.stripeSubscriptionId).cancel_at_period_end).toBe(true)
+  })
+
   it('keeps a value Sim committed after the reconcile read Stripe', async () => {
     const pro = await createProUserInPaidOrganization()
     await pauseProSubscriptionForOrgCoverage(pro.userId)
