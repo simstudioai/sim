@@ -1053,6 +1053,78 @@ describe('code placeholder compiler', () => {
     'total=$(( $(( 1 + 1 )) + {{KEY}} ))',
     'cat <<PAYLOAD\n$(( {{KEY}} * 2 ))\nPAYLOAD',
     'cat <<PAYLOAD\n$[ {{KEY}} * 2 ]\nPAYLOAD',
+    'echo $(( $(cat <<EOF\n{{KEY}}\nEOF\n) + 1 ))',
+    "echo $(( $(cat <<'EOF'\n{{KEY}}\nEOF\n) + 1 ))",
+    "echo $(( $(cat <<-'EOF'\n\t{{KEY}}\n\tEOF\n) + 1 ))",
+    '[[ {{KEY}} -eq 0 ]] && echo zero',
+    '[[ "{{KEY}}" -eq 0 ]] && echo zero',
+    'if [[ 0 -lt {{KEY}} ]]; then echo positive; fi',
+    '[[ -n x && ( "{{KEY}}" -ge 1 ) ]]',
+    '[[ $(printf "%s" "{{KEY}}") -ne 0 ]]',
+    '[[ $(printf "%s" "{{KEY}}"; echo 1) -le 0 ]]',
+    '[[ $(cat <<EOF\n{{KEY}}\nEOF\n) -gt 0 ]]',
+    'let "x={{KEY}}"',
+    'let x={{KEY}}+1',
+    'declare -i x="{{KEY}}"',
+    'typeset -i x={{KEY}}',
+    'f() { local -i x="{{KEY}}"; }',
+    'declare -ai values=("{{KEY}}")',
+    'declare -x -i x="{{KEY}}"',
+    'let x="$(printf "%s" "{{KEY}}")"',
+    'declare -i x="$(printf "%s" "{{KEY}}")"',
+    '>/dev/null let x="{{KEY}}"',
+    '2>/dev/null let x="{{KEY}}"',
+    'builtin let x="{{KEY}}"',
+    'command let x="{{KEY}}"',
+    'declare "-i" n="{{KEY}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    '[[ ${missing:-{{KEY}}} -eq 0 ]]',
+    'declare -i n; echo "$(declare +i n)"; n="{{KEY}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'printf "%s" "${missing:-{text}"; let x="{{KEY}}"',
+    'declare -i n; n="$(printf "%s" "{{KEY}}")"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'declare -i n; n="${missing:-{{KEY}}}"',
+    'declare -i n; declare n="{{KEY}}"',
+    '> /dev/null let x="{{KEY}}"',
+    'let x="$(cat <<EOF\n{{KEY}}\nEOF\n)"',
+    'unset "a[{{KEY}}]"',
+    'unset a[{{KEY}}]',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'declare -A m=([key]=abc); printf "%s\\n" "${m[key]:{{KEY}}}"',
+    'echo $(( 1 < {{KEY}} ))',
+    'let x=1 >/dev/null {{KEY}}',
+    'a=([{{KEY}}]=text)',
+    "unset 'a[{{KEY}}]'",
+    'le\\\nt "x={{KEY}}"',
+    'local -A a; a[{{KEY}}]=1',
+    'declare -A m; unset m; m[{{KEY}}]=1',
+    'declare -A m; unset m; declare -a m; m[{{KEY}}]=1',
+    '(declare -A m); m[{{KEY}}]=1',
+    'a[{{KEY}}]=1',
+    'a[{{KEY}}]+=1',
+    'declare -i n; n="{{KEY}}"',
+    'declare -i n\nn="{{KEY}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'a=(1 2); echo "${a[{{KEY}}]}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'a=(1 2); echo "${a[0]:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'a=(1 2); echo "${a[0]:0:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; echo "${s:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; echo "${s:0:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; echo "${s: -1:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'set -- a b; echo "${@:{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; printf "%s\\n" "${missing:-"${s:{{KEY}}}"}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'cat <<PAYLOAD\n${a[{{KEY}}]}\nPAYLOAD',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'cat <<PAYLOAD\n${s:{{KEY}}}\nPAYLOAD',
   ])('rejects shell placeholders whose values enter arithmetic: %s', async (code) => {
     await expect(
       compileCodePlaceholders({
@@ -1084,6 +1156,96 @@ describe('code placeholder compiler', () => {
 
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
       `${value}\n$(( ${value} ))\n$[ ${value} ]\n${value}\n2${value}\n2${value}\n${value}\n(( ${value} ))\n`
+    )
+  })
+
+  it.each([
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'printf "%s\\n" "${missing:-https://{{KEY}}}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'printf "%s\\n" "${missing:-items[{{KEY}}]}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; printf "%s\\n" "${s#[{{KEY}}]}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    's=abc; printf "%s\\n" "${s/[{{KEY}}]/x}"',
+    'f() { local -i n; }; n="{{KEY}}"',
+    'PREFIX="$(printf "%s" "{{KEY}}")" let total=2',
+    'printf "%s" a[{{KEY}}]=1',
+    'declare -i n; printf "%s" n={{KEY}}',
+    'declare -i n; declare +i n; n="{{KEY}}"',
+    'declare -i n; n=1 printf "%s" "{{KEY}}"',
+    'declare -i n; n=5 text="{{KEY}}"',
+    'declare -i +i n="{{KEY}}"',
+    'declare -i n; echo "$(declare +i n; n=\'{{KEY}}\'; printf "%s" "$n")"',
+    '$(let x=1 <<EOF\n{{KEY}}\nEOF\n)',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'declare -A m; m[{{KEY}}]=x; printf "%s\\n" "${m[{{KEY}}]}"',
+    'declare -A m; printf "%s\\n" "${m[{{KEY}}]}"',
+    'declare -iA m; m[{{KEY}}]=1',
+    'read -p "items[{{KEY}}]" name',
+    'a=([{{KEY}}])',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'printf "%s\\n" "${missing:- # {{KEY}}}"',
+    'declare -A m; declare -A m; m[{{KEY}}]=1',
+    'let x=1 >"{{KEY}}"',
+    'let x=1 > {{KEY}}',
+    'declare -i n=1 >"{{KEY}}"',
+    '[[ "{{KEY}}" == "-eq" ]]',
+  ])('compiles parameter and prefix text that is not an arithmetic operand: %s', async (code) => {
+    // These forms use the value as pattern, default, or a shielded prefix — never arithmetic — so a
+    // conservative scanner must not reject them. Each would fail compilation if wrongly rejected.
+    await expect(
+      compileCodePlaceholders({
+        code,
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: 'values[$(printf injected >&2)]' },
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('keeps literal single quotes inside a double-quoted default expansion', async () => {
+    const compiled = await compileCodePlaceholders({
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+      code: 'printf "%s\\n" "${missing:-\'{{KEY}}\'}"',
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'hello world' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe("'hello world'\n")
+  })
+
+  it('compiles shell placeholders beside arithmetic that never evaluates them', async () => {
+    const value = 'values[$(printf injected >&2)]'
+    const compiled = await compileCodePlaceholders({
+      code: [
+        '[ "{{KEY}}" -eq 0 ] 2>/dev/null || printf "%s\\n" not-zero',
+        '[[ "{{KEY}}" == values* && 1 -eq 1 ]] && printf "%s\\n" matched',
+        'let total=1+1; printf "%s\\n" "{{KEY}}"',
+        'f() { local copy="{{KEY}}"; printf "%s\\n" "$copy"; }; f',
+        'declare copy="{{KEY}}"; printf "%s\\n" "$copy"',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+        'printf "%s\\n" "${missing:-{{KEY}}}"',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+        'a=(x y); printf "%s\\n" "${a[1]}{{KEY}}"',
+        'printf "%s\\n" "let {{KEY}}"',
+        'printf "%s\\n" "items[{{KEY}}]"',
+        'PREFIX="{{KEY}}" let total=2',
+        '# declare -i n',
+        'n="{{KEY}}"; printf "%s\\n" "$n"',
+        'let total=1 <<EOF',
+        '{{KEY}}',
+        'EOF',
+        'printf "%s\\n" "$total"',
+        'cat <<PAYLOAD',
+        '{{KEY}} $(( 1 + 1 ))',
+        'PAYLOAD',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: value },
+    })
+
+    expect(executeShell(`{\n${compiled.code}\n} 2>&1`, compiled.bindings)).toBe(
+      `not-zero\nmatched\n${value}\n${value}\n${value}\n${value}\ny${value}\n` +
+        `let ${value}\nitems[${value}]\n${value}\n1\n${value} 2\n`
     )
   })
 
