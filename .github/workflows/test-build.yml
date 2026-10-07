@@ -442,6 +442,148 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
+  # app it drives (docs, other apps, published content). Anything else, and any failure to work
+  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
+  desktop-live-changes:
+    name: Detect desktop tool changes
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+      - name: Diff against the pull request's base
+        id: diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+
+  # Desktop tools in the real Electron app against a local app, on its own runner: the
+  # Electron app, the dev app and its realtime server together outgrow the http-e2e runner.
+  desktop-live-e2e:
+    name: Desktop tools against a local app
+    needs: desktop-live-changes
+    if: needs.desktop-live-changes.outputs.changed == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: desktop-live-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      # Chat switches, Stop, sign-out, approval and the flag-off foreground round trip. The spec
+      # runs the recording proxy (the app's public origin) and the stand-in worker.
+      - name: Verify desktop tools in the Electron app against a local app
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3020
+          BETTER_AUTH_URL: http://127.0.0.1:3020
+          REDIS_URL: redis://127.0.0.1:6379
+          SIM_AGENT_API_URL: http://127.0.0.1:3022
+          NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3023
+          SOCKET_SERVER_URL: http://127.0.0.1:3023
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          COPILOT_API_KEY: desktop-tools-e2e-ci-local-copilot-key
+          COPILOT_TOOL_PERMISSIONS_ENABLED: 'true'
+          MOTHERSHIP_SIM_TRANSPORT: direct
+          INTERNAL_API_SECRET: desktop-tools-e2e-ci-local-secret-at-least-32-characters
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          mkdir -p "$report_dir"
+          sudo apt-get update -q
+          sudo apt-get install -yq xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 \
+            libxtst6 libatk-bridge2.0-0t64 libxkbcommon0 > /dev/null
+          # Bundle only: `bun run build` also fetches the macOS node-pty prebuilds for packaging,
+          # which a Linux run does not use.
+          (cd apps/desktop && bun run scripts/build.ts)
+          # Each app runs in its own session under an E2E_APP tag, and stop-session.sh returns once
+          # every process it started has exited.
+          realtime_tag="desktop-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          server_tag="desktop-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
+            E2E_APP="$realtime_tag" exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
+          realtime_pid=$!
+          (cd apps/sim && E2E_APP="$server_tag" exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+            --port 3021 > "$report_dir/desktop-tools-next.log" 2>&1) &
+          server_pid=$!
+          finish() {
+            status=$?
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag" || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
+            wait "$server_pid" "$realtime_pid" 2>/dev/null || true
+            exit "$status"
+          }
+          trap finish EXIT
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3021/api/health > /dev/null &&
+            curl --fail --silent --max-time 10 http://127.0.0.1:3023/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || { tail -n 200 "$report_dir/desktop-tools-next.log"; exit 1; }
+            kill -0 "$realtime_pid" 2>/dev/null || { tail -n 200 "$report_dir/desktop-tools-realtime.log"; exit 1; }
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] || { echo '::error::Local app did not become ready'; exit 1; }
+            sleep 2
+          done
+          cd apps/desktop
+          SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
+          SIM_DESKTOP_E2E_PROXY_PORT=3020 \
+          SIM_DESKTOP_E2E_AGENT_PORT=3022 \
+          SIM_DESKTOP_E2E_DATABASE_URL="$DATABASE_URL" \
+          SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
+          SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+            xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
+            --output "$report_dir/desktop-tools-results" --retries=0
+
+      - name: Upload Electron E2E results and server logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-live-e2e-results
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
