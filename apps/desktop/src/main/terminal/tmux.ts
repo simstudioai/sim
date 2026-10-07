@@ -41,10 +41,11 @@ const RUN_POLL_INTERVAL_MS = 250
 /**
  * Field separator for `-F` output. Printable on purpose: tmux 3.4 and 3.5 print a control
  * character as its octal escape, so a control-character separator arrived as the text `\037` and
- * no line split. No tmux escapes these characters, and a field that happened to contain the
- * separator would change the line's field count, so that line is dropped rather than misread.
+ * no line split. No tmux escapes these characters. No proper prefix of the separator is also a
+ * suffix of it, so it can only be found where it was written or wholly inside a field: a field
+ * holding it changes the line's field count, and that line is dropped rather than misread.
  */
-const FIELD = '|~sim~|'
+const FIELD = '<~sim~>'
 
 export interface TmuxCommandResult {
   ok: boolean
@@ -330,8 +331,13 @@ const RUN_GATE_POLLS = Math.ceil((2 * TMUX_TIMEOUT_MS + 5_000) / 50)
 /** The tmux user option that marks a pane as one run's own. */
 const RUN_ID_OPTION = '@sim-run-id'
 
-/** How tmux before 3.0, which has no pane options, refuses `set-option -p`. */
-const NO_PANE_OPTIONS = /unknown flag|invalid option/i
+/**
+ * How tmux before 3.0, which has no pane options, refuses `set-option -p`. Its own getopt prints
+ * `unknown option -- p` (BSD getopt on macOS: `illegal option -- p`) followed by set-option's usage
+ * line; later wordings are kept for any build that phrases it so.
+ */
+const NO_PANE_OPTIONS =
+  /unknown option -- p|illegal option -- p|usage: set-option|unknown flag|invalid option/i
 
 /**
  * Starts a command in a dedicated tmux window.
