@@ -18,9 +18,9 @@ const logger = createLogger('WorkspaceFileSearchDispatchEnqueue')
  * Starts no dispatcher run when there is nothing to dispatch. A failed check starts one anyway, so
  * an unhealthy probe can delay indexing by at most the dispatcher's own failure, never strand it.
  */
-async function hasDispatchWork(): Promise<boolean> {
+async function hasDispatchWork(now: Date): Promise<boolean> {
   try {
-    return await hasWorkspaceFileSearchDispatchWork(new Date())
+    return await hasWorkspaceFileSearchDispatchWork(now)
   } catch (error) {
     logger.warn('Workspace file search dispatch work check failed; dispatching anyway', {
       error: getErrorMessage(error),
@@ -34,14 +34,16 @@ async function hasDispatchWork(): Promise<boolean> {
  * development-only and detaches from the HTTP response because the local server is long-lived.
  */
 export async function enqueueWorkspaceFileSearchDispatch(): Promise<ScheduledPassResult> {
+  const now = new Date()
   return startScheduledPass({
-    due: await hasDispatchWork(),
+    due: await hasDispatchWork(now),
     triggerAvailable: () => isTriggerDevEnabled,
     startInline: () =>
       runDetached('workspace-file-search-dispatch', dispatchWorkspaceFileSearchIndexJobs),
     trigger: {
       taskId: 'workspace-file-search-dispatch',
       intervalMs: FILE_SEARCH_DISPATCH_INTERVAL_MS,
+      at: now,
       options: { maxDuration: FILE_SEARCH_DISPATCH_MAX_DURATION_SECONDS, ttl: '5m' },
     },
   })
