@@ -81,6 +81,10 @@ jobs:
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
+      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      - name: Install tmux
+        run: brew install tmux
+
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
