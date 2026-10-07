@@ -19,6 +19,10 @@ import {
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
+/**
+ * One entry of a claimed `import_local_files` call, as the device's background executor sends
+ * it: the claim it belongs to, and where it lands inside the import source.
+ */
 export interface ImportDesktopEntryInput {
   deviceId: string
   toolCallId: string
