@@ -8,7 +8,7 @@ import { buildMcpAppFrame } from '@/lib/mcp/app-frame'
 import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { executeMcpToolUseCase } from '@/lib/mcp/application/execute-tool'
 import { readManagedMcpResource, readMcpResource } from '@/lib/mcp/application/read-resource'
-import { projectMcpEncodedContents } from '@/lib/mcp/encoded-content'
+import { decodeMcpBase64, projectMcpEncodedContents } from '@/lib/mcp/encoded-content'
 import { MCP_PRESENTATION_MAX_BYTES } from '@/lib/mcp/presentation'
 import { loadMcpPresentation, storeMcpPresentation } from '@/lib/mcp/presentation-storage'
 import { isManagedMcpConnectionId } from '@/lib/mcp/utils'
@@ -304,15 +304,6 @@ async function projectAppValue(
   return projection.value
 }
 
-function decodeMcpBase64(value: string): Buffer {
-  if (value.length > 12 * 1024 * 1024 || value.length % 4 !== 0)
-    throw new OrchestrationError('validation', 'Invalid MCP file encoding')
-  const buffer = Buffer.from(value, 'base64')
-  if (buffer.toString('base64') !== value)
-    throw new OrchestrationError('validation', 'Invalid MCP file encoding')
-  return buffer
-}
-
 export const readMcpResultAsset = defineAuthorizedChatUseCase({
   ...readDefinition,
   resolveContext: ({
@@ -326,7 +317,8 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
     const input = { ...sourceInput, signal: sourceInput.signal ?? request?.signal }
     const manifest = await readManifest(context, input)
     const item = manifest.result.content[input.index]
-    if (!item || item.type === 'text')
+    const receiptItem = manifest.receipt.items.find((item) => item.index === input.index)
+    if (!receiptItem || !item || item.type === 'text')
       throw new OrchestrationError('not_found', 'MCP file not found')
     const resource =
       item.type === 'resource_link'
@@ -343,10 +335,7 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
             ? Buffer.from(resource.text)
             : undefined
     if (!buffer) throw new OrchestrationError('not_found', 'MCP file not found')
-    const mimeType =
-      item.type === 'image' || item.type === 'audio'
-        ? item.mimeType
-        : resource?.mimeType || 'text/plain'
+    const mimeType = receiptItem.mimeType
     if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType))
       return {
         buffer: await normalizeInlineChatImage(buffer, input.signal),

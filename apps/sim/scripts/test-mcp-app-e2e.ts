@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, webkit } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { toRecord } from '@sim/utils/object'
 import { Document, Packer, Paragraph } from 'docx'
 import { build } from 'esbuild'
@@ -309,8 +310,14 @@ frame.src = '/frame';
 
   async function check(name: string, verify: () => Promise<void>) {
     const started = performance.now()
+    const controller = new AbortController()
     try {
-      await verify()
+      await Promise.race([
+        verify(),
+        interruptibleSleep(30_000, controller.signal).then(() => {
+          if (!controller.signal.aborted) throw new Error('Browser check exceeded 30 seconds')
+        }),
+      ])
       checks.push({ name, passed: true, durationMs: performance.now() - started })
     } catch (error) {
       checks.push({
@@ -320,6 +327,8 @@ frame.src = '/frame';
         error: getErrorMessage(error),
       })
       throw error
+    } finally {
+      controller.abort()
     }
   }
 
@@ -328,6 +337,7 @@ frame.src = '/frame';
   const address = server.address()
   assert(address && typeof address !== 'string')
   const page = await browser.newPage()
+  page.setDefaultTimeout(20_000)
   captureFailure = () => page.screenshot({ path: `${reportPath}.png`, fullPage: true })
   page.on('pageerror', (error) => {
     browserErrors.push({ message: error.message, stack: error.stack })
@@ -489,10 +499,14 @@ frame.src = '/frame';
         element.muted = true
         await element.play()
       })
-      await page.waitForFunction((tag) => {
-        const media = document.querySelector(tag)
-        return media instanceof HTMLMediaElement && media.currentTime > 0 && media.error === null
-      }, tag)
+      await page.waitForFunction(
+        (tag) => {
+          const media = document.querySelector(tag)
+          return media instanceof HTMLMediaElement && media.currentTime > 0 && media.error === null
+        },
+        tag,
+        { timeout: 20_000 }
+      )
       assert(assetRequests.includes(index))
     })
   }

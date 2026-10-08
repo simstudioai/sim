@@ -69,8 +69,10 @@ let appCalls = 0
 let appAvailable = true
 let listingOnlyPolicy = false
 let providerTitle = 'Quarterly report'
+let providerMime = 'text/plain'
 let linkedReportText = 'Remote resource bytes'
 let linkedResourceMissing = false
+let linkedResourceProtected = false
 let resourceReads = 0
 let echoAppUri = false
 let connectDomain = 'https://allowed.test'
@@ -180,9 +182,9 @@ const provider = createServer(async (request, response) => {
                 name: providerTitle,
                 title: providerTitle,
                 uri: sourceUri,
-                mimeType: 'text/plain',
+                mimeType: providerMime,
               },
-              ...(linkedResourceMissing
+              ...(linkedResourceMissing || linkedResourceProtected
                 ? [
                     {
                       type: 'resource' as const,
@@ -232,7 +234,29 @@ const provider = createServer(async (request, response) => {
             ],
           }
         if (params.arguments?.malformed)
-          return { content: [{ type: 'image', mimeType: 'image/png', data: 'YR==' }] }
+          return {
+            content: [
+              ...(params.arguments.malformed === 'base64'
+                ? [{ type: 'image' as const, mimeType: 'image/png', data: 'YR==' }]
+                : [
+                    {
+                      type: 'resource' as const,
+                      resource: {
+                        uri: 'file:///rejected.bin',
+                        mimeType:
+                          params.arguments.malformed === 'protected'
+                            ? 'application/octet-stream'
+                            : 'text/plain; charset=unsupported',
+                        blob: Buffer.from(credentialCanary).toString('base64'),
+                      },
+                    },
+                  ]),
+              {
+                type: 'resource',
+                resource: { uri: sourceUri, mimeType: 'text/plain', text: 'Valid attachment' },
+              },
+            ],
+          }
         return {
           content: [
             { type: 'text' as const, text: 'Report ready' },
@@ -268,13 +292,23 @@ const provider = createServer(async (request, response) => {
       }))
       protocol.setRequestHandler(ReadResourceRequestSchema, async ({ params }) => {
         resourceReads++
+        if (linkedResourceProtected && params.uri === sourceUri)
+          return {
+            contents: [
+              {
+                uri: sourceUri,
+                mimeType: 'application/octet-stream',
+                blob: Buffer.from(credentialCanary).toString('base64'),
+              },
+            ],
+          }
         if (linkedResourceMissing && params.uri === sourceUri)
           throw new Error('Synthetic missing linked resource')
         return {
           contents: [
             {
               uri: params.uri,
-              mimeType: `${params.uri === appUri ? 'text/html;profile=mcp-app' : 'text/plain'}${encodedCredential ? `; charset=${encodedCharset}` : params.uri === appUri ? '; charset=utf-8' : ''}`,
+              mimeType: `${params.uri === appUri ? 'text/html;profile=mcp-app' : providerMime}${encodedCredential ? `; charset=${encodedCharset}` : params.uri === appUri ? '; charset=utf-8' : ''}`,
               ...(encodedCredential
                 ? {
                     blob: encodeFixtureText(
@@ -432,6 +466,7 @@ beforeAll(async () => {
 afterEach(() => {
   linkedReportText = 'Remote resource bytes'
   linkedResourceMissing = false
+  linkedResourceProtected = false
   echoAppUri = false
 })
 
@@ -627,34 +662,38 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
   )
 
-  it('preserves valid attachments and the App when a linked snapshot fails', async () => {
-    linkedResourceMissing = true
-    const { result, receipt } = await executeReport({ linked: true })
-    expect(receipt.hasApp).toBe(true)
-    expect(receipt.items.map((item) => item.index)).toEqual([1, 2])
-    const asset = await readMcpResultAsset.execute({
-      principal: session,
-      input: { chatId, id: receipt.id, index: 1 },
-    })
-    expect(asset.buffer.toString()).toContain('Encoded report: ')
-    expect(asset.buffer.toString()).not.toContain(credentialCanary)
-    const later = await readMcpResultAsset.execute({
-      principal: session,
-      input: { chatId, id: receipt.id, index: 2 },
-    })
-    expect(later.buffer.toString()).toBe('Remote resource bytes')
-    await expect(
-      readMcpResultAsset.execute({
+  it.each([false, true])(
+    'preserves valid attachments when a link fails (protected=%s)',
+    async (protectedBytes) => {
+      linkedResourceMissing = !protectedBytes
+      linkedResourceProtected = protectedBytes
+      const { result, receipt } = await executeReport({ linked: true })
+      expect(receipt.hasApp).toBe(true)
+      expect(receipt.items.map((item) => item.index)).toEqual([1, 2])
+      const asset = await readMcpResultAsset.execute({
         principal: session,
-        input: { chatId, id: receipt.id, index: 0 },
+        input: { chatId, id: receipt.id, index: 1 },
       })
-    ).rejects.toThrow('MCP file not found')
-    expect(JSON.stringify(result.output)).not.toContain('Only the app should receive this')
-    expect(JSON.stringify(result.output)).not.toContain(
-      Buffer.from(`Encoded report: ${credentialCanary}:end`).toString('base64')
-    )
-    expect(JSON.stringify(result.output)).toContain('could not be displayed')
-  })
+      expect(asset.buffer.toString()).toContain('Encoded report: ')
+      expect(asset.buffer.toString()).not.toContain(credentialCanary)
+      const later = await readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 2 },
+      })
+      expect(later.buffer.toString()).toBe('Remote resource bytes')
+      await expect(
+        readMcpResultAsset.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, index: 0 },
+        })
+      ).rejects.toThrow('MCP file not found')
+      expect(JSON.stringify(result.output)).not.toContain('Only the app should receive this')
+      expect(JSON.stringify(result.output)).not.toContain(
+        Buffer.from(`Encoded report: ${credentialCanary}:end`).toString('base64')
+      )
+      expect(JSON.stringify(result.output)).toContain('could not be displayed')
+    }
+  )
 
   it('does not download linked resources returned by a live App call', async () => {
     const { receipt } = await executeReport()
@@ -726,25 +765,44 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
   })
 
-  it('rejects malformed provider bytes and aborts App calls before provider mutation', async () => {
-    const { receipt } = await executeReport({ malformed: true })
-    await expect(
-      readMcpResultAsset.execute({
+  it.each(['base64', 'protected', 'charset'])(
+    'withholds a rejected %s file while retaining attachments and the App',
+    async (problem) => {
+      const { receipt } = await executeReport({ malformed: problem })
+      expect(receipt.items.map((item) => item.index)).toEqual([1])
+      const asset = await readMcpResultAsset.execute({
         principal: session,
-        input: { chatId, id: receipt.id, index: 0 },
+        input: { chatId, id: receipt.id, index: 1 },
       })
-    ).rejects.toThrow('Invalid MCP file encoding')
-    const before = appCalls
-    const controller = new AbortController()
-    controller.abort()
-    await expect(
-      callMcpAppTool.execute({
+      expect(asset.buffer.toString()).toBe('Valid attachment')
+      const frame = await readMcpAppFrame.execute({
         principal: session,
-        input: { chatId, id: receipt.id, name: 'change_report', signal: controller.signal },
+        input: { chatId, id: receipt.id },
       })
-    ).rejects.toThrow()
-    expect(appCalls).toBe(before)
-  })
+      expect(frame.buffer.length).toBeGreaterThan(0)
+      const saved = await readMcpResult.execute({
+        principal: session,
+        input: { chatId, id: receipt.id },
+      })
+      expect(JSON.stringify(saved)).not.toContain(Buffer.from(credentialCanary).toString('base64'))
+      await expect(
+        readMcpResultAsset.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, index: 0 },
+        })
+      ).rejects.toThrow('MCP file not found')
+      const before = appCalls
+      const controller = new AbortController()
+      controller.abort()
+      await expect(
+        callMcpAppTool.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, name: 'change_report', signal: controller.signal },
+        })
+      ).rejects.toThrow()
+      expect(appCalls).toBe(before)
+    }
+  )
 
   it('uses authenticated listing metadata when the App read omits its policy', async () => {
     const { receipt } = await executeReport()
@@ -760,8 +818,13 @@ describe('native MCP results over real transport, storage and Postgres', () => {
       listingOnlyPolicy = false
     }
   })
-  it('opens results with long provider tool and resource titles', async () => {
+  it.each([
+    ['text/plain', 'text/plain'],
+    [`text/plain; description="${'long parameter '.repeat(20)}"`, 'text/plain'],
+    [`application/${'x'.repeat(150)}`, 'application/octet-stream'],
+  ])('opens long provider metadata with MIME %s', async (mimeType, expectedMime) => {
     providerTitle = 'Long report title '.repeat(20)
+    providerMime = mimeType
     try {
       const { receipt } = await executeReport({ linked: true })
       const asset = await readMcpResultAsset.execute({
@@ -769,7 +832,10 @@ describe('native MCP results over real transport, storage and Postgres', () => {
         input: { chatId, id: receipt.id, index: 0 },
       })
       expect(asset.buffer.toString()).toBe('Remote resource bytes')
+      expect(asset.contentType).toBe(expectedMime)
+      expect(receipt.items[0].mimeType).toBe(expectedMime)
     } finally {
+      providerMime = 'text/plain'
       providerTitle = 'Quarterly report'
     }
   })

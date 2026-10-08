@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { MIMEType } from 'node:util'
 import {
   CallToolResultSchema,
   type ReadResourceResult,
@@ -72,10 +73,15 @@ export async function storeMcpPresentation(input: {
         ? input.resources?.find((resource) => resource.uri === item.uri)
         : undefined
     if (item.type === 'resource_link' && !snapshot) return []
-    const mimeType =
+    const declaredMimeType =
       item.type === 'image' || item.type === 'audio'
         ? item.mimeType
         : snapshot?.mimeType || resource?.mimeType || 'application/octet-stream'
+    let mimeType = 'application/octet-stream'
+    try {
+      const essence = new MIMEType(declaredMimeType).essence
+      if (essence.length <= 128) mimeType = essence
+    } catch {}
     const identity = resource
       ? digest(`${input.workspaceId}:${input.connectionId}:${resource.uri}`)
       : `${id}:${index}`

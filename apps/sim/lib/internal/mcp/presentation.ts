@@ -54,9 +54,12 @@ export async function presentMcpToolResult(
       const registry = context.resolvedSecretTraceRegistry?.forkForPropagatedEntries()
       const value = {
         arguments: presentation.arguments,
-        result: projectMcpEncodedContents(result, registry),
-        resources: projectMcpEncodedContents({ contents: presentation.resources ?? [] }, registry)
-          .contents,
+        result: projectMcpEncodedContents(result, registry, 'omit'),
+        resources: projectMcpEncodedContents(
+          { contents: presentation.resources ?? [] },
+          registry,
+          'omit'
+        ).contents,
         tool: {
           name: tool.name,
           title: tool.title || tool.name,
