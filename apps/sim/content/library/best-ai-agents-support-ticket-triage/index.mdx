@@ -233,7 +233,7 @@ Teams should evaluate representative historical tickets, including rare and adve
 
 ## How should the Wait block be used in a support ticket workflow?
 
-Sim Wait pauses a workflow for a configured duration and then continues. It is appropriate for timed follow-ups, cooling-off periods, delayed status checks, or scheduled reminders. It does not resume when a customer replies, an agent changes a ticket, or an approval arrives; event-driven continuation should begin from the relevant trigger or webhook.
+Sim Wait pauses a workflow for a configured duration and then continues. It is appropriate for timed follow-ups, cooling-off periods, delayed status checks, or scheduled reminders. The default mode supports waits up to five minutes; enable Async for longer delays of up to 30 days. It does not resume when a customer replies, an agent changes a ticket, or an approval arrives; event-driven continuation should begin from the relevant trigger or webhook.
 
 ## What should support teams inspect in block-level run logs?
 
