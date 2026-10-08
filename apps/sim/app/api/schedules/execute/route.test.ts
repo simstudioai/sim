@@ -74,6 +74,7 @@ const {
     timezone: 'timezone',
     nextRunAt: 'nextRunAt',
     lastQueuedAt: 'lastQueuedAt',
+    updatedAt: 'updatedAt',
     archivedAt: 'archivedAt',
     deploymentVersionId: 'deploymentVersionId',
     sourceType: 'sourceType',
@@ -1197,6 +1198,106 @@ describe('Scheduled Workflow Execution API Route', () => {
     // the separate job claim's chunk size rather than the budget under test.
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(60)
     expect(mockEnqueue).toHaveBeenCalledTimes(100)
+  })
+
+  it('rechecks queued carriers within minutes while throttling live carrier lookups', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+    await runScheduleTick('test-request-id')
+
+    let claimGate: Record<string, unknown> | undefined
+    for (const [condition] of dbChainMockFns.where.mock.calls) {
+      conditionContains(condition, (entry) => {
+        if (
+          entry.type === 'or' &&
+          Array.isArray(entry.conditions) &&
+          entry.conditions.some(
+            (child) => child.type === 'isNull' && child.field === 'lastQueuedAt'
+          )
+        )
+          claimGate = entry
+        return false
+      })
+    }
+    expect(claimGate).toBeDefined()
+
+    const evaluate = (
+      entry: Record<string, unknown>,
+      row: Record<string, Date | null>
+    ): boolean => {
+      if (entry.type === 'and' || entry.type === 'or') {
+        const conditions = entry.conditions as Record<string, unknown>[]
+        return entry.type === 'and'
+          ? conditions.every((child) => evaluate(child, row))
+          : conditions.some((child) => evaluate(child, row))
+      }
+      const left = row[String(entry.field)]
+      if (entry.type === 'isNull') return left === null
+      const right = entry.value instanceof Date ? entry.value : row[String(entry.value)]
+      if (entry.type === 'lt') return !!left && !!right && left < right
+      throw new Error('Unexpected claim predicate')
+    }
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000)
+    const row = { nextRunAt: ago(121), lastQueuedAt: ago(120), updatedAt: ago(120) }
+    expect(evaluate(claimGate!, row)).toBe(true)
+    expect(evaluate(claimGate!, { ...row, updatedAt: ago(2) })).toBe(false)
+    expect(evaluate(claimGate!, { ...row, lastQueuedAt: ago(2) })).toBe(false)
+    expect(evaluate(claimGate!, { ...row, lastQueuedAt: null })).toBe(true)
+  })
+
+  it('preserves a running provider job with a long execution timeout during recheck', async () => {
+    const claimedAt = new Date(Date.now() - 20 * 60_000)
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning
+      .mockReturnValueOnce([{ ...SINGLE_SCHEDULE[0], lastQueuedAt: new Date() }])
+      .mockResolvedValueOnce([{ id: 'schedule-1' }])
+    mockGetJob.mockResolvedValueOnce({
+      id: 'running-provider-job',
+      status: 'processing',
+      startedAt: claimedAt,
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        now: claimedAt.toISOString(),
+        executionTimeoutMs: 7 * 24 * 60 * 60_000,
+      },
+    })
+    await runScheduleTick('test-request-id')
+    expect(mockCancelJob).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastQueuedAt: claimedAt, updatedAt: expect.any(Date) })
+    )
+  })
+
+  it('reconciles a crashed provider whose execution never finished redacting', async () => {
+    const claimedAt = new Date(Date.now() - 30 * 60_000)
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([{ workflowId: 'workflow-1', status: 'redacting' }])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning
+      .mockReturnValueOnce([{ ...SINGLE_SCHEDULE[0], lastQueuedAt: new Date() }])
+      .mockResolvedValueOnce([{ id: 'schedule-1' }])
+    mockGetJob.mockResolvedValueOnce({
+      id: 'crashed-provider-job',
+      status: 'failed',
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        now: claimedAt.toISOString(),
+        executionTimeoutMs: 90 * 60_000,
+      },
+    })
+    await runScheduleTick('test-request-id')
+    expect(mockApplyScheduleFailureUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: 'schedule-1', expectedLastQueuedAt: claimedAt })
+    )
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
   })
 
   it('reconciles a terminal provider job with the claimed occurrence', async () => {

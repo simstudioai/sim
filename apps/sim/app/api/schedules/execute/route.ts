@@ -85,6 +85,8 @@ const WORKFLOW_CHUNK_SIZE = 100
 const STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT = 25
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
+/** Recheck carrier state independently of the maximum supported execution lifetime. */
+const SCHEDULE_CLAIM_RECHECK_MS = 5 * 60_000
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
@@ -98,7 +100,10 @@ const dueFilter = (queuedAt: Date) =>
     or(
       isNull(workflowSchedule.lastQueuedAt),
       lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt),
-      lt(workflowSchedule.lastQueuedAt, new Date(queuedAt.getTime() - STALE_SCHEDULE_CLAIM_MS))
+      and(
+        lt(workflowSchedule.lastQueuedAt, new Date(queuedAt.getTime() - SCHEDULE_CLAIM_RECHECK_MS)),
+        lt(workflowSchedule.updatedAt, new Date(queuedAt.getTime() - SCHEDULE_CLAIM_RECHECK_MS))
+      )
     )
   )
 
