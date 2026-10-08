@@ -101,8 +101,7 @@ describe('datadogDestination', () => {
 
   it('throws with the entry index when a single entry exceeds 1 MB', async () => {
     const session = datadogDestination.openSession({ config, credentials })
-    // Two entries; the second exceeds the 1 MB per-entry limit.
-    const huge = 'x'.repeat(1024 * 1024 + 10)
+    const huge = 'x'.repeat(500_000)
     const body = Buffer.from(
       `${JSON.stringify({ id: 'small' })}\n${JSON.stringify({ blob: huge })}\n`,
       'utf8'
@@ -114,9 +113,70 @@ describe('datadogDestination', () => {
         metadata: meta(0),
         signal: new AbortController().signal,
       })
-    ).rejects.toThrow(/entry at index 1 is .* exceeds the 1048576-byte per-entry limit/)
+    ).rejects.toThrow(/entry at index 1 is .* exceeds the 1000000-byte per-entry limit/)
     expect(fetchMock).not.toHaveBeenCalled()
     await session.close()
+  })
+
+  it.each([
+    { count: 6, paddingBytes: 425_000, limit: 'uncompressed bytes' },
+    { count: 1001, paddingBytes: 0, limit: 'entry count' },
+  ])(
+    'splits $limit overflow without losing or reordering entries',
+    async ({ count, paddingBytes }) => {
+      const rows = Array.from({ length: count }, (_, index) => ({
+        id: `event-${index}`,
+        detail: 'x'.repeat(paddingBytes),
+      }))
+      const session = datadogDestination.openSession({ config, credentials })
+      try {
+        await session.deliver({
+          body: Buffer.from(`${rows.map((row) => JSON.stringify(row)).join('\n')}\n`),
+          contentType: 'application/x-ndjson',
+          metadata: { ...meta(0), rowCount: rows.length },
+          signal: new AbortController().signal,
+        })
+        const deliveredIds: string[] = []
+        for (const call of fetchMock.mock.calls) {
+          const init = call[1] as RequestInit
+          const headers = init.headers as Record<string, string>
+          const payload =
+            headers['Content-Encoding'] === 'gzip'
+              ? gunzipSync(init.body as Uint8Array).toString('utf8')
+              : (init.body as string)
+          expect(Buffer.byteLength(payload, 'utf8')).toBeLessThanOrEqual(5_000_000)
+          const entries = JSON.parse(payload) as { id: string }[]
+          expect(entries.length).toBeLessThanOrEqual(1000)
+          deliveredIds.push(...entries.map((entry) => entry.id))
+        }
+        expect(deliveredIds).toEqual(rows.map((row) => row.id))
+      } finally {
+        await session.close()
+      }
+    }
+  )
+
+  it('redacts the configured API key when the provider echoes it in an error', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(`Invalid API key: ${credentials.apiKey}`, { status: 403 })
+    )
+    const session = datadogDestination.openSession({ config, credentials })
+    try {
+      const result = await session
+        .deliver({
+          body: Buffer.from('{"id":"event"}\n'),
+          contentType: 'application/x-ndjson',
+          metadata: meta(0),
+          signal: new AbortController().signal,
+        })
+        .catch((error: unknown) => error)
+      expect(result).toBeInstanceOf(Error)
+      if (!(result instanceof Error)) throw new Error('Expected delivery to fail')
+      expect(result.message).toContain('HTTP 403')
+      expect(result.message).not.toContain(credentials.apiKey)
+    } finally {
+      await session.close()
+    }
   })
 
   it('gzips payloads larger than 1KB and sets Content-Encoding: gzip', async () => {

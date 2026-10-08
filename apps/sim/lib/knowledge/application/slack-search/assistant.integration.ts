@@ -10,6 +10,10 @@ import {
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
 import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { organizationAuthorizationMock } from '@sim/testing/mocks/organization-authorization.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +22,6 @@ const hoisted = vi.hoisted(() => ({
   turnId: '',
   userId: '',
   organizationId: '',
-  lifecycle: vi.fn(),
   /** The turn's own controller, which a Stop aborts through its registered stream. */
   controller: new AbortController(),
   stopped: vi.fn(async () => false),
@@ -69,9 +72,7 @@ vi.mock('@/lib/mothership/chat/terminal-state', () => ({
   finalizeAssistantTurn: hoisted.finalize,
 }))
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: hoisted.lifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: async () => true,
   cleanupAbortMarker: async () => undefined,
@@ -105,6 +106,8 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
+
+const { mockRunHeadlessCopilotLifecycle } = mothershipHeadlessLifecycleMockFns
 
 const principal = {
   kind: 'slack_installation',
@@ -206,7 +209,7 @@ describe('Slack Assistant run record', () => {
   }
 
   it('records a completed turn as complete', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: true,
       content: 'Answer',
       contentBlocks: [],
@@ -221,7 +224,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records a turn its user stopped as cancelled', async () => {
-    hoisted.lifecycle.mockImplementationOnce(async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementationOnce(async () => {
       /** A Slack Stop marks the turn stopped, then aborts its registered stream. */
       hoisted.stopped.mockResolvedValue(true)
       hoisted.controller.abort(AbortReason.UserStop)
@@ -235,7 +238,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records a failed turn as an error', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: false,
       error: 'worker failed',
       content: '',
@@ -251,7 +254,7 @@ describe('Slack Assistant run record', () => {
 
   it('records a failed turn as an error even when its Stop cannot be looked up', async () => {
     hoisted.stopped.mockRejectedValue(new Error('database unavailable'))
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: false,
       error: 'worker failed',
       content: '',
@@ -266,7 +269,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records an answered turn as an error when its response is not saved', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce(answered)
     hoisted.finalize.mockResolvedValue({ appendedAssistant: false })
 
     const { run, outcome } = await slackTurn()
@@ -276,7 +279,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records an answered turn as an error when its outcome is not saved', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce(answered)
     hoisted.outcome.mockRejectedValueOnce(new Error('outcome write failed'))
 
     const { run, outcome } = await slackTurn()

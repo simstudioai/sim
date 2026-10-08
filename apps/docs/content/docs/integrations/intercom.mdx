@@ -164,11 +164,13 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 |     ↳ `country_code` | string | ISO country code |
 |     ↳ `continent_code` | string | Continent code |
 |   ↳ `social_profiles` | object | Social profiles of the contact |
-|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
-|     ↳ `name` | string | Social network name |
-|     ↳ `url` | string | Profile URL |
-|     ↳ `username` | string | Username on the social network |
-|     ↳ `id` | string | User ID on the social network |
+|     ↳ `type` | string | Object type \(social_profile.list\) |
+|     ↳ `data` | array | Array of social profile objects |
+|       ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
+|       ↳ `name` | string | Social network name |
+|       ↳ `url` | string | Profile URL |
+|       ↳ `username` | string | Username on the social network |
+|       ↳ `id` | string | User ID on the social network |
 
 ### Update Contact in Intercom
 

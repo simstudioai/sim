@@ -104,6 +104,8 @@ export interface DesktopSettings {
   /** Whether omnibox typing may request live Google search completions. */
   browserSearchSuggestionsEnabled?: boolean
   terminalEnabled?: boolean
+  /** Keep the machine awake while a chat is running desktop work in the background. */
+  preventSleepWhileRunning?: boolean
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
   /** Device-wide default zoom for built-in browser pages. */
@@ -236,6 +238,7 @@ const DEFAULT_SETTINGS: DesktopSettings = {
   browserEnabled: true,
   browserSearchSuggestionsEnabled: true,
   terminalEnabled: true,
+  preventSleepWhileRunning: true,
 }
 
 export interface ConfigStore {

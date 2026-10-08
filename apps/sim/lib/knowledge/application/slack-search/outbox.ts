@@ -7,9 +7,9 @@ import {
   type OutboxHandlerRegistry,
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
+import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-search/turn-event'
 import {
   readySlackSearchDispatches,
-  SLACK_SEARCH_TURN_EVENT,
   slackSearchTurnOutboxId,
 } from '@/lib/knowledge/application/slack-search/turns'
 import { enqueueSlackSearch } from '@/lib/slack-search/queue'

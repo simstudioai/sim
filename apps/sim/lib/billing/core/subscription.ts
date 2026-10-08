@@ -33,7 +33,6 @@ import {
   isInboxEnabled,
   isSandboxDeploymentEntitled,
   isSandboxesEnabled,
-  isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
@@ -633,27 +632,6 @@ export async function isOrganizationFeatureEntitled(
 ): Promise<boolean> {
   if (!isBillingEnabled) return selfHostEntitlement
   return isOrganizationOnEnterprisePlan(organizationId, options.onError ?? 'return-false', executor)
-}
-
-/**
- * Check if user has access to SSO feature
- * Returns true if:
- * - SSO_ENABLED env var is set (self-hosted override), OR
- * - User is admin/owner of an enterprise organization
- *
- * In non-production environments, returns true for convenience.
- */
-export async function hasSSOAccess(userId: string): Promise<boolean> {
-  try {
-    if (isSsoEnabled && !isHosted) {
-      return true
-    }
-
-    return isEnterpriseOrgAdminOrOwner(userId)
-  } catch (error) {
-    logger.error('Error checking SSO access', { error, userId })
-    return false
-  }
 }
 
 /**

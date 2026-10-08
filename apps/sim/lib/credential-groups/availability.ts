@@ -1,5 +1,4 @@
-import { isHosted } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isCredentialGroupsEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 export type CredentialGroupsAvailability =
   | { available: true }
@@ -18,21 +17,20 @@ export async function resolveCredentialGroupsAvailability({
   organizationId,
   ownerBilling,
 }: CredentialGroupsAvailabilityInput): Promise<CredentialGroupsAvailability> {
-  if (
-    !organizationId ||
-    !(await isFeatureEnabled('credential-groups', { orgId: organizationId }))
-  ) {
-    return { available: false, reason: 'feature_disabled' }
+  if (!organizationId) return { available: false, reason: 'feature_disabled' }
+  if (isHosted) {
+    return ownerBilling.isEnterprise
+      ? { available: true }
+      : { available: false, reason: 'enterprise_plan_required' }
   }
-  if (isHosted && !ownerBilling.isEnterprise) {
-    return { available: false, reason: 'enterprise_plan_required' }
-  }
-  return { available: true }
+  return isCredentialGroupsEnabled
+    ? { available: true }
+    : { available: false, reason: 'feature_disabled' }
 }
 
 /**
- * Credential Groups use organization rollout targeting and require an active
- * Enterprise entitlement on Sim Cloud. Workspace flag targeting is not consulted.
+ * Credential Groups require an active Enterprise subscription on Sim Cloud and
+ * the `credentialGroups` enterprise entitlement on self-hosted deployments.
  */
 export async function isCredentialGroupsAvailable(
   input: CredentialGroupsAvailabilityInput

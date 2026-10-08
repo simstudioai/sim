@@ -419,7 +419,8 @@ export const getMothershipChatResponseSchema = z.object({
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
-      effort: mothershipChatEffortChoiceSchema,
+      /** Optional so a client still loads chats from a server that predates the field. */
+      effort: mothershipChatEffortChoiceSchema.optional(),
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),

@@ -7,6 +7,103 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Add organization domain
+
+```bash
+sim organizations domains add [options]
+```
+
+Add Organization Domain (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--domain <value>` | Yes | Domain to claim and verify through a DNS TXT record. |
+
+</CommandTable>
+
+## List organization domains
+
+```bash
+sim organizations domains list [options]
+```
+
+List Organization Domains (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `domain`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+## Remove organization domain
+
+```bash
+sim organizations domains remove <domainId> [options]
+```
+
+Remove Organization Domain (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `domainId` | Yes | Domain claim owned by this organization. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Verify organization domain
+
+```bash
+sim organizations domains verify <domainId> [options]
+```
+
+Verify Organization Domain (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `domainId` | Yes | Domain claim owned by this organization. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
 ## Cancel organization access request
 
 ```bash
@@ -383,6 +480,195 @@ Revoke Organization Invitation (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Delete SSO provider
+
+```bash
+sim organizations sso providers delete <providerId> [options]
+```
+
+Delete SSO Provider (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get SSO provider
+
+```bash
+sim organizations sso providers get <providerId> [options]
+```
+
+Get SSO Provider (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## List SSO providers
+
+```bash
+sim organizations sso providers list [options]
+```
+
+List SSO Providers (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `providerId`, `domain`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+## Save SSO provider
+
+```bash
+sim organizations sso providers save [options]
+```
+
+Save SSO Provider (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--provider-type <value>` | Yes | oidc: Configure an OpenID Connect identity provider. saml: Configure a SAML identity provider. Accepted values: `oidc`, `saml`. |
+| `--provider-id <value>` | Yes | Globally unique provider ID; saving an existing provider replaces its supplied configuration. |
+| `--issuer <value>` | Yes | Identity provider issuer URL. |
+| `--domain <value>` | Yes | Email domain already verified by this organization. |
+| `--jit-provisioning-enabled` | No | Allow SSO sign-in to provision organization membership, subject to eligibility and available seats. |
+| `--no-jit-provisioning-enabled` | No | Send --jit-provisioning-enabled as false. |
+| `--mapping <json\|@file>` | No | Identity-provider claims mapped to user fields. (JSON, or @path / @- to read a file or stdin). |
+| `--client-id <value>` | No | Identity provider client identifier. Available when providerType is oidc. Required when providerType is oidc. |
+| `--client-secret <value\|@file>` | No | Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @). |
+| `--scopes <json\|@file>` | No | OIDC scopes; offline_access is omitted. Available when providerType is oidc. (JSON, or @path / @- to read a file or stdin). |
+| `--pkce` | No | Use PKCE for the authorization flow. Available when providerType is oidc. |
+| `--no-pkce` | No | Send --pkce as false. |
+| `--authorization-endpoint <value>` | No | Optional authorization endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--token-endpoint <value>` | No | Optional token endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--user-info-endpoint <value>` | No | Optional UserInfo endpoint. Available when providerType is oidc. |
+| `--skip-user-info-endpoint` | No | Read identity claims from the ID token instead of calling UserInfo. Available when providerType is oidc. |
+| `--no-skip-user-info-endpoint` | No | Send --skip-user-info-endpoint as false. |
+| `--jwks-endpoint <value>` | No | Optional signing-key endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--entry-point <value>` | No | Identity provider SAML sign-in endpoint. Available when providerType is saml. Required when providerType is saml. |
+| `--cert <value>` | No | Identity provider signing certificate. Available when providerType is saml. Required when providerType is saml. |
+| `--callback-url <value>` | No | SAML callback URL; defaults to this provider’s Sim callback. Available when providerType is saml. |
+| `--audience <value>` | No | SAML audience; omission preserves the saved value. Available when providerType is saml. |
+| `--want-assertions-signed` | No | Require signed assertions; omission preserves the saved value. Available when providerType is saml. |
+| `--no-want-assertions-signed` | No | Send --want-assertions-signed as false. |
+| `--signature-algorithm <value>` | No | Signature algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml. |
+| `--digest-algorithm <value>` | No | Digest algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml. |
+| `--identifier-format <value>` | No | SAML NameID format; omission clears the saved value. Available when providerType is saml. |
+| `--idp-metadata <value>` | No | Identity provider metadata XML; omission clears the saved document. Available when providerType is saml. |
+
+</CommandTable>
+
+## Set primary SSO provider
+
+```bash
+sim organizations sso providers primary <providerId> [options]
+```
+
+Set Primary SSO Provider (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## Get SSO policy
+
+```bash
+sim organizations sso policy get [options]
+```
+
+Get SSO Policy (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+## Update SSO policy
+
+```bash
+sim organizations sso policy update [options]
+```
+
+Update SSO Policy (OAuth login or personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--require-sso <true\|false>` | Yes | Require organization SSO on future sign-ins; existing sessions remain active. Accepted values: `true`, `false`. |
 
 </CommandTable>
 

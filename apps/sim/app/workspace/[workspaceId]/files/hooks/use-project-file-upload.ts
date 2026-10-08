@@ -3,7 +3,6 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { isSupportedFileUpload } from '@/app/workspace/[workspaceId]/files/utils'
 import { useUploadProjectFile } from '@/hooks/queries/project-files'
 
 interface UploadProgress {
@@ -46,8 +45,6 @@ export function useProjectFileUpload({ projectId, canWrite }: UseProjectFileUplo
       for (const file of files) {
         if (file.size > MAX_WORKSPACE_FILE_SIZE) {
           toast.error(`${file.name} exceeds the 5 GiB upload limit`)
-        } else if (!isSupportedFileUpload(file.name)) {
-          toast.error(`Unsupported file type: ${file.name}`)
         } else {
           allowed.push(file)
         }

@@ -64,12 +64,95 @@ function dependencies(
     getCleanupSnapshot: vi.fn(),
     deleteAfterCleanup: vi.fn(),
     createExternal: vi.fn(),
+    activateExternal: vi.fn(),
     cleanupExternal: vi.fn(),
     ...overrides,
   } as unknown as StableWebhookRegistrationDependencies
 }
 
 describe('stable webhook registration service', () => {
+  it.each(['success', 'checkpoint failure', 'activation failure', 'deferred activation'] as const)(
+    'records subscription credentials before activation: %s',
+    async (failure) => {
+      const desired: DesiredWebhookRegistrationIntent = {
+        blockId: 'trigger-1',
+        provider: 'parallel-provider',
+        path: 'events',
+        routingKey: null,
+        providerConfig: {},
+        configFingerprint: 'fingerprint-5',
+      }
+      const candidate = registrationRow({
+        id: 'candidate-5',
+        registrationStatus: 'candidate',
+        registrationGeneration: fence.generation,
+        preparedAt: null,
+        providerConfig: {},
+      })
+      let persisted: Record<string, unknown> = {}
+      let active = false
+      let credentialsAtActivation: Record<string, unknown> | undefined
+      const store = dependencies({
+        prepareIntents: async () => ({
+          candidates: [{ desired, row: candidate }],
+          orphanedCandidates: [],
+        }),
+        createExternal: async () => ({
+          updatedProviderConfig: {
+            externalId: 'external-new',
+            webhookSecret: 'test-secret',
+            ...(failure === 'deferred activation' ? { subscriptionActivationPending: true } : {}),
+          },
+          externalSubscriptionCreated: true,
+        }),
+        checkpointCandidate: async (input) => {
+          if (failure === 'checkpoint failure') throw new Error('checkpoint failed')
+          persisted = structuredClone(input.providerConfig)
+          return { ...candidate, providerConfig: persisted }
+        },
+        activateExternal: async () => {
+          credentialsAtActivation = structuredClone(persisted)
+          if (failure === 'activation failure') throw new Error('activation failed')
+          active = true
+        },
+      })
+      const preparation = prepareStableWebhookRegistrations(
+        {
+          request: {} as NextRequest,
+          fence,
+          workflow: { id: fence.workflowId },
+          userId: 'user-1',
+          requestId: 'request-1',
+          desired: [{ ...desired, desiredConfig: {} }],
+        },
+        store
+      )
+      if (failure === 'success' || failure === 'deferred activation') await preparation
+      else
+        await expect(preparation).rejects.toThrow(
+          failure === 'checkpoint failure' ? 'checkpoint failed' : 'activation failed'
+        )
+      expect(active).toBe(failure === 'success')
+      if (failure === 'deferred activation') {
+        expect(credentialsAtActivation).toBeUndefined()
+        expect(persisted).toEqual({
+          externalId: 'external-new',
+          webhookSecret: 'test-secret',
+          subscriptionActivationPending: true,
+        })
+      } else if (failure === 'checkpoint failure') {
+        expect(credentialsAtActivation).toBeUndefined()
+        expect(persisted).toEqual({})
+      } else {
+        expect(credentialsAtActivation).toEqual({
+          externalId: 'external-new',
+          webhookSecret: 'test-secret',
+        })
+        expect(persisted).toEqual(credentialsAtActivation)
+      }
+    }
+  )
+
   it('persists candidate intent as invisible to legacy delivery queries', () => {
     const now = new Date('2026-07-14T00:00:00Z')
     const desired: DesiredWebhookRegistrationIntent = {

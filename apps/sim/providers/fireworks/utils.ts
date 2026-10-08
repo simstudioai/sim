@@ -6,6 +6,7 @@
  * only ids in this map are rewritten.
  */
 const FIREWORKS_WIRE_NAMES: Record<string, string> = {
+  'glm-5.3': 'accounts/fireworks/models/glm-5p3',
   'glm-5.2': 'accounts/fireworks/models/glm-5p2',
   'kimi-k3': 'accounts/fireworks/models/kimi-k3',
 }

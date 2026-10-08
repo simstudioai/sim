@@ -23,6 +23,7 @@ import {
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
+import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
@@ -235,7 +236,7 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
     throw new Error('Failed to fetch file content')
   }
 
-  return response.text()
+  return readFileText(response)
 }
 
 /**
@@ -283,6 +284,7 @@ export function useWorkspaceFileContent(
     },
     enabled: Boolean(ownerQuery) && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
+    retry: (failureCount, error) => failureCount < 1 && !(error instanceof FileTextSizeError),
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })

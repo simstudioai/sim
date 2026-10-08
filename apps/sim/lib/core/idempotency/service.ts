@@ -73,6 +73,18 @@ export interface IdempotencyExecutionOptions {
   inProgressExpiresAt?: number
 }
 
+/**
+ * Outcome of {@link IdempotencyService.executeOrSkipInProgress}. `resolved` covers both a
+ * fresh run and a replayed completed result; `in-progress` means another holder owns a live
+ * claim on the key and this caller did nothing.
+ */
+export type IdempotentExecution<T> = { outcome: 'resolved'; result: T } | { outcome: 'in-progress' }
+
+/** An in-progress outcome carries the wait on the live holder, so each caller decides whether to take it. */
+type ClaimedExecution<T> =
+  | { outcome: 'resolved'; result: T }
+  | { outcome: 'in-progress'; wait: () => Promise<T> }
+
 export interface AtomicClaimResult {
   claimed: boolean
   existingResult?: ProcessingResult
@@ -559,13 +571,60 @@ export class IdempotencyService {
     return deleted.length > 0
   }
 
+  /**
+   * Runs `operation` once per key while its claim lease and stored result last. A caller that
+   * finds another holder's live claim polls until that holder finishes and returns (or rethrows)
+   * its outcome, so use this when the caller's own response depends on the result (e.g. Stripe
+   * must not get a 2xx before the first attempt settles).
+   */
   async executeWithIdempotency<T>(
     provider: string,
     identifier: string,
     operation: () => Promise<T>,
-    additionalContext?: Record<string, any>,
+    additionalContext?: Record<string, unknown>,
     options?: IdempotencyExecutionOptions
   ): Promise<T> {
+    const execution = await this.execute(
+      provider,
+      identifier,
+      operation,
+      additionalContext,
+      options
+    )
+    return execution.outcome === 'resolved' ? execution.result : execution.wait()
+  }
+
+  /**
+   * Like {@link executeWithIdempotency}, but returns `{ outcome: 'in-progress' }` immediately
+   * when another holder owns a live claim instead of polling until it finishes. Use it when
+   * nobody consumes the duplicate's result, so waiting would only pin the caller's worker and
+   * leases. Completed and failed keys behave exactly as in `executeWithIdempotency`.
+   */
+  async executeOrSkipInProgress<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext?: Record<string, unknown>,
+    options?: IdempotencyExecutionOptions
+  ): Promise<IdempotentExecution<T>> {
+    const execution = await this.execute(
+      provider,
+      identifier,
+      operation,
+      additionalContext,
+      options
+    )
+    if (execution.outcome === 'resolved') return execution
+    return { outcome: 'in-progress' }
+  }
+
+  private async execute<T>(
+    provider: string,
+    identifier: string,
+    operation: () => Promise<T>,
+    additionalContext: Record<string, unknown> | undefined,
+    options: IdempotencyExecutionOptions | undefined
+  ): Promise<ClaimedExecution<T>> {
     const claimResult = await this.atomicallyClaim(provider, identifier, additionalContext, options)
 
     if (!claimResult.claimed) {
@@ -576,7 +635,7 @@ export class IdempotencyService {
         if (existingResult.success === false) {
           throw new Error(existingResult.error || 'Previous operation failed')
         }
-        return existingResult.result as T
+        return { outcome: 'resolved', result: existingResult.result as T }
       }
 
       if (existingResult?.status === 'failed') {
@@ -585,30 +644,28 @@ export class IdempotencyService {
             observedResult: existingResult,
             observedValue: claimResult.observedValue,
           })
-          return this.executeWithIdempotency(
-            provider,
-            identifier,
-            operation,
-            additionalContext,
-            options
-          )
+          return this.execute(provider, identifier, operation, additionalContext, options)
         }
         logger.info(`Previous operation failed for: ${claimResult.normalizedKey}`)
         throw new Error(existingResult.error || 'Previous operation failed')
       }
 
       if (existingResult?.status === 'in-progress') {
-        logger.info(`Waiting for in-progress operation: ${claimResult.normalizedKey}`)
-        return await this.waitForResult<T>(
-          claimResult.normalizedKey,
-          claimResult.storageMethod,
+        const { normalizedKey, storageMethod } = claimResult
+        const deadline =
           existingResult.inProgressExpiresAt ??
-            (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
-        )
+          (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
+        return {
+          outcome: 'in-progress',
+          wait: () => {
+            logger.info(`Waiting for in-progress operation: ${normalizedKey}`)
+            return this.waitForResult<T>(normalizedKey, storageMethod, deadline)
+          },
+        }
       }
 
       if (existingResult) {
-        return existingResult.result as T
+        return { outcome: 'resolved', result: existingResult.result as T }
       }
 
       throw new Error(`Unexpected state: key claimed but no existing result found`)
@@ -630,7 +687,7 @@ export class IdempotencyService {
       )
 
       logger.debug(`Successfully completed operation: ${claimResult.normalizedKey}`)
-      return result
+      return { outcome: 'resolved', result }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error')
 

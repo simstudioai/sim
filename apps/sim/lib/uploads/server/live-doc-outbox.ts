@@ -12,12 +12,11 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-
-export const FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
 
 type FileLiveDocPayload = { fileId: string; version: number } & (
   | { workspaceId: string; owner?: never }
@@ -115,7 +114,7 @@ const reconcileFileLiveDoc: OutboxHandler<unknown> = async (rawPayload, context)
 }
 
 export const fileLiveDocOutboxHandlers = {
-  [FILE_LIVE_DOC_OUTBOX_EVENT]: reconcileFileLiveDoc,
+  [WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]: reconcileFileLiveDoc,
 } satisfies OutboxHandlerRegistry
 
 /** Enqueues live-document reconciliation in the same transaction as the durable file version. */
@@ -123,7 +122,7 @@ export function enqueueFileLiveDocReconciliation(
   executor: Pick<typeof db, 'insert'>,
   payload: FileLiveDocPayload
 ): Promise<string> {
-  return enqueueOutboxEvent(executor, FILE_LIVE_DOC_OUTBOX_EVENT, payload)
+  return enqueueOutboxEvent(executor, WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT, payload)
 }
 
 /** Attempts a newly committed reconciliation immediately; the outbox worker owns retries. */

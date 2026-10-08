@@ -27,8 +27,10 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
-import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/deletion'
-import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
+import {
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/outbox-events'
 import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
 import {

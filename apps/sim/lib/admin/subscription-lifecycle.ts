@@ -7,7 +7,12 @@ import type { AdminMutationActor } from '@/lib/admin/dashboard'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  enqueueCancelAtPeriodEndSync,
+  lockSubscriptionForSyncRetry,
+  recordCancelAtPeriodEnd,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const RECENT_INVOICE_LIMIT = 12
@@ -257,6 +262,24 @@ export async function requestDashboardSubscriptionCancellation({
       : 'admin-dashboard-cancel-at-period-end')
   const cancellation = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
+    const isThisOperation = and(
+      sql`${outboxEvent.payload} ->> 'operationId' = ${operationId}`,
+      sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+    )
+
+    const [retriedSync] = await tx
+      .select({ subscriptionId: sql<string | null>`${outboxEvent.payload} ->> 'subscriptionId'` })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END),
+          isThisOperation
+        )
+      )
+      .limit(1)
+    if (retriedSync?.subscriptionId) {
+      await lockSubscriptionForSyncRetry(tx, retriedSync.subscriptionId)
+    }
 
     const [existingOperation] = await tx
       .select({
@@ -273,8 +296,7 @@ export async function requestDashboardSubscriptionCancellation({
             OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
             OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY,
           ]),
-          sql`${outboxEvent.payload} ->> 'operationId' = ${operationId}`,
-          sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+          isThisOperation
         )
       )
       .for('update')
@@ -315,6 +337,9 @@ export async function requestDashboardSubscriptionCancellation({
           .where(
             and(eq(outboxEvent.id, existingOperation.id), eq(outboxEvent.status, 'dead_letter'))
           )
+        if (existingOperation.eventType === OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END) {
+          await recordCancelAtPeriodEnd(tx, existingOperation.subscriptionId, true)
+        }
         return {
           operationId,
           outboxEventId: existingOperation.id,
@@ -384,18 +409,15 @@ export async function requestDashboardSubscriptionCancellation({
         .set({ cancelAtPeriodEnd: true })
         .where(eq(subscription.id, subscriptionRow.id))
     }
-    const eventId = await enqueueOutboxEvent(
-      tx,
-      OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END,
-      {
-        operationId,
-        organizationId,
-        subscriptionId: subscriptionRow.id,
-        stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
-        reason: normalizedReason,
-        requestedBy: actor,
-      }
-    )
+    const eventId = await enqueueCancelAtPeriodEndSync(tx, {
+      operationId,
+      organizationId,
+      subscriptionId: subscriptionRow.id,
+      stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
+      cancelAtPeriodEnd: true,
+      reason: normalizedReason,
+      requestedBy: actor,
+    })
     return {
       operationId,
       outboxEventId: eventId,

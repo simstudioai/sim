@@ -12,6 +12,8 @@ import {
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import {
   type FileOwnerAdapters,
   requireFileOwnerAdapter,
@@ -64,14 +66,6 @@ const OWNER_DOWNLOADS: FileOwnerAdapters<FileDownloadAdapter> = {
       ),
     archiveName: 'project-files.zip',
   },
-}
-
-function isMarkdownFile(record: { type: string; name: string }): boolean {
-  return (
-    record.type === 'text/markdown' ||
-    record.type === 'text/x-markdown' ||
-    /\.(?:md|markdown)$/i.test(record.name)
-  )
 }
 
 async function downloadMarkdownSnapshot(
@@ -142,7 +136,7 @@ export async function triggerFileDownload(
   record: WorkspaceFileRecord,
   source?: FileDownloadSource | null
 ): Promise<void> {
-  const isMarkdown = isMarkdownFile(record)
+  const isMarkdown = isMarkdownFile(record) || normalizeMimeType(record.type) === 'text/x-markdown'
   if (
     isMarkdown &&
     record.vfsNamespace !== 'uploads' &&
@@ -175,7 +169,7 @@ export async function triggerProjectFileDownload(
   record: ProjectFileRecord,
   source?: FileDownloadSource | null
 ): Promise<void> {
-  if (isMarkdownFile(record)) {
+  if (isMarkdownFile(record) || normalizeMimeType(record.type) === 'text/x-markdown') {
     if (await downloadMarkdownSnapshot(record.owner, record, source)) return
     const response = await requestRaw(
       readProjectFileContentContract,

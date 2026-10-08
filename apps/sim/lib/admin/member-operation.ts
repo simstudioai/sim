@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
@@ -23,13 +24,10 @@ import {
   outboxPayloadHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
-import {
-  MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
-  moveWorkspaceToOrganization,
-} from '@/lib/workspaces/admin-move'
+import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
-export const ADMIN_MEMBER_OPERATION_EVENT_TYPE = 'admin.organization-member-operation'
 const MEMBER_OPERATION_WORKSPACE_BATCH_SIZE = 10
 const ADMIN_API_AUDIT_EMAIL = 'admin-api@internal.simstudio.ai'
 const logger = createLogger('AdminMemberOperation')

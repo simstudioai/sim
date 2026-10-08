@@ -126,7 +126,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
-import { hasExternalFiles, isSupportedFileUpload } from '@/app/workspace/[workspaceId]/files/utils'
+import { getDroppedFiles, hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
@@ -204,6 +204,7 @@ export function Files() {
 function FilesContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [copySource, setCopySource] = useState<FileCopySource | null>(null)
+  const uploadQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const params = useParams()
   const router = useRouter()
@@ -265,7 +266,7 @@ function FilesContent() {
     for (const member of members ?? []) map.set(member.userId, member)
     return map
   }, [members])
-  const uploadFile = useUploadWorkspaceFile()
+  const { mutateAsync: uploadFile } = useUploadWorkspaceFile()
   const createWorkspaceFile = useCreateWorkspaceFile()
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
@@ -871,8 +872,8 @@ function FilesContent() {
 
   const descendantFolderIdsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
 
-  const uploadFiles = useCallback(
-    async (filesToUpload: File[], targetFolderId = currentFolderId) => {
+  const uploadFiles = (filesToUpload: File[], targetFolderId = currentFolderId) => {
+    const uploadBatch = async () => {
       if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
 
       /**
@@ -884,7 +885,7 @@ function FilesContent() {
       setSearchTerm('')
 
       const oversized: string[] = []
-      const sizeFiltered = filesToUpload.filter((f) => {
+      const allowedFiles = filesToUpload.filter((f) => {
         if (f.size > MAX_WORKSPACE_FILE_SIZE) {
           oversized.push(f.name)
           return false
@@ -899,17 +900,6 @@ function FilesContent() {
         )
       }
 
-      const unsupported: string[] = []
-      const allowedFiles = sizeFiltered.filter((f) => {
-        const ok = isSupportedFileUpload(f.name)
-        if (!ok) unsupported.push(f.name)
-        return ok
-      })
-
-      if (unsupported.length > 0) {
-        logger.warn('Unsupported file types skipped:', unsupported)
-      }
-
       if (allowedFiles.length === 0) return
 
       try {
@@ -917,7 +907,7 @@ function FilesContent() {
 
         for (let i = 0; i < allowedFiles.length; i++) {
           try {
-            await uploadFile.mutateAsync({
+            await uploadFile({
               workspaceId,
               file: allowedFiles[i],
               folderId: targetFolderId,
@@ -925,29 +915,32 @@ function FilesContent() {
                 setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
               },
             })
-            setUploadProgress({
-              completed: i + 1,
-              total: allowedFiles.length,
-              currentPercent: 0,
-            })
           } catch (err) {
             logger.error('Error uploading file:', err)
             const message = getErrorMessage(err)
             if (/storage limit/i.test(message)) {
               notifyLimit('storage', message)
             } else {
-              toast.error(`Failed to upload "${allowedFiles[i].name}"`)
+              toast.error(`Failed to upload "${allowedFiles[i].name}"`, { description: message })
             }
+          } finally {
+            setUploadProgress({
+              completed: i + 1,
+              total: allowedFiles.length,
+              currentPercent: 0,
+            })
           }
         }
-      } catch (err) {
-        logger.error('Error uploading file:', err)
       } finally {
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
-    },
-    [workspaceId, canEdit, currentFolderId, notifyLimit, setSearchTerm]
-  )
+    }
+    uploadQueueRef.current = uploadQueueRef.current.then(uploadBatch).catch((error) => {
+      logger.error('Error uploading files:', error)
+      toast.error(getErrorMessage(error, 'Failed to upload files'))
+    })
+    return uploadQueueRef.current
+  }
 
   const rowDragDropConfig = useFolderRowDragDrop({
     dragMime: FILE_ROW_DRAG_MIME,
@@ -994,7 +987,7 @@ function FilesContent() {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
         uploadDrop.dismiss()
-        const dropped = Array.from(dataTransfer.files ?? [])
+        const dropped = getDroppedFiles(dataTransfer)
         if (dropped.length > 0) void uploadFiles(dropped, targetFolderId)
       },
     },

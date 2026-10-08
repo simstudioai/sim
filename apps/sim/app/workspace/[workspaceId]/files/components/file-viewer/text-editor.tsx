@@ -499,6 +499,7 @@ export const TextEditor = memo(function TextEditor({
     isStreamInteractionLocked,
     isContentLoading,
     hasContentError,
+    contentError,
     saveImmediately,
     hasConflict,
     isReloading,
@@ -782,7 +783,9 @@ export const TextEditor = memo(function TextEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>
+          {contentError ?? 'Failed to load file content'}
+        </p>
       </div>
     )
   }

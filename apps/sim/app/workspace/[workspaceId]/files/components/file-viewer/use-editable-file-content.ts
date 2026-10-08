@@ -87,6 +87,7 @@ interface EditableFileContent {
   isContentLoading: boolean
   /** True when the initial content fetch failed before any content was shown. */
   hasContentError: boolean
+  contentError: string | undefined
   saveStatus: SaveStatus
   saveImmediately: () => Promise<void>
   isDirty: boolean
@@ -476,6 +477,7 @@ export function useEditableFileContent({
     // hand-off, scroll, and parsed doc) until the fetch lands.
     isContentLoading: streamingContent === undefined && isLoading && !isInitialized,
     hasContentError: streamingContent === undefined && Boolean(error) && !isInitialized,
+    contentError: error?.message,
     saveStatus,
     saveImmediately,
     isDirty: isDirtyForCaller,

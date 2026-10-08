@@ -218,7 +218,9 @@ const nextConfig: NextConfig = {
      * which also removes each entry from the server externals set. Entries here
      * must be real barrel packages that are actually imported - a stale entry
      * costs transform work and overrides that package's own `sideEffects`
-     * declaration.
+     * declaration. Never list a package whose entry module does setup: zod's
+     * entry installs its English error messages, and listing it left every
+     * default message in a production build as "Invalid input".
      */
     optimizePackageImports: [
       'framer-motion',
@@ -232,7 +234,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
       'streamdown',
-      'zod',
     ],
   },
   ...(isDev && {

@@ -6,7 +6,6 @@ export interface WorkspaceFeatureFlags {
   projects: boolean
   'project-files': boolean
   dashboards: boolean
-  'table-row-ttl': boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
 }

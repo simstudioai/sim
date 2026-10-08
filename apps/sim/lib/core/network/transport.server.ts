@@ -79,6 +79,7 @@ type OutboundRequestOptions = Omit<
 > & {
   headers?: Record<string, string>
   dispatcher: Dispatcher
+  requestTarget?: string
 }
 
 /**
@@ -86,9 +87,19 @@ type OutboundRequestOptions = Omit<
  * undici shim ignores dispatchers. Proxy credentials never become destination headers.
  */
 export function requestWithOutboundDispatcher(url: string, options: OutboundRequestOptions) {
+  const { requestTarget, dispatcher, ...requestOptions } = options
   const headers = { ...options.headers }
   for (const name of Object.keys(headers)) {
     if (name.toLowerCase() === 'proxy-authorization') delete headers[name]
   }
-  return request(url, { ...options, headers })
+  if (requestTarget !== undefined) {
+    return dispatcher.request({
+      ...requestOptions,
+      origin: new URL(url).origin,
+      path: requestTarget,
+      method: requestOptions.method ?? 'GET',
+      headers,
+    })
+  }
+  return request(url, { ...requestOptions, dispatcher, headers })
 }

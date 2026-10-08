@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * Real `OUTBOX_EVENT_TYPES` values from `@/lib/billing/webhooks/outbox-handlers`.
+ * Real `OUTBOX_EVENT_TYPES` values from `@/lib/billing/webhooks/outbox-events`.
  */
 const OUTBOX_EVENT_TYPES = {
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
@@ -32,8 +32,8 @@ export const billingOutboxHandlersMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/billing/webhooks/outbox-handlers`. `OUTBOX_EVENT_TYPES` carries
- * the real values; `billingOutboxHandlers` maps every event type to its mock handler.
+ * Static mock module for `@/lib/billing/webhooks/outbox-handlers`: `billingOutboxHandlers` maps
+ * every real event type to its mock handler.
  *
  * @example
  * ```ts
@@ -41,7 +41,6 @@ export const billingOutboxHandlersMockFns = {
  * ```
  */
 export const billingOutboxHandlersMock = {
-  OUTBOX_EVENT_TYPES,
   billingOutboxHandlers: {
     [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END]:
       billingOutboxHandlersMockFns.mockStripeSyncCancelAtPeriodEnd,

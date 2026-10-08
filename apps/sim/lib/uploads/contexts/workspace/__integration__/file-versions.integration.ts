@@ -42,6 +42,7 @@ import {
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
@@ -53,7 +54,6 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,

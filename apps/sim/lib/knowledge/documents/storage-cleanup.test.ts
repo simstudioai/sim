@@ -14,8 +14,8 @@ vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 
 const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 const mockDeleteMetadata = uploadsMetadataMockFns.mockDeleteFileMetadataByIdentity

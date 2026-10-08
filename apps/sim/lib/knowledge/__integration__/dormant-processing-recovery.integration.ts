@@ -37,10 +37,8 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
-import {
-  KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
-  recoverKnowledgeDocumentProcessing,
-} from '@/lib/knowledge/documents/processing-recovery'
+import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 type FixtureIds = ReturnType<typeof createKnowledgeAclFixtureIds>

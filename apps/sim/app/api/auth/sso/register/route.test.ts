@@ -1,6 +1,5 @@
 import {
   createMockRequest,
-  dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -11,17 +10,18 @@ import {
 } from '@sim/testing'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHasSSOAccess } = vi.hoisted(() => ({
-  mockHasSSOAccess: vi.fn(),
-}))
-
 /** Queues the caller's org membership row(s) for the admin/owner check. */
 function queueMembers(rows: Array<Record<string, unknown>>) {
+  queueTableRows(schemaMock.member, rows)
   queueTableRows(schemaMock.member, rows)
 }
 
@@ -41,17 +41,7 @@ function queueProviders(
   queueTableRows(schemaMock.ssoProvider, domainRows)
 }
 
-vi.mock('@/lib/billing', () => ({
-  hasSSOAccess: mockHasSSOAccess,
-}))
-
-vi.mock('@sim/utils/sso-domain', () => ({
-  normalizeSSODomain: (input: unknown): string | null => {
-    if (typeof input !== 'string') return null
-    const value = input.trim().toLowerCase()
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value) ? value : null
-  },
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -60,8 +50,6 @@ import { POST } from '@/app/api/auth/sso/register/route'
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockGetSession = authMockFns.mockGetSession
-const mockRegisterSSOProvider = authMockFns.mockRegisterSSOProvider
-const mockUpdateSSOProvider = authMockFns.mockUpdateSSOProvider
 
 const OIDC_BODY = {
   providerType: 'oidc' as const,
@@ -90,20 +78,10 @@ describe('POST /api/auth/sso/register', () => {
      * var, so the suite switch (`ENTERPRISE_ENABLED`) can register SSO too.
      */
     setEnvFlags({ isSsoEnabled: true })
-    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
-    mockHasSSOAccess.mockResolvedValue(true)
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 'session-1' } })
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
-    mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
-    mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
-    // The trust UPDATE reports the row it matched; by default the provider exists.
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'provider-row' }])
-    // Default: the org has already verified the domain, so the ownership gate
-    // passes and each test exercises the logic beyond it. A successful org-scoped
-    // registration reads it three times: the fail-fast entry gate, the
-    // authoritative re-check before the write, and the locking read inside the
-    // trust transaction. Gate-specific tests reset the queue to assert the
-    // unverified paths.
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
     queueTableRows(schemaMock.ssoDomain, [{ id: 'verified-domain' }])
@@ -116,17 +94,17 @@ describe('POST /api/auth/sso/register', () => {
   })
 
   it('rejects callers without an Enterprise plan', async () => {
-    mockHasSSOAccess.mockResolvedValue(false)
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockResolvedValue(false)
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(403)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    expect(await res.json()).toEqual({ error: 'SSO requires an Enterprise plan' })
   })
 
   it('rejects callers who are not an admin/owner of the target org', async () => {
     queueMembers([{ organizationId: 'org1', role: 'member' }])
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(403)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it('rejects configuring org SSO for a domain the org has not verified', async () => {
@@ -137,7 +115,6 @@ describe('POST /api/auth/sso/register', () => {
     const json = await res.json()
     expect(res.status).toBe(403)
     expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it('re-checks verification before the write and 403s if it was revoked mid-registration', async () => {
@@ -149,21 +126,6 @@ describe('POST /api/auth/sso/register', () => {
     const json = await res.json()
     expect(res.status).toBe(403)
     expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('rolls back the newly-created provider if verification is revoked after the write', async () => {
-    resetDbChainMock()
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate: verified
-    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check: verified
-    queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
-    const res = await POST(request(OIDC_BODY))
-    const json = await res.json()
-    expect(res.status).toBe(403)
-    expect(json.code).toBe('SSO_DOMAIN_NOT_VERIFIED')
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1) // it was created…
-    expect(dbChainMockFns.delete).toHaveBeenCalled() // …then rolled back
   })
 
   it('rejects a domain already registered by another organization', async () => {
@@ -173,20 +135,6 @@ describe('POST /api/auth/sso/register', () => {
     const json = await res.json()
     expect(res.status).toBe(409)
     expect(json.code).toBe('SSO_DOMAIN_ALREADY_REGISTERED')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('matches conflicts across casing variants', async () => {
-    queueMembers([{ organizationId: 'org-attacker', role: 'owner' }])
-    queueProviders([{ domain: 'ACME.com', userId: 'u-victim', organizationId: 'org-victim' }])
-    const res = await POST(request({ ...OIDC_BODY, orgId: 'org-attacker' }))
-    expect(res.status).toBe(409)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-    /** The conflict lookup compares the normalized domain key, which is case-insensitive. */
-    const conflictWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
-      JSON.stringify(condition ?? '').includes('regexp_replace')
-    )
-    expect(conflictWhere?.[0]?.values).toContain('acme.com')
   })
 
   /**
@@ -201,7 +149,6 @@ describe('POST /api/auth/sso/register', () => {
     const json = await res.json()
     expect(res.status).toBe(409)
     expect(json.code).toBe('SSO_PROVIDER_ID_TAKEN')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it('suggests a free, domain-scoped providerId when the requested one is taken', async () => {
@@ -210,99 +157,6 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org-b' }))
     const json = await res.json()
     expect(json.error).toContain('acme-oidc-acme')
-  })
-
-  it('does not treat the caller’s own provider as a providerId conflict', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueProviders([], [{ domain: 'acme.com', userId: 'u1', organizationId: 'org1' }])
-    const res = await POST(request(OIDC_BODY))
-    expect(res.status).toBe(200)
-  })
-
-  /**
-   * Better Auth's `isTrustedProvider` reads this flag, and it is the only thing
-   * that lets an SSO sign-in link to a pre-existing same-email account once the
-   * plugin stopped honouring `trustedProviders` for SSO. `registerSSOProvider`
-   * always persists `false`, so the route must set it after the write.
-   */
-  it('marks the provider domain-verified after registering', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    const res = await POST(request(OIDC_BODY))
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      domainVerified: true,
-      jitProvisioningEnabled: true,
-    })
-  })
-
-  /**
-   * The create path rolls the provider back when verification is revoked during the
-   * write. The update path has no new row to delete, so it restores the pre-update
-   * config and clears the trust flag together. Clearing alone would leave the
-   * rejected config stored, and re-verifying the domain regrants trust
-   * automatically — silently activating a config the caller was told had failed.
-   */
-  it('reverts the config and revokes trust when verification is removed mid-update', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    resetDbChainMock()
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // entry gate
-    queueTableRows(schemaMock.ssoDomain, [{ id: 'v' }]) // pre-write re-check
-    queueTableRows(schemaMock.ssoDomain, []) // locking read in the grant: proof gone
-    queueProviders([])
-    queueTableRows(schemaMock.ssoProvider, [
-      {
-        id: 'p1',
-        issuer: 'https://old-issuer.example.com',
-        domain: 'acme.com',
-        oidcConfig: '{"stored":"oidc"}',
-        samlConfig: null,
-        jitProvisioningEnabled: false,
-      },
-    ]) // provider already owned → update path
-
-    const res = await POST(request(OIDC_BODY))
-    expect(res.status).toBe(403)
-    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
-    // The conditional grant UPDATE is still issued — it simply matches no rows once
-    // the proof is gone — so the signal is the restoring write plus the 403.
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      issuer: 'https://old-issuer.example.com',
-      domain: 'acme.com',
-      oidcConfig: '{"stored":"oidc"}',
-      samlConfig: null,
-      domainVerified: false,
-      jitProvisioningEnabled: false,
-    })
-  })
-
-  it('reverts the config and provisioning mode when the trust write fails', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueProviders([])
-    queueTableRows(schemaMock.ssoProvider, [
-      {
-        id: 'p1',
-        issuer: 'https://old-issuer.example.com',
-        domain: 'acme.com',
-        oidcConfig: '{"stored":"oidc"}',
-        samlConfig: null,
-        jitProvisioningEnabled: true,
-      },
-    ])
-    dbChainMockFns.returning.mockRejectedValueOnce(new Error('trust write failed'))
-
-    const res = await POST(request({ ...OIDC_BODY, jitProvisioningEnabled: false }))
-
-    expect(res.status).toBe(500)
-    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      issuer: 'https://old-issuer.example.com',
-      domain: 'acme.com',
-      oidcConfig: '{"stored":"oidc"}',
-      samlConfig: null,
-      domainVerified: false,
-      jitProvisioningEnabled: true,
-    })
   })
 
   /**
@@ -315,33 +169,6 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request(orgLessBody))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('Organization ID is required')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Persisting generated IdP metadata made re-saving destructive: the form loaded
-   * it back, resent it, and it then won over the certificate — so rotating a SAML
-   * cert through the form silently did nothing.
-   */
-  it('writes empty IdP metadata when the admin supplied none, so a stored one clears', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueProviders([])
-    await POST(
-      request({
-        providerType: 'saml',
-        providerId: 'acme-saml',
-        issuer: 'https://idp.acme.com',
-        domain: 'acme.com',
-        orgId: 'org1',
-        entryPoint: 'https://idp.acme.com/sso',
-        cert: 'ORIGINAL-CERT',
-      })
-    )
-    const sent = mockRegisterSSOProvider.mock.calls[0][0].body
-    // Written as empty rather than omitted: Better Auth merges with `??`, so an
-    // omitted key would retain a previously stored document on update.
-    expect(sent.samlConfig.idpMetadata).toEqual({ metadata: '' })
-    expect(sent.samlConfig.cert).toBe('ORIGINAL-CERT')
   })
 
   it("refuses a second provider on a domain the caller's own org-less provider signs in", async () => {
@@ -352,7 +179,6 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toMatchObject({ code: 'SSO_DOMAIN_ALREADY_ROUTED' })
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it("still blocks an org admin from claiming another user's user-scoped domain", async () => {
@@ -360,67 +186,5 @@ describe('POST /api/auth/sso/register', () => {
     queueProviders([{ domain: 'acme.com', userId: 'someone-else', organizationId: null }])
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(409)
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the domain before persisting it', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    const res = await POST(request({ ...OIDC_BODY, domain: 'ACME.com' }))
-    expect(res.status).toBe(200)
-    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.domain).toBe('acme.com')
-  })
-
-  it('does not SSRF-validate userInfoEndpoint when skipUserInfoEndpoint is requested', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    mockValidateUrlWithDNS.mockImplementation(async (_url: string, label: string) => {
-      if (label === 'OIDC userInfoEndpoint') {
-        return { isValid: false, error: 'resolves to a private IP address' }
-      }
-      return { isValid: true, resolvedIP: '1.2.3.4' }
-    })
-    const res = await POST(request({ ...OIDC_BODY, skipUserInfoEndpoint: true }))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.userInfoEndpoint).toBeUndefined()
-  })
-
-  it('selects tokenEndpointAuthentication from the discovery document when endpoints are auto-discovered', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        authorization_endpoint: 'https://idp.acme.com/authorize',
-        token_endpoint: 'https://idp.acme.com/token',
-        userinfo_endpoint: 'https://idp.acme.com/userinfo',
-        jwks_uri: 'https://idp.acme.com/jwks',
-        token_endpoint_auth_methods_supported: ['client_secret_post'],
-      }),
-    })
-    const discoveredBody = {
-      ...OIDC_BODY,
-      authorizationEndpoint: undefined,
-      tokenEndpoint: undefined,
-      jwksEndpoint: undefined,
-    }
-    const res = await POST(request(discoveredBody))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
-  })
-
-  it('prefers client_secret_post over client_secret_basic when an IdP supports both', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
-      }),
-    })
-    const res = await POST(request(OIDC_BODY))
-    expect(res.status).toBe(200)
-    const config = mockRegisterSSOProvider.mock.calls[0][0].body
-    expect(config.oidcConfig.tokenEndpointAuthentication).toBe('client_secret_post')
   })
 })

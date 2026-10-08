@@ -36,6 +36,7 @@ import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
@@ -68,9 +69,10 @@ export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
   const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
-  if (!isClient || !session?.user?.id) return <HomeFallback />
+  if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
   return (
     <OrganizationHomeContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}

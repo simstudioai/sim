@@ -15,6 +15,8 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Loader,
+  Send,
   Square,
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
@@ -39,6 +41,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -78,6 +81,13 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
+
+const WORKFLOW_LOADING = (
+  <div role='status' className='flex h-full items-center justify-center'>
+    <Loader animate className='size-[18px] text-[var(--text-icon)]' />
+    <span className='sr-only'>Loading workflow</span>
+  </div>
+)
 
 const LOADING_SKELETON = (
   <div className='flex h-full flex-col gap-2 p-6'>
@@ -451,6 +461,7 @@ export function ResourceActions({
     case 'file':
       return (
         <EmbeddedFileActions
+          key={`${workspaceId}:${resource.id}`}
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
@@ -707,6 +718,8 @@ function EmbeddedFileActions({
   downloadSourceRef,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
+  const { canEdit } = useUserPermissionsContext()
+  const [isShareOpen, setIsShareOpen] = useState(false)
   const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
   const listedFile = files.find(
     (file) =>
@@ -762,6 +775,35 @@ function EmbeddedFileActions({
           <p>Download</p>
         </Tooltip.Content>
       </Tooltip.Root>
+      {file && !isUpload && canEdit && (
+        <>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <TabStripAction
+                variant='subtle'
+                onClick={() => setIsShareOpen(true)}
+                aria-label='Share file'
+              >
+                <Send className={RESOURCE_TAB_ICON_CLASS} />
+              </TabStripAction>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              <p>Share</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+          {isShareOpen && (
+            <ShareModal
+              key={file.id}
+              open
+              onOpenChange={setIsShareOpen}
+              workspaceId={workspaceId}
+              fileId={file.id}
+              fileName={file.name}
+              initialShare={file.share ?? null}
+            />
+          )}
+        </>
+      )}
     </>
   )
 }
@@ -780,7 +822,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   }
 
   return (
-    <Suspense fallback={LOADING_SKELETON}>
+    <Suspense fallback={WORKFLOW_LOADING}>
       <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
     </Suspense>
   )
@@ -812,7 +854,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }, [canonical, queryClient, workflowId, workspaceId])
 
-  if (isCanonicalPending) return LOADING_SKELETON
+  if (isCanonicalPending) return WORKFLOW_LOADING
 
   if (canonical?.workspaceId && canonical.workspaceId !== workspaceId) {
     return (
@@ -829,7 +871,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }
 
-  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return LOADING_SKELETON
+  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return WORKFLOW_LOADING
 
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3'>

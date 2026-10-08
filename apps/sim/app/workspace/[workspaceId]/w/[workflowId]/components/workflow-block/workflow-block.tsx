@@ -834,9 +834,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       workflow_id: currentWorkflowId,
       kind: sunset.kind,
     })
-    sendMothershipMessage(sunset.prompt, [
-      { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
-    ])
+    sendMothershipMessage({
+      content: sunset.prompt,
+      contexts: [
+        { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
+      ],
+    })
   }
 
   const canonicalIndex = useMemo(

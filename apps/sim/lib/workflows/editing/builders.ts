@@ -11,6 +11,7 @@ import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
 import {
   createToolAccessGate,
   isOperationAllowed,
@@ -183,28 +184,6 @@ export function createBlockFromParams(
   const triggerMode = params.triggerMode || false
   const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
   const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
-  let outputs: Record<string, any>
-
-  if (params.outputs) {
-    outputs = params.outputs
-  } else if (blockConfig) {
-    const subBlocks: Record<string, any> = {}
-    if (validatedInputs) {
-      Object.entries(validatedInputs).forEach(([key, value]) => {
-        // Skip runtime subblock IDs when computing outputs
-        if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
-          return
-        }
-        subBlocks[key] = { id: key, type: 'short-input', value: value }
-      })
-    }
-    outputs = getEffectiveBlockOutputs(params.type, subBlocks, {
-      triggerMode: effectiveTriggerMode,
-      preferToolOutputs: !effectiveTriggerMode,
-    })
-  } else {
-    outputs = {}
-  }
 
   const blockState: any = {
     id: blockId,
@@ -217,7 +196,7 @@ export function createBlockFromParams(
     height: 0,
     triggerMode: triggerMode,
     subBlocks: {},
-    outputs: outputs,
+    outputs: params.outputs || {},
     data: parentId ? { parentId, extent: 'parent' as const } : {},
     locked: false,
   }
@@ -289,10 +268,16 @@ export function createBlockFromParams(
     )
     blockConfig.subBlocks.forEach((subBlock) => {
       if (!blockState.subBlocks[subBlock.id]) {
+        const agentDefault =
+          params.type === 'agent' && subBlock.id === 'model'
+            ? resolveAvailableAgentDefaultModel(permissionConfig)
+            : null
         blockState.subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value: resolveSeededSubBlockValue(subBlock, writtenValues, isSeededValueAllowed),
+          value:
+            agentDefault ??
+            resolveSeededSubBlockValue(subBlock, writtenValues, isSeededValueAllowed),
         }
       } else {
         blockState.subBlocks[subBlock.id].type = subBlock.type
@@ -334,6 +319,13 @@ export function createBlockFromParams(
       type: 'router-input',
       value: JSON.stringify([{ id: generateId(), title: 'Route 1', value: '' }]),
     }
+  }
+
+  if (blockConfig && !params.outputs) {
+    blockState.outputs = getEffectiveBlockOutputs(params.type, blockState.subBlocks, {
+      triggerMode: effectiveTriggerMode,
+      preferToolOutputs: !effectiveTriggerMode,
+    })
   }
 
   return blockState

@@ -1,31 +1,23 @@
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import {
-  SUPPORTED_ARCHIVE_EXTENSIONS,
-  SUPPORTED_AUDIO_EXTENSIONS,
-  SUPPORTED_CODE_EXTENSIONS,
-  SUPPORTED_DOCUMENT_EXTENSIONS,
-  SUPPORTED_IMAGE_EXTENSIONS,
-  SUPPORTED_VIDEO_EXTENSIONS,
-} from '@/lib/uploads/utils/validation'
-
-const FILE_UPLOAD_EXTENSIONS = [
-  ...SUPPORTED_DOCUMENT_EXTENSIONS,
-  ...SUPPORTED_CODE_EXTENSIONS,
-  ...SUPPORTED_AUDIO_EXTENSIONS,
-  ...SUPPORTED_VIDEO_EXTENSIONS,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
-  ...SUPPORTED_ARCHIVE_EXTENSIONS,
-] as const
+import { toast } from '@sim/emcn'
 
 export const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
 
-/** Includes canonical extensionless source filenames accepted by the file browser. */
-export function isSupportedFileUpload(name: string): boolean {
-  const extension = getFileExtension(name)
-  return (
-    name.toLowerCase() === 'dockerfile' ||
-    name.toLowerCase() === 'makefile' ||
-    FILE_UPLOAD_EXTENSIONS.some((supported) => supported === extension)
-  )
+/** Rejects directory drops while retaining arbitrary file uploads. */
+export function getDroppedFiles(dataTransfer: DataTransfer): File[] {
+  if (dataTransfer.items.length === 0) return Array.from(dataTransfer.files)
+  const files: File[] = []
+  for (const item of Array.from(dataTransfer.items)) {
+    if (item.kind !== 'file') continue
+    const entry = item.webkitGetAsEntry?.()
+    if (entry?.isDirectory) {
+      toast.error(`Cannot upload the folder "${entry.name}"`, {
+        description: 'Create a folder in Files, then upload the files inside it.',
+      })
+      continue
+    }
+    const file = item.getAsFile()
+    if (file) files.push(file)
+  }
+  return files
 }

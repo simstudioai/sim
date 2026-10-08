@@ -57,6 +57,7 @@ describe('remove org domain route', () => {
    */
   it('revokes SSO domain trust for providers on the removed domain', async () => {
     queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(member, [{ role: 'owner' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ domain: 'acme.com' }])
     const res = await DELETE(createMockRequest('DELETE'), routeContext)
     expect(res.status).toBe(200)
@@ -71,6 +72,7 @@ describe('remove org domain route', () => {
    */
   it('matches the provider domain the way it was grandfathered (wildcard-tolerant)', async () => {
     queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(member, [{ role: 'owner' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ domain: 'acme.com' }])
     await DELETE(createMockRequest('DELETE'), routeContext)
     const revokeWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
@@ -80,6 +82,7 @@ describe('remove org domain route', () => {
   })
 
   it('does not revoke trust when no domain was removed', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
     queueTableRows(member, [{ role: 'owner' }])
     dbChainMockFns.returning.mockResolvedValueOnce([]) // delete matched nothing
     const res = await DELETE(createMockRequest('DELETE'), routeContext)

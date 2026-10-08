@@ -12,10 +12,7 @@ import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissi
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
-import {
-  workspacesUtilsMock,
-  workspacesUtilsMockFns,
-} from '@sim/testing/mocks/workspaces-utils.mock'
+import { workspacesUtilsMock } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPerformDeleteTable } = vi.hoisted(() => ({
@@ -48,7 +45,6 @@ vi.mock('@/lib/table/orchestration', () => ({
 
 import { DELETE } from '@/app/api/v1/tables/[tableId]/route'
 
-workspacesUtilsMockFns.mockGetWorkspaceOrganizationId.mockResolvedValue(null)
 const { mockGetTableById } = tableMockFns
 
 const { mockCheckRateLimit, mockCheckWorkspaceScope, mockResolveWorkspaceRequestActor } =

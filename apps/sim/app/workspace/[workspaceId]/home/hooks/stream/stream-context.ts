@@ -56,6 +56,11 @@ export interface StreamLoopOptions {
    */
   deferFlushes?: boolean
   suppressedWorkflowToolStartIds?: ReadonlySet<string>
+  /**
+   * The desktop app's background executor runs this turn's desktop tools, as Sim says when it
+   * serves the stream. The view then only shows those calls: it never starts or reports them.
+   */
+  desktopToolsOnDevice?: boolean
   targetChatId?: string
   shouldContinue?: () => boolean
 }

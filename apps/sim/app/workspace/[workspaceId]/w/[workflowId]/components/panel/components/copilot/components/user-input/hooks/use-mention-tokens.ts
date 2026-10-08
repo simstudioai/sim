@@ -28,7 +28,7 @@ export interface MentionRange {
  * locating the range at a caret, and deleting a token's text atomically.
  *
  * Context lifetime is intentionally NOT managed here — `useContextManagement`'s
- * sync effect owns it, removing a context exactly when its last matching token
+ * pruning owns it, removing a context exactly when its last matching token
  * disappears from the message. That keeps duplicate-label chips (two `@sub` for
  * the same resource) correct: deleting one token leaves the other, so the
  * shared context survives.
@@ -113,7 +113,7 @@ export function useMentionTokens({
 
   /**
    * Atomically deletes a single mention token's text. The context is left to
-   * `useContextManagement`'s sync effect, which prunes it only once no matching
+   * `useContextManagement`'s pruning, which drops it only once no matching
    * token remains — so deleting one of two duplicate chips keeps the other.
    *
    * @param range - The range to delete

@@ -17,9 +17,9 @@ vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
   enqueueOrganizationResourceCleanup,
-  ORGANIZATION_RESOURCE_CLEANUP_EVENT,
   organizationResourceCleanupOutboxHandlers,
 } from '@/lib/organizations/resource-cleanup'
+import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 
 const { mockDeleteFile } = storageServiceMockFns
 const { mockEnqueueOutboxEvent } = outboxServiceMockFns

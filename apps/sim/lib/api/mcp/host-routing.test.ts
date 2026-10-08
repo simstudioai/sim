@@ -1,7 +1,7 @@
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
+import { isOffAppHost, resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.ai')
@@ -71,5 +71,30 @@ describe('Sim MCP host routing', () => {
       )
       expect(resolveSimMcpHostPath('sim.ai', '/api/mcp/search/organizations/org-1')).toBeNull()
     })
+  })
+})
+
+describe('routes the proxy does not run on', () => {
+  const request = (host: string, path: string) => ({
+    headers: new Headers({ host }),
+    url: `https://${host}${path}`,
+  })
+
+  afterAll(() => {
+    setEnv({ SIM_MCP_URL: undefined })
+  })
+
+  it('refuses the desktop upload routes on a dedicated MCP host, and serves them on the app host', () => {
+    setEnv({ SIM_MCP_URL: 'https://mcp.sim.ai/mcp/' })
+
+    expect(isOffAppHost(request('mcp.sim.ai', '/api/desktop/tool/import'))).toBe(true)
+    expect(isOffAppHost(request('mcp.sim.ai', '/api/desktop/tool/file'))).toBe(true)
+    expect(isOffAppHost(request('sim.ai', '/api/desktop/tool/import'))).toBe(false)
+  })
+
+  it('serves them everywhere while the MCP server shares the app host', () => {
+    setEnv({ SIM_MCP_URL: undefined })
+
+    expect(isOffAppHost(request('sim.ai', '/api/desktop/tool/import'))).toBe(false)
   })
 })

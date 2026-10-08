@@ -1,6 +1,6 @@
 import { type DragEvent, useCallback, useRef, useState } from 'react'
 import { useDragTeardown } from '@/app/workspace/[workspaceId]/components/folders/use-drag-teardown'
-import { hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
+import { getDroppedFiles, hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
 
 interface UseFileUploadDropOptions {
   enabled: boolean
@@ -45,7 +45,7 @@ export function useFileUploadDrop({ enabled, onDrop }: UseFileUploadDropOptions)
       if (!hasExternalFiles(event.dataTransfer)) return
       event.preventDefault()
       dismiss()
-      if (enabled) onDrop(Array.from(event.dataTransfer.files))
+      if (enabled) onDrop(getDroppedFiles(event.dataTransfer))
     },
     [dismiss, enabled, onDrop]
   )

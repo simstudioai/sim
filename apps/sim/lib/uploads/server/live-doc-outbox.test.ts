@@ -2,16 +2,14 @@ import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import {
-  FILE_LIVE_DOC_OUTBOX_EVENT,
-  fileLiveDocOutboxHandlers,
-} from '@/lib/uploads/server/live-doc-outbox'
+import { fileLiveDocOutboxHandlers } from '@/lib/uploads/server/live-doc-outbox'
 
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
@@ -28,7 +26,7 @@ const PAYLOAD = {
 function context(): OutboxEventContext {
   return {
     eventId: 'event-1',
-    eventType: FILE_LIVE_DOC_OUTBOX_EVENT,
+    eventType: WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
     attempts: 0,
     maxAttempts: 10,
     signal: new AbortController().signal,
@@ -37,7 +35,7 @@ function context(): OutboxEventContext {
 }
 
 function handler() {
-  const registered = fileLiveDocOutboxHandlers[FILE_LIVE_DOC_OUTBOX_EVENT]
+  const registered = fileLiveDocOutboxHandlers[WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]
   if (!registered) throw new Error('Workspace file live-document handler is not registered')
   return registered
 }

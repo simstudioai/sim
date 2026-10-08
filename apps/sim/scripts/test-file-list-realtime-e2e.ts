@@ -109,25 +109,50 @@ function json(response: Awaited<ReturnType<typeof request>>, expected = 200) {
   assert.equal(response.status, expected, 'Unexpected HTTP status; inspect private app logs')
   return toRecord(JSON.parse(response.text))
 }
-function waitEvent(socket: Socket, event: string, rejectEvent?: string, timeout = 15_000) {
-  return new Promise<Record<string, unknown>>((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error(`Timed out waiting for ${event}`)), timeout)
+async function waitEvent(
+  socket: Socket,
+  event: string,
+  rejectEvent?: string,
+  timeout = 15_000,
+  action?: () => Promise<void>
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let settled = false
+  let startDeadline: () => void = () => undefined
+  let accept: (value: unknown) => void
+  let deny: (value: unknown) => void
+  const cleanup = () => {
+    clearTimeout(timer)
+    socket.off(event, accept)
+    if (rejectEvent) socket.off(rejectEvent, deny)
+  }
+  const signal = new Promise<Record<string, unknown>>((resolve, reject) => {
     function finish(error?: Error, value?: unknown) {
-      clearTimeout(timer)
-      socket.off(event, accept)
-      if (rejectEvent) socket.off(rejectEvent, deny)
+      settled = true
+      cleanup()
       if (error) reject(error)
       else resolve(toRecord(value))
     }
-    function accept(value: unknown) {
-      finish(undefined, value)
-    }
-    function deny(value: unknown) {
+    accept = (value: unknown) => finish(undefined, value)
+    deny = (value: unknown) =>
       finish(new Error(`${event} rejected: ${String(toRecord(value).code ?? 'connection error')}`))
-    }
     socket.once(event, accept)
     if (rejectEvent) socket.once(rejectEvent, deny)
+    /** The HTTP action has its own deadline; compilation time must not consume delivery time. */
+    startDeadline = () => {
+      if (!settled)
+        timer = setTimeout(() => finish(new Error(`Timed out waiting for ${event}`)), timeout)
+    }
   })
+  /** Observe early rejection while the bounded HTTP action is still running. */
+  void signal.catch(() => undefined)
+  try {
+    if (action) await action()
+    startDeadline()
+    return await signal
+  } finally {
+    cleanup()
+  }
 }
 async function connect(cookie: string) {
   const token = required(
@@ -153,9 +178,7 @@ async function joinRoom(socket: Socket, type: 'project-files' | 'workspace-files
 }
 async function changed(action: () => Promise<void>) {
   const count = projectEvents.length
-  const signal = waitEvent(reader, 'project-files-changed')
-  await action()
-  const event = await signal
+  const event = await waitEvent(reader, 'project-files-changed', undefined, 15_000, action)
   assert.deepEqual(Object.keys(event).sort(), ['projectId', 'timestamp'])
   assert.equal(event.projectId, fixture.projectId)
   assert.equal(typeof event.timestamp, 'number')
@@ -294,28 +317,34 @@ try {
   await check(
     'create broadcasts only after the canonical file is readable and never to the workspace room',
     async () => {
-      const retainedMembership = waitEvent(owner, 'project-files-changed')
-      await changed(async () => {
-        const file = toRecord(
-          json(
-            await request(prefix(), 'POST', {
-              name: `live-${generateId()}.md`,
-              content: 'first version',
-              contentType: 'text/markdown',
-              encoding: 'utf-8',
-            }),
-            201
-          ).file
-        )
-        fileId = required(file.id)
-        revision = required(json(await request(`${prefix()}/${fileId}/versions`)).revision)
-      })
+      const retainedMembership = await waitEvent(
+        owner,
+        'project-files-changed',
+        undefined,
+        15_000,
+        () =>
+          changed(async () => {
+            const file = toRecord(
+              json(
+                await request(prefix(), 'POST', {
+                  name: `live-${generateId()}.md`,
+                  content: 'first version',
+                  contentType: 'text/markdown',
+                  encoding: 'utf-8',
+                }),
+                201
+              ).file
+            )
+            fileId = required(file.id)
+            revision = required(json(await request(`${prefix()}/${fileId}/versions`)).revision)
+          })
+      )
       assert.equal(
         toRecord(json(await request(`${prefix()}/${fileId}`, 'GET', undefined, readerCookie)).file)
           .id,
         fileId
       )
-      assert.equal((await retainedMembership).projectId, fixture.projectId)
+      assert.equal(retainedMembership.projectId, fixture.projectId)
       assert.equal(workspaceEvents.length, 0)
     }
   )

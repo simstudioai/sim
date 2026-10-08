@@ -73,7 +73,7 @@ import {
   projectFilesScopeParsers,
   serializeProjectFilesLocation,
 } from '@/app/workspace/[workspaceId]/files/search-params'
-import { hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
+import { getDroppedFiles, hasExternalFiles } from '@/app/workspace/[workspaceId]/files/utils'
 import {
   useArchiveProjectFileItems,
   useCreateProjectFile,
@@ -528,7 +528,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
         uploadDrop.dismiss()
-        uploadFiles(Array.from(dataTransfer.files), targetFolderId)
+        uploadFiles(getDroppedFiles(dataTransfer), targetFolderId)
       },
     },
   })

@@ -5,6 +5,7 @@ import {
 } from '@/lib/table/query-builder/field-names'
 import {
   getEffectiveBlockOutputs,
+  getEffectiveBlockOutputType,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
@@ -517,7 +518,7 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
   const blockOutputRefs = unresolved.filter((ref) => ref.kind === 'block-output')
   if (blockOutputRefs.length > 0) {
     parts.push(
-      `Block output references that will not resolve: ${blockOutputRefs
+      `Block output references that will not work as written: ${blockOutputRefs
         .map(
           (ref) =>
             `"${ref.blockName || ref.blockId}".${ref.field} ${
@@ -606,6 +607,15 @@ function firstOutputSegment(token: string): string | undefined {
  * whose `responseFormat` is set but cannot be parsed, since its fields are
  * decided when that schema resolves; and any type that declares no outputs.
  */
+/** A block's sub-blocks without empty slots, as the output-schema helpers read them. */
+function subBlockValues(block: BlockState): Record<string, { value?: unknown }> {
+  const subBlocks: Record<string, { value?: unknown }> = {}
+  for (const [id, subBlock] of Object.entries(block.subBlocks ?? {})) {
+    if (subBlock) subBlocks[id] = subBlock
+  }
+  return subBlocks
+}
+
 function declaredOutputKeys(block: BlockState): string[] | undefined {
   const type = block.type
   if (!type || block.triggerMode === true || isTriggerBlockType(type)) return undefined
@@ -613,10 +623,7 @@ function declaredOutputKeys(block: BlockState): string[] | undefined {
   const config = getBlock(type)
   if (!config || config.category === 'triggers') return undefined
 
-  const subBlocks: Record<string, { value?: unknown }> = {}
-  for (const [id, subBlock] of Object.entries(block.subBlocks ?? {})) {
-    if (subBlock) subBlocks[id] = subBlock
-  }
+  const subBlocks = subBlockValues(block)
 
   if (type === 'agent') {
     const responseFormat = subBlocks.responseFormat?.value
@@ -651,15 +658,34 @@ function quoteList(values: Iterable<string>): string {
   return [...values].map((value) => `"${value}"`).join(', ')
 }
 
-export function collectDanglingBlockOutputReferences(
-  workflowState: Pick<WorkflowState, 'blocks'>
-): WorkflowLintUnresolvedReference[] {
-  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+/** Block ids keyed by id and by normalized name, the two heads a reference may use. */
+function referenceTargetIndex(blocks: Record<string, BlockState>): Map<string, string> {
   const targetByKey = new Map<string, string>()
   for (const [id, block] of Object.entries(blocks)) {
     targetByKey.set(id, id)
     if (block.name) targetByKey.set(normalizeName(block.name), id)
   }
+  return targetByKey
+}
+
+/**
+ * The block a `block.path` token names: a block id, `null` for a head that
+ * names no block, or `undefined` for a special prefix (`loop`, `variable`, …).
+ */
+function referenceTarget(
+  token: string,
+  targetByKey: Map<string, string>
+): string | null | undefined {
+  const head = token.split('.')[0] ?? ''
+  if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) return undefined
+  return targetByKey.get(head) ?? targetByKey.get(normalizeName(head)) ?? null
+}
+
+export function collectDanglingBlockOutputReferences(
+  workflowState: Pick<WorkflowState, 'blocks'>
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const targetByKey = referenceTargetIndex(blocks)
   /** Output keys per referenced block; `null` once found not knowable. */
   const outputKeysByTarget = new Map<string, string[] | null>()
   const outputKeysFor = (targetId: string): string[] | null => {
@@ -680,10 +706,9 @@ export function collectDanglingBlockOutputReferences(
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
-          const head = token.split('.')[0] ?? ''
-          if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) continue
-          const targetId = targetByKey.get(head) ?? targetByKey.get(normalizeName(head))
-          if (targetId === undefined) {
+          const targetId = referenceTarget(token, targetByKey)
+          if (targetId === undefined) continue
+          if (targetId === null) {
             dangling.add(`<${token}>`)
             continue
           }
@@ -724,6 +749,94 @@ export function collectDanglingBlockOutputReferences(
           reason: `unknown-field: "${targetName}" (${group.target.type}) has no output ${plural} ${quoteList(group.segments)} — the run fails when the reference resolves. Available fields: ${group.keys.join(', ')}`,
         })
       }
+    }
+  }
+  return findings
+}
+
+/**
+ * `block.path` bodies of the reference tokens in JSON text that sit outside
+ * every string literal, tokenized with the runtime's own reference scanner.
+ * Tokens inside a literal, escaped quotes included, are already strings in the
+ * parsed document.
+ */
+function unquotedJsonReferenceTokens(json: string): string[] {
+  const unquoted: string[] = []
+  let cursor = 0
+  let inString = false
+  for (const token of findWorkflowReferenceTokens(json)) {
+    for (; cursor < token.start; cursor++) {
+      const char = json[cursor]
+      if (inString && char === '\\') cursor++
+      else if (char === '"') inString = !inString
+    }
+    cursor = token.end
+    if (inString || token.kind !== 'workflow') continue
+    const body = token.value.slice(REFERENCE.START.length, -REFERENCE.END.length)
+    if (REF_TOKEN_SHAPE.test(body)) unquoted.push(body)
+  }
+  return unquoted
+}
+
+/**
+ * References to string outputs written unquoted in a JSON field.
+ *
+ * Outside Function code a reference is replaced by its raw text, so
+ * `{"id": <start.order_id>}` becomes `{"id": ord-1}` and the block fails to
+ * parse it at run time, while lint, deploy, and every earlier run of a draft
+ * that never reached the block stay clean. Only references whose declared
+ * output type is `string` are reported: numbers, booleans, and objects already
+ * resolve to JSON values, and an undeclared type cannot be judged here.
+ */
+export function collectUnquotedJsonStringReferences(
+  workflowState: Pick<WorkflowState, 'blocks'>
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const targetByKey = referenceTargetIndex(blocks)
+  const findings: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const jsonFields = (block.type ? getBlock(block.type)?.subBlocks : undefined)?.filter(
+      (subBlock) => subBlock.type === 'code' && subBlock.language === 'json'
+    )
+    if (!jsonFields?.length) continue
+    /**
+     * Only what the serializer sends: a field the selected operation or mode
+     * drops never runs, and a canonical member is sent under its canonical id.
+     */
+    let params: Record<string, unknown>
+    try {
+      params = extractBlockParams(block as Parameters<typeof extractBlockParams>[0])
+    } catch {
+      continue
+    }
+    const sentParamByField = new Map(
+      jsonFields.map((subBlock) => [subBlock.id, subBlock.canonicalParamId ?? subBlock.id])
+    )
+    for (const [field, param] of sentParamByField) {
+      const json = params[param]
+      if (typeof json !== 'string') continue
+      const unquoted = new Set<string>()
+      for (const token of unquotedJsonReferenceTokens(json)) {
+        const targetId = referenceTarget(token, targetByKey)
+        const target = targetId ? blocks[targetId] : undefined
+        if (!target?.type) continue
+        const path = token.slice(token.indexOf('.') + 1)
+        const type = getEffectiveBlockOutputType(target.type, path, subBlockValues(target), {
+          triggerMode: target.triggerMode === true,
+          preferToolOutputs: true,
+          includeHidden: true,
+        })
+        if (type === 'string') unquoted.add(`<${token}>`)
+      }
+      if (unquoted.size === 0) continue
+      const value = [...unquoted]
+      findings.push({
+        ...blockRef(blockId, block),
+        field,
+        value,
+        kind: 'block-output',
+        reason: `unquoted-json-string: these references resolve to text, which is inserted without quotes, so the field is not valid JSON at run time unless the text is itself JSON. Quote each one, e.g. "${value[0]}".`,
+      })
     }
   }
   return findings

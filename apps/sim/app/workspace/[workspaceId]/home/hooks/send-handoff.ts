@@ -39,6 +39,8 @@ export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   assistantSearchLevel?: AssistantSearchLevel
   requestedAt: number
   resolveAttempts?: number
+  /** Whether the server may already hold `userMessageId` (see `startSendMessage`). */
+  admissionUnknown?: boolean
 }
 
 interface QueuedSendHandoffClaim {
@@ -193,6 +195,9 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       organizationId: parsed.organizationId,
       supersededStreamId,
       ...(parsed.stopRequired === true ? { stopRequired: true } : {}),
+      ...(typeof parsed.admissionUnknown === 'boolean'
+        ? { admissionUnknown: parsed.admissionUnknown }
+        : {}),
       userMessageId: parsed.userMessageId,
       message: parsed.message,
       ...(Array.isArray(parsed.fileAttachments)

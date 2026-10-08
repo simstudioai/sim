@@ -1,7 +1,7 @@
-import { dbReplica } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -9,7 +9,7 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
@@ -23,9 +23,6 @@ type WorkflowLogRow = Omit<typeof workflowExecutionLogs.$inferSelect, 'cost'>
  * once visible to the drain.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-  if (workspaceIds.length === 0) return
-
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(
@@ -34,19 +31,25 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
       cursor
     )
 
-    const rows = await dbReplica
-      .select()
-      .from(workflowExecutionLogs)
-      .where(
-        and(
-          inArray(workflowExecutionLogs.workspaceId, workspaceIds),
-          isNotNull(workflowExecutionLogs.endedAt),
-          timeCursorStabilityBound(workflowExecutionLogs.endedAt),
-          cursorClause
-        )
-      )
-      .orderBy(...timeCursorOrderBy(workflowExecutionLogs.endedAt, workflowExecutionLogs.id))
-      .limit(input.chunkSize)
+    const orderBy = timeCursorOrderBy(workflowExecutionLogs.endedAt, workflowExecutionLogs.id)
+    const rows = await readBoundedSourcePage({
+      table: workflowExecutionLogs,
+      idColumn: workflowExecutionLogs.id,
+      condition: and(
+        workspaceInOrganization(workflowExecutionLogs.workspaceId, input.organizationId),
+        isNotNull(workflowExecutionLogs.endedAt),
+        timeCursorStabilityBound(workflowExecutionLogs.endedAt),
+        cursorClause
+      ),
+      orderBy,
+      chunkSize: input.chunkSize,
+      read: (tx, ids) =>
+        tx
+          .select()
+          .from(workflowExecutionLogs)
+          .where(inArray(workflowExecutionLogs.id, ids))
+          .orderBy(...orderBy),
+    })
 
     if (rows.length === 0) return
 
@@ -54,11 +57,12 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
     // concurrency) so the drain exports full execution data, not the slim row.
     // Use the order-preserving returned array (the util's documented contract)
     // and write back, rather than mutating rows inside the mapper.
-    const materialized = await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, (row) =>
+    const materialized = await mapWithConcurrency(rows, 2, (row) =>
       materializeExecutionDataForDisplay(row.executionData as Record<string, unknown> | null, {
         workspaceId: row.workspaceId,
         workflowId: row.workflowId,
         executionId: row.executionId,
+        maxBytes: DATA_DRAIN_LIMITS.maxRowBytes,
       })
     )
     for (let i = 0; i < rows.length; i++) {
@@ -68,7 +72,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
     yield rows
     const last = rows[rows.length - 1]
     cursor = { ts: last.endedAt!.toISOString(), id: last.id }
-    if (rows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
   }
 }
 

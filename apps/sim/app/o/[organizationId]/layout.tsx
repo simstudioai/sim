@@ -10,7 +10,6 @@ import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothe
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
@@ -60,7 +59,6 @@ export default async function OrganizationLayout({
 
   const [
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     dashboardsEnabled,
@@ -73,7 +71,6 @@ export default async function OrganizationLayout({
       { kind: 'session', userId: session.user.id, sessionId: session.session.id },
       getActiveOrganizationId(session)
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     isDashboardsEnabled(organizationId),
@@ -89,7 +86,6 @@ export default async function OrganizationLayout({
           projects: projectsEnabled,
           'project-files': projectFilesEnabled,
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}

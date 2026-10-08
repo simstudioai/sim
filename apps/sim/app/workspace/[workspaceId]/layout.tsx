@@ -6,10 +6,13 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import {
+  hasDesktopBackgroundExecutor,
+  isDesktopBackgroundExecutorAvailable,
+} from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -64,13 +67,13 @@ export default async function WorkspaceLayout({
     cookieStore,
     initialOrgSettings,
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
     projectsEnabled,
     projectFilesEnabled,
+    desktopExecutorRegistered,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -83,13 +86,13 @@ export default async function WorkspaceLayout({
       hostContext,
       activeOrganizationId
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isFeatureEnabled('projects'),
     isProjectFileApiEnabled(),
+    hasDesktopBackgroundExecutor(session.user.id),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -102,7 +105,6 @@ export default async function WorkspaceLayout({
           projects: projectsEnabled,
           'project-files': projectFilesEnabled,
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
@@ -126,7 +128,15 @@ export default async function WorkspaceLayout({
                   <WorkspaceScopeSync />
                   <SettingsNavigationProvider>
                     <WorkspaceChrome
-                      sidebar={<Sidebar organizationHref={organizationHref} />}
+                      sidebar={
+                        <Sidebar
+                          organizationHref={organizationHref}
+                          desktopExecutor={{
+                            available: isDesktopBackgroundExecutorAvailable(),
+                            registered: desktopExecutorRegistered,
+                          }}
+                        />
+                      }
                       initialSidebarCollapsed={initialSidebarCollapsed}
                     >
                       {children}

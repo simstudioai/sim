@@ -263,6 +263,7 @@ export function useImpersonateUser() {
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
       const result = await client.admin.impersonateUser({ userId })
+      if (result.error) throw new Error(result.error.message ?? 'Failed to impersonate user')
       return result
     },
     onError: (err) => {

@@ -55,6 +55,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/credentials/[credentialId]/route'),
   },
   {
+    pattern: '/api/v2/credentials/{credentialId}/members',
+    load: () => import('@/app/api/v2/credentials/[credentialId]/members/route'),
+  },
+  {
+    pattern: '/api/v2/credentials/{credentialId}/members/{userId}',
+    load: () => import('@/app/api/v2/credentials/[credentialId]/members/[userId]/route'),
+  },
+  {
     pattern: '/api/v2/credentials/connections',
     load: () => import('@/app/api/v2/credentials/connections/route'),
   },
@@ -346,6 +354,19 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       import('@/app/api/v2/organizations/[organizationId]/access-requests/settings/route'),
   },
   {
+    pattern: '/api/v2/organizations/{organizationId}/domains',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/domains/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/domains/{domainId}',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/domains/[domainId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/domains/{domainId}/verify',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/domains/[domainId]/verify/route'),
+  },
+  {
     pattern: '/api/v2/organizations/{organizationId}/invitations',
     load: () => import('@/app/api/v2/organizations/[organizationId]/invitations/route'),
   },
@@ -407,6 +428,26 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () =>
       import(
         '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/sso/policy',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/sso/policy/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/sso/providers',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/sso/providers/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/sso/providers/{providerId}',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/sso/providers/{providerId}/primary',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary/route'
       ),
   },
   {

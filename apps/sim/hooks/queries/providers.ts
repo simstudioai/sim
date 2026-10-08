@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, type UseQueryResult, useQueries, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getBaseProviderModelsContract,
@@ -21,6 +21,11 @@ type ProviderModelSource = ProviderName | 'openrouter-embeddings'
 
 interface UseProviderModelsOptions {
   enabled?: boolean
+}
+
+interface ProviderModelList {
+  provider: ProviderName
+  models: string[]
 }
 
 const logger = createLogger('ProviderModelsQuery')
@@ -113,5 +118,28 @@ export function useProviderModels(
   return useQuery({
     ...providerModelsQueryOptions(provider, workspaceId),
     enabled: options?.enabled ?? true,
+  })
+}
+
+function combineProviderModelLists(results: UseQueryResult<ProviderModelList>[]) {
+  return results.flatMap((result) => (result.data ? [result.data] : []))
+}
+
+/** Fetches multiple provider catalogs with the shared workspace-scoped query cache. */
+export function useProviderModelLists(
+  providers: readonly ProviderName[],
+  workspaceId?: string,
+  options?: UseProviderModelsOptions
+) {
+  return useQueries({
+    queries: providers.map((provider) => ({
+      ...providerModelsQueryOptions(provider, workspaceId),
+      enabled: options?.enabled ?? true,
+      select: (data: ProviderModelsResponse): ProviderModelList => ({
+        provider,
+        models: data.models,
+      }),
+    })),
+    combine: combineProviderModelLists,
   })
 }

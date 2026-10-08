@@ -24,9 +24,9 @@ vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import {
   detachKnowledgeConnector,
-  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
   settleDetachedConnectorReservations,
 } from '@/lib/knowledge/connectors/detachment'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 
 const mocks = {
   resolveStorage: billingStorageMockFns.mockResolveStorageBillingContext,
