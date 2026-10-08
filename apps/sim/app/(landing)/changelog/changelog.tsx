@@ -16,13 +16,9 @@ export default async function Changelog() {
   return (
     <ChangelogLayout>
       <JsonLd data={buildCollectionPageJsonLd(CHANGELOG_SECTION, visible)} />
-      <ChangelogHeader
-        title='Changelog'
-        lead={CHANGELOG_SECTION.description}
-        actions={<ChangelogActions />}
-      />
+      <ChangelogHeader title='Changelog' actions={<ChangelogActions />} />
       <ChangelogList entries={visible} />
-      <div className='flex flex-wrap gap-6 border-[var(--border)] border-t pt-6 text-[var(--text-secondary)] text-sm'>
+      <div className='flex flex-wrap gap-6 text-[var(--text-secondary)] text-sm'>
         {firstOlderEntry ? (
           <Link
             href={`/changelog/archive#${firstOlderEntry.slug}`}

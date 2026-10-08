@@ -28,7 +28,6 @@ export default async function ChangelogArchivePage() {
       />
       <ChangelogHeader
         title='All updates'
-        lead='New capabilities, improvements, and fixes in Sim, with the details in one place.'
         actions={<BackLink href='/changelog' label='Back to changelog' />}
       />
       <ChangelogList entries={entries} />

@@ -5,6 +5,7 @@ export const CHANGELOG_SECTION = {
   basePath: '/changelog',
   description:
     'New ways to build, deploy, and manage AI agents in Sim, plus improvements and fixes.',
+  speakableSelectors: ['[itemprop="headline"]'],
 } satisfies ContentSection
 
 export const LATEST_ENTRY_LIMIT = 12

@@ -56,7 +56,7 @@ Set finite page, payload, and model-input budgets. For example, stop a scan afte
 
 ## Drafting contract
 
-Give the Agent the publishing guide, the product language rules, selected PR evidence, and valid documentation/integration destinations. Use structured output for:
+Give the Agent the publishing guide, the product language rules, selected PR evidence, and valid documentation/integration/model destinations. Use structured output for:
 
 - `decision`: `draft`, `defer`, or `skip`, with a reason.
 - `story_kind`: `feature`, `improvement`, `action_required`, `supporting`, or `none`. Supporting-only batches are deferred, not expanded into standalone announcements.
@@ -75,7 +75,7 @@ Validate the editorial standard outside the Agent: headline and copy budgets, su
 
 Reuse the existing PR template's benefit, rollout, documentation, and demo notes as the input contract. Avoid asking engineers to fill out a second announcement form. Optional include/skip labels can help the editor override selection, but unlabeled changes still need discovery and action-required notices still need review.
 
-Resolve links against the current integration catalog and docs source, then check the live destination. Integration slugs and documentation slugs can differ. Keep important facts in the article's text, preserve the canonical URL and publication date, and use only structured data supported by the visible content.
+Resolve links against the current integration/model catalogs and docs source, then check the live destination. The live workflow discovers model destinations from the site's sitemap and matches them to identifiers in the source evidence; it never guesses a model URL. Integration slugs and documentation slugs can differ. Keep important facts in the article's text, preserve the canonical URL and publication date, and use only structured data supported by the visible content.
 
 The first draft PR can contain only `production.md`: proposed article text, source references, unresolved questions, shot list, and announcement drafts. Add `index.mdx` with `draft: true` once a real cover exists. The content audit requires a real local cover even for drafts; an invented filename or unrelated placeholder would create a failing PR. Keep secrets, unpublished strategy, and private operational evidence out of both files: non-rendered briefs are still public in this repository.
 

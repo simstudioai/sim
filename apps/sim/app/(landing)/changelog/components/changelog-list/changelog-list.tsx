@@ -6,7 +6,7 @@ interface ChangelogListProps {
   basePath?: string
 }
 
-/** Chronological rows share the landing frame, with copy beside media and a stacked mobile layout. */
+/** A chronological index keeps demos and detailed copy on each update's page. */
 export function ChangelogList({ entries, basePath }: ChangelogListProps) {
   return (
     <section id='updates' aria-labelledby='updates-heading'>
@@ -14,10 +14,10 @@ export function ChangelogList({ entries, basePath }: ChangelogListProps) {
         Product updates
       </h2>
       {entries.length > 0 ? (
-        <ol className='divide-y divide-[var(--border)]'>
-          {entries.map((entry, index) => (
-            <li key={entry.slug} className='py-12 first:pt-0 last:pb-0 max-sm:py-8'>
-              <ChangelogEntry entry={entry} priority={index === 0} basePath={basePath} />
+        <ol className='space-y-10 max-sm:space-y-8'>
+          {entries.map((entry) => (
+            <li key={entry.slug}>
+              <ChangelogEntry entry={entry} basePath={basePath} />
             </li>
           ))}
         </ol>

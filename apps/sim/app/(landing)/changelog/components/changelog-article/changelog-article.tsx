@@ -41,31 +41,15 @@ export function ChangelogArticle({
         >
           {entry.title}
         </h1>
-        <p
-          itemProp='description'
-          className={cn('text-pretty text-[var(--text-secondary)]', LANDING_TYPE.lead)}
-        >
-          {entry.description}
-        </p>
-        <p className='text-[var(--text-secondary)] text-sm'>
-          By {entry.authors.map((author) => author.name).join(', ')}
-        </p>
       </header>
-      <section
-        id='update-details'
-        aria-labelledby='update-details-heading'
-        className='mt-10 border-[var(--border)] border-t pt-4'
-      >
+      <section id='update-details' aria-labelledby='update-details-heading' className='mt-8'>
         <h2 id='update-details-heading' className='sr-only'>
           In this update
         </h2>
         <entry.Content />
       </section>
       <footer
-        className={cn(
-          'mt-10 flex flex-wrap gap-6 border-[var(--border)] border-t pt-6 text-[var(--text-secondary)]',
-          HOME_TYPE.meta
-        )}
+        className={cn('mt-10 flex flex-wrap gap-6 text-[var(--text-secondary)]', HOME_TYPE.meta)}
       >
         {entry.release?.url ? (
           <a

@@ -72,6 +72,8 @@ beforeEach(() => {
     linkedPages: new Set([
       'https://www.sim.ai/integrations/you-com',
       'https://docs.sim.ai/workflows/deployment',
+      'https://www.sim.ai/models/anthropic',
+      'https://www.sim.ai/models/anthropic/claude-opus-4-6',
     ]),
   }
   mkdirSync(path.join(config.contentDir, 'authors'), { recursive: true })
@@ -128,6 +130,10 @@ describe('check-library-content', () => {
     '[Deployment guide](https://docs.sim.ai/workflows/deployments)',
     '[Deployment guide][guide]\n\n[guide]: https://docs.sim.ai/workflows/deployments',
     '<a href="https://docs.sim.ai/workflows/deployments">Deployment guide</a>',
+    '[Model provider](/models/missing-provider)',
+    '[Model](https://www.sim.ai/models/anthropic/missing-model)',
+    '[Model][model]\n\n[model]: /models/anthropic/missing-model',
+    '<a href="/models/anthropic/missing-model">Model</a>',
   ])('rejects a changelog backlink to a missing page: %s', async (invalidLink) => {
     writePost(
       'changelog',
@@ -135,6 +141,8 @@ describe('check-library-content', () => {
       [
         '[You.com](/integrations/you-com)',
         '[Deployment guide](https://docs.sim.ai/workflows/deployment?source=changelog#api)',
+        '[Anthropic](/models/anthropic/)',
+        '[Claude Opus](https://www.sim.ai/models/anthropic/claude-opus-4-6?source=changelog#capabilities)',
         '```md',
         '[Example](https://docs.sim.ai/workflows/missing-example)',
         '```',

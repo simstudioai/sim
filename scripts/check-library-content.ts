@@ -24,7 +24,7 @@
  *   or a customer story registered in `CUSTOMER_STORIES` — never a retired or moved slug. Every
  *   retired or moved slug redirects to a published library post. Apex `https://sim.ai` links
  *   belong to `check:site-urls`.
- *   Changelog integration and docs links also resolve against the generated integration catalog,
+ *   Changelog integration, model, and docs links also resolve against the generated catalogs,
  *   docs source files, and generated OpenAPI operation pages, including reference-style links.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
@@ -39,6 +39,7 @@ import type { Root } from 'mdast'
 import remarkGfm from 'remark-gfm'
 import { visit } from 'unist-util-visit'
 import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
+import { MODEL_PROVIDERS_WITH_MODELS } from '../apps/sim/app/(landing)/models/utils'
 import { isChangelogMediaSource } from '../apps/sim/lib/changelog/media'
 import { AuthorSchema, ContentFrontmatterSchema } from '../apps/sim/lib/content/schema'
 import { CUSTOMER_STORIES } from '../apps/sim/lib/customers/data'
@@ -74,7 +75,7 @@ export interface ContentCheckConfig {
   movedBlogSlugs: readonly string[]
   /** Customer slugs the `/customers/[slug]` route serves (`CUSTOMER_STORIES`). */
   customerSlugs: readonly string[]
-  /** Canonical integration and documentation pages served by the current source tree. */
+  /** Canonical integration, model, and documentation pages served by the current source tree. */
   linkedPages: ReadonlySet<string>
 }
 
@@ -211,17 +212,17 @@ function checkChangelogBody(
       return
     }
     const isDocs = url.hostname === new URL(SIM_DOCS_URL).hostname
-    const isIntegration =
+    const isCatalog =
       url.hostname === new URL(SIM_SITE_URL).hostname &&
-      (url.pathname === '/integrations' || url.pathname.startsWith('/integrations/'))
-    if (!isDocs && !isIntegration) return
+      /^\/(?:integrations|models)(?:\/|$)/.test(url.pathname)
+    if (!isDocs && !isCatalog) return
     const canonical = `${url.origin}${url.pathname.replace(/\/$/, '')}`
     if (!config.linkedPages.has(canonical)) {
       report(
         line,
         'internal-link',
-        `${href} does not exist in the published integration catalog or documentation source.`,
-        'Use the integration catalog slug or a current canonical docs page; keep feature and setup links relevant to the update.'
+        `${href} does not exist in the published integration/model catalogs or documentation source.`,
+        'Use the canonical catalog or docs URL; keep feature and setup links relevant to the update.'
       )
     }
   }
@@ -686,10 +687,15 @@ interface DocsSpec {
 function readLinkedPages(docsAppDir: string): Set<string> {
   const pages = new Set([
     `${SIM_SITE_URL}/integrations`,
+    `${SIM_SITE_URL}/models`,
     SIM_DOCS_URL,
     ...integrationsJson.integrations.map(
       (integration) => `${SIM_SITE_URL}/integrations/${integration.slug}`
     ),
+    ...MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) => [
+      `${SIM_SITE_URL}${provider.href}`,
+      ...provider.models.map((model) => `${SIM_SITE_URL}${model.href}`),
+    ]),
   ])
   const docsDir = path.join(docsAppDir, 'content/docs')
   for (const file of readdirSync(docsDir, { recursive: true })) {

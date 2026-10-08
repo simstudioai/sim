@@ -5,6 +5,7 @@ import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 interface ChangelogVideoProps {
   src: string
   poster: string
+  /** Accessible description for the player; not repeated below the video. */
   caption: string
   captionsSrc?: string
 }
@@ -24,10 +25,7 @@ export function ChangelogVideo({ src, poster, caption, captionsSrc }: ChangelogV
         preload='none'
         poster={poster}
         aria-label={caption}
-        className={cn(
-          'aspect-video w-full border border-[var(--border)] bg-[var(--surface-2)]',
-          LANDING_STAGE_RADIUS
-        )}
+        className={cn('aspect-video w-full bg-[var(--surface-2)]', LANDING_STAGE_RADIUS)}
       >
         <source src={src} type='video/mp4' />
         {captionsSrc ? (
@@ -35,7 +33,6 @@ export function ChangelogVideo({ src, poster, caption, captionsSrc }: ChangelogV
         ) : null}
         <a href={src}>Watch the demo</a>
       </video>
-      <figcaption className='mt-3 text-[var(--text-secondary)] text-small'>{caption}</figcaption>
     </figure>
   )
 }
