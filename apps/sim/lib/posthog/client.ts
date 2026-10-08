@@ -8,6 +8,8 @@ import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
  */
 let postHogClient: PostHog | null = null
 
+const clientListeners = new Set<() => void>()
+
 /**
  * Publishes or clears the consented PostHog client used by non-React callers.
  * Called only by `PostHogProvider`.
@@ -15,7 +17,28 @@ let postHogClient: PostHog | null = null
  * @param instance - The initialized instance, or `null` when analytics is off.
  */
 export function setPostHogClient(instance: PostHog | null): void {
+  if (postHogClient === instance) return
   postHogClient = instance
+  for (const listener of clientListeners) listener()
+}
+
+/**
+ * Whether a consented client is published. A page-view capture keyed to this
+ * fires once consent and initialization settle instead of being dropped:
+ * `PostHogProvider` initializes in an effect, and React runs a page's own
+ * mount effects before its ancestors', so a capture made on mount always
+ * precedes initialization on a hard load.
+ */
+export function isPostHogClientReady(): boolean {
+  return postHogClient !== null
+}
+
+/** Subscribes to client publication changes, in the `useSyncExternalStore` shape. */
+export function subscribePostHogClient(listener: () => void): () => void {
+  clientListeners.add(listener)
+  return () => {
+    clientListeners.delete(listener)
+  }
 }
 
 /**

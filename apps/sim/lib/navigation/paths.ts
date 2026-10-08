@@ -50,7 +50,8 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
-function isPathOrDescendant(pathname: string, root: string): boolean {
+/** Whether `pathname` is `root` itself or a route beneath it. */
+export function isPathOrDescendant(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`)
 }
 
