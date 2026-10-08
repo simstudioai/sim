@@ -110,7 +110,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   useFileListRoom({ owner: { entityType: 'project', entityId: project.id } })
   const uploadInput = useRef<HTMLInputElement>(null)
   const downloadInFlight = useRef(false)
-  const navigation = useFileNavigation({ entityType: 'project', entityId: project.id })
+  const navigation = useFileNavigation({ owner: { entityType: 'project', entityId: project.id } })
   const [isDownloading, setIsDownloading] = useState(false)
   const [extractTarget, setExtractTarget] = useState<{ id: string; name: string } | null>(null)
   const [contextRowId, setContextRowId] = useState<string | null>(null)
@@ -196,7 +196,7 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
     : contextFile
       ? { kind: 'file' as const, ...contextFile }
       : null
-  const currentFolder = allFolders.find((folder) => folder.id === folderId)
+  const currentFolder = archived ? undefined : allFolders.find((folder) => folder.id === folderId)
   const base = `/workspace/${encodeURIComponent(workspaceId)}/files`
   const locationState = {
     owner: 'project' as const,

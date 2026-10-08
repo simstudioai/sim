@@ -97,6 +97,8 @@ function OrganizationHomeContent({
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
@@ -175,6 +177,7 @@ function OrganizationHomeContent({
     async (ref: WorkspaceResourceRef) => {
       try {
         if (ref.type === 'file' && ref.owner?.entityType === 'project') {
+          if (!projectsEnabled || !projectFilesEnabled) return
           if (!ref.id) throw new Error('Missing Project file identity')
           await requestJson(getProjectContract, {
             params: { id: ref.owner.entityId },
@@ -217,7 +220,7 @@ function OrganizationHomeContent({
         toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
       }
     },
-    [queryClient, addResource, organization.id]
+    [queryClient, addResource, organization.id, projectsEnabled, projectFilesEnabled]
   )
   const files = useFileAttachments({
     userId: session?.user?.id,

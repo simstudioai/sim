@@ -47,7 +47,7 @@ export function FileHistoryModal({
   const history = useFileHistory(owner, fileId, true)
   const revert = useRevertFileVersion(owner, fileId)
   const download = useDownloadFileVersion(owner, fileId)
-  const navigation = useFileNavigation(owner)
+  const navigation = useFileNavigation({ owner })
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [target, setTarget] = useState<{ version: number; expectedRevision: string } | null>(null)
   const edges = useScrollEdges(scrollElement)

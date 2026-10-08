@@ -80,7 +80,7 @@ interface FileOwnerTabsProps {
 }
 
 function FileOwnerTabs({ owner, projectId, workspaceId }: FileOwnerTabsProps) {
-  const { navigate } = useFileNavigation(owner)
+  const { navigate } = useFileNavigation({ owner })
   const { fileId } = useParams<{ fileId?: string }>()
   const [, setLocation] = useQueryStates({
     ...fileOwnerParsers,

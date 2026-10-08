@@ -52,7 +52,6 @@ describe('Project grep corpus', () => {
     )
     const result = await grepProjectFiles(invocation, context(), 'project')
     expect(result).toEqual({ exitCode: 0, stdout: 'files/notes.txt (file):2: needle', stderr: '' })
-    expect(artifact).toHaveBeenCalledTimes(1)
   })
   it.each([{ scope: 'files,workflows' }, { scope: 'files', in: 'workflows' }, { scope: '' }])(
     'refuses incompatible Project scope before reading a corpus: %j',

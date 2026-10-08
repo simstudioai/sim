@@ -28,7 +28,7 @@ interface FileDetailProps {
 /** Shared editor chrome; owner-specific queries and commands remain in their browser adapters. */
 export function FileDetail({ viewer, header, showSaveAction = false }: FileDetailProps) {
   const owner = viewer.owner ?? { entityType: 'workspace' as const, entityId: viewer.workspaceId }
-  const navigation = useFileNavigation(owner)
+  const navigation = useFileNavigation({ owner })
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() =>
     !viewer.autoFocus && isPreviewable(viewer.file) ? 'preview' : 'editor'
   )

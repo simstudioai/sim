@@ -218,7 +218,7 @@ function FilesContent() {
     setIsDirty,
     setSaveStatus,
     navigate: handleNavigateFromFileDetail,
-  } = useFileNavigation({ entityType: 'workspace', entityId: workspaceId })
+  } = useFileNavigation({ owner: { entityType: 'workspace', entityId: workspaceId } })
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)

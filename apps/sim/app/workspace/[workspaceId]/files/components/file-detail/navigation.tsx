@@ -103,7 +103,11 @@ export function FileNavigationProvider({ owner, fileId, children }: FileNavigati
   )
 }
 
-export function useFileNavigation(owner: EditableFileOwner) {
+interface UseFileNavigationProps {
+  owner: EditableFileOwner
+}
+
+export function useFileNavigation({ owner }: UseFileNavigationProps) {
   const controller = useContext(FileNavigationContext)
   if (
     !controller ||

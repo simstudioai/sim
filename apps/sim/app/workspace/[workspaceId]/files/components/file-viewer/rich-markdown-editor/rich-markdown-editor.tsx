@@ -689,7 +689,10 @@ export function LoadedRichMarkdownEditor({
               folderId: file.folderId ?? null,
               signal: controller.signal,
             })
-            .then((result) => `/api/files/view/${encodeURIComponent(result.file.id)}`)
+            .then(
+              (result) =>
+                `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(result.file.id)}/content`
+            )
         : workspaceId
           ? uploadFile
               .mutateAsync({

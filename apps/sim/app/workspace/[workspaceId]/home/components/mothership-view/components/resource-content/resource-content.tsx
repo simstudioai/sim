@@ -279,24 +279,6 @@ export const ResourceContent = memo(function ResourceContent({
   )
 
   if (resource.id === 'streaming-file') {
-    if (resource.owner?.entityType === 'project') {
-      const owner = { entityType: 'project', entityId: resource.owner.entityId } as const
-      return (
-        <div className='flex h-full flex-col overflow-hidden'>
-          <FileViewer
-            file={{ ...syntheticFile, owner }}
-            owner={owner}
-            canEdit={false}
-            previewMode={previewMode ?? 'preview'}
-            streamingContent={textStreamingContent}
-            isAgentEditing={isAgentEditing}
-            streamIsIncremental={streamIsIncremental}
-            disableStreamingAutoScroll={disableStreamingAutoScroll}
-            previewContextKey={previewContextKey}
-          />
-        </div>
-      )
-    }
     if (!workspaceId) return null
     return (
       <div className='flex h-full flex-col overflow-hidden'>
@@ -796,7 +778,7 @@ function EmbeddedFileActions({
               key={file.id}
               open
               onOpenChange={setIsShareOpen}
-              workspaceId={workspaceId}
+              owner={{ entityType: 'workspace', entityId: workspaceId }}
               fileId={file.id}
               fileName={file.name}
               initialShare={file.share ?? null}

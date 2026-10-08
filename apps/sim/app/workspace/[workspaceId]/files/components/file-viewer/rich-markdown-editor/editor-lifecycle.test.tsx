@@ -25,9 +25,11 @@ import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/co
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
 
-const { collaborationRef, uploadFile } = vi.hoisted(() => ({
+const { collaborationRef, uploadFile, uploadProjectFile, fileSource } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   uploadFile: vi.fn(),
+  uploadProjectFile: vi.fn(),
+  fileSource: { owner: undefined as { entityType: 'project'; entityId: string } | undefined },
 }))
 
 vi.mock(
@@ -38,9 +40,12 @@ vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
+vi.mock('@/hooks/queries/project-files', () => ({
+  useUploadProjectFile: () => ({ mutateAsync: uploadProjectFile }),
+}))
 vi.mock('@/hooks/use-add-to-chat', () => ({ useAddToChat: () => vi.fn() }))
 vi.mock('@/hooks/use-file-content-source', () => ({
-  useFileContentSource: () => ({ resolveImageSrc: (src: string) => src }),
+  useFileContentSource: () => ({ owner: fileSource.owner, resolveImageSrc: (src: string) => src }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({ FindBar: () => null }))
 vi.mock(
@@ -174,7 +179,7 @@ async function render(
           <Suspense fallback='Loading editor'>
             <LoadedRichMarkdownEditor
               file={FILE}
-              workspaceId={FILE.workspaceId}
+              workspaceId={fileSource.owner ? undefined : FILE.workspaceId}
               content={content}
               acceptedBaselineContent={acceptedBaselineContent}
               isStreaming={options.isStreaming ?? false}
@@ -207,6 +212,8 @@ function getEditor() {
 
 beforeEach(() => {
   uploadFile.mockReset()
+  uploadProjectFile.mockReset()
+  fileSource.owner = undefined
   collaborationRef.current = null
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
   vi.spyOn(toast, 'info').mockReturnValue('uploading-toast')
@@ -483,4 +490,18 @@ describe('loaded rich editor lifecycle', () => {
     expect(abandonedOnChange).not.toHaveBeenCalled()
     expect(abandonedSave).not.toHaveBeenCalled()
   })
+})
+
+it('inserts an uploaded inline image using its Project content address', async () => {
+  fileSource.owner = { entityType: 'project', entityId: 'project-a' }
+  uploadProjectFile.mockResolvedValue({ file: { id: 'image-a' } })
+  await render('Project document')
+  await act(async () => getEditor().storage.slashCommand.insertImage(1))
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+  if (!input) throw new Error('Editor image picker is unavailable')
+  Object.defineProperty(input, 'files', {
+    value: [new File(['image'], 'diagram.png', { type: 'image/png' })],
+  })
+  await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+  expect(getEditor().getHTML()).toContain('src="/api/projects/project-a/files/image-a/content"')
 })
