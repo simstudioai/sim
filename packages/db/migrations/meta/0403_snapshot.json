@@ -1,6 +1,6 @@
 {
-  "id": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
-  "prevId": "d54d271f-dbfb-4b1e-b3f7-2717fbb8d078",
+  "id": "d54d271f-dbfb-4b1e-b3f7-2717fbb8d078",
+  "prevId": "4120041c-55f9-462f-b56c-7dfbd9eb7112",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7825,105 +7825,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.embedding_keyword_search": {
-      "name": "embedding_keyword_search",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "knowledge_base_id": {
-          "name": "knowledge_base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_tsv": {
-          "name": "content_tsv",
-          "type": "tsvector",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "embedding_keyword_search_kb_idx": {
-          "name": "embedding_keyword_search_kb_idx",
-          "columns": [
-            {
-              "expression": "knowledge_base_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "embedding_keyword_search_document_idx": {
-          "name": "embedding_keyword_search_document_idx",
-          "columns": [
-            {
-              "expression": "document_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "embedding_keyword_search_content_idx": {
-          "name": "embedding_keyword_search_content_idx",
-          "columns": [
-            {
-              "expression": "content_tsv",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "embedding_keyword_search_id_embedding_id_fk": {
-          "name": "embedding_keyword_search_id_embedding_id_fk",
-          "tableFrom": "embedding_keyword_search",
-          "tableTo": "embedding",
-          "columnsFrom": ["id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.embedding_keyword_tin": {
       "name": "embedding_keyword_tin",
       "schema": "",
@@ -8816,7 +8717,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "parent_id": {
           "name": "parent_id",
@@ -8855,12 +8756,6 @@
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
@@ -8999,61 +8894,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "folder_project_id_idx": {
-          "name": "folder_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "folder_project_resource_parent_name_active_unique": {
-          "name": "folder_project_resource_parent_name_active_unique",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"parent_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"folder\".\"deleted_at\" IS NULL AND \"folder\".\"project_id\" IS NOT NULL",
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -9083,26 +8923,12 @@
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
-        },
-        "folder_project_id_project_id_fk": {
-          "name": "folder_project_id_project_id_fk",
-          "tableFrom": "folder",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "folder_owner_check": {
-          "name": "folder_owner_check",
-          "value": "num_nonnulls(\"folder\".\"workspace_id\", \"folder\".\"project_id\") = 1 AND (\"folder\".\"project_id\" IS NULL OR \"folder\".\"resource_type\" = 'file')"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.idempotency_key": {
@@ -28330,7 +28156,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "version": {
           "name": "version",
@@ -28910,34 +28736,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_files_project_folder_name_active_unique": {
-          "name": "workspace_files_project_folder_name_active_unique",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"folder_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "original_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"project_id\" IS NOT NULL",
           "concurrently": true,
           "method": "btree",
           "with": {}

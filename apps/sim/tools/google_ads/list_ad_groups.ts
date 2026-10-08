@@ -1,8 +1,9 @@
 import type {
+  GoogleAdsApiResponse,
   GoogleAdsListAdGroupsParams,
   GoogleAdsListAdGroupsResponse,
 } from '@/tools/google_ads/types'
-import { validateNumericId, validateStatus } from '@/tools/google_ads/types'
+import { validateLimit, validateNumericId, validateStatus } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsListAdGroupsTool: ToolConfig<
@@ -26,17 +27,18 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token for the Google Ads API',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation token from the previous page; keep the same customer and query inputs',
+    },
     customerId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Google Ads customer ID (numeric, no dashes)',
-    },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
     },
     managerCustomerId: {
       type: 'string',
@@ -74,7 +76,6 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
         headers['login-customer-id'] = validateNumericId(
@@ -100,29 +101,29 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       query += ` WHERE ${conditions.join(' AND ')}`
       query += ' ORDER BY ad_group.name'
 
-      if (params.limit) {
-        query += ` LIMIT ${params.limit}`
+      if (params.limit != null) {
+        query += ` LIMIT ${validateLimit(params.limit)}`
       }
 
-      return { query }
+      return { query, ...(params.pageToken ? { pageToken: params.pageToken } : {}) }
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse = await response.json()
 
     if (!response.ok) {
       const errorMessage =
         data?.error?.message ?? data?.error?.details?.[0]?.errors?.[0]?.message ?? 'Unknown error'
       return {
         success: false,
-        output: { adGroups: [], totalCount: 0 },
+        output: { adGroups: [], totalCount: 0, nextPageToken: null },
         error: errorMessage,
       }
     }
 
     const results = data.results ?? []
-    const adGroups = results.map((r: Record<string, any>) => ({
+    const adGroups = results.map((r) => ({
       id: r.adGroup?.id ?? '',
       name: r.adGroup?.name ?? '',
       status: r.adGroup?.status ?? '',
@@ -136,11 +137,17 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       output: {
         adGroups,
         totalCount: adGroups.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
 
   outputs: {
+    nextPageToken: {
+      type: 'string',
+      nullable: true,
+      description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
+    },
     adGroups: {
       type: 'array',
       description: 'List of ad groups in the campaign',
@@ -152,16 +159,21 @@ export const googleAdsListAdGroupsTool: ToolConfig<
           status: { type: 'string', description: 'Ad group status (ENABLED, PAUSED, REMOVED)' },
           type: {
             type: 'string',
+            nullable: true,
             description: 'Ad group type (SEARCH_STANDARD, DISPLAY_STANDARD, SHOPPING_PRODUCT_ADS)',
           },
           campaignId: { type: 'string', description: 'Parent campaign ID' },
-          campaignName: { type: 'string', description: 'Parent campaign name' },
+          campaignName: {
+            type: 'string',
+            nullable: true,
+            description: 'Parent campaign name',
+          },
         },
       },
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of ad groups returned',
+      description: 'Number of ad groups in this page',
     },
   },
 }

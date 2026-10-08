@@ -9,9 +9,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
 const migrations = [
-  '0402_file_entity_ownership.sql',
-  '0403_file_folder_version_ownership.sql',
-  '0404_file_creator_lifetime.sql',
+  '0403_file_entity_ownership.sql',
+  '0404_file_folder_version_ownership.sql',
+  '0405_file_creator_lifetime.sql',
 ].map((name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8'))
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []

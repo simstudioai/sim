@@ -686,7 +686,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
     await db.execute(sql`ANALYZE embedding_search`)
-    await db.execute(sql`ANALYZE embedding_keyword_search`)
     if (evictSharedBuffers) await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_buffercache`)
     report.server = (
       await db.execute(sql`SELECT version(), current_setting('work_mem') AS work_mem,

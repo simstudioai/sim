@@ -96,8 +96,8 @@ function searchVectorShortened(model: string, prefix: string): string {
 
 export type KnowledgeProjection = 'embedding_search'
 
-/** Historical trigger installers retain these immutable names until their contract migration. */
-export const SOURCE_ACL_PROJECTIONS = ['embedding_search', 'embedding_keyword_tin'] as const
+/** Active vector projections that mirror document access for legacy synchronous writers. */
+export const SOURCE_ACL_PROJECTIONS = ['embedding_search'] as const
 
 /**
  * The chunks one page covers: the next {@link PROJECTION_ROW_BATCH_SIZE} of the document in
