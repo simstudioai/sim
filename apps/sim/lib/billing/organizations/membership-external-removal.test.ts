@@ -1,4 +1,4 @@
-import { credential, knowledgeBase, member, workspaceFiles } from '@sim/db/schema'
+import { credential, knowledgeBase, member, user, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import {
   organizationMemberLimitsMock,
@@ -39,6 +39,10 @@ describe('external organization access removal', () => {
   it('preserves organization indexes and cached documents when a creator leaves with no workspaces', async () => {
     queueTableRows(member, [{ id: 'membership', userId: 'departing', role: 'admin' }])
     queueTableRows(member, [{ userId: 'surviving-owner' }])
+    queueTableRows(user, [{ email: 'departing@example.test' }])
+    queueTableRows(user, [{ email: 'departing@example.test' }])
+    queueTableRows(user, [{ id: 'surviving-owner' }])
+    queueTableRows(workspaceFiles, [{ id: 'cached-file', context: 'knowledge-base' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'membership' }])
 
     const result = await removeUserFromOrganization({
@@ -46,6 +50,7 @@ describe('external organization access removal', () => {
       organizationId: 'organization-a',
       memberId: 'membership',
       skipBillingLogic: true,
+      onError: 'throw',
     })
 
     expect(result.success).toBe(true)

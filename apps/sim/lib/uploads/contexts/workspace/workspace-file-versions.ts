@@ -190,13 +190,63 @@ interface RecordedWorkspaceFileVersion {
   releasedKeys: string[]
 }
 
+/** Materializes current bytes under the file lock before content or creator attribution changes. */
+export async function materializeWorkspaceFileVersionInTx(
+  tx: DbTransaction,
+  previous: WorkspaceFileRow & { workspaceId: string },
+  head: WorkspaceFileVersionSummaryRow | undefined,
+  provenance: WorkspaceFileSecretProvenanceSnapshot,
+  now: Date
+): Promise<WorkspaceFileVersionSummaryRow> {
+  if (isVersionHeadCurrent(head, previous) && head) return head
+  if (head && head.supersededAt === null) await supersedeVersionInTx(tx, head.id, now)
+  const original = !head && isOriginalUploadContent(previous)
+  const [materialized] = await tx
+    .insert(workspaceFileVersion)
+    .values({
+      id: generateId(),
+      fileId: previous.id,
+      workspaceId: previous.workspaceId,
+      version: head ? head.version + 1 : INITIAL_WORKSPACE_FILE_VERSION,
+      ...contentColumns(previous, provenance),
+      contentHash: null,
+      source: original ? 'upload' : 'unknown',
+      authorUserIds: original && previous.userId ? [previous.userId] : [],
+      createdAt: previous.contentUpdatedAt,
+      updatedAt: previous.contentUpdatedAt,
+    })
+    .returning(versionSummaryColumns)
+  return materialized
+}
+
+/** Identifies an implicit empty first version frozen by handoff, never an explicit write or restore. */
+function isMaterializedEmptyInitialVersion(
+  head: WorkspaceFileVersionSummaryRow | undefined,
+  file: WorkspaceFileRow
+): head is WorkspaceFileVersionSummaryRow {
+  return (
+    head !== undefined &&
+    head.fileId === file.id &&
+    head.version === INITIAL_WORKSPACE_FILE_VERSION &&
+    isVersionHeadCurrent(head, file) &&
+    getWorkspaceFileSize(file) === 0 &&
+    head.sizeBytes === 0 &&
+    head.contentHash === null &&
+    (head.source === 'upload' || head.source === 'unknown') &&
+    head.restoredFromVersion === null &&
+    head.createdAt.getTime() === file.contentUpdatedAt.getTime() &&
+    head.updatedAt.getTime() === file.contentUpdatedAt.getTime()
+  )
+}
+
 /**
  * Records a committed content write in the file's history. Runs inside the content-write
  * transaction, under the file row's lock, which serializes version numbering and coalescing
  * decisions per file.
  *
  * An empty file with no history is a shell whose content arrives in this write (a create followed
- * by its first content), so the shell is not kept as a version of its own.
+ * by its first content), so the shell is not kept as a version of its own. A handoff may have
+ * materialized that implicit shell to freeze attribution; its first write still replaces version 1.
  */
 export async function recordWorkspaceFileVersionInTx(
   tx: DbTransaction,
@@ -210,28 +260,40 @@ export async function recordWorkspaceFileVersionInTx(
     return { version: 1, releasedKeys: [previous.key] }
   }
 
+  if (isMaterializedEmptyInitialVersion(head, previous)) {
+    await tx
+      .update(workspaceFileVersion)
+      .set({
+        ...contentColumns(next, params.nextProvenance),
+        contentHash: params.contentHash,
+        source: write.source,
+        authorUserIds: write.authorUserId ? [write.authorUserId] : [],
+        restoredFromVersion: write.restoredFromVersion ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .where(eq(workspaceFileVersion.id, head.id))
+    const [references] = await tx.execute<{ referenced: boolean }>(sql`
+      SELECT EXISTS(SELECT 1 FROM ${workspaceFiles} WHERE ${workspaceFiles.key} = ${previous.key})
+        OR EXISTS(SELECT 1 FROM ${workspaceFileVersion} WHERE ${workspaceFileVersion.key} = ${previous.key}) AS referenced
+    `)
+    return {
+      version: INITIAL_WORKSPACE_FILE_VERSION,
+      releasedKeys: references.referenced ? [] : [previous.key],
+    }
+  }
+
   if (!head || !isVersionHeadCurrent(head, previous)) {
     if (!params.previousProvenance) {
       throw new Error('Outgoing workspace file content needs a provenance snapshot to be versioned')
     }
-    if (head && head.supersededAt === null) await supersedeVersionInTx(tx, head.id, now)
-    const original = !head && isOriginalUploadContent(previous)
-    const [materialized] = await tx
-      .insert(workspaceFileVersion)
-      .values({
-        id: generateId(),
-        fileId: previous.id,
-        workspaceId: params.workspaceId,
-        version: head ? head.version + 1 : INITIAL_WORKSPACE_FILE_VERSION,
-        ...contentColumns(previous, params.previousProvenance),
-        contentHash: null,
-        source: original ? 'upload' : 'unknown',
-        authorUserIds: original ? [previous.userId] : [],
-        createdAt: previous.contentUpdatedAt,
-        updatedAt: previous.contentUpdatedAt,
-      })
-      .returning(versionSummaryColumns)
-    head = materialized
+    head = await materializeWorkspaceFileVersionInTx(
+      tx,
+      { ...previous, workspaceId: params.workspaceId },
+      head,
+      params.previousProvenance,
+      now
+    )
   }
 
   const nextColumns = { ...contentColumns(next, params.nextProvenance), updatedAt: now }
