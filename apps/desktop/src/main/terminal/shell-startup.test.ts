@@ -9,6 +9,7 @@ import { TerminalService } from '@/main/terminal'
  */
 const pty = vi.hoisted(() => ({
   emit: null as ((data: string) => void) | null,
+  exit: null as (() => void) | null,
   writes: [] as string[],
 }))
 
@@ -18,7 +19,9 @@ vi.mock('@lydell/node-pty', () => ({
     onData: (handler: (data: string) => void) => {
       pty.emit = handler
     },
-    onExit: () => {},
+    onExit: (handler: () => void) => {
+      pty.exit = handler
+    },
     write: (data: string) => pty.writes.push(data),
     resize: vi.fn(),
     kill: vi.fn(),
@@ -71,6 +74,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   pty.emit = null
+  pty.exit = null
   pty.writes.length = 0
   vi.unstubAllEnvs()
 })
@@ -122,6 +126,20 @@ describe('a shell that is still starting', () => {
     expect(response).toMatchObject({ ok: false, code: 'NO_SHELL_INTEGRATION' })
     expect(response.error).toContain('[oh-my-zsh] Would you like to update? [Y/n]')
     expect(response.error).toContain('ask the user to answer it')
+    expect(response.error).toContain('a startup file replaced the shell')
+    expect(pty.writes).toEqual([])
+    terminal.dispose()
+  })
+
+  it('reports the session closed when the shell exits while its startup files run', async () => {
+    const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+    const running = terminal.executeTool('call-exit', 'run', { command: 'echo hi' })
+    shell(STARTUP)
+    await vi.advanceTimersByTimeAsync(2_000)
+    pty.exit?.()
+    const response = await running
+
+    expect(response).toMatchObject({ ok: false, code: 'SESSION_CLOSED' })
     expect(pty.writes).toEqual([])
     terminal.dispose()
   })

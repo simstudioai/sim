@@ -124,7 +124,7 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { useDesktopActivity } from '@/hooks/queries/desktop-activity'
+import { useDesktopActivity, watchesDesktopActivity } from '@/hooks/queries/desktop-activity'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
@@ -372,8 +372,11 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
 interface SidebarProps {
   organizationHref: string | null
-  /** Whether this install runs the desktop background executor, so chats show desktop activity. */
-  desktopExecutorAvailable: boolean
+  /**
+   * Whether this install runs the desktop background executor, and whether the user has a desktop
+   * registered to run their turns, so chats show desktop activity.
+   */
+  desktopExecutor: { available: boolean; registered: boolean }
 }
 
 /**
@@ -392,10 +395,7 @@ interface SidebarProps {
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar({
-  organizationHref,
-  desktopExecutorAvailable,
-}: SidebarProps) {
+export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor }: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -890,14 +890,15 @@ export const Sidebar = memo(function Sidebar({
     { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
+  const desktopActivityWatched = watchesDesktopActivity(desktopExecutor)
   useMothershipChatEvents(
     workspaceId,
     chatEnabled && !permissionConfig.hideCopilot,
-    desktopExecutorAvailable
+    desktopActivityWatched
   )
-  const { data: desktopActivity } = useDesktopActivity(
+  const desktopActivity = useDesktopActivity(
     workspaceId,
-    desktopExecutorAvailable && chatEnabled && !permissionConfig.hideCopilot
+    desktopActivityWatched && chatEnabled && !permissionConfig.hideCopilot
   )
   const desktopActivityByChat = useMemo(
     () => new Map((desktopActivity ?? []).map((activity) => [activity.chatId, activity])),

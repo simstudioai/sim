@@ -48,6 +48,7 @@ const ARRIVAL_MS = 60_000
 /** First requests to a route compile it, which takes minutes on a cold dev app. */
 const COMPILE_MS = 300_000
 const REGISTRATION_PATH = '/api/desktop/devices'
+const DESKTOP_COMPLETION_PATH = '/api/desktop/tool/complete'
 /** Sim's answer to registration on an install that cannot run the background executor. */
 const executorUnavailable = (answer: Record<string, unknown>) => {
   answer.enabled = false
@@ -120,6 +121,7 @@ test.describe('desktop tools against a live Sim', () => {
     await app?.close().catch(() => {})
     app = undefined
     proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
+    proxy.rewriteAnswer(DESKTOP_COMPLETION_PATH, undefined)
     rmSync(scratch, { recursive: true, force: true })
   })
 
@@ -377,7 +379,7 @@ test.describe('desktop tools against a live Sim', () => {
     entry.method === 'POST' && entry.path === '/api/mothership/chat'
   /** The background executor's report of a call's result. */
   const isDesktopCompletion = (method: string, path: string) =>
-    method === 'POST' && path === '/api/desktop/tool/complete'
+    method === 'POST' && path === DESKTOP_COMPLETION_PATH
   /** A client tool's report of its own result. */
   const isToolReport = (method: string, path: string) =>
     method === 'POST' && path === '/api/copilot/confirm'
@@ -830,6 +832,7 @@ test.describe('desktop tools against a live Sim', () => {
     // Reaches Sim on release although the cut made the app give up on it, as a report already on
     // the wire would: the app cannot know it landed, so it reports again once back online.
     const completion = proxy.hold(isDesktopCompletion, { deliverIfAbandoned: true })
+    const answers = proxy.recordAnswers(DESKTOP_COMPLETION_PATH)
     await send(page, '[network-cut] read my notes')
     await completion.arrival(ARRIVAL_MS, 'The result report')
 
@@ -837,7 +840,8 @@ test.describe('desktop tools against a live Sim', () => {
     await expect.poll(() => completion.isAbandoned, { timeout: 15_000 }).toBe(true)
     completion.release()
     await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^completed/)
-    await sleep(5_000)
+    // The late report alone resumed the agent while the app was still offline.
+    await agent.waitForResume(() => Boolean(agent.resultFor(callId)), 60_000)
     const restoredAt = Date.now()
     proxy.restoreNetwork()
 
@@ -852,8 +856,10 @@ test.describe('desktop tools against a live Sim', () => {
     await expect.poll(() => retried().length, { timeout: 60_000 }).toBeGreaterThan(0)
     for (const entry of retried()) expect(entry.status).toBeLessThan(300)
 
-    await agent.waitForResume(() => Boolean(agent.resultFor(callId)), 60_000)
     await proxy.settled(30_000)
+    // Sim had already recorded the late report, so every retry the app heard back from is a no-op.
+    expect(answers.length).toBeGreaterThan(0)
+    expect(answers).toEqual(answers.map(() => expect.objectContaining({ outcome: 'duplicate' })))
     const delivered = agent.resumes.filter((resume) =>
       resume.results.some((entry) => entry.callId === callId)
     )

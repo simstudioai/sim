@@ -260,6 +260,18 @@ export class SimProxy {
   }
 
   /**
+   * Sim's JSON answers to `path` that reach the app from now on, recorded as they pass and left
+   * unchanged. An answer to a request whose client gave up reaches no one, so it is not recorded.
+   */
+  recordAnswers(path: string): Record<string, unknown>[] {
+    const answers: Record<string, unknown>[] = []
+    this.rewriteAnswer(path, (body) => {
+      answers.push(structuredClone(body))
+    })
+    return answers
+  }
+
+  /**
    * Cuts the network between the app and Sim: every open connection drops mid-flight, the
    * doorbell stream included, and new ones are reset until `restoreNetwork`.
    */

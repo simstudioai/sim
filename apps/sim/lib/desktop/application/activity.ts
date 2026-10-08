@@ -38,8 +38,8 @@ async function readPresence(deviceId: string): Promise<boolean> {
 /**
  * Which of the caller's chats in a workspace are running on one of their desktops, and in what
  * state. Lists only the caller's own runs, never their content, so it needs no workspace role.
- * The endpoint is not flag-gated (runs already bound are listed until they end); the sidebar asks
- * only while the background executor is on for the user.
+ * Runs already bound are listed until they end, whatever the install's executor availability; the
+ * sidebar asks only for a user with a desktop that runs their turns.
  */
 export const listDesktopActivity = defineAuthorizedCredentialUserUseCase({
   // permission-group-exempt: reports only the caller's own runs, with no content.

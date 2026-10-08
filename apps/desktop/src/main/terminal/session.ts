@@ -328,7 +328,6 @@ export class TerminalSession {
   private columns: number
   private lines: number
   private shellIntegration = false
-  /** The shell has begun the startup files we generated, so its integration is on the way. */
   /** When the shell began the startup files we generated, or null while it has not. */
   private startupBegunAt: number | null = null
   private readonly spawnedAt = Date.now()

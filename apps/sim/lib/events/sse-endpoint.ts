@@ -18,7 +18,9 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 interface SSESubscription {
   subscribe(
     workspaceId: string,
-    send: (eventName: string, data: Record<string, unknown>) => void
+    send: (eventName: string, data: Record<string, unknown>) => void,
+    /** The member the stream belongs to. */
+    viewerUserId: string
   ): () => void
   /** Settles once the subscription receives events; the stream is announced only after it. */
   ready?: () => Promise<void>
@@ -95,7 +97,7 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
     return createSSEStream(request, {
       label: `${config.label}:workspace:${workspaceId}`,
       subscriptions: config.subscriptions.map((subscription) => ({
-        subscribe: (send) => subscription.subscribe(workspaceId, send),
+        subscribe: (send) => subscription.subscribe(workspaceId, send, userId),
         ready: subscription.ready,
       })),
     })

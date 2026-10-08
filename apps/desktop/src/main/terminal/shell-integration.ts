@@ -166,8 +166,17 @@ function findTerminator(buffer: string, from: number): { index: number; length: 
  * prompt, aliases, and PATH win over ours.
  */
 function writeZshFiles(dir: string, nonce: string, originalZdotdir: string): void {
-  const sourceOriginal = (file: string) =>
-    `[ -f "$SIM_ZDOTDIR_ORIG/${file}" ] && builtin source "$SIM_ZDOTDIR_ORIG/${file}"`
+  // The user's file runs with ZDOTDIR at their own directory, so it finds its siblings and
+  // plugins there. A file that moves ZDOTDIR (an XDG `.zshenv`) moves where the rest of theirs are
+  // read from; ZDOTDIR then points back here, so zsh reads our next file.
+  const sourceOriginal = (file: string) => `if [ -f "$SIM_ZDOTDIR_ORIG/${file}" ]; then
+  __sim_zdotdir="$ZDOTDIR"
+  ZDOTDIR="$SIM_ZDOTDIR_ORIG"
+  builtin source "$SIM_ZDOTDIR_ORIG/${file}"
+  SIM_ZDOTDIR_ORIG="\${ZDOTDIR:-$HOME}"
+  ZDOTDIR="$__sim_zdotdir"
+  builtin unset __sim_zdotdir
+fi`
 
   // `.zshenv` is the first file zsh reads, so the startup marker goes out before any of the user's
   // files run. Only from an interactive shell: a script's output must not carry it.

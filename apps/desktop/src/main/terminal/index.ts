@@ -1420,7 +1420,7 @@ export class TerminalService {
         const screen = (await session.readScrollback(STARTUP_SCREEN_LINES)).output.trim()
         throw new TerminalError(
           'NO_SHELL_INTEGRATION',
-          `The shell has been running its startup files for over ${SHELL_STARTUP_BOUNDS.startingMs / 1000} s without reaching a prompt, so nothing was run. Its screen:\n${screen || '(empty)'}\nIf it is waiting for an answer, ask the user to answer it in that terminal (terminalId ${session.terminalId}), then run the command again.`
+          `The shell began its startup files over ${SHELL_STARTUP_BOUNDS.startingMs / 1000} s ago but never reached a prompt Sim can track, so nothing was run. Its screen:\n${screen || '(empty)'}\nIf a startup file is waiting for an answer, ask the user to answer it in that terminal (terminalId ${session.terminalId}), then run the command again. If the screen shows a prompt, a startup file replaced the shell (such as exec tmux or exec fish), so ask the user to run the command themselves.`
         )
       }
       case 'not-instrumented':

@@ -24,10 +24,11 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { listDesktopActivity } from '@/lib/desktop/application/activity'
 import { openDesktopInboxStream, registerDesktopDevice } from '@/lib/desktop/application/executor'
+import { hasDesktopBackgroundExecutor } from '@/lib/desktop/executor/availability'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 
@@ -255,5 +256,32 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       input: { workspaceId: elsewhere.workspaceId },
     })
     expect(otherWorkspace).toEqual([])
+  })
+
+  it('watches activity only for a user with a signed-in desktop that runs their turns', async () => {
+    const desktop = await signedInDesktop()
+    expect(await hasDesktopBackgroundExecutor(desktop.userId)).toBe(true)
+
+    const withoutExecutor = await signedInDesktop()
+    await db
+      .update(desktopDevices)
+      .set({ capabilities: { browser: true } })
+      .where(eq(desktopDevices.id, withoutExecutor.deviceId))
+    const revoked = await signedInDesktop()
+    await db
+      .update(desktopDevices)
+      .set({ revokedAt: new Date() })
+      .where(eq(desktopDevices.id, revoked.deviceId))
+    const signedOut = await signedInDesktop()
+    await db.delete(session).where(eq(session.id, signedOut.principal.sessionId))
+    const expired = await signedInDesktop()
+    await db
+      .update(session)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(session.id, expired.principal.sessionId))
+
+    for (const owner of [withoutExecutor, revoked, signedOut, expired]) {
+      expect(await hasDesktopBackgroundExecutor(owner.userId)).toBe(false)
+    }
   })
 })
