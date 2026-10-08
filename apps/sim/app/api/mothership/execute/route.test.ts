@@ -14,6 +14,10 @@ import {
   mothershipChatPayloadMock,
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,14 +28,12 @@ const {
   mockComputeWorkspaceEntitlements,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
-  mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
   mockBuildSelectedMcpToolSchemas: vi.fn(),
   mockBuildTaggedMcpToolSchemas: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
@@ -56,9 +58,7 @@ vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
 }))
 
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
@@ -85,6 +85,8 @@ authInternalMockFns.mockVerifyInternalDelegationToken.mockResolvedValue({
 })
 
 const mockBuildIntegrationToolSchemas = mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas
+const mockRunHeadlessCopilotLifecycle =
+  mothershipHeadlessLifecycleMockFns.mockRunHeadlessCopilotLifecycle
 
 const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
 const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth

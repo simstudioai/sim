@@ -344,6 +344,24 @@ export const CLI_CONTRACT: CliContract = {
   deleteCredential: {
     confirm: 'This disconnects the credential and removes its stored authentication.',
   },
+  listCredentialMembers: {
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+      { header: 'role' },
+      { header: 'status' },
+      { header: 'source', path: 'roleSource' },
+    ],
+  },
+  upsertCredentialMember: {
+    command: 'credentials members upsert',
+    flags: { userId: { name: 'user' } },
+  },
+  removeCredentialMember: {
+    command: 'credentials members remove',
+    confirm: 'This revokes the selected user’s explicit credential grant.',
+  },
   deleteSkill: { confirm: 'This deletes the skill.' },
   revokeSkillEditor: {
     confirm: 'This revokes the explicit skill editor grant for the selected email.',
@@ -1088,6 +1106,66 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  listSsoProviders: {
+    command: 'organizations sso providers list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'provider', path: 'providerId' },
+      { header: 'domain' },
+      { header: 'primary', path: 'isPrimary', format: 'bool' },
+      { header: 'verified', path: 'domainVerified', format: 'bool' },
+    ],
+  },
+  getSsoProvider: {
+    command: 'organizations sso providers get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  saveSsoProvider: {
+    command: 'organizations sso providers save',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: {
+      clientSecret: {
+        textSource: true,
+        describe:
+          'Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc',
+      },
+    },
+  },
+  deleteSsoProvider: {
+    command: 'organizations sso providers delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the identity provider used for SSO sign-in; linked accounts remain.',
+  },
+  setPrimarySsoProvider: {
+    command: 'organizations sso providers primary',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getSsoPolicy: {
+    command: 'organizations sso policy get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateSsoPolicy: {
+    command: 'organizations sso policy update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationDomains: {
+    command: 'organizations domains list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'domain' }, { header: 'status' }],
+  },
+  addOrganizationDomain: {
+    command: 'organizations domains add',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  verifyOrganizationDomain: {
+    command: 'organizations domains verify',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationDomain: {
+    command: 'organizations domains remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the domain claim and revokes verified SSO authority for its providers.',
+  },
   listOrganizationWorkspaces: {
     command: 'organizations workspaces',
     pathFlags: ORGANIZATION_FLAG,

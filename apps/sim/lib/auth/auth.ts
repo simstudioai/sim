@@ -1,6 +1,5 @@
 import { cache } from 'react'
 import { oauthProvider } from '@better-auth/oauth-provider'
-import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
@@ -73,6 +72,7 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
+import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
@@ -1454,61 +1454,10 @@ export const auth = betterAuth({
      * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
      * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
      * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
-     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * section visible and SSO entitlement passing while sign-in silently had no
      * SSO provider behind it.
      */
-    ...(isSsoEnabled
-      ? [
-          sso({
-            /**
-             * MUST stay false. Better Auth's link gate is
-             * `!isTrustedProvider && !userInfo.emailVerified`, so a true
-             * `email_verified` claim substitutes for the domain binding
-             * entirely: an IdP could assert any address — including one from a
-             * domain it does not own — and auto-link into that user's existing
-             * account. Since a provider row can be registered by any
-             * organization owner or admin (or by an operator via the register
-             * script), trusting the claim makes every account reachable from
-             * any tenant's IdP.
-             *
-             * Turning it on only ever set `emailVerified` on the local row; it
-             * was never what made linking work. Entra omits the claim, and SAML
-             * ignores it without an explicit `mapping.emailVerified` that the
-             * register contract does not accept — so SSO users are created
-             * unverified either way, and `domainVerification` below is the sole
-             * linking trust source, which is what `trustProviderByName: false`
-             * already assumes.
-             */
-            trustEmailVerified: false,
-            /**
-             * Marks a provider authoritative for its domain, which is what lets an
-             * SSO sign-in auto-link to an existing same-email account. Without it
-             * `isTrustedProvider` is always false and every user who already had a
-             * Sim account is stranded on "account not linked".
-             *
-             * Sim does not use Better Auth's DNS challenge endpoints: ownership is
-             * proven by the `sso_domain` flow before registration, and the register
-             * route mirrors that decision onto this flag.
-             *
-             * With `trustEmailVerified` off this is the only path to linking, and
-             * it is domain-scoped: `isTrustedProvider` additionally requires
-             * `validateEmailDomain(userInfo.email, provider.domain)`, so a
-             * provider can only ever claim identities inside the domain it proved.
-             */
-            domainVerification: { enabled: true },
-            organizationProvisioning: {
-              /**
-               * Better Auth writes member rows directly and bypasses Sim's seat,
-               * billing, session-policy, and audit invariants. Admission is owned
-               * by the application use case in the callback hook above.
-               */
-              disabled: true,
-              defaultRole: 'member',
-            },
-          }),
-        ]
-      : []),
-    // Only include the Stripe plugin when billing is enabled
+    ...(isSsoEnabled ? [configuredSsoPlugin] : []),
     ...(isBillingEnabled && stripeClient
       ? [
           stripe({

@@ -71,6 +71,8 @@ export interface FlagSpec {
   manifest?: true
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
+  /** Read a scalar string verbatim from `@path` / `@-`; `@@` escapes a literal leading `@`. */
+  textSource?: true
   /**
    * Accept a plain whole number and send the route's `{ type: 'rows', max: n }`.
    *

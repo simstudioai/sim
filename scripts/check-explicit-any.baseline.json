@@ -7,7 +7,6 @@
     "apps/sim/app/(auth)/verify/use-verification.ts": 1,
     "apps/sim/app/(interfaces)/resume/[workflowId]/[executionId]/resume-page-client.tsx": 16,
     "apps/sim/app/api/auth/oauth/utils.test.ts": 2,
-    "apps/sim/app/api/auth/sso/register/route.ts": 3,
     "apps/sim/app/api/chat/[identifier]/route.test.ts": 1,
     "apps/sim/app/api/chat/[identifier]/route.ts": 5,
     "apps/sim/app/api/chat/utils.test.ts": 4,

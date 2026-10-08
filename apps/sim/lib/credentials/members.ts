@@ -1,9 +1,19 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, user } from '@sim/db/schema'
+import { credential, credentialMember, member, permissions, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, notInArray } from 'drizzle-orm'
+import { and, eq, exists, inArray, notInArray, or, sql } from 'drizzle-orm'
+import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+} from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/credentials/access'
+import type { CredentialAuthorizationContext } from '@/lib/credentials/application/authorized-credential-use-case'
 import type { CredentialRow } from '@/lib/credentials/queries'
 import {
   getUserEntityPermissions,
@@ -73,6 +83,92 @@ export async function listCredentialMembers(
   return Array.from(byUser.values())
 }
 
+export interface CredentialMemberPageInput {
+  limit: number
+  sortBy: 'email' | 'name'
+  sortOrder: ListSortOrder
+  cursorKeys?: CursorKey[]
+}
+
+/** Reads effective credential membership with a bounded SQL keyset, including inherited admins. */
+export async function listCredentialMembersPage(
+  context: CredentialAuthorizationContext,
+  input: CredentialMemberPageInput
+) {
+  const workspaceAdmin = exists(
+    db
+      .select({ found: sql`1` })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.userId, user.id),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, context.workspaceId),
+          eq(permissions.permissionType, 'admin')
+        )
+      )
+  )
+  const organizationAdmin = context.workspaceOrganizationId
+    ? exists(
+        db
+          .select({ found: sql`1` })
+          .from(member)
+          .where(
+            and(
+              eq(member.userId, user.id),
+              eq(member.organizationId, context.workspaceOrganizationId),
+              inArray(member.role, ['owner', 'admin'])
+            )
+          )
+      )
+    : sql`false`
+  const inheritedAdmin = isSharedCredentialType(context.credential.type)
+    ? sql<boolean>`(${workspaceAdmin} or ${organizationAdmin})`
+    : sql<boolean>`false`
+  const sortKeys = [
+    input.sortBy === 'name'
+      ? textKey(user.name, (row: CredentialMemberView) => row.userName ?? '')
+      : textKey(user.email, (row: CredentialMemberView) => row.userEmail ?? ''),
+    textKey(user.id, (row: CredentialMemberView) => row.userId),
+  ]
+  const rows = await db
+    .select({
+      id: sql<string>`coalesce(${credentialMember.id}, 'workspace-admin-' || ${user.id})`,
+      userId: user.id,
+      role: sql<
+        'admin' | 'member'
+      >`case when ${inheritedAdmin} then 'admin' else ${credentialMember.role} end`,
+      status: sql<
+        'active' | 'pending' | 'revoked'
+      >`case when ${inheritedAdmin} then 'active' else ${credentialMember.status} end`,
+      joinedAt: credentialMember.joinedAt,
+      userName: user.name,
+      userEmail: user.email,
+      userImage: user.image,
+      roleSource: sql<
+        'explicit' | 'workspace-admin'
+      >`case when ${inheritedAdmin} then 'workspace-admin' else 'explicit' end`,
+    })
+    .from(user)
+    .leftJoin(
+      credentialMember,
+      and(
+        eq(credentialMember.userId, user.id),
+        eq(credentialMember.credentialId, context.credential.id)
+      )
+    )
+    .where(
+      and(
+        or(sql`${credentialMember.id} is not null`, inheritedAdmin),
+        resumeKeyset(sortKeys, input.cursorKeys, input.sortOrder)
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(sortKeys), input.sortOrder))
+    .limit(input.limit + 1)
+  const page = keysetPage(sortKeys, rows, input.limit)
+  return { members: page.data, nextCursorKeys: page.nextCursorKeys }
+}
+
 export interface UpsertCredentialMemberParams {
   credential: CredentialRow
   actorUserId: string
@@ -111,47 +207,46 @@ export async function upsertCredentialMember(
     )
   }
 
-  const [existing] = await db
-    .select({ id: credentialMember.id })
-    .from(credentialMember)
-    .where(
-      and(
-        eq(credentialMember.credentialId, params.credential.id),
-        eq(credentialMember.userId, params.targetUserId)
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, params.credential.id))
+      .limit(1)
+      .for('update')
+    if (!locked) throw new OrchestrationError('not_found', 'Credential not found')
+    const [existing] = await tx
+      .select({ id: credentialMember.id, role: credentialMember.role })
+      .from(credentialMember)
+      .where(
+        and(
+          eq(credentialMember.credentialId, locked.id),
+          eq(credentialMember.userId, params.targetUserId)
+        )
       )
-    )
-    .limit(1)
-  const now = new Date()
-  if (existing) {
-    const previousRole = await db.transaction(async (tx) => {
-      const [current] = await tx
-        .select({ role: credentialMember.role })
-        .from(credentialMember)
-        .where(eq(credentialMember.id, existing.id))
-        .limit(1)
-        .for('update')
-      if (!current) throw new Error('Credential membership disappeared during update')
+      .limit(1)
+      .for('update')
+    const now = new Date()
+    if (existing) {
       await tx
         .update(credentialMember)
         .set({ role: params.role, status: 'active', updatedAt: now })
         .where(eq(credentialMember.id, existing.id))
-      return current.role
+      return { created: false, previousRole: existing.role }
+    }
+    await tx.insert(credentialMember).values({
+      id: generateId(),
+      credentialId: locked.id,
+      userId: params.targetUserId,
+      role: params.role,
+      status: 'active',
+      joinedAt: now,
+      invitedBy: params.actorUserId,
+      createdAt: now,
+      updatedAt: now,
     })
-    return { created: false, previousRole }
-  }
-
-  await db.insert(credentialMember).values({
-    id: generateId(),
-    credentialId: params.credential.id,
-    userId: params.targetUserId,
-    role: params.role,
-    status: 'active',
-    joinedAt: now,
-    invitedBy: params.actorUserId,
-    createdAt: now,
-    updatedAt: now,
+    return { created: true }
   })
-  return { created: true }
 }
 
 export async function removeCredentialMember(params: {
@@ -190,7 +285,27 @@ export async function removeCredentialMember(params: {
   }
 
   const revoked = await db.transaction(async (tx) => {
-    if (!isSharedCredentialType(params.credential.type) && target.role === 'admin') {
+    const [lockedCredential] = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, params.credential.id))
+      .limit(1)
+      .for('update')
+    if (!lockedCredential) throw new OrchestrationError('not_found', 'Credential not found')
+    const [activeTarget] = await tx
+      .select({ id: credentialMember.id, role: credentialMember.role })
+      .from(credentialMember)
+      .where(
+        and(
+          eq(credentialMember.credentialId, lockedCredential.id),
+          eq(credentialMember.userId, params.targetUserId),
+          eq(credentialMember.status, 'active')
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!activeTarget) throw new OrchestrationError('not_found', 'Member not found')
+    if (!isSharedCredentialType(params.credential.type) && activeTarget.role === 'admin') {
       const activeAdmins = await tx
         .select({ id: credentialMember.id })
         .from(credentialMember)
@@ -204,10 +319,12 @@ export async function removeCredentialMember(params: {
         .for('update')
       if (activeAdmins.length <= 1) return false
     }
-    await tx
+    const removed = await tx
       .update(credentialMember)
       .set({ status: 'revoked', updatedAt: new Date() })
-      .where(eq(credentialMember.id, target.id))
+      .where(and(eq(credentialMember.id, activeTarget.id), eq(credentialMember.status, 'active')))
+      .returning({ id: credentialMember.id })
+    if (!removed.length) throw new OrchestrationError('not_found', 'Member not found')
     return true
   })
   if (!revoked) throw new OrchestrationError('validation', 'Cannot remove the last admin')
