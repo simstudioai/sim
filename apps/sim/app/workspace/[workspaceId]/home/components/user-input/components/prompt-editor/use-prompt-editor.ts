@@ -40,8 +40,9 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { useWorkspaceProject } from '@/hooks/queries/project-files'
-import { useProjects } from '@/hooks/queries/projects'
+import { useProjectInventory } from '@/hooks/queries/projects'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -184,17 +185,20 @@ export function usePromptEditor({
   const { data: workspaceProject } = useWorkspaceProject(
     contextsEnabled && !organizationId ? workspaceId : undefined
   )
-  const { data: projects } = useProjects(contextsEnabled ? (organizationId ?? '') : '')
+  const { data: projects } = useProjectInventory(organizationId, contextsEnabled)
+  const { data: workspaces } = useOrderedWorkspacesQuery(contextsEnabled && Boolean(organizationId))
   const selectionOwners = useMemo(() => {
     const owners: FileOperationOwner[] = []
     if (!contextsEnabled) return owners
     if (workspaceId) owners.push({ entityType: 'workspace', entityId: workspaceId })
     if (organizationId) {
-      for (const page of projects?.pages ?? []) {
-        for (const project of page.projects) {
-          if (project.organizationId === organizationId && !project.archivedAt)
-            owners.push({ entityType: 'project', entityId: project.id })
-        }
+      for (const workspace of workspaces ?? []) {
+        if (workspace.organizationId === organizationId && workspace.id !== workspaceId)
+          owners.push({ entityType: 'workspace', entityId: workspace.id })
+      }
+      for (const project of projects ?? []) {
+        if (project.organizationId === organizationId && !project.archivedAt)
+          owners.push({ entityType: 'project', entityId: project.id })
       }
     } else if (
       workspaceProject &&
@@ -204,7 +208,7 @@ export function usePromptEditor({
       owners.push({ entityType: 'project', entityId: workspaceProject.project.id })
     }
     return owners
-  }, [contextsEnabled, workspaceId, organizationId, projects, workspaceProject])
+  }, [contextsEnabled, workspaceId, organizationId, projects, workspaces, workspaceProject])
   const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
     contextsEnabled ? workspaceId : ''
   )

@@ -4,7 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 export function presentChatResourceForBrowser<T>(resource: T): T {
   if (
     !isRecordLike(resource) ||
-    resource.type !== 'file' ||
+    (resource.type !== 'file' && resource.type !== 'filefolder') ||
     !isRecordLike(resource.owner) ||
     resource.owner.entityType !== 'workspace' ||
     typeof resource.owner.entityId !== 'string' ||

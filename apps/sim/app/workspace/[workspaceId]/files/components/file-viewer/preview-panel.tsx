@@ -281,7 +281,7 @@ function useInlinedWorkspaceImages(content: string): string {
     if (!cache) return
     const urls = [
       ...content.matchAll(
-        /src="(\/api\/(?:files\/view\/[^"?]+|projects\/[^/"?]+\/files\/[^/"?]+\/content)(?:\?[^"]*)?)"/g
+        /src="(\/api\/(?:files\/view\/[^"?#]+|projects\/[^/"?#]+\/files\/[^/"?#]+\/content)(?:\?[^"#]*)?)(#[^"]*)?"/g
       ),
     ].map((m) => m[1])
     const missing = [...new Set(urls)].filter((url) => !cache.has(url))
@@ -320,10 +320,10 @@ function useInlinedWorkspaceImages(content: string): string {
   return useMemo(
     () =>
       content.replace(
-        /src="(\/api\/(?:files\/view\/[^"?]+|projects\/[^/"?]+\/files\/[^/"?]+\/content)(?:\?[^"]*)?)"/g,
-        (match, url: string) => {
+        /src="(\/api\/(?:files\/view\/[^"?#]+|projects\/[^/"?#]+\/files\/[^/"?#]+\/content)(?:\?[^"#]*)?)(#[^"]*)?"/g,
+        (match, url: string, fragment: string | undefined) => {
           const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
-          return blobUrl ? `src="${blobUrl}"` : match
+          return blobUrl ? `src="${blobUrl}${fragment ?? ''}"` : match
         }
       ),
     [content, resolved]

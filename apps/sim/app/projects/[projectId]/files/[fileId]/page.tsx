@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { internalSessionAuth } from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getProject } from '@/lib/projects/application/use-cases'
 import { getProjectFileMetadata } from '@/lib/projects/files/application'
 import { isProjectFileApiEnabled } from '@/lib/projects/rollout.server'
@@ -27,11 +27,8 @@ export default async function ProjectFilePage({ params }: ProjectFilePageProps) 
     ])
     workspaceId = context.project.environments[0]?.id
   } catch (error) {
-    if (
-      error instanceof OrchestrationError &&
-      (error.code === 'not_found' || error.code === 'forbidden')
-    )
-      notFound()
+    const classified = asOrchestrationError(error)
+    if (classified?.code === 'not_found' || classified?.code === 'forbidden') notFound()
     throw error
   }
   if (!workspaceId) notFound()

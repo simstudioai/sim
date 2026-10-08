@@ -605,6 +605,23 @@ export function LoadedRichMarkdownEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
   const uploadProjectFile = useUploadProjectFile()
+  const imageUploadsRef = useRef<Set<AbortController> | null>(null)
+  imageUploadsRef.current ??= new Set<AbortController>()
+
+  useEffect(() => {
+    if (!effectiveCanEdit) {
+      for (const controller of imageUploadsRef.current ?? []) controller.abort()
+    }
+  }, [effectiveCanEdit])
+
+  useEffect(() => {
+    const uploads = imageUploadsRef.current
+    if (!uploads) return
+    return () => {
+      for (const controller of uploads) controller.abort()
+      uploads.clear()
+    }
+  }, [projectId, workspaceId, file.id])
   const editorInstanceRef = useRef<Editor | null>(null)
   const resolveImageSrcRef = useRef(source.resolveImageSrc)
 
@@ -640,17 +657,34 @@ export function LoadedRichMarkdownEditor({
       const anchor = anchors[index]
       if (!anchor || findImageUpload(editor, anchor) === null) continue
       const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
+      const controller = new AbortController()
+      imageUploadsRef.current?.add(controller)
       const uploadedUrl = await (projectId
         ? uploadProjectFile
-            .mutateAsync({ projectId, file: image, folderId: file.folderId ?? null })
+            .mutateAsync({
+              projectId,
+              file: image,
+              folderId: file.folderId ?? null,
+              signal: controller.signal,
+            })
             .then((result) => `/api/files/view/${encodeURIComponent(result.file.id)}`)
         : workspaceId
           ? uploadFile
-              .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
+              .mutateAsync({
+                workspaceId,
+                file: image,
+                folderId: file.folderId ?? null,
+                signal: controller.signal,
+              })
               .then((result) => result.file.url)
           : Promise.reject(new Error('File owner is required'))
       ).catch(() => null)
+      imageUploadsRef.current?.delete(controller)
       toast.dismiss(uploadingToastId)
+      if (controller.signal.aborted) {
+        for (const pending of anchors) removeImageUpload(editor, pending)
+        break
+      }
       if (uploadedUrl) {
         const inserted = finishImageUpload(
           editor,

@@ -96,6 +96,7 @@ const FILE_QUERY_ADAPTERS: FileOwnerAdapters<FileOwnerQueryAdapter> = {
       { queryKey: projectFilesKeys.projectLists(id) },
     ],
     invalidationFilters: (id, fileId) => [
+      { queryKey: projectFilesKeys.contentFile(id, fileId) },
       { queryKey: projectFilesKeys.record(id, fileId) },
       { queryKey: projectFilesKeys.projectLists(id) },
     ],

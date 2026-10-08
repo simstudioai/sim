@@ -43,7 +43,7 @@ function portableWorkspaceResourceMarkdown(
   const label = workspaceResourceLabel(data)
   if (data.owner?.entityType === 'project') {
     return {
-      markdown: data.id
+      markdown: data.id?.trim()
         ? serializePortableChipLink('file', data.id.trim(), label, data.owner)
         : label,
       hasUnresolvedFile: false,

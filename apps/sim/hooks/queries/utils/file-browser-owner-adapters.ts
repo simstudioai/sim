@@ -101,7 +101,10 @@ const FILE_BROWSER_ADAPTERS: FileOwnerAdapters<FileBrowserOwnerAdapter> = {
         client.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(id) }),
         client.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() }),
         ...(fileId
-          ? [client.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(id, fileId) })]
+          ? [
+              client.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(id, fileId) }),
+              client.invalidateQueries({ queryKey: workspaceFilesKeys.record(id, fileId) }),
+            ]
           : []),
       ])
     },

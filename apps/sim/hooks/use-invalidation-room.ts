@@ -58,9 +58,10 @@ function createSharedRoomSubscription(
   }
   const notify = (event: 'changed' | 'joined' | 'denied') => {
     for (const group of callbacks.values()) {
-      const callback = group.values().next().value
-      if (event === 'denied') callback?.denied?.()
-      else if (event === 'changed' || callback?.refreshOnJoin) callback?.changed()
+      for (const callback of group) {
+        if (event === 'denied') callback.denied?.()
+        else if (event === 'changed' || callback.refreshOnJoin) callback.changed()
+      }
     }
   }
   const deny = () => {

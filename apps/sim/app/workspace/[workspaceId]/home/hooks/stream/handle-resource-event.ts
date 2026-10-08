@@ -155,10 +155,14 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     return
   }
   if ('owner' in payload.resource && payload.resource.owner?.entityType === 'project') {
-    if (payload.resource.type !== 'file' || payload.resource.workspaceId) return
+    if (
+      (payload.resource.type !== 'file' && payload.resource.type !== 'filefolder') ||
+      payload.resource.workspaceId
+    )
+      return
     const owner = payload.resource.owner
     void queryClient.invalidateQueries({ queryKey: projectFilesKeys.project(owner.entityId) })
-    if (payload.op === 'refresh') return
+    if (payload.op === 'refresh' || payload.resource.type === 'filefolder') return
     if (payload.effectId || payload.replay || ctx.deps.options.deferFlushes) {
       const chatId = ctx.deps.chatIdRef.current
       if (chatId)
