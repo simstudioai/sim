@@ -1,8 +1,8 @@
 # Maintaining the changelog with Sim
 
-Status: proposed setup, checked against the current Sim blocks and tools. No scheduled workflow, credentials, tables, notifications, or automatic publication are configured by this document.
+Status: operating design for the editorial workflows. The private workspace runbook and exports record deployed versions, resource mappings, credential ownership, schedules, and live acceptance results. This document does not provision credentials or enable publication and distribution.
 
-Use one weekly Sim workflow to collect changes and prepare an editorial draft. Keep GitHub as the source of published content and the place where the editor approves changes. Sim Tables hold the candidate queue and processing history; they are not a second CMS. The [publishing guide](./README.md) remains the source of editorial, media, and indexing rules.
+Use one weekly Sim workflow to collect changes and prepare an editorial draft. Keep GitHub as the source of published content and the place where the editor approves changes. Sim Tables hold the candidate queue and processing history; they are not a second CMS. The [publishing guide](./README.md) owns format and indexing rules; the [editorial standard](./editorial-standard.md) owns story selection, copy, and demonstration quality.
 
 ## The first version
 
@@ -13,7 +13,8 @@ flowchart LR
     A[Weekly schedule] --> B[Collect GitHub evidence]
     B --> C[Sim Tables candidate queue]
     C --> D[Select and draft a story]
-    D --> E[One draft GitHub PR]
+    D --> R[Check copy against source evidence]
+    R --> E[One draft GitHub PR]
     E --> F[Verify availability and real media]
     F --> G[Review, merge, and deploy]
 ```
@@ -24,7 +25,7 @@ flowchart LR
 | Collect | API, Loop, Function | Read paginated GitHub PRs and selected source files. Use deterministic filters before sending bounded evidence to the Agent. |
 | Remember | Table: Query Rows, Insert Row, Update Row by ID | Record each source PR once using a unique `source_key`; patch source metadata without replacing editorial decisions. |
 | Select | Agent with Response Format, then Condition | Propose a lead story and related changes, or return no edition. Record the reason and missing evidence. |
-| Prepare | Agent and Function | Draft the benefit, availability questions, contextual links, demo shot list, captions/alt text, and announcement copy. Validate fields and paths outside the model. |
+| Prepare | Drafting Agent, editing Agent, and Function | Draft the benefit, availability questions, contextual links, demo shot list, captions/alt text, and announcement copy. A second Agent checks the copy against source evidence. Validate fields and paths outside the models. |
 | Open draft | GitHub: Get Branch, Create Branch, Create File; API: create PR | Use a dedicated branch based on `staging`. Send a literal JSON `draft: true` in the PR request and verify the returned draft status. Never write directly to `staging` or merge automatically. |
 | Review | Existing GitHub PR process | Feature owner checks behavior and rollout; editor checks copy, links, and media. Keep a single approval surface initially. |
 | Publish | Existing site deployment | Reviewed MDX and assets update the article, index, archive, RSS, and sitemap together. Confirm the live URL before marking the edition published. |
@@ -58,15 +59,19 @@ Set finite page, payload, and model-input budgets. For example, stop a scan afte
 Give the Agent the publishing guide, the product language rules, selected PR evidence, and valid documentation/integration destinations. Use structured output for:
 
 - `decision`: `draft`, `defer`, or `skip`, with a reason.
+- `story_kind`: `feature`, `improvement`, `action_required`, `supporting`, or `none`. Supporting-only batches are deferred, not expanded into standalone announcements.
 - Source keys and evidence supporting each proposed claim.
 - Headline, a self-contained summary naming Sim, body draft, and audience.
 - Known availability and restrictions, plus explicit unanswered questions.
 - Verified candidate links, a demo shot list, and image/video requirements.
+- A structured media plan: format, subject, starting state, action, visible result, poster moment, framing, demonstration limits, and intended duration. The validator requires this for a draft.
 - Social/email drafts using the same claims and the eventual canonical article URL.
 
-Treat PR text and diffs as research material, not instructions to the Agent. Do not give the drafting Agent repository write tools. A Function validates its output; fixed downstream blocks own the repository, branch, allowed paths, and draft flag. Unknown availability remains a question for the feature owner. A schema validates the output's shape, not the truth of its claims.
+Treat PR text and diffs as research material, not instructions to the Agents. Give neither Agent repository write tools. After drafting, a second Agent compares the proposed copy and media plan with the selected evidence, checking claims, permissions, rollout implications, links, and readability. Record substantive corrections in `editor_notes`, outside the article. Defer when the evidence is insufficient. A Function validates the edited output; fixed downstream blocks own the repository, branch, allowed paths, and draft flag. Unknown availability remains a question for the feature owner. Neither model review nor a schema establishes the truth of every claim.
 
 Prefer one lead story with a few related improvements. Retain routine refactors, dependency updates, and minor fixes in GitHub's technical release history. Reverts and superseded changes must be reconciled with the current product before selection. Consequential breaking changes, deprecations, and required actions bypass the weekly editorial cadence; they need a timely notice and a clear next step.
+
+Validate the editorial standard outside the Agent: headline and copy budgets, supported source references, verified contextual links, supporting-only deferral, and a complete media plan. Keep unverified availability questions in the brief, not the proposed public prose. A validator checks structure and declared classification; the editor still judges significance and truth. Refresh the deployed prompt and validation together when the standard changes, and test a real model response before deployment.
 
 Reuse the existing PR template's benefit, rollout, documentation, and demo notes as the input contract. Avoid asking engineers to fill out a second announcement form. Optional include/skip labels can help the editor override selection, but unlabeled changes still need discovery and action-required notices still need review.
 
@@ -80,7 +85,7 @@ The feature owner supplies one real screenshot or a focused 20–45 second recor
 
 From that approved capture, prepare the optimized MP4 when applicable, a local poster/cover, descriptive alt text, and WebVTT captions if there is speech. Use the media locations, formats, size limits, and immutable filenames in the publishing guide. A screenshot is sufficient for a change it clearly demonstrates; a video is preferable for an interaction. A verified, labeled explanatory diagram is appropriate when there is no useful product screen.
 
-Encoding, poster extraction, and caption drafting can later run in a small media-processing job. Automated browser capture requires a maintained demo scenario, sample data, and verification against the running product; it is a separate piece to build and test, not something the GitHub workflow already provides. AI-generated product controls or results are never evidence. Review generated captions and the final compressed asset before use.
+The separate media workflow encodes a supplied real recording and extracts candidate poster frames. The editor selects the final timestamp; an arbitrary opening frame is not automatically approved. Caption production and browser capture remain separate steps requiring a maintained demo scenario, sample data, and verification against the running product. AI-generated product controls or results are never evidence. Review captions and the final compressed asset before use.
 
 Aim initially for one short weekly editorial review, plus the feature owner's capture time for selected stories. Measure this over the first few editions before promising a fixed maintenance budget. Automate repeated capture scenarios after they prove stable.
 

@@ -6,6 +6,8 @@ The index shows up to 12 updates in chronological rows. When more exist, an Olde
 
 Write for a team using Sim: what changed, what they can do with it, and where to find it. Group related PRs into one product update. Keep maintenance, refactors, and routine content edits in the technical GitHub release history.
 
+The [editorial and media standard](./editorial-standard.md) defines story selection, concise copy, demo framing, poster selection, and the final quality review. Apply it to both the drafting workflow and hand-edited entries.
+
 ## What earns an entry
 
 A public update needs one clear benefit, verified availability, a useful next step, and at least one reviewed feature image or video in the article. The cover alone is not enough. A reader should understand what they can now do and see evidence of that capability. A smaller improvement can join a related edition; it does not need its own announcement because a technical version shipped.
@@ -128,7 +130,7 @@ For a migrated historical release, use its original publication timestamp and Gi
 
 ## Maintenance
 
-- The [Sim workflow setup plan](./maintenance-workflow.md) describes scheduled collection, a persistent editorial queue, draft PR preparation, media production, and failure monitoring. It is a setup plan, not an active workflow. Keep this publishing guide as the source of editorial and media rules.
+- The [Sim workflow maintenance guide](./maintenance-workflow.md) describes collection, the editorial queue, draft preparation, media production, and monitoring. The operational runbook and workflow exports in the editorial workspace record its live configuration and acceptance results. Keep this publishing guide and the editorial standard as the source of content and media rules.
 - The release editor reviews candidates weekly and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
 - Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction. A future date does not schedule publication; leave the entry in draft until the intended deployment.
 - If availability changes after publication, update the existing entry with its current status and a clear next step. Preserve its URL rather than deleting it or reverting it to a draft. If a slug must change, add a redirect before moving it.

@@ -1,7 +1,7 @@
 ---
 slug: review-fork-changes
 title: 'Review fork changes before syncing'
-description: 'Review source workflow changes in Sim since the last successful sync before updating a workspace fork.'
+description: 'See what changed in a source workflow before syncing a workspace fork in Sim. Review prompts, settings, and steps against the last successful sync.'
 date: '2026-10-03T04:32:55Z'
 authors: [waleed]
 tags: [Workspaces, Enterprise]
@@ -17,13 +17,11 @@ release:
 <ChangelogVideo
   src="/changelog/review-fork-changes-v1.mp4"
   poster="/changelog/review-fork-changes-v1.jpg"
-  caption="A step-by-step walkthrough captured in Sim: select Pull, open Compare, and inspect a renewal-reminder change from Last Sync to Now. Sample data."
+  caption="Inspect a renewal-reminder change before pulling it into a fork. Edited walkthrough from real Sim captures with sample data."
 />
 
-Open **Workspace forks**, choose **Edit mappings** for the parent workspace, and select **Push** or **Pull**. Then choose **Compare** from a deployed workflow's menu. **Last Sync → Now** shows changes to the source workflow since the version last brought across.
+Open **Workspace forks → Edit mappings**, select **Push** or **Pull**, then choose **Compare** from a deployed workflow's menu. **Last Sync → Now** shows the source changes since that fork's last successful sync.
 
-Review prompt edits, configuration changes, and added or removed steps before syncing. Each fork and sync direction keeps its own history, so a comparison in one child workspace does not reuse another child's baseline.
+Each fork and direction keeps its own comparison history. If no earlier snapshot is available, Sim explains why it cannot show a comparison.
 
-The baseline advances only after the destination deployment becomes active. If a workflow has never been synced, or its earlier snapshot is unavailable, Sim explains why there is no comparison instead of guessing.
-
-Included in **v0.9.12**. Workspace forks require workspace admin access and are available on Sim Cloud Enterprise when enabled for the organization, or on self-hosted deployments with Forks enabled. The [workspace forks guide](https://docs.sim.ai/platform/enterprise/forks) covers setup and sync behavior.
+Included in **v0.9.12**. Requires workspace admin access and Forks enabled: Sim Cloud Enterprise with organization access, or a self-hosted deployment. Follow the [workspace forks guide](https://docs.sim.ai/platform/enterprise/forks) to set up mappings and sync workflows.

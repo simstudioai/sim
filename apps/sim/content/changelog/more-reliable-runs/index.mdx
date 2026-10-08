@@ -1,7 +1,7 @@
 ---
 slug: more-reliable-runs
 title: 'More reliable runs and file handling'
-description: 'Sim now handles large code blocks more efficiently, preserves file origins through exports and extraction, and keeps background workflow confirmations attached to the right run.'
+description: 'Sim improves how Function blocks handle workflow references, retains file origins through exports, and keeps background confirmations attached to their runs.'
 date: '2026-10-05T08:11:57Z'
 authors: [waleed]
 tags: [Files, Workflows, Improvements]
@@ -16,8 +16,8 @@ release:
 
 ### Improvements
 
-- Sim scans code placeholders and workflow references more efficiently as code blocks grow. See the [Function block guide](https://docs.sim.ai/workflows/blocks/function) for working with code in your agents.
-- Files retain their known origins when exported as binary files or extracted from archives, so [secret tracking](/blog/secret-provenance) can follow those transformations.
+- Large [Function blocks](https://docs.sim.ai/workflows/blocks/function) handle workflow references more efficiently.
+- [Secret tracking](/blog/secret-provenance) retains known file origins through binary exports and archive extraction.
 
 ### Fixes
 
