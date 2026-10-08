@@ -30,6 +30,30 @@ export function getPostgresErrorCode(error: unknown): string | undefined {
   return readPgErrorField(error, 'code')
 }
 
+const POSTGRES_COMMIT_REJECTION_CODES = new Set([
+  '23000',
+  '23001',
+  '23502',
+  '23503',
+  '23505',
+  '23514',
+  '23P01',
+  '40000',
+  '40001',
+  '40002',
+  '40P01',
+])
+
+/**
+ * Recognizes explicit PostgreSQL constraint/rollback rejections at COMMIT. Use only on the
+ * transaction's rejection after its callback completed, never on errors from post-commit work.
+ * Unknown outcomes, including 40003 and connection failures, are not safe cleanup authority.
+ */
+export function isPostgresCommitRejection(error: unknown): boolean {
+  const code = getPostgresErrorCode(error)
+  return code !== undefined && POSTGRES_COMMIT_REJECTION_CODES.has(code)
+}
+
 const POSTGRES_CANCELLATION_REASONS = [
   ['57014', 'canceling statement due to statement timeout', 'statement_timeout'],
   ['57014', 'canceling statement due to user request', 'user_cancel'],

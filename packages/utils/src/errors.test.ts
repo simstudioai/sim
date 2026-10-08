@@ -4,6 +4,7 @@ import {
   getPostgresCancellationReason,
   getPostgresErrorCode,
   getTransientDatabaseFailure,
+  isPostgresCommitRejection,
 } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
 
@@ -234,5 +235,30 @@ describe('describeError', () => {
       described = describeError(a)
     }).not.toThrow()
     expect(described?.causeChain?.length).toBeLessThanOrEqual(10)
+  })
+})
+
+describe('isPostgresCommitRejection', () => {
+  it('recognizes a deferred constraint rejection through a transaction wrapper', () => {
+    const rejection = Object.assign(new Error('deferred constraint failed'), { code: '23514' })
+    expect(isPostgresCommitRejection(new Error('transaction failed', { cause: rejection }))).toBe(
+      true
+    )
+  })
+
+  it.each(['40003', '08007', 'CONNECTION_CLOSED', 'ECONNRESET', undefined])(
+    'does not treat uncertain outcome %s as permission to discard staged data',
+    (code) => {
+      const error = Object.assign(new Error('commit outcome unavailable'), { code })
+      expect(isPostgresCommitRejection(error)).toBe(false)
+    }
+  )
+
+  it('does not replace an outer connection failure with a nested rejection code', () => {
+    const rejection = Object.assign(new Error('earlier constraint failure'), { code: '23514' })
+    const connection = Object.assign(new Error('connection lost', { cause: rejection }), {
+      code: 'CONNECTION_CLOSED',
+    })
+    expect(isPostgresCommitRejection(connection)).toBe(false)
   })
 })
