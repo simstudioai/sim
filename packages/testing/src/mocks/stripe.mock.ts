@@ -69,6 +69,9 @@ export interface InMemoryStripeSubscription {
   trial_start: number | null
   trial_end: number | null
   schedule: string | null
+  collection_method: Stripe.Subscription.CollectionMethod
+  days_until_due: number | null
+  pause_collection: InMemoryStripePauseCollection | null
   metadata: Record<string, string>
   items: {
     object: 'list'
@@ -85,6 +88,12 @@ export interface InMemoryStripeSubscription {
       }
     }>
   }
+}
+
+/** A subscription's paused invoice collection, as Stripe reports it. */
+interface InMemoryStripePauseCollection {
+  behavior: 'keep_as_draft' | 'mark_uncollectible' | 'void'
+  resumes_at: number | null
 }
 
 /** A Stripe customer as the in-memory fake stores it. */
@@ -112,6 +121,10 @@ interface SubscriptionUpdateParams {
   cancel_at?: number | ''
   metadata?: Record<string, string>
   items?: Array<{ id: string; quantity?: number; price?: string }>
+  /** `''` resumes collection, as in Stripe's API. */
+  pause_collection?:
+    | { behavior: InMemoryStripePauseCollection['behavior']; resumes_at?: number }
+    | ''
 }
 
 interface CustomerUpdateParams {
@@ -182,6 +195,19 @@ export function createInMemoryStripe() {
       if (cancelAt !== current.cancel_at) {
         previousAttributes.cancel_at = current.cancel_at
         next.cancel_at = cancelAt
+      }
+    }
+    if (params.pause_collection !== undefined) {
+      const pauseCollection =
+        params.pause_collection === ''
+          ? null
+          : {
+              behavior: params.pause_collection.behavior,
+              resumes_at: params.pause_collection.resumes_at ?? null,
+            }
+      if (JSON.stringify(pauseCollection) !== JSON.stringify(current.pause_collection)) {
+        previousAttributes.pause_collection = current.pause_collection
+        next.pause_collection = pauseCollection
       }
     }
     if (params.metadata) {
@@ -313,6 +339,8 @@ export function createInMemoryStripe() {
           /** Price amount in cents; omitted for prices whose amount no test reads. */
           unitAmount?: number
           metadata?: Record<string, string>
+          /** `send_invoice` subscriptions get Stripe's `days_until_due` of 30. */
+          collectionMethod?: Stripe.Subscription.CollectionMethod
         }
     ) {
       const now = Math.floor(Date.now() / 1000)
@@ -328,6 +356,9 @@ export function createInMemoryStripe() {
         trial_start: null,
         trial_end: null,
         schedule: null,
+        collection_method: subscription.collectionMethod ?? 'charge_automatically',
+        days_until_due: subscription.collectionMethod === 'send_invoice' ? 30 : null,
+        pause_collection: null,
         metadata: { ...subscription.metadata },
         items: {
           object: 'list',

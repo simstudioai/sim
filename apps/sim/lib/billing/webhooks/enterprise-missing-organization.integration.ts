@@ -69,6 +69,7 @@ const connection = postgres(
 const testDatabase = drizzle(connection, { schema })
 
 const INVOICE_AMOUNT_CENTS = 100_000
+const USAGE_LIMIT_CREDITS = 50_000
 
 let stripe: InMemoryStripe
 
@@ -134,6 +135,7 @@ beforeAll(async () => {
     'member',
     'user',
     'organization',
+    'invitation',
     'workspace',
     'permissions',
     'audit_log',
@@ -164,7 +166,10 @@ afterAll(async () => {
 /** An Enterprise owner whose Stripe customer carries a subscription for `organizationId`. */
 async function createEnterpriseCustomer(
   organizationId: string,
-  extraMetadata: Record<string, string> = {}
+  options: {
+    metadata?: Record<string, string>
+    collectionMethod?: Stripe.Subscription.CollectionMethod
+  } = {}
 ) {
   const ownerId = generateId()
   const stripeCustomerId = `cus_${generateId()}`
@@ -183,15 +188,16 @@ async function createEnterpriseCustomer(
     id: stripeSubscriptionId,
     customer: stripeCustomerId,
     unitAmount: INVOICE_AMOUNT_CENTS,
+    collectionMethod: options.collectionMethod,
     metadata: {
       plan: 'enterprise',
       referenceId: organizationId,
       seats: '5',
       invoiceAmountCents: String(INVOICE_AMOUNT_CENTS),
-      ...extraMetadata,
+      ...options.metadata,
     },
   })
-  return { stripeCustomerId, stripeSubscriptionId }
+  return { ownerId, stripeCustomerId, stripeSubscriptionId }
 }
 
 /** A live Enterprise subscription row whose organization was deleted after issuance. */
@@ -229,6 +235,13 @@ async function storedSubscription(subscriptionId: string) {
     .where(eq(subscription.id, subscriptionId))
   if (!row) throw new Error(`Subscription ${subscriptionId} not found`)
   return row
+}
+
+function subscriptionRowsFor(stripeSubscriptionId: string) {
+  return testDatabase
+    .select({ referenceId: subscription.referenceId, plan: subscription.plan })
+    .from(subscription)
+    .where(eq(subscription.stripeSubscriptionId, stripeSubscriptionId))
 }
 
 async function organizationsOwnedBy(referenceId: string) {
@@ -293,35 +306,66 @@ describe('Enterprise subscription whose organization was deleted', () => {
 })
 
 describe('Enterprise issuance that Stripe has not caught up with', () => {
-  it('still fails the webhook so Stripe redelivers it', async () => {
+  it('fails the webhook until paused collection lands, then applies on redelivery', async () => {
     const organizationId = `org_${generateId()}`
     await testDatabase
       .insert(organization)
       .values({ id: organizationId, name: 'Org', slug: organizationId })
     const operationId = generateId()
+    const customer = await createEnterpriseCustomer(organizationId, {
+      collectionMethod: 'send_invoice',
+      metadata: {
+        enterpriseOperationId: operationId,
+        usageLimitCredits: String(USAGE_LIMIT_CREDITS),
+      },
+    })
     await testDatabase.insert(outboxEvent).values({
       id: operationId,
       eventType: ENTERPRISE_PROVISION_EVENT_TYPE,
-      payload: { version: 2 },
+      payload: {
+        version: 2,
+        retryRevision: 0,
+        stripeProgress: { subscriptionId: customer.stripeSubscriptionId },
+        request: {
+          requestKey: generateId(),
+          ownerUserId: customer.ownerId,
+          organizationId,
+          requestedByEmail: 'admin-api',
+          requestedByUserId: null,
+          invoiceAmountCents: INVOICE_AMOUNT_CENTS,
+          billingInterval: 'month',
+          usageLimitCredits: USAGE_LIMIT_CREDITS,
+          seats: 5,
+          pausePaymentCollection: true,
+        },
+      },
     })
-    const customer = await createEnterpriseCustomer(organizationId, {
-      enterpriseOperationId: operationId,
-    })
-
-    const response = await deliver(
-      createMockStripeEvent(
-        'customer.subscription.created',
-        stripe.subscription(customer.stripeSubscriptionId),
-        { id: `evt_${generateId()}` }
-      )
+    const created = createMockStripeEvent(
+      'customer.subscription.created',
+      stripe.subscription(customer.stripeSubscriptionId),
+      { id: `evt_${generateId()}` }
     )
 
-    expect(response.ok).toBe(false)
-    expect(
-      await testDatabase
-        .select({ id: subscription.id })
-        .from(subscription)
-        .where(eq(subscription.stripeSubscriptionId, customer.stripeSubscriptionId))
-    ).toEqual([])
+    const beforePause = await deliver(created)
+
+    expect(beforePause.ok).toBe(false)
+    expect(await subscriptionRowsFor(customer.stripeSubscriptionId)).toEqual([])
+
+    stripe.updateOutsideSim(customer.stripeSubscriptionId, {
+      pause_collection: { behavior: 'keep_as_draft' },
+    })
+    const redelivered = await deliver(created)
+
+    expect(redelivered.status).toBe(200)
+    expect(await subscriptionRowsFor(customer.stripeSubscriptionId)).toEqual([
+      { referenceId: organizationId, plan: 'enterprise' },
+    ])
+    const [operation] = await testDatabase
+      .select({ payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, operationId))
+    expect(operation.payload).toMatchObject({
+      applicationResult: { subscriptionId: customer.stripeSubscriptionId },
+    })
   })
 })
