@@ -34,6 +34,9 @@ permissions:
 jobs:
   checks:
     name: checks
+    permissions:
+      contents: read
+      pull-requests: read
     if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
     uses: ./.github/workflows/checks.yml
 
