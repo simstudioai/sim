@@ -673,6 +673,7 @@ async function resolveAgentContexts(params: {
               mothershipResourceSchema.parse({
                 ...resource,
                 ...ctx.resource,
+                ...(usesWorkspace ? { owner: resource.owner } : {}),
                 ...(organizationId && target
                   ? { workspaceId: target.workspaceId }
                   : { workspaceId: undefined, workspaceName: undefined }),
