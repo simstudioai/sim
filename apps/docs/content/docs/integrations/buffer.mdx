@@ -25,15 +25,13 @@ With the Buffer integration in Sim, you can:
 
 To connect, create an API key in Buffer under **Settings → API**, then enter it in the block's **API Key** field. Sim sends the key as a Bearer token to Buffer's GraphQL API. The key can access all organizations and channels available to your Buffer account.
 
-Enable the permissions needed by your workflow: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. This integration includes all 13 stable API operations. Preview operations are excluded.
+Enable the permissions needed by your workflow: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. This integration includes 13 operations for posts, channels, ideas, account details, and reporting. Preview operations are excluded.
 
 Advanced JSON inputs expose the full nested contracts for assets, network metadata, idea content, filters, and sorting. Choose either the single-file media controls or the assets array. Each asset contains exactly one image, video, or document. Listing operations return one page with complete cursor information; use `after` to continue. Sim limits each page to 100 items and structured input arrays to 1,000 items.
 
-When editing a post, leave **Share Mode** and **Scheduling Type** at their keep-current settings to update content without changing its schedule or publishing method.
+When editing a post, select **Keep current schedule** in **Share Mode** and **Keep current publishing method** in **Scheduling Type** to update content without rescheduling. Existing workflows retain their configured share mode; select **Keep current schedule** when their edits should preserve the post's schedule.
 
 Use **Clear Caption** to remove an existing caption, or an empty assets/tag ID array to clear those values. Omitting them preserves the existing values. The live API accepts date comparators and tag comparators for post filters; the older documented `startDate`, `endDate`, and `tagIds` filter fields are unavailable. Link attachments belong in network metadata.
-
-To run the live verification suite with the normal Sim runtime environment loaded, set `BUFFER_API_KEY` (or `BUFFER_API_KEY_FILE`) and `BUFFER_E2E_REPORT_PATH`, then run `bun run --cwd apps/sim test:buffer:e2e`. Optionally select `BUFFER_ORGANIZATION_ID` and `BUFFER_CHANNEL_ID`. The suite creates disposable drafts and removes them, and writes a JSON report. It also creates one idea; remove the reported `retainedIdeaId` in Buffer's Ideas interface afterward because the stable API has no delete-idea operation. Without a connected, unlocked channel, the report is incomplete and the command exits with code 2.
 
 In Sim, the Buffer integration enables your agents to turn generated content into scheduled social posts without manual copy-paste. An agent can draft copy, look up the right channel, attach a generated image, and queue the post — or review the existing queue and clean up posts that are no longer relevant.
 {/* MANUAL-CONTENT-END */}
