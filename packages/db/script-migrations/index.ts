@@ -12,6 +12,7 @@ import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0031_validate_file_ownership'
 import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0033_backfill_public_share_entities'
+import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0034_validate_file_workspace_binding'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -66,6 +67,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
    */
   validateFileOwnershipMigration,
   backfillPublicShareEntitiesMigration,
+  validateFileWorkspaceBindingMigration,
 ]
 
 /**
