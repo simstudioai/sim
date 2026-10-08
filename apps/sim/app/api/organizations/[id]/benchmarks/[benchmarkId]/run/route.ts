@@ -1,30 +1,11 @@
 import { runBenchmarkStageContract } from '@/lib/api/contracts/benchmarks'
-import {
-  defineInternalJsonRoute,
-  internalOrchestrationErrorPolicy,
-  internalRateLimits,
-  internalSessionAuth,
-} from '@/lib/api/server/routes'
-import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
-import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
+import { parseRequest } from '@/lib/api/server'
 import { runBenchmarkStage } from '@/lib/benchmarks/application/run-stage'
+import { withBenchmarkRunStream } from '@/lib/benchmarks/run-route'
 
-export const POST = defineInternalJsonRoute({
-  contract: runBenchmarkStageContract,
-  auth: internalSessionAuth,
-  operation: benchmarkOperations.run,
-  rateLimit: internalRateLimits.user({
-    bucketName: 'benchmark-run',
-    config: { maxTokens: 10, refillRate: 2, refillIntervalMs: 60_000 },
-  }),
-  errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: async ({ principal }) => {
-    await requireBenchmarkOperator(principal)
-  },
-  mapInput: ({ params, body }) => ({
-    organizationId: params.id,
-    benchmarkId: params.benchmarkId,
-    ...body,
-  }),
-  useCase: runBenchmarkStage,
-})
+export const POST = withBenchmarkRunStream(async (request, context) => {
+  const parsed = await parseRequest(runBenchmarkStageContract, request, context)
+  if (!parsed.success) return parsed.response
+  const { params, body } = parsed.data
+  return { organizationId: params.id, benchmarkId: params.benchmarkId, ...body }
+}, runBenchmarkStage.execute)

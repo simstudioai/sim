@@ -15,6 +15,7 @@ import {
   OrchestrationError,
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
@@ -22,9 +23,9 @@ import {
 import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 
-export async function canUseBenchmarks(userId: string): Promise<boolean> {
+export async function canUseBenchmarks(userId: string, executor: DbOrTx = db): Promise<boolean> {
   if (!isBenchmarkEnabled()) return false
-  return (await verifyEffectiveSuperUser(userId)).effectiveSuperUser
+  return (await verifyEffectiveSuperUser(userId, executor)).effectiveSuperUser
 }
 
 /** The initiating admin stays the authenticated principal; no session or cookie is replaced. */

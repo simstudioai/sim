@@ -69,6 +69,32 @@ import AppKit
                 precondition(error.code == code && error.dispatchState == nil)
             }
         }
+        let nodes: [[String: Any]] = (0..<2000).map { index in
+            var node: [String: Any] = ["elementId": "n\(index)", "role": "AXTextField", "actions": [], "label": String(repeating: "🌍\\\"", count: 1024), "value": String(repeating: "界", count: 2048)]
+            if index > 0 { node["parentId"] = "n\(index - 1)" }
+            return node
+        }
+        let state: [String: Any] = ["kind": "state", "bundleId": "com.example.Fixture", "snapshotId": "snapshot", "windowId": "w1", "windows": [["windowId": "w1", "title": "Fixture", "x": 0, "y": 0, "width": 400, "height": 300]], "nodes": nodes, "truncated": false, "screenshot": ["base64": String(repeating: "a", count: 11_000_000), "mimeType": "image/png", "width": 1600, "height": 1600]]
+        for nested in [false, true] {
+            let result: [String: Any] = nested ? ["kind": "action", "bundleId": "com.example.Fixture", "action": "input_sequence", "dispatched": true, "verified": false, "sequence": ["completedSteps": 1, "totalSteps": 2, "error": "Focus changed"], "observation": state] : state
+            let encoded = try encodeReply(["id": "bounded-reply", "result": result])
+            precondition(encoded.count <= 16 * 1024 * 1024, "Native reply exceeds receiver limit")
+            let decoded = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+            precondition(decoded["id"] as? String == "bounded-reply")
+            let returned = decoded["result"] as! [String: Any]
+            let observed = nested ? returned["observation"] as! [String: Any] : returned
+            precondition(observed["truncated"] as? Bool == true)
+            precondition(observed["screenshot"] == nil && observed["screenshotError"] is String)
+            let kept = observed["nodes"] as! [[String: Any]]
+            precondition(!kept.isEmpty && kept.count < nodes.count)
+            let ids = Set(kept.compactMap { $0["elementId"] as? String })
+            precondition(kept.allSatisfy { node in (node["parentId"] as? String).map { ids.contains($0) } ?? true })
+            if nested {
+                precondition(returned["dispatched"] as? Bool == true && returned["verified"] as? Bool == false)
+                let sequence = returned["sequence"] as! [String: Any]
+                precondition(sequence["completedSteps"] as? Int == 1 && sequence["error"] as? String == "Focus changed")
+            }
+        }
         cancellationRequested = 1
         expectError("cancelled") { try checkCancellation() }
         cancellationRequested = 0

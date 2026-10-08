@@ -1,5 +1,6 @@
 import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 /** Model, effort and Fast controls share one deployment-wide AppConfig gate. */
 export function isMothershipModelSelectorEnabled(): Promise<boolean> {
@@ -17,6 +18,6 @@ export function isSearchIntegrationToolsEnabled(): Promise<boolean> {
 }
 
 /** Graph reads, writes and management use the same super-user gate as Plan and benchmarks. */
-export function isMemorySpacesEnabled(userId: string): Promise<boolean> {
-  return canUseBenchmarks(userId)
+export function isMemorySpacesEnabled(userId: string, executor?: DbOrTx): Promise<boolean> {
+  return canUseBenchmarks(userId, executor)
 }

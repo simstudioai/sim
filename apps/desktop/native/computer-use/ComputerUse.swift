@@ -655,6 +655,60 @@ func nextLine() throws -> String? {
     guard let line = String(bytes: bytes, encoding: .utf8) else { throw ComputerError("invalid_request", "Request is not UTF-8.") }
     return line
 }
+// The receiver accepts at most 16 MiB per JSON line, including the result envelope.
+func encodeReply(_ response: [String: Any]) throws -> Data {
+    let limit = 16 * 1024 * 1024
+    func encode(_ value: [String: Any]) throws -> Data {
+        try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+    }
+    let original = try encode(response)
+    if original.count <= limit { return original }
+    if var result = response["result"] as? [String: Any] {
+        let nested = result["kind"] as? String == "action"
+        if var state = nested ? result["observation"] as? [String: Any] : result,
+           state["kind"] as? String == "state" {
+            state["truncated"] = true
+            if state.removeValue(forKey: "screenshot") != nil {
+                state["screenshotError"] = "Screenshot omitted to fit the native reply size limit."
+            }
+            func reply(_ snapshot: [String: Any]) throws -> Data {
+                var envelope = response
+                if nested { result["observation"] = snapshot; envelope["result"] = result }
+                else { envelope["result"] = snapshot }
+                return try encode(envelope)
+            }
+            let withoutImage = try reply(state)
+            if withoutImage.count <= limit { return withoutImage }
+            if let nodes = state["nodes"] as? [[String: Any]] {
+                var low = 0; var high = nodes.count
+                state["nodes"] = [] as [[String: Any]]
+                var best = try reply(state)
+                while low < high {
+                    let count = (low + high + 1) / 2
+                    let prefix = Array(nodes.prefix(count))
+                    let ids = Set(prefix.compactMap { $0["elementId"] as? String })
+                    state["nodes"] = prefix.map { node in
+                        var kept = node
+                        if let parent = kept["parentId"] as? String, !ids.contains(parent) { kept.removeValue(forKey: "parentId") }
+                        return kept
+                    }
+                    let encoded = try reply(state)
+                    if encoded.count <= limit { low = count; best = encoded }
+                    else { high = count - 1 }
+                }
+                if best.count <= limit { return best }
+            }
+        }
+        if nested {
+            result.removeValue(forKey: "observation")
+            result["observationError"] = "Observation omitted to fit the native reply size limit."
+            var envelope = response; envelope["result"] = result
+            let encoded = try encode(envelope)
+            if encoded.count <= limit { return encoded }
+        }
+    }
+    return try encode(["id": response["id"] ?? "invalid-request", "error": ["code": "response_too_large", "message": "Native reply exceeded its size limit; inspect the app before repeating an action."]])
+}
 #if !COMPUTER_USE_TEST
 @main
 struct Main {
@@ -676,7 +730,7 @@ struct Main {
                 response = ["id": id, "error": details]
             }
             catch { response = ["id": id, "error": ["code": "request_failed", "message": String(String(describing: error).prefix(2000))]] }
-            if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]) {
+            if let data = try? encodeReply(response) {
                 FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10]))
             }
         }

@@ -29,18 +29,25 @@ export const createWorkspaceChat = defineAuthorizedWorkspaceUseCase({
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.mode === 'plan' && !(await isPlanModeEnabled(userId)))
       throw new OrchestrationError('not_found', 'Plan mode is unavailable')
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({
-        userId,
-        workspaceId: context.workspaceId,
-        type: 'mothership',
-        config: { conversationMode: input.mode ?? 'agent' },
-        memorySpaceId: await selectedMemorySpaceForNewChat(userId, context.workspaceOrganizationId),
-        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
-        lastSeenAt: new Date(),
-      })
-      .returning({ id: copilotChats.id })
+    const [chat] = await db.transaction(async (tx) =>
+      tx
+        .insert(copilotChats)
+        .values({
+          userId,
+          workspaceId: context.workspaceId,
+          type: 'mothership',
+          config: { conversationMode: input.mode ?? 'agent' },
+          memorySpaceId: await selectedMemorySpaceForNewChat(
+            userId,
+            context.workspaceOrganizationId,
+            context.workspaceId,
+            tx
+          ),
+          model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+          lastSeenAt: new Date(),
+        })
+        .returning({ id: copilotChats.id })
+    )
     if (!chat) throw new Error('Failed to create workspace chat')
     return chat
   },

@@ -57,6 +57,16 @@ const runBenchmarkComparisonBodySchema = benchmarkComparisonConfigSchema
   })
   .strict()
 const benchmarkResponseSchema = z.object({ benchmark: benchmarkCaseSchema })
+export const benchmarkRunEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('heartbeat') }),
+  benchmarkResponseSchema.extend({ type: z.literal('result') }),
+  z.object({
+    type: z.literal('error'),
+    status: z.number().int().min(400).max(599),
+    message: z.string().max(2000),
+  }),
+])
+export type BenchmarkRunEvent = z.infer<typeof benchmarkRunEventSchema>
 const listBenchmarksResponseSchema = z.object({
   benchmarks: z.array(benchmarkSummarySchema).max(50),
   nextCursor: z.string().max(512).nullable(),
@@ -114,7 +124,7 @@ export const runBenchmarkStageContract = defineRouteContract({
   path: '/api/organizations/[id]/benchmarks/[benchmarkId]/run',
   params: benchmarkParamsSchema,
   body: runBenchmarkStageBodySchema,
-  response: { mode: 'json', schema: benchmarkResponseSchema },
+  response: { mode: 'stream' },
 })
 
 export const runBenchmarkComparisonContract = defineRouteContract({
@@ -122,7 +132,7 @@ export const runBenchmarkComparisonContract = defineRouteContract({
   path: '/api/organizations/[id]/benchmarks/[benchmarkId]/compare',
   params: benchmarkParamsSchema,
   body: runBenchmarkComparisonBodySchema,
-  response: { mode: 'json', schema: benchmarkResponseSchema },
+  response: { mode: 'stream' },
 })
 
 export const listBenchmarkRunsContract = defineRouteContract({

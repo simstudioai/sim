@@ -3,8 +3,9 @@ import { mothershipMemorySelections, mothershipMemorySpaces } from '@sim/db/sche
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { isMemorySpacesEnabled } from '@/lib/mothership/feature-flags'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 
 interface MemoryOwner {
   userId: string
@@ -91,16 +92,20 @@ export async function changeMemorySpace(
 export async function selectedMemorySpaceForNewChat(
   userId: string,
   organizationId?: string | null,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  tx?: DbTransaction
 ): Promise<string | null> {
-  if (!(await isMemorySpacesEnabled(userId))) return null
-  const ownerOrganizationId =
-    organizationId ??
-    (workspaceId
-      ? (await resolveActiveWorkspaceApplicationContext(workspaceId)).workspaceOrganizationId
-      : null)
+  if (!(await isMemorySpacesEnabled(userId, tx))) return null
+  let ownerOrganizationId = organizationId
+  if (workspaceId) {
+    if (!tx) throw new Error('Workspace graph binding requires the chat creation transaction')
+    const current = await lockActiveWorkspace(tx, workspaceId)
+    if (organizationId !== undefined && organizationId !== current.organizationId)
+      throw new OrchestrationError('conflict', 'Workspace organization changed. Refresh and retry.')
+    ownerOrganizationId = current.organizationId
+  }
   if (!ownerOrganizationId) return null
-  const [selected] = await db
+  const [selected] = await (tx ?? db)
     .select({ spaceId: mothershipMemorySelections.spaceId })
     .from(mothershipMemorySelections)
     .where(

@@ -463,23 +463,24 @@ export async function resolveOrCreateChat(params: {
     return { chatId, chat, isNew: false }
   }
 
-  const memorySpaceId = await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId)
   const now = new Date()
-  const [newChat] = await db
-    .insert(copilotChats)
-    .values({
-      memorySpaceId,
-      userId,
-      ...(workflowId ? { workflowId } : {}),
-      ...(workspaceId ? { workspaceId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
-      type: type ?? (organizationId ? 'mothership' : 'copilot'),
-      title: title ?? null,
-      model,
-      lastSeenAt: now,
-    })
-    .returning(copilotChatDetailColumns)
+  const [newChat] = await db.transaction(async (tx) =>
+    tx
+      .insert(copilotChats)
+      .values({
+        memorySpaceId: await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId, tx),
+        userId,
+        ...(workflowId ? { workflowId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+        config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
+        type: type ?? (organizationId ? 'mothership' : 'copilot'),
+        title: title ?? null,
+        model,
+        lastSeenAt: now,
+      })
+      .returning(copilotChatDetailColumns)
+  )
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })

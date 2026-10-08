@@ -11,8 +11,9 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
 import {
@@ -43,7 +44,8 @@ const inheritedBenchmarkEnabled = vi.hoisted(() => {
   return previous
 })
 /** The worker conversation copy is a separate service; Sim persistence and authorization stay real. */
-vi.mock('@/lib/mothership/chat/fork-worker', () => ({ copyWorkerConversation: async () => {} }))
+const workerCopy = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/lib/mothership/chat/fork-worker', () => ({ copyWorkerConversation: workerCopy }))
 
 const ids = {
   owner: generateId(),
@@ -355,6 +357,138 @@ describe('private KG selection through authorized application boundaries', () =>
       id: selected.activeSpaceId,
       name: 'Flag lifecycle',
     })
+  })
+
+  it('cannot bind a chat to the source graph while its workspace moves organizations', async () => {
+    await create('Before workspace move')
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const move = db.transaction(async (tx) => {
+      await tx.select().from(workspace).where(eq(workspace.id, ids.workspace)).for('update')
+      await tx
+        .update(copilotChats)
+        .set({ memorySpaceId: null })
+        .where(eq(copilotChats.workspaceId, ids.workspace))
+      await tx
+        .update(workspace)
+        .set({ organizationId: ids.secondOrg })
+        .where(eq(workspace.id, ids.workspace))
+      const [backend] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
+      locked.resolve(backend.pid)
+      await release.promise
+    })
+    const pid = await locked.promise
+    const creation = createWorkspaceChat.execute({
+      principal: principal(),
+      input: { workspaceId: ids.workspace, mode: 'plan' },
+    })
+    const outcome = creation.then(
+      (value) => ({ value }),
+      (error) => ({ error })
+    )
+    try {
+      await vi.waitFor(async () => {
+        const [row] = await db.execute<{ count: number }>(
+          sql`select count(*)::int as count from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))`
+        )
+        expect(row.count).toBeGreaterThan(0)
+      })
+      release.resolve()
+      await move
+      expect(await outcome).toMatchObject({ error: { code: 'conflict' } })
+    } finally {
+      release.resolve()
+      await move
+      await outcome
+      await db
+        .update(workspace)
+        .set({ organizationId: ids.org })
+        .where(eq(workspace.id, ids.workspace))
+    }
+  })
+
+  it('forks the current graph binding after a workspace moves during worker copy', async () => {
+    await create('Before fork move')
+    const parent = await createWorkspaceChat.execute({
+      principal: principal(),
+      input: { workspaceId: ids.workspace, mode: 'plan' },
+    })
+    const messageId = generateId()
+    await appendCopilotChatMessages(parent.id, [
+      { id: messageId, role: 'user', content: 'Fixture', timestamp: new Date().toISOString() },
+    ])
+    const copied = createDeferred<void>()
+    const release = createDeferred<void>()
+    workerCopy.mockImplementationOnce(async () => {
+      copied.resolve()
+      await release.promise
+    })
+    const fork = forkChat.execute({
+      principal: principal(),
+      input: { chatId: parent.id, upToMessageId: messageId },
+    })
+    try {
+      await copied.promise
+      await db.transaction(async (tx) => {
+        await tx.select().from(workspace).where(eq(workspace.id, ids.workspace)).for('update')
+        await tx
+          .update(copilotChats)
+          .set({ memorySpaceId: null })
+          .where(eq(copilotChats.workspaceId, ids.workspace))
+        await tx
+          .update(workspace)
+          .set({ organizationId: ids.secondOrg })
+          .where(eq(workspace.id, ids.workspace))
+      })
+      release.resolve()
+      const result = await fork
+      const [stored] = await db
+        .select({ memorySpaceId: copilotChats.memorySpaceId })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, result.id))
+      expect(stored.memorySpaceId).toBeNull()
+    } finally {
+      release.resolve()
+      await fork
+      await db
+        .update(workspace)
+        .set({ organizationId: ids.org })
+        .where(eq(workspace.id, ids.workspace))
+    }
+  })
+
+  it('removes private benchmark artifacts when their execution target is deleted', async () => {
+    const targetId = generateId()
+    const benchmarkId = generateId()
+    await db.insert(user).values({
+      id: targetId,
+      name: 'Deleted target',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      email: `${targetId}@fixture.test`,
+      emailVerified: true,
+    })
+    await db.insert(mothershipBenchmarks).values({
+      id: benchmarkId,
+      organizationId: ids.org,
+      userId: ids.owner,
+      runAsUserId: targetId,
+      sourceWorkspaceId: ids.workspace,
+      name: 'Target deletion fixture',
+      artifacts: emptyBenchmarkArtifacts(),
+    })
+    try {
+      await db.delete(user).where(eq(user.id, targetId))
+      expect(
+        await db
+          .select({ id: mothershipBenchmarks.id })
+          .from(mothershipBenchmarks)
+          .where(eq(mothershipBenchmarks.id, benchmarkId))
+      ).toEqual([])
+    } finally {
+      await db.delete(mothershipBenchmarks).where(eq(mothershipBenchmarks.id, benchmarkId))
+      await db.delete(user).where(eq(user.id, targetId))
+    }
   })
 
   it('rejects a foreign binding and rechecks membership before reading memory', async () => {

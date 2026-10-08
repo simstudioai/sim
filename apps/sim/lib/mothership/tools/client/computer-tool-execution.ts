@@ -8,12 +8,14 @@ import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
+import { COPILOT_CONFIRM_API_PATH } from '@/lib/mothership/constants'
 import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
 } from '@/lib/mothership/tools/client/completion'
 import { computerToolResultForModel } from '@/lib/mothership/tools/client/computer-tool-result'
+import { compactCompletionForPageExit } from '@/lib/mothership/tools/client/page-exit-completion'
 
 const logger = createLogger('ComputerToolExecution')
 const MAX_EVENT_AGE_MS = 120_000
@@ -33,6 +35,7 @@ interface Completion {
 interface Execution {
   completion?: Completion
   reporting?: Promise<void>
+  release?: () => void
 }
 const executions = new Map<string, Execution>()
 
@@ -48,6 +51,8 @@ async function deliver(toolCallId: string, execution: Execution): Promise<void> 
   )
     .then(() => {
       executions.delete(toolCallId)
+      execution.release?.()
+      execution.release = undefined
     })
     .catch((error) => {
       logger.warn('Computer action result delivery failed; retained for redelivery', {
@@ -135,19 +140,42 @@ export async function executeComputerToolOnClient(
     )
   }
   const onPageHide = () => {
-    cancel()
-    void reportClientToolCompletionOnPageExit(
+    if (!execution.completion) cancel()
+    const completion = compactCompletionForPageExit(
       toolCallId,
-      ASYNC_TOOL_CONFIRMATION_STATUS.error,
-      'The desktop view closed during a computer action. Inspect the app before repeating it.',
-      { outcomeUnknown: dispatched, doNotRetry: dispatched }
-    ).catch((error) =>
-      logger.warn('Computer action page-exit result failed', {
-        toolCallId,
-        error: getErrorMessage(error),
-      })
+      execution.completion ?? {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message:
+          'The desktop view closed during a computer action. Inspect the app before repeating it.',
+        data: { outcomeUnknown: dispatched, doNotRetry: dispatched },
+      }
     )
+    const fallback = () => {
+      void reportClientToolCompletionOnPageExit(
+        toolCallId,
+        completion.status,
+        completion.message,
+        completion.data
+      ).catch((error) =>
+        logger.warn('Computer action page-exit result failed', {
+          toolCallId,
+          error: getErrorMessage(error),
+        })
+      )
+    }
+    try {
+      if (
+        !navigator.sendBeacon(
+          COPILOT_CONFIRM_API_PATH,
+          new Blob([JSON.stringify({ toolCallId, ...completion })], { type: 'application/json' })
+        )
+      )
+        fallback()
+    } catch {
+      fallback()
+    }
   }
+  execution.release = () => window.removeEventListener('pagehide', onPageHide)
   signal?.addEventListener('abort', cancel, { once: true })
   window.addEventListener('pagehide', onPageHide)
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -205,7 +233,6 @@ export async function executeComputerToolOnClient(
   } finally {
     if (timer) clearTimeout(timer)
     signal?.removeEventListener('abort', cancel)
-    window.removeEventListener('pagehide', onPageHide)
   }
   await deliver(toolCallId, execution)
 }

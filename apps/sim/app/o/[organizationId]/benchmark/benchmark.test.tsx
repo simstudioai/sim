@@ -2,11 +2,14 @@
 import { act } from 'react'
 import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { jsonResponse } from '@sim/testing/helpers/http'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { Benchmark } from '@/app/o/[organizationId]/benchmark/benchmark'
+
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/o/[organizationId]/benchmark/components', () => ({
   BenchmarkDetail: () => null,
@@ -14,6 +17,11 @@ vi.mock('@/app/o/[organizationId]/benchmark/components', () => ({
 }))
 
 it('preserves cached benchmarks through a failed next page and retries without losing the first page', async () => {
+  authClientMockFns.mockUseSession.mockReturnValue({
+    data: { user: { id: 'owner' } },
+    isPending: false,
+    error: null,
+  })
   vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

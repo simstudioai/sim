@@ -1,5 +1,8 @@
 /** @vitest-environment jsdom */
+import { Blob as NodeBlob } from 'node:buffer'
 import { ComputerUseError } from '@sim/desktop-bridge'
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +34,86 @@ describe('computer action delivery', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it.each(['accepted', 'rejected', 'throws'] as const)(
+    'flushes a completed action during pending delivery when beacon is %s',
+    async (beaconResult) => {
+      vi.stubGlobal('Blob', NodeBlob)
+      const beacon = vi.fn((_url: string, _blob: NodeBlob) => {
+        if (beaconResult === 'throws') throw new Error('Unavailable')
+        return beaconResult === 'accepted'
+      })
+      vi.stubGlobal('navigator', { sendBeacon: beacon })
+      const report = createDeferred<void>()
+      mocks.complete.mockReturnValueOnce(report.promise)
+      mocks.execute.mockResolvedValueOnce({
+        kind: 'state',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        windowId: 'w1',
+        windows: [{ windowId: 'w1', title: 'Fixture', x: 0, y: 0, width: 400, height: 300 }],
+        nodes: [],
+        truncated: false,
+        screenshot: { base64: 'a'.repeat(80_000), mimeType: 'image/png', width: 1, height: 1 },
+      })
+      const id = nextId()
+      const execution = executeComputerToolOnClient(
+        id,
+        { action: 'get_app_state', bundleId: 'com.example.Fixture' },
+        now()
+      )
+      await flushMicrotasks()
+      try {
+        window.dispatchEvent(new Event('pagehide'))
+        expect(beacon).toHaveBeenCalledOnce()
+        const blob: NodeBlob = beacon.mock.calls[0][1]
+        expect(blob.size).toBeLessThanOrEqual(48 * 1024)
+        const completion = JSON.parse(await blob.text())
+        expect(completion).toMatchObject({
+          toolCallId: id,
+          status: 'success',
+          data: { resultOmittedDuringPageExit: true },
+        })
+        expect(mocks.cancel).not.toHaveBeenCalled()
+        if (beaconResult === 'accepted') expect(mocks.pageExit).not.toHaveBeenCalled()
+        else
+          expect(mocks.pageExit).toHaveBeenCalledWith(
+            id,
+            completion.status,
+            completion.message,
+            completion.data
+          )
+      } finally {
+        report.resolve()
+        await execution
+      }
+      beacon.mockClear()
+      window.dispatchEvent(new Event('pagehide'))
+      expect(beacon).not.toHaveBeenCalled()
+    }
+  )
+
+  it('retains a known terminal result for page exit after normal delivery fails', async () => {
+    const beacon = vi.fn(() => false)
+    vi.stubGlobal('navigator', { sendBeacon: beacon })
+    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+    const id = nextId()
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    try {
+      window.dispatchEvent(new Event('pagehide'))
+      expect(beacon).toHaveBeenCalledOnce()
+      expect(mocks.pageExit).toHaveBeenCalledWith(
+        id,
+        'success',
+        expect.any(String),
+        expect.anything()
+      )
+      expect(mocks.cancel).not.toHaveBeenCalled()
+    } finally {
+      await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    }
+    expect(mocks.execute).toHaveBeenCalledOnce()
   })
 
   it('allows the full action budget, then cancels and reports an uncertain result', async () => {
