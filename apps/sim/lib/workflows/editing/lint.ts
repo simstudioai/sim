@@ -799,15 +799,21 @@ export function collectUnquotedJsonStringReferences(
       (subBlock) => subBlock.type === 'code' && subBlock.language === 'json'
     )
     if (!jsonFields?.length) continue
-    /** Only what the serializer sends: a field the selected operation drops never runs. */
+    /**
+     * Only what the serializer sends: a field the selected operation or mode
+     * drops never runs, and a canonical member is sent under its canonical id.
+     */
     let params: Record<string, unknown>
     try {
       params = extractBlockParams(block as Parameters<typeof extractBlockParams>[0])
     } catch {
       continue
     }
-    for (const field of new Set(jsonFields.map((subBlock) => subBlock.id))) {
-      const json = params[field]
+    const sentParamByField = new Map(
+      jsonFields.map((subBlock) => [subBlock.id, subBlock.canonicalParamId ?? subBlock.id])
+    )
+    for (const [field, param] of sentParamByField) {
+      const json = params[param]
       if (typeof json !== 'string') continue
       const unquoted = new Set<string>()
       for (const token of unquotedJsonReferenceTokens(json)) {

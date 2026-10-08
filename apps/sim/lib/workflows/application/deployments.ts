@@ -102,7 +102,9 @@ async function requireMutableWorkflow(workflowId: string): Promise<void> {
 }
 
 /**
- * The lint findings of the version a deploy just made live, as one warning.
+ * The lint findings of the version a deploy admitted, as one warning. That
+ * version serves callers once activation completes, so it is linted even while
+ * activation is still pending.
  *
  * Deploy does not refuse on lint: findings are advisory, and some depend on the
  * identity that runs the workflow. But a caller that deployed without linting
@@ -127,7 +129,7 @@ async function deployedVersionLintWarning(
       )
     )
     if (!hasWorkflowLintIssues(report)) return undefined
-    return `The deployed version has lint findings and may fail when it runs. ${formatWorkflowLintMessage(report)}`
+    return `The version this deploy publishes has lint findings and may fail when it runs. ${formatWorkflowLintMessage(report)}`
   } catch (error) {
     logger.warn('Deployed version lint failed', {
       workflowId: context.workflowId,

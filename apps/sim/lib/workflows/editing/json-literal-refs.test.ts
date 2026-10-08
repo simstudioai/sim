@@ -38,6 +38,19 @@ const MOCK_BLOCKS = vi.hoisted(
             condition: { field: 'operation', value: ['insert_row', 'update_row'] },
           },
           { id: 'rows', type: 'code', language: 'json' },
+          {
+            id: 'filterBuilder',
+            type: 'filter-builder',
+            canonicalParamId: 'filterInput',
+            mode: 'basic',
+          },
+          {
+            id: 'filter',
+            type: 'code',
+            language: 'json',
+            canonicalParamId: 'filterInput',
+            mode: 'advanced',
+          },
         ],
         outputs: {},
       },
@@ -87,7 +100,10 @@ const START = {
 }
 
 function graph(
-  blocks: Record<string, { type?: string; name?: string; subBlocks?: Record<string, unknown> }>
+  blocks: Record<
+    string,
+    { type?: string; name?: string; subBlocks?: Record<string, unknown>; data?: unknown }
+  >
 ) {
   return { blocks } as Parameters<typeof collectUnquotedJsonStringReferences>[0]
 }
@@ -214,5 +230,23 @@ describe('collectUnquotedJsonStringReferences', () => {
       })
     )
     expect(findings).toHaveLength(0)
+  })
+
+  it('checks a JSON editor that is sent under its canonical parameter', () => {
+    const findings = collectUnquotedJsonStringReferences(
+      graph({
+        start: START,
+        query: {
+          type: 'table_v2',
+          name: 'Find Order',
+          data: { canonicalModes: { filterInput: 'advanced' } },
+          subBlocks: {
+            operation: { value: 'query_rows' },
+            filter: { value: '{"field": "order_id", "op": "eq", "value": <start.order_id>}' },
+          },
+        },
+      })
+    )
+    expect(findings).toMatchObject([{ blockId: 'query', field: 'filter' }])
   })
 })
