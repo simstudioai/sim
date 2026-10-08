@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
@@ -760,6 +761,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       /** The edit may have changed whether this provider can satisfy the sign-in requirement. */
       invalidateSsoPolicyCache(orgId)
 
+      recordAudit({
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.ORGANIZATION_SSO_PROVIDER_UPDATED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: membership.organizationId,
+        description: 'Updated organization SSO provider',
+        metadata: {
+          organizationId: membership.organizationId,
+          providerId,
+          providerType,
+          domain,
+          jitProvisioningEnabled,
+        },
+        request,
+      })
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -808,6 +826,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /** A new provider can make an organization able to require single sign-on again. */
     invalidateSsoPolicyCache(orgId)
 
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.ORGANIZATION_SSO_PROVIDER_CREATED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: membership.organizationId,
+      description: 'Created organization SSO provider',
+      metadata: {
+        organizationId: membership.organizationId,
+        providerId: registration.providerId,
+        providerType,
+        domain,
+        jitProvisioningEnabled,
+      },
+      request,
+    })
     logger.info('SSO provider registered successfully', {
       providerId,
       providerType,

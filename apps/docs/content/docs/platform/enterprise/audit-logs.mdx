@@ -1,6 +1,6 @@
 ---
 title: Audit Logs
-description: Track every action taken across your organization's workspaces
+description: Track configuration and security events across your organization's workspaces
 ---
 
 import { FAQ } from '@/components/ui/faq'
@@ -44,7 +44,7 @@ X-API-Key: <api-key>
 | `resourceType` | string | Filter by resource type (e.g. `workflow`) |
 | `resourceId` | string | Filter by a specific resource ID |
 | `workspaceId` | string | Filter by workspace |
-| `actorId` | string | Filter by user ID. For organization-wide filters, the actor must be a current or former org member; workspace-scoped logs can also include external workspace members. |
+| `actorId` | string | Filter by a current organization member’s user ID. For a departed-actor filter, use the CSV export with `includeDeparted=true`. |
 | `startDate` | string | ISO 8601 date — return logs on or after this date |
 | `endDate` | string | ISO 8601 date — return logs on or before this date |
 | `includeDeparted` | boolean | Include logs from members who have since left the organization (default `false`) |
@@ -84,7 +84,7 @@ X-API-Key: <api-key>
 
 Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page. Each entry also includes `actorName`; `metadata` is an arbitrary per-action JSON object. The `limits` object reports your current rate-limit and usage status.
 
-The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
+The organization audit API requires a personal API key belonging to an organization owner or admin. Workspace API keys are refused. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
 
 ---
 
@@ -94,6 +94,7 @@ Audit log events follow a `resource.action` naming pattern. The table below list
 
 | Category | Example events |
 |----------|---------------|
+| **Authentication** | `auth.login_succeeded`, `auth.login_failed`, `auth.logout`, `auth.impersonation_started`, `auth.impersonation_ended`, `auth.sessions_revoked` |
 | **Workflows** | `workflow.created`, `workflow.deleted`, `workflow.deployed`, `workflow.locked` |
 | **Workspaces** | `workspace.created`, `workspace.updated`, `workspace.deleted` |
 | **Members** | `member.invited`, `member.removed`, `member.role_changed` |
@@ -103,7 +104,14 @@ Audit log events follow a `resource.action` naming pattern. The table below list
 | **Tables** | `table.created`, `table.updated`, `table.deleted` |
 | **API keys** | `api_key.created`, `api_key.revoked` |
 | **Credentials** | `credential.created`, `credential.deleted`, `oauth.disconnected` |
-| **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed` |
+| **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed`, `organization.sso_provider.updated` |
+| **Exports and drains** | `audit_logs.exported`, `data_drain.created`, `data_drain.updated`, `data_drain.ran`, `data_drain.tested` |
+
+Authentication failures and password-reset requests use an anonymous actor and identify the target account separately. Impersonation and administrative session revocations identify the operator and the target organization. Table-row mutations record operation summaries and counts without copying row contents.
+
+Most audit writes are best effort: a database outage or process loss can prevent persistence even when the underlying action succeeds. Deployment activation uses an awaited, idempotent audit insert before its outbox checkpoint. Audit logs are not a complete tool-invocation stream or a transactionally guaranteed ledger for every operation.
+
+Organization visibility depends on current workspace ownership or stored organization attribution. Older workspace events without organization metadata may no longer appear in organization queries after the workspace is physically deleted.
 
 Workspace invitation events include whether the invite is for an internal organization member or an external workspace member in their metadata. External workspace members can appear as actors on workspace-scoped events, and appear in the roster with an External label without becoming organization members.
 
@@ -116,11 +124,11 @@ Workspace invitation events include whether the invite is for an internal organi
   },
   {
     question: "Are audit logs tamper-proof?",
-    answer: "Audit log entries are append-only and cannot be modified or deleted through the Sim interface or API. They represent a reliable record of actions taken in your organization."
+    answer: "The Sim interface and API do not provide audit-entry edits or deletion. Database administrators can still alter stored records, and entries are not cryptographically sealed. Use a data drain to archive them under your own storage and retention controls."
   },
   {
     question: "Can I export audit logs?",
-    answer: "Yes. Use the API to export logs programmatically. Paginate through all records using the cursor parameter and store them in your own data warehouse or SIEM."
+    answer: "Yes. Download CSV from the audit viewer or paginate the API for your SIEM. CSV includes event, workspace, resource and actor IDs, IP address, user agent, surface and metadata. Organization administrators can include departed actors for historical investigations. CSV downloads are recorded in the audit trail and capped at 10,000 rows or 64 MB; the X-Export-Truncated header indicates a partial export. For continuous delivery, use an audit-log data drain."
   },
   {
     question: "Are logs scoped to a single workspace or the whole organization?",
@@ -128,11 +136,11 @@ Workspace invitation events include whether the invite is for an internal organi
   },
   {
     question: "What information is included in each log entry?",
-    answer: "Each entry includes the event type, a description, the actor's name and email, the affected resource, the workspace, and a timestamp. IP addresses and user agents are not exposed through the API."
+    answer: "Each entry includes the event type, a description, the actor's name and email, the affected resource, the workspace, and a timestamp. The JSON API omits IP addresses and user agents; authorized CSV exports and audit-log drains include them."
   },
   {
     question: "Can I filter logs by a specific user?",
-    answer: "Yes. Pass the actorId query parameter to filter logs by a specific user. Organization-wide actor filters require the actor to be a current or former member of your organization. Workspace-scoped logs may also include external workspace members who acted inside a workspace without joining the organization."
+    answer: "Yes. The JSON API accepts actorId for current organization members. CSV exports also support departed actors when includeDeparted=true. Workspace-scoped logs may include external workspace members who acted inside a workspace without joining the organization."
   }
 ]} />
 

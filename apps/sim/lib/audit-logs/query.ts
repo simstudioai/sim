@@ -100,7 +100,7 @@ export async function getOrgWorkspaceIds(organizationId: string): Promise<string
 
 export interface OrgScopeParams {
   organizationId: string
-  orgWorkspaceIds: string[]
+  orgWorkspaceIds?: string[]
   orgMemberIds: string[]
   includeDeparted: boolean
 }
@@ -120,10 +120,15 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
     )
   )!
 
-  const orgScope =
-    orgWorkspaceIds.length > 0
-      ? or(inArray(auditLog.workspaceId, orgWorkspaceIds), orgLevelCondition)!
-      : orgLevelCondition
+  const workspaceCondition =
+    orgWorkspaceIds === undefined
+      ? sql`exists (select 1 from ${workspace} where ${workspace.id} = ${auditLog.workspaceId} and ${workspace.organizationId} = ${organizationId})`
+      : orgWorkspaceIds.length > 0
+        ? inArray(auditLog.workspaceId, orgWorkspaceIds)
+        : undefined
+  const orgScope = workspaceCondition
+    ? or(workspaceCondition, orgLevelCondition)!
+    : orgLevelCondition
 
   if (includeDeparted) return orgScope
 
@@ -139,10 +144,14 @@ function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorData = decodeAuditLogCursor(cursor)
   if (!cursorData) return null
   const cursorDate = new Date(cursorData.createdAt)
+  const cursorTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
 
   return or(
-    lt(auditLog.createdAt, cursorDate),
-    and(eq(auditLog.createdAt, cursorDate), lt(auditLog.id, cursorData.id))
+    lt(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+    and(
+      eq(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+      lt(auditLog.id, cursorData.id)
+    )
   )!
 }
 
@@ -166,7 +175,7 @@ export async function queryAuditLogs(
     .select()
     .from(auditLog)
     .where(allConditions.length > 0 ? and(...allConditions) : undefined)
-    .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+    .orderBy(desc(sql`date_trunc('milliseconds', ${auditLog.createdAt})`), desc(auditLog.id))
     .limit(limit + 1)
 
   const hasMore = rows.length > limit

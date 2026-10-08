@@ -7537,7 +7537,7 @@ export const dataDrains = pgTable(
     destinationCredentials: text('destination_credentials').notNull(),
     scheduleCadence: dataDrainCadenceEnum('schedule_cadence').notNull(),
     enabled: boolean('enabled').notNull().default(true),
-    /** Opaque cursor — JSON-encoded, source-defined. Advances only on overall run success. */
+    /** Opaque cursor — JSON-encoded, source-defined. Advances after each acknowledged delivery checkpoint. */
     cursor: text('cursor'),
     lastRunAt: timestamp('last_run_at'),
     lastSuccessAt: timestamp('last_success_at'),

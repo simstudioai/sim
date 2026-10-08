@@ -340,6 +340,12 @@ export interface SecureFetchOptions {
   method?: string
   headers?: Record<string, string>
   body?: string | Buffer | Uint8Array
+  /**
+   * Raw origin-form path and query for authenticated protocols that sign the request target.
+   * Preserves dot segments, keeps the URL's host, disables redirects, and fails closed when
+   * the selected gateway cannot preserve this target.
+   */
+  requestTarget?: string
   timeout?: number
   maxRedirects?: number
   /**
@@ -1127,7 +1133,17 @@ export async function secureFetchWithPinnedIP(
   options: SecureFetchOptions,
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
-  const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
+  const requestTarget = options.requestTarget
+  if (
+    requestTarget !== undefined &&
+    (!requestTarget.startsWith('/') ||
+      requestTarget.includes('#') ||
+      /[^\x21-\x7e]/.test(requestTarget))
+  ) {
+    throw new Error('Invalid signed HTTP request target')
+  }
+  const maxRedirects =
+    requestTarget === undefined ? (options.maxRedirects ?? DEFAULT_MAX_REDIRECTS) : 0
   const requestedMaxResponseBytes = options.maxResponseBytes
   const maxResponseBytes =
     typeof requestedMaxResponseBytes === 'number' && requestedMaxResponseBytes > 0
@@ -1140,6 +1156,10 @@ export async function secureFetchWithPinnedIP(
     proxyUrl: options.proxyUrl,
   })
   const outboundDispatcher = await transport.selectDispatcher()
+  if (requestTarget !== undefined && outboundDispatcher) {
+    await transport.destroy()
+    throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
+  }
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
@@ -1189,7 +1209,7 @@ export async function secureFetchWithPinnedIP(
     const requestOptions: http.RequestOptions = {
       hostname: parsed.hostname,
       port,
-      path: parsed.pathname + parsed.search,
+      path: requestTarget ?? parsed.pathname + parsed.search,
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
