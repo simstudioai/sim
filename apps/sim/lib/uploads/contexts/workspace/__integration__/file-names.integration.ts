@@ -9,6 +9,7 @@ import path from 'node:path'
 import { db, dbFor } from '@sim/db'
 import { copilotChats, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -33,6 +34,8 @@ import {
   workspaceFileNameFolderCondition,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  deleteWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   generateWorkspaceFileKey,
   getWorkspaceFileByName,
   resolveWorkspaceFileReference,
@@ -41,6 +44,7 @@ import {
   workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'
 
 describe('workspace file names in PostgreSQL', () => {
   const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -196,6 +200,105 @@ describe('workspace file names in PostgreSQL', () => {
       expect(scan).toMatch(/"Index Cond":"[^"]*COALESCE\(folder_id/)
     }
   })
+
+  it.each([false, true])(
+    'restores with a new name when a deployed writer claims the candidate (nested=%s)',
+    async (nested) => {
+      const fixture = await seedWorkspace()
+      const folderId = nested
+        ? (
+            await createWorkspaceFileFolder({
+              workspaceId: fixture.workspaceId,
+              userId: fixture.aliceId,
+              name: 'Restore target',
+            })
+          ).id
+        : null
+      const archived = await upload(fixture.workspaceId, fixture.aliceId, 'restore.txt', folderId)
+      await deleteWorkspaceFile(fixture.workspaceId, archived.id)
+      const competitor = await upload(fixture.workspaceId, fixture.aliceId, 'other.txt', folderId)
+      const triggerName = sql.identifier(`restore_race_${generateId().replaceAll('-', '')}`)
+      await db.execute(sql`
+        CREATE FUNCTION ${triggerName}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.id = TG_ARGV[0] THEN
+            PERFORM pg_advisory_xact_lock(hashtext('restore-race:' || NEW.id));
+          END IF;
+          RETURN NEW;
+        END $$
+      `)
+      await db.execute(sql`
+        CREATE TRIGGER ${triggerName} BEFORE UPDATE OF deleted_at ON ${workspaceFiles}
+        FOR EACH ROW WHEN (OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL)
+        EXECUTE FUNCTION ${triggerName}(${sql.raw(`'${archived.id}'`)})
+      `)
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const blocker = db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`restore-race:${archived.id}`}))`
+        )
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+      })
+      const blockerPid = await ready.promise
+      const restoration = Promise.allSettled([
+        restoreWorkspaceFileOperation.execute({
+          principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+          input: { fileId: archived.id, assertedWorkspaceId: fixture.workspaceId },
+        }),
+      ])
+      try {
+        await expect
+          .poll(
+            async () =>
+              (
+                await db.execute(sql`
+          SELECT pid FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+        `)
+              ).length,
+            { timeout: 5000 }
+          )
+          .toBe(1)
+        /** The deployed rename updates only the file row; it does not take the new directory mutex. */
+        await db
+          .update(workspaceFiles)
+          .set({ originalName: archived.name, updatedAt: new Date() })
+          .where(
+            and(
+              eq(workspaceFiles.id, competitor.id),
+              eq(workspaceFiles.workspaceId, fixture.workspaceId),
+              eq(workspaceFiles.context, 'workspace')
+            )
+          )
+      } finally {
+        release.resolve()
+        await blocker
+        await restoration
+        await db.execute(sql`DROP TRIGGER ${triggerName} ON ${workspaceFiles}`)
+        await db.execute(sql`DROP FUNCTION ${triggerName}()`)
+      }
+      const [result] = await restoration
+      if (result.status === 'rejected') throw result.reason
+      expect(result.value.file).toMatchObject({
+        id: archived.id,
+        name: 'restore_restored.txt',
+        folderId,
+        key: archived.key,
+      })
+      expect(
+        (await fetchWorkspaceFileBuffer(result.value.file, { maxBytes: 1024 })).toString()
+      ).toBe('restore.txt')
+      expect(
+        (await getWorkspaceFileByName(fixture.workspaceId, 'restore.txt', { folderId }))?.id
+      ).toBe(competitor.id)
+      expect(
+        (await getWorkspaceFileByName(fixture.workspaceId, 'restore_restored.txt', { folderId }))
+          ?.id
+      ).toBe(archived.id)
+    }
+  )
 
   it('falls back to a short-id suffix after 20 numbered copies, including under concurrency', async () => {
     const fixture = await seedWorkspace()
