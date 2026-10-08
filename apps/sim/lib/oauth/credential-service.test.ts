@@ -886,3 +886,16 @@ describe('getCredentialTerminalRefreshError', () => {
     expect(mocks.getRecentTerminalError).not.toHaveBeenCalled()
   })
 })
+
+describe('OCI service-account resolver', () => {
+  it('returns only the authoritative resolved credential ID for hidden in-process handoff', async () => {
+    await expect(
+      resolveServiceAccountToken(
+        'credential-authoritative',
+        'oci-api-key-service-account',
+        [],
+        undefined
+      )
+    ).resolves.toEqual({ accessToken: 'credential-authoritative' })
+  })
+})

@@ -9523,7 +9523,7 @@ export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+export function OracleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 93.9 59.4' xmlns='http://www.w3.org/2000/svg'>
       <path
@@ -9532,6 +9532,10 @@ export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
       />
     </svg>
   )
+}
+
+export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+  return <OracleIcon {...props} />
 }
 
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {

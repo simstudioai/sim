@@ -639,7 +639,10 @@ export async function generateIconMappings(): Promise<{
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const docs: Record<string, IconRef> = {}
+    // OCI credential setup has no product block from which docs can derive its family icon.
+    const docs: Record<string, IconRef> = {
+      oci: { name: 'OracleIcon', source: '@/components/icons' },
+    }
     const visible: Record<string, IconRef> = {}
     const coreBlockTypes = new Set<string>()
     const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
