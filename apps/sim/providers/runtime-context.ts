@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, omit, toRecord } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord, toRecordOrNull } from '@sim/utils/object'
 import {
   durableSecretProvenanceFromRegistry,
   importDurableSecretProvenance,
@@ -133,13 +133,18 @@ function modelSuppliedToolInput(
   toolId: string,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  const declared = getToolParams(toolId) ?? {}
+  const declared = getToolParams(toolId)
+  // MCP and custom tools declare their arguments only in the schema the model was given.
+  const dynamicArgs = declared
+    ? undefined
+    : toRecord(toRecordOrNull(params._toolSchema)?.properties ?? {})
   const input: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(params)) {
-    const visibility = declared[key]?.visibility
-    if (Object.hasOwn(declared, key) && visibility !== 'user-only' && visibility !== 'hidden') {
-      input[key] = value
-    }
+    const visibility = declared?.[key]?.visibility
+    const isArgument = declared
+      ? Object.hasOwn(declared, key)
+      : Object.hasOwn(dynamicArgs ?? {}, key)
+    if (isArgument && visibility !== 'user-only' && visibility !== 'hidden') input[key] = value
   }
   return input
 }

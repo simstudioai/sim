@@ -5,8 +5,13 @@ import {
 } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
+import {
+  releaseExecutionSlot,
+  reserveExecutionSlot,
+} from '@/lib/billing/calculations/usage-reservation'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
+import { getExecutionTimeout, RESERVATION_TTL_BUFFER_MS } from '@/lib/core/execution-limits/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -80,6 +85,36 @@ export async function runWorkflowForTest(
   if (usage.isExceeded) {
     throw new OrchestrationError('forbidden', usage.message ?? 'Usage limit exceeded')
   }
+  if (usage.payerUsage) {
+    const plan = billingAttribution.payerSubscription?.plan
+    const reservation = await reserveExecutionSlot({
+      billingEntity: billingAttribution.billingEntity,
+      reservationId: executionId,
+      plan,
+      enterpriseConcurrencyLimit: billingAttribution.payerSubscription?.enterpriseConcurrencyLimit,
+      currentUsage: usage.payerUsage.currentUsage,
+      limit: usage.payerUsage.limit,
+      expiresAt: Date.now() + getExecutionTimeout(plan, 'sync') + RESERVATION_TTL_BUFFER_MS,
+      ...(billingAttribution.organizationId &&
+      usage.memberUsage?.limit !== null &&
+      usage.memberUsage?.limit !== undefined
+        ? {
+            member: {
+              organizationId: billingAttribution.organizationId,
+              actorUserId: billingAttribution.actorUserId,
+              currentUsage: usage.memberUsage.currentUsage,
+              limit: usage.memberUsage.limit,
+            },
+          }
+        : {}),
+    })
+    if (!reservation.reserved) {
+      throw new OrchestrationError(
+        'forbidden',
+        `The workflow cannot start now (${reservation.reason}); wait for running executions to finish`
+      )
+    }
+  }
   try {
     const result = await executeWorkflow(
       {
@@ -108,6 +143,8 @@ export async function runWorkflowForTest(
   } catch (error) {
     attachAttemptedExecutionId(error, executionId)
     throw error
+  } finally {
+    await releaseExecutionSlot(executionId)
   }
 }
 

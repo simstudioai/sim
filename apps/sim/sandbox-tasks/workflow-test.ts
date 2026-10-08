@@ -115,7 +115,7 @@ const HARNESS = `
     check.status = status;
     if (error) Object.assign(check, describeError(error));
   }
-  function track(assertion, check) {
+  function track(assertion, check, test) {
     return new Proxy(assertion, {
       get(target, key) {
         let value;
@@ -135,16 +135,18 @@ const HARNESS = `
               throw error;
             }
             if (result && typeof result.then === 'function') {
-              return result.then(
+              const settled = result.then(
                 (resolved) => { settle(check, 'pass'); return resolved; },
                 (error) => { settle(check, 'fail', error); throw error; }
               );
+              test.pendingAssertions.push(settled.catch(() => {}));
+              return settled;
             }
             settle(check, 'pass');
-            return result && typeof result === 'object' && result.__flags ? track(result, check) : result;
+            return result && typeof result === 'object' && result.__flags ? track(result, check, test) : result;
           };
         }
-        if (value && typeof value === 'object' && value.__flags) return track(value, check);
+        if (value && typeof value === 'object' && value.__flags) return track(value, check, test);
         return value;
       },
     });
@@ -155,7 +157,7 @@ const HARNESS = `
     const check = { status: 'pending', ...(callSite(new Error().stack) || {}) };
     currentTest.checks.push(check);
     currentTest.activeCheck = check;
-    return track(assertion, check);
+    return track(assertion, check, currentTest);
   };
   Object.setPrototypeOf(expect, baseExpect);
   expect.assertions = (count) => {
@@ -385,7 +387,7 @@ const HARNESS = `
 
   async function runOne(suite, test, onlyNames) {
     const path = [...suitePath(suite), test.name];
-    const result = { path, status: 'pass', durationMs: 0, checks: [], executions: [], logs: [], runIds: [], matchedKeys: new Set(), activeCheck: null, expectedAssertions: null, expectsAssertions: false };
+    const result = { path, status: 'pass', durationMs: 0, checks: [], executions: [], logs: [], runIds: [], matchedKeys: new Set(), activeCheck: null, expectedAssertions: null, expectsAssertions: false, pendingAssertions: [] };
     if (!willRun(suite, test, onlyNames)) {
       result.status = 'skip';
       return result;
@@ -406,6 +408,10 @@ const HARNESS = `
           await test.fn();
         } finally {
           for (const s of suiteChain(suite).reverse()) await runHooks(s.hooks.afterEach);
+        }
+        await Promise.all(result.pendingAssertions);
+        if (result.checks.some((check) => check.status === 'fail')) {
+          throw new Error('An assertion failed after its test returned; await expect(...).resolves, .rejects, and toMatchRubric');
         }
         checkAssertionCount(result);
         const unmatched = [...registrations.values()].filter((r) => r.test === result && result.runIds.length > 0 && !result.matchedKeys.has(r.key));

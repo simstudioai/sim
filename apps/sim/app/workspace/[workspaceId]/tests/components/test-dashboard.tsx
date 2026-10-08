@@ -1,16 +1,19 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import {
   Badge,
   cn,
   DashboardMetric,
+  scrollFadeAttributes,
+  scrollFadeClass,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  useScrollEdges,
 } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
@@ -59,6 +62,8 @@ interface TestDashboardProps {
  * freshness, every case, and what it ran against. A latest run still going shows live.
  */
 export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef)
   const selectedRunId =
     useTestRunSelectionStore(
       (state) => state.selectedRunIds[testRunSelectionKey(workspaceId, name)]
@@ -89,7 +94,11 @@ export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps)
   const durationMs = run?.report?.tests.reduce((total, result) => total + result.durationMs, 0)
 
   return (
-    <div className='@container/dashboard min-h-0 flex-1 overflow-y-auto'>
+    <div
+      ref={scrollRef}
+      className={cn('@container/dashboard min-h-0 flex-1 overflow-y-auto', scrollFadeClass)}
+      {...scrollFadeAttributes(edges)}
+    >
       <div className='flex flex-col gap-8 @min-[640px]/dashboard:px-8 px-4 py-6'>
         <div className='flex flex-col gap-4'>
           <div className='-ml-2'>

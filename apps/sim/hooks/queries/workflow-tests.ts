@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -83,10 +84,10 @@ export function useWorkflowTestRun(workspaceId: string, name: string, runId: str
 /** Refetches one test after its file changes, so its cases follow the edit. */
 export function useRefreshWorkflowTest(workspaceId: string, name: string) {
   const queryClient = useQueryClient()
-  return () => {
+  return useCallback(() => {
     queryClient.invalidateQueries({ queryKey: workflowTestKeys.lists() })
     queryClient.invalidateQueries({ queryKey: workflowTestKeys.test(workspaceId, name) })
-  }
+  }, [queryClient, workspaceId, name])
 }
 
 export function useRunWorkflowTests(workspaceId: string) {

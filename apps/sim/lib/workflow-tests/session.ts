@@ -468,6 +468,8 @@ export class WorkflowTestSession {
   private readonly runs = new Map<string, TestWorkflowRun>()
   /** Every workflow this file's runs executed, children included. */
   readonly enteredWorkflowIds = new Set<string>()
+  /** Set when the sandbox run ends; a start still awaiting its lookups then starts nothing. */
+  private closed = false
 
   constructor(readonly config: WorkflowTestSessionConfig) {}
 
@@ -481,6 +483,7 @@ export class WorkflowTestSession {
     const workflowId = await resolveWorkflowId(workspaceId, args.workflow)
     const blocks = await loadWorkflowBlocks(workflowId, workspaceId, version)
     const triggerBlockId = chooseTrigger(args.workflow, blocks, args.trigger)
+    if (this.closed) throw new Error('This workflow test run has ended')
     const matcher = new RunMatcher(args.targets, loadChildBlockNames, (id) =>
       this.enteredWorkflowIds.add(id)
     )
@@ -527,6 +530,7 @@ export class WorkflowTestSession {
   }
 
   close(): void {
+    this.closed = true
     this.cancel([...this.runs.keys()])
   }
 
