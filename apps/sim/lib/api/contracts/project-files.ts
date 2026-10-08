@@ -7,6 +7,7 @@ import {
   fileBrowserTypesQuerySchema,
 } from '@/lib/api/contracts/file-browser'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   inlineFileRefQuerySchema,
   nonEmptyIdSchema,
@@ -45,16 +46,22 @@ export const projectFileCapabilitiesSchema = z.object({
 })
 export type ProjectFileCapabilities = z.output<typeof projectFileCapabilitiesSchema>
 
-export const listProjectFilesQuerySchema = z.object({
-  scope: workspaceFileScopeSchema.default('active'),
-  folderId: folderIdSchema.optional(),
-  search: v2SearchSchema.optional(),
-  types: fileBrowserTypesQuerySchema,
-  sizes: fileBrowserSizesQuerySchema,
-  creatorIds: fileBrowserCreatorsQuerySchema,
-  ...v2SortFields(FILE_BROWSER_SORTS, { sortBy: 'updated', sortOrder: 'desc' }),
-  ...v2PaginationFields(),
-})
+export const listProjectFilesQuerySchema = z
+  .object({
+    scope: workspaceFileScopeSchema.default('active'),
+    folderId: folderIdSchema.optional(),
+    recursive: booleanQueryFlagSchema.optional(),
+    search: v2SearchSchema.optional(),
+    types: fileBrowserTypesQuerySchema,
+    sizes: fileBrowserSizesQuerySchema,
+    creatorIds: fileBrowserCreatorsQuerySchema,
+    ...v2SortFields(FILE_BROWSER_SORTS, { sortBy: 'updated', sortOrder: 'desc' }),
+    ...v2PaginationFields(),
+  })
+  .refine((query) => !query.recursive || query.folderId == null, {
+    message: 'Recursive listing starts at the Project root; omit folderId',
+    path: ['folderId'],
+  })
 export type ListProjectFilesQuery = z.output<typeof listProjectFilesQuerySchema>
 
 export const listProjectFilesResponseSchema = z.object({
