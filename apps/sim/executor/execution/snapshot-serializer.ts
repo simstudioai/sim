@@ -307,6 +307,7 @@ function buildExecutionSnapshot(
         : undefined,
     /** Preserve the run-level agent-events opt-in across HITL pause/resume. */
     agentEvents: metadataFromContext?.agentEvents === true ? true : undefined,
+    stopAfterBlockId: metadataFromContext?.stopAfterBlockId,
   }
 
   const snapshot = new ExecutionSnapshot(

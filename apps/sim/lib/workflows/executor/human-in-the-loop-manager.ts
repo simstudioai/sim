@@ -993,6 +993,7 @@ export class PauseResumeManager {
             pausedExecutionId: pausedExecution.id,
             parentExecutionId: pausedExecution.executionId,
             contextId,
+            stopAfterBlockReached: result.metadata?.stopAfterBlockReached === true,
           })
         }
       }
@@ -1478,6 +1479,9 @@ export class PauseResumeManager {
       isClientSession: baseSnapshot.metadata.isClientSession,
       resumeFromSnapshot: true,
       resumeTerminalNoop: stateCopy?.resumeTerminalNoop === true,
+      resumeHasPendingPauses: Object.entries(pausePoints).some(
+        ([id, point]) => id !== contextId && point.resumeStatus !== 'resumed'
+      ),
     }
 
     const resumeSnapshot = new ExecutionSnapshot(
@@ -2095,6 +2099,7 @@ export class PauseResumeManager {
     pausedExecutionId?: string
     parentExecutionId?: string
     contextId?: string
+    stopAfterBlockReached?: boolean
   }): Promise<void> {
     const { resumeEntryId, pausedExecutionId, parentExecutionId, contextId } = args
     const now = new Date()
@@ -2177,6 +2182,45 @@ export class PauseResumeManager {
         .where(and(eq(resumeQueue.id, resumeEntryId), eq(resumeQueue.status, 'claimed')))
 
       if (!pausedExecution || !contextId) return
+
+      if (args.stopAfterBlockReached) {
+        await tx
+          .update(pausedExecutions)
+          .set({
+            pausePoints: sql`(
+              SELECT COALESCE(jsonb_object_agg(point.key, point.value), '{}'::jsonb)
+              FROM jsonb_each(jsonb_set(
+                ${updatePausePointResumeStateSql(contextId, 'resumed')},
+                ARRAY[${contextId}, 'resumedAt'],
+                ${JSON.stringify(now.toISOString())}::jsonb
+              )) AS point
+              WHERE point.value->>'resumeStatus' = 'resumed'
+            )`,
+            totalPauseCount: sql`${pausedExecutions.resumedCount} + 1`,
+            resumedCount: sql`${pausedExecutions.resumedCount} + 1`,
+            status: 'fully_resumed',
+            nextResumeAt: null,
+            automaticResumeRetryCount: 0,
+            metadata: sql`${pausedExecutions.metadata} - 'automaticResumeWaiting'`,
+            updatedAt: now,
+          })
+          .where(eq(pausedExecutions.id, targetPausedExecutionId))
+        await tx
+          .update(resumeQueue)
+          .set({
+            status: 'failed',
+            completedAt: now,
+            failureReason: 'Execution stopped after its target block',
+          })
+          .where(
+            and(
+              eq(resumeQueue.parentExecutionId, targetParentExecutionId),
+              eq(resumeQueue.pausedExecutionId, targetPausedExecutionId),
+              eq(resumeQueue.status, 'pending')
+            )
+          )
+        return
+      }
 
       await tx
         .update(pausedExecutions)

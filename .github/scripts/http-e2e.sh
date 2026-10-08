@@ -122,6 +122,7 @@ case "$group" in
   # Self-hosted: hosted billing admits a run only through a Redis usage reservation.
   stop-after)
     export NEXT_PUBLIC_FORCE_HOSTED=false
+    export CRON_SECRET=stop-after-e2e-local-cron-secret
     export INTERNAL_API_SECRET=stop-after-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
@@ -129,6 +130,7 @@ case "$group" in
     STOP_AFTER_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     STOP_AFTER_E2E_DATABASE_URL="$DATABASE_URL" \
     STOP_AFTER_E2E_REPORT_PATH="$report_dir/stop-after-http-report.json" \
+    STOP_AFTER_E2E_CRON_SECRET="$CRON_SECRET" \
       bun run test:workflow-stop-after:e2e
     ;;
 
