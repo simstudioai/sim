@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { ssoRegistrationInputSchema } from '@/lib/auth/sso/registration-input'
@@ -16,10 +17,10 @@ export const authProviderStatusResponseSchema = z.object({
 
 export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
   ssoRegistrationInputSchema.options[0].omit({ organizationId: true }).extend({
-    orgId: z.string({ error: 'Organization ID is required' }).min(1, 'Organization ID is required'),
+    orgId: organizationIdSchema,
   }),
   ssoRegistrationInputSchema.options[1].omit({ organizationId: true }).extend({
-    orgId: z.string({ error: 'Organization ID is required' }).min(1, 'Organization ID is required'),
+    orgId: organizationIdSchema,
   }),
 ])
 export type SsoRegistrationBody = z.input<typeof ssoRegistrationBodySchema>

@@ -1123,6 +1123,13 @@ export const CLI_CONTRACT: CliContract = {
   saveSsoProvider: {
     command: 'organizations sso providers save',
     pathFlags: ORGANIZATION_FLAG,
+    flags: {
+      clientSecret: {
+        textSource: true,
+        describe:
+          'Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc',
+      },
+    },
   },
   deleteSsoProvider: {
     command: 'organizations sso providers delete',

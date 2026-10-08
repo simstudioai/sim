@@ -1,4 +1,10 @@
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
+import { mothershipHeadlessLifecycleMock } from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { expect, it, vi } from 'vitest'
+
+vi.mock('@/triggers', () => triggersMock)
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 const inventory = vi.hoisted(
   () => [] as Array<{ method: string; path: string; operation: string; audience: string | null }>
@@ -19,16 +25,16 @@ const builder = vi.hoisted(
       return async () => new Response()
     }
 )
-vi.mock('@/lib/api/server/routes/v2-json-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
+  ...apiServerRoutesMock,
   defineV2JsonRoute: builder,
 }))
-vi.mock('@/lib/api/server/routes/v2-binary-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-binary-route', () => ({
+  ...apiServerRoutesMock,
   defineV2BinaryRoute: builder,
 }))
-vi.mock('@/lib/api/server/routes/v2-body-lifecycle-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-body-lifecycle-route', () => ({
+  ...apiServerRoutesMock,
   defineV2BodyLifecycleRoute: builder,
 }))
 

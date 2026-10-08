@@ -113,7 +113,7 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
       !isBillingEnabled || (await isOrganizationOnEnterprisePlan(input.organizationId))
     if (!isEnterprise)
       return { isEnterprise: false, domains: [], truncated: false, nextCursorKeys: null }
-    if (input.limit !== undefined) {
+    if (input.limit !== undefined && principal.kind !== 'organization_delegated') {
       const sortKeys = [
         textKey(ssoDomain.domain, (row: DomainRow) => row.domain),
         textKey(ssoDomain.id, (row: DomainRow) => row.id),

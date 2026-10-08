@@ -285,7 +285,27 @@ export async function removeCredentialMember(params: {
   }
 
   const revoked = await db.transaction(async (tx) => {
-    if (!isSharedCredentialType(params.credential.type) && target.role === 'admin') {
+    const [lockedCredential] = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, params.credential.id))
+      .limit(1)
+      .for('update')
+    if (!lockedCredential) throw new OrchestrationError('not_found', 'Credential not found')
+    const [activeTarget] = await tx
+      .select({ id: credentialMember.id, role: credentialMember.role })
+      .from(credentialMember)
+      .where(
+        and(
+          eq(credentialMember.credentialId, lockedCredential.id),
+          eq(credentialMember.userId, params.targetUserId),
+          eq(credentialMember.status, 'active')
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!activeTarget) throw new OrchestrationError('not_found', 'Member not found')
+    if (!isSharedCredentialType(params.credential.type) && activeTarget.role === 'admin') {
       const activeAdmins = await tx
         .select({ id: credentialMember.id })
         .from(credentialMember)
@@ -299,10 +319,12 @@ export async function removeCredentialMember(params: {
         .for('update')
       if (activeAdmins.length <= 1) return false
     }
-    await tx
+    const removed = await tx
       .update(credentialMember)
       .set({ status: 'revoked', updatedAt: new Date() })
-      .where(eq(credentialMember.id, target.id))
+      .where(and(eq(credentialMember.id, activeTarget.id), eq(credentialMember.status, 'active')))
+      .returning({ id: credentialMember.id })
+    if (!removed.length) throw new OrchestrationError('not_found', 'Member not found')
     return true
   })
   if (!revoked) throw new OrchestrationError('validation', 'Cannot remove the last admin')

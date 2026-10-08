@@ -445,6 +445,10 @@ export async function coerce(
 
   if (flag.rowCap) return coerceRowCap(raw, flagName)
 
+  if (flag.textSource && typeof raw === 'string') {
+    return (await readArgumentSource(raw, flagName)).text
+  }
+
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw
     const source = await readArgumentSource(raw, flagName)

@@ -12,6 +12,8 @@ import { APIError } from 'better-auth/api'
 import { and, count, eq } from 'drizzle-orm'
 import type { auth } from '@/lib/auth'
 import type { SsoProviderConfig } from '@/lib/auth/sso/provider-adapter'
+import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SsoProviderRepository')
 const BUILT_IN_PROVIDER_IDS = [
@@ -36,7 +38,11 @@ const SAML_SP_IDENTITY_FIELDS = ['metadata', 'entityID'] as const
 
 interface RepositoryConfiguration {
   reservedProviderIds: readonly string[]
-  hasScimProvider(providerId: string): Promise<boolean>
+}
+
+/** Distinguishes an omitted UserInfo endpoint from an intentional removal. */
+interface SsoProviderUpdateOptions {
+  clearUserInfoEndpoint?: boolean
 }
 
 function changedFields(
@@ -77,12 +83,17 @@ function normalizeAlgorithm(value: string, algorithms: Record<string, string>, s
   )
 }
 
-/** Persists API-authorized users directly, without converting their credential into a browser session. */
+function samlMetadata(value: unknown): Record<string, unknown> {
+  return typeof value === 'string' ? { metadata: value } : toRecord(value)
+}
+
+/** Persists authorized provider changes through the caller's database transaction. */
 export function createSsoProviderRepository(
   userId: string,
   organizationId: string,
   plugin: ReturnType<typeof sso>,
-  configuration: RepositoryConfiguration
+  configuration: RepositoryConfiguration,
+  executor: DbOrTx = db
 ) {
   const validateConfig = (body: SsoProviderConfig) => {
     const config = body.samlConfig
@@ -148,12 +159,8 @@ export function createSsoProviderRepository(
         throw new APIError('UNPROCESSABLE_ENTITY', {
           message: 'This providerId is reserved and cannot be used for an SSO provider',
         })
-      if (await configuration.hasScimProvider(body.providerId))
-        throw new APIError('UNPROCESSABLE_ENTITY', {
-          message:
-            'This providerId is already used by a SCIM provider and cannot be used for an SSO provider',
-        })
-      return db.transaction(async (tx) => {
+      return executor.transaction(async (tx) => {
+        await lockSsoProvider(tx, body.providerId)
         const [subject] = await tx
           .select()
           .from(user)
@@ -200,9 +207,13 @@ export function createSsoProviderRepository(
         return { id, providerId: body.providerId }
       })
     },
-    async update(input: NonNullable<Parameters<typeof auth.api.updateSSOProvider>[0]>['body']) {
+    async update(
+      input: NonNullable<Parameters<typeof auth.api.updateSSOProvider>[0]>['body'],
+      options: SsoProviderUpdateOptions = {}
+    ) {
       const body = plugin.endpoints.updateSSOProvider.options.body.parse(input)
-      return db.transaction(async (tx) => {
+      return executor.transaction(async (tx) => {
+        await lockSsoProvider(tx, body.providerId)
         const [existing] = await tx
           .select()
           .from(ssoProvider)
@@ -227,7 +238,7 @@ export function createSsoProviderRepository(
         for (const protocol of ['oidc', 'saml'] as const) {
           const key = protocol === 'oidc' ? 'oidcConfig' : 'samlConfig'
           const config = body[key]
-          if (!config) continue
+          if (!config && !(protocol === 'oidc' && options.clearUserInfoEndpoint)) continue
           validateConfig({
             providerId: body.providerId,
             issuer,
@@ -237,23 +248,32 @@ export function createSsoProviderRepository(
           const current = storedConfiguration(existing[key], protocol.toUpperCase())
           const updated: Record<string, unknown> = {
             ...current,
-            ...filterUndefined(config),
+            ...filterUndefined(config ?? {}),
             issuer,
           }
           if (protocol === 'oidc') {
             updated.pkce = toRecord(config).pkce ?? current.pkce ?? true
+            if (options.clearUserInfoEndpoint) updated.userInfoEndpoint = undefined
             identityChanged ||= changedFields(current, updated, OIDC_IDENTITY_FIELDS)
           } else {
+            for (const metadataKey of ['idpMetadata', 'spMetadata'] as const) {
+              const incoming = body.samlConfig?.[metadataKey]
+              if (current[metadataKey] !== undefined || incoming !== undefined)
+                updated[metadataKey] = {
+                  ...samlMetadata(current[metadataKey]),
+                  ...filterUndefined(incoming ?? {}),
+                }
+            }
             identityChanged ||=
               changedFields(current, updated, SAML_IDENTITY_FIELDS) ||
               changedFields(
-                toRecord(current.idpMetadata),
-                toRecord(updated.idpMetadata),
+                samlMetadata(current.idpMetadata),
+                samlMetadata(updated.idpMetadata),
                 SAML_IDP_IDENTITY_FIELDS
               ) ||
               changedFields(
-                toRecord(current.spMetadata),
-                toRecord(updated.spMetadata),
+                samlMetadata(current.spMetadata),
+                samlMetadata(updated.spMetadata),
                 SAML_SP_IDENTITY_FIELDS
               )
           }

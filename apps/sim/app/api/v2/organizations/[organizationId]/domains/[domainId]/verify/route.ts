@@ -11,6 +11,7 @@ export const POST = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2SsoErrorPolicy,
+  parseOptions: { optionalJsonBody: true },
   mapInput: ({ params }) => params,
   useCase: verifyOrganizationDomain,
   present: ({ domain }) => ({ data: toDomainResponse(domain) }),

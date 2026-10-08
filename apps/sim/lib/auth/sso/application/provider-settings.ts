@@ -18,7 +18,9 @@ import {
 } from '@/lib/api/list-query'
 import { ssoProviderOperations } from '@/lib/auth/sso/application/operations'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
+import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationUseCase } from '@/lib/core/application/operation'
@@ -176,6 +178,18 @@ async function executeDeleteProvider(
     ? eq(ssoProvider.organizationId, provider.organizationId)
     : and(eq(ssoProvider.userId, provider.userId), isNull(ssoProvider.organizationId))
   const removed = await db.transaction(async (tx) => {
+    if (provider.organizationId) {
+      await acquireOrganizationMutationLock(tx, provider.organizationId)
+    }
+    await lockSsoProvider(tx, provider.providerId)
+    if (provider.organizationId) {
+      await authorizeOrganizationOperation(
+        principal,
+        ssoProviderOperations.delete,
+        { organizationId: provider.organizationId },
+        { executor: tx, forUpdate: true }
+      )
+    }
     const deleted = await tx
       .delete(ssoProvider)
       .where(and(eq(ssoProvider.id, provider.id), ownerClause))

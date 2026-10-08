@@ -18,7 +18,7 @@ import { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-vali
 const v2SsoOrganizationParamsSchema = z
   .object({
     organizationId: organizationIdSchema.describe(
-      'Organization whose single sign-on settings are managed.'
+      'Organization whose single sign-on settings and verified domains are managed.'
     ),
   })
   .strict()
@@ -252,7 +252,7 @@ export const v2SetPrimarySsoProviderContract = defineRouteContract({
   path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary',
   params: v2SsoProviderParamsSchema,
   query: noInputSchema,
-  body: noInputSchema,
+  body: noInputSchema.optional().default({}),
   response: {
     mode: 'json',
     schema: v2DataResponse(
@@ -351,7 +351,7 @@ export const v2VerifyOrganizationDomainContract = defineRouteContract({
   path: '/api/v2/organizations/[organizationId]/domains/[domainId]/verify',
   params: v2OrganizationDomainParamsSchema,
   query: noInputSchema,
-  body: noInputSchema,
+  body: noInputSchema.optional().default({}),
   response: { mode: 'json', schema: v2DataResponse(v2OrganizationDomainSchema) },
 })
 export const v2RemoveOrganizationDomainContract = defineRouteContract({

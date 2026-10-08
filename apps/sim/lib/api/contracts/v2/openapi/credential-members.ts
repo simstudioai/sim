@@ -6,7 +6,7 @@ import {
 import {
   documentedSchema,
   RATE_LIMIT_HEADERS,
-  RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
@@ -20,7 +20,7 @@ export const credentialMemberOpenApiRoutes = [
       summary: 'List Credential Members',
       description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Credentials must be OAuth or service-account connections. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'List Credential Members result.', headers: RATE_LIMIT_HEADERS },
     },
     {
@@ -52,7 +52,7 @@ export const credentialMemberOpenApiRoutes = [
       summary: 'Upsert Credential Member',
       description: `Grant or change an existing workspace member’s credential role. Requires credential administrator access. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Upsert Credential Member result.', headers: RATE_LIMIT_HEADERS },
     },
     {
@@ -90,7 +90,7 @@ export const credentialMemberOpenApiRoutes = [
       summary: 'Remove Credential Member',
       description: `Revoke an active explicit credential grant. Requires credential administrator access. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Remove Credential Member result.', headers: RATE_LIMIT_HEADERS },
     },
     {

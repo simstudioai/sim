@@ -14618,7 +14618,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/organizations/[organizationId]/domains',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'Add Organization Domain',
     workspaceKeyUnsupported: true,
@@ -16353,7 +16356,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]',
     pathParams: ['organizationId', 'providerId'] as const,
     pathParamDocs: {
-      organizationId: 'Organization whose single sign-on settings are managed.',
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
@@ -17588,7 +17592,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/sso/policy',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'Get SSO Policy',
     workspaceKeyUnsupported: true,
@@ -17598,7 +17605,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]',
     pathParams: ['organizationId', 'providerId'] as const,
     pathParamDocs: {
-      organizationId: 'Organization whose single sign-on settings are managed.',
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
@@ -19155,7 +19163,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/domains',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'List Organization Domains',
     workspaceKeyUnsupported: true,
@@ -19844,7 +19855,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/sso/providers',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'List SSO Providers',
     workspaceKeyUnsupported: true,
@@ -20946,7 +20960,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations/[organizationId]/domains/[domainId]',
     pathParams: ['organizationId', 'domainId'] as const,
     pathParamDocs: {
-      organizationId: 'Organization whose single sign-on settings are managed.',
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
       domainId: 'Domain claim owned by this organization.',
     },
     responseMode: 'json',
@@ -21383,7 +21398,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/organizations/[organizationId]/sso/providers',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'Save SSO Provider',
     workspaceKeyUnsupported: true,
@@ -21781,7 +21799,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary',
     pathParams: ['organizationId', 'providerId'] as const,
     pathParamDocs: {
-      organizationId: 'Organization whose single sign-on settings are managed.',
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
@@ -22427,7 +22446,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/organizations/[organizationId]/sso/policy',
     pathParams: ['organizationId'] as const,
-    pathParamDocs: { organizationId: 'Organization whose single sign-on settings are managed.' },
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
     responseMode: 'json',
     summary: 'Update SSO Policy',
     workspaceKeyUnsupported: true,
@@ -22766,7 +22788,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations/[organizationId]/domains/[domainId]/verify',
     pathParams: ['organizationId', 'domainId'] as const,
     pathParamDocs: {
-      organizationId: 'Organization whose single sign-on settings are managed.',
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
       domainId: 'Domain claim owned by this organization.',
     },
     responseMode: 'json',

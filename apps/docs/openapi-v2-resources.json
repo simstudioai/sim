@@ -6918,11 +6918,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7034,11 +7034,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           }
         ],
@@ -7142,11 +7142,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7222,11 +7222,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7304,11 +7304,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7325,7 +7325,7 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "description": "Configuration accepted by Set Primary SSO Provider.",
           "content": {
             "application/json": {
@@ -7403,11 +7403,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           }
         ],
@@ -7471,11 +7471,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           }
         ],
@@ -7558,11 +7558,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7674,11 +7674,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           }
         ],
@@ -7782,11 +7782,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -7803,7 +7803,7 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "description": "Configuration accepted by Verify Organization Domain.",
           "content": {
             "application/json": {
@@ -7881,11 +7881,11 @@
             "name": "organizationId",
             "in": "path",
             "required": true,
-            "description": "Organization whose single sign-on settings are managed.",
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Organization whose single sign-on settings are managed."
+              "description": "Organization whose single sign-on settings and verified domains are managed."
             }
           },
           {
@@ -8066,9 +8066,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -8179,9 +8176,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -8279,9 +8273,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -10771,6 +10762,7 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
           "SSO_DOMAIN_NOT_VERIFIED",
           "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
@@ -19981,11 +19973,12 @@
         "description": "Set Primary SSO Provider result."
       },
       "SetPrimarySsoProviderBody": {
+        "default": {},
+        "title": "Set Primary SSO Provider body",
+        "description": "Configuration accepted by Set Primary SSO Provider.",
         "type": "object",
         "properties": {},
-        "additionalProperties": false,
-        "title": "Set Primary SSO Provider body",
-        "description": "Configuration accepted by Set Primary SSO Provider."
+        "additionalProperties": false
       },
       "GetSsoPolicyResponse": {
         "type": "object",
@@ -20272,11 +20265,12 @@
         "description": "Verify Organization Domain result."
       },
       "VerifyOrganizationDomainBody": {
+        "default": {},
+        "title": "Verify Organization Domain body",
+        "description": "Configuration accepted by Verify Organization Domain.",
         "type": "object",
         "properties": {},
-        "additionalProperties": false,
-        "title": "Verify Organization Domain body",
-        "description": "Configuration accepted by Verify Organization Domain."
+        "additionalProperties": false
       },
       "RemoveOrganizationDomainResponse": {
         "type": "object",

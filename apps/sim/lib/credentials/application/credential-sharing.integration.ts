@@ -223,4 +223,31 @@ describe('Credential sharing through user-held API credentials in PostgreSQL', (
     expect(rows).toHaveLength(1)
     expect(rows[0].status).toBe('active')
   })
+  it('reports one revocation when concurrent requests remove the same active grant', async () => {
+    const input = { credentialId, assertedWorkspaceId: workspaceId, userId: readerId }
+    await runtime.upsertCredentialMemberUseCase.execute({
+      principal,
+      input: { ...input, role: 'member' },
+    })
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, () =>
+        runtime.removeCredentialMemberUseCase.execute({ principal, input })
+      )
+    )
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    for (const result of results)
+      if (result.status === 'rejected') expect(result.reason).toMatchObject({ code: 'not_found' })
+    const { db, schema, and, eq } = runtime
+    expect(
+      await db
+        .select()
+        .from(schema.credentialMember)
+        .where(
+          and(
+            eq(schema.credentialMember.credentialId, credentialId),
+            eq(schema.credentialMember.userId, readerId)
+          )
+        )
+    ).toMatchObject([{ status: 'revoked' }])
+  })
 })

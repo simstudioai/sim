@@ -4,14 +4,16 @@ import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-prim
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import { toRecord } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, sql } from 'drizzle-orm'
 import { ssoProviderOperations } from '@/lib/auth/sso/application/operations'
 import { type SsoProviderConfig, ssoProviderWriter } from '@/lib/auth/sso/provider-adapter'
+import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import type { SsoRegistrationInput } from '@/lib/auth/sso/registration-input'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import {
   authorizeOrganizationOperation,
@@ -19,7 +21,6 @@ import {
 } from '@/lib/core/application/organization-authorization'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   secureFetchWithPinnedIP,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
 
 const logger = createLogger('SaveSsoProvider')
@@ -102,7 +104,10 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
     if (!response.ok) {
       return { ok: false, error: `Discovery request failed with status ${response.status}` }
     }
-    return { ok: true, discovery: (await response.json()) as Record<string, unknown> }
+    const discovery: unknown = await response.json()
+    if (!isRecordLike(discovery))
+      return { ok: false, error: 'OIDC discovery document must be a JSON object' }
+    return { ok: true, discovery }
   } catch (error) {
     return { ok: false, error: getErrorMessage(error, 'Unknown error') }
   }
@@ -114,12 +119,10 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
     principal,
     input,
     context,
-    request,
   }: {
     principal: Principal
     input: SsoRegistrationInput
     context: OrganizationMembershipContext
-    request?: OrchestrationRequestContext
   }) {
     if (!isSsoEnabled) throw new OrchestrationError('validation', 'SSO is not enabled')
     if (!(await isOrganizationFeatureEntitled(context.organizationId, isSsoEnabled)))
@@ -199,8 +202,8 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
      * provider to a domain it already signs in through: the new provider waits,
      * reachable by test link, until an admin makes it the domain's primary.
      */
-    const findDomainRefusal = async (): Promise<void> => {
-      const claims = await db
+    const findDomainRefusal = async (executor: DbOrTx = db): Promise<void> => {
+      const claims = await executor
         .select({
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
@@ -241,9 +244,9 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
      * resolves providers by that column alone. Catching the cross-tenant
      * collision here turns its opaque 422 into a 409 naming a free id.
      */
-    const findProviderIdConflict = async () =>
+    const findProviderIdConflict = async (executor: DbOrTx = db) =>
       (
-        await db
+        await executor
           .select({ userId: ssoProvider.userId, organizationId: ssoProvider.organizationId })
           .from(ssoProvider)
           .where(eq(ssoProvider.providerId, providerId))
@@ -267,7 +270,23 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
 
     await findDomainRefusal()
 
-    const writer = await ssoProviderWriter(principal, orgId, request)
+    const [ownedProvider] = await db
+      .select({
+        issuer: ssoProvider.issuer,
+        oidcConfig: ssoProvider.oidcConfig,
+        samlConfig: ssoProvider.samlConfig,
+      })
+      .from(ssoProvider)
+      .where(ownerClause)
+      .limit(1)
+    if (
+      ownedProvider &&
+      !(providerType === 'oidc' ? ownedProvider.oidcConfig : ownedProvider.samlConfig)
+    )
+      return failSsoProvider(
+        409,
+        'An existing SSO provider cannot change protocols. Create a separate provider.'
+      )
 
     const providerConfig: SsoProviderConfig = {
       providerId,
@@ -289,35 +308,32 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         jwksEndpoint,
       } = body
 
-      let clientSecret = rawClientSecret
-      if (rawClientSecret === REDACTED_MARKER) {
-        const [existing] = await db
-          .select({ oidcConfig: ssoProvider.oidcConfig })
-          .from(ssoProvider)
-          .where(ownerClause)
-          .limit(1)
-        if (!existing?.oidcConfig) {
-          return failSsoProvider(
-            400,
-            'Cannot update: existing provider not found. Re-enter your client secret.'
-          )
-        }
+      const existing = ownedProvider
+      let stored: Record<string, unknown> = {}
+      if (existing?.oidcConfig) {
         try {
-          const stored = toRecord(JSON.parse(existing.oidcConfig))
-          const secret = toStringOrNull(stored.clientSecret)
-          if (!secret) return failSsoProvider(400, 'Re-enter your client secret.')
-          clientSecret = secret
+          stored = toRecord(JSON.parse(existing.oidcConfig))
         } catch {
-          return failSsoProvider(
-            400,
-            'Cannot update: failed to read existing secret. Re-enter your client secret.'
-          )
+          return failSsoProvider(400, 'Cannot update invalid OIDC configuration.')
         }
       }
+      let clientSecret = rawClientSecret
+      if (rawClientSecret === REDACTED_MARKER) {
+        const secret = toStringOrNull(stored.clientSecret)
+        if (!secret) return failSsoProvider(400, 'Re-enter your client secret.')
+        clientSecret = secret
+      }
+      const existingTokenMethod =
+        existing?.issuer === issuer ? stored.tokenEndpointAuthentication : undefined
 
       const oidcConfig: NonNullable<SsoProviderConfig['oidcConfig']> = {
         clientId,
         clientSecret,
+        tokenEndpointAuthentication:
+          existingTokenMethod === 'client_secret_basic' ||
+          existingTokenMethod === 'client_secret_post'
+            ? existingTokenMethod
+            : undefined,
         authorizationEndpoint,
         tokenEndpoint,
         userInfoEndpoint,
@@ -576,232 +592,97 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
       organizationId: orgId,
     })
 
-    if (await findProviderIdConflict()) {
-      logger.warn('Rejected SSO registration: providerId was claimed during registration', {
-        providerId,
-        orgId,
-        userId: context.userId,
-      })
-      return providerIdConflictResponse()
-    }
-
-    await findDomainRefusal()
-
-    // Authoritative verification re-check: the verified row could have been
-    // removed during OIDC discovery. Re-checking here (not just at handler
-    // entry) ensures ownership still holds at the moment of the write.
-    if (!(await isOrgDomainVerified())) {
-      logger.warn(
-        'Rejected SSO registration: domain verification was revoked during registration',
-        {
-          domain,
-          orgId,
-          userId: context.userId,
-        }
+    const result = await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, orgId)
+      await lockSsoProvider(tx, providerId)
+      await authorizeOrganizationOperation(
+        principal,
+        ssoProviderOperations.save,
+        { organizationId: orgId },
+        { executor: tx, forUpdate: true }
       )
-      return domainNotVerifiedResponse()
-    }
-
-    // OIDC discovery may outlive the caller's administrator membership or OAuth grant.
-    await authorizeOrganizationOperation(principal, ssoProviderOperations.save, {
-      organizationId: orgId,
-    })
-
-    // Better Auth's registerSSOProvider is create-only (it throws on an existing
-    // providerId). If the caller already owns a provider with this id, route the
-    // edit through updateSSOProvider so re-saving an SSO config works instead of
-    // failing. The verification gate above already ran against the target domain,
-    // so an edit that moves SSO to an unverified domain is still blocked.
-    // Config columns are captured, not just the id: an update whose trust grant is
-    // refused has to be undone, or the rejected config stays stored and goes live
-    // the moment the domain is verified again.
-    const [existingOwnedProvider] = await db
-      .select({
-        id: ssoProvider.id,
-        issuer: ssoProvider.issuer,
-        domain: ssoProvider.domain,
-        domainVerified: ssoProvider.domainVerified,
-        oidcConfig: ssoProvider.oidcConfig,
-        samlConfig: ssoProvider.samlConfig,
-        jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
-      })
-      .from(ssoProvider)
-      .where(ownerClause)
-      .limit(1)
-
-    /**
-     * Grants domain trust only while the proof is held under a row lock.
-     *
-     * A WHERE-clause EXISTS test is not enough: under READ COMMITTED the subquery
-     * sees the statement's original snapshot, so a delete committing while the
-     * UPDATE waits can still grant trust after ownership is gone. The row lock
-     * orders the two — the delete blocks until this commits, and if it committed
-     * first the SELECT finds nothing.
-     *
-     * A provider joining a domain another provider already signs in does not
-     * take over by sorting first: unless the domain's named primary still signs
-     * it in, the provider signing it in until now is named, in the same
-     * transaction. The lock is `FOR UPDATE` so two providers joining at once
-     * settle it one after the other.
-     */
-    const grantProviderDomainTrust = (joinsDomain: boolean, rowId: string): Promise<boolean> =>
-      db.transaction(async (tx) => {
-        const [proof] = await tx
-          .select({ id: ssoDomain.id })
-          .from(ssoDomain)
-          .where(verifiedDomainClause)
-          .limit(1)
-          .for('update')
-        if (!proof) return false
-
-        const granted = await tx
-          .update(ssoProvider)
-          .set({ domainVerified: true, jitProvisioningEnabled })
-          .where(and(ownerClause, eq(ssoProvider.id, rowId)))
-          .returning({ id: ssoProvider.id })
-        if (granted.length === 0) return false
-
-        if (joinsDomain) {
-          await keepDomainSignInProvider(tx, {
-            domainRecordId: proof.id,
-            organizationId: orgId,
-            domain,
-            joiningProviderId: providerId,
-          })
-        }
-        return true
-      })
-
-    if (existingOwnedProvider) {
-      const revertProviderUpdate = async (): Promise<void> => {
-        await db
-          .update(ssoProvider)
-          .set({
-            issuer: existingOwnedProvider.issuer,
-            domain: existingOwnedProvider.domain,
-            oidcConfig: existingOwnedProvider.oidcConfig,
-            samlConfig: existingOwnedProvider.samlConfig,
-            domainVerified: false,
-            jitProvisioningEnabled: existingOwnedProvider.jitProvisioningEnabled,
-          })
-          .where(eq(ssoProvider.id, existingOwnedProvider.id))
-      }
-
-      await writer.update({
-        providerId,
-        issuer,
-        domain,
-        ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
-        ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
-      })
-
-      let domainTrustGranted: boolean
-      try {
-        domainTrustGranted = await grantProviderDomainTrust(
-          !existingOwnedProvider.domainVerified ||
-            normalizeSSODomain(existingOwnedProvider.domain) !== domain,
-          existingOwnedProvider.id
+      if (await findProviderIdConflict(tx)) return providerIdConflictResponse()
+      await findDomainRefusal(tx)
+      const [proof] = await tx
+        .select({ id: ssoDomain.id })
+        .from(ssoDomain)
+        .where(verifiedDomainClause)
+        .limit(1)
+        .for('update')
+      if (!proof) return domainNotVerifiedResponse()
+      const [existing] = await tx
+        .select()
+        .from(ssoProvider)
+        .where(ownerClause)
+        .limit(1)
+        .for('update')
+      if (existing && !(providerType === 'oidc' ? existing.oidcConfig : existing.samlConfig))
+        return failSsoProvider(
+          409,
+          'An existing SSO provider cannot change protocols. Create a separate provider.'
         )
-      } catch (error) {
-        try {
-          await revertProviderUpdate()
-        } catch (rollbackError) {
-          logger.error('Failed to revert SSO provider after domain trust write failed', {
-            domain,
-            orgId,
-            providerId,
-            userId: context.userId,
-            error,
-            rollbackError,
-          })
+      if (existing?.oidcConfig && providerConfig.oidcConfig && body.providerType === 'oidc') {
+        const current = toRecord(JSON.parse(existing.oidcConfig))
+        if (body.clientSecret === REDACTED_MARKER) {
+          const secret = toStringOrNull(current.clientSecret)
+          if (!secret) return failSsoProvider(400, 'Re-enter your client secret.')
+          providerConfig.oidcConfig.clientSecret = secret
         }
-        throw error
+        if (
+          existing.issuer === issuer &&
+          (current.tokenEndpointAuthentication === 'client_secret_basic' ||
+            current.tokenEndpointAuthentication === 'client_secret_post')
+        )
+          providerConfig.oidcConfig.tokenEndpointAuthentication =
+            current.tokenEndpointAuthentication
       }
-
-      // Restore the pre-update config and clear the flag together. Clearing alone
-      // is not enough: re-verifying the domain now regrants trust automatically,
-      // which would activate the very config this request reported as rejected.
-      if (!domainTrustGranted) {
-        await revertProviderUpdate()
-        logger.warn('Reverted SSO update: domain verification was removed mid-write', {
-          domain,
-          orgId,
-          providerId,
-          userId: context.userId,
+      const writer = await ssoProviderWriter(principal, orgId, tx)
+      let rowId: string
+      if (existing) {
+        await writer.update(
+          {
+            providerId,
+            issuer,
+            domain,
+            ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
+            ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
+          },
+          { clearUserInfoEndpoint: body.providerType === 'oidc' && body.skipUserInfoEndpoint }
+        )
+        rowId = existing.id
+      } else {
+        const registration = await writer.register(providerConfig).catch((error: unknown) => {
+          if (getPostgresErrorCode(error) === '23505')
+            throw new OrchestrationError(
+              'conflict',
+              'The provider ID was claimed during registration. Reload the providers and retry.'
+            )
+          throw error
         })
-        return domainNotVerifiedResponse()
+        rowId = registration.id
       }
-
-      /** The edit may have changed whether this provider can satisfy the sign-in requirement. */
-      invalidateSsoPolicyCache(orgId)
-
-      logger.info('SSO provider updated successfully', { providerId, providerType, domain })
+      const granted = await tx
+        .update(ssoProvider)
+        .set({ domainVerified: true, jitProvisioningEnabled })
+        .where(and(ownerClause, eq(ssoProvider.id, rowId)))
+        .returning({ id: ssoProvider.id })
+      if (!granted.length)
+        throw new OrchestrationError('conflict', 'The provider changed during registration.')
+      if (!existing || !existing.domainVerified || normalizeSSODomain(existing.domain) !== domain)
+        await keepDomainSignInProvider(tx, {
+          domainRecordId: proof.id,
+          organizationId: orgId,
+          domain,
+          joiningProviderId: providerId,
+        })
       return {
-        created: false,
+        created: !existing,
         providerId,
         providerType,
-        message: `${providerType.toUpperCase()} provider updated successfully`,
+        message: `${providerType.toUpperCase()} provider ${existing ? 'updated' : 'registered'} successfully`,
       }
-    }
-
-    const registration = await writer.register(providerConfig).catch((error: unknown) => {
-      if (getPostgresErrorCode(error) === '23505')
-        throw new OrchestrationError(
-          'conflict',
-          'The provider ID was claimed during registration. Reload the providers and retry.'
-        )
-      throw error
     })
-
-    // Better Auth omits the runtime record ID from its type; trust and rollback must bind to that record.
-    const createdRowId = toStringOrNull(toRecord(registration).id)
-    if (!createdRowId) throw new Error('SSO registration returned no provider record identifier')
-    const revertProviderRegistration = () =>
-      db
-        .delete(ssoProvider)
-        .where(and(eq(ssoProvider.id, createdRowId), eq(ssoProvider.organizationId, orgId)))
-    let domainTrustGranted: boolean
-    try {
-      domainTrustGranted = await grantProviderDomainTrust(true, createdRowId)
-    } catch (error) {
-      try {
-        await revertProviderRegistration()
-      } catch (rollbackError) {
-        logger.error('Failed to remove SSO provider after domain trust write failed', {
-          domain,
-          orgId,
-          providerId,
-          error,
-          rollbackError,
-        })
-      }
-      throw error
-    }
-    if (!domainTrustGranted) {
-      await revertProviderRegistration()
-      logger.warn('Rolled back SSO provider: domain verification revoked mid-registration', {
-        domain,
-        orgId,
-        providerId: registration.providerId,
-        userId: context.userId,
-      })
-      return domainNotVerifiedResponse()
-    }
-
-    /** A new provider can make an organization able to require single sign-on again. */
     invalidateSsoPolicyCache(orgId)
-
-    logger.info('SSO provider registered successfully', {
-      providerId,
-      providerType,
-      domain,
-    })
-
-    return {
-      created: true,
-      providerId: registration.providerId,
-      providerType,
-      message: `${providerType.toUpperCase()} provider registered successfully`,
-    }
+    return result
   },
 })

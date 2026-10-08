@@ -92,7 +92,7 @@ export const setSsoRequirement: OperationUseCase<
      */
     if (input.requireSso && !(await isOrganizationFeatureEntitled(organizationId, isSsoEnabled))) {
       throw new ForbiddenOperationError(
-        'ENTERPRISE_PLAN_REQUIRED',
+        isBillingEnabled ? 'ENTERPRISE_PLAN_REQUIRED' : 'SSO_DISABLED',
         isBillingEnabled
           ? 'Single Sign-On is available on Enterprise plans only'
           : 'Single Sign-On is disabled. Set ENTERPRISE_ENABLED or SSO_ENABLED to enable it.'

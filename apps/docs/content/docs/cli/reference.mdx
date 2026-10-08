@@ -490,8 +490,7 @@ sim credentials members list <credentialId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `email`, `name`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 
@@ -3153,8 +3152,7 @@ sim organizations domains list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `domain`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 
@@ -3668,8 +3666,7 @@ sim organizations sso providers list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--sort-by <value>` | No | Field used to sort the result. Accepted values: `providerId`, `domain`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 
@@ -3698,7 +3695,7 @@ sim organizations sso providers save [options]
 | `--no-jit-provisioning-enabled` | No | Send --jit-provisioning-enabled as false. |
 | `--mapping <json\|@file>` | No | Identity-provider claims mapped to user fields. (JSON, or @path / @- to read a file or stdin). |
 | `--client-id <value>` | No | Identity provider client identifier. Available when providerType is oidc. Required when providerType is oidc. |
-| `--client-secret <value>` | No | Write-only client secret; the redacted marker from Get SSO Provider preserves an existing secret. Available when providerType is oidc. Required when providerType is oidc. |
+| `--client-secret <value\|@file>` | No | Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @). |
 | `--scopes <json\|@file>` | No | OIDC scopes; offline_access is omitted. Available when providerType is oidc. (JSON, or @path / @- to read a file or stdin). |
 | `--pkce` | No | Use PKCE for the authorization flow. Available when providerType is oidc. |
 | `--no-pkce` | No | Send --pkce as false. |

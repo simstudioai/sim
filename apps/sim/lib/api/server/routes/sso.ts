@@ -16,11 +16,12 @@ import { v2Error } from '@/app/api/v2/lib/response'
 export const v2SsoErrorPolicy: V2ErrorPolicy = {
   render(error) {
     if (error instanceof APIError) {
-      if (error.statusCode >= 500)
+      if (error.statusCode === 503)
         return v2Error(
           'SERVICE_UNAVAILABLE',
           'Identity provider settings are temporarily unavailable'
         )
+      if (error.statusCode >= 500) return v2Error('INTERNAL_ERROR', 'Internal server error')
       if (error.statusCode === 409)
         return v2Error(
           'CONFLICT',

@@ -1,8 +1,16 @@
+import { execFile } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
+import { promisify } from 'node:util'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { envFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import { NextRequest } from 'next/server'
@@ -24,15 +32,12 @@ describe('Organization SSO administration through API credentials', () => {
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
 
   async function loadRuntime() {
-    const [{ db }, schema, { and, eq, inArray, sql }, providers, requirements, primary] =
-      await Promise.all([
-        import('@sim/db'),
-        import('@sim/db/schema'),
-        import('drizzle-orm'),
-        import('@/lib/auth/sso/application/provider-settings'),
-        import('@/lib/auth/sso/application/sso-requirement'),
-        import('@/lib/auth/sso/application/set-primary-provider'),
-      ])
+    const { db } = await import('@sim/db')
+    const schema = await import('@sim/db/schema')
+    const { and, eq, inArray, sql } = await import('drizzle-orm')
+    const providers = await import('@/lib/auth/sso/application/provider-settings')
+    const requirements = await import('@/lib/auth/sso/application/sso-requirement')
+    const primary = await import('@/lib/auth/sso/application/set-primary-provider')
     const { saveSsoProvider } = await import('@/lib/auth/sso/application/provider-registration')
     const { presentSsoProvider } = await import('@/lib/api/server/sso-presenters')
     const domainSettings = await import('@/lib/organizations/application/domain-settings')
@@ -169,18 +174,21 @@ describe('Organization SSO administration through API credentials', () => {
 
   it('creates and edits a provider without minting a browser session, then deletes it', async () => {
     const { db, schema, eq } = runtime
-    const created = await runtime.saveSsoProvider.execute({ principal, input: config() })
+    const created = await runtime.saveSsoProvider.execute({
+      principal,
+      input: { ...config(), domain: domain.toUpperCase() },
+    })
     expect(created).toMatchObject({ providerId, created: true })
     const edited = await runtime.saveSsoProvider.execute({
       principal,
-      input: { ...config(), cert: 'rotated signing certificate' },
+      input: { ...config(), domain: domain.toUpperCase(), cert: 'rotated signing certificate' },
     })
     expect(edited.created).toBe(false)
     const [row] = await db
       .select()
       .from(schema.ssoProvider)
       .where(eq(schema.ssoProvider.providerId, providerId))
-    expect(row).toMatchObject({ userId, organizationId, domainVerified: true })
+    expect(row).toMatchObject({ userId, organizationId, domain, domainVerified: true })
     expect(JSON.parse(row.samlConfig ?? '{}').cert).toBe('rotated signing certificate')
     expect(
       await db.select().from(schema.session).where(eq(schema.session.userId, userId))
@@ -362,6 +370,519 @@ describe('Organization SSO administration through API credentials', () => {
       expect(JSON.parse(stored.oidcConfig ?? '{}').clientSecret).toBe('rotated-secret')
     } finally {
       await db.delete(schema.account).where(eq(schema.account.id, accountId))
+    }
+  })
+
+  it('removes a saved UserInfo endpoint when identity-token claims are requested', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValue(
+      new Error('Fixture supplies all OIDC endpoints')
+    )
+    const oidc = oidcConfig()
+    await runtime.saveSsoProvider.execute({ principal, input: oidc })
+    inputValidationMockFns.mockValidateUrlWithDNS.mockImplementation(async (url: string) =>
+      url === oidc.userInfoEndpoint
+        ? { isValid: false, error: 'Unused UserInfo endpoint must not be contacted' }
+        : { isValid: true, resolvedIP: '203.0.113.10' }
+    )
+    await runtime.saveSsoProvider.execute({
+      principal,
+      input: { ...oidc, skipUserInfoEndpoint: true },
+    })
+    const { db, schema, eq } = runtime
+    const [stored] = await db
+      .select()
+      .from(schema.ssoProvider)
+      .where(eq(schema.ssoProvider.providerId, providerId))
+    expect(JSON.parse(stored.oidcConfig ?? '{}').userInfoEndpoint).toBeUndefined()
+    expect(stored.domainVerified).toBe(true)
+  })
+
+  it('preserves token authentication when an existing issuer cannot be discovered', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(
+        JSON.stringify({ token_endpoint_auth_methods_supported: ['client_secret_basic'] })
+      )
+    )
+    const oidc = oidcConfig()
+    await runtime.saveSsoProvider.execute({ principal, input: oidc })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValue(
+      new Error('Discovery unavailable')
+    )
+    await runtime.saveSsoProvider.execute({
+      principal,
+      input: { ...oidc, clientSecret: '[REDACTED]' },
+    })
+    const { db, schema, eq } = runtime
+    const [stored] = await db
+      .select()
+      .from(schema.ssoProvider)
+      .where(eq(schema.ssoProvider.providerId, providerId))
+    expect(JSON.parse(stored.oidcConfig ?? '{}')).toMatchObject({
+      clientSecret: oidc.clientSecret,
+      tokenEndpointAuthentication: 'client_secret_basic',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+        })
+      )
+    )
+    const other = { ...oidc, providerId: `${providerId}-post` }
+    await runtime.saveSsoProvider.execute({ principal, input: other })
+    const [preferred] = await db
+      .select()
+      .from(schema.ssoProvider)
+      .where(eq(schema.ssoProvider.providerId, other.providerId))
+    expect(JSON.parse(preferred.oidcConfig ?? '{}').tokenEndpointAuthentication).toBe(
+      'client_secret_post'
+    )
+  })
+
+  it('preserves private SAML metadata during a linked certificate rotation and projects legacy metadata', async () => {
+    const { db, schema, eq } = runtime
+    await runtime.saveSsoProvider.execute({ principal, input: config() })
+    const [original] = await db
+      .select()
+      .from(schema.ssoProvider)
+      .where(eq(schema.ssoProvider.providerId, providerId))
+    const stored = JSON.parse(original.samlConfig ?? '{}')
+    await db
+      .update(schema.ssoProvider)
+      .set({
+        samlConfig: JSON.stringify({
+          ...stored,
+          spMetadata: {
+            ...stored.spMetadata,
+            entityID: 'stable-service',
+            privateKey: 'fixture-private-key',
+            encPrivateKey: 'fixture-encryption-key',
+          },
+          idpMetadata: {
+            ...stored.idpMetadata,
+            entityID: 'stable-idp',
+            isAssertionEncrypted: true,
+          },
+        }),
+      })
+      .where(eq(schema.ssoProvider.id, original.id))
+    const accountId = generateId()
+    await db.insert(schema.account).values({
+      id: accountId,
+      accountId: 'linked-saml',
+      providerId,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    try {
+      await runtime.saveSsoProvider.execute({
+        principal,
+        input: { ...config(), cert: 'rotated private-metadata certificate' },
+      })
+      const [rotated] = await db
+        .select()
+        .from(schema.ssoProvider)
+        .where(eq(schema.ssoProvider.id, original.id))
+      expect(JSON.parse(rotated.samlConfig ?? '{}')).toMatchObject({
+        cert: 'rotated private-metadata certificate',
+        spMetadata: {
+          entityID: 'stable-service',
+          privateKey: 'fixture-private-key',
+          encPrivateKey: 'fixture-encryption-key',
+        },
+        idpMetadata: { entityID: 'stable-idp', isAssertionEncrypted: true },
+      })
+      const legacyMetadata = '<EntityDescriptor entityID="legacy-provider"/>'
+      await db
+        .update(schema.ssoProvider)
+        .set({ samlConfig: JSON.stringify({ ...stored, idpMetadata: legacyMetadata }) })
+        .where(eq(schema.ssoProvider.id, original.id))
+      const listed = await runtime.listSsoProviders.execute({
+        principal,
+        input: { organizationId, limit: 1 },
+      })
+      expect(
+        JSON.parse(runtime.presentSsoProvider(listed.providers[0]).samlConfig ?? '{}')
+      ).toMatchObject({
+        idpMetadata: { metadata: legacyMetadata },
+      })
+    } finally {
+      await db.delete(schema.account).where(eq(schema.account.id, accountId))
+    }
+  })
+
+  it('rejects malformed discovery and protocol changes without changing a saved provider', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    for (const document of [null, [], 'invalid']) {
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response(JSON.stringify(document))
+      )
+      await expect(
+        runtime.saveSsoProvider.execute({
+          principal,
+          input: {
+            ...oidcConfig(),
+            authorizationEndpoint: undefined,
+            tokenEndpoint: undefined,
+            jwksEndpoint: undefined,
+          },
+        })
+      ).rejects.toMatchObject({ status: 400 })
+    }
+    await runtime.saveSsoProvider.execute({ principal, input: config() })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValue(
+      new Error('Explicit endpoints')
+    )
+    await expect(
+      runtime.saveSsoProvider.execute({ principal, input: oidcConfig() })
+    ).rejects.toMatchObject({ status: 409 })
+    const { db, schema, eq } = runtime
+    const [stored] = await db
+      .select()
+      .from(schema.ssoProvider)
+      .where(eq(schema.ssoProvider.providerId, providerId))
+    expect(stored.oidcConfig).toBeNull()
+    expect(JSON.parse(stored.samlConfig ?? '{}').cert).toBe(config().cert)
+  })
+
+  it('refuses deletion when administrator access is revoked while the write waits', async () => {
+    const { db, schema, sql, and, eq } = runtime
+    await runtime.saveSsoProvider.execute({ principal, input: config() })
+    await runtime.setPrimarySsoProvider.execute({
+      principal,
+      input: { assertedOrganizationId: organizationId, providerId },
+    })
+    const ready = createDeferred<number>()
+    const release = createDeferred<void>()
+    const holder = db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${organizationId}`}, 0))`
+      )
+      await tx
+        .select()
+        .from(schema.ssoProvider)
+        .where(eq(schema.ssoProvider.providerId, providerId))
+        .for('update')
+      await tx
+        .update(schema.member)
+        .set({ role: 'member' })
+        .where(
+          and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, userId))
+        )
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      ready.resolve(connection.pid)
+      await release.promise
+    })
+    let pending: Promise<PromiseSettledResult<unknown>[]> | undefined
+    try {
+      const pid = await ready.promise
+      const deletion = runtime.deleteSsoProvider.execute({
+        principal,
+        input: { organizationId, providerId },
+      })
+      pending = Promise.allSettled([deletion])
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ waiting: boolean }>(
+            sql`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE ${pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock') AS waiting`
+          )
+          expect(waiting.waiting).toBe(true)
+        },
+        { timeout: 2000 }
+      )
+      release.resolve()
+      await holder
+      await expect(deletion).rejects.toMatchObject({ detailCode: 'ORGANIZATION_ADMIN_REQUIRED' })
+      expect(
+        await db
+          .select()
+          .from(schema.ssoProvider)
+          .where(eq(schema.ssoProvider.providerId, providerId))
+      ).toHaveLength(1)
+      const [claim] = await db
+        .select()
+        .from(schema.ssoDomain)
+        .where(eq(schema.ssoDomain.organizationId, organizationId))
+      expect(claim.primaryProviderId).toBe(providerId)
+    } finally {
+      release.resolve()
+      await holder
+      await pending
+      await db
+        .update(schema.member)
+        .set({ role: 'owner' })
+        .where(
+          and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, userId))
+        )
+    }
+  })
+
+  it('caps delegated domain reads even when pagination fields are supplied', async () => {
+    const { db, schema, inArray } = runtime
+    const domains = Array.from({ length: 26 }, (_, index) => ({
+      id: generateId(),
+      organizationId,
+      domain: `delegated-${index}-${suffix}.test`,
+      status: 'pending',
+      verificationToken: generateId(),
+    }))
+    await db.insert(schema.ssoDomain).values(domains)
+    try {
+      const result = await runtime.domainSettings.listOrganizationDomains.execute({
+        principal: {
+          kind: 'organization_delegated',
+          serviceId: 'copilot',
+          organizationId,
+          subjectUserId: userId,
+          delegationId: generateId(),
+          audience: 'sim:settings',
+          issuedAt: new Date(Date.now() - 1000),
+          expiresAt: new Date(Date.now() + 60000),
+          resourceScope: { chatId: generateId() },
+        },
+        input: { organizationId, limit: 100, cursorKeys: ['ignored', 'ignored'] },
+      })
+      expect(result.domains).toHaveLength(25)
+      expect(result.truncated).toBe(true)
+      expect(result.nextCursorKeys).toBeNull()
+      expect(result.domains.every((row) => row.verificationToken === null)).toBe(true)
+    } finally {
+      await db.delete(schema.ssoDomain).where(
+        inArray(
+          schema.ssoDomain.id,
+          domains.map((row) => row.id)
+        )
+      )
+    }
+  })
+
+  it('keeps a pending edit invisible and rolls it back before a later save', async () => {
+    const { db, schema, sql, eq } = runtime
+    await runtime.saveSsoProvider.execute({ principal, input: config() })
+    await db
+      .update(schema.ssoProvider)
+      .set({ domainVerified: false })
+      .where(eq(schema.ssoProvider.providerId, providerId))
+    const constraint = sql.identifier(`sso-edit-failure-${suffix}`)
+    await db.execute(
+      sql`ALTER TABLE ${schema.ssoProvider} ADD CONSTRAINT ${constraint} CHECK (NOT domain_verified OR saml_config::jsonb ->> 'cert' <> 'rejected-certificate') NOT VALID`
+    )
+    const ready = createDeferred<number>()
+    const release = createDeferred<void>()
+    const holder = db.transaction(async (tx) => {
+      await tx
+        .select()
+        .from(schema.ssoDomain)
+        .where(eq(schema.ssoDomain.organizationId, organizationId))
+        .for('update')
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      ready.resolve(connection.pid)
+      await release.promise
+    })
+    let attempts: Promise<PromiseSettledResult<unknown>[]> | undefined
+    try {
+      const pid = await ready.promise
+      const pending = runtime.saveSsoProvider.execute({
+        principal,
+        input: { ...config(), cert: 'rejected-certificate' },
+      })
+      attempts = Promise.allSettled([pending])
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ waiting: boolean }>(
+            sql`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE ${pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock') AS waiting`
+          )
+          expect(waiting.waiting).toBe(true)
+        },
+        { timeout: 2000 }
+      )
+      const [visible] = await db
+        .select()
+        .from(schema.ssoProvider)
+        .where(eq(schema.ssoProvider.providerId, providerId))
+      expect(JSON.parse(visible.samlConfig ?? '{}').cert).toBe(config().cert)
+      const later = runtime.saveSsoProvider.execute({
+        principal,
+        input: { ...config(), cert: 'successful-certificate' },
+      })
+      attempts = Promise.allSettled([pending, later])
+      release.resolve()
+      await holder
+      expect((await attempts).map((result) => result.status)).toEqual(['rejected', 'fulfilled'])
+      const [stored] = await db
+        .select()
+        .from(schema.ssoProvider)
+        .where(eq(schema.ssoProvider.providerId, providerId))
+      expect(stored.domainVerified).toBe(true)
+      expect(JSON.parse(stored.samlConfig ?? '{}').cert).toBe('successful-certificate')
+    } finally {
+      release.resolve()
+      await holder
+      await attempts
+      await db.execute(sql`ALTER TABLE ${schema.ssoProvider} DROP CONSTRAINT ${constraint}`)
+    }
+  })
+
+  it('executes primary selection and domain verification through the real CLI and HTTP routes', async () => {
+    const apiPrimary = await import(
+      '@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary/route'
+    )
+    const apiDomainVerification = await import(
+      '@/app/api/v2/organizations/[organizationId]/domains/[domainId]/verify/route'
+    )
+    await runtime.saveSsoProvider.execute({ principal, input: config() })
+    const { db, schema, eq } = runtime
+    const [claim] = await db
+      .select()
+      .from(schema.ssoDomain)
+      .where(eq(schema.ssoDomain.organizationId, organizationId))
+    const directory = await mkdtemp(resolve(tmpdir(), 'sim-sso-cli-'))
+    const cliPath = resolve(process.cwd(), '../../packages/sim-cli/src/index.ts')
+    const secret = 'fixture-secret+with-newline\n'
+    const secretPath = resolve(directory, 'client-secret')
+    await writeFile(secretPath, secret)
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValue(
+      new Error('CLI fixture supplies all endpoints')
+    )
+
+    let endpoint = ''
+    const server = createServer(async (incoming, outgoing) => {
+      try {
+        const headers = new Headers({ 'x-forwarded-for': '127.0.0.1' })
+        for (const [name, value] of Object.entries(incoming.headers))
+          if (value) headers.set(name, Array.isArray(value) ? value.join(', ') : value)
+        const chunks: Buffer[] = []
+        let bytes = 0
+        for await (const chunk of incoming) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          bytes += buffer.length
+          if (bytes > 16_384) throw new Error('Fixture body limit exceeded')
+          chunks.push(buffer)
+        }
+        const request = new NextRequest(`${endpoint}${incoming.url}`, {
+          method: incoming.method,
+          headers,
+          ...(chunks.length ? { body: Buffer.concat(chunks).toString('utf8') } : {}),
+        })
+        const path = new URL(request.url).pathname
+        const response = path.endsWith('/sso/providers')
+          ? await runtime.apiProviders.POST(request, {
+              params: Promise.resolve({ organizationId }),
+            })
+          : path.endsWith('/primary')
+            ? await apiPrimary.POST(request, {
+                params: Promise.resolve({ organizationId, providerId }),
+              })
+            : await apiDomainVerification.POST(request, {
+                params: Promise.resolve({ organizationId, domainId: claim.id }),
+              })
+        outgoing.statusCode = response.status
+        response.headers.forEach((value, name) => outgoing.setHeader(name, value))
+        outgoing.end(await response.text())
+      } catch (error) {
+        outgoing.statusCode = 500
+        outgoing.end(JSON.stringify({ fixtureError: getErrorMessage(error) }))
+      }
+    })
+    try {
+      await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready))
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Fixture did not bind loopback')
+      endpoint = `http://127.0.0.1:${address.port}`
+      const commands = [
+        ['organizations', 'sso', 'providers', 'primary', providerId],
+        ['organizations', 'domains', 'verify', claim.id],
+        [
+          'organizations',
+          'sso',
+          'providers',
+          'save',
+          '--provider-type',
+          'oidc',
+          '--provider-id',
+          `cli-${suffix}`,
+          '--issuer',
+          'https://idp.example.com',
+          '--domain',
+          domain,
+          '--client-id',
+          'cli-client',
+          '--client-secret',
+          `@${secretPath}`,
+          '--authorization-endpoint',
+          'https://idp.example.com/authorize',
+          '--token-endpoint',
+          'https://idp.example.com/token',
+          '--jwks-endpoint',
+          'https://idp.example.com/jwks',
+          '--skip-user-info-endpoint',
+        ],
+      ]
+      const attempts = await Promise.all(
+        commands.map((args) =>
+          promisify(execFile)(
+            'bun',
+            [
+              '--no-env-file',
+              cliPath,
+              '--endpoint',
+              endpoint,
+              '--output',
+              'json',
+              ...args,
+              '--organization',
+              organizationId,
+            ],
+            {
+              cwd: directory,
+              env: { ...process.env, SIM_CONFIG_DIR: directory, SIM_API_KEY: apiKeyValue },
+              timeout: 10_000,
+            }
+          ).then(
+            ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
+            (error: unknown) => ({ code: 1, stdout: '', stderr: getErrorMessage(error) })
+          )
+        )
+      )
+      expect(attempts).toMatchObject([{ code: 0 }, { code: 0 }, { code: 0 }])
+      const [stored] = await db
+        .select()
+        .from(schema.ssoDomain)
+        .where(eq(schema.ssoDomain.id, claim.id))
+      expect(stored.primaryProviderId).toBe(providerId)
+      const [saved] = await db
+        .select()
+        .from(schema.ssoProvider)
+        .where(eq(schema.ssoProvider.providerId, `cli-${suffix}`))
+      expect(JSON.parse(saved.oidcConfig ?? '{}').clientSecret).toBe(secret)
+      expect(attempts[2].stdout).not.toContain(secret)
+
+      expect(JSON.parse(attempts[1].stdout)).toMatchObject({
+        id: claim.id,
+        status: 'verified',
+      })
+    } finally {
+      await new Promise<void>((complete, reject) => {
+        server.close((error) => (error ? reject(error) : complete()))
+        server.closeAllConnections()
+      })
+      await rm(directory, { recursive: true, force: true })
     }
   })
 

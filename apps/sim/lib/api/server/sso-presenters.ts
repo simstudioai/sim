@@ -47,7 +47,8 @@ function publicConfig(
     for (const key of fields) {
       if (record[key] === undefined) continue
       if (key === 'spMetadata' || key === 'idpMetadata') {
-        const metadata = toRecord(record[key])
+        const metadata: Record<string, unknown> =
+          typeof record[key] === 'string' ? { metadata: record[key] } : toRecord(record[key])
         projected[key] = {
           metadata: metadata.metadata,
           entityID: metadata.entityID,
