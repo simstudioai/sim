@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBrandingProvider,
+  mockIsDesktopPresenceAvailable,
+  mockWorkspaceChrome,
   mockGetOrgWhitelabelSettings,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
@@ -16,6 +18,10 @@ const {
   mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
+  mockIsDesktopPresenceAvailable: vi.fn(() => false),
+  mockWorkspaceChrome: vi.fn(
+    ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
+  ),
   mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
@@ -64,7 +70,11 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
-  WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
+  WorkspaceChrome: mockWorkspaceChrome,
+}))
+
+vi.mock('@/lib/desktop/executor/presence', () => ({
+  isDesktopPresenceAvailable: mockIsDesktopPresenceAvailable,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
@@ -202,4 +212,21 @@ describe('WorkspaceLayout host context', () => {
     expect(mockPrefetchWorkspaceAccess).not.toHaveBeenCalled()
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalled()
   })
+
+  it.each([true, false])(
+    'tells the sidebar the desktop executor runs only where presence is tracked (%s)',
+    async (presenceAvailable) => {
+      mockIsDesktopPresenceAvailable.mockReturnValue(presenceAvailable)
+      mockWorkspaceChrome.mockClear()
+
+      const element = await WorkspaceLayout({
+        children: <div>Workspace child</div>,
+        params: Promise.resolve({ workspaceId: 'workspace-b' }),
+      })
+      renderToStaticMarkup(element)
+
+      const { sidebar } = mockWorkspaceChrome.mock.calls[0][0]
+      expect(sidebar).toMatchObject({ props: { desktopExecutorAvailable: presenceAvailable } })
+    }
+  )
 })

@@ -30,8 +30,8 @@ const registerDesktopDeviceBodySchema = z.object({
 export type RegisterDesktopDeviceBody = z.input<typeof registerDesktopDeviceBodySchema>
 
 /**
- * `enabled: false` is the kill switch: the device keeps finishing calls on runs already bound to
- * it, but no new turn binds to it.
+ * `enabled: false` means this install cannot run the executor: the device keeps finishing calls on
+ * runs already bound to it, but no new turn binds to it.
  */
 export const registerDesktopDeviceResponseSchema = z.object({
   enabled: z.boolean(),

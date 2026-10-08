@@ -258,7 +258,7 @@ export function reflectBackgroundChatStatus(
 export function useMothershipChatEvents(
   owner: MothershipChatOwner | undefined,
   chatEnabled: boolean,
-  /** Announce chats that finish in the background; only with the background executor on. */
+  /** Announce chats that finish in the background; only where the background executor runs. */
   announceBackgroundCompletions = false
 ) {
   const queryClient = useQueryClient()
