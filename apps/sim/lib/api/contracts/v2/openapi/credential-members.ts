@@ -18,7 +18,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.listMembers,
       operationId: 'listCredentialMembers',
       summary: 'List Credential Members',
-      description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access and the integrations.manage capability. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: { description: 'List Credential Members result.', headers: RATE_LIMIT_HEADERS },
@@ -34,7 +34,7 @@ export const credentialMemberOpenApiRoutes = [
         v2ListCredentialMembersContract.query,
         'ListCredentialMembersQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'Workspace scope, sorting, and pagination controls.'
       ),
       response: documentedSchema(
         v2ListCredentialMembersContract.response.schema,
@@ -50,7 +50,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.upsertMember,
       operationId: 'upsertCredentialMember',
       summary: 'Upsert Credential Member',
-      description: `Grant or change an existing workspace member’s credential role. Requires credential administrator access. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Grant or change an existing workspace member’s credential role. Requires credential administrator access and the integrations.manage capability. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: { description: 'Upsert Credential Member result.', headers: RATE_LIMIT_HEADERS },
@@ -66,7 +66,7 @@ export const credentialMemberOpenApiRoutes = [
         v2UpsertCredentialMemberContract.query,
         'UpsertCredentialMemberQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'Workspace containing the credential.'
       ),
       body: documentedSchema(
         v2UpsertCredentialMemberContract.body,
@@ -88,7 +88,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.removeMember,
       operationId: 'removeCredentialMember',
       summary: 'Remove Credential Member',
-      description: `Revoke an active explicit credential grant. Requires credential administrator access. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Revoke an active explicit credential grant. Requires credential administrator access and the integrations.manage capability. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: { description: 'Remove Credential Member result.', headers: RATE_LIMIT_HEADERS },
@@ -104,7 +104,7 @@ export const credentialMemberOpenApiRoutes = [
         v2RemoveCredentialMemberContract.query,
         'RemoveCredentialMemberQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'Workspace containing the credential.'
       ),
       response: documentedSchema(
         v2RemoveCredentialMemberContract.response.schema,

@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 const ssoMappingSchema = z
   .object({
-    id: z.string().default('sub'),
-    email: z.string().default('email'),
-    name: z.string().default('name'),
-    image: z.string().default('picture'),
+    id: z.string().min(1).max(255).default('sub'),
+    email: z.string().min(1).max(255).default('email'),
+    name: z.string().min(1).max(255).default('name'),
+    image: z.string().min(1).max(255).default('picture'),
   })
   .default({
     id: 'sub',
@@ -16,7 +16,7 @@ const ssoMappingSchema = z
 
 export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   z.object({
-    providerType: z.literal('oidc').default('oidc'),
+    providerType: z.literal('oidc'),
     providerId: z.string().min(1, 'Provider ID is required').max(255),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
@@ -33,7 +33,7 @@ export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
             .map((value) => value.trim())
             .filter((value) => value !== '')
         ),
-        z.array(z.string()),
+        z.array(z.string().trim().min(1)),
       ])
       .default(['openid', 'profile', 'email']),
     pkce: z.boolean().default(true),

@@ -1726,7 +1726,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListCredentialMembersContract,
     summary: 'List Credential Members',
     description:
-      'List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access and the integrations.manage capability. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/credentials/[credentialId]/members/route').then((route) => route.GET),
@@ -2344,7 +2344,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2RemoveCredentialMemberContract,
     summary: 'Remove Credential Member',
     description:
-      'Revoke an active explicit credential grant. Requires credential administrator access. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Revoke an active explicit credential grant. Requires credential administrator access and the integrations.manage capability. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/credentials/[credentialId]/members/[userId]/route').then(
@@ -2941,7 +2941,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpsertCredentialMemberContract,
     summary: 'Upsert Credential Member',
     description:
-      'Grant or change an existing workspace member’s credential role. Requires credential administrator access. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Grant or change an existing workspace member’s credential role. Requires credential administrator access and the integrations.manage capability. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/credentials/[credentialId]/members/route').then((route) => route.POST),

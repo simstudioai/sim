@@ -172,6 +172,7 @@ describe('organization domain Settings operations', () => {
     'invalidates the SSO requirement after a committed domain %s',
     async (action) => {
       queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(member, [{ role: 'admin' }])
       if (action === 'verify') {
         queueTableRows(ssoDomain, [row])
         queueTableRows(ssoDomain, [])
@@ -213,6 +214,7 @@ describe('organization domain Settings operations', () => {
     'accepts a self-hosted administrator claim without %s DNS',
     async (lookup) => {
       setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: 'true' })
+      queueTableRows(member, [{ role: 'admin' }])
       queueTableRows(member, [{ role: 'admin' }])
       queueTableRows(ssoDomain, [row])
       queueTableRows(ssoDomain, [])
