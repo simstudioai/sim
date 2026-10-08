@@ -6,13 +6,13 @@ date: 2026-10-08
 updated: 2026-10-08
 authors:
   - andrew
-readingTime: 12
+readingTime: 13
 tags: [AI Agents, Salesforce, Lead Scoring, CRM Automation, Sim]
 ogImage: /library/salesforce-ai-agent-lead-scoring-workflow/cover.jpg
 draft: false
 faq:
   - q: "How do I build a Salesforce AI agent for lead scoring?"
-    a: "Sim builds a Salesforce AI lead-scoring agent by retrieving eligible leads, extracting structured evidence, calculating a deterministic score, routing required approvals, and writing approved results back to Salesforce."
+    a: "Sim builds a Salesforce AI lead-scoring agent by retrieving eligible leads, extracting structured evidence, calculating a deterministic score, routing required approvals, and applying only the Salesforce updates supported by the configured write path."
   - q: "Can Sim connect to Salesforce?"
     a: "Sim connects to Salesforce through its documented native Salesforce integration and an authorized Salesforce credential."
   - q: "Does Sim provide a Salesforce MCP server?"
@@ -20,13 +20,13 @@ faq:
   - q: "What is a Salesforce MCP server?"
     a: "A Salesforce MCP server is a Salesforce-provided Model Context Protocol endpoint that exposes supported Salesforce capabilities to compatible MCP clients under Salesforce’s documented authentication and permission model."
   - q: "Do I need a Salesforce MCP server to automate lead scoring?"
-    a: "Sim does not need a Salesforce MCP server for the workflow in this guide because its native Salesforce integration handles the required retrieval and write-back steps."
+    a: "Sim does not need a Salesforce MCP server for the workflow in this guide because its native Salesforce integration handles retrieval, supported standard-field Lead updates, and Task creation."
   - q: "How should an AI agent score Salesforce leads?"
     a: "Sim should score Salesforce leads with a fixed rubric, constrained evidence extraction, deterministic arithmetic, explicit thresholds, and documented handling for missing data."
   - q: "Should the AI model calculate the final lead score?"
     a: "Sim should use the model to normalize evidence and use deterministic workflow logic to calculate the final Salesforce lead score."
   - q: "Can Sim update Salesforce Lead records?"
-    a: "Sim can use its documented Salesforce integration to update approved Lead fields by Salesforce record ID."
+    a: "Sim can use its documented Salesforce integration to update the standard Lead fields exposed by its Update Lead action by Salesforce record ID; that action does not accept arbitrary custom fields."
   - q: "Can Sim create Salesforce follow-up tasks?"
     a: "Sim can use its documented Salesforce integration to create a Salesforce Task after the workflow’s routing and approval requirements pass."
   - q: "How do I add human approval before a Salesforce update?"
@@ -34,13 +34,13 @@ faq:
   - q: "Does Sim’s Human in the Loop block automatically approve or reject a change?"
     a: "Sim’s Human in the Loop block pauses and resumes the run with form data, but a downstream Condition must evaluate the approval field to approve or reject the Salesforce change."
   - q: "What Salesforce permissions should the integration user have?"
-    a: "Salesforce should grant Sim’s dedicated integration user only the object, field, record, and action permissions required to read scoring inputs, update approved score fields, and create permitted tasks."
+    a: "Salesforce should grant Sim’s dedicated integration user only the object, field, record, and action permissions required to read scoring inputs, update supported approved fields, and create permitted tasks."
   - q: "Can I test a Sim Salesforce workflow in a sandbox?"
     a: "Sim should be connected to a Salesforce sandbox or tightly controlled test cohort before production write actions are enabled."
   - q: "How do I prevent duplicate Salesforce tasks?"
     a: "Sim should query for an existing matching open task or use another approved idempotency key before creating a Salesforce follow-up task."
   - q: "How do I prevent AI from overwriting Salesforce data incorrectly?"
-    a: "Sim should constrain model output, calculate scores deterministically, update only dedicated fields, require approval where appropriate, and verify the Salesforce record after each write."
+    a: "Sim should constrain model output, calculate scores deterministically, update only fields supported by the configured write path, require approval where appropriate, and verify the Salesforce record after each write."
   - q: "What happens when Salesforce data is missing?"
     a: "Sim should record the Salesforce input as missing, award zero points unless the rubric says otherwise, and route consequential ambiguity for human review rather than inventing evidence."
   - q: "What happens when a reviewer rejects the proposed score?"
@@ -69,7 +69,7 @@ faq:
 
 ## TL;DR
 
-**Sim can retrieve Salesforce leads, evaluate them against an explicit scoring rubric, pause high-impact changes for human approval, and write approved scores and follow-up tasks back to Salesforce.**
+**Sim can retrieve Salesforce leads, evaluate them against an explicit scoring rubric, pause high-impact changes for human approval, and create approved follow-up tasks or supported standard-field updates in Salesforce.**
 
 The reliable pattern is to let an AI model interpret messy evidence while deterministic workflow logic assigns points, applies thresholds, and controls Salesforce writes. This separation makes the workflow easier to test, explain, and govern than asking a model to invent a score in one step.
 
@@ -85,7 +85,7 @@ A production workflow should divide the job into five responsibilities:
 2. Sim orchestrates retrieval, AI analysis, deterministic scoring, approval, and write-back.
 3. The model normalizes ambiguous text into constrained evidence, not an unrestricted final score.
 4. Deterministic logic calculates the score and tier from an approved rubric.
-5. A reviewer approves consequential updates before Sim changes Salesforce or creates a sales task.
+5. A reviewer approves consequential updates before Sim changes a supported Salesforce field or creates a sales task.
 
 For broader product rankings, see [Best AI Agents for Sales and CRM Automation](https://www.sim.ai/library/best-ai-agents-sales-crm-automation). This guide focuses specifically on implementing and validating one Salesforce lead-scoring workflow.
 
@@ -101,7 +101,7 @@ A useful workflow contract is:
 | Normalize | Approved CRM fields and related signals | Structured evidence with source fields | Mark missing evidence instead of guessing |
 | Score | Structured evidence and fixed rubric | Numeric score and criterion-level breakdown | Reject totals outside 0–100 |
 | Route | Score, tier, confidence, and policy flags | Auto-close, review, or approved-write path | Send ambiguous or sensitive cases to review |
-| Write | Approved score package | Updated Lead fields and, when needed, a Task | Record the error and avoid partial duplicate writes |
+| Write | Approved score package | Supported standard Lead fields and, when needed, a Task | Record the error and avoid partial duplicate writes |
 | Verify | Expected and actual Salesforce values | Pass or exception | Escalate mismatches without silently retrying writes |
 
 The workflow should preserve the Salesforce Lead ID throughout the run. That ID is the safest key for updates and task relationships; names and email addresses are not stable identifiers.
@@ -229,11 +229,11 @@ The review form should display:
 - Criterion-level point breakdown.
 - Evidence summary and missing inputs.
 - Proposed Salesforce fields to change.
-- Proposed task owner, subject, and due date.
+- Proposed task subject and due date.
 - Approve or reject field.
 - Required reviewer note for overrides or rejections.
 
-A practical policy is to require review when the score is high, the model reports missing or conflicting evidence, an owner would change, or the workflow would create a seller task. Lower-risk updates can follow a separately approved policy, but the workflow should never interpret the Human in the Loop block’s mere completion as approval.
+A practical policy is to require review when the score is high, the model reports missing or conflicting evidence, or the workflow would create a seller task. Lower-risk updates can follow a separately approved policy, but the workflow should never interpret the Human in the Loop block’s mere completion as approval.
 
 For a broader explanation of approval patterns, see [What Is Human-in-the-Loop in AI Agents?](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents).
 
@@ -241,25 +241,18 @@ For a broader explanation of approval patterns, see [What Is Human-in-the-Loop i
 
 **Sim should update only approved Salesforce fields and create a follow-up Task only when the routing policy requires one.**
 
-Create dedicated custom fields instead of overwriting unrelated standard fields. Example destination fields are:
+Sim’s native Update Lead action accepts the Lead ID and a fixed set of standard fields, including Status, Lead Source, Title, and Description. It does not accept arbitrary custom fields. Creating fields such as `AI_Lead_Score__c` in Salesforce therefore does not make them writable through this action.
 
-- `AI_Lead_Score__c`
-- `AI_Lead_Tier__c`
-- `AI_Score_Reason__c`
-- `AI_Scored_At__c`
-- `AI_Scoring_Version__c`
-
-These are examples, not universal Salesforce fields; an administrator must create or map the actual fields used by the organization.
-
-Use the documented Salesforce update action in Sim to update the Lead by ID. Write the numeric score, tier, concise reason, scoring timestamp, and rubric or workflow version together so later audits can identify the policy that produced the result.
+Keep custom-score persistence disabled unless the organization implements and validates a separate Salesforce API or Salesforce-side automation path for those fields. With the native actions alone, retain the score, tier, criterion breakdown, timestamp, and rubric version in the workflow’s execution evidence; update a supported standard Lead field only when the approved policy genuinely calls for it; and create the follow-up Task after approval. Do not overwrite an unrelated standard field merely to store a score.
 
 For an approved high-priority lead, use the [documented Salesforce create action](https://docs.sim.ai/integrations/salesforce) to create a Task. A typical mapping includes:
 
 - `WhoId`: the Salesforce Lead ID.
 - `Subject`: a stable description such as “Review high-priority AI-scored lead.”
-- `OwnerId`: an approved user or queue assignment resolved by policy.
 - `ActivityDate`: the approved due date.
 - `Description`: the evidence summary and score breakdown, excluding unnecessary sensitive data.
+
+The native Create Task action does not expose `OwnerId`. The task therefore cannot be assigned to a chosen user or queue from that action; if explicit assignment is required, route it through separately validated Salesforce-side automation after creation.
 
 Add an idempotency check before task creation. For example, query for an open task carrying the same lead ID, workflow version, and purpose; if one exists, update or skip it according to policy instead of creating a duplicate.
 
@@ -274,9 +267,9 @@ Build a test matrix that covers:
 | All ten criteria pass | Score 100; high tier; approval path |
 | No criteria pass | Score 0; low tier; no sales task |
 | Score equals 75 | High tier; boundary handled correctly |
-| Score equals 74 | Medium tier; boundary handled correctly |
+| Score equals 70 | Medium tier; highest reachable score below 75 |
 | Score equals 50 | Medium tier; boundary handled correctly |
-| Score equals 49 | Low tier; boundary handled correctly |
+| Score equals 45 | Low tier; highest reachable score below 50 |
 | Missing optional signal | Zero points for that criterion; missing input recorded |
 | Invalid structured model output | No Salesforce write; exception path |
 | Reviewer rejects | No Lead update and no Task creation |
@@ -318,7 +311,7 @@ Use this deployment checklist:
 
 ## Do you need a Salesforce MCP server to build this workflow?
 
-**Sim does not require a Salesforce MCP server for this implementation because Sim’s native Salesforce integration can perform the documented retrieval and write-back steps.**
+**Sim does not require a Salesforce MCP server for this implementation because Sim’s native Salesforce integration can perform retrieval, supported standard-field updates, and Task creation.**
 
 MCP is useful when a team specifically wants to expose tools through the Model Context Protocol or standardize tool access across compatible clients. Salesforce documents [hosted MCP servers](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html), but that Salesforce capability should not be confused with Sim’s native Salesforce integration or treated as proof that Sim supplies a Salesforce-hosted MCP server.
 
