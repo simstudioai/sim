@@ -493,6 +493,29 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only OCI private-key passphrase.')
       .meta({ writeOnly: true }),
     region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
+    accessKeyId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Write-only OCI Customer Secret Key access identifier.')
+      .meta({ writeOnly: true }),
+    secretAccessKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('Write-only OCI Customer Secret Key secret.')
+      .meta({ writeOnly: true }),
+    namespace: z
+      .string()
+      .trim()
+      .min(1)
+      .max(63)
+      .optional()
+      .describe('OCI Object Storage tenancy namespace.'),
   })
   .strict()
 
@@ -760,6 +783,29 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only OCI private-key passphrase.')
     .meta({ writeOnly: true }),
   region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
+  accessKeyId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Write-only OCI Customer Secret Key access identifier.')
+    .meta({ writeOnly: true }),
+  secretAccessKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1024)
+    .optional()
+    .describe('Write-only OCI Customer Secret Key secret.')
+    .meta({ writeOnly: true }),
+  namespace: z
+    .string()
+    .trim()
+    .min(1)
+    .max(63)
+    .optional()
+    .describe('OCI Object Storage tenancy namespace.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z

@@ -4,6 +4,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
@@ -32,6 +33,9 @@ export type ServiceAccountFieldId =
   | 'userOcid'
   | 'fingerprint'
   | 'privateKeyPassphrase'
+  | 'accessKeyId'
+  | 'secretAccessKey'
+  | 'namespace'
   | 'region'
 
 /**
@@ -54,6 +58,12 @@ export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAcc
     'userOcid',
     'fingerprint',
     'privateKey',
+    'region',
+  ],
+  [OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID]: [
+    'accessKeyId',
+    'secretAccessKey',
+    'namespace',
     'region',
   ],
   ...TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,

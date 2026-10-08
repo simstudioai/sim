@@ -191,6 +191,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   note: 'Note',
   notion_v2: 'Notion',
   obsidian: 'Obsidian',
+  oci_object_storage: 'OCI Object Storage',
   okta: 'Okta',
   onedrive: 'OneDrive',
   onepassword: '1Password',

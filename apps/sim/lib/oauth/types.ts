@@ -41,6 +41,13 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export const ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'oracledb-service-account' as const
+/** Stable provider id for OCI Object Storage Customer Secret Key credentials. */
+export const OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID =
+  'oci-object-storage-service-account' as const
+
+/** Discriminator stored inside an encrypted OCI Object Storage credential blob. */
+export const OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE =
+  'oci_object_storage_customer_secret_key' as const
 
 export type OAuthProvider =
   | 'oracledb'
@@ -113,6 +120,7 @@ export type OAuthProvider =
   | 'docusign'
   | 'manageengine-sdp'
   | 'zoho-desk'
+  | 'oci_object_storage'
 
 export type OAuthService =
   | 'oracledb'
@@ -186,6 +194,7 @@ export type OAuthService =
   | 'monday'
   | 'manageengine-sdp'
   | 'zoho-desk'
+  | 'oci_object_storage'
 
 export interface OAuthProviderConfig {
   name: string

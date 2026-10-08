@@ -34,6 +34,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
@@ -55,6 +56,7 @@ export type ServiceAccountProviderId =
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
   | typeof OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -64,6 +66,7 @@ const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
 const OCI_API_KEY_DOCS_URL =
   'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm'
+const OCI_OBJECT_STORAGE_DOCS_URL = 'https://docs.sim.ai/integrations/oci_object_storage'
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -240,6 +243,22 @@ export function ConnectServiceAccountModal({
       <AtlassianServiceAccountModal
         atlassianProduct={atlassianProduct}
         setupGuideUrl={atlassianSetupGuideUrl}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  if (serviceAccountProviderId === OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <OciObjectStorageServiceAccountModal
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -883,6 +902,202 @@ function AtlassianServiceAccountModalForm({
         ]}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
+          onClick: handleSubmit,
+          disabled: isDisabled,
+        }}
+      />
+    </ChipModal>
+  )
+}
+
+function OciObjectStorageServiceAccountModal(props: ProviderModalProps) {
+  if (!props.open) return null
+  return (
+    <OciObjectStorageServiceAccountModalForm
+      key={`${resourceScopeKey(resourceScopeFromOwner(props))}:${props.credentialId ?? 'new'}`}
+      {...props}
+    />
+  )
+}
+
+function OciObjectStorageServiceAccountModalForm({
+  open,
+  onOpenChange,
+  workspaceId,
+  organizationId,
+  serviceName,
+  serviceIcon: ServiceIcon,
+  credentialId,
+  initialDisplayName,
+  initialDescription,
+  onCreated,
+}: ProviderModalProps) {
+  const [accessKeyId, setAccessKeyId] = useState('')
+  const [secretAccessKey, setSecretAccessKey] = useState('')
+  const [namespace, setNamespace] = useState('')
+  const [region, setRegion] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
+  const [description, setDescription] = useState(initialDescription ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
+
+  const normalizedNamespace = namespace.trim().toLowerCase()
+  const normalizedRegion = region.trim().toLowerCase()
+  const isPending = createCredential.isPending || updateCredential.isPending
+  const actionLabel = credentialId ? 'Reconnect' : 'Add'
+  const isDisabled =
+    !accessKeyId.trim() ||
+    !secretAccessKey.trim() ||
+    !normalizedNamespace ||
+    !normalizedRegion ||
+    isPending
+
+  const handleSubmit = async () => {
+    setError(null)
+    if (isDisabled) return
+    try {
+      const trimmedDisplayName = displayName.trim()
+      const trimmedDescription = description.trim()
+      const submittedDisplayName =
+        credentialId && trimmedDisplayName === (initialDisplayName ?? '').trim()
+          ? undefined
+          : trimmedDisplayName || undefined
+      const secretFields = {
+        accessKeyId: accessKeyId.trim(),
+        secretAccessKey: secretAccessKey.trim(),
+        namespace: normalizedNamespace,
+        region: normalizedRegion,
+        displayName: submittedDisplayName,
+      }
+      let connectedCredentialId = credentialId
+      if (credentialId) {
+        await updateCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
+          credentialId,
+          ...secretFields,
+          description: trimmedDescription || null,
+        })
+      } else {
+        const created = await createCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
+          type: 'service_account',
+          providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+          ...secretFields,
+          description: trimmedDescription || undefined,
+        })
+        connectedCredentialId = created.credential.id
+      }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
+      onOpenChange(false)
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Could not verify this OCI Object Storage credential'))
+      logger.error('Failed to add OCI Object Storage credential', {
+        message: getErrorMessage(err, 'OCI credential validation failed'),
+      })
+    }
+  }
+
+  const clearError = () => {
+    if (error) setError(null)
+  }
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={`${actionLabel} ${serviceName} Customer Secret Key`}
+    >
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
+        {actionLabel} {serviceName} Customer Secret Key
+      </ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField type='custom' title='Access Key' required>
+          {(aria) => (
+            <SecretInput
+              {...aria}
+              value={accessKeyId}
+              onChange={(value) => {
+                setAccessKeyId(value)
+                clearError()
+              }}
+              placeholder='Paste the Customer Secret Key access key'
+              name='oci_object_storage_access_key'
+              autoComplete='new-password'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          )}
+        </ChipModalField>
+        <ChipModalField type='custom' title='Secret Key' required>
+          {(aria) => (
+            <SecretInput
+              {...aria}
+              value={secretAccessKey}
+              onChange={(value) => {
+                setSecretAccessKey(value)
+                clearError()
+              }}
+              placeholder='Paste the Customer Secret Key secret'
+              name='oci_object_storage_secret_key'
+              autoComplete='new-password'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          )}
+        </ChipModalField>
+        <ChipModalField
+          type='input'
+          title='Object Storage namespace'
+          value={namespace}
+          onChange={(value) => {
+            setNamespace(value)
+            clearError()
+          }}
+          placeholder='axaxnpcrorw5'
+          autoComplete='off'
+          required
+          hint='Find this value on your OCI tenancy details page.'
+        />
+        <ChipModalField
+          type='input'
+          title='OCI region'
+          value={region}
+          onChange={(value) => {
+            setRegion(value)
+            clearError()
+          }}
+          placeholder='us-ashburn-1'
+          autoComplete='off'
+          required
+          hint='Public commercial OC1 regions only.'
+        />
+        <ChipModalField
+          type='input'
+          title='Display name'
+          value={displayName}
+          onChange={setDisplayName}
+          placeholder='Defaults to the verified OCI owner and region'
+          autoComplete='off'
+        />
+        <ChipModalField
+          type='textarea'
+          title='Description'
+          value={description}
+          onChange={setDescription}
+          placeholder='Optional description'
+          maxLength={500}
+          minHeight={80}
+        />
+        <ChipModalError>{error}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        secondaryActions={[
+          { label: 'Setup guide', onClick: () => openDocs(OCI_OBJECT_STORAGE_DOCS_URL) },
+        ]}
+        primaryAction={{
+          label: isPending ? 'Verifying...' : `${actionLabel} Customer Secret Key`,
           onClick: handleSubmit,
           disabled: isDisabled,
         }}

@@ -549,6 +549,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   notion_v2: NotionIcon,
   obsidian: ObsidianIcon,
   oci: OracleIcon,
+  oci_object_storage: OracleIcon,
   okta: OktaIcon,
   onedrive: MicrosoftOneDriveIcon,
   onepassword: OnePasswordIcon,

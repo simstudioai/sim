@@ -93,6 +93,9 @@ export interface PerformCreateCredentialParams {
   userOcid?: string
   fingerprint?: string
   privateKeyPassphrase?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
   region?: string
   /**
    * Client-supplied credential id, honored only for `slack-custom-bot`: the
@@ -320,6 +323,9 @@ export async function createCredentialRecord(
           userOcid: params.userOcid,
           fingerprint: params.fingerprint,
           privateKeyPassphrase: params.privateKeyPassphrase,
+          accessKeyId: params.accessKeyId,
+          secretAccessKey: params.secretAccessKey,
+          namespace: params.namespace,
           region: params.region,
         })
         resolvedProviderId = secret.providerId
