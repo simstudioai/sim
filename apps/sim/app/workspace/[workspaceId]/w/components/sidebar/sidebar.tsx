@@ -372,6 +372,8 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
 interface SidebarProps {
   organizationHref: string | null
+  /** Whether this install runs the desktop background executor, so chats show desktop activity. */
+  desktopExecutorAvailable: boolean
 }
 
 /**
@@ -390,7 +392,10 @@ interface SidebarProps {
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({
+  organizationHref,
+  desktopExecutorAvailable,
+}: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -885,15 +890,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  const desktopExecutorEnabled = useFeatureFlag('mothership-desktop-background-executor')
   useMothershipChatEvents(
     workspaceId,
     chatEnabled && !permissionConfig.hideCopilot,
-    desktopExecutorEnabled
+    desktopExecutorAvailable
   )
   const { data: desktopActivity } = useDesktopActivity(
     workspaceId,
-    desktopExecutorEnabled && chatEnabled && !permissionConfig.hideCopilot
+    desktopExecutorAvailable && chatEnabled && !permissionConfig.hideCopilot
   )
   const desktopActivityByChat = useMemo(
     () => new Map((desktopActivity ?? []).map((activity) => [activity.chatId, activity])),

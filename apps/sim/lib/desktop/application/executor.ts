@@ -9,6 +9,7 @@ import {
   type CredentialUserAuditEntry,
   defineAuthorizedCredentialUserUseCase,
 } from '@/lib/credentials/application/authorized-user-use-case'
+import { isDesktopBackgroundExecutorAvailable } from '@/lib/desktop/executor/availability'
 import {
   DESKTOP_EXECUTOR_PROTOCOL_VERSION,
   DESKTOP_INBOX_RECONCILE_MS,
@@ -22,7 +23,6 @@ import {
   DesktopCallRevokedError,
   DesktopDeviceUnrecognizedError,
 } from '@/lib/desktop/executor/errors'
-import { isDesktopBackgroundExecutorEnabled } from '@/lib/desktop/executor/flag'
 import { classifyDesktopInbox, type DesktopInboxEntry } from '@/lib/desktop/executor/inbox'
 import { markDesktopPresent } from '@/lib/desktop/executor/presence'
 import {
@@ -72,15 +72,15 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
 }
 
 /**
- * The device a new turn binds to: the composer's own, but only while the executor is on for this
- * user and the device is registered to this very session as an executor. Anything else leaves
+ * The device a new turn binds to: the composer's own, but only while this install can run the
+ * executor and the device is registered to this very session as an executor. Anything else leaves
  * the turn to the chat view, as before the executor existed.
  */
 export async function resolveTurnDesktopDevice(
   principal: SessionPrincipal,
   deviceId: string
 ): Promise<string | null> {
-  if (!(await isDesktopBackgroundExecutorEnabled(principal.userId))) return null
+  if (!isDesktopBackgroundExecutorAvailable()) return null
   const device = await getBoundDesktopDevice(
     { deviceId, userId: principal.userId, sessionId: principal.sessionId },
     { executor: true }
@@ -103,8 +103,8 @@ interface RegisterDesktopDeviceInput extends DeviceInput {
 }
 
 /**
- * Binds the install to this user and session. With the executor turned off nothing is written,
- * and the device stays dormant.
+ * Binds the install to this user and session. Where the executor is unavailable nothing is
+ * written, and the device stays dormant.
  */
 export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
   // permission-group-exempt: registering grants no access; each call's run was admitted under the Chat capability.
@@ -120,7 +120,7 @@ export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
     principal: SessionPrincipal
     input: RegisterDesktopDeviceInput
   }) {
-    const enabled = await isDesktopBackgroundExecutorEnabled(principal.userId)
+    const enabled = isDesktopBackgroundExecutorAvailable()
     if (enabled) {
       const registered = await upsertDesktopDevice({
         id: input.deviceId,

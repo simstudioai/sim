@@ -139,7 +139,6 @@ case "$group" in
   desktop-inbox)
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
-    export MSHIP_DESKTOP_BACKGROUND_EXECUTOR=true
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw

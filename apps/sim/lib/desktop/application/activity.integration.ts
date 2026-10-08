@@ -2,7 +2,7 @@
  * Background desktop activity against real PostgreSQL and Redis: which of a user's chats a desktop
  * runs, and whether each is running, waiting on the user's approval, or blocked by an offline desktop.
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -12,8 +12,6 @@ const { redisUrl } = await vi.hoisted(async () => {
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   return { redisUrl: url }
 })
-
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -25,7 +23,6 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
 import { closeRedisConnection } from '@/lib/core/config/redis'
@@ -42,10 +39,6 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
   const userIds: string[] = []
   const workspaceIds: string[] = []
   const deviceIds: string[] = []
-
-  beforeEach(() => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
-  })
 
   afterAll(async () => {
     if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds))

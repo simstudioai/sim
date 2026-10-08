@@ -11,8 +11,8 @@ import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys
 const DESKTOP_ACTIVITY_STALE_TIME = 10 * 1000
 /**
  * Presence, approvals and new background turns change without a chat event this query hears, so
- * it is re-read on a timer: often while a desktop runs a chat, rarely otherwise. Only users in the
- * executor's rollout ever run it.
+ * it is re-read on a timer: often while a desktop runs a chat, rarely otherwise. Only installs that
+ * run the executor ever read it.
  */
 const DESKTOP_ACTIVITY_ACTIVE_REFETCH_MS = 15 * 1000
 const DESKTOP_ACTIVITY_IDLE_REFETCH_MS = 30 * 1000

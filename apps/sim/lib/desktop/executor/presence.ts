@@ -14,7 +14,7 @@ function presenceKey(deviceId: string): string {
   return `desktop:presence:${deviceId}`
 }
 
-/** Whether presence can be tracked at all; without Redis the executor stays off. */
+/** Whether presence can be tracked at all, which needs Redis. */
 export function isDesktopPresenceAvailable(): boolean {
   return getRedisClient() !== null
 }

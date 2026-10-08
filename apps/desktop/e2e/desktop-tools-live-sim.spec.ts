@@ -13,7 +13,6 @@ import {
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { toRecord } from '@sim/utils/object'
 import {
   type LiveSimConfig,
   liveSimConfig,
@@ -30,6 +29,11 @@ import {
  * model's decisions are scripted (a stand-in worker at `SIM_AGENT_API_URL`). Each test checks
  * what the user or the model would observe: the result the model is resumed with, what landed in
  * the workspace, what Sim persisted, and which requests reached Sim.
+ *
+ * Sim runs the background executor wherever it has Redis, as it does here. Most tests cover the
+ * chat view running desktop tools itself, as on an install without Redis: the proxy answers the
+ * app's registration as such an install does, so the app stays dormant and no turn binds to it.
+ * The tests marked as running in the background let Sim's own answer through.
  */
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -43,6 +47,11 @@ const LEASE_MS = 60_000
 const ARRIVAL_MS = 60_000
 /** First requests to a route compile it, which takes minutes on a cold dev app. */
 const COMPILE_MS = 300_000
+const REGISTRATION_PATH = '/api/desktop/devices'
+/** Sim's answer to registration on an install that cannot run the background executor. */
+const executorUnavailable = (answer: Record<string, unknown>) => {
+  answer.enabled = false
+}
 
 type DesktopWindow = typeof globalThis & { simDesktop: SimDesktopApi }
 
@@ -68,6 +77,7 @@ test.describe('desktop tools against a live Sim', () => {
     agent = new ScriptedAgent(sim.agentPort)
     db = new SimDatabase(sim)
     await Promise.all([proxy.start(), agent.start()])
+    proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
     await test.step('warm up the routes the tests use', warmUp)
   })
 
@@ -106,9 +116,10 @@ test.describe('desktop tools against a live Sim', () => {
       )
     }
     proxy.clearHolds()
+    proxy.restoreNetwork()
     await app?.close().catch(() => {})
     app = undefined
-    proxy.rewriteChatBody(undefined)
+    proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
     rmSync(scratch, { recursive: true, force: true })
   })
 
@@ -148,6 +159,7 @@ test.describe('desktop tools against a live Sim', () => {
         '/api/copilot/chats',
         '/api/users/me/settings',
         '/api/auth/oauth/connections',
+        '/api/desktop/inbox',
       ])
         await compile(path)
       for (const path of [
@@ -155,6 +167,8 @@ test.describe('desktop tools against a live Sim', () => {
         '/api/mothership/chat/abort',
         '/api/desktop/devices',
         '/api/desktop/tool/authorize',
+        '/api/desktop/tool/claim',
+        '/api/desktop/tool/complete',
         '/api/copilot/confirm',
         '/api/files/uploads',
         '/api/files/uploads/warm-up/parts',
@@ -361,6 +375,9 @@ test.describe('desktop tools against a live Sim', () => {
   /** The chat turn's response stream, as the chat view reads it. */
   const isChatStream = (entry: { method: string; path: string }) =>
     entry.method === 'POST' && entry.path === '/api/mothership/chat'
+  /** The background executor's report of a call's result. */
+  const isDesktopCompletion = (method: string, path: string) =>
+    method === 'POST' && path === '/api/desktop/tool/complete'
   /** A client tool's report of its own result. */
   const isToolReport = (method: string, path: string) =>
     method === 'POST' && path === '/api/copilot/confirm'
@@ -691,46 +708,13 @@ test.describe('desktop tools against a live Sim', () => {
     expect(after).toMatchObject({ status: 'cancelled', claimedBy: null })
   })
 
-  test('with the background executor off, a foreground desktop round trip never binds a device or rings a doorbell', async () => {
+  test('where Sim cannot run the background executor, the app stays dormant and a desktop round trip runs in the chat view', async () => {
     const user = await db.seedUser(['Round trip'])
     const marker = generateId()
     const file = writeFile(join(scratch, 'plan.txt'), `plan ${marker}`)
-    const deviceId = generateId()
     const monitor = new RedisMonitor(sim.redisUrl)
     await monitor.start()
     try {
-      // A desktop that speaks the executor protocol registers and offers itself for the turn.
-      const registration = await fetch(new URL('/api/desktop/devices', sim.upstream), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: `better-auth.session_token=${user.cookie}`,
-          Origin: proxy.origin,
-          'User-Agent': 'Sim Desktop',
-        },
-        body: JSON.stringify({
-          deviceId,
-          name: 'E2E desktop',
-          appVersion: '0.9.0',
-          platform: `${process.platform}-${process.arch}`,
-          capabilities: { executor: 1, browser: true, terminal: true, localFiles: true },
-        }),
-        signal: AbortSignal.timeout(COMPILE_MS),
-      })
-      // Each layer of the dormant executor is checked on its own (soft), so a regression shows
-      // every layer it reaches: the answer to registration, the device record, the turn's
-      // binding, the routes the app calls, and the doorbell.
-      expect(registration.status).toBe(200)
-      expect
-        .soft(await registration.json(), 'registration answer')
-        .toMatchObject({ enabled: false })
-      proxy.rewriteChatBody((body) => {
-        const desktop = toRecord(body.desktopCapabilities)
-        // The app offers its own install when it speaks the executor protocol; otherwise offer
-        // the device registered above, as such a desktop would.
-        body.desktopCapabilities = { deviceId, executor: 1, ...desktop }
-      })
-
       let callId = ''
       agent.script(
         '[round-trip]',
@@ -749,19 +733,19 @@ test.describe('desktop tools against a live Sim', () => {
       const since = Date.now()
       const page = await openApp(user, 'Round trip')
       await send(page, '[round-trip] what does my plan say?')
+      // Each layer is checked on its own (soft), so a regression shows every layer it reaches:
+      // the round trip, the turn's binding, the routes the app calls, and the doorbell.
       await expect
         .soft(page.getByText('The plan says go.'), 'foreground round trip')
         .toBeVisible({ timeout: 60_000 })
       expect.soft(agent.resultFor(callId)?.success, 'read result').toBe(true)
-      expect(proxy.rewrittenChatBodies).toBeGreaterThan(0)
 
       // The app registers once signed out (refused) and again on sign-in.
       const registeredSignedIn = () =>
         proxy
-          .seen(since, '/api/desktop/devices')
+          .seen(since, REGISTRATION_PATH)
           .some((entry) => entry.method === 'POST' && entry.status === 200)
       await expect.poll(registeredSignedIn, { timeout: 30_000 }).toBe(true)
-      expect.soft(await db.desktopDeviceCount(user.userId), 'device records').toBe(0)
 
       const runs = await db.runs(user.chats['Round trip'])
       expect(runs.length).toBeGreaterThan(0)
@@ -778,9 +762,11 @@ test.describe('desktop tools against a live Sim', () => {
       expect.soft(call?.persistSeq, 'persist order').not.toBeNull()
 
       // Only registration and the foreground claim: no inbox, doorbell stream, executor claim,
-      // lease or completion.
+      // lease or completion. The workspace's activity poll is Sim's page, not the app: this Sim
+      // has Redis, so its page asks.
       const desktopRoutes = new Set(proxy.seen(since, '/api/desktop/').map((entry) => entry.path))
-      desktopRoutes.delete('/api/desktop/devices')
+      desktopRoutes.delete(REGISTRATION_PATH)
+      desktopRoutes.delete('/api/desktop/activity')
       expect
         .soft(desktopRoutes, 'desktop routes the app called')
         .toEqual(new Set(['/api/desktop/tool/authorize']))
@@ -789,5 +775,91 @@ test.describe('desktop tools against a live Sim', () => {
     } finally {
       monitor.stop()
     }
+  })
+
+  test('in the background, a call issued after the user switched chats runs on the desktop', async () => {
+    proxy.rewriteAnswer(REGISTRATION_PATH, undefined)
+    const user = await db.seedUser(['Background chat', 'Other chat'])
+    const marker = generateId()
+    const file = writeFile(join(scratch, 'notes.txt'), `notes from disk ${marker}`)
+    let issue!: () => void
+    const issued = new Promise<void>((resolve) => {
+      issue = resolve
+    })
+    let callId = ''
+    let issuedAt = 0
+    agent.script('[background-read]', async (turn) => {
+      turn.text('Reading your notes.')
+      await issued
+      callId = turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
+      issuedAt = Date.now()
+      turn.pause()
+    })
+    const page = await openApp(user, 'Background chat')
+    await send(page, '[background-read] read my notes')
+    await expect(page.getByText('Reading your notes.')).toBeVisible({ timeout: 60_000 })
+    await openChat(page, user, 'Other chat')
+    issue()
+
+    await agent.waitForResume(() => Boolean(callId && agent.resultFor(callId)), 60_000)
+    const result = agent.resultFor(callId)
+    expect(result?.success).toBe(true)
+    expect(JSON.stringify(result?.data)).toContain(marker)
+    // No pickup grace: the desktop, not the chat view the user left, ran it.
+    expect((result?.at ?? 0) - issuedAt).toBeLessThan(PICKUP_GRACE_MS)
+    const chatId = user.chats['Background chat']
+    const runs = await db.runs(chatId)
+    expect(runs.some((run) => run.desktopDeviceId !== null)).toBe(true)
+    const [call] = await db.toolCalls(chatId)
+    expect(call).toMatchObject({ toolName: 'read_local_file', status: 'completed' })
+    expect(proxy.seen(issuedAt, '/api/desktop/tool/authorize')).toEqual([])
+  })
+
+  test('in the background, a result reported across a network cut reaches the agent exactly once', async () => {
+    proxy.rewriteAnswer(REGISTRATION_PATH, undefined)
+    const user = await db.seedUser(['Cut chat'])
+    const chatId = user.chats['Cut chat']
+    const marker = generateId()
+    const file = writeFile(join(scratch, 'notes.txt'), `notes from disk ${marker}`)
+    let callId = ''
+    agent.script('[network-cut]', (turn) => {
+      callId = turn.toolCall({ toolName: 'read_local_file', args: { path: file } })
+      turn.pause()
+    })
+    const page = await openApp(user, 'Cut chat')
+    // Reaches Sim on release although the cut made the app give up on it, as a report already on
+    // the wire would: the app cannot know it landed, so it reports again once back online.
+    const completion = proxy.hold(isDesktopCompletion, { deliverIfAbandoned: true })
+    await send(page, '[network-cut] read my notes')
+    await completion.arrival(ARRIVAL_MS, 'The result report')
+
+    proxy.cutNetwork()
+    await expect.poll(() => completion.isAbandoned, { timeout: 15_000 }).toBe(true)
+    completion.release()
+    await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^completed/)
+    await sleep(5_000)
+    const restoredAt = Date.now()
+    proxy.restoreNetwork()
+
+    // Back online, the app reopens its doorbell and reports the result again.
+    await expect
+      .poll(() => proxy.seen(restoredAt, '/api/desktop/inbox/stream').length, { timeout: 60_000 })
+      .toBeGreaterThan(0)
+    const retried = () =>
+      proxy
+        .seen(restoredAt)
+        .filter((entry) => isDesktopCompletion(entry.method, entry.path) && entry.status)
+    await expect.poll(() => retried().length, { timeout: 60_000 }).toBeGreaterThan(0)
+    for (const entry of retried()) expect(entry.status).toBeLessThan(300)
+
+    await agent.waitForResume(() => Boolean(agent.resultFor(callId)), 60_000)
+    await proxy.settled(30_000)
+    const delivered = agent.resumes.filter((resume) =>
+      resume.results.some((entry) => entry.callId === callId)
+    )
+    expect(delivered).toHaveLength(1)
+    expect(JSON.stringify(agent.resultFor(callId)?.data)).toContain(marker)
+    const [call] = await db.toolCalls(chatId)
+    expect(call).toMatchObject({ toolName: 'read_local_file', status: 'completed' })
   })
 })

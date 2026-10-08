@@ -63,14 +63,6 @@ const FEATURE_FLAGS = {
       'and workspace surfaces.',
     fallback: 'MSHIP_PLAN_MODE',
   },
-  'mothership-desktop-background-executor': {
-    description:
-      "Let the Sim desktop app run a chat's desktop tools in the background, so work continues " +
-      'after the user leaves the chat. Gates device registration and binding new turns to a ' +
-      'device; runs already bound keep finishing when it is turned off. Supports userId and ' +
-      'admin targeting; off-AppConfig falls back to MSHIP_DESKTOP_BACKGROUND_EXECUTOR.',
-    fallback: 'MSHIP_DESKTOP_BACKGROUND_EXECUTOR',
-  },
   'agent-memory-history': {
     description:
       'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',

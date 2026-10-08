@@ -36,9 +36,13 @@ export function createNonce(): string {
 /**
  * Marker kinds we act on. `A` (prompt start) doubles as the "integration is
  * live" signal; `C`/`D` bracket a command's output; `E` reports the exact
- * command line; `P` tracks the working directory across `cd`.
+ * command line; `P` tracks the working directory across `cd`. `SimStartup` is
+ * ours, not VS Code's: the shell sends it before running the user's startup
+ * files, so a shell that is still starting can be told from one we never
+ * instrumented.
  */
 export type ShellMarker =
+  | { kind: 'startup' }
   | { kind: 'prompt-start' }
   | { kind: 'command-line'; command: string }
   | { kind: 'output-start' }
@@ -123,6 +127,8 @@ export class ShellIntegrationParser {
     if (nonce !== this.nonce) return null
 
     switch (kind) {
+      case 'SimStartup':
+        return { kind: 'startup' }
       case 'A':
         return { kind: 'prompt-start' }
       case 'C':
@@ -163,9 +169,14 @@ function writeZshFiles(dir: string, nonce: string, originalZdotdir: string): voi
   const sourceOriginal = (file: string) =>
     `[ -f "$SIM_ZDOTDIR_ORIG/${file}" ] && builtin source "$SIM_ZDOTDIR_ORIG/${file}"`
 
+  // `.zshenv` is the first file zsh reads, so the startup marker goes out before any of the user's
+  // files run. Only from an interactive shell: a script's output must not carry it.
   writeFileSync(
     join(dir, '.zshenv'),
-    `SIM_ZDOTDIR_ORIG="\${SIM_ZDOTDIR_ORIG:-${originalZdotdir}}"\n${sourceOriginal('.zshenv')}\n`
+    `[[ -o interactive ]] && builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
+SIM_ZDOTDIR_ORIG="\${SIM_ZDOTDIR_ORIG:-${originalZdotdir}}"
+${sourceOriginal('.zshenv')}
+`
   )
   writeFileSync(join(dir, '.zprofile'), `${sourceOriginal('.zprofile')}\n`)
   writeFileSync(join(dir, '.zlogin'), `${sourceOriginal('.zlogin')}\n`)
@@ -225,7 +236,8 @@ function writeBashFile(dir: string, nonce: string): string {
   const rcPath = join(dir, 'sim-bash-rc.sh')
   writeFileSync(
     rcPath,
-    `[ -f "$HOME/.bashrc" ] && builtin source "$HOME/.bashrc"
+    `builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
+[ -f "$HOME/.bashrc" ] && builtin source "$HOME/.bashrc"
 
 __sim_nonce='${nonce}'
 __sim_in_cmd=''
