@@ -27,6 +27,7 @@ await writeFile(
 )
 const directory = await mkdtemp(path.join(tmpdir(), 'sim-mcp-app-'))
 const checks: { name: string; passed: boolean; durationMs: number; error?: string }[] = []
+const browserErrors: { message: string; stack?: string }[] = []
 let calls = 0
 let blockedRequests = 0
 const toolRequests: unknown[] = []
@@ -239,9 +240,10 @@ frame.src = '/frame';
   assert(address && typeof address !== 'string')
   const page = await browser.newPage()
   captureFailure = () => page.screenshot({ path: `${reportPath}.png`, fullPage: true })
-  page.on('pageerror', (error) =>
+  page.on('pageerror', (error) => {
+    browserErrors.push({ message: error.message, stack: error.stack })
     logger.error('Browser fixture error', { message: error.message, stack: error.stack })
-  )
+  })
   await page.route('https://allowed.test/**', (route) =>
     route.fulfill({ body: 'Allowed bytes', headers: { 'Access-Control-Allow-Origin': '*' } })
   )
@@ -369,6 +371,9 @@ frame.src = '/frame';
     await page.getByText('ready:%PDF-', { exact: true }).waitFor({ timeout: 20_000 })
   })
   await page.screenshot({ path: `${reportPath}.png`, fullPage: true })
+  await check('Browser completes without uncaught runtime errors', async () => {
+    assert.deepEqual(browserErrors, [])
+  })
   logger.info('MCP App browser checks passed', { count: checks.length, reportPath })
 } catch (error) {
   if (!checks.some((check) => !check.passed))
@@ -378,7 +383,7 @@ frame.src = '/frame';
 } finally {
   const runningServer = server
   const results = await Promise.allSettled([
-    writeFile(reportPath, JSON.stringify({ checks }, null, 2)),
+    writeFile(reportPath, JSON.stringify({ checks, browserErrors }, null, 2)),
     browser?.close(),
     runningServer
       ? new Promise<void>((resolve) => {

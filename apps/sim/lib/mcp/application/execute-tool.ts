@@ -1,3 +1,4 @@
+import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
@@ -13,6 +14,7 @@ import {
   requireMcpOperationAccess,
 } from '@/lib/mcp/application/operation-access'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { createMcpToolPresentation } from '@/lib/mcp/application/presentation'
 import { isMcpToolVisible, matchesMcpAppOrigin } from '@/lib/mcp/presentation-metadata'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
@@ -45,7 +47,14 @@ export interface ExecuteMcpToolInput {
 export type ExecuteMcpToolResult = (
   | { success: true; output: McpToolResult }
   | { success: false; error: string; output?: McpToolResult }
-) & { presentation?: { tool: McpTool; result: McpToolResult; arguments: Record<string, unknown> } }
+) & {
+  presentation?: {
+    tool: McpTool
+    result: McpToolResult
+    arguments: Record<string, unknown>
+    resources?: ReadResourceResult['contents']
+  }
+}
 
 function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
@@ -192,7 +201,19 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     const result = transformToolResult(providerResult)
     if (input.includePresentation)
-      result.presentation = { tool, result: providerResult, arguments: args }
+      result.presentation = await createMcpToolPresentation(
+        { tool, result: providerResult, arguments: args },
+        (uri, signal) =>
+          mcpService.readResource({
+            serverId: context.server.id,
+            workspaceId: context.workspaceId,
+            userId,
+            uri,
+            signal,
+            onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
+          }),
+        input.signal
+      )
     if (!result.success) return result
 
     try {

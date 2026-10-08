@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
 import { type McpPresentationReceipt, mcpPresentationAssetUrl } from '@/lib/mcp/presentation'
+import { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { McpApp } from '@/app/workspace/[workspaceId]/home/components/message-content/components/mcp-result/mcp-app'
 import { useOptionalMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -50,18 +51,20 @@ export function McpResult({ receipt }: McpResultProps) {
             key={`${item.identity}:${item.index}`}
             className='flex min-w-0 flex-col items-start gap-2'
           >
-            {item.kind === 'image' && (
-              <img
-                src={url}
-                alt={item.title}
-                loading='lazy'
-                className='max-h-[400px] max-w-full rounded-lg object-contain'
-              />
-            )}
-            {item.kind === 'audio' && (
-              // biome-ignore lint/a11y/useMediaCaption: MCP audio results do not include a caption track.
-              <audio src={url} controls preload='none' aria-label={item.title} />
-            )}
+            {item.kind === 'image' &&
+              resolveFileCategory(item.mimeType, '') === 'image-previewable' && (
+                <img
+                  src={url}
+                  alt={item.title}
+                  loading='lazy'
+                  className='max-h-[400px] max-w-full rounded-lg object-contain'
+                />
+              )}
+            {item.kind === 'audio' &&
+              resolveFileCategory(item.mimeType, '') === 'audio-previewable' && (
+                // biome-ignore lint/a11y/useMediaCaption: MCP audio results do not include a caption track.
+                <audio src={url} controls preload='none' aria-label={item.title} />
+              )}
             {resources ? (
               <Chip
                 variant='border'

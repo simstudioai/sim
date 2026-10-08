@@ -1,4 +1,4 @@
-export { resolveFileCategory } from './file-category'
+export { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 export type { PreviewMode } from './file-viewer'
 export {
   FileViewer,

@@ -14,7 +14,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -26,6 +26,7 @@ import {
   mcpPresentationCleanupKeys,
   planForkMcpPresentations,
 } from '@/lib/mcp/presentation-lifecycle'
+import { mcpService } from '@/lib/mcp/service'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 import {
   callMcpAppTool,
@@ -41,7 +42,10 @@ import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  type ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const owner = generateId()
 const stranger = generateId()
@@ -55,6 +59,7 @@ const credentialCanary = 'fixture-secret-7ea-not-for-display'
 let reflectCredential = false
 let encodedCredential = false
 let encodedMimeType = 'text/plain'
+let encodedCharset: 'utf-8' | 'utf-16le' | 'utf-16be' = 'utf-8'
 let receivedCredential: string | string[] | undefined
 const session = createSessionPrincipal({ userId: owner })
 const transports = new Map<string, StreamableHTTPServerTransport>()
@@ -63,6 +68,8 @@ let appCalls = 0
 let appAvailable = true
 let listingOnlyPolicy = false
 let providerTitle = 'Quarterly report'
+let linkedReportText = 'Remote resource bytes'
+let linkedResourceMissing = false
 let connectDomain = 'https://allowed.test'
 let rejectResourceStatus = 0
 let rejectResourcesPersistently = false
@@ -128,10 +135,10 @@ const provider = createServer(async (request, response) => {
                   type: 'resource',
                   resource: {
                     uri: sourceUri,
-                    mimeType: encodedMimeType,
-                    blob: Buffer.from(
+                    mimeType: `${encodedMimeType}; charset=${encodedCharset}`,
+                    blob: encodeFixtureText(
                       `Encoded report: ${request.headers['x-fixture-token']}:end`
-                    ).toString('base64'),
+                    ),
                   },
                 },
               ],
@@ -147,22 +154,9 @@ const provider = createServer(async (request, response) => {
             ],
           }
         }
-        if (encodedCredential)
-          return {
-            content: [
-              {
-                type: 'resource',
-                resource: {
-                  uri: sourceUri,
-                  mimeType: encodedMimeType,
-                  blob: Buffer.from(
-                    `Encoded report: ${request.headers['x-fixture-token']}:end`
-                  ).toString('base64'),
-                },
-              },
-            ],
-          }
-        if (params.arguments?.linked)
+        if (params.arguments?.linked) {
+          if (typeof params.arguments.revision === 'number')
+            linkedReportText = `Revision ${params.arguments.revision}`
           return {
             content: [
               {
@@ -171,6 +165,47 @@ const provider = createServer(async (request, response) => {
                 title: providerTitle,
                 uri: sourceUri,
                 mimeType: 'text/plain',
+              },
+              ...(linkedResourceMissing
+                ? [
+                    {
+                      type: 'resource' as const,
+                      resource: {
+                        uri: 'file:///embedded.txt',
+                        mimeType: 'text/plain',
+                        blob: Buffer.from(`Encoded report: ${credentialCanary}:end`).toString(
+                          'base64'
+                        ),
+                      },
+                    },
+                  ]
+                : []),
+            ],
+            _meta: { privateWidgetData: 'Only the app should receive this' },
+          }
+        }
+        if (encodedCredential)
+          return {
+            content: [
+              {
+                type: 'resource',
+                resource: {
+                  uri: sourceUri,
+                  mimeType: `${encodedMimeType}; charset=${encodedCharset}`,
+                  blob: encodeFixtureText(
+                    `Encoded report: ${request.headers['x-fixture-token']}:end`
+                  ),
+                },
+              },
+            ],
+          }
+        if (params.arguments?.unsupportedMedia)
+          return {
+            content: [
+              {
+                type: params.arguments.unsupportedMedia === 'image/tiff' ? 'image' : 'audio',
+                mimeType: params.arguments.unsupportedMedia,
+                data: Buffer.from('Unsupported fixture bytes').toString('base64'),
               },
             ],
           }
@@ -209,28 +244,31 @@ const provider = createServer(async (request, response) => {
           },
         ],
       }))
-      protocol.setRequestHandler(ReadResourceRequestSchema, async ({ params }) => ({
-        contents: [
-          {
-            uri: params.uri,
-            mimeType: params.uri === appUri ? 'text/html;profile=mcp-app' : 'text/plain',
-            ...(encodedCredential
-              ? {
-                  blob: Buffer.from(
-                    `<p>Encoded report: ${request.headers['x-fixture-token']}:end</p>`
-                  ).toString('base64'),
-                }
-              : {
-                  text: reflectCredential
-                    ? `<p>${request.headers['x-fixture-token']}</p>`
-                    : params.uri === appUri
-                      ? '<!doctype html><p>Private app</p>'
-                      : 'Remote resource bytes',
-                }),
-            _meta: listingOnlyPolicy ? {} : { ui: { csp: { connectDomains: [connectDomain] } } },
-          },
-        ],
-      }))
+      protocol.setRequestHandler(ReadResourceRequestSchema, async ({ params }) => {
+        if (linkedResourceMissing) throw new Error('Synthetic missing linked resource')
+        return {
+          contents: [
+            {
+              uri: params.uri,
+              mimeType: `${params.uri === appUri ? 'text/html;profile=mcp-app' : 'text/plain'}${encodedCredential ? `; charset=${encodedCharset}` : params.uri === appUri ? '; charset=utf-8' : ''}`,
+              ...(encodedCredential
+                ? {
+                    blob: encodeFixtureText(
+                      `<p>Encoded report: ${request.headers['x-fixture-token']}:end</p>`
+                    ),
+                  }
+                : {
+                    text: reflectCredential
+                      ? `<p>${request.headers['x-fixture-token']}</p>`
+                      : params.uri === appUri
+                        ? '<!doctype html><p>Private app</p>'
+                        : linkedReportText,
+                  }),
+              _meta: listingOnlyPolicy ? {} : { ui: { csp: { connectDomains: [connectDomain] } } },
+            },
+          ],
+        }
+      })
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: generateId,
         enableJsonResponse: true,
@@ -247,7 +285,7 @@ const provider = createServer(async (request, response) => {
   }
 })
 
-async function executeReport(args?: Record<string, unknown>, toolCallId = generateId()) {
+async function invokeReport(args?: Record<string, unknown>, toolCallId = generateId()) {
   const context = {
     userId: owner,
     workspaceId,
@@ -274,6 +312,11 @@ async function executeReport(args?: Record<string, unknown>, toolCallId = genera
   expect(response.status, JSON.stringify(body)).toBe(200)
   const result = { success: body.success === true, output: body.output }
   expect(result.success).toBe(true)
+  return { result, toolCallId }
+}
+
+async function executeReport(args?: Record<string, unknown>, toolCallId = generateId()) {
+  const { result } = await invokeReport(args, toolCallId)
   const receipt = compactMcpPresentation(result.output)
   if (!receipt) throw new Error('Provider output did not produce a native presentation')
   const message: PersistedMessage = {
@@ -291,6 +334,11 @@ async function executeReport(args?: Record<string, unknown>, toolCallId = genera
   }
   for (const key of mcpPresentationCleanupKeys(chatId, message)) blobs.add(key)
   return { result, receipt: receipt.mcpPresentation, message, toolCallId }
+}
+
+function encodeFixtureText(text: string) {
+  const bytes = Buffer.from(text, encodedCharset === 'utf-8' ? 'utf8' : 'utf16le')
+  return (encodedCharset === 'utf-16be' ? bytes.swap16() : bytes).toString('base64')
 }
 
 function expectProtectedEncodedContent(blob: unknown) {
@@ -355,6 +403,11 @@ beforeAll(async () => {
     headers: { 'x-fixture-token': '{{MCP_APP_SECRET}}' },
     createdBy: owner,
   })
+})
+
+afterEach(() => {
+  linkedReportText = 'Remote resource bytes'
+  linkedResourceMissing = false
 })
 
 afterAll(async () => {
@@ -489,49 +542,125 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
     expect(appCalls).toBe(callsBeforeDisable)
   })
-  it('updates one persisted artifact tab while retaining both immutable versions', async () => {
-    const first = await executeReport({ revision: 1 })
-    const second = await executeReport({ revision: 2 })
-    await executeReport({ revision: 99 }, first.toolCallId)
-    const [stored] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
-      .where(eq(copilotChats.id, chatId))
-    const matching = toArray(stored.resources).filter(
-      (resource) => toRecord(resource).id === first.receipt.items[0].identity
-    )
-    expect(matching).toHaveLength(1)
-    expect(matching[0]).toMatchObject({
-      id: first.receipt.items[0].identity,
-      mcp: { presentationId: second.receipt.id, index: 1 },
-    })
-    for (const [version, result] of [first, second].entries()) {
-      const asset = await readMcpResultAsset.execute({
-        principal: session,
-        input: { chatId, id: result.receipt.id, index: 1 },
-      })
-      expect(asset.buffer.toString()).toBe(`Revision ${version + 1}`)
-    }
-    await changeChatResources.execute({
-      principal: session,
-      input: {
-        chatId,
-        change: {
-          kind: 'remove',
-          resources: [{ type: 'mcp', id: first.receipt.items[0].identity }],
-        },
-      },
-    })
-    await executeReport({ revision: 99 }, first.toolCallId)
-    const [closed] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
-      .where(eq(copilotChats.id, chatId))
-    expect(
-      toArray(closed.resources).some(
+  it.each([false, true])(
+    'updates one persisted artifact tab while retaining immutable versions (linked=%s)',
+    async (linked) => {
+      const first = await executeReport({ revision: 1, linked })
+      const second = await executeReport({ revision: 2, linked })
+      await executeReport({ revision: 99, linked }, first.toolCallId)
+      const index = linked ? 0 : 1
+      const [stored] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      const matching = toArray(stored.resources).filter(
         (resource) => toRecord(resource).id === first.receipt.items[0].identity
       )
-    ).toBe(false)
+      expect(matching).toHaveLength(1)
+      expect(matching[0]).toMatchObject({
+        id: first.receipt.items[0].identity,
+        mcp: { presentationId: second.receipt.id, index },
+      })
+      await updateMcpServerUseCase.execute({
+        principal: session,
+        input: { workspaceId, serverId, enabled: false },
+      })
+      try {
+        for (const [version, result] of [first, second].entries()) {
+          const asset = await readMcpResultAsset.execute({
+            principal: session,
+            input: { chatId, id: result.receipt.id, index },
+          })
+          expect(asset.buffer.toString()).toBe(`Revision ${version + 1}`)
+        }
+      } finally {
+        await updateMcpServerUseCase.execute({
+          principal: session,
+          input: { workspaceId, serverId, enabled: true },
+        })
+      }
+      await changeChatResources.execute({
+        principal: session,
+        input: {
+          chatId,
+          change: {
+            kind: 'remove',
+            resources: [{ type: 'mcp', id: first.receipt.items[0].identity }],
+          },
+        },
+      })
+      await executeReport({ revision: 99, linked }, first.toolCallId)
+      const [closed] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, chatId))
+      expect(
+        toArray(closed.resources).some(
+          (resource) => toRecord(resource).id === first.receipt.items[0].identity
+        )
+      ).toBe(false)
+    }
+  )
+
+  it('keeps private metadata and encoded files out of model output when a linked snapshot fails', async () => {
+    linkedResourceMissing = true
+    const { result } = await invokeReport({ linked: true })
+    expect(compactMcpPresentation(result.output)).toBeUndefined()
+    expect(JSON.stringify(result.output)).not.toContain('Only the app should receive this')
+    expect(JSON.stringify(result.output)).not.toContain(
+      Buffer.from(`Encoded report: ${credentialCanary}:end`).toString('base64')
+    )
+    expect(JSON.stringify(result.output)).toContain('could not be displayed')
+  })
+
+  it('redacts encoded credentials in linked snapshot bytes before reopening', async () => {
+    encodedCredential = true
+    try {
+      const { receipt } = await executeReport({ linked: true })
+      const asset = await readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 0 },
+      })
+      expect(
+        asset.buffer.includes(Buffer.from(encodeFixtureText(credentialCanary), 'base64'))
+      ).toBe(false)
+      expect(asset.buffer.toString()).toContain('Encoded report: ')
+      expect(asset.buffer.toString()).toContain(':end')
+      expect(asset.buffer.toString()).not.toContain(credentialCanary)
+    } finally {
+      encodedCredential = false
+    }
+  })
+
+  it.each(['audio/aiff', 'image/tiff'])(
+    'downloads unsupported %s bytes without attempting playback',
+    async (mimeType) => {
+      const { receipt } = await executeReport({ unsupportedMedia: mimeType })
+      const asset = await readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 0 },
+      })
+      expect(asset.disposition).toBe('attachment')
+      expect(asset.buffer.toString()).toBe('Unsupported fixture bytes')
+    }
+  )
+
+  it('reports credentials once for both a cold and a pooled resource read', async () => {
+    await evictMcpServerConnections(serverId, 'cold resource fixture')
+    for (let invocation = 0; invocation < 2; invocation++) {
+      const reports: ResolvedSecretTraceProvenanceV1[] = []
+      const result = await mcpService.readResource({
+        serverId,
+        workspaceId,
+        userId: owner,
+        uri: sourceUri,
+        onResolvedSecretTraceProvenance: (value) => reports.push(value),
+      })
+      expect(result.contents[0]).toMatchObject({ text: 'Remote resource bytes' })
+      expect(reports).toHaveLength(1)
+      expect(reports[0].complete).toBe(true)
+      expect(reports[0].entries).toHaveLength(1)
+    }
   })
 
   it('rejects malformed provider bytes and aborts App calls before provider mutation', async () => {
@@ -638,44 +767,52 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
   })
 
-  it('redacts credentials inside encoded files in saved results and live App responses', async () => {
-    encodedCredential = true
-    try {
-      const { receipt } = await executeReport()
-      const asset = await readMcpResultAsset.execute({
-        principal: session,
-        input: { chatId, id: receipt.id, index: 0 },
-      })
-      expect(asset.buffer.toString()).toContain('Encoded report: ')
-      expect(asset.buffer.toString()).not.toContain(credentialCanary)
-      const saved = await readMcpResult.execute({
-        principal: session,
-        input: { chatId, id: receipt.id },
-      })
-      const savedResource = toRecord(toRecord(saved.result.content[0]).resource)
-      expectProtectedEncodedContent(savedResource.blob)
-      const live = await callMcpAppTool.execute({
-        principal: session,
-        input: { chatId, id: receipt.id, name: 'change_report' },
-      })
-      const liveResource = toRecord(toRecord(live.content[0]).resource)
-      expectProtectedEncodedContent(liveResource.blob)
-      const resource = await readMcpAppResource.execute({
-        principal: session,
-        input: { chatId, id: receipt.id, uri: sourceUri },
-      })
-      expectProtectedEncodedContent(toRecord(resource.contents[0]).blob)
-      const frame = await readMcpAppFrame.execute({
-        principal: session,
-        input: { chatId, id: receipt.id },
-      })
-      const encoded = frame.buffer.toString().match(/atob\('([^']+)'\)/)?.[1]
-      expectProtectedEncodedContent(encoded)
-    } finally {
-      reflectCredential = false
-      encodedCredential = false
+  it.each(['utf-8', 'utf-16le', 'utf-16be'] as const)(
+    'redacts %s credentials in saved files and live App responses',
+    async (charset) => {
+      encodedCredential = true
+      encodedCharset = charset
+      try {
+        const { receipt } = await executeReport()
+        const asset = await readMcpResultAsset.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, index: 0 },
+        })
+        expect(
+          asset.buffer.includes(Buffer.from(encodeFixtureText(credentialCanary), 'base64'))
+        ).toBe(false)
+        expect(asset.buffer.toString()).toContain('Encoded report: ')
+        expect(asset.buffer.toString()).not.toContain(credentialCanary)
+        const saved = await readMcpResult.execute({
+          principal: session,
+          input: { chatId, id: receipt.id },
+        })
+        const savedResource = toRecord(toRecord(saved.result.content[0]).resource)
+        expectProtectedEncodedContent(savedResource.blob)
+        const live = await callMcpAppTool.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, name: 'change_report' },
+        })
+        const liveResource = toRecord(toRecord(live.content[0]).resource)
+        expectProtectedEncodedContent(liveResource.blob)
+        const resource = await readMcpAppResource.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, uri: sourceUri },
+        })
+        expectProtectedEncodedContent(toRecord(resource.contents[0]).blob)
+        const frame = await readMcpAppFrame.execute({
+          principal: session,
+          input: { chatId, id: receipt.id },
+        })
+        const encoded = frame.buffer.toString().match(/atob\('([^']+)'\)/)?.[1]
+        expectProtectedEncodedContent(encoded)
+      } finally {
+        reflectCredential = false
+        encodedCredential = false
+        encodedCharset = 'utf-8'
+      }
     }
-  })
+  )
 
   it('withholds protected bytes when an App declares an encoded binary file', async () => {
     const { receipt } = await executeReport()

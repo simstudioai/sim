@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolResultSchema,
+  type ReadResourceResult,
+  ReadResourceResultSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -26,6 +30,7 @@ const manifestSchema = z.object({
   appUri: z.string().max(2048).optional(),
   arguments: z.record(z.string(), z.unknown()),
   result: CallToolResultSchema,
+  resources: ReadResourceResultSchema.shape.contents.default([]),
   receipt: mcpPresentationReceiptSchema,
   secretProvenance: z.unknown(),
 })
@@ -46,6 +51,7 @@ export async function storeMcpPresentation(input: {
   tool: McpTool
   arguments: Record<string, unknown>
   result: McpToolResult
+  resources?: ReadResourceResult['contents']
   secretProvenance: DurableSecretProvenance
   signal?: AbortSignal
 }) {
@@ -53,6 +59,14 @@ export async function storeMcpPresentation(input: {
     throw new OrchestrationError('validation', 'Invalid MCP invocation identity')
   if (input.result.content.length > MCP_PRESENTATION_MAX_ITEMS)
     throw new OrchestrationError('payload_too_large', 'MCP presentation has too many items')
+  if (
+    input.result.content.some(
+      (item) =>
+        item.type === 'resource_link' &&
+        !input.resources?.some((resource) => resource.uri === item.uri)
+    )
+  )
+    throw new OrchestrationError('validation', 'MCP linked resource snapshot is unavailable')
   const digest = (value: string) => createHash('sha256').update(value).digest('hex')
   const id = digest(input.toolCallId)
   const appUri = getMcpAppResourceUri(input.tool)
@@ -61,10 +75,14 @@ export async function storeMcpPresentation(input: {
     if (item.type === 'text') return []
     const resource =
       item.type === 'resource' ? item.resource : item.type === 'resource_link' ? item : undefined
+    const snapshot =
+      item.type === 'resource_link'
+        ? input.resources?.find((resource) => resource.uri === item.uri)
+        : undefined
     const mimeType =
       item.type === 'image' || item.type === 'audio'
         ? item.mimeType
-        : resource?.mimeType || 'application/octet-stream'
+        : snapshot?.mimeType || resource?.mimeType || 'application/octet-stream'
     const identity = resource
       ? digest(`${input.workspaceId}:${input.connectionId}:${resource.uri}`)
       : `${id}:${index}`
@@ -94,6 +112,7 @@ export async function storeMcpPresentation(input: {
     appUri,
     arguments: input.arguments,
     result: input.result,
+    resources: input.resources ?? [],
     secretProvenance: input.secretProvenance,
     receipt: { id, title, hasApp: !!appUri, items },
   }

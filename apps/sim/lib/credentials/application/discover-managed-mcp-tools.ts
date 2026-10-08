@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalSubject } from '@sim/auth/principal'
+import { resolvePrincipalSubject, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
@@ -16,12 +16,14 @@ import { snapshotMcpTool } from '@/lib/mcp/presentation-metadata'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface DiscoverManagedMcpToolsInput {
   workspaceId: string
   credentialId: string
   assertedServerId?: string
   signal?: AbortSignal
+  onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
 
 export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -50,6 +52,7 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   },
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
+    const userId = resolvePrincipalSubjectUserId(principal)
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
     if (
       runtime.mcpServerId !== context.mcpServerId ||
@@ -70,7 +73,11 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
         loadProvider: () => loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
       },
       input.signal,
-      { requireComplete: true }
+      {
+        requireComplete: true,
+        provenanceScope: userId ? { userId, workspaceId: context.workspaceId } : undefined,
+        onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
+      }
     )
     await saveManagedMcpToolSnapshot(
       runtime.credentialId,

@@ -15,6 +15,7 @@ import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
 import { getMcpAppResourceUri } from '@/lib/mcp/presentation-metadata'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool } from '@/lib/mcp/types'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface ReadMcpResourceInput {
@@ -83,8 +84,15 @@ export const readManagedMcpResource = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('not_found', 'Managed MCP connection not found')
     return context
   },
-  authorizeResource: ({ principal, context, resourcePolicy }) =>
-    requireCredentialGroupCredentialAccess(principal, context, resourcePolicy),
+  async authorizeResource({ principal, context, resourcePolicy }) {
+    await assertWorkspaceCapability(
+      principal.userId,
+      context.workspaceId,
+      'integrations.manage',
+      context.workspaceOrganizationId
+    )
+    await requireCredentialGroupCredentialAccess(principal, context, resourcePolicy)
+  },
   async execute({ principal, input, context }) {
     const before = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
     const { tools } = await discoverManagedMcpToolsUseCase.execute({
@@ -93,6 +101,7 @@ export const readManagedMcpResource = defineAuthorizedWorkspaceUseCase({
         workspaceId: context.workspaceId,
         credentialId: context.credentialId,
         signal: input.signal,
+        onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
       },
     })
     requireOriginTool(tools, input)

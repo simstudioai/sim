@@ -3,35 +3,66 @@ import { createServer } from 'node:http'
 import { dirname } from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   credential,
   credentialGroupEnrollment,
   mcpServers,
   member,
   organization,
   organizationSearchIntegration,
+  permissions,
   user,
+  workspace,
 } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
+import {
+  buildOrganizationAccountAccessPolicy,
+  organizationAccountAccessPolicyCodec,
+} from '@/lib/credential-groups/application/workspace-access-policy'
 import { createManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-service'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import { encryptManagedMcpTokens } from '@/lib/credentials/managed-mcp'
+import { executeMcpTool } from '@/lib/internal/mcp/execute-tool'
+import { readManagedMcpResource } from '@/lib/mcp/application/read-resource'
 import * as pinnedFetch from '@/lib/mcp/pinned-fetch'
+import { compactMcpPresentation, MCP_PRESENTATION_PREFIX } from '@/lib/mcp/presentation'
+import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
+import {
+  callMcpAppTool,
+  readMcpAppFrame,
+  readMcpAppResource,
+  readMcpResult,
+  readMcpResultAsset,
+} from '@/lib/mothership/chat/application/mcp-results'
+import { requireResourcePolicy, writeResourcePolicy } from '@/lib/resource-policies/repository'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+const workspaceId = generateId()
+const chatId = generateId()
+const appUri = 'ui://managed-fixture/view.html'
+const presentationKeys = new Set<string>()
+let echoToken = false
 const RESOURCE = 'https://mcp.lucid.app/mcp/readonly'
 const DOCUMENT = '00000000-0000-4000-8000-000000000001'
 const SECOND_DOCUMENT = '00000000-0000-4000-8000-000000000002'
@@ -39,21 +70,21 @@ const TITLE = 'Synthetic topology'
 const actors = [0, 1].map(() => ({
   userId: generateId(),
   organizationId: generateId(),
-  credentialId: `mcp-cg-${generateId()}`,
+  credentialId: generateManagedMcpConnectionId(),
   token: generateId(),
   provider: 'lucid' as 'lucid' | 'notion',
 }))
 actors.push({
   userId: generateId(),
   organizationId: actors[0].organizationId,
-  credentialId: `mcp-cg-${generateId()}`,
+  credentialId: generateManagedMcpConnectionId(),
   token: generateId(),
   provider: 'lucid',
 })
 actors.push({
   userId: generateId(),
   organizationId: generateId(),
-  credentialId: `mcp-cg-${generateId()}`,
+  credentialId: generateManagedMcpConnectionId(),
   token: generateId(),
   provider: 'notion',
 })
@@ -99,7 +130,7 @@ const providerServer = createServer(async (request, response) => {
       await sleep(setupDelay)
       const protocol = new Server(
         { name: 'synthetic-lucid', version: '1' },
-        { capabilities: { tools: {} } }
+        { capabilities: { tools: {}, resources: {} } }
       )
       protocol.setRequestHandler(ListToolsRequestSchema, async ({ params }) => {
         events.push({ method: 'tools/list', actor, at: performance.now() })
@@ -120,6 +151,7 @@ const providerServer = createServer(async (request, response) => {
             'write_document',
           ].map((name) => ({
             name,
+            ...(name === 'fetch' ? { _meta: { ui: { resourceUri: appUri } } } : {}),
             inputSchema: {
               type: 'object' as const,
               properties: {
@@ -135,9 +167,37 @@ const providerServer = createServer(async (request, response) => {
           })),
         }
       })
+      protocol.setRequestHandler(ReadResourceRequestSchema, async ({ params }) => {
+        events.push({ method: 'resources/read', actor, at: performance.now() })
+        return {
+          contents: [
+            {
+              uri: params.uri,
+              mimeType: params.uri === appUri ? 'text/html;profile=mcp-app' : 'text/plain',
+              text: echoToken
+                ? `Safe report ${actors[actor].token}:end`
+                : `Private resource ${actor}`,
+            },
+          ],
+        }
+      })
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         events.push({ method: params.name, actor, at: performance.now() })
         await onTool?.(params.name, params.arguments ?? {})
+        if (echoToken && params.name === 'fetch')
+          return {
+            content: [
+              {
+                type: 'resource',
+                resource: {
+                  uri: 'file:///private-report.txt',
+                  mimeType: 'text/plain',
+                  blob: Buffer.from(`Safe report ${actors[actor].token}:end`).toString('base64'),
+                },
+              },
+            ],
+            _meta: { label: 'Safe app metadata', credentialEcho: actors[actor].token },
+          }
         const documentId =
           params.arguments?.query === 'second topology' ||
           params.arguments?.document_id === SECOND_DOCUMENT ||
@@ -370,6 +430,44 @@ beforeAll(async () => {
       })
       .onConflictDoNothing()
   }
+  await db.insert(workspace).values({
+    id: workspaceId,
+    name: 'MCP App fixture',
+    ownerId: actors[0].userId,
+    billedAccountUserId: actors[0].userId,
+    organizationId: actors[0].organizationId,
+  })
+  await db
+    .insert(copilotChats)
+    .values({ id: chatId, userId: actors[0].userId, workspaceId, type: 'mothership' })
+  await db.insert(permissions).values(
+    [actors[0], actors[2]].map((actor) => ({
+      id: generateId(),
+      userId: actor.userId,
+      entityType: 'workspace' as const,
+      entityId: workspaceId,
+      permissionType: 'admin' as const,
+    }))
+  )
+  const group = await ensureWorkspaceAccountsGroup(
+    { kind: 'organization', organizationId: actors[0].organizationId },
+    actors[0].userId
+  )
+  const policyTarget = {
+    organizationId: actors[0].organizationId,
+    resourceType: 'credential_group' as const,
+    resourceId: group.id,
+    codec: organizationAccountAccessPolicyCodec,
+  }
+  const policy = await requireResourcePolicy(policyTarget)
+  await writeResourcePolicy({
+    ...policyTarget,
+    expectedRevision: policy.revision,
+    actorUserId: actors[0].userId,
+    document: buildOrganizationAccountAccessPolicy(group.id, [
+      { workspaceId, access: { mode: 'selected', credentialTypes: ['mcp:lucid'] } },
+    ]),
+  })
 })
 
 afterEach(async () => {
@@ -390,6 +488,8 @@ afterAll(async () => {
     providerServer.close((error) => (error ? reject(error) : resolve()))
     providerServer.closeAllConnections()
   })
+  for (const key of presentationKeys) await deleteFile({ key, context: 'mothership' })
+  await db.delete(workspace).where(eq(workspace.id, workspaceId))
   await db.delete(organization).where(
     inArray(
       organization.id,
@@ -433,6 +533,108 @@ function read(documentId: string, index = 0, signal?: AbortSignal) {
 
 /** Actual SDK HTTP + current database grants, including final document verification. */
 describe('managed Search operation sessions', () => {
+  it('lets an App read its acting user connection but denies another workspace administrator', async () => {
+    const input = {
+      workspaceId,
+      connectionId: actors[0].credentialId,
+      toolName: 'fetch',
+      uri: 'file:///private-report.txt',
+    }
+    const read = await readManagedMcpResource.execute({
+      principal: createSessionPrincipal({ userId: actors[0].userId }),
+      input,
+    })
+    expect(read.contents[0]).toMatchObject({ text: 'Private resource 0' })
+    const before = events.filter((event) => event.method === 'resources/read').length
+    await expect(
+      readManagedMcpResource.execute({
+        principal: createSessionPrincipal({ userId: actors[2].userId }),
+        input,
+      })
+    ).rejects.toThrow('Only your own organization connections')
+    expect(events.filter((event) => event.method === 'resources/read')).toHaveLength(before)
+  })
+  it.each([false, true])(
+    'redacts actual managed OAuth tokens from saved artifacts and live App responses (rotated=%s)',
+    async (rotated) => {
+      echoToken = true
+      try {
+        const actor = actors[0]
+        if (rotated)
+          onInitialize = async () => {
+            actor.token = generateId()
+            await db
+              .update(credential)
+              .set({
+                encryptedOauthTokenSet: await encryptManagedMcpTokens({
+                  access_token: actor.token,
+                  token_type: 'Bearer',
+                }),
+              })
+              .where(eq(credential.id, actor.credentialId))
+          }
+        const principal = createSessionPrincipal({ userId: actor.userId })
+        const toolCallId = generateId()
+        const response = await executeMcpTool({
+          toolId: 'mcp_run_operation',
+          input: { server: actor.credentialId, tool: 'fetch', arguments: {} },
+          headers: new Headers(),
+          requestId: toolCallId,
+          context: {
+            userId: actor.userId,
+            workspaceId,
+            chatId,
+            toolCallId,
+            workflowId: '',
+            copilotToolExecution: true,
+            billingAttribution: await resolveBillingAttribution({
+              actorUserId: actor.userId,
+              workspaceId,
+            }),
+            resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+              userId: actor.userId,
+              workspaceId,
+            }),
+          },
+        })
+        const body = toRecord(await response.json())
+        expect(response.status, JSON.stringify(body)).toBe(200)
+        const receipt = compactMcpPresentation(body.output)?.mcpPresentation
+        if (!receipt) throw new Error('Expected managed MCP presentation')
+        presentationKeys.add(`${MCP_PRESENTATION_PREFIX}${chatId}/${receipt.id}.json`)
+        const input = { chatId, id: receipt.id }
+        const saved = await readMcpResult.execute({ principal, input })
+        expect(saved.result._meta?.label).toBe('Safe app metadata')
+        expect.soft(JSON.stringify(saved)).not.toContain(actor.token)
+        const asset = await readMcpResultAsset.execute({ principal, input: { ...input, index: 0 } })
+        expect(asset.buffer.toString()).toContain('Safe report ')
+        expect.soft(asset.buffer.toString()).not.toContain(actor.token)
+        const live = await callMcpAppTool.execute({ principal, input: { ...input, name: 'fetch' } })
+        expect(live._meta?.label).toBe('Safe app metadata')
+        expect.soft(JSON.stringify(live)).not.toContain(actor.token)
+        const liveBlob = toRecord(toRecord(live.content[0]).resource).blob
+        expect(typeof liveBlob).toBe('string')
+        expect(Buffer.from(String(liveBlob), 'base64').toString()).toContain('Safe report ')
+        expect(Buffer.from(String(liveBlob), 'base64').toString()).toContain(':end')
+        expect.soft(Buffer.from(String(liveBlob), 'base64').toString()).not.toContain(actor.token)
+        const resource = await readMcpAppResource.execute({
+          principal,
+          input: { ...input, uri: 'file:///private-report.txt' },
+        })
+        expect(JSON.stringify(resource)).toContain('Safe report ')
+        expect.soft(JSON.stringify(resource)).not.toContain(actor.token)
+        const frame = await readMcpAppFrame.execute({ principal, input })
+        const encoded = frame.buffer.toString().match(/atob\('([^']+)'\)/)?.[1]
+        expect(encoded).toBeTruthy()
+        expect(Buffer.from(encoded ?? '', 'base64').toString()).toContain('Safe report ')
+        expect.soft(Buffer.from(encoded ?? '', 'base64').toString()).not.toContain(actor.token)
+      } finally {
+        echoToken = false
+        onInitialize = undefined
+      }
+    }
+  )
+
   it('reads a complete diagram with one handshake per authorized operation and disposes both transports', async () => {
     setupDelay = 150
     try {

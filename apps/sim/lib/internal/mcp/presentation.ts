@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import {
@@ -51,6 +51,8 @@ export async function presentMcpToolResult(
       const value = {
         arguments: presentation.arguments,
         result: projectMcpEncodedContents(result, registry),
+        resources: projectMcpEncodedContents({ contents: presentation.resources ?? [] }, registry)
+          .contents,
         title: tool.title || tool.name,
       }
       const projection = projectResolvedSecretModelJsonContent(
@@ -72,6 +74,7 @@ export async function presentMcpToolResult(
           tool: { ...tool, title: projection.value.title },
           arguments: projection.value.arguments,
           result: CallToolResultSchema.parse(projection.value.result),
+          resources: ReadResourceResultSchema.shape.contents.parse(projection.value.resources),
           signal,
           secretProvenance: bindDurableSecretProvenanceToValue(
             durableSecretProvenanceFromRegistry(

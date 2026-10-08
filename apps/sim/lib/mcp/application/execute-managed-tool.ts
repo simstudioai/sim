@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalSubject } from '@sim/auth/principal'
+import { resolvePrincipalSubject, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
@@ -22,6 +22,7 @@ import {
   loadMcpOperationAccess,
   requireMcpOperationAccess,
 } from '@/lib/mcp/application/operation-access'
+import { createMcpToolPresentation } from '@/lib/mcp/application/presentation'
 import {
   isMcpToolVisible,
   matchesMcpAppOrigin,
@@ -30,6 +31,7 @@ import {
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolSchema } from '@/lib/mcp/types'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ExecuteManagedMcpToolInput {
   workspaceId: string
@@ -42,6 +44,7 @@ export interface ExecuteManagedMcpToolInput {
   signal?: AbortSignal
   includePresentation?: boolean
   appOrigin?: { toolName: string; resourceUri: string }
+  onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
 
 function requireToolSchema(value: unknown): McpToolSchema {
@@ -78,6 +81,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
+    const userId = resolvePrincipalSubjectUserId(principal)
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
     if (
       runtime.mcpServerId !== context.mcpServerId ||
@@ -103,7 +107,11 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
         loadProvider: () => loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
       },
       input.signal,
-      { requireComplete: true }
+      {
+        requireComplete: true,
+        provenanceScope: userId ? { userId, workspaceId: context.workspaceId } : undefined,
+        onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
+      }
     )
     await saveManagedMcpToolSnapshot(
       runtime.credentialId,
@@ -160,6 +168,9 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       credentialOperations.useManagedMcp.resourcePolicy
     )
     const providerResult = await mcpService.executeManagedMcpTool({
+      userId,
+      workspaceId: context.workspaceId,
+      onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
       connectionId: runtime.credentialId,
       serverId: runtime.mcpServerId,
       scope: runtime.scope,
@@ -171,8 +182,26 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     })
     input.signal?.throwIfAborted()
     const result = transformToolResult(providerResult)
-    if (input.includePresentation)
-      result.presentation = { tool, result: providerResult, arguments: args }
+    if (input.includePresentation && userId)
+      result.presentation = await createMcpToolPresentation(
+        { tool, result: providerResult, arguments: args },
+        (uri, signal) =>
+          mcpService.readResource({
+            serverId: current.mcpServerId,
+            workspaceId: context.workspaceId,
+            userId,
+            uri,
+            signal,
+            onResolvedSecretTraceProvenance: input.onResolvedSecretTraceProvenance,
+            managed: {
+              connectionId: context.credentialId,
+              scope: current.scope,
+              loadAuthProvider: () =>
+                loadManagedMcpAuthProvider(context.credentialId, context.workspaceId),
+            },
+          }),
+        input.signal
+      )
     return result
   },
   projectAudit: ({ input, context }) => ({

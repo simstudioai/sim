@@ -5,7 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { mcpPresentationAssetUrl } from '@/lib/mcp/presentation'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { resolveFileCategory } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-category'
+import { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer'
 import { useMcpPresentationMetadata } from '@/hooks/queries/mcp-presentations'
 import type { FileContentSource } from '@/hooks/use-file-content-source'
@@ -41,7 +41,7 @@ function McpArtifactPreview({ chatId, presentationId, index }: McpArtifactPrevie
     ['application/json', 'application/xml'].includes(item.mimeType)
   const previewable =
     plainText ||
-    item.kind === 'image' ||
+    (item.kind === 'image' && resolveFileCategory(item.mimeType, '') === 'image-previewable') ||
     (item.kind === 'audio' && resolveFileCategory(item.mimeType, '') === 'audio-previewable') ||
     item.mimeType === 'application/pdf'
   if (!previewable)

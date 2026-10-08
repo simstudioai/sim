@@ -461,7 +461,8 @@ class McpService {
   private async createManagedOauthClient(
     config: McpServerConfig,
     auth: OAuthClientProvider | McpOauthCredentials,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    provenanceScope?: { userId: string; workspaceId: string }
   ): Promise<McpClient> {
     if (config.authType !== 'oauth' || !config.url) {
       throw new Error('Managed MCP connection requires an OAuth HTTP server')
@@ -477,6 +478,9 @@ class McpService {
     const resolvedIP = await validateMcpServerSsrf(config.url)
     const client = new McpClient({
       config,
+      resolvedSecretTraceProvenance: provenanceScope
+        ? { version: 1, complete: true, entries: [], scope: provenanceScope }
+        : undefined,
       securityPolicy: {
         requireConsent: true,
         auditLevel: 'basic',
@@ -509,21 +513,37 @@ class McpService {
     scope: string | ResourceScope,
     auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal,
-    options: { requireComplete?: boolean } = {}
+    options: {
+      requireComplete?: boolean
+      provenanceScope?: { userId: string; workspaceId: string }
+      onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    } = {}
   ): Promise<McpTool[]> {
     const config = await this.getServerConfig(serverId, scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.withServerClient(
       { key: '', serverId, allowPool: false },
-      () => this.createManagedOauthClient(config, auth, signal),
-      (client) =>
-        options.requireComplete
-          ? client.listTools(signal, { requireComplete: true })
-          : client.listTools(signal)
+      () => this.createManagedOauthClient(config, auth, signal, options.provenanceScope),
+      async (client) => {
+        try {
+          return await client.listTools(signal, { requireComplete: options.requireComplete })
+        } finally {
+          if (options.provenanceScope)
+            reportRetainedClientProvenance(
+              client.getResolvedSecretTraceProvenance(),
+              options.provenanceScope.userId,
+              options.provenanceScope.workspaceId,
+              options.onResolvedSecretTraceProvenance
+            )
+        }
+      }
     )
   }
 
   async executeManagedMcpTool(params: {
+    userId?: string
+    workspaceId?: string
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
     connectionId: string
     serverId: string
     scope: ResourceScope
@@ -544,13 +564,27 @@ class McpService {
         this.createManagedOauthClient(
           effectiveConfig,
           { credentialId: params.connectionId, loadProvider: params.loadAuthProvider },
-          params.signal
+          params.signal,
+          params.userId && params.workspaceId
+            ? { userId: params.userId, workspaceId: params.workspaceId }
+            : undefined
         ),
-      (client) =>
-        client.callTool(params.toolCall, {
-          signal: params.signal,
-          timeoutMs: params.timeoutMs,
-        })
+      async (client) => {
+        try {
+          return await client.callTool(params.toolCall, {
+            signal: params.signal,
+            timeoutMs: params.timeoutMs,
+          })
+        } finally {
+          if (params.userId && params.workspaceId)
+            reportRetainedClientProvenance(
+              client.getResolvedSecretTraceProvenance(),
+              params.userId,
+              params.workspaceId,
+              params.onResolvedSecretTraceProvenance
+            )
+        }
+      }
     )
   }
 
@@ -568,6 +602,9 @@ class McpService {
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
     signal?: AbortSignal
   }) {
+    const reportProvenance = createInvocationProvenanceReporter(
+      params.onResolvedSecretTraceProvenance
+    )
     const managed = params.managed
     for (let attempt = 0; ; attempt++) {
       params.signal?.throwIfAborted()
@@ -588,29 +625,32 @@ class McpService {
                 this.createManagedOauthClient(
                   config,
                   { credentialId: managed.connectionId, loadProvider: managed.loadAuthProvider },
-                  params.signal
+                  params.signal,
+                  { userId: params.userId, workspaceId: params.workspaceId }
                 )
             : this.buildClient(
                 config,
                 params.userId,
                 params.workspaceId,
                 undefined,
-                params.onResolvedSecretTraceProvenance,
+                reportProvenance,
                 params.signal
               ),
-          (client) => {
-            if (!managed)
+          async (client) => {
+            try {
+              return await client.readResource(params.uri, {
+                signal: params.signal,
+                timeoutMs: 30_000,
+                includeListingMetadata: params.includeListingMetadata,
+              })
+            } finally {
               reportRetainedClientProvenance(
                 client.getResolvedSecretTraceProvenance?.(),
                 params.userId,
                 params.workspaceId,
-                params.onResolvedSecretTraceProvenance
+                reportProvenance
               )
-            return client.readResource(params.uri, {
-              signal: params.signal,
-              timeoutMs: 30_000,
-              includeListingMetadata: params.includeListingMetadata,
-            })
+            }
           }
         )
       } catch (error) {
@@ -700,16 +740,17 @@ class McpService {
             onResolvedSecretTraceProvenance,
             signal
           ),
-          (client) => {
-            reportRetainedClientProvenance(
-              client.getResolvedSecretTraceProvenance?.(),
-              userId,
-              workspaceId,
-              onResolvedSecretTraceProvenance
-            )
-            return requireComplete
-              ? client.listTools(signal, { requireComplete: true })
-              : client.listTools(signal)
+          async (client) => {
+            try {
+              return await client.listTools(signal, { requireComplete })
+            } finally {
+              reportRetainedClientProvenance(
+                client.getResolvedSecretTraceProvenance?.(),
+                userId,
+                workspaceId,
+                onResolvedSecretTraceProvenance
+              )
+            }
           }
         )
       } catch (error) {
@@ -805,14 +846,17 @@ class McpService {
             reportProvenance,
             options.signal
           ),
-          (client) => {
-            reportRetainedClientProvenance(
-              client.getResolvedSecretTraceProvenance?.(),
-              userId,
-              workspaceId,
-              reportProvenance
-            )
-            return client.callTool(toolCall, options)
+          async (client) => {
+            try {
+              return await client.callTool(toolCall, options)
+            } finally {
+              reportRetainedClientProvenance(
+                client.getResolvedSecretTraceProvenance?.(),
+                userId,
+                workspaceId,
+                reportProvenance
+              )
+            }
           }
         )
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)

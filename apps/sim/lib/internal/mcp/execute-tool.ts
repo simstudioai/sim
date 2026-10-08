@@ -206,6 +206,10 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       getRemainingExecutionMs(request.signal)
     )
     const commonInput = {
+      onResolvedSecretTraceProvenance: provenance
+        ? (value: Parameters<ResolvedSecretTraceProvenanceAccumulator['record']>[0]) =>
+            provenance?.record(value)
+        : undefined,
       workspaceId: request.context.workspaceId,
       toolName,
       arguments: args,
@@ -222,9 +226,6 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       const input: ExecuteMcpToolInput = {
         ...commonInput,
         serverId: target.serverId,
-        onResolvedSecretTraceProvenance: provenance
-          ? (value) => provenance?.record(value)
-          : undefined,
       }
       result = await executeMcpToolUseCase.execute({ principal, input })
     } else {

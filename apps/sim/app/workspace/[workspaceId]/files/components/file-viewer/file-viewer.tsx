@@ -9,6 +9,7 @@ import {
   TEXT_PREVIEW_SIZE_MESSAGE,
 } from '@/lib/uploads/client/text-content'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
   useWorkspaceFileBinary,
@@ -22,7 +23,6 @@ import {
 } from '@/hooks/use-file-content-source'
 import { CsvTablePreview } from './csv-table-preview'
 import { DocxPreview } from './docx-preview'
-import { resolveFileCategory } from './file-category'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'

@@ -1,3 +1,4 @@
+import { MIMEType } from 'node:util'
 import { CallToolResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
@@ -17,6 +18,7 @@ import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/conte
 import { normalizeInlineChatImage } from '@/lib/mothership/chat/inline-image-storage'
 import { extractResourcesFromToolResult } from '@/lib/mothership/resources/extraction'
 import { changeStoredChatResources } from '@/lib/mothership/resources/store'
+import { resolveFileCategory } from '@/lib/uploads/utils/file-category'
 import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
 import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
@@ -185,11 +187,15 @@ export const readMcpAppFrame = defineAuthorizedChatUseCase({
     const manifest = await readManifest(context, input)
     if (!manifest.appUri) throw new OrchestrationError('not_found', 'MCP App not found')
     const resource = await readProviderResource(principal, manifest, manifest.appUri, input.signal)
-    const content = resource.contents.find(
-      (item) =>
-        item.uri === manifest.appUri &&
-        item.mimeType?.replace(/\s/g, '') === 'text/html;profile=mcp-app'
-    )
+    const content = resource.contents.find((item) => {
+      if (item.uri !== manifest.appUri || !item.mimeType) return false
+      try {
+        const mime = new MIMEType(item.mimeType)
+        return mime.essence === 'text/html' && mime.params.get('profile') === 'mcp-app'
+      } catch {
+        return false
+      }
+    })
     if (!content)
       throw new OrchestrationError('validation', 'The MCP App did not return an HTML resource')
     const html = 'text' in content ? content.text : decodeMcpBase64(content.blob).toString('utf8')
@@ -316,7 +322,7 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
     principal: Principal
     input: McpResultInput & { index: number }
   }) => resolveOwnedChatContext(principal, input.chatId),
-  async execute({ principal, context, input: sourceInput, request }) {
+  async execute({ context, input: sourceInput, request }) {
     const input = { ...sourceInput, signal: sourceInput.signal ?? request?.signal }
     const manifest = await readManifest(context, input)
     const item = manifest.result.content[input.index]
@@ -324,9 +330,7 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
       throw new OrchestrationError('not_found', 'MCP file not found')
     const resource =
       item.type === 'resource_link'
-        ? (await readProviderResource(principal, manifest, item.uri, input.signal)).contents.find(
-            (content) => content.uri === item.uri
-          )
+        ? manifest.resources.find((content) => content.uri === item.uri)
         : item.type === 'resource'
           ? item.resource
           : undefined
@@ -343,10 +347,7 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
       item.type === 'image' || item.type === 'audio'
         ? item.mimeType
         : resource?.mimeType || 'text/plain'
-    if (
-      item.type === 'image' ||
-      ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)
-    )
+    if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType))
       return {
         buffer: await normalizeInlineChatImage(buffer, input.signal),
         contentType: 'image/webp',
@@ -354,7 +355,7 @@ export const readMcpResultAsset = defineAuthorizedChatUseCase({
       }
     const metadata = resolveStoredFileMetadata(`mcp-result-${input.index + 1}`, mimeType, buffer)
     const safeInline =
-      metadata.mimeType.startsWith('audio/') ||
+      resolveFileCategory(metadata.mimeType, '') === 'audio-previewable' ||
       metadata.mimeType === 'application/pdf' ||
       metadata.mimeType === 'text/plain'
     return {

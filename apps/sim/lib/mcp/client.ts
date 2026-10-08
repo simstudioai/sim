@@ -1,6 +1,7 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import {
   ErrorCode,
   LATEST_PROTOCOL_VERSION,
@@ -15,6 +16,7 @@ import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
@@ -40,6 +42,7 @@ import {
 } from '@/lib/mcp/types'
 import { MCP_CLIENT_CONSTANTS } from '@/lib/mcp/utils'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { ResolvedSecretTraceProvenanceAccumulator } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpClient')
 
@@ -92,7 +95,12 @@ export class McpClient {
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
   private closeGuardedTransport?: () => Promise<void>
-  private readonly resolvedSecretTraceProvenance?: McpClientOptions['resolvedSecretTraceProvenance']
+  private readonly resolvedSecrets?: ResolvedSecretTraceProvenanceAccumulator
+  private lastOauthTokens?: {
+    accessToken: string
+    refreshToken?: string
+    registration: Promise<void>
+  }
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -103,7 +111,12 @@ export class McpClient {
     }
     this.onToolsChanged = options.onToolsChanged
     this.authProvider = options.authProvider
-    this.resolvedSecretTraceProvenance = options.resolvedSecretTraceProvenance
+    if (options.resolvedSecretTraceProvenance) {
+      this.resolvedSecrets = new ResolvedSecretTraceProvenanceAccumulator(
+        options.resolvedSecretTraceProvenance.scope
+      )
+      this.resolvedSecrets.record(options.resolvedSecretTraceProvenance)
+    }
     const resolvedIP = options.resolvedIP
 
     this.connectionStatus = { connected: false }
@@ -144,6 +157,7 @@ export class McpClient {
         ? createCoordinatedMcpOauthFetch(options.oauthCredentials, {
             serverUrl: this.config.url,
             fetch: oauthFetch,
+            onTokens: this.resolvedSecrets ? (tokens) => this.recordOauthTokens(tokens) : undefined,
           })
         : (oauthFetch ?? guarded.fetch)
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
@@ -177,9 +191,37 @@ export class McpClient {
   }
 
   getResolvedSecretTraceProvenance(): McpClientOptions['resolvedSecretTraceProvenance'] {
-    return this.resolvedSecretTraceProvenance
-      ? structuredClone(this.resolvedSecretTraceProvenance)
-      : undefined
+    return this.resolvedSecrets?.exportProvenance()
+  }
+
+  private async recordOauthTokens(tokens: OAuthTokens): Promise<void> {
+    if (
+      this.lastOauthTokens?.accessToken === tokens.access_token &&
+      this.lastOauthTokens.refreshToken === tokens.refresh_token
+    ) {
+      await this.lastOauthTokens.registration
+      return
+    }
+    const registry = this.resolvedSecrets
+    const registration = (async () => {
+      const entries = await Promise.all(
+        [tokens.access_token, tokens.refresh_token]
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+          .map(async (value) => ({ encryptedValue: (await encryptSecret(value)).encrypted }))
+      )
+      registry?.record({
+        version: 1,
+        complete: true,
+        scope: registry.exportProvenance().scope,
+        entries,
+      })
+    })()
+    this.lastOauthTokens = {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      registration,
+    }
+    await registration
   }
 
   /**
