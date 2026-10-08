@@ -2,9 +2,9 @@ import { CHANGELOG_SECTION, getAllEntryMeta } from '@/lib/changelog'
 import { buildCollectionPageJsonLd } from '@/lib/content/seo'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import {
-  ChangelogGrid,
   ChangelogHeader,
   ChangelogLayout,
+  ChangelogList,
 } from '@/app/(landing)/changelog/components'
 import { BackLink } from '@/app/(landing)/components/back-link'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
@@ -31,7 +31,7 @@ export default async function ChangelogArchivePage() {
         lead='New capabilities, improvements, and fixes in Sim, with the details in one place.'
         actions={<BackLink href='/changelog' label='Back to changelog' />}
       />
-      <ChangelogGrid entries={entries} />
+      <ChangelogList entries={entries} />
       <a
         href='https://github.com/simstudioai/sim/releases'
         target='_blank'

@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getAllEntryPreviews } from '@/lib/changelog'
 import {
-  ChangelogGrid,
   ChangelogHeader,
   ChangelogLayout,
+  ChangelogList,
 } from '@/app/(landing)/changelog/components'
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default async function ChangelogPreviewPage() {
         title='Changelog preview'
         lead='Local editorial preview, including unpublished drafts. Verify the feature, availability, and media before publishing.'
       />
-      <ChangelogGrid entries={entries} featureLatest basePath='/changelog/preview' />
+      <ChangelogList entries={entries} basePath='/changelog/preview' />
     </ChangelogLayout>
   )
 }

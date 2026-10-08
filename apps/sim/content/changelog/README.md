@@ -2,7 +2,7 @@
 
 Create `content/changelog/<slug>/index.mdx`. The slugs `archive` and `preview` are reserved. The website, archive, individual pages, sitemap, and RSS all read published entries from this directory through the shared content registry.
 
-The index features the latest update and shows up to six story cards. The archive links to every published update. Both lists read metadata only; the full article and its recordings are loaded on the individual update page. Cards use the local `ogImage` and `ogAlt`, so a reviewed demo poster also becomes the update's cover and share image. The page frame, typography, media radius, and card rhythm use Sim's shared landing styles.
+The index shows up to 12 updates in chronological rows. When more exist, an Older updates link opens the archive at the first omitted entry. The archive links to every published update. Both lists read metadata only; the full article and its recordings are loaded on the individual update page. Rows use the local `ogImage` and `ogAlt`, so a reviewed demo poster also becomes the update's cover and share image. The page frame, typography, media radius, and row spacing use Sim's shared landing styles.
 
 Write for a team using Sim: what changed, what they can do with it, and where to find it. Group related PRs into one product update. Keep maintenance, refactors, and routine content edits in the technical GitHub release history.
 
@@ -34,7 +34,7 @@ Codex can read PRs and diffs, group related changes, and produce copy and shot l
 
 For a new edition, `release.versions` can list several technical versions. When there is no single corresponding GitHub release, omit `release.url`; the editorial entry then has its own RSS identity.
 
-Open `/changelog/preview` while running `next dev` to review drafts with the same cards, typography, and article components as the public site. `/changelog/preview/<slug>` shows one draft. These routes return 404 outside development, emit `noindex`, and are excluded from the sitemap and RSS. Public routes continue to exclude drafts even during development. The preview rereads metadata after edits, so there is no need to temporarily publish a draft.
+Open `/changelog/preview` while running `next dev` to review drafts with the same list, typography, and article components as the public site. `/changelog/preview/<slug>` shows one draft. These routes return 404 outside development, emit `noindex`, and are excluded from the sitemap and RSS. Public routes continue to exclude drafts even during development. The preview rereads metadata after edits, so there is no need to temporarily publish a draft.
 
 ## Contextual links
 
@@ -43,6 +43,16 @@ Give readers the next useful step in the sentence that introduces a capability. 
 Use the guide for the exact surface being announced. Live Search connectors have their own `/search/<source>` guides; an ordinary workflow integration page can describe a different connection and permission model. Feature announcements should link to the feature guide, and API changes should link to the current generated operation page. Related Sim product pages and explanatory blog posts are useful when they help a reader use or understand the update.
 
 Choose a few relevant links instead of repeating every destination in a separate resource list. Keep link text descriptive. The content audit checks integration destinations against the generated catalog and docs destinations against the MDX source and generated OpenAPI pages. Use current canonical URLs, including the operation ID's exact case. Confirm the linked page's instructions and any deep anchor in the deployment preview; a source file alone does not establish rollout or anchor correctness.
+
+## Search and answer-engine visibility
+
+Keep each summary independently useful: name Sim and the feature, explain the new capability, and state material availability limits in the article. Put setup steps and demonstration explanations in server-rendered text alongside the media. Do not leave important facts only inside a screenshot or video.
+
+The index and archive use real links, semantic lists, and CollectionPage/ItemList data matching the visible entries. Articles keep their own canonical URLs, BlogPosting data, author bylines, original publication dates, and substantive correction dates. Public articles appear in the sitemap and RSS; previews stay noindex and drafts stay out of public routes. Preserve these properties when changing the layout. If the archive eventually needs pagination, use server-rendered pages with real next/previous links and a self-canonical URL for each page; do not make older entries accessible only through a JavaScript button.
+
+These are standard search foundations, not a guarantee of indexing or AI citations. [Google's AI search guidance](https://developers.google.com/search/docs/appearance/ai-features) calls for crawlable, useful text, relevant media, internal links, and structured data matching the visible content; it does not require special AI-only markup. Avoid hidden keyword blocks, invented FAQs, and schema for information that the page does not show.
+
+After deployment, verify a representative article and the archive with Search Console URL Inspection, confirm the submitted sitemap is processed, and check Bing Webmaster Tools for crawl or indexing failures. During the monthly review, monitor indexed pages, search queries, and referrals, alongside link and media health. Local HTTP checks establish crawlability; they cannot prove that an external engine has indexed the live site.
 
 ## Artifact delivery
 
@@ -122,5 +132,5 @@ For a migrated historical release, use its original publication timestamp and Gi
 - Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction. A future date does not schedule publication; leave the entry in draft until the intended deployment.
 - If availability changes after publication, update the existing entry with its current status and a clear next step. Preserve its URL rather than deleting it or reverting it to a draft. If a slug must change, add a redirect before moving it.
 - Keep historical media versioned. Record the capture date, environment, demonstrated steps, and final asset URLs in the brief. Never overwrite an existing recording. Recheck playback, seeking, captions, and mobile readability after any replacement.
-- RSS includes the 50 latest published entries, the homepage shows six, and the archive retains the published history. Those collections load metadata and optimized covers; full articles and recordings load on their detail pages.
+- RSS includes the 50 latest published entries, the homepage shows 12, and the archive retains the published history. Those collections load metadata and optimized covers; full articles and recordings load on their detail pages.
 - Draft preparation can be assisted by Codex. Publication and distribution remain deliberate editorial actions; there is no automatic commit-to-changelog or auto-send job.

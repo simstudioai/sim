@@ -21,7 +21,12 @@ export function ChangelogArticle({
       ? entry.updated
       : undefined
   return (
-    <article id={entry.slug} className='mx-auto w-full max-w-[900px]'>
+    <article
+      id={entry.slug}
+      className='mx-auto w-full max-w-[900px]'
+      itemScope
+      itemType='https://schema.org/BlogPosting'
+    >
       <header className='flex flex-col items-start gap-6'>
         <BackLink href={backHref} label='Back to changelog' />
         <div className='flex flex-wrap items-center gap-x-4 gap-y-2 text-[var(--text-secondary)] text-sm'>
@@ -30,11 +35,20 @@ export function ChangelogArticle({
           {entry.release ? <span>{entry.release.versions.join(' · ')}</span> : null}
           {updated ? <time dateTime={entry.updated}>Updated {formatPostDate(updated)}</time> : null}
         </div>
-        <h1 className={cn('text-balance text-[var(--text-primary)]', LANDING_TYPE.proof)}>
+        <h1
+          itemProp='headline'
+          className={cn('text-balance text-[var(--text-primary)]', LANDING_TYPE.proof)}
+        >
           {entry.title}
         </h1>
-        <p className={cn('text-pretty text-[var(--text-secondary)]', LANDING_TYPE.lead)}>
+        <p
+          itemProp='description'
+          className={cn('text-pretty text-[var(--text-secondary)]', LANDING_TYPE.lead)}
+        >
           {entry.description}
+        </p>
+        <p className='text-[var(--text-secondary)] text-sm'>
+          By {entry.authors.map((author) => author.name).join(', ')}
         </p>
       </header>
       <section

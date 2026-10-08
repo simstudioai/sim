@@ -7,4 +7,4 @@ export const CHANGELOG_SECTION = {
     'New ways to build, deploy, and manage AI agents in Sim, plus improvements and fixes.',
 } satisfies ContentSection
 
-export const LATEST_ENTRY_LIMIT = 6
+export const LATEST_ENTRY_LIMIT = 12
