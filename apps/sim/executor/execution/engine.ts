@@ -128,6 +128,13 @@ export class ExecutionEngine {
         throw this.executionError
       }
 
+      if (this.stopBlockReached) {
+        this.pausedBlocks.clear()
+        this.context.metadata.pausePoints = []
+        this.context.metadata.status = 'completed'
+        this.context.metadata.stopAfterBlockReached = true
+      }
+
       /** A pause keeps a run whose stop block can still run; one proven unreachable fails. */
       if (!this.cancelledFlag && (this.stopBlockUnreachable || this.pausedBlocks.size === 0)) {
         this.assertStopBlockReached()
@@ -293,6 +300,19 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (
+      this.context.metadata.resumeFromSnapshot &&
+      this.context.metadata.stopAfterBlockReached &&
+      stopBlockId
+    ) {
+      this.stopBlockReached = true
+      this.stoppedEarlyFlag = true
+      const state = this.context.blockStates.get(stopBlockId)
+      if (state) this.setFinalOutput(stopBlockId, state.output)
+      return
+    }
+
     if (this.context.runFromBlockContext) {
       const { startBlockId } = this.context.runFromBlockContext
       this.execLogger.info('Initializing queue for run-from-block mode', {

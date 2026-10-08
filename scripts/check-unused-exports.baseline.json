@@ -3811,7 +3811,6 @@
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2PreviewWorkflowImportBody",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ReplaceWorkflowStateBody",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ReplaceWorkflowStateData",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#V2ResumeWorkflowBody",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ResumeWorkflowQueued",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ResumeWorkflowResponse",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2RevertWorkflowVersionData",

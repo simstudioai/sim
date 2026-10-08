@@ -631,7 +631,6 @@ async function executeWorkflowCoreImpl(
     abortSignal,
     includeFileBase64,
     base64MaxBytes,
-    stopAfterBlockId,
     runFromBlock,
     resumeDeploymentVersionId,
     draftState,
@@ -647,6 +646,8 @@ async function executeWorkflowCoreImpl(
     throw new Error(`Execution metadata missing workspaceId for workflow ${workflowId}`)
   }
   const resumeFromSnapshot = metadata.resumeFromSnapshot === true
+  const stopAfterBlockId =
+    options.stopAfterBlockId ?? (resumeFromSnapshot ? metadata.stopAfterBlockId : undefined)
   if (!resumeFromSnapshot && resumeDeploymentVersionId !== undefined) {
     throw new Error('Deployment version authority can only be supplied for a resumed execution')
   }
@@ -1236,7 +1237,14 @@ async function executeWorkflowCoreImpl(
       ...(workflowInputResolvedSecretTraceProvenance
         ? { workflowInputResolvedSecretTraceProvenance }
         : {}),
-      metadata,
+      metadata: {
+        ...metadata,
+        stopAfterBlockId,
+        stopAfterBlockReached:
+          resumeFromSnapshot &&
+          stopAfterBlockId !== undefined &&
+          snapshot.state?.completedPauseContexts?.includes(stopAfterBlockId) === true,
+      },
       startRunMetadata,
       abortSignal,
       includeFileBase64,
