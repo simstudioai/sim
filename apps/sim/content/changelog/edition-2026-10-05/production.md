@@ -2,19 +2,19 @@
 
 Status: editorial draft. Availability and real media require review before an article is added.
 
+## Editorial selection
+
+Recommended placement: supporting Chat improvements in a related release. The editor should confirm a substantial standalone benefit before promoting these fixes into a separate announcement. Keep the brief in draft while that decision, availability, and feature-specific media are unresolved.
+
 ## Proposed article
 
-Sim improves how Chat handles queued messages after a failed send, helping follow-ups stay in order and attached to the right conversation.
+Sim improves how Chat handles interrupted sends, helping follow-up messages stay in order and attached to the right conversation.
 
-Keep adding context without losing the thread. Sim improves three situations where a failed send could disrupt follow-up messages in Chat.
+Keep adding context while a message is being sent. If that send fails while the browser still reports a connection, Chat retries it and keeps the original message ahead of follow-ups you queued.
 
-If a request fails while your browser still reports an active connection, Chat retries the message instead of leaving the queue waiting for a reload. A failed first message also keeps its place ahead of follow-ups you typed while it was being sent.
+When a new chat is being created, pending follow-ups stay attached to that conversation. Together, these fixes address specific cases where a message could get stuck or reappear in the wrong queue; they do not guarantee delivery through every network interruption.
 
-When you start a new chat, pending follow-ups stay attached to that conversation as it is created. This addresses a case where a delayed retry could return a message to the wrong queue.
-
-These changes address specific send and queue failures; they do not guarantee delivery during every network interruption. Confirm the deployed version before announcing availability.
-
-See the [Chat guide](https://docs.sim.ai/chat) for how to build and manage work in Sim.
+See the [Chat guide](https://docs.sim.ai/chat) for working with Sim.
 
 ## Source evidence
 
