@@ -312,6 +312,31 @@ function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): 
     }
   }
 
+  // Production's older tables belong to a different role than the one that runs migrations, while
+  // every table in CI and staging belongs to the migrator, so ownership-dependent statements pass
+  // everywhere but production.
+  const ownedBy = /^(?:CREATE|ALTER) SEQUENCE\b/i.test(s) ? s.match(/\bOWNED BY ([^\s;]+)/i) : null
+  if (ownedBy && !/^NONE$/i.test(ownedBy[1])) {
+    const parts = ownedBy[1].replace(/"/g, '').split('.')
+    const ownerTable = (parts[parts.length - 2] ?? '').toLowerCase()
+    if (!createdTables.has(ownerTable)) {
+      matches.push({
+        kind: 'error',
+        rule: 'sequence-owned-by-existing-table',
+        message:
+          'OWNED BY needs the sequence and its table to share an owner, and an existing table may belong to a different role than the one that created the sequence. Leave the sequence unowned, or link it only to a table created in this migration.',
+      })
+    }
+  }
+  if (/\bOWNER TO\b/i.test(s)) {
+    matches.push({
+      kind: 'error',
+      rule: 'owner-to',
+      message:
+        'Owner roles differ between environments, so OWNER TO is not portable. Ownership changes belong to an operator, not a migration.',
+    })
+  }
+
   if (/^(UPDATE|DELETE)\b/i.test(s)) {
     const noWhere = !/\bWHERE\b/i.test(s)
     matches.push({
