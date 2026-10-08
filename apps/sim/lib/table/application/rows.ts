@@ -1,10 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubjectUserId,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -77,10 +73,6 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
-import {
-  getTableQueryAvailability,
-  TABLE_QUERY_UNAVAILABLE_REASON,
-} from '@/lib/table/query-availability'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -100,7 +92,6 @@ import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
-import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export class TableRowsValidationError extends OrchestrationError {
@@ -110,13 +101,6 @@ export class TableRowsValidationError extends OrchestrationError {
   ) {
     super('validation', message)
     this.name = 'TableRowsValidationError'
-  }
-}
-
-export class TableV2FeatureDisabledError extends OrchestrationError {
-  constructor() {
-    super('forbidden', TABLE_QUERY_UNAVAILABLE_REASON)
-    this.name = 'TableV2FeatureDisabledError'
   }
 }
 
@@ -535,7 +519,6 @@ export interface QueryTableRowsInput extends TableScopedInput, RunStateReadInput
   columns?: string[]
   includeTotal?: boolean
   allowExpandedLimit?: boolean
-  requireV2Feature?: boolean
   includePersistedSecretProvenance?: boolean
 }
 
@@ -559,22 +542,6 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       input.includePersistedSecretProvenance
     )
     try {
-      if (input.requireV2Feature) {
-        const orgId = await getWorkspaceOrganizationId(context.workspaceId)
-        if (
-          !(
-            await getTableQueryAvailability({
-              // An actorless run has no user to match a per-user rule against, and a
-              // missing one resolves the admin clause to `false` without a query — so
-              // the gate only ever narrows here, never widens.
-              userId: resolvePrincipalSubjectUserId(principal),
-              orgId,
-            })
-          ).enabled
-        ) {
-          throw new TableV2FeatureDisabledError()
-        }
-      }
       if (input.limit !== undefined && !input.allowExpandedLimit) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
       } else if (

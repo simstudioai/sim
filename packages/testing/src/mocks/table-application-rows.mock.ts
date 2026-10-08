@@ -19,19 +19,6 @@ export class MockTableRowsValidationError extends Error {
 }
 
 /**
- * Stand-in for `TableV2FeatureDisabledError`: same `name`, `code: 'forbidden'` and the real
- * `TABLE_QUERY_UNAVAILABLE_REASON` message. Not an `OrchestrationError` subclass.
- */
-export class MockTableV2FeatureDisabledError extends Error {
-  readonly code = 'forbidden' as const
-
-  constructor() {
-    super('The v2 table query API is not enabled for this workspace')
-    this.name = 'TableV2FeatureDisabledError'
-  }
-}
-
-/**
  * Stand-in for `ProjectedWireRowsValidationError`: subclass of
  * {@link MockTableRowsValidationError} with the real `name`.
  */
@@ -99,7 +86,6 @@ const fns = tableApplicationRowsMockFns
  */
 export const tableApplicationRowsMock = {
   TableRowsValidationError: MockTableRowsValidationError,
-  TableV2FeatureDisabledError: MockTableV2FeatureDisabledError,
   ProjectedWireRowsValidationError: MockProjectedWireRowsValidationError,
   tablePredicateNamesToFilter: fns.mockTablePredicateNamesToFilter,
   listTableRows: {

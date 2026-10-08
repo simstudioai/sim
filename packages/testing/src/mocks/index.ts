@@ -759,7 +759,6 @@ export {
 export {
   MockCsvImportValidationError,
   MockTableQueryValidationError,
-  MockTableRowTtlDisabledError,
   MockTableViewValidationError,
   tableMock,
   tableMockFns,
@@ -775,7 +774,6 @@ export {
 export {
   MockProjectedWireRowsValidationError,
   MockTableRowsValidationError,
-  MockTableV2FeatureDisabledError,
   tableApplicationRowsMock,
   tableApplicationRowsMockFns,
 } from './table-application-rows.mock'
@@ -826,10 +824,6 @@ export {
   tableTriggerMock,
   tableTriggerMockFns,
 } from './table-trigger.mock'
-export {
-  tableTtlAvailabilityMock,
-  tableTtlAvailabilityMockFns,
-} from './table-ttl-availability.mock'
 export {
   tableWireMock,
   tableWireMockFns,

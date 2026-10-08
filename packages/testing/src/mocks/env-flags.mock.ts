@@ -39,6 +39,7 @@ interface EnvFlagsMockState {
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
+  isCredentialGroupsEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isSessionPoliciesEnabled: boolean
@@ -97,6 +98,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isCustomBlocksEnabled: false,
+  isCredentialGroupsEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,

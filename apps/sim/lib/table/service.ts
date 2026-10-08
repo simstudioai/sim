@@ -60,7 +60,6 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
-import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -560,10 +559,6 @@ export async function createTable(
       'validation',
       `Invalid schema: ${schemaValidation.errors.join(', ')}`
     )
-  }
-
-  if (data.schema.columns.some((column) => column.type === 'ttl')) {
-    await assertTableRowTtlEnabled()
   }
 
   const tableId = generateTableId()

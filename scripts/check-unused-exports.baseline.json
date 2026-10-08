@@ -270,7 +270,6 @@
   "apps/sim/app/api/table/utils.ts#errorResponse",
   "apps/sim/app/api/table/utils.ts#forbiddenResponse",
   "apps/sim/app/api/table/utils.ts#notFoundResponse",
-  "apps/sim/app/api/table/utils.ts#tablesV2GateError",
   "apps/sim/app/api/table/utils.ts#unauthorizedResponse",
   "apps/sim/app/api/v1/admin/responses.ts#errorResponse",
   "apps/sim/app/api/v1/admin/types.ts#DEFAULT_LIMIT",
