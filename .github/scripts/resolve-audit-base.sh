@@ -24,12 +24,13 @@ elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
     exit 1
   fi
 
-  base_sha=$(jq -r '.[0].base.sha' <<< "$matching_prs")
-  if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]]; then
-    echo 'The pull request did not provide a valid base commit SHA.' >&2
+  base_ref=$(jq -er '.[0].base.ref | select(type == "string" and length > 0)' <<< "$matching_prs")
+  if ! git check-ref-format "refs/heads/$base_ref"; then
+    echo 'The pull request did not provide a valid base branch.' >&2
     exit 1
   fi
-  git fetch --depth=1 origin "$base_sha"
+  git fetch --depth=1 origin "refs/heads/$base_ref"
+  base_sha=$(git rev-parse --verify 'FETCH_HEAD^{commit}')
   echo "ref=$base_sha" >> "$GITHUB_OUTPUT"
 elif [ -n "${GITHUB_BEFORE:-}" ] &&
      [ "$GITHUB_BEFORE" != 0000000000000000000000000000000000000000 ]; then
