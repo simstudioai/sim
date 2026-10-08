@@ -17,7 +17,7 @@ const ssoMappingSchema = z
 export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   z.object({
     providerType: z.literal('oidc').default('oidc'),
-    providerId: z.string().min(1, 'Provider ID is required'),
+    providerId: z.string().min(1, 'Provider ID is required').max(255),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),
@@ -45,7 +45,7 @@ export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   }),
   z.object({
     providerType: z.literal('saml'),
-    providerId: z.string().min(1, 'Provider ID is required'),
+    providerId: z.string().min(1, 'Provider ID is required').max(255),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),

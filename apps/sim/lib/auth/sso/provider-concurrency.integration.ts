@@ -42,6 +42,105 @@ describe('SSO account link concurrency', () => {
     runtime = await loadRuntime()
   }, 60_000)
 
+  it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ])(
+    'refuses an account link when provider deletion wins with transactional adapter=%s and replacement=%s',
+    async (transactional, replacement) => {
+      const { db, schema, eq, sql } = runtime
+      const userId = generateId()
+      const providerId = `deleted-${generateId()}`
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      const pending: Promise<unknown>[] = []
+      try {
+        const now = new Date()
+        await db.insert(schema.user).values({
+          id: userId,
+          name: 'SSO deletion concurrency',
+          email: `${userId}@example.com`,
+          emailVerified: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.ssoProvider).values({
+          id: generateId(),
+          userId,
+          providerId,
+          issuer: 'https://original.example.com',
+          domain: 'example.com',
+        })
+        const deletion = db.transaction(async (tx) => {
+          await runtime.lockSsoProvider(tx, providerId)
+          const [connection] = await tx.execute<{ pid: number }>(
+            sql`SELECT pg_backend_pid() AS pid`
+          )
+          held.resolve(connection.pid)
+          await release.promise
+          await tx.delete(schema.ssoProvider).where(eq(schema.ssoProvider.providerId, providerId))
+          if (replacement)
+            await tx.insert(schema.ssoProvider).values({
+              id: generateId(),
+              userId,
+              providerId,
+              issuer: 'https://replacement.example.com',
+              domain: 'example.com',
+            })
+        })
+        pending.push(deletion)
+        void deletion.catch((error: unknown) => held.reject(error))
+        const blockerPid = await held.promise
+        const adapter = runtime.createSimAuthAdapter({})
+        const input = {
+          model: 'account',
+          forceAllowId: true,
+          data: {
+            id: generateId(),
+            accountId: generateId(),
+            userId,
+            providerId,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }
+        const insertion = (
+          transactional ? adapter.transaction((tx) => tx.create(input)) : adapter.create(input)
+        ).then(
+          (value) => ({ status: 'fulfilled' as const, value }),
+          (reason: unknown) => ({ status: 'rejected' as const, reason })
+        )
+        pending.push(insertion)
+        await vi.waitFor(
+          async () => {
+            const [waiting] = await db.execute<{ pid: number }>(sql`
+              SELECT pid FROM pg_stat_activity
+              WHERE datname = current_database() AND wait_event = 'advisory'
+                AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+            `)
+            expect(waiting).toBeDefined()
+          },
+          { timeout: 5_000, interval: 25 }
+        )
+        release.resolve()
+        await deletion
+        expect(await insertion).toMatchObject({ status: 'rejected', reason: { statusCode: 404 } })
+        expect(
+          await db.select().from(schema.account).where(eq(schema.account.providerId, providerId))
+        ).toEqual([])
+      } finally {
+        release.resolve()
+        await Promise.allSettled(pending)
+        await db.delete(schema.account).where(eq(schema.account.providerId, providerId))
+        await db.delete(schema.ssoProvider).where(eq(schema.ssoProvider.providerId, providerId))
+        await db.delete(schema.user).where(eq(schema.user.id, userId))
+      }
+    },
+    30_000
+  )
+
   it.each([false, true])(
     'allows a non-SSO account link while an SSO mutation lock is held with transactional adapter=%s',
     async (transactional) => {

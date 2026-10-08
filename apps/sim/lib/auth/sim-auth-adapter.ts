@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import type { BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { eq } from 'drizzle-orm'
+import { APIError } from 'better-auth/api'
+import { and, eq } from 'drizzle-orm'
 import { runWithAuthDatabase } from '@/lib/auth/database-context'
 import {
   type AuthDatabase,
@@ -39,7 +40,20 @@ function createTransactionAdapter(
           .from(schema.ssoProvider)
           .where(eq(schema.ssoProvider.providerId, input.data.providerId))
           .limit(1)
-        if (provider) await lockSsoProvider(tx, input.data.providerId)
+        if (provider) {
+          await lockSsoProvider(tx, input.data.providerId)
+          const [current] = await tx
+            .select({ id: schema.ssoProvider.id })
+            .from(schema.ssoProvider)
+            .where(
+              and(
+                eq(schema.ssoProvider.id, provider.id),
+                eq(schema.ssoProvider.providerId, input.data.providerId)
+              )
+            )
+            .limit(1)
+          if (!current) throw new APIError('NOT_FOUND', { message: 'SSO provider not found' })
+        }
       }
       return guarded.create(input)
     },

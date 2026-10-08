@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { Resolver } from 'node:dns/promises'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -748,6 +749,16 @@ describe('Organization SSO administration through API credentials', () => {
       .select()
       .from(schema.ssoDomain)
       .where(eq(schema.ssoDomain.organizationId, organizationId))
+    const [pendingClaim] = await db
+      .insert(schema.ssoDomain)
+      .values({
+        id: generateId(),
+        organizationId,
+        domain: `aaa-pending-${suffix}.test`,
+        status: 'pending',
+        verificationToken: generateId(),
+      })
+      .returning()
     const directory = await mkdtemp(resolve(tmpdir(), 'sim-sso-cli-'))
     const cliPath = resolve(process.cwd(), '../../packages/sim-cli/src/index.ts')
     const secret = 'fixture-secret+with-newline\n'
@@ -790,7 +801,7 @@ describe('Organization SSO administration through API credentials', () => {
                 params: Promise.resolve({ organizationId, providerId }),
               })
             : await apiDomainVerification.POST(request, {
-                params: Promise.resolve({ organizationId, domainId: claim.id }),
+                params: Promise.resolve({ organizationId, domainId: pendingClaim.id }),
               })
         outgoing.statusCode = response.status
         response.headers.forEach((value, name) => outgoing.setHeader(name, value))
@@ -800,14 +811,22 @@ describe('Organization SSO administration through API credentials', () => {
         outgoing.end(JSON.stringify({ fixtureError: getErrorMessage(error) }))
       }
     })
+    const dns = vi
+      .spyOn(Resolver.prototype, 'resolveTxt')
+      .mockImplementation(async (host) =>
+        host === `_sim-challenge.${pendingClaim.domain}`
+          ? [[`sim-domain-verification=${pendingClaim.verificationToken}`]]
+          : []
+      )
     try {
+      setEnvFlags({ isHosted: true })
       await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready))
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind loopback')
       endpoint = `http://127.0.0.1:${address.port}`
       const commands = [
         ['organizations', 'sso', 'providers', 'primary', providerId],
-        ['organizations', 'domains', 'verify', claim.id],
+        ['organizations', 'domains', 'verify', pendingClaim.id],
         [
           'organizations',
           'sso',
@@ -874,10 +893,18 @@ describe('Organization SSO administration through API credentials', () => {
       expect(attempts[2].stdout).not.toContain(secret)
 
       expect(JSON.parse(attempts[1].stdout)).toMatchObject({
-        id: claim.id,
+        id: pendingClaim.id,
         status: 'verified',
       })
+      const [verified] = await db
+        .select()
+        .from(schema.ssoDomain)
+        .where(eq(schema.ssoDomain.id, pendingClaim.id))
+      expect(verified.status).toBe('verified')
+      expect(verified.verifiedAt).not.toBeNull()
     } finally {
+      dns.mockRestore()
+      setEnvFlags({ isHosted: false })
       await new Promise<void>((complete, reject) => {
         server.close((error) => (error ? reject(error) : complete()))
         server.closeAllConnections()

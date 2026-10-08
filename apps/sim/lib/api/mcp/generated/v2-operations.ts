@@ -1726,7 +1726,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListCredentialMembersContract,
     summary: 'List Credential Members',
     description:
-      'List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Credentials must be OAuth or service-account connections. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/credentials/[credentialId]/members/route').then((route) => route.GET),

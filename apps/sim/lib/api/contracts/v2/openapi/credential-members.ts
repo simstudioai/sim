@@ -18,7 +18,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.listMembers,
       operationId: 'listCredentialMembers',
       summary: 'List Credential Members',
-      description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Credentials must be OAuth or service-account connections. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: { description: 'List Credential Members result.', headers: RATE_LIMIT_HEADERS },
