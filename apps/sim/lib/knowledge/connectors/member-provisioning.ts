@@ -29,6 +29,7 @@ import {
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
+import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   findCredentialGroupProviderFromProviderId,
@@ -42,6 +43,7 @@ import {
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
+import { providerIdsForService } from '@/lib/oauth/utils'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -92,17 +94,32 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
   if (connectorMeta.auth.mode !== 'oauth') {
     throw new OrchestrationError('validation', 'Only an OAuth connector can sync per member')
   }
-  const providerId = connectorMeta.auth.provider
-  const provider = findCredentialGroupProviderFromProviderId(providerId)
-  if (!provider) {
+  const providers = providerIdsForService(connectorMeta.auth.provider)
+    .map(findCredentialGroupProviderFromProviderId)
+    .filter((provider) => provider !== null)
+  const defaultProvider = providers[0]
+  if (!defaultProvider) {
     throw new OrchestrationError(
       'validation',
       `${connectorMeta.name} accounts cannot be collected through a Credential Group yet`
     )
   }
 
+  const scope = resourceScopeFromOwner(input)
+  const existing = await loadScopedAccountsCredentialListContext(scope)
+  const existingOptions =
+    existing?.options.filter((option) =>
+      providers.some((provider) => provider === option.provider)
+    ) ?? []
+  const activeOptions = existingOptions.filter((option) => option.status === 'active')
+  const existingOption = activeOptions[0] ?? existingOptions[0]
+  const configuredProviders = listConfiguredCredentialGroupProviders()
+  const provider =
+    providers.find((candidate) => candidate === existingOption?.provider) ??
+    providers.find((candidate) => configuredProviders.includes(candidate)) ??
+    defaultProvider
   const group = await ensureWorkspaceAccountsGroup(
-    resourceScopeFromOwner(input),
+    scope,
     input.userId,
     isCredentialGroupStandardOAuthProvider(provider)
       ? { provider, label: connectorMeta.name, required: false }
@@ -110,7 +127,7 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
   )
   const options = group.options.filter(
     (option) =>
-      option.provider === provider &&
+      providers.some((candidate) => candidate === option.provider) &&
       option.status === 'active' &&
       option.configurationStatus === 'ready'
   )

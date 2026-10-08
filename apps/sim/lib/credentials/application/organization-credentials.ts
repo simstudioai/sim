@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
-import { and, desc, eq, getTableColumns, or } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, inArray, or } from 'drizzle-orm'
 import type {
   CreateOrganizationCredentialBody,
   CreateOrganizationCredentialDraftBody,
@@ -38,7 +38,7 @@ import {
   type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
 import type { Credential, OAuthProvider } from '@/lib/oauth/types'
-import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { getServiceConfigByProviderId, providerIdsForService } from '@/lib/oauth/utils'
 
 export const organizationCredentialOperations = {
   list: defineOrganizationOperation({
@@ -113,7 +113,9 @@ export const listOrganizationCredentials: OperationUseCase<
             and(eq(credential.type, 'oauth'), eq(credential.createdBy, context.userId))
           ),
           ...(input.type ? [eq(credential.type, input.type)] : []),
-          ...(input.providerId ? [eq(credential.providerId, input.providerId)] : [])
+          ...(input.providerId
+            ? [inArray(credential.providerId, providerIdsForService(input.providerId))]
+            : [])
         )
       )
       .orderBy(desc(credential.createdAt))
