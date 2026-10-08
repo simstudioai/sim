@@ -72,16 +72,30 @@ function qualifiedName(raw: string): string {
 /**
  * The statement with string literals and comments blanked, so only executable SQL is matched.
  * An escape string (`E'…'`) is read with its backslash escapes, so `\'` does not end it early.
- * A dollar-quoted body stays only where it runs, after `DO` or a function's `AS`, with its own
- * literals blanked in turn; dollar-quoted data is blanked like any other string.
+ * A dollar-quoted body stays only where it runs, after `DO` or a function's `AS`, and a literal
+ * stays where `EXECUTE` runs it as dynamic SQL, each with its own literals blanked in turn. Every
+ * other literal is data. Dynamic SQL assembled by concatenation or `format()` is not followed.
  */
 function executableSql(sql: string): string {
   return sql.replace(
-    /\$(\w*)\$([\s\S]*?)\$\1\$|(?<![\w$])[Ee]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g,
-    (_match, tag: string | undefined, body: string | undefined, offset: number) => {
-      if (body === undefined) return ' '
-      const runs = /\b(?:DO|AS)\s*$|\bDO\s+LANGUAGE\s+\w+\s*$/i.test(sql.slice(0, offset))
-      return runs ? `$${tag}$${executableSql(body)}$${tag}$` : ' '
+    /\$(\w*)\$([\s\S]*?)\$\1\$|(?<![\w$])[Ee]'((?:[^'\\]|\\[\s\S]|'')*)'|'((?:[^']|'')*)'|--[^\n]*|\/\*[\s\S]*?\*\//g,
+    (
+      _match: string,
+      tag: string | undefined,
+      body: string | undefined,
+      escaped: string | undefined,
+      plain: string | undefined,
+      offset: number
+    ) => {
+      const before = sql.slice(0, offset)
+      if (body !== undefined) {
+        const runs = /\b(?:DO|AS)\s*$|\bDO\s+LANGUAGE\s+\w+\s*$/i.test(before)
+        return runs ? `$${tag}$${executableSql(body)}$${tag}$` : ' '
+      }
+      if (!/\bEXECUTE\s*$/i.test(before)) return ' '
+      if (escaped !== undefined) return ` ${executableSql(escaped.replace(/\\(.)/g, '$1'))} `
+      if (plain !== undefined) return ` ${executableSql(plain.replace(/''/g, "'"))} `
+      return ' '
     }
   )
 }
@@ -254,10 +268,12 @@ interface RawMatch {
  * migration, by schema-qualified name so a same-named table in another schema
  * is not mistaken for one — ops against a brand-new table have no old rows and no live
  * traffic, so they are always safe and skipped. `sawCommit` tracks whether a
- * `COMMIT;` breakpoint preceded a CONCURRENTLY index (see migrate.ts).
+ * `COMMIT;` breakpoint preceded a CONCURRENTLY index (see migrate.ts). Only
+ * executable SQL is classified, so words in literals, comments and dollar-quoted
+ * data never count as operations.
  */
 function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): RawMatch[] {
-  const s = sql.replace(/\s+/g, ' ').trim()
+  const s = executableSql(sql).replace(/\s+/g, ' ').trim()
   const matches: RawMatch[] = []
 
   const alterTable = s.match(
