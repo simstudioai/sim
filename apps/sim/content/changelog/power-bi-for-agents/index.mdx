@@ -1,0 +1,30 @@
+---
+slug: power-bi-for-agents
+title: 'Bring Power BI data into your agents'
+description: 'Query semantic models, inspect reports, and request refreshes from a Power BI block in Sim.'
+date: '2026-10-03T04:32:55Z'
+authors: [waleed]
+tags: [Integrations]
+ogImage: /changelog/power-bi-query-v1.jpg
+ogAlt: 'Power BI block configured with a sample sales query in the Sim workflow builder'
+technical: false
+draft: false
+release:
+  versions: [v0.9.12]
+---
+
+Add [Power BI](/integrations/power-bi) to a workflow to bring business data into an agent's next step. Query a semantic model with DAX, Power BI's query language, then pass the returned rows to an agent for a briefing or follow-up.
+
+The integration includes eight actions for finding workspaces, reading reports and semantic models, running queries, requesting refreshes, and checking refresh history. A refresh request starts the work; use the history action to check its progress.
+
+For example, summarize weekly revenue by region and use those results to prepare a sales update. The sample below shows query configuration; connect your Power BI account and choose a model before running it.
+
+<ChangelogImage
+  src="/changelog/power-bi-query-v1.jpg"
+  alt="Power BI query configuration using a sample sales model in Sim"
+  width="1440"
+  height="900"
+  caption="Configure a DAX query in the Power BI block. This example uses sample table and column names."
+/>
+
+Included in [v0.9.12](https://github.com/simstudioai/sim/releases/tag/v0.9.12). Connect an organizational Microsoft account through the dedicated Power BI connection. Queries require model Read and Build permissions and your tenant's Execute Queries setting. Follow the [Power BI setup guide](https://docs.sim.ai/integrations/powerbi) for connection requirements and supported actions.

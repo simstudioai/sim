@@ -1,0 +1,31 @@
+---
+slug: compare-workflow-deployments
+title: 'See what changed before you deploy'
+description: 'Compare deployed versions or review your draft against the live workflow. See prompt, block, and connection changes before you deploy.'
+date: '2026-10-02T06:55:11Z'
+authors: [waleed]
+tags: [Workflows]
+ogImage: /changelog/compare-workflow-deployments-v1.jpg
+ogAlt: 'Sim compares two workflow versions, highlighting a prompt edit and an added Slack step'
+technical: false
+draft: false
+release:
+  versions: [v0.9.10]
+  url: https://github.com/simstudioai/sim/releases/tag/v0.9.10
+---
+
+<ChangelogVideo
+  src="/changelog/compare-workflow-deployments-v1.mp4"
+  poster="/changelog/compare-workflow-deployments-v1.jpg"
+  caption="A step-by-step walkthrough captured in Sim: open deployment history, choose Compare, and inspect a prompt edit and an added Slack step. Sample data."
+/>
+
+Open a workflow's deployment history and choose **Compare** from a version's menu. Pick two versions to review their changes side by side. When a draft differs from the live workflow, **View changes** opens the same comparison before you redeploy.
+
+- **Review the details.** Inspect prompt edits, changed settings, and added or removed steps.
+- **Follow the connections.** See which paths were added, removed, or rewired.
+- **Keep your draft intact.** The comparison is read-only; opening it does not change or deploy the workflow.
+
+For example, review a new instruction in a support agent's prompt and the [Slack](/integrations/slack) step added to send its digest. Select a changed block to move between its visual highlight and field-level details.
+
+Deployment comparison is included in **v0.9.10**. Read the [deployment guide](https://docs.sim.ai/workflows/deployment), or compare versions through the [API](https://docs.sim.ai/api-reference/workflows/compareWorkflowVersionsV2).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Validates every content post under `apps/sim/content/{blog,library,customers}/<slug>/index.mdx`.
+ * Validates every content post under `apps/sim/content/{blog,library,customers,changelog}/<slug>/index.mdx`.
  *
  * Content is mostly written by agents and merged without a build, so a bad post only fails at
  * `next build` (an invalid frontmatter key, an MDX syntax error) or never fails at all (a link to a
@@ -12,6 +12,11 @@
  * - `slug`: the `slug` field equals the post's folder name.
  * - `og-image`: `ogImage` is a local path to a file under `apps/sim/public`.
  * - `mdx`: the body compiles with the MDX compiler and `remark-gfm`, as the registry compiles it.
+ * - `media`: changelog screenshots have literal dimensions and existing assets; recordings and
+ *   captions use existing local assets or the approved CDN, matching the site's CSP.
+ *   Published changelog bodies must contain feature media; a cover or fenced example is not enough.
+ * - Changelog publication dates cannot be in the future, correction dates cannot precede
+ *   publication, and published updates cannot reuse the same RSS identity.
  * - `faq`: the body has no FAQ heading (the FAQ lives in frontmatter, which renders it and emits
  *   its JSON-LD), and no FAQ question or answer contains Markdown link syntax (it renders as text).
  * - `internal-link`: every `https://www.sim.ai/<section>/<slug>` link, and every relative
@@ -19,25 +24,34 @@
  *   or a customer story registered in `CUSTOMER_STORIES` — never a retired or moved slug. Every
  *   retired or moved slug redirects to a published library post. Apex `https://sim.ai` links
  *   belong to `check:site-urls`.
+ *   Changelog integration and docs links also resolve against the generated integration catalog,
+ *   docs source files, and generated OpenAPI operation pages, including reference-style links.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { compile } from '@mdx-js/mdx'
+import integrationsJson from '@sim/deployment-config/integrations.json'
+import { SIM_DOCS_URL, SIM_SITE_URL } from '@sim/utils/site'
 import matter from 'gray-matter'
+import type { Root } from 'mdast'
 import remarkGfm from 'remark-gfm'
+import { visit } from 'unist-util-visit'
+import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
+import { isChangelogMediaSource } from '../apps/sim/lib/changelog/media'
 import { AuthorSchema, ContentFrontmatterSchema } from '../apps/sim/lib/content/schema'
 import { CUSTOMER_STORIES } from '../apps/sim/lib/customers/data'
 import {
   LIBRARY_MERGED_SLUGS,
   LIBRARY_MOVED_BLOG_SLUGS,
 } from '../apps/sim/lib/library/retired-slugs'
+import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/docs-path'
 
-export const SECTIONS = ['blog', 'library', 'customers'] as const
+export const SECTIONS = ['blog', 'library', 'customers', 'changelog'] as const
 export type Section = (typeof SECTIONS)[number]
 
-export type Rule = 'frontmatter' | 'slug' | 'og-image' | 'mdx' | 'faq' | 'internal-link'
+export type Rule = 'frontmatter' | 'slug' | 'og-image' | 'mdx' | 'media' | 'faq' | 'internal-link'
 
 export interface Finding {
   file: string
@@ -60,6 +74,8 @@ export interface ContentCheckConfig {
   movedBlogSlugs: readonly string[]
   /** Customer slugs the `/customers/[slug]` route serves (`CUSTOMER_STORIES`). */
   customerSlugs: readonly string[]
+  /** Canonical integration and documentation pages served by the current source tree. */
+  linkedPages: ReadonlySet<string>
 }
 
 /** Post folders per section, keyed by slug, with each post's `draft` flag. */
@@ -75,7 +91,7 @@ export interface PostRef {
  * `href` attribute. Group 1 is the section, group 2 the first segment, group 3 anything after it.
  */
 const INTERNAL_LINK =
-  /(?:https?:\/\/www\.sim\.ai|(?<=\]\(\s*|href=\{?["'`]))\/(library|blog|customers)\/([^\s)"'`#?/<>\]]+)(\/[^\s)"'`#?<>\]]*)?/g
+  /(?:https?:\/\/www\.sim\.ai|(?<=\]\(\s*|href=\{?["'`]))\/(library|blog|customers|changelog)\/([^\s)"'`#?/<>\]]+)(\/[^\s)"'`#?<>\]]*)?/g
 /** Sentence punctuation that ends a bare URL in prose (`…see https://www.sim.ai/library/x.`). */
 const TRAILING_PUNCTUATION = /[.,;:!]+$/
 /** Text just before a Markdown link target or `href` value, whose URL ends at its delimiter. */
@@ -173,6 +189,134 @@ function lineOfKey(frontmatterLines: string[], key: string): number {
   return index === -1 ? 1 : index + 2
 }
 
+type ReportFinding = (line: number, rule: Rule, message: string, hint: string) => void
+
+function checkChangelogBody(
+  tree: Root,
+  config: ContentCheckConfig,
+  bodyOffset: number,
+  published: boolean,
+  report: ReportFinding
+): void {
+  let mediaCount = 0
+  const definitions = new Map<string, string>()
+  visit(tree, 'definition', (node) => {
+    definitions.set(node.identifier, node.url)
+  })
+  const checkLink = (href: string, line: number) => {
+    let url: URL
+    try {
+      url = new URL(href, SIM_SITE_URL)
+    } catch {
+      return
+    }
+    const isDocs = url.hostname === new URL(SIM_DOCS_URL).hostname
+    const isIntegration =
+      url.hostname === new URL(SIM_SITE_URL).hostname &&
+      (url.pathname === '/integrations' || url.pathname.startsWith('/integrations/'))
+    if (!isDocs && !isIntegration) return
+    const canonical = `${url.origin}${url.pathname.replace(/\/$/, '')}`
+    if (!config.linkedPages.has(canonical)) {
+      report(
+        line,
+        'internal-link',
+        `${href} does not exist in the published integration catalog or documentation source.`,
+        'Use the integration catalog slug or a current canonical docs page; keep feature and setup links relevant to the update.'
+      )
+    }
+  }
+  visit(tree, (node) => {
+    const line = bodyOffset + (node.position?.start.line ?? 1)
+    if (node.type === 'link') checkLink(node.url, line)
+    if (node.type === 'linkReference') {
+      const href = definitions.get(node.identifier)
+      if (href) checkLink(href, line)
+    }
+    if (node.type === 'heading' && node.depth < 3) {
+      report(
+        bodyOffset + (node.position?.start.line ?? 1),
+        'mdx',
+        'Changelog body heading must start at level 3.',
+        'Use ### for entry sections; the article title and details section own H1 and H2.'
+      )
+    }
+    if (node.type !== 'mdxJsxFlowElement' && node.type !== 'mdxJsxTextElement') return
+    if (node.name === 'a' || node.name === 'Link') {
+      const href = node.attributes.find(
+        (attribute) => attribute.type === 'mdxJsxAttribute' && attribute.name === 'href'
+      )
+      if (href?.type === 'mdxJsxAttribute' && typeof href.value === 'string') {
+        checkLink(href.value, line)
+      }
+    }
+    if (node.name !== 'ChangelogImage' && node.name !== 'ChangelogVideo') return
+    mediaCount += 1
+    const name = node.name
+    const attributes = new Map(
+      node.attributes
+        .filter((attribute) => attribute.type === 'mdxJsxAttribute')
+        .map((attribute) => [attribute.name, attribute.value])
+    )
+    const literal = (field: string) => {
+      const value = attributes.get(field)
+      return typeof value === 'string' && value.trim() ? value : undefined
+    }
+    const fail = (field: string, reason: string) =>
+      report(
+        line,
+        'media',
+        `${name} ${field} ${reason}.`,
+        'Use literal attributes, existing local images, and same-origin or approved CDN media. Verify hosted media in the deployment preview.'
+      )
+    const asset = (field: string, localOnly: boolean) => {
+      const value = literal(field)
+      if (!localOnly && value && !value.startsWith('/') && isChangelogMediaSource(value)) return
+      if (!value?.startsWith('/') || value.startsWith('//')) {
+        fail(field, 'must be a literal same-origin path or approved media CDN URL')
+        return
+      }
+      const target = path.resolve(config.publicDir, `.${value}`)
+      const relative = path.relative(config.publicDir, target)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        fail(field, 'resolves outside public/')
+      } else if (!existsSync(target) || !statSync(target).isFile()) {
+        fail(field, 'does not exist under public/')
+      }
+    }
+    asset('src', name === 'ChangelogImage')
+    if (name === 'ChangelogImage') {
+      if (!literal('alt')) fail('alt', 'must describe the screenshot')
+      for (const field of ['width', 'height']) {
+        const value = Number(literal(field))
+        if (!Number.isInteger(value) || value <= 0) {
+          fail(field, 'must be a positive literal dimension; MDX strips JavaScript expressions')
+        }
+      }
+    } else {
+      asset('poster', true)
+      if (!literal('caption')) fail('caption', 'must describe the action and result')
+      const src = literal('src')
+      if (src && isChangelogMediaSource(src) && !src.endsWith('.mp4')) {
+        fail('src', 'must point to an MP4')
+      }
+      if (attributes.has('captionsSrc')) {
+        asset('captionsSrc', false)
+        if (!literal('captionsSrc')?.endsWith('.vtt')) {
+          fail('captionsSrc', 'must point to a WebVTT file')
+        }
+      }
+    }
+  })
+  if (published && mediaCount === 0) {
+    report(
+      bodyOffset + 1,
+      'media',
+      'A published changelog needs at least one feature image or video in its body.',
+      'Add a reviewed ChangelogImage or ChangelogVideo that demonstrates the update; a cover image or fenced example is not enough. Keep unfinished entries as drafts.'
+    )
+  }
+}
+
 /** Validates one post, returning every finding (empty when the post is clean). */
 export async function checkPost(
   config: ContentCheckConfig,
@@ -235,6 +379,34 @@ export async function checkPost(
 
   const data = parsed.data as Record<string, unknown>
 
+  if (section === 'changelog' && result.success) {
+    const { date, updated, draft, ogAlt } = result.data
+    if (!draft && (date.getTime() > Date.now() || (updated && updated.getTime() > Date.now()))) {
+      report(
+        lineOfKey(frontmatterLines, 'date'),
+        'frontmatter',
+        'A published changelog date cannot be in the future.',
+        'Keep the entry as a draft until its actual publication date; deployment, not the date field, publishes content.'
+      )
+    }
+    if (updated && updated < date) {
+      report(
+        lineOfKey(frontmatterLines, 'updated'),
+        'frontmatter',
+        'The updated date cannot precede the publication date.',
+        'Preserve the original publication date and use the actual date of a substantive correction.'
+      )
+    }
+    if (!draft && !ogAlt?.trim()) {
+      report(
+        lineOfKey(frontmatterLines, 'ogAlt'),
+        'frontmatter',
+        'A published changelog cover needs descriptive ogAlt text.',
+        'Describe what the cover actually shows, rather than repeating the headline.'
+      )
+    }
+  }
+
   if (Array.isArray(data.authors)) {
     for (const author of data.authors) {
       if (typeof author === 'string' && !authorIds.has(author)) {
@@ -255,6 +427,10 @@ export async function checkPost(
       `slug "${data.slug}" does not match the folder name "${slug}".`,
       `Set slug: ${slug}, or rename the folder (and its public/ assets) to match.`
     )
+  }
+
+  if (config.reservedSegments[section].has(slug)) {
+    report(2, 'slug', `slug "${slug}" is reserved for a static route.`, 'Choose a different slug.')
   }
 
   if (typeof data.ogImage === 'string') {
@@ -376,7 +552,18 @@ export async function checkPost(
   })
 
   try {
-    await compile(body, { remarkPlugins: [remarkGfm], outputFormat: 'function-body' })
+    await compile(body, {
+      remarkPlugins: [
+        remarkGfm,
+        ...(section === 'changelog'
+          ? [
+              () => (tree: Root) =>
+                checkChangelogBody(tree, config, bodyOffset, data.draft !== true, report),
+            ]
+          : []),
+      ],
+      outputFormat: 'function-body',
+    })
   } catch (error) {
     const { line, reason, message } = error as { line?: number; reason?: string; message?: string }
     report(
@@ -457,7 +644,73 @@ export async function checkContent(
   const results = await Promise.all(
     targets.map((target) => checkPost(config, posts, authors.ids, target))
   )
-  return { checked: targets.length, findings: [...authors.findings, ...results.flat()] }
+  const findings = [...authors.findings, ...results.flat()]
+  const rssIdentities = new Map<string, string>()
+  for (const [slug, post] of posts.changelog) {
+    if (post.draft) continue
+    const file = path.join(config.contentDir, 'changelog', slug, 'index.mdx')
+    let frontmatter: unknown
+    try {
+      frontmatter = matter(readFileSync(file, 'utf-8'), {}).data
+    } catch {
+      continue
+    }
+    const parsed = ContentFrontmatterSchema.safeParse(frontmatter)
+    if (!parsed.success || !parsed.data.release?.url) continue
+    const identity = parsed.data.release.url
+    const previous = rssIdentities.get(identity)
+    if (previous) {
+      findings.push({
+        file,
+        line: 1,
+        rule: 'frontmatter',
+        message: `Changelog entries ${previous} and ${slug} share an RSS identity.`,
+        hint: 'Keep the release URL as the identity only for its migrated historical entry. For additional stories, omit release.url and link the release in the body.',
+      })
+    } else {
+      rssIdentities.set(identity, slug)
+    }
+  }
+  return { checked: targets.length, findings }
+}
+
+interface DocsOperation {
+  operationId?: string
+  tags?: string[]
+}
+
+interface DocsSpec {
+  paths?: Record<string, Partial<Record<string, DocsOperation>>>
+}
+
+function readLinkedPages(docsAppDir: string): Set<string> {
+  const pages = new Set([
+    `${SIM_SITE_URL}/integrations`,
+    SIM_DOCS_URL,
+    ...integrationsJson.integrations.map(
+      (integration) => `${SIM_SITE_URL}/integrations/${integration.slug}`
+    ),
+  ])
+  const docsDir = path.join(docsAppDir, 'content/docs')
+  for (const file of readdirSync(docsDir, { recursive: true })) {
+    if (!file.endsWith('.mdx') || file === 'index.mdx') continue
+    const route = foldDocsIndexPath(file.split(path.sep).join('/')).replace(/\.mdx$/, '')
+    pages.add(`${SIM_DOCS_URL}/${route}`)
+  }
+  for (const file of OPENAPI_SPEC_FILES) {
+    const spec = JSON.parse(readFileSync(path.join(docsAppDir, file), 'utf8')) as DocsSpec
+    for (const item of Object.values(spec.paths ?? {})) {
+      for (const method of ['get', 'post', 'patch', 'delete', 'head', 'put']) {
+        const operation = item[method]
+        if (!operation?.operationId) continue
+        for (const tag of operation.tags?.length ? operation.tags : ['unknown']) {
+          const group = tag.replace(/\s+/g, '-').toLowerCase()
+          pages.add(`${SIM_DOCS_URL}/api-reference/${group}/${operation.operationId}`)
+        }
+      }
+    }
+  }
+  return pages
 }
 
 async function main() {
@@ -472,6 +725,7 @@ async function main() {
     mergedSlugs: LIBRARY_MERGED_SLUGS,
     movedBlogSlugs: LIBRARY_MOVED_BLOG_SLUGS,
     customerSlugs: CUSTOMER_STORIES.map((story) => story.slug),
+    linkedPages: readLinkedPages(path.join(root, 'apps/docs')),
   }
 
   const args = process.argv.slice(2)
