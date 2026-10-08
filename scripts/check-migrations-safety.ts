@@ -48,6 +48,55 @@ interface Statement {
   startLine: number
 }
 
+/** `schema.table` with quotes stripped; an unqualified name is in `public`. */
+function qualifiedName(raw: string): string {
+  const parts = raw.replace(/"/g, '').toLowerCase().split('.')
+  return parts.length > 1 ? parts.slice(-2).join('.') : `public.${parts[0]}`
+}
+
+/**
+ * The statement with string literals and comments blanked, so only executable SQL is matched.
+ * An escape string (`E'…'`) is read with its backslash escapes, so `\'` does not end it early.
+ * Dollar-quoted bodies stay: a `DO` block runs them.
+ */
+function executableSql(sql: string): string {
+  return sql.replace(
+    /(?<![\w$])[Ee]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g,
+    ' '
+  )
+}
+
+/**
+ * Statements that depend on who owns a table. Production keeps older tables owned by a
+ * different role than the one that runs migrations, while every table in CI and staging belongs
+ * to the migrator, so these pass everywhere but production. `newTables` holds the tables this
+ * migration certainly creates (`CREATE TABLE` without `IF NOT EXISTS`), which the migrator owns.
+ */
+function ownershipMatches(sql: string, newTables: Set<string>): RawMatch[] {
+  const s = executableSql(sql).replace(/\s+/g, ' ')
+  const matches: RawMatch[] = []
+  for (const ownedBy of s.matchAll(/\b(?:CREATE|ALTER) SEQUENCE\b[^;]*?\bOWNED BY ([^\s;]+)/gi)) {
+    if (/^NONE$/i.test(ownedBy[1])) continue
+    const column = ownedBy[1].replace(/"/g, '').split('.')
+    if (newTables.has(qualifiedName(column.slice(0, -1).join('.')))) continue
+    matches.push({
+      kind: 'error',
+      rule: 'sequence-owned-by-existing-table',
+      message:
+        'OWNED BY needs the sequence and its table to share an owner, and an existing table may belong to a different role than the one that created the sequence. Leave the sequence unowned, or link it only to a table this migration creates.',
+    })
+  }
+  if (/\bOWNER TO\b/i.test(s)) {
+    matches.push({
+      kind: 'error',
+      rule: 'owner-to',
+      message:
+        'Owner roles differ between environments, so OWNER TO is not portable. Ownership changes belong to an operator, not a migration.',
+    })
+  }
+  return matches
+}
+
 /** Strip quotes and any schema prefix so `"public"."user"` and `"user"` match. */
 function bareName(raw: string): string {
   const unquoted = raw.replace(/"/g, '')
@@ -334,15 +383,21 @@ function lintSql(content: string): Finding[] {
   const lines = content.split('\n')
   const statements = parseStatements(content)
   const createdTables = new Set<string>()
+  const newTables = new Set<string>()
   for (const { sql } of statements) {
-    const m = sql.match(/^CREATE TABLE (?:IF NOT EXISTS )?("?[.\w]+"?)/i)
-    if (m) createdTables.add(bareName(m[1]))
+    const m = sql.match(/^CREATE TABLE (IF NOT EXISTS )?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/i)
+    if (!m) continue
+    createdTables.add(bareName(m[2]))
+    if (!m[1]) newTables.add(qualifiedName(m[2]))
   }
 
   const findings: Finding[] = []
   let sawCommit = false
   for (const { sql, startLine } of statements) {
-    for (const match of classify(sql, createdTables, sawCommit)) {
+    for (const match of [
+      ...classify(sql, createdTables, sawCommit),
+      ...ownershipMatches(sql, newTables),
+    ]) {
       if (match.kind === 'error') {
         findings.push({
           line: startLine,
