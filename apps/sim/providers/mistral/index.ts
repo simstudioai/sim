@@ -388,7 +388,7 @@ export const mistralProvider: ProviderConfig = {
         const executionResults = await Promise.all(toolExecutionPromises)
         currentMessages.push({
           role: 'assistant',
-          content: extractChatCompletionText(currentResponse.choices[0]?.message?.content) || null,
+          content: currentResponse.choices[0]?.message?.content ?? null,
           tool_calls: toolCallsInResponse.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -486,7 +486,8 @@ export const mistralProvider: ProviderConfig = {
             request,
             'chat-completions',
             currentResponse.choices[0]?.message,
-            getChatCompletionConversationUsage(currentResponse.usage)
+            getChatCompletionConversationUsage(currentResponse.usage),
+            { fallbackAssistantContent: content }
           )
         }
 
@@ -543,7 +544,8 @@ export const mistralProvider: ProviderConfig = {
               request,
               'chat-completions',
               synthesisResponse.choices[0]?.message,
-              getChatCompletionConversationUsage(synthesisResponse.usage)
+              getChatCompletionConversationUsage(synthesisResponse.usage),
+              { fallbackAssistantContent: content }
             )
           }
           const synthesisEndTime = Date.now()

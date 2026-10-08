@@ -6,8 +6,11 @@ import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentTurnState } from '@/lib/memory/conversation-types'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
+import { bindConversationRequestContext } from '@/providers/conversation-history'
 import type { AgentStreamEvent } from '@/providers/stream-events'
-import type { ProviderToolConfig } from '@/providers/types'
+import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
 vi.mock('openai', () => openaiMock)
 vi.mock('@/providers', () => providersMock)
@@ -57,7 +60,11 @@ describe('mistralProvider.executeRequest', () => {
   })
 
   const answerBlocks = [
-    { type: 'thinking', thinking: [{ type: 'text', text: 'Reasoning stays out of the answer.' }] },
+    {
+      type: 'thinking',
+      thinking: [{ type: 'text', text: 'Reasoning stays out of the answer.' }],
+      signature: 'test-replay-signature',
+    },
     { type: 'text', text: '{"ok":' },
     { type: 'text', text: 'true}' },
   ]
@@ -113,31 +120,56 @@ describe('mistralProvider.executeRequest', () => {
     expect(result.execution.output.content).toBe(answer)
   })
 
-  it.each([
-    { content: [] },
-    { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Private thought.' }] }] },
-  ])(
-    'preserves an earlier tool answer when later content has no answer text: $content',
-    async ({ content }) => {
-      mockCreate
-        .mockResolvedValueOnce({
-          ...toolResponse,
-          choices: [{ message: { ...toolResponse.choices[0].message, content: answerBlocks } }],
-        })
-        .mockResolvedValueOnce({ choices: [{ message: { content } }], usage })
-      const result = await mistralProvider.executeRequest({
+  it.each(
+    [
+      { content: [] },
+      { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Private thought.' }] }] },
+    ].flatMap(({ content }) => [false, true].map((capped) => ({ content, capped })))
+  )(
+    'persists and returns an earlier tool answer with no final text (capped: $capped): $content',
+    async ({ content, capped }) => {
+      let checkpoint: AgentTurnState | undefined
+      const session = new AgentTurnStateMachine({
+        save: async (state) => {
+          checkpoint = state
+        },
+      })
+      const request: ProviderRequest = {
         model: 'mistral-large-4',
         apiKey: 'key',
         messages: [{ role: 'user', content: 'Use a tool' }],
         tools: [makeTool('lookup')],
+      }
+      bindConversationRequestContext(request, {
+        agentConversation: session,
+        conversationProvider: { providerId: 'mistral', binding: 'test-binding' },
       })
-      if ('stream' in result) throw new Error('Expected a settled response')
-      expect(JSON.parse(result.content)).toEqual({ ok: true })
-      const nextPayload = mockCreate.mock.calls[1][0]
-      expect(
-        nextPayload.messages.find((message: { role: string }) => message.role === 'assistant')
-          .content
-      ).toBe('{"ok":true}')
+      const terminalResponse = { choices: [{ message: { content } }], usage }
+      const previousLimit = providersMock.MAX_TOOL_ITERATIONS
+      if (capped) providersMock.MAX_TOOL_ITERATIONS = 1
+      try {
+        mockCreate
+          .mockResolvedValueOnce({
+            ...toolResponse,
+            choices: [{ message: { ...toolResponse.choices[0].message, content: answerBlocks } }],
+          })
+          .mockResolvedValueOnce(capped ? toolResponse : terminalResponse)
+        if (capped) mockCreate.mockResolvedValueOnce(terminalResponse)
+        const result = await mistralProvider.executeRequest(request)
+        if ('stream' in result) throw new Error('Expected a settled response')
+        expect(JSON.parse(result.content)).toEqual({ ok: true })
+        const nextPayload = mockCreate.mock.calls[1][0]
+        expect(
+          nextPayload.messages.find((message: { role: string }) => message.role === 'assistant')
+            .content
+        ).toEqual(answerBlocks)
+        expect(checkpoint?.steps.at(-1)?.native?.value).toEqual(terminalResponse.choices[0].message)
+        await session.finalize(session.getFinalAssistantContent() ?? '', result.model)
+        const restored = new AgentTurnStateMachine({ save: async () => {} }, checkpoint)
+        expect(restored.getFinalResponse()?.content).toBe(result.content)
+      } finally {
+        providersMock.MAX_TOOL_ITERATIONS = previousLimit
+      }
     }
   )
 
