@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
+import { authorizeBenchmarkPlanTarget } from '@/lib/benchmarks/application/prepare-plan'
 import {
   BENCHMARK_LEASE_MS,
   withBenchmarkStageLease,
@@ -255,6 +256,11 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       }
       request?.signal?.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)
+      if (input.stage === 'plan')
+        await authorizeBenchmarkPlanTarget(principal, {
+          organizationId: claimed.organizationId,
+          runAsUserId: claimed.runAsUserId ?? claimed.userId,
+        })
       return {
         benchmark: await completeBenchmarkStage({
           ...attempt,

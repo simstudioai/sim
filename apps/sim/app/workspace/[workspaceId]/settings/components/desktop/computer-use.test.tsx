@@ -6,6 +6,7 @@ import type {
   ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import { toast } from '@sim/emcn'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -74,8 +75,6 @@ function renderSettings() {
         dashboards: false,
         'table-row-ttl': false,
         'mothership-model-selector': false,
-        'mothership-plan-mode': false,
-        'mothership-desktop-background-executor': false,
         'mothership-computer-use': enabled,
       }}
     >
@@ -119,3 +118,21 @@ it('keeps settings dormant while rollout is off, including focus and activity ch
 function appRow(bundleId: string) {
   return container.querySelector<HTMLElement>(`[title="${bundleId}"]`)?.parentElement
 }
+
+it('does not restore a revoked app when an earlier activity refresh settles late', async () => {
+  await act(async () => renderSettings())
+  const stale = createDeferred<ComputerUseAppPermission[]>()
+  native.listAppPermissions.mockImplementationOnce(() => stale.promise)
+  await act(async () => {
+    activity = { toolCallId: 'in-flight', scopeId: 'chat', action: 'click', startedAt: Date.now() }
+    for (const listener of listeners) listener(activity)
+  })
+  const revoke = appRow('com.example.First')?.querySelector<HTMLButtonElement>('button')
+  expect(revoke).toBeTruthy()
+  await act(async () => revoke?.click())
+  expect(appRow('com.example.First')).toBeUndefined()
+  expect(appRow('com.example.Second')).toBeDefined()
+  await act(async () => stale.resolve(initialPermissions))
+  expect(appRow('com.example.First')).toBeUndefined()
+  expect(appRow('com.example.Second')).toBeDefined()
+})

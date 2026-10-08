@@ -17,7 +17,7 @@ const database = await vi.hoisted(async () => {
   process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
   const { createServer } = await import('node:http')
   const requests: Record<string, unknown>[] = []
-  const responses: { text: string; onRequest?: () => void }[] = []
+  const responses: { text: string; onRequest?: () => void | Promise<void> }[] = []
   const worker = createServer(async (request, response) => {
     let body = ''
     for await (const chunk of request) body += chunk
@@ -28,7 +28,7 @@ const database = await vi.hoisted(async () => {
     const payload = JSON.parse(body) as Record<string, unknown>
     requests.push(payload)
     const scripted = responses.shift()
-    scripted?.onRequest?.()
+    await scripted?.onRequest?.()
     const frames = [
       { type: 'text', payload: { channel: 'assistant', text: scripted?.text ?? '{"ok":true}' } },
       { type: 'complete', payload: { status: 'complete' } },
@@ -87,6 +87,7 @@ import {
 import { prepareBenchmarkExecution } from '@/lib/benchmarks/application/prepare-execution'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import { runBenchmarkComparison } from '@/lib/benchmarks/application/run-comparison'
+import { runBenchmarkStage } from '@/lib/benchmarks/application/run-stage'
 import {
   getBenchmarkRun,
   listBenchmarkRuns,
@@ -113,6 +114,11 @@ import {
 } from '@/lib/benchmarks/repository'
 import { type BenchmarkArtifacts, emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
 import { executeBenchmarkJson } from '@/lib/benchmarks/worker'
+import {
+  getAccessibleCopilotChatAuth,
+  getAccessibleCopilotChatForCancellation,
+  getAccessibleCopilotChatWithMessages,
+} from '@/lib/mothership/chat/lifecycle'
 import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
 
 describe('private benchmark persistence and attempt fencing', () => {
@@ -180,6 +186,7 @@ describe('private benchmark persistence and attempt fencing', () => {
       'user',
       'settings',
       'copilot_chats',
+      'copilot_messages',
       'copilot_runs',
       'copilot_request_stops',
       'copilot_organization_request_stops',
@@ -329,6 +336,68 @@ describe('private benchmark persistence and attempt fencing', () => {
       runLabel: 'Model comparison',
     }
   }
+
+  it.each(['organization', 'workspace'] as const)(
+    'hides persisted %s Plan chats after eligibility revocation while preserving Stop',
+    async (surface) => {
+      await connection`UPDATE member SET role = 'owner' WHERE id = 'owner-member'`
+      const chat = await prepareBenchmarkPlan.execute({
+        principal,
+        input: { organizationId: 'org', benchmarkId: 'benchmark' },
+      })
+      if (surface === 'workspace')
+        await connection`UPDATE copilot_chats SET organization_id = NULL, workspace_id = 'workspace' WHERE id = ${chat.chatId}`
+      const options = { principal }
+      expect(await getAccessibleCopilotChatAuth(chat.chatId, 'owner', options)).toMatchObject({
+        mode: 'plan',
+      })
+      expect(
+        await getAccessibleCopilotChatWithMessages(chat.chatId, 'owner', options)
+      ).toMatchObject({ mode: 'plan', messages: [] })
+      await connection`UPDATE settings SET super_user_mode_enabled = false WHERE user_id = 'owner'`
+      expect(await getAccessibleCopilotChatAuth(chat.chatId, 'owner', options)).toBeNull()
+      expect(await getAccessibleCopilotChatWithMessages(chat.chatId, 'owner', options)).toBeNull()
+      expect(
+        await getAccessibleCopilotChatForCancellation(chat.chatId, 'owner', options)
+      ).toMatchObject({ mode: 'plan' })
+    }
+  )
+
+  it('refuses to publish a completed Plan after its selected target loses eligibility', async () => {
+    await connection`UPDATE member SET role = 'owner' WHERE id = 'owner-member'`
+    await connection`UPDATE "user" SET role = 'admin' WHERE id = 'target'`
+    await connection`INSERT INTO settings (id, user_id, super_user_mode_enabled) VALUES ('target', 'target', true) ON CONFLICT (user_id) DO UPDATE SET super_user_mode_enabled = true`
+    const current = await updateBenchmarkRecord({
+      ...scope,
+      version: 1,
+      name: 'Target revocation',
+      artifacts: { ...graded, generatedSpec: null, reconstruction: null, grade: null },
+    })
+    await connection`UPDATE mothership_benchmarks SET run_as_user_id = 'target' WHERE id = 'benchmark'`
+    database.responses.push({
+      text: 'Unpublished plan',
+      onRequest: async () => {
+        await connection`UPDATE settings SET super_user_mode_enabled = false WHERE user_id = 'target'`
+      },
+    })
+    await expect(
+      runBenchmarkStage.execute({
+        principal,
+        input: {
+          organizationId: 'org',
+          benchmarkId: 'benchmark',
+          version: current.version,
+          stage: 'plan',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Plan mode is unavailable' })
+    expect(database.requests).toHaveLength(1)
+    expect(await getBenchmarkRecord(scope)).toMatchObject({
+      runningStage: null,
+      artifacts: { generatedSpec: null },
+    })
+    expect(await connection`SELECT id FROM copilot_chats`).toHaveLength(1)
+  })
 
   it('executes selected planners in fresh conversations with a fixed evaluator and saves comparable model snapshots', async () => {
     const input = await prepareComparison()

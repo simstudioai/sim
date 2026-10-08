@@ -37,7 +37,8 @@ export function BenchmarkScoreChart({
             >
               <div className='min-w-0'>
                 <Chip
-                  variant={run.id === selectedId ? 'primary' : undefined}
+                  active={run.id === selectedId}
+                  aria-pressed={run.id === selectedId}
                   onClick={() => onSelect(run.id)}
                 >
                   {benchmarkModelLabel(run.modelRuns.plan?.config)}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
@@ -19,18 +19,29 @@ export function ComputerUseSettings() {
 }
 
 function ComputerUseSettingsControls() {
+  const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
   const enabled = useFeatureFlag('mothership-computer-use')
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
+  const refreshApps = useCallback(async () => {
+    if (!bridge) return
+    const version = ++requestVersion.current
+    try {
+      const approved = await bridge.listAppPermissions()
+      if (version === requestVersion.current) setApps(approved)
+    } catch {
+      if (version === requestVersion.current) toast.error('Could not load approved apps')
+    }
+  }, [bridge])
   useEffect(() => {
-    if (!bridge || !enabled) return
-    void bridge
-      .listAppPermissions()
-      .then(setApps)
-      .catch(() => toast.error('Could not load approved apps'))
-  }, [bridge, enabled, status?.activeAction])
+    if (!enabled) return
+    void refreshApps()
+    return () => {
+      requestVersion.current += 1
+    }
+  }, [enabled, refreshApps, status?.activeAction])
   if (!bridge || !enabled || status?.supported === false) return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
@@ -105,8 +116,9 @@ function ComputerUseSettingsControls() {
                   disabled={pending}
                   onClick={() =>
                     void update(async () => {
+                      requestVersion.current += 1
                       await bridge.revokeApp(app.bundleId)
-                      setApps(await bridge.listAppPermissions())
+                      await refreshApps()
                     })
                   }
                 >

@@ -65,15 +65,16 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
         />
       ) : (
         <>
-          {benchmarks.error ? (
+          {benchmarks.error && (
             <p role='alert' className='text-[var(--text-error)] text-small'>
               {benchmarks.error.message}
             </p>
-          ) : benchmarks.isLoading ? (
+          )}
+          {benchmarks.isLoading ? (
             <p role='status' className='text-[var(--text-muted)] text-small'>
               Loading benchmarks…
             </p>
-          ) : records.length === 0 ? (
+          ) : !benchmarks.data ? null : records.length === 0 ? (
             <div className='rounded-lg border border-[var(--border)] p-5'>
               <p className='text-[var(--text-primary)] text-small'>No benchmarks yet</p>
               <p className='mt-1 text-[var(--text-muted)] text-small'>
@@ -109,7 +110,11 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
                 disabled={benchmarks.isFetchingNextPage}
                 onClick={() => benchmarks.fetchNextPage()}
               >
-                {benchmarks.isFetchingNextPage ? 'Loading…' : 'Load older benchmarks'}
+                {benchmarks.isFetchingNextPage
+                  ? 'Loading…'
+                  : benchmarks.isFetchNextPageError
+                    ? 'Retry older benchmarks'
+                    : 'Load older benchmarks'}
               </Chip>
             </div>
           )}

@@ -21,6 +21,7 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
@@ -204,7 +205,7 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
     try {
       await organizationAuthorization.execute({
         principal,
-        input: { organizationId: chat.organizationId },
+        input: { organizationId: chat.organizationId, mode: chat.mode },
       })
     } catch (error) {
       const code = asOrchestrationError(error)?.code
@@ -236,6 +237,14 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
       return null
     }
   }
+
+  if (
+    !chat.organizationId &&
+    chat.mode === 'plan' &&
+    organizationAuthorization !== authorizeOrganizationChatCancellation &&
+    !(await isPlanModeEnabled(userId))
+  )
+    return null
 
   return chat
 }
