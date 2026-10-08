@@ -120,11 +120,7 @@ export const executeOciObjectStorageTool: InternalToolOperationHandler<
       toolId: request.toolId,
       status: normalized.status,
     }
-    if (normalized.status >= 500) {
-      logger.error('OCI Object Storage operation failed', logContext)
-    } else {
-      logger.warn('OCI Object Storage operation failed', logContext)
-    }
+    logger.error('OCI Object Storage operation failed', logContext)
     return Response.json(
       { success: false, error: normalized.message },
       { status: normalized.status }

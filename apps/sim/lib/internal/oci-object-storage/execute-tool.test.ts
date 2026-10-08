@@ -132,13 +132,8 @@ describe('OCI Object Storage tool execution boundary', () => {
       expect(response.status).toBe(status)
       expect(body.error).toContain(text)
       expect(JSON.stringify(body)).not.toContain('secret-key-canary')
-      if (status >= 500) {
-        expect(logger.error).toHaveBeenCalledOnce()
-        expect(logger.warn).not.toHaveBeenCalled()
-      } else {
-        expect(logger.warn).toHaveBeenCalledOnce()
-        expect(logger.error).not.toHaveBeenCalled()
-      }
+      expect(logger.error).toHaveBeenCalledOnce()
+      expect(logger.warn).not.toHaveBeenCalled()
     }
   )
 
