@@ -406,6 +406,90 @@ export async function findDeadLetteredEvents(
     .limit(DEAD_LETTER_SCAN_LIMIT)
 }
 
+/** The event's current payload, read fresh rather than from the copy its handler was claimed with. */
+export async function readOutboxEventPayload(eventId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, eventId))
+    .limit(1)
+  return row?.payload
+}
+
+/** Statuses of an event whose side effect may still run. */
+const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+/**
+ * Statuses an event can still run from: in flight, or dead-lettered, which every operator retry
+ * path resets to `pending`. A `completed` event never runs again.
+ */
+const RETRYABLE_OUTBOX_STATUSES = [...INFLIGHT_OUTBOX_STATUSES, 'dead_letter'] as const
+
+/** Identifies the subject of an event by one scalar field of its JSON payload. */
+export interface OutboxPayloadSubject {
+  payloadKey: string
+  payloadValue: string
+}
+
+function eventsForSubject(
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  statuses: readonly string[]
+) {
+  return and(
+    inArray(outboxEvent.eventType, [...eventTypes]),
+    inArray(outboxEvent.status, [...statuses]),
+    sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
+  )
+}
+
+/**
+ * The `pending` or `processing` events of the given types for one subject. Pass the caller's
+ * transaction to read under its locks.
+ */
+export async function listInflightOutboxEvents(
+  executor: Pick<typeof db, 'select'>,
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  limit?: number
+): Promise<{ id: string; eventType: string; payload: unknown }[]> {
+  const query = executor
+    .select({ id: outboxEvent.id, eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eventsForSubject(eventTypes, subject, INFLIGHT_OUTBOX_STATUSES))
+  return limit === undefined ? query : query.limit(limit)
+}
+
+/**
+ * Shallow-merges `patch` into the payload of every `pending`, `processing`, or `dead_letter`
+ * event of the type for one subject. With `onlyIfOlderThanPatch`, naming a numeric payload key
+ * that `patch` sets, an event whose own value for that key is already at least the patch's is
+ * left alone, so a stale writer never overwrites a newer one. One UPDATE; nothing is read into
+ * memory. Callers serialize writers for the subject with their domain lock.
+ */
+export async function patchRetryableOutboxEvents(
+  executor: Pick<typeof db, 'update'>,
+  eventType: string,
+  subject: OutboxPayloadSubject,
+  patch: Record<string, unknown>,
+  onlyIfOlderThanPatch?: string
+): Promise<number> {
+  const patched = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`(coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)::json`,
+    })
+    .where(
+      and(
+        eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES),
+        onlyIfOlderThanPatch
+          ? sql`coalesce((${outboxEvent.payload} ->> ${onlyIfOlderThanPatch})::numeric, -1) < ${String(patch[onlyIfOlderThanPatch])}::numeric`
+          : undefined
+      )
+    )
+    .returning({ id: outboxEvent.id })
+  return patched.length
+}
+
 /**
  * True when an event of the given type whose JSON payload has
  * `payload->>payloadKey === payloadValue` is still `pending` or `processing`.
@@ -417,18 +501,8 @@ export async function hasInflightOutboxEvent(
   payloadKey: string,
   payloadValue: string
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
-    .where(
-      and(
-        eq(outboxEvent.eventType, eventType),
-        inArray(outboxEvent.status, ['pending', 'processing']),
-        sql`${outboxEvent.payload} ->> ${payloadKey} = ${payloadValue}`
-      )
-    )
-    .limit(1)
-  return Boolean(row)
+  const events = await listInflightOutboxEvents(db, [eventType], { payloadKey, payloadValue }, 1)
+  return events.length > 0
 }
 
 /**

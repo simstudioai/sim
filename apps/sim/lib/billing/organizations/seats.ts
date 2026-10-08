@@ -6,14 +6,21 @@ import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  enqueueSubscriptionSeatsSync,
+  readCommittedSeats,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('OrganizationSeats')
 
 export interface ReconcileOrganizationSeatsResult {
+  /**
+   * True only when the seat count changed. Repairing a row the Stripe plugin left stale, back to
+   * the committed count, still rewrites the row and re-records the sync (`outboxEventId` is set)
+   * but reports false and records no seat audit or analytics event.
+   */
   changed: boolean
   previousSeats?: number
   seats?: number
@@ -101,9 +108,13 @@ export async function reconcileOrganizationSeats({
       .where(eq(member.organizationId, organizationId))
 
     const targetSeats = Math.max(1, memberCountRow?.value ?? 1)
-    const currentSeats = orgSubscription.seats ?? 1
+    const currentSeats = await readCommittedSeats(
+      tx,
+      orgSubscription.id,
+      orgSubscription.seats ?? 1
+    )
 
-    if (targetSeats === currentSeats) {
+    if (targetSeats === currentSeats && targetSeats === (orgSubscription.seats ?? 1)) {
       return { kind: 'noop', seats: currentSeats }
     }
 
@@ -112,14 +123,11 @@ export async function reconcileOrganizationSeats({
       .set({ seats: targetSeats })
       .where(eq(subscription.id, orgSubscription.id))
 
-    const outboxEventId = await enqueueOutboxEvent(
-      tx,
-      OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
-      {
-        subscriptionId: orgSubscription.id,
-        reason,
-      }
-    )
+    const outboxEventId = await enqueueSubscriptionSeatsSync(tx, {
+      subscriptionId: orgSubscription.id,
+      seats: targetSeats,
+      reason,
+    })
 
     return {
       kind: 'changed',
@@ -167,6 +175,15 @@ export async function reconcileOrganizationSeats({
     reason,
     outboxEventId: outcome.outboxEventId,
   })
+
+  if (outcome.seats === outcome.previousSeats) {
+    return {
+      changed: false,
+      previousSeats: outcome.previousSeats,
+      seats: outcome.seats,
+      outboxEventId: outcome.outboxEventId,
+    }
+  }
 
   const increased = outcome.seats > outcome.previousSeats
   if (actorId) {

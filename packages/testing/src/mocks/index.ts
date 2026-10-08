@@ -128,6 +128,10 @@ export {
   billingSubscriptionMockFns,
 } from './billing-subscription.mock'
 export {
+  billingSubscriptionSyncMock,
+  billingSubscriptionSyncMockFns,
+} from './billing-subscription-sync.mock'
+export {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from './billing-subscription-utils.mock'
@@ -746,7 +750,9 @@ export {
   storageServiceMockFns,
 } from './storage-service.mock'
 export {
+  createInMemoryStripe,
   createMockStripeEvent,
+  type InMemoryStripe,
   stripeClientMock,
   stripePaymentMethodMock,
 } from './stripe.mock'

@@ -48,6 +48,10 @@ import {
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  enqueueCancelAtPeriodEndSync,
+  isCancelAtPeriodEndSettled,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -258,7 +262,17 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .for('update')
       .limit(1)
 
-    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) return
+    if (!personalPro?.stripeSubscriptionId) return
+    if (
+      await isCancelAtPeriodEndSettled(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd),
+        false
+      )
+    ) {
+      return
+    }
     result.subscriptionId = personalPro.id
 
     const organizationMemberships = await tx
@@ -288,9 +302,10 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .set({ cancelAtPeriodEnd: false })
       .where(eq(subscriptionTable.id, personalPro.id))
 
-    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+    await enqueueCancelAtPeriodEndSync(tx, {
       stripeSubscriptionId: personalPro.stripeSubscriptionId,
       subscriptionId: personalPro.id,
+      cancelAtPeriodEnd: false,
       reason: 'member-left-paid-org',
     })
 
@@ -403,7 +418,16 @@ export async function pauseProSubscriptionForOrgCoverage(
 
     result.subscriptionId = personalPro.id
 
-    if (personalPro.cancelAtPeriodEnd) return
+    if (
+      await isCancelAtPeriodEndSettled(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd),
+        true
+      )
+    ) {
+      return
+    }
 
     await tx
       .update(subscriptionTable)
@@ -411,9 +435,10 @@ export async function pauseProSubscriptionForOrgCoverage(
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'covered-by-organization',
       })
     }
@@ -852,16 +877,25 @@ async function applyPaidOrgJoinBillingTx(
     .for('update')
     .limit(1)
 
-  if (personalPro && !personalPro.cancelAtPeriodEnd) {
+  const alreadyPausing =
+    personalPro &&
+    (await isCancelAtPeriodEndSettled(
+      tx,
+      personalPro.id,
+      Boolean(personalPro.cancelAtPeriodEnd),
+      true
+    ))
+  if (personalPro && !alreadyPausing) {
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: true })
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'joined-paid-org',
         ...(options.sourceOperationId ? { sourceOperationId: options.sourceOperationId } : {}),
       })
