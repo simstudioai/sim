@@ -391,6 +391,43 @@ describe('reflectBackgroundChatStatus', () => {
     expect(activityStale()).toBe(true)
   })
 
+  it.each(['started', 'completed'])(
+    "leaves the desktop activity alone when a teammate's turn has %s",
+    (type) => {
+      showing('/workspace/ws-1/home', false)
+      const fetchActivity = vi.fn(async () => [])
+      const unsubscribe = new QueryObserver(queryClient, {
+        queryKey: desktopActivityKeys.list('ws-1'),
+        queryFn: fetchActivity,
+        staleTime: Number.POSITIVE_INFINITY,
+      }).subscribe(() => {})
+
+      reflectBackgroundChatStatus(
+        queryClient,
+        'ws-1',
+        JSON.stringify({ chatId: 'teammate-chat', type, streamId: 's-9', ownChat: false }),
+        true
+      )
+
+      expect(activityStale()).toBe(false)
+      expect(fetchActivity).not.toHaveBeenCalled()
+      unsubscribe()
+    }
+  )
+
+  it('refreshes the desktop activity when the viewer’s own turn starts', () => {
+    showing('/workspace/ws-1/home', false)
+
+    reflectBackgroundChatStatus(
+      queryClient,
+      'ws-1',
+      JSON.stringify({ chatId: 'chat-new', type: 'started', streamId: 's-4', ownChat: true }),
+      true
+    )
+
+    expect(activityStale()).toBe(true)
+  })
+
   it('leaves the desktop activity alone for a rename', () => {
     showing('/workspace/ws-1/home', false)
 

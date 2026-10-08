@@ -6,13 +6,14 @@ import {
   type DesktopChatActivity,
   listDesktopActivityContract,
 } from '@/lib/api/contracts/desktop-executor'
+import { isDesktopApp } from '@/lib/desktop'
 import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys'
 
 const DESKTOP_ACTIVITY_STALE_TIME = 10 * 1000
 /**
  * Presence, approvals and new background turns change without a chat event this query hears, so
- * it is re-read on a timer: often while a desktop runs a chat, rarely otherwise. Only installs that
- * run the executor ever read it.
+ * it is re-read on a timer: often while a desktop runs a chat, rarely otherwise. Only users with a
+ * desktop ever read it.
  */
 const DESKTOP_ACTIVITY_ACTIVE_REFETCH_MS = 15 * 1000
 const DESKTOP_ACTIVITY_IDLE_REFETCH_MS = 30 * 1000
@@ -23,6 +24,19 @@ async function fetchDesktopActivity(
 ): Promise<DesktopChatActivity[]> {
   const data = await requestJson(listDesktopActivityContract, { query: { workspaceId }, signal })
   return data.chats
+}
+
+/**
+ * Whether a page shows background desktop activity: only for a user whose turns can run on one of
+ * their desktops. The page learns that when it loads, so the desktop app's own window also asks,
+ * since its first registration can land after the page rendered; a browser tab open across that
+ * first registration shows activity once reloaded.
+ */
+export function watchesDesktopActivity(desktopExecutor: {
+  available: boolean
+  registered: boolean
+}): boolean {
+  return desktopExecutor.available && (desktopExecutor.registered || isDesktopApp())
 }
 
 /** The user's chats in this workspace whose turn runs on one of their desktops. */

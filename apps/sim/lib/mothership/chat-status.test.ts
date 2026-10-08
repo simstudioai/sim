@@ -8,12 +8,26 @@ vi.mock('@/lib/events/pubsub', () => ({
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 
 describe('chat status ownership', () => {
-  it('preserves the workspace event shape', () => {
+  it('names the chat owner on workspace events, so each member can tell their own chats', () => {
     publishChatStatusChanged(
       { workspaceId: 'ws-1', userId: 'user-1' },
       { chatId: 'chat-1', type: 'renamed' }
     )
-    expect(publish).toHaveBeenCalledWith({ workspaceId: 'ws-1', chatId: 'chat-1', type: 'renamed' })
+    expect(publish).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      chatId: 'chat-1',
+      type: 'renamed',
+    })
+  })
+
+  it('publishes a workspace event without an owner when the publisher does not know it', () => {
+    publishChatStatusChanged({ workspaceId: 'ws-1' }, { chatId: 'chat-1', type: 'renamed' })
+    expect(publish).toHaveBeenLastCalledWith({
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      type: 'renamed',
+    })
   })
 
   it.each(['completed'] as const)(

@@ -170,12 +170,20 @@ function writeZshFiles(dir: string, nonce: string, originalZdotdir: string): voi
     `[ -f "$SIM_ZDOTDIR_ORIG/${file}" ] && builtin source "$SIM_ZDOTDIR_ORIG/${file}"`
 
   // `.zshenv` is the first file zsh reads, so the startup marker goes out before any of the user's
-  // files run. Only from an interactive shell: a script's output must not carry it.
+  // files run. Only from an interactive shell: a script's output must not carry it. A user
+  // `.zshenv` that moves ZDOTDIR (an XDG layout) would send zsh to their files instead of ours, so
+  // ours take it back and source theirs from the directory they chose.
   writeFileSync(
     join(dir, '.zshenv'),
     `[[ -o interactive ]] && builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
 SIM_ZDOTDIR_ORIG="\${SIM_ZDOTDIR_ORIG:-${originalZdotdir}}"
+__sim_zdotdir="$ZDOTDIR"
 ${sourceOriginal('.zshenv')}
+if [[ "$ZDOTDIR" != "$__sim_zdotdir" ]]; then
+  SIM_ZDOTDIR_ORIG="\${ZDOTDIR:-$HOME}"
+  ZDOTDIR="$__sim_zdotdir"
+fi
+builtin unset __sim_zdotdir
 `
   )
   writeFileSync(join(dir, '.zprofile'), `${sourceOriginal('.zprofile')}\n`)

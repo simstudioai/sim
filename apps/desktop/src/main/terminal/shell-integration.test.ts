@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -137,6 +137,36 @@ describe('startup marker', () => {
       expect(interactive.indexOf(STARTUP)).toBeGreaterThanOrEqual(0)
       expect(interactive.indexOf(STARTUP)).toBeLessThan(interactive.indexOf('user-startup'))
       expect(run(['-c', 'echo script'])).toBe('script\n')
+    }
+  )
+
+  it.skipIf(!existsSync('/bin/zsh'))(
+    "zsh keeps integrating when the user's .zshenv moves ZDOTDIR, and runs all their files there",
+    () => {
+      const home = mkdtempSync(join(tmpdir(), 'sim-shell-home-'))
+      const userDir = join(home, '.config', 'zsh')
+      mkdirSync(userDir, { recursive: true })
+      writeFileSync(join(home, '.zshenv'), 'export ZDOTDIR="$HOME/.config/zsh"\n')
+      writeFileSync(join(userDir, '.zprofile'), 'USER_PROFILE_RAN=1\n')
+      writeFileSync(join(userDir, '.zshrc'), 'USER_RC_RAN=1\n')
+      writeFileSync(join(userDir, '.zlogin'), 'echo "login=$USER_RC_RAN"\n')
+      const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }
+      const launch = buildShellLaunch('zsh', mkdtempSync(join(tmpdir(), 'sim-zsh-')), NONCE, env)
+
+      const output = spawnSync(
+        '/bin/zsh',
+        [
+          ...launch.args,
+          '-i',
+          '-c',
+          'echo "profile=$USER_PROFILE_RAN rc=$USER_RC_RAN zdotdir=$ZDOTDIR"; whence -w __sim_precmd',
+        ],
+        { env: { ...env, ...launch.env }, encoding: 'utf8' }
+      ).stdout
+
+      expect(output).toContain(`profile=1 rc=1 zdotdir=${userDir}`)
+      expect(output).toContain('__sim_precmd: function')
+      expect(output).toContain('login=1')
     }
   )
 

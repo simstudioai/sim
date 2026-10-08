@@ -220,4 +220,24 @@ describe('Mothership owner-scoped event stream', () => {
     expect(authorize).not.toHaveBeenCalled()
     expect(authMockFns.mockGetSession).toHaveBeenCalledTimes(1)
   })
+
+  it('tells each member whether a workspace chat is their own, never whose it is', async () => {
+    const abort = new AbortController()
+    const response = await GET(request('workspaceId=ws-1', abort.signal))
+    const chunks: string[] = []
+    const collected = collect(response.body!, chunks)
+    await vi.advanceTimersByTimeAsync(0)
+    emit({ workspaceId: 'ws-1', userId: 'user-1', chatId: 'own-chat', type: 'started' })
+    emit({ workspaceId: 'ws-1', userId: 'teammate-1', chatId: 'teammate-chat', type: 'started' })
+    emit({ workspaceId: 'ws-1', chatId: 'unknown-owner-chat', type: 'started' })
+    abort.abort()
+    await collected
+    const payloads = chunks.map((chunk) => JSON.parse(chunk.split('data: ')[1]))
+    expect(payloads).toEqual([
+      expect.objectContaining({ chatId: 'own-chat', ownChat: true }),
+      expect.objectContaining({ chatId: 'teammate-chat', ownChat: false }),
+      expect.not.objectContaining({ ownChat: expect.anything() }),
+    ])
+    expect(chunks.join('')).not.toMatch(/userId|teammate-1|user-1/)
+  })
 })

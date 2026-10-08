@@ -142,6 +142,11 @@ export async function upsertDesktopDevice(input: DesktopDeviceRegistration): Pro
   return Boolean(row)
 }
 
+/** A device that registered a background executor a turn can be bound to. */
+function registersExecutor() {
+  return sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
+}
+
 export interface DesktopDeviceIdentity {
   deviceId: string
   userId: string
@@ -165,13 +170,28 @@ export async function getBoundDesktopDevice(
         eq(desktopDevices.userId, identity.userId),
         eq(desktopDevices.sessionId, identity.sessionId),
         isNull(desktopDevices.revokedAt),
-        options.executor
-          ? sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
-          : undefined
+        options.executor ? registersExecutor() : undefined
       )
     )
     .limit(1)
   return row ?? null
+}
+
+/** Whether the user has a signed-in desktop that registered a background executor. */
+export async function hasSignedInDesktopExecutor(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: desktopDevices.id })
+    .from(desktopDevices)
+    .where(
+      and(
+        eq(desktopDevices.userId, userId),
+        isNotNull(desktopDevices.sessionId),
+        isNull(desktopDevices.revokedAt),
+        registersExecutor()
+      )
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 /** Display and support only; written at most once a minute per device. */

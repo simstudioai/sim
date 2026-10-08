@@ -384,7 +384,10 @@ test.describe('background executor', () => {
     const deviceId = await registeredDevice(sim)
     const pulls = () =>
       sim.requests.filter((request) => request.startsWith('GET /api/desktop/inbox')).length
+    const claimAttempts = () =>
+      sim.requests.filter((request) => request === 'POST /api/desktop/tool/claim').length
     const pullsBefore = pulls()
+    const claimAttemptsBefore = claimAttempts()
 
     const gated = sim.issue(
       deviceId,
@@ -399,7 +402,8 @@ test.describe('background executor', () => {
 
     await check('F: the declined call is never claimed, and its command never runs', async () => {
       await sleep(RECONCILE_MS * 2)
-      expect(sim.requireCall(gated).claims).toBe(0)
+      // Attempts, not successful claims: the fixture refuses a declined call's claim itself.
+      expect(claimAttempts() - claimAttemptsBefore).toBe(0)
       expect(sim.requireCall(gated).completions).toEqual([])
       expect(readFileSafe(marker)).toBe('')
     })
