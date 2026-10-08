@@ -94,6 +94,11 @@ interface ShellCommandScan {
   nameArgumentBuiltin?: boolean
   /** An `unset -f` was read, so its arguments name functions and leave variable attributes alone. */
   unsetsFunctions?: boolean
+  /**
+   * Names whose attributes this command changes. Bash expands the command's words and heredocs
+   * before running it, so an expansion inside the command cannot rely on them yet.
+   */
+  declaredNames?: Set<string>
   /** True once the command word (past any `name=value` assignment prefix) has been read. */
   sawCommandWord: boolean
   /** A non-arithmetic assignment prefix is being read, so a later keyword must not mark its value. */
@@ -799,8 +804,18 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     for (const ended of closed.endedCommands ?? []) enclosingCommand.nested.push(ended)
     if (closed.command) enclosingCommand.nested.push(closed.command)
   }
+  /**
+   * Whether a command still being read, below the innermost `ownFrames` frames, changes `name`'s
+   * attributes. An expansion inside that command runs before the change, so its attribute is
+   * unknown there and lookups take the arithmetic side: integer, indexed.
+   */
+  const declaredByEnclosingCommand = (name: string, ownFrames = 1) =>
+    frames
+      .slice(0, frames.length - ownFrames)
+      .some((frame) => frame.command?.declaredNames?.has(name))
   /** Whether `name` has the integer attribute here: the nearest scope that sets or clears it wins. */
   const declaresInteger = (name: string): boolean => {
+    if (declaredByEnclosingCommand(name)) return true
     for (let depth = frames.length - 1; depth >= 0; depth -= 1) {
       const attribute = frames[depth].integerAttribute?.get(name)
       if (attribute !== undefined) return attribute
@@ -816,14 +831,22 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       }
       for (const name of frame.associativeArrays ?? []) scope.associativeArrays.add(name)
     }
+    // A heredoc body expands before any command still being read runs, its receiver included.
+    for (const frame of frames) {
+      for (const name of frame.command?.declaredNames ?? []) {
+        scope.integerAttribute.set(name, true)
+        scope.associativeArrays.delete(name)
+      }
+    }
     return scope
   }
   /** Whether `name` is a `declare -A` associative array, whose subscript is a string key, not arithmetic. */
-  const isAssociativeArray = (name: string) =>
+  const isAssociativeArray = (name: string, ownFrames = 1) =>
+    !declaredByEnclosingCommand(name, ownFrames) &&
     frames.some((frame) => frame.associativeArrays?.has(name))
   /** A subscript frame for `name`'s array: a string key for an associative array, else an arithmetic index. */
-  const subscriptFrameFor = (name: string | undefined) =>
-    subscriptFrame(isAssociativeArray(name ?? '') ? 'keysubscript' : 'arithmetic')
+  const subscriptFrameFor = (name: string | undefined, ownFrames = 1) =>
+    subscriptFrame(isAssociativeArray(name ?? '', ownFrames) ? 'keysubscript' : 'arithmetic')
   /** Forget a name's tracked array type in every scope — a re-declaration as `-a`/`-A` resets it. */
   const clearArrayType = (name: string) => {
     for (const frame of frames) frame.associativeArrays?.delete(name)
@@ -968,6 +991,9 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
         // A re-declaration resets the name's array type before this one's attributes apply, so a
         // later `declare -a` (indexed) clears an earlier `-A` (associative) and vice versa. The
         // integer attribute survives it — only `+i` or `unset` removes that.
+        if (command.associativeOption || command.indexedOption || command.integerOption) {
+          ;(command.declaredNames ??= new Set()).add(declared)
+        }
         if (command.associativeOption || command.indexedOption) clearArrayType(declared)
         if (command.associativeOption) (frame.associativeArrays ??= new Set()).add(declared)
         if (command.integerOption) {
@@ -981,7 +1007,10 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     if (command.nameArgumentBuiltin && command.sawCommandWord) {
       const option = DECLARATION_OPTION.exec(word)
       if (option?.[1] === '-' && option[2].includes('f')) command.unsetsFunctions = true
-      else if (!command.unsetsFunctions && SHELL_BARE_NAME.test(word)) clearNameType(word)
+      else if (!command.unsetsFunctions && SHELL_BARE_NAME.test(word)) {
+        ;(command.declaredNames ??= new Set()).add(word)
+        clearNameType(word)
+      }
     }
     // An assignment is one only in command-prefix or declaration-argument position; `echo n=1` or
     // `printf a[i]=1` passes an ordinary string that bash never evaluates.
@@ -1298,7 +1327,8 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
         /[\s(]/.test(code[index - 1] ?? ' ') &&
         opensIndexedAssignment(code, index, end)
       ) {
-        pushFrame(subscriptFrameFor(frame.arrayName))
+        // The literal belongs to the assignment in the frame below, whose own declaration applies.
+        pushFrame(subscriptFrameFor(frame.arrayName, 2))
         index += 1
         continue
       }
