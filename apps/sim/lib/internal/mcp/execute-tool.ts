@@ -216,10 +216,12 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       callChain: request.context.callChain,
       timeoutMs,
       signal: request.signal,
-      includePresentation:
-        !!request.context.copilotToolExecution &&
-        !!request.context.chatId &&
-        !request.context.mcpBlockId,
+      presentation:
+        request.context.copilotToolExecution &&
+        request.context.chatId &&
+        !request.context.mcpBlockId
+          ? ('snapshot' as const)
+          : undefined,
     }
     let result: ExecuteMcpToolResult
     if (target.kind === 'shared_server') {

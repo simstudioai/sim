@@ -188,7 +188,7 @@ export async function requireCredentialGroupCredentialAccess(
   if (binding && !isManagedCredentialGroupBindingLive(binding)) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
-  if (actorAccess && !managedMcp && !binding) {
+  if (actorAccess && !binding && (!managedMcp || !context.organizationId)) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
   if (context.organizationId) {

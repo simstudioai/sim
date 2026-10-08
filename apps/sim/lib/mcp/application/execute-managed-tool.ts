@@ -17,7 +17,10 @@ import {
   transformToolResult,
   validateToolArguments,
 } from '@/lib/mcp/application/execute-tool'
-import { loadManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
+import {
+  createManagedMcpAuthProvider,
+  loadManagedMcpAuthProvider,
+} from '@/lib/mcp/application/managed-auth-provider'
 import {
   loadMcpOperationAccess,
   requireMcpOperationAccess,
@@ -42,7 +45,7 @@ export interface ExecuteManagedMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
-  includePresentation?: boolean
+  presentation?: 'snapshot' | 'app'
   appOrigin?: { toolName: string; resourceUri: string }
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
@@ -182,7 +185,8 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     })
     input.signal?.throwIfAborted()
     const result = transformToolResult(providerResult)
-    if (input.includePresentation && userId)
+    if (input.presentation) result.presentation = { tool, result: providerResult, arguments: args }
+    if (input.presentation === 'snapshot' && userId)
       result.presentation = await createMcpToolPresentation(
         { tool, result: providerResult, arguments: args },
         (uri, signal) =>
@@ -196,8 +200,29 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
             managed: {
               connectionId: context.credentialId,
               scope: current.scope,
-              loadAuthProvider: () =>
-                loadManagedMcpAuthProvider(context.credentialId, context.workspaceId),
+              loadAuthProvider: async () => {
+                const latest = await loadManagedMcpCredentialApplicationContext(
+                  context.credentialId,
+                  context.workspaceId
+                )
+                if (!latest || latest.mcpServerId !== current.mcpServerId)
+                  throw new OrchestrationError('forbidden', 'Managed MCP connection changed')
+                await requireCredentialGroupCredentialAccess(
+                  principal,
+                  latest,
+                  credentialOperations.useManagedMcp.resourcePolicy
+                )
+                const grant = await loadManagedMcpRuntimeCredential(
+                  context.credentialId,
+                  context.workspaceId
+                )
+                if (
+                  grant.oauthConfigVersion !== current.oauthConfigVersion ||
+                  grant.grantedAt.getTime() !== current.grantedAt.getTime()
+                )
+                  throw new OrchestrationError('forbidden', 'Managed MCP grant changed')
+                return createManagedMcpAuthProvider(grant)
+              },
             },
           }),
         input.signal

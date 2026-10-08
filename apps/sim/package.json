@@ -300,6 +300,8 @@
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^5.0.1",
     "artillery": "2.0.34",
+    "buffer": "5.6.0",
+    "esbuild": "0.28.1",
     "node-gyp": "12.4.0",
     "postcss": "^8",
     "postcss-load-config": "6.0.1",

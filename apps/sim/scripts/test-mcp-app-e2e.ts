@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -10,7 +9,11 @@ import { type Browser, chromium, webkit } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { Document, Packer, Paragraph } from 'docx'
+import { build } from 'esbuild'
 import { PDFDocument } from 'pdf-lib'
+import PptxGenJS from 'pptxgenjs'
+import * as XLSX from 'xlsx'
 import { buildMcpAppFrame } from '@/lib/mcp/app-frame'
 
 /** Exercises the production sandbox with the real SDK: handshake, isolation, CSP, source checks and teardown. */
@@ -33,26 +36,38 @@ let blockedRequests = 0
 const toolRequests: unknown[] = []
 const resourceRequests: unknown[] = []
 
-async function bundleFile(entry: string, output: string, splitting = false) {
-  execFileSync(
-    process.execPath,
-    [
-      'build',
-      entry,
-      '--target=browser',
-      '--minify',
-      ...(splitting ? ['--splitting'] : []),
-      '--define',
-      'process.env.NODE_ENV="development"',
-      '--define',
-      'process.env={}',
-      '--outdir',
-      path.dirname(output),
-      '--entry-naming',
-      `${path.basename(output, '.js')}.[ext]`,
+async function bundleFile(entry: string, output: string) {
+  await build({
+    entryPoints: [entry],
+    outfile: output,
+    bundle: true,
+    ignoreAnnotations: true,
+    platform: 'browser',
+    format: 'esm',
+    target: 'es2022',
+    external: ['node:async_hooks'],
+    loader: { '.ttf': 'dataurl' },
+    jsx: 'automatic',
+    tsconfig: path.join(import.meta.dirname, '../tsconfig.json'),
+    alias: { 'node:buffer': fileURLToPath(import.meta.resolve('buffer/')) },
+    define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+    plugins: [
+      {
+        name: 'fixture-next-font',
+        setup(builder) {
+          builder.onResolve({ filter: /^next\/font\/(google|local)$/ }, () => ({
+            path: 'font',
+            namespace: 'fixture-next-font',
+          }))
+          builder.onLoad({ filter: /.*/, namespace: 'fixture-next-font' }, () => ({
+            contents:
+              'export const Inter = () => ({ className: "", style: { fontFamily: "sans-serif" } }); export default Inter;',
+            loader: 'js',
+          }))
+        },
+      },
     ],
-    { stdio: 'pipe' }
-  )
+  })
   return readFile(output, 'utf8')
 }
 
@@ -69,6 +84,65 @@ try {
   const pdf = await PDFDocument.create()
   pdf.addPage().drawText('MCP PDF preview')
   const pdfBytes = await pdf.save()
+  const docxBytes = await Packer.toBuffer(
+    new Document({ sections: [{ children: [new Paragraph('MCP document content')] }] })
+  )
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ['Report', 'Value'],
+      ['MCP worksheet content', 42],
+    ]),
+    'Report'
+  )
+  const spreadsheetBytes: Buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  const slides = new PptxGenJS()
+  slides.addSlide().addText('MCP slide content', { x: 1, y: 1, w: 6, h: 1 })
+  const slideBytes = await slides.write({ outputType: 'nodebuffer' })
+  assert(Buffer.isBuffer(slideBytes))
+  const audioBytes = Buffer.alloc(8044, 128)
+  audioBytes.write('RIFF', 0)
+  audioBytes.writeUInt32LE(8036, 4)
+  audioBytes.write('WAVEfmt ', 8)
+  audioBytes.writeUInt32LE(16, 16)
+  audioBytes.writeUInt16LE(1, 20)
+  audioBytes.writeUInt16LE(1, 22)
+  audioBytes.writeUInt32LE(8000, 24)
+  audioBytes.writeUInt32LE(8000, 28)
+  audioBytes.writeUInt16LE(1, 32)
+  audioBytes.writeUInt16LE(8, 34)
+  audioBytes.write('data', 36)
+  audioBytes.writeUInt32LE(8000, 40)
+  const artifacts = [
+    { mimeType: 'application/pdf', title: 'Report.pdf', bytes: pdfBytes, kind: 'file' },
+    {
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      title: 'Report.docx',
+      bytes: docxBytes,
+      kind: 'file',
+    },
+    {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      title: 'Report.xlsx',
+      bytes: spreadsheetBytes,
+      kind: 'file',
+    },
+    {
+      mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      title: 'Report.pptx',
+      bytes: slideBytes,
+      kind: 'file',
+    },
+    {
+      mimeType: 'video/mp4',
+      title: 'Report.mp4',
+      bytes: await readFile(path.join(import.meta.dirname, 'fixtures/mcp-video.mp4')),
+      kind: 'file',
+    },
+    { mimeType: 'audio/wav; codecs=1', title: 'Report.wav', bytes: audioBytes, kind: 'audio' },
+  ]
+  const assetRequests: number[] = []
   const appModule = fileURLToPath(import.meta.resolve('@modelcontextprotocol/ext-apps'))
   const bridgeModule = fileURLToPath(
     import.meta.resolve('@modelcontextprotocol/ext-apps/app-bridge')
@@ -87,7 +161,7 @@ app.ontoolresult = async (result) => {
   try { parent.document.body; state.parentBlocked = false; } catch { state.parentBlocked = true; }
   try { top.document.cookie; state.cookiesBlocked = false; } catch { state.cookiesBlocked = true; }
   try { localStorage.getItem('fixture'); state.storageBlocked = false; } catch { state.storageBlocked = true; }
-  try { eval('1 + 1'); state.evalBlocked = false; } catch { state.evalBlocked = true; }
+  try { globalThis.eval('1 + 1'); state.evalBlocked = false; } catch { state.evalBlocked = true; }
   state.allowed = await fetch('https://allowed.test/value').then(r => r.text());
   try { await fetch('https://blocked.test/value'); state.networkBlocked = false; } catch { state.networkBlocked = true; }
   state.tool = await app.callServerTool({ name: 'change_report', arguments: { revision: 2 } });
@@ -125,12 +199,11 @@ frame.src = '/frame';
   )
   const reactScript = await bundleFile(
     path.join(import.meta.dirname, 'fixtures/mcp-app.tsx'),
-    path.join(directory, 'react.js'),
-    true
+    path.join(directory, 'react.js')
   )
   await bundle(
     'react-loader',
-    `import { Buffer } from 'node:buffer'; globalThis.Buffer = Buffer; const entry = '/react.js'; await import(entry);`
+    `import { Buffer } from 'node:buffer'; import Prism from ${JSON.stringify(fileURLToPath(import.meta.resolve('prismjs')))}; globalThis.Buffer = Buffer; globalThis.Prism = Prism; const entry = '/react.js'; await import(entry);`
   )
   server = createServer(async (request, response) => {
     if (request.url === '/frame' || request.url?.endsWith('/frame')) {
@@ -142,7 +215,18 @@ frame.src = '/frame';
           'X-Content-Type-Options': 'nosniff',
         })
         .end(frame.buffer)
-    } else if (request.url === '/react' || request.url === '/preview') {
+    } else if (request.url === '/attacker') {
+      response.writeHead(200, { 'Content-Type': 'text/html' }).end(`<!doctype html><script>
+        const forge = (id) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'change_report', arguments: { revision: 2 } } });
+        parent.frames[0].postMessage(forge('forged-proxy'), '*');
+        parent.postMessage(forge('forged-host'), '*');
+        parent.postMessage({ attackerReady: true }, '*');
+      </script>`)
+    } else if (
+      request.url === '/react' ||
+      request.url === '/preview' ||
+      request.url?.startsWith('/artifact?')
+    ) {
       response
         .writeHead(200, { 'Content-Type': 'text/html' })
         .end(
@@ -155,8 +239,15 @@ frame.src = '/frame';
       response
         .writeHead(200, { 'Content-Type': 'application/json' })
         .end(JSON.stringify({ contents: [{ uri: 'file:///report.txt', text: 'Resource bytes' }] }))
-    } else if (request.url?.endsWith('/assets/0')) {
-      response.writeHead(200, { 'Content-Type': 'application/pdf' }).end(pdfBytes)
+    } else if (/\/assets\/\d+$/.test(request.url ?? '')) {
+      const index = Number(request.url?.split('/').at(-1))
+      const artifact = artifacts[index]
+      if (!artifact) {
+        response.writeHead(404).end()
+        return
+      }
+      assetRequests.push(index)
+      response.writeHead(200, { 'Content-Type': artifact.mimeType }).end(artifact.bytes)
     } else if (request.url?.startsWith('/api/') && request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json' }).end(
         JSON.stringify({
@@ -165,15 +256,13 @@ frame.src = '/frame';
             id: 'a'.repeat(64),
             title: 'Report',
             hasApp: true,
-            items: [
-              {
-                index: 0,
-                identity: 'report',
-                title: 'Report.pdf',
-                mimeType: 'application/pdf',
-                kind: 'file',
-              },
-            ],
+            items: artifacts.map(({ mimeType, title, kind }, index) => ({
+              index,
+              identity: `artifact-${index}`,
+              mimeType,
+              title,
+              kind,
+            })),
           },
           arguments: { city: 'Example' },
           result: {
@@ -292,19 +381,25 @@ frame.src = '/frame';
     )
   })
   await check('Foreign-window messages, theme update and teardown', async () => {
-    const proxy = page.frames().find((candidate) => candidate.url().endsWith('/frame'))
-    assert(proxy)
-    await proxy.evaluate(() =>
-      window.postMessage(
-        {
-          jsonrpc: '2.0',
-          id: 'forged-proxy',
-          method: 'tools/call',
-          params: { name: 'change_report' },
-        },
-        '*'
-      )
-    )
+    const attacker = await page.evaluate(async () => {
+      const frame = document.createElement('iframe')
+      frame.sandbox = 'allow-scripts'
+      frame.src = '/attacker'
+      await new Promise<void>((resolve) => {
+        const listener = (event: MessageEvent) => {
+          if (event.source !== frame.contentWindow || !event.data?.attackerReady) return
+          window.removeEventListener('message', listener)
+          resolve()
+        }
+        window.addEventListener('message', listener)
+        document.body.append(frame)
+      })
+      return true
+    })
+    assert(attacker)
+    await page.waitForTimeout(250)
+    assert.equal(calls, 1)
+    await page.locator('iframe[src="/attacker"]').evaluate((element) => element.remove())
     await page.evaluate(async () => {
       if (!('fixtureBridge' in window)) throw new Error('Missing App bridge')
       const bridge = window.fixtureBridge as {
@@ -370,6 +465,37 @@ frame.src = '/frame';
     await page.goto(`http://127.0.0.1:${address.port}/preview`)
     await page.getByText('ready:%PDF-', { exact: true }).waitFor({ timeout: 20_000 })
   })
+  for (const [index, text] of [
+    [1, 'MCP document content'],
+    [2, 'MCP worksheet content'],
+    [3, 'MCP slide content'],
+  ] as const) {
+    await check(`Native ${artifacts[index].title} preview renders document bytes`, async () => {
+      await page.goto(`http://127.0.0.1:${address.port}/artifact?index=${index}`)
+      await page.getByText(text, { exact: true }).waitFor({ timeout: 20_000 })
+      assert(assetRequests.includes(index))
+    })
+  }
+  for (const [index, tag] of [
+    [4, 'video'],
+    [5, 'audio'],
+  ] as const) {
+    await check(`Native ${tag} preview decodes and plays artifact bytes`, async () => {
+      await page.goto(`http://127.0.0.1:${address.port}/artifact?index=${index}`)
+      const media = page.locator(tag)
+      await media.waitFor({ timeout: 20_000 })
+      await media.evaluate(async (element) => {
+        if (!(element instanceof HTMLMediaElement)) throw new Error('Missing media element')
+        element.muted = true
+        await element.play()
+      })
+      await page.waitForFunction((tag) => {
+        const media = document.querySelector(tag)
+        return media instanceof HTMLMediaElement && media.currentTime > 0 && media.error === null
+      }, tag)
+      assert(assetRequests.includes(index))
+    })
+  }
   await page.screenshot({ path: `${reportPath}.png`, fullPage: true })
   await check('Browser completes without uncaught runtime errors', async () => {
     assert.deepEqual(browserErrors, [])

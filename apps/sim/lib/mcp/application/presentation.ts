@@ -24,17 +24,28 @@ export async function createMcpToolPresentation(
     for (const item of presentation.result.content) {
       if (item.type !== 'resource_link' || resources.some((resource) => resource.uri === item.uri))
         continue
-      if (!item.uri || item.uri.length > 2048)
-        throw new OrchestrationError('validation', 'Invalid MCP resource URI')
-      deadline.throwIfAborted()
-      const result = await readResource(item.uri, deadline)
-      if (!isJsonWithinByteLimit(result, MCP_PRESENTATION_MAX_BYTES))
-        throw new OrchestrationError('payload_too_large', 'MCP resource exceeds 12 MiB')
-      const resource = result.contents.find((resource) => resource.uri === item.uri)
-      if (!resource) throw new OrchestrationError('not_found', 'MCP linked resource not found')
-      resources.push(resource)
-      if (!isJsonWithinByteLimit({ ...presentation, resources }, MCP_PRESENTATION_MAX_BYTES))
-        throw new OrchestrationError('payload_too_large', 'MCP presentation exceeds 12 MiB')
+      try {
+        if (!item.uri || item.uri.length > 2048)
+          throw new OrchestrationError('validation', 'Invalid MCP resource URI')
+        deadline.throwIfAborted()
+        const result = await readResource(item.uri, deadline)
+        if (!isJsonWithinByteLimit(result, MCP_PRESENTATION_MAX_BYTES))
+          throw new OrchestrationError('payload_too_large', 'MCP resource exceeds 12 MiB')
+        const resource = result.contents.find((resource) => resource.uri === item.uri)
+        if (!resource) throw new OrchestrationError('not_found', 'MCP linked resource not found')
+        if (
+          !isJsonWithinByteLimit(
+            { ...presentation, resources: [...resources, resource] },
+            MCP_PRESENTATION_MAX_BYTES
+          )
+        )
+          throw new OrchestrationError('payload_too_large', 'MCP presentation exceeds 12 MiB')
+        resources.push(resource)
+      } catch {
+        signal?.throwIfAborted()
+        logger.warn('An MCP linked resource could not be captured')
+        if (deadline.aborted) break
+      }
     }
     return { ...presentation, resources }
   } catch {

@@ -39,11 +39,18 @@ function McpArtifactPreview({ chatId, presentationId, index }: McpArtifactPrevie
   const plainText =
     item.mimeType.startsWith('text/') ||
     ['application/json', 'application/xml'].includes(item.mimeType)
+  const category = resolveFileCategory(item.mimeType, '')
   const previewable =
     plainText ||
-    (item.kind === 'image' && resolveFileCategory(item.mimeType, '') === 'image-previewable') ||
-    (item.kind === 'audio' && resolveFileCategory(item.mimeType, '') === 'audio-previewable') ||
-    item.mimeType === 'application/pdf'
+    (item.kind === 'image' && category === 'image-previewable') ||
+    (item.kind === 'audio' && category === 'audio-previewable') ||
+    [
+      'iframe-previewable',
+      'video-previewable',
+      'docx-previewable',
+      'pptx-previewable',
+      'xlsx-previewable',
+    ].includes(category)
   if (!previewable)
     return (
       <div className='p-4'>

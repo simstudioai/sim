@@ -48,7 +48,7 @@ export async function storeMcpPresentation(input: {
   workspaceId: string
   connectionId: string
   toolCallId: string
-  tool: McpTool
+  tool: Pick<McpTool, 'name' | 'title' | '_meta'>
   arguments: Record<string, unknown>
   result: McpToolResult
   resources?: ReadResourceResult['contents']
@@ -59,14 +59,6 @@ export async function storeMcpPresentation(input: {
     throw new OrchestrationError('validation', 'Invalid MCP invocation identity')
   if (input.result.content.length > MCP_PRESENTATION_MAX_ITEMS)
     throw new OrchestrationError('payload_too_large', 'MCP presentation has too many items')
-  if (
-    input.result.content.some(
-      (item) =>
-        item.type === 'resource_link' &&
-        !input.resources?.some((resource) => resource.uri === item.uri)
-    )
-  )
-    throw new OrchestrationError('validation', 'MCP linked resource snapshot is unavailable')
   const digest = (value: string) => createHash('sha256').update(value).digest('hex')
   const id = digest(input.toolCallId)
   const appUri = getMcpAppResourceUri(input.tool)
@@ -79,6 +71,7 @@ export async function storeMcpPresentation(input: {
       item.type === 'resource_link'
         ? input.resources?.find((resource) => resource.uri === item.uri)
         : undefined
+    if (item.type === 'resource_link' && !snapshot) return []
     const mimeType =
       item.type === 'image' || item.type === 'audio'
         ? item.mimeType

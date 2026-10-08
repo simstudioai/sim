@@ -240,7 +240,7 @@ export const callMcpAppTool = defineAuthorizedChatUseCase({
       toolName: input.name,
       arguments: input.arguments,
       appOrigin: { toolName: manifest.toolName, resourceUri: manifest.appUri },
-      includePresentation: true,
+      presentation: 'app' as const,
       signal: input.signal,
       timeoutMs: 60_000,
     }

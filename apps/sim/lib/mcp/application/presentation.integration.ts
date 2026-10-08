@@ -26,6 +26,7 @@ import {
   mcpPresentationCleanupKeys,
   planForkMcpPresentations,
 } from '@/lib/mcp/presentation-lifecycle'
+import { loadMcpPresentation } from '@/lib/mcp/presentation-storage'
 import { mcpService } from '@/lib/mcp/service'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 import {
@@ -70,6 +71,8 @@ let listingOnlyPolicy = false
 let providerTitle = 'Quarterly report'
 let linkedReportText = 'Remote resource bytes'
 let linkedResourceMissing = false
+let resourceReads = 0
+let echoAppUri = false
 let connectDomain = 'https://allowed.test'
 let rejectResourceStatus = 0
 let rejectResourcesPersistently = false
@@ -111,7 +114,14 @@ const provider = createServer(async (request, response) => {
             name: 'show_report',
             title: reflectCredential ? String(request.headers['x-fixture-token']) : providerTitle,
             inputSchema: { type: 'object' as const },
-            _meta: appAvailable ? { ui: { resourceUri: appUri } } : {},
+            _meta: appAvailable
+              ? {
+                  ui: {
+                    resourceUri: echoAppUri ? `${appUri}/${credentialCanary}` : appUri,
+                    visibility: ['model'],
+                  },
+                }
+              : {},
           },
           {
             name: 'change_report',
@@ -128,6 +138,12 @@ const provider = createServer(async (request, response) => {
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         if (params.name === 'change_report') {
           appCalls++
+          if (params.arguments?.linked)
+            return {
+              content: [
+                { type: 'resource_link', name: 'Report', uri: sourceUri, mimeType: 'text/plain' },
+              ],
+            }
           if (encodedCredential)
             return {
               content: [
@@ -177,6 +193,12 @@ const provider = createServer(async (request, response) => {
                           'base64'
                         ),
                       },
+                    },
+                    {
+                      type: 'resource_link' as const,
+                      uri: 'file:///later.txt',
+                      name: 'Later report',
+                      mimeType: 'text/plain',
                     },
                   ]
                 : []),
@@ -245,7 +267,9 @@ const provider = createServer(async (request, response) => {
         ],
       }))
       protocol.setRequestHandler(ReadResourceRequestSchema, async ({ params }) => {
-        if (linkedResourceMissing) throw new Error('Synthetic missing linked resource')
+        resourceReads++
+        if (linkedResourceMissing && params.uri === sourceUri)
+          throw new Error('Synthetic missing linked resource')
         return {
           contents: [
             {
@@ -408,6 +432,7 @@ beforeAll(async () => {
 afterEach(() => {
   linkedReportText = 'Remote resource bytes'
   linkedResourceMissing = false
+  echoAppUri = false
 })
 
 afterAll(async () => {
@@ -602,15 +627,52 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
   )
 
-  it('keeps private metadata and encoded files out of model output when a linked snapshot fails', async () => {
+  it('preserves valid attachments and the App when a linked snapshot fails', async () => {
     linkedResourceMissing = true
-    const { result } = await invokeReport({ linked: true })
-    expect(compactMcpPresentation(result.output)).toBeUndefined()
+    const { result, receipt } = await executeReport({ linked: true })
+    expect(receipt.hasApp).toBe(true)
+    expect(receipt.items.map((item) => item.index)).toEqual([1, 2])
+    const asset = await readMcpResultAsset.execute({
+      principal: session,
+      input: { chatId, id: receipt.id, index: 1 },
+    })
+    expect(asset.buffer.toString()).toContain('Encoded report: ')
+    expect(asset.buffer.toString()).not.toContain(credentialCanary)
+    const later = await readMcpResultAsset.execute({
+      principal: session,
+      input: { chatId, id: receipt.id, index: 2 },
+    })
+    expect(later.buffer.toString()).toBe('Remote resource bytes')
+    await expect(
+      readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 0 },
+      })
+    ).rejects.toThrow('MCP file not found')
     expect(JSON.stringify(result.output)).not.toContain('Only the app should receive this')
     expect(JSON.stringify(result.output)).not.toContain(
       Buffer.from(`Encoded report: ${credentialCanary}:end`).toString('base64')
     )
     expect(JSON.stringify(result.output)).toContain('could not be displayed')
+  })
+
+  it('does not download linked resources returned by a live App call', async () => {
+    const { receipt } = await executeReport()
+    const before = resourceReads
+    const result = await callMcpAppTool.execute({
+      principal: session,
+      input: { chatId, id: receipt.id, name: 'change_report', arguments: { linked: true } },
+    })
+    expect(result.content[0]).toMatchObject({ type: 'resource_link', uri: sourceUri })
+    expect(resourceReads).toBe(before)
+  })
+
+  it('redacts credentials reflected in the discovered App address before storage', async () => {
+    echoAppUri = true
+    const { receipt } = await executeReport()
+    const manifest = await loadMcpPresentation(chatId, receipt.id)
+    expect(manifest.appUri).toContain('ui://fixture/view.html/')
+    expect(JSON.stringify(manifest)).not.toContain(credentialCanary)
   })
 
   it('redacts encoded credentials in linked snapshot bytes before reopening', async () => {
@@ -632,18 +694,19 @@ describe('native MCP results over real transport, storage and Postgres', () => {
     }
   })
 
-  it.each(['audio/aiff', 'image/tiff'])(
-    'downloads unsupported %s bytes without attempting playback',
-    async (mimeType) => {
-      const { receipt } = await executeReport({ unsupportedMedia: mimeType })
-      const asset = await readMcpResultAsset.execute({
-        principal: session,
-        input: { chatId, id: receipt.id, index: 0 },
-      })
-      expect(asset.disposition).toBe('attachment')
-      expect(asset.buffer.toString()).toBe('Unsupported fixture bytes')
-    }
-  )
+  it.each([
+    ['audio/aiff', 'attachment'],
+    ['image/tiff', 'attachment'],
+    ['audio/ogg; codecs=opus', 'inline'],
+  ] as const)('serves %s with %s disposition', async (mimeType, disposition) => {
+    const { receipt } = await executeReport({ unsupportedMedia: mimeType })
+    const asset = await readMcpResultAsset.execute({
+      principal: session,
+      input: { chatId, id: receipt.id, index: 0 },
+    })
+    expect(asset.disposition).toBe(disposition)
+    expect(asset.buffer.toString()).toBe('Unsupported fixture bytes')
+  })
 
   it('reports credentials once for both a cold and a pooled resource read', async () => {
     await evictMcpServerConnections(serverId, 'cold resource fixture')

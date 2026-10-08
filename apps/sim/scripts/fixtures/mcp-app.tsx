@@ -6,6 +6,7 @@ import type { McpPresentationReceipt } from '@/lib/mcp/presentation'
 import { useDocPreviewBinary } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { McpResult } from '@/app/workspace/[workspaceId]/home/components/message-content/components/mcp-result/mcp-result'
+import { McpResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/mcp-resource-content'
 import { FileContentSourceProvider } from '@/hooks/use-file-content-source'
 
 const queryClient = new QueryClient()
@@ -43,7 +44,20 @@ createRoot(root).render(
     <ThemeProvider attribute='class' defaultTheme='light'>
       <QueryClientProvider client={queryClient}>
         <ChatSurfaceProvider chatId='fixture-chat'>
-          {location.pathname === '/preview' ? (
+          {location.pathname === '/artifact' ? (
+            <McpResourceContent
+              chatId='fixture-chat'
+              resource={{
+                type: 'mcp',
+                id: 'fixture',
+                title: 'Artifact',
+                mcp: {
+                  presentationId: receipt.id,
+                  index: Number(new URL(location.href).searchParams.get('index')),
+                },
+              }}
+            />
+          ) : location.pathname === '/preview' ? (
             <FileContentSourceProvider value={source}>
               <BinaryPreviewProbe />
             </FileContentSourceProvider>

@@ -39,7 +39,7 @@ export interface ExecuteMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
-  includePresentation?: boolean
+  presentation?: 'snapshot' | 'app'
   appOrigin?: { toolName: string; resourceUri: string }
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
@@ -200,7 +200,8 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     )
     input.signal?.throwIfAborted()
     const result = transformToolResult(providerResult)
-    if (input.includePresentation)
+    if (input.presentation) result.presentation = { tool, result: providerResult, arguments: args }
+    if (input.presentation === 'snapshot')
       result.presentation = await createMcpToolPresentation(
         { tool, result: providerResult, arguments: args },
         (uri, signal) =>

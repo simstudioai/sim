@@ -1,4 +1,8 @@
-import { CallToolResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolResultSchema,
+  ReadResourceResultSchema,
+  ToolSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import {
@@ -53,7 +57,11 @@ export async function presentMcpToolResult(
         result: projectMcpEncodedContents(result, registry),
         resources: projectMcpEncodedContents({ contents: presentation.resources ?? [] }, registry)
           .contents,
-        title: tool.title || tool.name,
+        tool: {
+          name: tool.name,
+          title: tool.title || tool.name,
+          _meta: { ui: { resourceUri: getMcpAppResourceUri(tool) } },
+        },
       }
       const projection = projectResolvedSecretModelJsonContent(
         value,
@@ -63,15 +71,16 @@ export async function presentMcpToolResult(
       if (
         projection.safe &&
         isPlainRecord(projection.value) &&
-        isPlainRecord(projection.value.arguments) &&
-        typeof projection.value.title === 'string'
+        isPlainRecord(projection.value.arguments)
       ) {
         const input = {
           chatId: context.chatId,
           workspaceId: context.workspaceId,
           connectionId,
           toolCallId: context.toolCallId,
-          tool: { ...tool, title: projection.value.title },
+          tool: ToolSchema.pick({ name: true, title: true, _meta: true }).parse(
+            projection.value.tool
+          ),
           arguments: projection.value.arguments,
           result: CallToolResultSchema.parse(projection.value.result),
           resources: ReadResourceResultSchema.shape.contents.parse(projection.value.resources),
@@ -122,7 +131,7 @@ export async function presentMcpToolResult(
           ? { type: 'text' as const, text: item.resource.text }
           : {
               type: 'text' as const,
-              text: receipt
+              text: receipt?.items.some((asset) => asset.index === index)
                 ? `Attached result: ${receipt.items.find((asset) => asset.index === index)?.title || 'file'}`
                 : 'MCP file output could not be displayed.',
             }

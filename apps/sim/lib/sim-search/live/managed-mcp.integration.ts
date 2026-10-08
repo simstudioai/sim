@@ -41,6 +41,7 @@ import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/s
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import { encryptManagedMcpTokens } from '@/lib/credentials/managed-mcp'
 import { executeMcpTool } from '@/lib/internal/mcp/execute-tool'
+import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { readManagedMcpResource } from '@/lib/mcp/application/read-resource'
 import * as pinnedFetch from '@/lib/mcp/pinned-fetch'
 import { compactMcpPresentation, MCP_PRESENTATION_PREFIX } from '@/lib/mcp/presentation'
@@ -184,6 +185,17 @@ const providerServer = createServer(async (request, response) => {
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         events.push({ method: params.name, actor, at: performance.now() })
         await onTool?.(params.name, params.arguments ?? {})
+        if (params.arguments?.linked)
+          return {
+            content: [
+              {
+                type: 'resource_link',
+                name: 'Private report',
+                uri: 'file:///private-report.txt',
+                mimeType: 'text/plain',
+              },
+            ],
+          }
         if (echoToken && params.name === 'fetch')
           return {
             content: [
@@ -634,6 +646,33 @@ describe('managed Search operation sessions', () => {
       }
     }
   )
+
+  it('rechecks actor eligibility before reading a tool result attachment', async () => {
+    const actor = actors[0]
+    onTool = async () => {
+      await db.update(user).set({ emailVerified: false }).where(eq(user.id, actor.userId))
+    }
+    const before = events.filter((event) => event.method === 'resources/read').length
+    try {
+      const result = await executeManagedMcpToolUseCase.execute({
+        principal: createSessionPrincipal({ userId: actor.userId }),
+        input: {
+          workspaceId,
+          credentialId: actor.credentialId,
+          toolName: 'fetch',
+          arguments: { linked: true },
+          presentation: 'snapshot',
+          appOrigin: { toolName: 'fetch', resourceUri: appUri },
+        },
+      })
+      expect(result.success).toBe(true)
+      expect(events.filter((event) => event.method === 'resources/read')).toHaveLength(before)
+      expect(result.presentation?.resources ?? []).toEqual([])
+    } finally {
+      onTool = undefined
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, actor.userId))
+    }
+  })
 
   it('reads a complete diagram with one handshake per authorized operation and disposes both transports', async () => {
     setupDelay = 150
