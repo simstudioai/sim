@@ -25,6 +25,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,6 +43,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import * as application from '@/lib/projects/files/application'
+import * as prefixCleanup from '@/lib/projects/files/prefix-cleanup'
 import * as manager from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -178,6 +180,118 @@ async function usage(id: string) {
     .where(eq(organization.id, id))
   return row.bytes
 }
+
+describe('Project outer transaction cleanup for upload sessions', () => {
+  check('preserves upload authorization failure when its cleanup hook fails', async () => {
+    const f = await fixture()
+    const create = sessions.createUploadSession
+    const preparation = vi
+      .spyOn(sessions, 'createUploadSession')
+      .mockImplementation(async (args) => {
+        const session = await create(args)
+        await db.delete(permissions).where(eq(permissions.userId, f.editorId))
+        return session
+      })
+    const cleanup = vi
+      .spyOn(prefixCleanup, 'queueRetiredProjectUploadCleanup')
+      .mockRejectedValue(new Error('Cleanup database unavailable'))
+    try {
+      await expect(
+        application.createProjectFileUploadSession.execute({
+          principal: f.principal,
+          input: input(f.projectId),
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    } finally {
+      preparation.mockRestore()
+      cleanup.mockRestore()
+    }
+  })
+  check('retains the created upload session after acknowledgement loss', async () => {
+    const f = await fixture()
+    const transaction = db.transaction.bind(db)
+    let sessionId = ''
+    let originalStatus: unknown
+    const primary = new Error('Commit acknowledgement lost')
+    const interception = vi
+      .spyOn(db, 'transaction')
+      .mockImplementation(async (callback, config) => {
+        const result = await transaction(callback, config)
+        if (
+          isRecordLike(result) &&
+          isRecordLike(result.result) &&
+          result.result.purpose === 'project_file'
+        ) {
+          sessionId = String(result.result.id)
+          originalStatus = result.result.status
+          throw primary
+        }
+        return result
+      })
+    try {
+      await expect(
+        application.createProjectFileUploadSession.execute({
+          principal: f.principal,
+          input: input(f.projectId),
+        })
+      ).rejects.toBe(primary)
+    } finally {
+      interception.mockRestore()
+    }
+    expect(sessionId).not.toBe('')
+    const [row] = await db.select().from(uploadSession).where(eq(uploadSession.id, sessionId))
+    expect(row.status).toBe(originalStatus)
+  })
+  check('retains committed restored upload source after acknowledgement loss', async () => {
+    const f = await fixture()
+    const source = '---\ntitle: Architecture\n---\n# Notes\nShared Project description'
+    const bytes = Buffer.from(
+      `<html><head>${simPageSourceEmbedBlock(source)}</head><body>Compiled page</body></html>`
+    )
+    const session = await application.createProjectFileUploadSession.execute({
+      principal: f.principal,
+      input: {
+        ...input(f.projectId, bytes.length),
+        fileName: 'Architecture.html',
+        contentType: 'text/html',
+      },
+    })
+    await put(session, bytes)
+    const transaction = db.transaction.bind(db)
+    const primary = new Error('Commit acknowledgement lost')
+    let key = ''
+    const interception = vi
+      .spyOn(db, 'transaction')
+      .mockImplementation(async (callback, config) => {
+        const result = await transaction(callback, config)
+        if (
+          !key &&
+          isRecordLike(result) &&
+          isRecordLike(result.result) &&
+          isRecordLike(result.result.file)
+        ) {
+          key = String(result.result.file.key)
+          throw primary
+        }
+        return result
+      })
+    try {
+      await expect(
+        application.completeProjectFileUploadSession.execute({
+          principal: f.principal,
+          input: control(f.projectId, session),
+        })
+      ).rejects.toBe(primary)
+    } finally {
+      interception.mockRestore()
+    }
+    expect(key).not.toBe('')
+    expect(await readFile(join(storageRoot, key), 'utf8')).toBe(source)
+    expect(
+      await db.select().from(outboxEvent).where(sql`${outboxEvent.payload}->>'key' = ${key}`)
+    ).toEqual([])
+  })
+})
 
 describe('Project upload sessions with real leases, storage, and accounting', () => {
   check(

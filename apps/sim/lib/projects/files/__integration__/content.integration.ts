@@ -28,9 +28,10 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import JSZip from 'jszip'
 import { NextResponse } from 'next/server'
@@ -40,6 +41,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 import * as tracking from '@/lib/billing/storage/tracking'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as sandboxTask from '@/lib/execution/sandbox/run-task'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
@@ -50,7 +52,9 @@ import {
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
 import { createProjectFileFolder } from '@/lib/projects/files/application/folders'
+import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
@@ -2277,6 +2281,289 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       await expect(readPublicFileShareContent({ grant: access.grant })).rejects.toMatchObject({
         code: 'not_found',
       })
+    }
+  )
+})
+
+describe('Project outer transaction cleanup', () => {
+  for (const operation of ['create', 'update'] as const) {
+    check(`cleans Project ${operation} bytes after a deferred COMMIT rejection`, async () => {
+      const f = await fixture()
+      const source = await createProjectFile.execute({
+        principal: f.principal,
+        input: createInput(f.projectId, 'original'),
+      })
+      const beforeUsage = await ledger(f.organizationId)
+      const triggerName = sql.identifier(
+        `reject_project_commit_${generateId().replaceAll('-', '')}`
+      )
+      await db.execute(sql`CREATE FUNCTION ${triggerName}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.project_id = TG_ARGV[0] THEN
+            RAISE EXCEPTION 'Deferred file constraint rejected COMMIT' USING ERRCODE = '23514';
+          END IF;
+          RETURN NEW;
+        END;
+      $$`)
+      await db.execute(sql`CREATE CONSTRAINT TRIGGER ${triggerName}
+        AFTER INSERT OR UPDATE ON ${workspaceFiles} DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE FUNCTION ${triggerName}(${sql.raw(`'${f.projectId}'`)})`)
+      const transaction = db.transaction.bind(db)
+      let callbackCompleted = false
+      const observer = vi.spyOn(db, 'transaction').mockImplementation((callback, config) =>
+        transaction(async (tx) => {
+          const result = await callback(tx)
+          if (isRecordLike(result) && isRecordLike(result.result) && 'file' in result.result)
+            callbackCompleted = true
+          return result
+        }, config)
+      )
+      const upload = storage.uploadFile
+      let stagedKey = ''
+      const capture = vi.spyOn(storage, 'uploadFile').mockImplementation(async (args) => {
+        const result = await upload(args)
+        stagedKey = result.key
+        return result
+      })
+      try {
+        const pending =
+          operation === 'create'
+            ? createProjectFile.execute({
+                principal: f.principal,
+                input: { ...createInput(f.projectId, 'rejected'), name: 'new.md' },
+              })
+            : updateProjectFileContent.execute({
+                principal: f.principal,
+                input: {
+                  projectId: f.projectId,
+                  fileId: source.file.id,
+                  content: 'rejected replacement',
+                  encoding: 'utf-8',
+                },
+              })
+        const rejection = await pending.catch((error: unknown) => error)
+        expect(getPostgresErrorCode(rejection)).toBe('23514')
+        expect(callbackCompleted).toBe(true)
+      } finally {
+        observer.mockRestore()
+        capture.mockRestore()
+        await db.execute(sql`DROP TRIGGER ${triggerName} ON ${workspaceFiles}`)
+        await db.execute(sql`DROP FUNCTION ${triggerName}()`)
+      }
+      expect(stagedKey).not.toBe('')
+      expect(await ledger(f.organizationId)).toBe(beforeUsage)
+      expect(
+        await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, stagedKey))
+      ).toEqual([])
+      expect(
+        await db
+          .select()
+          .from(workspaceFileVersion)
+          .where(eq(workspaceFileVersion.fileId, source.file.id))
+      ).toEqual([])
+      expect(
+        (
+          await readProjectFileContent.execute({
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: source.file.id },
+          })
+        ).content.toString()
+      ).toBe('original')
+      await expect
+        .soft(readFile(join(localStorageRoot, stagedKey)))
+        .rejects.toMatchObject({ code: 'ENOENT' })
+      expect(
+        await db
+          .select()
+          .from(outboxEvent)
+          .where(sql`${outboxEvent.payload}->>'key' = ${stagedKey}`)
+      ).toHaveLength(1)
+    })
+  }
+
+  for (const { operation, code } of [
+    { operation: 'create', code: undefined },
+    { operation: 'update', code: undefined },
+    { operation: 'revert', code: undefined },
+    { operation: 'preview', code: undefined },
+    { operation: 'update', code: '40003' },
+    { operation: 'update', code: 'CONNECTION_CLOSED' },
+  ] as const) {
+    check(
+      `retains committed Project ${operation} bytes after acknowledgement loss (${code ?? 'uncoded'})`,
+      async () => {
+        const f = await fixture()
+        const sourceBytes = Buffer.alloc(16)
+        sourceBytes.writeUInt32BE(16, 0)
+        sourceBytes.write('ftypheic', 4, 'ascii')
+        const source = await createProjectFile.execute({
+          principal: f.principal,
+          input:
+            operation === 'preview'
+              ? {
+                  ...createInput(f.projectId),
+                  name: 'preview.heic',
+                  contentType: 'image/heic',
+                  content: sourceBytes.toString('base64'),
+                  encoding: 'base64',
+                }
+              : createInput(f.projectId, 'original'),
+        })
+        if (operation === 'revert')
+          await updateProjectFileContent.execute({
+            principal: f.principal,
+            input: {
+              projectId: f.projectId,
+              fileId: source.file.id,
+              content: 'second',
+              encoding: 'utf-8',
+            },
+          })
+        vi.spyOn(heic, 'transcodeHeicToJpeg').mockResolvedValue(Buffer.alloc(128, 255))
+        const upload = storage.uploadFile
+        const written: string[] = []
+        vi.spyOn(storage, 'uploadFile').mockImplementation(async (args) => {
+          const result = await upload(args)
+          written.push(result.key)
+          return result
+        })
+        const transaction = db.transaction.bind(db)
+        const primary = Object.assign(
+          new Error('Commit acknowledgement lost'),
+          code ? { code } : {}
+        )
+        let lost = false
+        vi.spyOn(db, 'transaction').mockImplementation(async (callback, config) => {
+          const result = await transaction(callback, config)
+          if (
+            !lost &&
+            written.length > 0 &&
+            isRecordLike(result) &&
+            isRecordLike(result.result) &&
+            'file' in result.result
+          ) {
+            lost = true
+            throw primary
+          }
+          return result
+        })
+        const input = { projectId: f.projectId, fileId: source.file.id }
+        const action =
+          operation === 'create'
+            ? createProjectFile.execute({
+                principal: f.principal,
+                input: { ...createInput(f.projectId, 'committed'), name: 'new.md' },
+              })
+            : operation === 'update'
+              ? updateProjectFileContent.execute({
+                  principal: f.principal,
+                  input: { ...input, content: 'committed', encoding: 'utf-8' },
+                })
+              : operation === 'revert'
+                ? revertProjectFileVersion.execute({
+                    principal: f.principal,
+                    input: { ...input, version: 1, expectedCurrentVersion: 2 },
+                  })
+                : readProjectFileArtifact.execute({
+                    principal: f.principal,
+                    input: { ...input, preview: true, maxBytes: 1024 },
+                  })
+        await expect(action).rejects.toBe(primary)
+        expect(lost).toBe(true)
+        expect(written).toHaveLength(1)
+        for (const key of written) {
+          expect((await readFile(join(localStorageRoot, key))).length).toBeGreaterThan(0)
+          expect(
+            await db
+              .select()
+              .from(outboxEvent)
+              .where(sql`${outboxEvent.payload}::jsonb ->> 'key' = ${key}`)
+          ).toEqual([])
+        }
+      }
+    )
+  }
+
+  for (const deleteUnavailable of [false, true]) {
+    check(
+      `preserves aborted Project content error when cleanup enqueue fails (delete unavailable=${deleteUnavailable})`,
+      async () => {
+        const f = await fixture()
+        const source = await createProjectFile.execute({
+          principal: f.principal,
+          input: createInput(f.projectId, 'original'),
+        })
+        const primary = new OrchestrationError('conflict', 'Content transaction rejected')
+        vi.spyOn(tracking, 'prepareFileStorageMutationInTx').mockRejectedValueOnce(primary)
+        vi.spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups').mockRejectedValue(
+          new Error('Cleanup database unavailable')
+        )
+        if (deleteUnavailable)
+          vi.spyOn(storage, 'deleteFile').mockRejectedValue(new Error('Storage unavailable'))
+        const upload = storage.uploadFile
+        let key = ''
+        vi.spyOn(storage, 'uploadFile').mockImplementation(async (args) => {
+          const result = await upload(args)
+          key = result.key
+          return result
+        })
+        await expect(
+          updateProjectFileContent.execute({
+            principal: f.principal,
+            input: {
+              projectId: f.projectId,
+              fileId: source.file.id,
+              content: 'replacement',
+              encoding: 'utf-8',
+            },
+          })
+        ).rejects.toBe(primary)
+        expect(key).not.toBe('')
+        if (deleteUnavailable)
+          expect((await readFile(join(localStorageRoot, key))).toString()).toBe('replacement')
+        else
+          await expect(readFile(join(localStorageRoot, key))).rejects.toMatchObject({
+            code: 'ENOENT',
+          })
+        expect((await readFile(join(localStorageRoot, source.file.key))).toString()).toBe(
+          'original'
+        )
+      }
+    )
+  }
+
+  check(
+    'preserves preview size rejection when cleanup enqueue fails and deletes the derivative',
+    async () => {
+      const f = await fixture()
+      const bytes = Buffer.alloc(16)
+      bytes.writeUInt32BE(16, 0)
+      bytes.write('ftypheic', 4, 'ascii')
+      const source = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(f.projectId),
+          name: 'preview.heic',
+          contentType: 'image/heic',
+          content: bytes.toString('base64'),
+          encoding: 'base64',
+        },
+      })
+      vi.spyOn(heic, 'transcodeHeicToJpeg').mockResolvedValue(Buffer.alloc(128, 255))
+      vi.spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups').mockRejectedValue(
+        new Error('Cleanup database unavailable')
+      )
+      await expect
+        .soft(
+          readProjectFileArtifact.execute({
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: source.file.id, preview: true, maxBytes: 64 },
+          })
+        )
+        .rejects.toMatchObject({ name: 'PayloadSizeLimitError' })
+      expect(
+        await readdir(join(localStorageRoot, 'project', f.projectId, 'image-derivative'))
+      ).toEqual([])
     }
   )
 })

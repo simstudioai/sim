@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { describeError } from '@sim/utils/errors'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -25,7 +27,7 @@ import {
   enqueueWorkspaceFileStorageCleanups,
   processWorkspaceFileStorageCleanupsNow,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
   compileFileDocument,
@@ -47,6 +49,8 @@ import {
 } from '@/lib/workspace-files/page-document.server'
 import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
 import { markFileSearchArtifactReadyInTx } from '@/lib/workspace-files/search/artifact-ready'
+
+const logger = createLogger('ProjectFileArtifacts')
 
 type ProjectOwner = { entityType: 'project'; entityId: string }
 interface ArtifactInput extends ProjectFileTarget {
@@ -96,7 +100,28 @@ async function discardArtifactWrites(owner: ProjectOwner, keys: readonly string[
     )
   )
     throw new Error('Artifact cleanup does not belong to this Project')
-  const events = await enqueueWorkspaceFileStorageCleanups(db, keys, 'project')
+  let events: string[]
+  try {
+    events = await enqueueWorkspaceFileStorageCleanups(db, keys, 'project')
+  } catch (error) {
+    logger.warn('Artifact cleanup could not be persisted; attempting direct deletion', {
+      owner,
+      keys,
+      error: describeError(error),
+    })
+    for (const key of keys) {
+      try {
+        await deleteFile({ key, context: 'project' })
+      } catch (cleanupError) {
+        logger.error('Uncommitted artifact could not be deleted or queued for cleanup', {
+          owner,
+          key,
+          error: describeError(cleanupError),
+        })
+      }
+    }
+    return
+  }
   await processWorkspaceFileStorageCleanupsNow(events, { owner, reason: 'artifact read failed' })
 }
 

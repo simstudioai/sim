@@ -1,5 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
+import { describeError, isPostgresCommitRejection } from '@sim/utils/errors'
 import {
   type AuthorizingUseCase,
   recordProjectedUseCaseAuditEntries,
@@ -15,6 +17,8 @@ import {
 } from '@/lib/projects/files/application/authorization'
 import type { ProjectFileOperation } from '@/lib/projects/files/application/operations'
 import { notifyFileListChanged } from '@/lib/realtime/notify'
+
+const logger = createLogger('ProjectFileUseCase')
 
 interface ProjectFileUseCaseContext<I> {
   principal: Principal
@@ -72,6 +76,7 @@ export function defineAuthorizedProjectFileUseCase<
         )
       }
       let committed: { context: ProjectFileAuthorizationContext; result: R }
+      let callbackCompleted = false
       try {
         const authorize = await createProjectFileAuthorizer(
           args.principal,
@@ -83,16 +88,33 @@ export function defineAuthorizedProjectFileUseCase<
           const result = await runWithOutboundOrganization(context.organizationId, () =>
             definition.execute({ ...args, context, tx, prepared })
           )
+          callbackCompleted = true
           return { context, result }
         })
       } catch (error) {
-        if (prepared !== undefined && preparationContext) {
-          await definition.onCommitFailure?.({
-            ...args,
-            context: preparationContext,
-            prepared,
-            error,
+        if (callbackCompleted && !isPostgresCommitRejection(error)) {
+          logger.error('Project file commit outcome is uncertain; retaining prepared resources', {
+            operation: definition.operation.id,
+            projectId: args.input.projectId,
+            fileId: args.input.fileId,
+            error: describeError(error),
           })
+        } else if (prepared !== undefined && preparationContext) {
+          try {
+            await definition.onCommitFailure?.({
+              ...args,
+              context: preparationContext,
+              prepared,
+              error,
+            })
+          } catch (cleanupError) {
+            logger.error('Project file failure cleanup could not complete', {
+              operation: definition.operation.id,
+              owner: preparationContext.owner,
+              fileId: args.input.fileId,
+              error: describeError(cleanupError),
+            })
+          }
         }
         throw error
       }
