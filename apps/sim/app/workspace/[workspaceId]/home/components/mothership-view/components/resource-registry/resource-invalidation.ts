@@ -16,7 +16,10 @@ function invalidate(client: QueryClient, key: QueryKey): void {
   void client.invalidateQueries({ queryKey: key })
 }
 
-type CacheableResourceType = Exclude<MothershipResourceType, 'generic' | 'search' | 'sources'>
+type CacheableResourceType = Exclude<
+  MothershipResourceType,
+  'generic' | 'search' | 'sources' | 'mcp'
+>
 
 const RESOURCE_INVALIDATORS: Record<
   CacheableResourceType,
@@ -92,6 +95,12 @@ export function invalidateResourceQueries(
   resourceType: MothershipResourceType,
   resourceId?: string
 ): void {
-  if (resourceType === 'generic' || resourceType === 'search' || resourceType === 'sources') return
+  if (
+    resourceType === 'generic' ||
+    resourceType === 'search' ||
+    resourceType === 'sources' ||
+    resourceType === 'mcp'
+  )
+    return
   RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

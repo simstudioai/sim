@@ -21,6 +21,7 @@
     "build:sandbox-bundles": "bun run ./lib/execution/sandbox/bundles/build.ts",
     "start": "next start",
     "test": "vitest run",
+    "test:mcp-app:e2e": "bun --no-env-file scripts/test-mcp-app-e2e.ts",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
     "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
@@ -89,6 +90,7 @@
     "@hookform/resolvers": "5.2.2",
     "@linear/sdk": "91.0.0",
     "@marsidev/react-turnstile": "1.4.2",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.31.0",
     "@monaco-editor/react": "4.7.0",
     "@napi-rs/canvas": "0.1.100",
@@ -272,6 +274,7 @@
   "devDependencies": {
     "@next/env": "16.4.0",
     "@opentelemetry/context-async-hooks": "2.10.0",
+    "@playwright/test": "1.61.1",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",

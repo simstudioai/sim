@@ -71,3 +71,8 @@ export function useMothershipResources(): MothershipResourcesContextValue {
   }
   return value
 }
+
+/** Workflow Copilot and shared transcripts do not host a resource panel. */
+export function useOptionalMothershipResources() {
+  return useContext(MothershipResourcesContext)
+}

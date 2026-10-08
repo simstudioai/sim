@@ -1,5 +1,7 @@
 export const mcpKeys = {
   all: ['mcp'] as const,
+  presentations: () => [...mcpKeys.all, 'presentation'] as const,
+  presentation: (chatId: string, id: string) => [...mcpKeys.presentations(), chatId, id] as const,
   servers: () => [...mcpKeys.all, 'servers'] as const,
   serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
   managedCatalog: () => [...mcpKeys.all, 'managedCatalog'] as const,

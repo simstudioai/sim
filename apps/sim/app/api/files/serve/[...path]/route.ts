@@ -278,7 +278,8 @@ export const GET = withRouteHandler(
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
       /** Chat images are served only through the current private-chat owner boundary. */
-      if (cloudKey.startsWith('chat-images/')) throw new FileNotFoundError('File not found')
+      if (cloudKey.startsWith('chat-images/') || cloudKey.startsWith('chat-mcp/'))
+        throw new FileNotFoundError('File not found')
 
       if (cloudKey.startsWith('assistant/')) {
         const principal = await internalSessionAuth.authenticate()

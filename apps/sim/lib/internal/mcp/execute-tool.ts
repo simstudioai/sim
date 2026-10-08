@@ -11,6 +11,7 @@ import {
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { ManagedMcpCredentialError } from '@/lib/credentials/managed-mcp'
+import { presentMcpToolResult } from '@/lib/internal/mcp/presentation'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import {
   classifyInternalToolIdentityFault,
@@ -211,6 +212,10 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       callChain: request.context.callChain,
       timeoutMs,
       signal: request.signal,
+      includePresentation:
+        !!request.context.copilotToolExecution &&
+        !!request.context.chatId &&
+        !request.context.mcpBlockId,
     }
     let result: ExecuteMcpToolResult
     if (target.kind === 'shared_server') {
@@ -230,12 +235,28 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       result = await executeManagedMcpToolUseCase.execute({ principal, input })
     }
     request.signal?.throwIfAborted()
+    if (result.presentation) {
+      const registry = request.context.resolvedSecretTraceRegistry
+      if (provenance && registry) {
+        const imported = await registry.importCrossingProvenance(
+          provenance.exportProvenance(),
+          result.presentation,
+          { trusted: true, origin: `tool.${request.toolId}` }
+        )
+        if (!imported) throw new Error('MCP presentation provenance could not be verified')
+      }
+      result = await presentMcpToolResult(request.context, targetId, result, request.signal)
+    }
     const body =
       request.toolId === 'mcp_run_operation'
         ? result
         : result.success
           ? { success: true, data: { success: true, output: result.output } }
-          : { success: false, error: result.error }
+          : {
+              success: false,
+              error: result.error,
+              ...(result.output ? { output: result.output } : {}),
+            }
     return createResponse(
       body,
       result.success ? 200 : 400,

@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { QueryKey } from '@tanstack/react-query'
 import type { ResourceAddress } from '@/lib/mothership/generated/resources'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import {
   blockDisplayName,
   cliFirstPositional,
@@ -23,7 +24,7 @@ import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 export interface ToolResourceContext {
   workspaceId?: string
-  resources?: readonly ResourceAddress[]
+  resources?: readonly MothershipResource[]
 }
 
 type NamedResource = ResourceAddress['type'] | 'skill' | 'customtool' | 'mcpserver' | 'workspace'

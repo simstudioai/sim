@@ -27,12 +27,12 @@ describe('MCP server operation registry', () => {
     })
   })
 
-  it('admits executor and Copilot delegations for tool execution', () => {
+  it('admits App sessions and executor or Copilot delegations for tool execution', () => {
     expect(mcpServerOperations.executeTool).toMatchObject({
       id: 'mcp_servers.tools.execute',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
+      principalKinds: ['session', 'delegated'],
       delegatedServices: ['executor', 'copilot'],
     })
   })
@@ -136,6 +136,7 @@ const EXPECTED_CAPABILITIES: Record<keyof typeof mcpServerOperations, string> = 
   delete: 'mcp_tools.use',
   discoverTools: 'mcp_tools.use',
   executeTool: 'mcp_tools.use',
+  readResource: 'mcp_tools.use',
   listManagedConnections: 'mcp_tools.use',
   listWorkflowDeployments: 'deploy.mcp',
   readWorkflowDeploymentServer: 'deploy.mcp',
@@ -157,7 +158,6 @@ describe('MCP operation capability declarations', () => {
   })
 })
 
-/** `tools.execute` admits only the executor delegation, so a session cannot stand in for it. */
 function sessionReachable(capability: string) {
   return Object.values(mcpServerOperations).filter(
     (operation) =>

@@ -3328,7 +3328,7 @@ async function executeMcpTool(
         logger.error(`[${actualRequestId}] Request body too large for mcp:${toolId} (HTTP 413)`)
         return {
           success: false,
-          output: {},
+          output: result.output ?? {},
           error: BODY_SIZE_LIMIT_ERROR_MESSAGE,
           timing: {
             startTime: actualStartTime,
@@ -3343,7 +3343,7 @@ async function executeMcpTool(
 
       return {
         success: false,
-        output: {},
+        output: result.output ?? {},
         error: errorMessage,
         timing: {
           startTime: actualStartTime,
@@ -3356,7 +3356,7 @@ async function executeMcpTool(
     if (!result.success) {
       return {
         success: false,
-        output: {},
+        output: result.output ?? {},
         error: result.error || 'MCP tool execution failed',
         timing: {
           startTime: actualStartTime,

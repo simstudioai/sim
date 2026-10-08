@@ -21,6 +21,7 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { McpResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/mcp-resource-content'
 import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/search-resource-content'
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
@@ -287,6 +288,7 @@ export const MothershipView = memo(
                   those down while hidden.
                 */}
                   <ScopedResourceContent
+                    chatId={chatId}
                     workspaceId={resource.workspaceId ?? workspaceId}
                     organizationId={organizationId}
                     desktopScopeId={desktopScopeId}
@@ -303,6 +305,7 @@ export const MothershipView = memo(
             )}
             {active && active.type !== 'sources' && !isPersistentPanel(active) && (
               <ScopedResourceContent
+                chatId={chatId}
                 workspaceId={activeWorkspaceId}
                 organizationId={organizationId}
                 desktopScopeId={desktopScopeId}
@@ -332,15 +335,19 @@ export const MothershipView = memo(
 )
 
 function ScopedResourceContent({
+  chatId,
   workspaceId,
   organizationId,
   onSummarize,
   ...props
 }: Omit<ComponentProps<typeof ResourceContent>, 'workspaceId'> & {
+  chatId?: string | null
   workspaceId?: string
   organizationId?: string
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
 }) {
+  if (props.resource.type === 'mcp')
+    return <McpResourceContent resource={props.resource} chatId={chatId} />
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
   if (!workspaceId) {

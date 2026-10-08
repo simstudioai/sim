@@ -498,7 +498,7 @@ class McpService {
     scope: ResourceScope,
     auth: McpOauthCredentials,
     signal: AbortSignal
-  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'disconnect'>> {
+  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'readResource' | 'disconnect'>> {
     const config = await this.getServerConfig(serverId, scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.createManagedOauthClient(config, auth, signal)
@@ -551,6 +551,61 @@ class McpService {
           signal: params.signal,
           timeoutMs: params.timeoutMs,
         })
+    )
+  }
+
+  async readResource(params: {
+    serverId: string
+    workspaceId: string
+    userId: string
+    uri: string
+    includeListingMetadata?: boolean
+    managed?: {
+      connectionId: string
+      scope: ResourceScope
+      loadAuthProvider: () => Promise<OAuthClientProvider>
+    }
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    signal?: AbortSignal
+  }) {
+    const managed = params.managed
+    const config = await this.getServerConfig(params.serverId, managed?.scope ?? params.workspaceId)
+    if (!config) throw new Error('MCP server is unavailable')
+    return this.withServerClient(
+      {
+        key: this.poolKey(params.serverId, params.workspaceId, params.userId),
+        serverId: params.serverId,
+        allowPool: !params.managed,
+      },
+      managed
+        ? () =>
+            this.createManagedOauthClient(
+              config,
+              { credentialId: managed.connectionId, loadProvider: managed.loadAuthProvider },
+              params.signal
+            )
+        : this.buildClient(
+            config,
+            params.userId,
+            params.workspaceId,
+            undefined,
+            params.onResolvedSecretTraceProvenance,
+            params.signal
+          ),
+      (client) => {
+        if (!managed)
+          reportRetainedClientProvenance(
+            client.getResolvedSecretTraceProvenance?.(),
+            params.userId,
+            params.workspaceId,
+            params.onResolvedSecretTraceProvenance
+          )
+        return client.readResource(params.uri, {
+          signal: params.signal,
+          timeoutMs: 30_000,
+          includeListingMetadata: params.includeListingMetadata,
+        })
+      }
     )
   }
 

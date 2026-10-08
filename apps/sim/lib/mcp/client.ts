@@ -2,14 +2,18 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
+  ErrorCode,
   LATEST_PROTOCOL_VERSION,
   type ListToolsResult,
+  type ReadResourceResult,
+  McpError as SdkMcpError,
   SUPPORTED_PROTOCOL_VERSIONS,
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
@@ -154,7 +158,11 @@ export class McpClient {
         version: '1.0.0',
       },
       {
-        capabilities: {},
+        capabilities: {
+          extensions: {
+            'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] },
+          },
+        },
       }
     )
 
@@ -379,8 +387,7 @@ export class McpClient {
             break
           }
           tools.push({
-            name: tool.name,
-            description: tool.description,
+            ...tool,
             inputSchema: tool.inputSchema as McpTool['inputSchema'],
             serverId: this.config.id,
             serverName: this.config.name,
@@ -490,6 +497,57 @@ export class McpClient {
       logger.error(`Failed to call tool ${toolCall.name} on server ${this.config.name}:`, error)
       throw error
     }
+  }
+
+  async readResource(
+    uri: string,
+    options: McpToolCallOptions & { includeListingMetadata?: boolean } = {}
+  ): Promise<ReadResourceResult> {
+    if (!this.isConnected) throw new McpConnectionError('Not connected to server', this.config.name)
+    const consent = await this.requestConsent({
+      type: 'resource_access',
+      context: { serverId: this.config.id, serverName: this.config.name, action: uri },
+      expires: Date.now() + 5 * 60 * 1000,
+    })
+    if (!consent.granted) throw new McpError('User consent denied for resource access', -32000)
+    const timeout = options.timeoutMs ?? getMaxExecutionTimeout()
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(timeout),
+      ...(options.signal ? [options.signal] : []),
+    ])
+    const requestOptions = { signal, timeout }
+    const result = await this.client.readResource({ uri }, requestOptions)
+    if (!options.includeListingMetadata) return result
+    const content = result.contents.find((item) => item.uri === uri)
+    const readUi = content?._meta?.ui
+    if (!content || (isPlainRecord(readUi) && readUi.csp !== undefined)) return result
+    let cursor: string | undefined
+    const seen = new Set<string>()
+    for (let page = 0; page < 20; page++) {
+      options.signal?.throwIfAborted()
+      let listing
+      try {
+        listing = await this.client.listResources({ cursor }, requestOptions)
+      } catch (error) {
+        if (error instanceof SdkMcpError && error.code === ErrorCode.MethodNotFound) return result
+        throw error
+      }
+      const resource = listing.resources.find((item) => item.uri === uri)
+      if (resource) {
+        const listedUi = resource._meta?.ui
+        if (isPlainRecord(listedUi))
+          content._meta = {
+            ...resource._meta,
+            ...content._meta,
+            ui: { ...listedUi, ...(isPlainRecord(readUi) ? readUi : {}) },
+          }
+        return result
+      }
+      cursor = listing.nextCursor
+      if (!cursor || seen.has(cursor)) return result
+      seen.add(cursor)
+    }
+    throw new McpError('MCP resource discovery exceeds the page limit', -32000)
   }
 
   async ping(timeoutMs?: number): Promise<{ _meta?: Record<string, any> }> {

@@ -19,7 +19,7 @@ const DISCOVERY_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 const EXECUTION_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
+  principalKinds: ['session', 'delegated'],
   delegatedServices: ['executor', 'copilot'],
 } as const
 
@@ -67,6 +67,13 @@ export const mcpServerOperations = {
     workspaceApiKey: 'deny',
     capability: 'mcp_tools.use',
     ...EXECUTION_PRINCIPAL_POLICY,
+  }),
+  readResource: defineWorkspaceOperation({
+    id: 'mcp_servers.resources.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
+    principalKinds: ['session'],
   }),
   /**
    * Publishing a workflow as an MCP server was reachable only through Copilot,

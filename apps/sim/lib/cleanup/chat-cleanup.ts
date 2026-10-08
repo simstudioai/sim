@@ -5,6 +5,7 @@ import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
+import { mcpPresentationCleanupKeys } from '@/lib/mcp/presentation-lifecycle'
 import {
   inlineChatImageKey,
   inlineChatImageReferences,
@@ -134,7 +135,10 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
     for (const row of messageRows) {
       const msg = row.content
       if (!msg || typeof msg !== 'object') continue
-      for (const key of inlineChatImageKeys(row.chatId, msg as Record<string, unknown>)) {
+      for (const key of [
+        ...inlineChatImageKeys(row.chatId, msg as Record<string, unknown>),
+        ...mcpPresentationCleanupKeys(row.chatId, msg),
+      ]) {
         if (!seen.has(key)) {
           seen.add(key)
           files.push({ key, context: 'mothership', chatId: row.chatId })

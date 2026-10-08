@@ -71,6 +71,7 @@ describe('client and server agree on what can be persisted', () => {
         id: 'r1',
         title: 'Thing',
         ...(type === 'sources' ? { sources: { messageId: 'message-1' } } : {}),
+        ...(type === 'mcp' ? { mcp: { presentationId: 'a'.repeat(64), index: 0 } } : {}),
         ...(type === 'search'
           ? { search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } } }
           : {}),

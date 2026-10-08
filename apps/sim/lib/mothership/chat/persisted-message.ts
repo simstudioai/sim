@@ -5,6 +5,7 @@ import type {
   PersistedToolCall,
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
+import { compactMcpPresentation } from '@/lib/mcp/presentation'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
@@ -147,6 +148,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const result = toolCall?.result
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
+    const mcpReceipt = compactMcpPresentation(output)
     const citations = result.success ? compactRetrievalCitations(toolCall.name, output) : undefined
     const taskId =
       result.success && toolCall.name === 'watch' && isPlainRecord(output)
@@ -174,6 +176,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const strippedResult: { success: boolean; output?: unknown; error?: string } = {
       success: result.success,
       ...(citations ? { output: citations } : {}),
+      ...(mcpReceipt ? { output: mcpReceipt } : {}),
       ...(watchReceipt ? { output: watchReceipt } : {}),
       ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
     }

@@ -22,6 +22,11 @@ import {
   loadMcpOperationAccess,
   requireMcpOperationAccess,
 } from '@/lib/mcp/application/operation-access'
+import {
+  isMcpToolVisible,
+  matchesMcpAppOrigin,
+  snapshotMcpTool,
+} from '@/lib/mcp/presentation-metadata'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolSchema } from '@/lib/mcp/types'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
@@ -35,6 +40,8 @@ export interface ExecuteManagedMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
+  includePresentation?: boolean
+  appOrigin?: { toolName: string; resourceUri: string }
 }
 
 function requireToolSchema(value: unknown): McpToolSchema {
@@ -100,25 +107,24 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     )
     await saveManagedMcpToolSnapshot(
       runtime.credentialId,
-      tools.map((tool) => ({
-        name: tool.name,
-        ...(tool.description ? { description: tool.description } : {}),
-        inputSchema: tool.inputSchema,
-      })),
+      tools.map(snapshotMcpTool),
       runtime.oauthConfigVersion,
       runtime.grantedAt
     )
     const discovered = tools.find((tool) => tool.name === input.toolName)
+    if (principal.kind === 'session' && !matchesMcpAppOrigin(tools, input.appOrigin))
+      throw new OrchestrationError('forbidden', 'The originating MCP App is no longer available')
     if (!discovered) {
       throw new OrchestrationError('not_found', 'Tool not found on the managed MCP connection')
     }
     const tool: McpTool = {
-      name: discovered.name,
-      ...(discovered.description ? { description: discovered.description } : {}),
+      ...discovered,
       inputSchema: requireToolSchema(discovered.inputSchema),
       serverId: runtime.credentialId,
       serverName: runtime.mcpServerName,
     }
+    if (!isMcpToolVisible(tool, principal.kind === 'session' ? 'app' : 'model'))
+      throw new OrchestrationError('forbidden', 'MCP operation is unavailable to this caller')
     const args =
       allowed.argumentsMode === 'generated'
         ? coerceToolArguments(tool, { ...input.arguments })
@@ -164,7 +170,10 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       loadAuthProvider: () => loadManagedMcpAuthProvider(context.credentialId, context.workspaceId),
     })
     input.signal?.throwIfAborted()
-    return transformToolResult(providerResult)
+    const result = transformToolResult(providerResult)
+    if (input.includePresentation)
+      result.presentation = { tool, result: providerResult, arguments: args }
+    return result
   },
   projectAudit: ({ input, context }) => ({
     action: AuditAction.CREDENTIAL_ACCESSED,
