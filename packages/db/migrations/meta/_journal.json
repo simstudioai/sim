@@ -2812,8 +2812,15 @@
     {
       "idx": 402,
       "version": "7",
-      "when": 1791487459600,
-      "tag": "0402_project_membership_enforcement",
+      "when": 1791496539437,
+      "tag": "0402_table_row_change_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 403,
+      "version": "7",
+      "when": 1791496539438,
+      "tag": "0403_project_membership_enforcement",
       "breakpoints": true
     }
   ]
