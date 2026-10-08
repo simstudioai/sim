@@ -221,7 +221,9 @@ export function createInMemoryStripe() {
       const target = next.items.data.find((existing) => existing.id === item.id)
       if (!target) throw new Error(`No such subscription item: '${item.id}'`)
       if (item.quantity !== undefined) target.quantity = item.quantity
-      if (item.price !== undefined) target.price = { ...target.price, id: item.price }
+      if (item.price !== undefined && item.price !== target.price.id) {
+        target.price = { ...target.price, id: item.price, unit_amount: null }
+      }
     }
     if (JSON.stringify(next.items) !== JSON.stringify(current.items)) {
       previousAttributes.items = current.items
