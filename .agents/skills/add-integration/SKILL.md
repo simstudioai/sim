@@ -352,6 +352,9 @@ the OAuth service configuration, deployment availability, and the setup CLI.
 1. Set `authMode: AuthMode.OAuth` for integrations using browser OAuth or customer-owned OAuth
    client credentials. Token-only service accounts can retain `AuthMode.ApiKey` with the shared
    picker, as Coda does; `oauth-input` alone does not determine the authentication protocol.
+   Register a new token-only service ID and block type in `tokenCredentialIntegrationTypes` in
+   `packages/deployment-config/src/integration-availability.ts` so availability and integration
+   policy recognize the saved credential path.
    For OAuth integrations, this value lets the catalog discover the connection flow instead of
    routing "Add to Sim" to chat. Ensure the block has exactly one distinct OAuth `serviceId`
    matching the canonical service in `apps/sim/lib/oauth/oauth.ts`. The canonical service's
