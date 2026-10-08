@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
 import { user, workflow, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
@@ -60,7 +61,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values([
+    await insertWorkspaceFixture(db, [
       { id: workspaceId, name: 'Import target', ownerId: userId, billedAccountUserId: userId },
       {
         id: archivedWorkspaceId,
@@ -78,7 +79,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       resolve('test-results/create-workflow-with-state.json')
     await mkdir(dirname(reportPath), { recursive: true })
     await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-    await db.delete(workspace).where(eq(workspace.ownerId, userId))
+    await deleteWorkspaceFixture(db, eq(workspace.ownerId, userId))
     await db.delete(user).where(eq(user.id, userId))
   })
 
