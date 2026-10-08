@@ -29,6 +29,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -1925,32 +1926,38 @@ async function executeToolImplementation(
             const { resolveExecutorCredentialToken } = await import(
               '@/executor/utils/credential-token'
             )
-            data = await resolveExecutorCredentialToken({
-              requestId,
-              credentialId,
-              userId,
-              workflowId,
-              toolId,
-              toolLabel,
-              scopes: providerScopes,
-              impersonateEmail,
-              enforceCredentialAccess,
-              executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-              ...(operationContext?.copilotToolExecution
-                ? { copilotExecutionContext: operationContext }
-                : {}),
-            })
+            data = await waitWithAbort(
+              resolveExecutorCredentialToken({
+                requestId,
+                credentialId,
+                userId,
+                workflowId,
+                toolId,
+                toolLabel,
+                scopes: providerScopes,
+                impersonateEmail,
+                enforceCredentialAccess,
+                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+                ...(operationContext?.copilotToolExecution
+                  ? { copilotExecutionContext: operationContext }
+                  : {}),
+              }),
+              signal
+            )
           } else {
-            data = await fetchCredentialTokenFromRoute({
-              requestId,
-              toolId,
-              toolLabel,
-              credentialId,
-              workflowId,
-              impersonateEmail,
-              scopes: providerScopes,
-              callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-            })
+            data = await waitWithAbort(
+              fetchCredentialTokenFromRoute({
+                requestId,
+                toolId,
+                toolLabel,
+                credentialId,
+                workflowId,
+                impersonateEmail,
+                scopes: providerScopes,
+                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
+              }),
+              signal
+            )
           }
 
           signal?.throwIfAborted()

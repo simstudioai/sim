@@ -349,12 +349,14 @@ service account must remain available without those fields.
 The block's `oauth-input.serviceId` is the canonical link between the generated integration catalog,
 the OAuth service configuration, deployment availability, and the setup CLI.
 
-1. Set `authMode: AuthMode.OAuth` for the shared saved-credential picker, including OAuth client
-   credentials entered by the user. The catalog uses this value to discover the connection flow;
-   `AuthMode.ApiKey` would route "Add to Sim" to chat instead of the credential form. Ensure the
-   block has exactly one distinct OAuth `serviceId` and that it matches the canonical service
-   entry in `apps/sim/lib/oauth/oauth.ts`. The canonical service's `authType` determines whether
-   setup uses browser OAuth or the service-account modal.
+1. Set `authMode: AuthMode.OAuth` for integrations using browser OAuth or customer-owned OAuth
+   client credentials. Token-only service accounts can retain `AuthMode.ApiKey` with the shared
+   picker, as Coda does; `oauth-input` alone does not determine the authentication protocol.
+   For OAuth integrations, this value lets the catalog discover the connection flow instead of
+   routing "Add to Sim" to chat. Ensure the block has exactly one distinct OAuth `serviceId`
+   matching the canonical service in `apps/sim/lib/oauth/oauth.ts`. The canonical service's
+   `authType` selects browser OAuth or the service-account modal. Verify the resulting catalog
+   and block connection actions for the chosen authentication method.
 2. For browser OAuth, confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
    `OAUTH_CLIENT_CAPABILITIES` in `packages/deployment-config/src/env-capabilities.ts`. Google and
    Microsoft service IDs deliberately share provider-level capabilities.

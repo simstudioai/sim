@@ -8,6 +8,7 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import {
   isClientCredentialAccountProviderId,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -685,27 +686,7 @@ async function resolveClientCredentialAccountToken(
       throw error
     }
   })
-  if (!signal) return resolution
-
-  // Caller cancellation must not terminate a mint shared by other workflows.
-  return new Promise<ServiceAccountTokenResult>((resolve, reject) => {
-    const onAbort = () => {
-      signal.removeEventListener('abort', onAbort)
-      reject(signal.reason)
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    resolution.then(
-      (result) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(result)
-      },
-      (error) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      }
-    )
-    if (signal.aborted) onAbort()
-  })
+  return waitWithAbort(resolution, signal)
 }
 
 interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {

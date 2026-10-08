@@ -36,6 +36,7 @@ import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
  */
 
 import {
+  createDeferred,
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
@@ -7452,6 +7453,63 @@ describe('Vanta saved credential rejection recovery', () => {
     expect(result.success).toBe(false)
     expect(tokens).toEqual(['Bearer old-token'])
   })
+
+  it.each([
+    { label: 'initial resolution cancellation', retry: false, timeout: false },
+    { label: 'retry resolution cancellation', retry: true, timeout: false },
+    { label: 'retry resolution timeout', retry: true, timeout: true },
+  ])(
+    'settles $label while the authorized resolver is still pending',
+    async ({ retry, timeout }) => {
+      vi.useFakeTimers()
+      const controller = new AbortController()
+      const entered = createDeferred<void>()
+      const released = createDeferred<void>()
+      const tokens: Array<string | null> = []
+      let settled: ToolResponse | undefined
+      mockResolveExecutorCredentialToken.mockImplementation(async () => {
+        resolutions++
+        if (!retry || resolutions > 1) {
+          entered.resolve()
+          await released.promise
+        }
+        return {
+          credentialType: 'service_account',
+          accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+          apiDomain,
+        }
+      })
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        tokens.push(new Headers(init?.headers).get('authorization'))
+        return Response.json({ error: 'Token expired' }, { status: 401 })
+      })
+      const execution = executeTool(
+        'vanta_list_frameworks',
+        { oauthCredential: credentialId, timeout: 100 },
+        { executionContext: context(), signal: controller.signal }
+      ).then((result) => {
+        settled = result
+        return result
+      })
+      try {
+        await entered.promise
+        if (timeout) await vi.advanceTimersByTimeAsync(100)
+        else controller.abort(new Error('Caller cancelled credential wait'))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/cancel|abort|timed? ?out/i),
+        })
+        expect(tokens).toEqual(retry ? ['Bearer old-token'] : [])
+      } finally {
+        released.resolve()
+        await execution
+        await vi.advanceTimersByTimeAsync(0)
+        vi.useRealTimers()
+      }
+      expect(tokens).toEqual(retry ? ['Bearer old-token'] : [])
+    }
+  )
 
   it('keeps the original operation deadline across the retried provider request', async () => {
     vi.useFakeTimers()
