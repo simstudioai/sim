@@ -1,12 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
-import { captureClientEvent } from '@/lib/posthog/client'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 export function LandingAnalytics() {
-  useEffect(() => {
-    captureClientEvent('landing_page_viewed', {})
-  }, [])
-
+  useCaptureWhenReady('landing_page_viewed', {})
   return null
 }
