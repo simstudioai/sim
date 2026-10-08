@@ -154,8 +154,6 @@ export function parseBufferInput(
     if (!Object.hasOwn(schema.fields, field))
       throw new Error(`Unknown Buffer input ${path}.${field}`)
   }
-  if (schema.oneOf && Object.values(parsed).filter((entry) => entry != null).length !== 1)
-    throw new Error(`${path} requires exactly one field`)
   if (type === 'AssetInput' && Object.values(parsed).filter((entry) => entry != null).length !== 1)
     throw new Error(`${path} requires exactly one of image, video or document`)
   const result: Record<string, unknown> = {}
@@ -165,6 +163,8 @@ export function parseBufferInput(
       continue
     result[field] = parseValue(wireType, candidate, `${path}.${field}`)
   }
+  if (schema.oneOf && (Object.keys(result).length !== 1 || Object.values(result)[0] == null))
+    throw new Error(`${path} requires exactly one field`)
   return result
 }
 
@@ -182,7 +182,7 @@ export function bufferInputDescription(type: string, description: string): strin
         ([field, wireType]) =>
           `  ${field}: ${wireType}${schema.defaults?.includes(field) ? ' # Provider default when omitted' : ''}`
       )
-      if (schema.oneOf) fields.unshift('  # Choose exactly one field')
+      if (schema.oneOf) fields.unshift('  # Choose exactly one non-null field')
       definitions.push(`input ${name} {\n${fields.join('\n')}\n}`)
       for (const wireType of Object.values(schema.fields)) collect(baseType(wireType))
     } else if (schema.values) {

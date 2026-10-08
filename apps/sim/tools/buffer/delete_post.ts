@@ -61,11 +61,14 @@ export const bufferDeletePostTool: ToolConfig<BufferDeletePostParams, BufferDele
     if (result?.__typename !== 'DeletePostSuccess') {
       throw new Error(typeof result.message === 'string' ? result.message : 'Failed to delete post')
     }
+    if (typeof result.id !== 'string' || !result.id) {
+      throw new Error('Buffer returned an invalid deleted post ID')
+    }
     return {
       success: true,
       output: {
         deleted: true,
-        id: String(result.id),
+        id: result.id,
       },
     }
   },
