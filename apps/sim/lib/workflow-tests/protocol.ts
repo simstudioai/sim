@@ -23,7 +23,11 @@ const testTargetSchema = z.discriminatedUnion('kind', [
     workflow: nameSchema.nullable(),
     /** The calling Agent block; null answers the tool for every Agent. */
     block: nameSchema.nullable(),
+    /** A built-in tool id, an MCP tool's name when `mcpServer` is set, or a custom tool's title. */
     tool: nameSchema,
+    /** The MCP server, by name, so a test survives the server being re-added or forked. */
+    mcpServer: nameSchema.nullable(),
+    customTool: z.boolean(),
   }),
 ])
 export type TestTarget = z.infer<typeof testTargetSchema>

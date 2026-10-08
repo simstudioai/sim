@@ -202,12 +202,15 @@ const HARNESS = `
   const vi = { fn: vx.fn, spyOn: vx.spyOn, isMockFunction: vx.isMockFunction };
 
   const registrations = new Map();
-  const registrationKey = (kind, workflow, block, tool) => kind + '\\u0000' + (workflow ?? '') + '\\u0000' + (block ?? '') + '\\u0000' + (tool ?? '');
+  const registrationKey = (kind, workflow, block, tool, mcpServer, customTool) => kind + '\\u0000' + (workflow ?? '') + '\\u0000' + (block ?? '') + '\\u0000' + (mcpServer ?? '') + '\\u0000' + (customTool ? 'custom' : '') + '\\u0000' + (tool ?? '');
+  const describeTool = (r) => r.mcpServer !== null
+    ? '{ mcp: "' + r.mcpServer + '", tool: "' + r.tool + '" }'
+    : r.customTool ? '{ customTool: "' + r.tool + '" }' : '"' + r.tool + '"';
   const describeRegistration = (r) => r.kind === 'tool'
-    ? 'mockTool("' + (r.block ? r.block + '", "' : '') + r.tool + '")'
+    ? 'mockTool(' + (r.block ? '"' + r.block + '", ' : '') + describeTool(r) + ')'
     : (r.kind === 'mock' ? 'mockBlock' : 'spyOnBlock') + '("' + (r.workflow ? r.workflow + '", "' : '') + r.block + '")';
   function addRegistration(entry) {
-    const key = registrationKey(entry.kind, entry.workflow, entry.block, entry.tool);
+    const key = registrationKey(entry.kind, entry.workflow, entry.block, entry.tool, entry.mcpServer, entry.customTool);
     const existing = registrations.get(key);
     if (existing) return existing.fn;
     const fn = vx.fn().mockName(entry.label);
@@ -230,16 +233,38 @@ const HARNESS = `
     const what = kind === 'mock' ? 'mockBlock()' : 'spyOnBlock()';
     requireName(what, block);
     if (workflow !== null) requireName(what + ' workflow', workflow);
-    return addRegistration({ kind, workflow, block, tool: null, label: workflow ? workflow + ' / ' + block : block });
+    return addRegistration({ kind, workflow, block, tool: null, mcpServer: null, customTool: false, label: workflow ? workflow + ' / ' + block : block });
   }
   const mockBlock = (first, second) => register('mock', first, second);
   const spyOnBlock = (first, second) => register('spy', first, second);
   const mockTool = (first, second) => {
     const block = second === undefined ? null : first;
-    const tool = second === undefined ? first : second;
-    requireName('mockTool()', tool);
+    const target = second === undefined ? first : second;
     if (block !== null) requireName('mockTool() Agent block', block);
-    return addRegistration({ kind: 'tool', workflow: null, block, tool, label: block ? block + ' / ' + tool : tool });
+    const objectForms = 'an MCP tool as { mcp: "Server name", tool: "tool_name" } or a custom tool as { customTool: "Title" }';
+    let tool = target;
+    let mcpServer = null;
+    let customTool = false;
+    if (target !== null && typeof target === 'object') {
+      const keys = Object.keys(target).sort().join(',');
+      if (keys === 'mcp,tool') {
+        requireName('mockTool() MCP server', target.mcp);
+        requireName('mockTool() MCP tool', target.tool);
+        mcpServer = target.mcp;
+        tool = target.tool;
+      } else if (keys === 'customTool') {
+        requireName('mockTool() custom tool', target.customTool);
+        customTool = true;
+        tool = target.customTool;
+      } else {
+        throw new Error('mockTool() takes a built-in tool id, ' + objectForms);
+      }
+    } else {
+      requireName('mockTool()', tool);
+      if (tool.startsWith('mcp-') || tool.startsWith('custom_')) throw new Error('mockTool("' + tool + '"): name ' + objectForms);
+    }
+    const name = mcpServer !== null ? mcpServer + ' / ' + tool : tool;
+    return addRegistration({ kind: 'tool', workflow: null, block, tool, mcpServer, customTool, label: block ? block + ' / ' + name : name });
   };
 
   /** Overrides on a generated sample: objects merge, anything else replaces, and an unknown field is a mistake. */
@@ -302,7 +327,7 @@ const HARNESS = `
     }
     const trigger = options ? options.trigger : null;
     const targets = [...registrations.values()].map((r) => r.kind === 'tool'
-      ? { key: r.key, kind: 'tool', workflow: null, block: r.block, tool: r.tool }
+      ? { key: r.key, kind: 'tool', workflow: null, block: r.block, tool: r.tool, mcpServer: r.mcpServer, customTool: r.customTool }
       : { key: r.key, kind: r.kind, workflow: r.workflow, block: r.block });
     const test = currentTest;
     const mistakes = [];

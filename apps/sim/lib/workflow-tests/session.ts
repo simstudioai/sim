@@ -5,6 +5,8 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { listWorkspaceMcpServers } from '@/lib/mcp/queries'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { type JudgeVerdict, judgeRubric } from '@/lib/workflow-tests/judge'
 import {
   createMockChannel,
@@ -26,7 +28,7 @@ import {
 import { getActiveWorkflowName, listActiveWorkflowsNamed } from '@/lib/workflows/queries'
 import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { resolveTriggerRunOptions } from '@/lib/workflows/triggers/run-options'
-import { normalizeName } from '@/executor/constants'
+import { AGENT, normalizeName } from '@/executor/constants'
 import type { TestWorkflowBlock } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
@@ -130,10 +132,63 @@ function chooseTrigger(
   return undefined
 }
 
-/** Tools test files may name: catalog tools, and MCP and custom tools by their prefixed ids. */
+const TOOL_OBJECT_FORMS =
+  'an MCP tool as { mcp: "Server name", tool: "tool_name" } or a custom tool as { customTool: "Title" }'
+
+/** Tools test files may name by id: built-in catalog tools only. */
 function assertKnownTool(toolId: string): void {
-  if (hasToolId(toolId) || toolId.startsWith('mcp-') || toolId.startsWith('custom_')) return
-  throw new OrchestrationError('validation', `mockTool("${toolId}"): there is no tool with that id`)
+  if (toolId.startsWith('mcp-') || toolId.startsWith(AGENT.CUSTOM_TOOL_PREFIX)) {
+    throw new OrchestrationError('validation', `mockTool("${toolId}"): name ${TOOL_OBJECT_FORMS}`)
+  }
+  if (!hasToolId(toolId)) {
+    throw new OrchestrationError(
+      'validation',
+      `mockTool("${toolId}"): there is no tool with that id`
+    )
+  }
+}
+
+/** Rewrites each tool target to the id the executor calls, finding MCP servers by name. */
+async function resolveToolTargets(
+  workspaceId: string,
+  targets: TestTarget[]
+): Promise<TestTarget[]> {
+  const needsServers = targets.some((target) => target.kind === 'tool' && target.mcpServer !== null)
+  const servers = needsServers
+    ? (await listWorkspaceMcpServers({ workspaceId, sortBy: 'name', sortOrder: 'asc' })).data
+    : []
+  return targets.map((target) => {
+    if (target.kind !== 'tool') return target
+    if (target.customTool) {
+      return { ...target, tool: `${AGENT.CUSTOM_TOOL_PREFIX}${target.tool}`, customTool: false }
+    }
+    if (target.mcpServer === null) {
+      assertKnownTool(target.tool)
+      return target
+    }
+    const wanted = normalizeName(target.mcpServer)
+    const matches = servers.filter((server) => normalizeName(server.name) === wanted)
+    if (matches.length !== 1) {
+      throw new OrchestrationError(
+        'validation',
+        matches.length === 0
+          ? `mockTool({ mcp: "${target.mcpServer}" }): this workspace has no MCP server with that name. Its servers: ${servers.map((server) => server.name).join(', ') || 'none'}`
+          : `mockTool({ mcp: "${target.mcpServer}" }): ${matches.length} MCP servers share that name; rename one`
+      )
+    }
+    return { ...target, tool: createMcpToolId(matches[0].id, target.tool), mcpServer: null }
+  })
+}
+
+/** Custom tool ids carry the title, which tests may write in any case or spacing. */
+function sameTool(mockToolId: string, toolId: string): boolean {
+  if (mockToolId === toolId) return true
+  const prefix = AGENT.CUSTOM_TOOL_PREFIX
+  return (
+    mockToolId.startsWith(prefix) &&
+    toolId.startsWith(prefix) &&
+    normalizeName(mockToolId.slice(prefix.length)) === normalizeName(toolId.slice(prefix.length))
+  )
 }
 
 /** Placeholder output shaped like a block's real one, for its configured operation. */
@@ -164,8 +219,8 @@ function childWorkflowId(id: unknown): string | undefined {
 /** The mock answering this Agent's call to a tool: one named for that Agent wins over a general one. */
 function toolMockFor(mocks: ToolMock[], blockId: string, toolId: string): ToolMock | undefined {
   return (
-    mocks.find((mock) => mock.toolId === toolId && mock.blockId === blockId) ??
-    mocks.find((mock) => mock.toolId === toolId && mock.blockId === null)
+    mocks.find((mock) => sameTool(mock.toolId, toolId) && mock.blockId === blockId) ??
+    mocks.find((mock) => sameTool(mock.toolId, toolId) && mock.blockId === null)
   )
 }
 
@@ -197,7 +252,6 @@ class RunMatcher implements MockMatcher {
     private readonly loadChildBlocks: (workflowId: string) => Promise<Record<string, BlockState>>,
     private readonly onEnter: (workflowId: string) => void
   ) {
-    for (const target of targets) if (target.kind === 'tool') assertKnownTool(target.tool)
     this.targets = [...targets].sort(
       (a, b) => Number(a.workflow === null) - Number(b.workflow === null)
     )
@@ -483,8 +537,9 @@ export class WorkflowTestSession {
     const workflowId = await resolveWorkflowId(workspaceId, args.workflow)
     const blocks = await loadWorkflowBlocks(workflowId, workspaceId, version)
     const triggerBlockId = chooseTrigger(args.workflow, blocks, args.trigger)
+    const targets = await resolveToolTargets(workspaceId, args.targets)
     if (this.closed) throw new Error('This workflow test run has ended')
-    const matcher = new RunMatcher(args.targets, loadChildBlockNames, (id) =>
+    const matcher = new RunMatcher(targets, loadChildBlockNames, (id) =>
       this.enteredWorkflowIds.add(id)
     )
     const channel = createMockChannel(matcher)
