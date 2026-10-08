@@ -119,13 +119,11 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
     },
     totalResultsCount: {
       type: 'number',
-      optional: true,
       nullable: true,
       description: 'Total matching rows ignoring LIMIT, when returned by Google',
     },
     nextPageToken: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Token for the next page; keep the same query and customer',
     },

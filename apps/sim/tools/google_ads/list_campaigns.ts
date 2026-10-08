@@ -96,7 +96,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
 
       query += ' ORDER BY campaign.name'
 
-      if (params.limit !== undefined) {
+      if (params.limit != null) {
         query += ` LIMIT ${validateLimit(params.limit)}`
       }
 
@@ -141,7 +141,6 @@ export const googleAdsListCampaignsTool: ToolConfig<
   outputs: {
     nextPageToken: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
     },
@@ -156,26 +155,22 @@ export const googleAdsListCampaignsTool: ToolConfig<
           status: { type: 'string', description: 'Campaign status (ENABLED, PAUSED, REMOVED)' },
           channelType: {
             type: 'string',
-            optional: true,
             nullable: true,
             description:
               'Advertising channel type (SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX)',
           },
           startDate: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Campaign start date (YYYY-MM-DD)',
           },
           endDate: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Campaign end date (YYYY-MM-DD)',
           },
           budgetAmountMicros: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Daily budget in micros (divide by 1,000,000 for currency value)',
           },

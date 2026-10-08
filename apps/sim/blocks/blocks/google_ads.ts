@@ -289,7 +289,7 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
           result.dateRange = dateRange
         }
 
-        if (limit !== undefined && limit !== '') {
+        if (limit != null && limit !== '') {
           result.limit = Number(limit)
         }
 

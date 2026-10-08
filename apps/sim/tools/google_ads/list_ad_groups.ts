@@ -101,7 +101,7 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       query += ` WHERE ${conditions.join(' AND ')}`
       query += ' ORDER BY ad_group.name'
 
-      if (params.limit !== undefined) {
+      if (params.limit != null) {
         query += ` LIMIT ${validateLimit(params.limit)}`
       }
 
@@ -145,7 +145,6 @@ export const googleAdsListAdGroupsTool: ToolConfig<
   outputs: {
     nextPageToken: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
     },
@@ -160,14 +159,12 @@ export const googleAdsListAdGroupsTool: ToolConfig<
           status: { type: 'string', description: 'Ad group status (ENABLED, PAUSED, REMOVED)' },
           type: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Ad group type (SEARCH_STANDARD, DISPLAY_STANDARD, SHOPPING_PRODUCT_ADS)',
           },
           campaignId: { type: 'string', description: 'Parent campaign ID' },
           campaignName: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Parent campaign name',
           },

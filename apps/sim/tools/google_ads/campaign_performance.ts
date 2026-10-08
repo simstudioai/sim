@@ -150,7 +150,6 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
   outputs: {
     nextPageToken: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
     },
@@ -171,19 +170,16 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
           },
           ctr: {
             type: 'number',
-            optional: true,
             nullable: true,
             description: 'Click-through rate (0.0 to 1.0)',
           },
           conversions: {
             type: 'number',
-            optional: true,
             nullable: true,
             description: 'Number of conversions',
           },
           date: {
             type: 'string',
-            optional: true,
             nullable: true,
             description: 'Date for this row (YYYY-MM-DD)',
           },

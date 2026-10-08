@@ -63,7 +63,7 @@ export function buildDateCondition(params: {
   endDate?: string
   dateRange?: string
 }): string {
-  if (params.startDate || params.endDate) {
+  if (params.startDate !== undefined || params.endDate !== undefined) {
     if (!params.startDate || !params.endDate)
       throw new Error('Custom dates require both startDate and endDate')
     const start = validateDate(params.startDate, 'startDate')
@@ -129,7 +129,7 @@ export interface GoogleAdsSearchParams extends GoogleAdsBaseParams {
 
 export interface GoogleAdsListCampaignsParams extends GoogleAdsBaseParams {
   status?: string
-  limit?: number
+  limit?: number | null
 }
 
 export interface GoogleAdsCampaignPerformanceParams extends GoogleAdsBaseParams {
@@ -142,7 +142,7 @@ export interface GoogleAdsCampaignPerformanceParams extends GoogleAdsBaseParams 
 export interface GoogleAdsListAdGroupsParams extends GoogleAdsBaseParams {
   campaignId: string
   status?: string
-  limit?: number
+  limit?: number | null
 }
 
 export interface GoogleAdsAdPerformanceParams extends GoogleAdsBaseParams {
@@ -151,7 +151,7 @@ export interface GoogleAdsAdPerformanceParams extends GoogleAdsBaseParams {
   dateRange?: string
   startDate?: string
   endDate?: string
-  limit?: number
+  limit?: number | null
 }
 
 export interface GoogleAdsListCustomersResponse extends ToolResponse {
