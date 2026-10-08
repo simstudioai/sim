@@ -43,6 +43,7 @@ import * as tracking from '@/lib/billing/storage/tracking'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as sandboxTask from '@/lib/execution/sandbox/run-task'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
+import { readProjectFileArtifact } from '@/lib/projects/files/application/artifacts'
 import {
   createProjectFile,
   readProjectFileContent,
@@ -53,6 +54,7 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
+import * as heic from '@/lib/uploads/server/heic'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -2280,6 +2282,66 @@ describe('Public file shares against PostgreSQL and private storage', () => {
 })
 
 describe('Project rendered artifacts against PostgreSQL and private storage', () => {
+  for (const failure of ['size rejection', 'revision change'] as const) {
+    check(
+      `a preview with ${failure} removes its derivative and preserves the original error`,
+      async () => {
+        const f = await fixture()
+        const sourceBytes = Buffer.alloc(16)
+        sourceBytes.writeUInt32BE(16, 0)
+        sourceBytes.write('ftypheic', 4, 'ascii')
+        const source = await createProjectFile.execute({
+          principal: f.principal,
+          input: {
+            ...createInput(f.projectId),
+            name: 'preview.heic',
+            contentType: 'image/heic',
+            content: sourceBytes.toString('base64'),
+            encoding: 'base64',
+          },
+        })
+        vi.spyOn(heic, 'transcodeHeicToJpeg').mockImplementation(async () => {
+          if (failure === 'revision change') {
+            await updateProjectFileContent.execute({
+              principal: f.principal,
+              input: {
+                projectId: f.projectId,
+                fileId: source.file.id,
+                content: 'replacement source',
+                encoding: 'utf-8',
+              },
+            })
+          }
+          return Buffer.alloc(128, 255)
+        })
+        const rendering = readProjectFileArtifact.execute({
+          principal: f.principal,
+          input: {
+            projectId: f.projectId,
+            fileId: source.file.id,
+            preview: true,
+            maxBytes: failure === 'size rejection' ? 64 : 1024,
+          },
+        })
+        await expect
+          .soft(rendering)
+          .rejects.toMatchObject(
+            failure === 'size rejection' ? { name: 'PayloadSizeLimitError' } : { code: 'conflict' }
+          )
+        expect
+          .soft(await readdir(join(localStorageRoot, 'project', f.projectId, 'image-derivative')))
+          .toEqual([])
+        const current = await readProjectFileContent.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: source.file.id },
+        })
+        expect(current.content).toEqual(
+          failure === 'size rejection' ? sourceBytes : Buffer.from('replacement source')
+        )
+      }
+    )
+  }
+
   for (const failure of ['revoked read', 'uncertain pointer upload'] as const) {
     check(`a render with ${failure} durably removes its newly published objects`, async () => {
       const { readProjectFileArtifact } = await import('@/lib/projects/files/application/artifacts')

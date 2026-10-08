@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { Readable } from 'node:stream'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
@@ -76,6 +77,26 @@ describe('file archive resource lifetime', () => {
     const result = presentWorkspaceFileArchive(plan())
     await expect(new Response(result.body).arrayBuffer()).rejects.toThrow('Storage unavailable')
     expect(source.destroyed).toBe(true)
+  })
+
+  it('closes a storage stream acquired after the client cancels', async () => {
+    const acquiring = createDeferred<void>()
+    const acquired = createDeferred<Readable>()
+    const source = new Readable({ read() {} })
+    storageServiceMockFns.mockDownloadFileStream.mockImplementationOnce(() => {
+      acquiring.resolve()
+      return acquired.promise
+    })
+    const reader = presentWorkspaceFileArchive(plan()).body.getReader()
+    try {
+      await acquiring.promise
+      await reader.cancel()
+      acquired.resolve(source)
+      await vi.waitFor(() => expect(source.destroyed).toBe(true))
+    } finally {
+      acquired.resolve(source)
+      source.destroy()
+    }
   })
 
   it('closes the active source when the client cancels', async () => {

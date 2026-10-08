@@ -84,7 +84,17 @@ interface ArtifactResult {
 
 async function discardArtifactWrites(owner: ProjectOwner, keys: readonly string[]) {
   if (keys.length === 0) return
-  if (keys.some((key) => !key.startsWith(`project/${owner.entityId}/compiled/`)))
+  const derivativePrefix = `project/${owner.entityId}/image-derivative/`
+  if (
+    keys.some(
+      (key) =>
+        !key.startsWith(`project/${owner.entityId}/compiled/`) &&
+        !(
+          key.startsWith(derivativePrefix) &&
+          /^[a-f0-9]{64}\.jpg$/.test(key.slice(derivativePrefix.length))
+        )
+    )
+  )
     throw new Error('Artifact cleanup does not belong to this Project')
   const events = await enqueueWorkspaceFileStorageCleanups(db, keys, 'project')
   await processWorkspaceFileStorageCleanupsNow(events, { owner, reason: 'artifact read failed' })

@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { Readable } from 'node:stream'
+import { addAbortSignal, Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -41,10 +41,13 @@ export function presentWorkspaceFileArchive({
         rendered ??
         Readable.from(
           (async function* () {
-            const source = await downloadFileStream({
-              key: file.key,
-              context: file.storageContext ?? 'workspace',
-            })
+            const source = addAbortSignal(
+              closed.signal,
+              await downloadFileStream({
+                key: file.key,
+                context: file.storageContext ?? 'workspace',
+              })
+            )
             try {
               yield* source
             } finally {
