@@ -22,7 +22,7 @@ flowchart LR
 | --- | --- | --- |
 | Start | Schedule | Weekly, with an explicit timezone. The schedule starts when the workflow is deployed. |
 | Collect | API, Loop, Function | Read paginated GitHub PRs and selected source files. Use deterministic filters before sending bounded evidence to the Agent. |
-| Remember | Table: Query Rows and Upsert Row | Record each source PR once using a unique `source_key`; retain editorial decisions and deferred candidates. |
+| Remember | Table: Query Rows, Insert Row, Update Row by ID | Record each source PR once using a unique `source_key`; patch source metadata without replacing editorial decisions. |
 | Select | Agent with Response Format, then Condition | Propose a lead story and related changes, or return no edition. Record the reason and missing evidence. |
 | Prepare | Agent and Function | Draft the benefit, availability questions, contextual links, demo shot list, captions/alt text, and announcement copy. Validate fields and paths outside the model. |
 | Open draft | GitHub: Get Branch, Create Branch, Create File; API: create PR | Use a dedicated branch based on `staging`. Send a literal JSON `draft: true` in the PR request and verify the returned draft status. Never write directly to `staging` or merge automatically. |
@@ -39,7 +39,9 @@ Create three small tables in the selected Sim workspace:
 - `changelog_editions`: unique `edition_key`; selected source keys, branch, draft PR URL, source snapshot, media status, review status, canonical URL, and publication status. Choose the key once and reuse it on retries; do not derive a new key from each run's time or generated headline.
 - `changelog_runs`: unique run key; scan lower/upper bounds, last fully collected boundary, run result, counts, and error details. Collection progress is separate from publication status.
 
-Use unique columns for deduplication. Upsert only collector-owned fields when refreshing evidence; never reset review decisions or publication status. Query table pages with a limit and follow `nextCursor` until it is null. A short Table page can reflect the response byte budget rather than the end of the results.
+Use unique columns for deduplication. Query by `source_key`, then use Insert Row for a new candidate or Update Row by ID with only collector-owned fields for an existing one. If a concurrent insert wins the unique key, reread that candidate and patch its source metadata. Never reset review decisions or publication status. Upsert Row replaces the entire stored row when a key matches, so it is unsuitable for partial refreshes; even merging a previously read snapshot could overwrite a newer editor decision.
+
+Apply the same insert/partial-update rule to edition and run records. Query table pages with a limit and follow `nextCursor` until it is null. A short Table page can reflect the response byte budget rather than the end of the results.
 
 The first run needs a deliberate start date. Seed already-covered source PRs from the existing production briefs, or have the editor review the initial backfill before any draft PR is created. Subsequent scans start at the last fully collected boundary with an overlap, such as 48 hours. Deduplicate the overlap by source key. Revisit deferred candidates separately so an older feature can become a story when its rollout is ready.
 
@@ -107,7 +109,7 @@ The release editor checks the queue weekly and resolves old deferred items. Mont
 1. Select the Sim workspace, editor/backup, GitHub credential, notification destination, timezone, and first collection boundary.
 2. Create the three tables and unique keys. Build the Schedule → collection → queue → drafting path without repository writes, and run it manually on a small known interval.
 3. Compare collected candidates with GitHub, including more than one page. Confirm already-covered PRs and closed-but-unmerged PRs do not create new stories. Check a deferred feature, a revert, and a week with no meaningful update.
-4. Add draft-branch/file/PR steps. Exercise a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify each produces one recoverable draft without losing edits.
+4. Add draft-branch/file/PR steps. Exercise an overlapping candidate refresh after an editor changes its decision, two inserts racing for the same source key, a retry after a partial file write, an existing PR, concurrent start, and an editor-modified file. Verify saved decisions survive and each edition produces one recoverable draft without losing edits.
 5. Finish one edition with real media. Run the content audit and existing PR gates, review locally through the development-only preview, then verify the deployed public URL, media, RSS, and sitemap. Hosted production builds intentionally do not expose draft preview routes.
 6. Exercise a read failure, rate limit, page cap, expired credential, failed deployment, and missed schedule. Record the results and run links, verify the chosen alert path, then deploy the weekly workflow.
 
