@@ -44,6 +44,7 @@ export function presentWorkspaceFileArchive({
         { objectMode: false }
       )
       inputs.push(input)
+      input.once('error', (error) => archive.destroy(error))
       archive.append(input, { name: entryPaths[index] })
     }
   }

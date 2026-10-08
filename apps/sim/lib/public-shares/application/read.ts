@@ -22,7 +22,7 @@ import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   mergeWorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, headObject } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
   getDocumentSourceLanguage,
@@ -165,6 +165,24 @@ export function readPublicFileShare({ grant }: PublicReadInput) {
   return withPublicFileShareGrant(grant, publicFileOperations.readMetadata, async (_tx, snapshot) =>
     present(snapshot)
   )
+}
+
+/** Checks current source availability without rendering, recording a download, or reading its bytes. */
+export async function checkPublicFileShareContent(
+  grant: VerifiedPublicFileShareGrant
+): Promise<void> {
+  const operation = publicFileOperations.readContent
+  const initial = await withPublicFileShareGrant(
+    grant,
+    operation,
+    async (_tx, snapshot) => snapshot
+  )
+  const stored = await headObject(initial.file.key, initial.adapter.storageContext)
+  if (!stored) throw new OrchestrationError('not_found', 'File not found')
+  assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
+  await withPublicFileShareGrant(grant, operation, async (_tx, snapshot) => {
+    requireRevision(snapshot.file, initial.file)
+  })
 }
 
 /** A public read never executes generated document code; it serves current cached artifacts only. */

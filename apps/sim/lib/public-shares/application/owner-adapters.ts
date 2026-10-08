@@ -7,7 +7,6 @@ import { requireProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { type E2BDocFormat, resolveServableDoc } from '@/lib/uploads/documents/compile'
 import { loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
-import { isHevcHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
@@ -97,11 +96,7 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
         )
       return { buffer, contentType: format.contentType }
     },
-    async imagePreview(buffer) {
-      if (!isHevcHeifContainer(buffer)) return null
-      const jpeg = await transcodeHeicToJpeg(buffer)
-      return jpeg ? { buffer: jpeg, contentType: 'image/jpeg' } : null
-    },
+    imagePreview: resolveServableImageBytes,
   },
 }
 

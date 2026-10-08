@@ -5,4 +5,9 @@ export {
   requestPublicFileShareOtp,
   verifyPublicFileShareOtp,
 } from './credentials'
-export { readPublicFileShare, readPublicFileShareContent, readPublicFileShareInline } from './read'
+export {
+  checkPublicFileShareContent,
+  readPublicFileShare,
+  readPublicFileShareContent,
+  readPublicFileShareInline,
+} from './read'

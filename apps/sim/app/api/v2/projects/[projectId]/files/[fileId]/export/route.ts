@@ -1,3 +1,4 @@
+import { MAX_PROJECT_FILE_SNAPSHOT_BODY_BYTES } from '@/lib/api/contracts/project-file-downloads'
 import { v2ExportProjectFileSnapshotContract } from '@/lib/api/contracts/v2/project-file-downloads'
 import {
   defineV2BinaryRoute,
@@ -11,6 +12,7 @@ import { projectFileOperations } from '@/lib/projects/files/application/operatio
 
 export const POST = defineV2BinaryRoute({
   contract: v2ExportProjectFileSnapshotContract,
+  parseOptions: { maxBodyBytes: MAX_PROJECT_FILE_SNAPSHOT_BODY_BYTES },
   auth: v2ApiKeyAuth,
   operation: projectFileOperations.exportSnapshot,
   rateLimit: v2RateLimits.publicApi,

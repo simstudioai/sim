@@ -20,7 +20,7 @@ import type {
   JsonNextRouteHandler,
   JsonRouteContext,
 } from '@/lib/api/server/routes/types'
-import type { ParsedRequest } from '@/lib/api/server/validation'
+import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -53,6 +53,7 @@ interface InternalBinaryRouteOptions<
   auth: typeof internalSessionAuth
   rateLimit: InternalBinaryRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  parseOptions?: Pick<ParseRequestOptions, 'maxBodyBytes'>
   headSafe?: boolean
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
@@ -99,7 +100,12 @@ export function defineInternalBinaryRoute<
       setRequestAuth(describePrincipalAuth(principal))
 
       await options.rateLimit.enforce(request, principal)
-      const parsed = await parseRequest(options.contract, request, context ?? {})
+      const parsed = await parseRequest(
+        options.contract,
+        request,
+        context ?? {},
+        options.parseOptions
+      )
       if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {

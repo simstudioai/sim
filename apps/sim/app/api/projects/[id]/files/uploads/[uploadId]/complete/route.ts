@@ -10,6 +10,7 @@ import { completeProjectFileUploadSession } from '@/lib/projects/files/applicati
 
 export const POST = defineInternalJsonRoute({
   contract: completeProjectFileUploadContract,
+  parseOptions: { optionalJsonBody: true },
   auth: internalSessionAuth,
   operation: completeProjectFileUploadSession.operation,
   rateLimit: internalRateLimits.user({ bucketName: 'project-files.upload' }),

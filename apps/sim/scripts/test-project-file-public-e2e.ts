@@ -235,6 +235,35 @@ try {
       assert.equal(bytes.headers.get('x-content-type-options'), 'nosniff')
       assert.match(bytes.headers.get('content-disposition') ?? '', /filename=/)
     })
+    await check(
+      `${owner}: HEAD rejects a missing stored source without generating content`,
+      async () => {
+        assert.equal(getStorageProvider(), 'Local', 'Missing-object fixture requires local storage')
+        const file = await createFile(
+          owner,
+          `head-missing-${suffix}.txt`,
+          'head source',
+          'text/plain'
+        )
+        const share = await shareFile(owner, required(file.id))
+        const contentPath = `/api/files/public/${share.token}/content`
+        assert.equal((await request(contentPath, { method: 'HEAD' })).status, 200)
+        const [stored] = await sql<
+          { key: string }[]
+        >`SELECT key FROM workspace_files WHERE id = ${required(file.id)}`
+        const path = resolve(UPLOAD_DIR_SERVER, required(stored?.key))
+        assert.ok(path.startsWith(`${resolve(UPLOAD_DIR_SERVER)}${sep}`))
+        const bytes = await readFile(path)
+        try {
+          await unlink(path)
+          const missing = await request(contentPath, { method: 'HEAD' })
+          assert.equal(missing.status, 404)
+          assert.equal(missing.buffer.length, 0)
+        } finally {
+          await writeFile(path, bytes)
+        }
+      }
+    )
     await check(`${owner}: inline image requires the current document grant`, async () => {
       const bytes = await request(`${path}/inline?fileId=${required(photo.id)}`)
       assert.equal(bytes.status, 200)
