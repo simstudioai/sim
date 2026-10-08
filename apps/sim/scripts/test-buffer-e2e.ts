@@ -53,7 +53,7 @@ async function tool(id: string, params: Record<string, unknown> = {}) {
     { apiKey, ...params },
     {
       signal: AbortSignal.timeout(60_000),
-      operationContext: { userId: fixtureId, workflowId: fixtureId },
+      operationContext: { userId: fixtureId, workflowId: fixtureId, workspaceId: fixtureId },
     }
   )
   assert(result.success, result.error ?? `${id} failed`)

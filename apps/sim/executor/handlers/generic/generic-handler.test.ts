@@ -80,7 +80,13 @@ describe('GenericBlockHandler', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { customResult: 'OK' } })
   })
 
-  it('preserves the current Buffer schedule and approval state when editing only text', async () => {
+  it.each([
+    {
+      selection: 'keep-current scheduling',
+      optional: { mode: 'default', schedulingType: 'default', approvalChange: 'default' },
+    },
+    { selection: 'cleared structured editors', optional: { assets: '', metadata: '' } },
+  ])('preserves existing Buffer state for a caption edit with $selection', async ({ optional }) => {
     mockGetBlock.mockReturnValue(BufferBlock)
     mockGetTool.mockReturnValue(bufferEditPostTool)
     const providerInputs: Record<string, unknown>[] = []
@@ -115,9 +121,7 @@ describe('GenericBlockHandler', () => {
         apiKey: 'buffer-key',
         postId: 'post-1',
         text: 'Updated caption',
-        mode: 'default',
-        schedulingType: 'default',
-        approvalChange: 'default',
+        ...optional,
       }
     )
 

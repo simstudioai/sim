@@ -666,7 +666,11 @@ export const BufferBlock: BlockConfig = {
             key === 'operation'
           )
             continue
-          if (value === undefined || value === null || value === '') continue
+          if (value === undefined || value === null) continue
+          if (value === '') {
+            result[key] = undefined
+            continue
+          }
           if ((key === 'mode' || key === 'schedulingType') && value === 'default') {
             result[key] =
               params.operation === 'create_post'
