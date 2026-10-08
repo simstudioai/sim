@@ -802,7 +802,14 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       index += 1
       continue
     }
-    if (character === '$' && code[index + 1] === '(') {
+    if (
+      code[index + 1] === '(' &&
+      (character === '$' ||
+        ((character === '<' || character === '>') &&
+          !frame.literalRoot &&
+          frame.kind !== 'arithmetic' &&
+          effectiveQuote(frame) === 'none'))
+    ) {
       frames.push({
         kind: 'command',
         quote: 'none',

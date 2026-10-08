@@ -70,6 +70,7 @@ async function compile(code: string, value: string): Promise<CompiledCodePlaceho
 
 try {
   const arithmetic = [
+    'cat <([[ "{{KEY}}" -eq 0 ]])',
     '[[ "{{KEY}}" \\\n  -eq 0 ]]',
     '[[ \\\n  "{{KEY}}" -eq 0 ]]',
     'time -p [[ "{{KEY}}" -eq 0 ]]',
@@ -181,6 +182,17 @@ try {
       params: { COMMAND: 'printf', KEY: payload },
     })
     assert.equal(execute(compiled), '[[')
+    assert(!existsSync(sentinel))
+  })
+  for (const substitution of ['<(printf ignored)', '>(cat)', '<(cat <(printf ignored))']) {
+    await check(`preserves arguments after ${substitution}`, async () => {
+      const code = `printf "%s\\n" ${substitution} [[ "{{KEY}}" -eq 0 ]] | tail -n +2`
+      assert.equal(execute(await compile(code, payload)), `[[\n${payload}\n-eq\n0\n]]\n`)
+      assert(!existsSync(sentinel))
+    })
+  }
+  await check('preserves literal values inside process substitutions', async () => {
+    assert.equal(execute(await compile('cat <(printf "%s\\n" "{{KEY}}")', payload)), `${payload}\n`)
     assert(!existsSync(sentinel))
   })
 } finally {
