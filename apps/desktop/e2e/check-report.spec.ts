@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
+import { omit } from '@sim/utils/object'
 import type { ReportCheck } from './check-report'
 
 /**
@@ -26,8 +27,9 @@ test('a check that failed before the worker restarted stays in the report', () =
     })
   )
   // The outer run's worker variables would make the nested runner think it is a worker.
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !/^(TEST_|PW_)/.test(key))
+  const env = omit(
+    process.env,
+    Object.keys(process.env).filter((key) => /^(TEST_|PW_)/.test(key))
   )
 
   const run = spawnSync(process.execPath, [CLI, 'test', '--config', CONFIG], {
