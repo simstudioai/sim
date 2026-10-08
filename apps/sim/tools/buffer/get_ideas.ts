@@ -1,11 +1,15 @@
+import { toArray, toRecord } from '@sim/utils/object'
+import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
   BUFFER_IDEA_SELECTION,
   type BufferGetIdeasParams,
   type BufferIdeasResponse,
   bufferHeaders,
+  bufferPageSize,
   IDEA_OUTPUT_PROPERTIES,
   mapBufferIdea,
+  mapBufferPageInfo,
   PAGE_INFO_OUTPUT_PROPERTIES,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
@@ -15,13 +19,12 @@ const GET_IDEAS_QUERY = `
   query GetIdeas($input: IdeasInput!, $first: Int, $after: String) {
     ideas(input: $input, first: $first, after: $after) {
       edges {
+        cursor
         node {
           ${BUFFER_IDEA_SELECTION}
         }
       }
-      pageInfo {
-        hasNextPage
-        endCursor
+      pageInfo { ${bufferSelection('PaginationPageInfo')}
       }
     }
   }
@@ -60,6 +63,18 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
       visibility: 'user-or-llm',
       description: 'Pagination cursor from a previous page (pageInfo.endCursor)',
     },
+    groupFilter: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription('IdeasGroupFilter'),
+    },
+    tagsFilter: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription('TagComparator'),
+    },
   },
 
   request: {
@@ -69,8 +84,12 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
     body: (params) => ({
       query: GET_IDEAS_QUERY,
       variables: {
-        input: { organizationId: params.organizationId },
-        first: params.limit ?? DEFAULT_LIMIT,
+        input: parseBufferInput('IdeasInput', {
+          organizationId: params.organizationId,
+          ...(params.groupFilter ? { groupFilter: params.groupFilter } : {}),
+          ...(params.tagsFilter ? { tagsFilter: params.tagsFilter } : {}),
+        }),
+        first: bufferPageSize(params.limit ?? DEFAULT_LIMIT),
         after: params.after || null,
       },
     }),
@@ -78,15 +97,17 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
 
   transformResponse: async (response: Response) => {
     const data = await parseBufferGraphQLResponse(response)
-    const ideas = data.ideas ?? {}
+    const connection = toRecord(data.ideas)
+    const edges = toArray(connection.edges).map((value) => {
+      const edge = toRecord(value)
+      return { cursor: String(edge.cursor ?? ''), node: mapBufferIdea(edge.node) }
+    })
     return {
       success: true,
       output: {
-        ideas: (ideas.edges ?? []).map((edge: Record<string, any>) => mapBufferIdea(edge.node)),
-        pageInfo: {
-          hasNextPage: ideas.pageInfo?.hasNextPage ?? false,
-          endCursor: ideas.pageInfo?.endCursor ?? null,
-        },
+        ideas: edges.map((edge) => edge.node),
+        edges,
+        pageInfo: mapBufferPageInfo(connection.pageInfo),
       },
     }
   },
@@ -96,6 +117,17 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
       type: 'array',
       description: 'Content ideas in the organization',
       items: { type: 'object', properties: IDEA_OUTPUT_PROPERTIES },
+    },
+    edges: {
+      type: 'array',
+      description: 'Edges with cursor and full idea node',
+      items: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string', description: 'Cursor for this node' },
+          node: { type: 'object', properties: IDEA_OUTPUT_PROPERTIES },
+        },
+      },
     },
     pageInfo: {
       type: 'object',

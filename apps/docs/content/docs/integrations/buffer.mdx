@@ -16,11 +16,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 With the Buffer integration in Sim, you can:
 
 - **Publish and schedule posts**: Create a post for a channel and add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft
-- **Attach media**: Include an image or video with a post
+- **Attach media**: Include images, videos, or documents and configure network-specific metadata
 - **Manage existing posts**: Edit, retrieve, list, and delete posts
-- **Browse channels**: List the social channels connected to the account, along with their IDs and service types
+- **Browse channels**: List connected channels or retrieve a channel's complete settings and posting schedule
+- **Check publishing limits and performance**: Read daily posting limits and aggregate published-post metrics
 - **Capture ideas**: Create ideas and list ideas and idea groups from the Buffer content pipeline
 - **Read account details**: Retrieve the authenticated Buffer account
+
+To connect, create an API key in Buffer under **Settings → API**, then enter it in the block's **API Key** field. Sim sends the key as a Bearer token to Buffer's GraphQL API. The key can access all organizations and channels available to your Buffer account.
+
+Enable the permissions needed by your workflow: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. This integration includes all 13 stable API operations. Preview operations are excluded.
+
+Advanced JSON inputs expose the full nested contracts for assets, network metadata, idea content, filters, and sorting. Choose either the single-file media controls or the assets array. Each asset contains exactly one image, video, or document. Listing operations return one page with complete cursor information; use `after` to continue. Sim limits each page to 100 items and structured input arrays to 1,000 items.
+
+When editing a post, leave **Share Mode** and **Scheduling Type** at their keep-current settings to update content without changing its schedule or publishing method.
+
+Use **Clear Caption** to remove an existing caption, or an empty assets/tag ID array to clear those values. Omitting them preserves the existing values. The live API accepts date comparators and tag comparators for post filters; the older documented `startDate`, `endDate`, and `tagIds` filter fields are unavailable. Link attachments belong in network metadata.
+
+To run the live verification suite with the normal Sim runtime environment loaded, set `BUFFER_API_KEY` (or `BUFFER_API_KEY_FILE`) and `BUFFER_E2E_REPORT_PATH`, then run `bun run --cwd apps/sim test:buffer:e2e`. Optionally select `BUFFER_ORGANIZATION_ID` and `BUFFER_CHANNEL_ID`. The suite creates disposable drafts and removes them, and writes a JSON report. It also creates one idea; remove the reported `retainedIdeaId` in Buffer's Ideas interface afterward because the stable API has no delete-idea operation. Without a connected, unlocked channel, the report is incomplete and the command exits with code 2.
 
 In Sim, the Buffer integration enables your agents to turn generated content into scheduled social posts without manual copy-paste. An agent can draft copy, look up the right channel, attach a generated image, and queue the post — or review the existing queue and clean up posts that are no longer relevant.
 {/* MANUAL-CONTENT-END */}
@@ -28,7 +41,7 @@ In Sim, the Buffer integration enables your agents to turn generated content int
 
 ## Usage Instructions
 
-Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.
+Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.
 
 
 
@@ -52,37 +65,315 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
+| `assets` | json | No | Array of assets: \{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}. Choose exactly one variant per asset. Omit when using media. On edit, \[\] clears attachments and omission preserves them. |
+| `metadata` | json | No | \{ bluesky: BlueskyPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); facebook: FacebookPostMetadataInput \(\{ annotations: \[AnnotationInputFacebook!\] \(\{ content: String!; indices: \[Int!\]!; text: String!; url: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); type: PostTypeFacebook! \(post \| reel \| story\) \}\); google: GoogleBusinessPostMetadataInput \(\{ detailsEvent: GoogleBusinessEventMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); endDate: DateTime; isFullDayEvent: Boolean!; link: String; startDate: DateTime; title: String \}\); detailsOffer: GoogleBusinessOfferMetaDataInput \(\{ code: String; endDate: DateTime; link: String; startDate: DateTime; terms: String; title: String \}\); detailsWhatsNew: GoogleBusinessWhatsNewMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); link: String \}\); title: String; type: PostTypeGoogleBusiness! \(event \| offer \| whats_new\) \}\); instagram: InstagramPostMetadataInput \(\{ firstComment: String; geolocation: InstagramGeolocationInput \(\{ id: String; text: String \}\); isAiGenerated: Boolean; link: String; shouldShareToFeed: Boolean!; stickerFields: InstagramStickerFieldsInput \(\{ music: String; other: String; products: String; text: String; topics: String \}\); type: PostType! \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); linkedin: LinkedInPostMetadataInput \(\{ annotations: \[AnnotationInputLinkedIn!\] \(\{ id: String!; entity: String!; length: Int!; link: String!; localizedName: String!; start: Int!; vanityName: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); mastodon: MastodonPostMetadataInput \(\{ spoilerText: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); pinterest: PinterestPostMetadataInput \(\{ boardServiceId: String; title: String; url: String \}\); substack: SubstackPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadsPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); locationId: String; locationName: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\); topic: String; type: PostType \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); tiktok: TikTokPostMetadataInput \(\{ isAiGenerated: Boolean; title: String \}\); twitter: TwitterPostMetadataInput \(\{ isAiGenerated: Boolean; retweet: RetweetMetadataInput \(\{ id: String!; comment: String \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); youtube: YoutubePostMetadataInput \(\{ categoryId: String; embeddable: Boolean \(provider default when omitted\); isAiGenerated: Boolean; license: YoutubeLicense \(provider default when omitted\) \(creativeCommon \| youtube\); madeForKids: Boolean \(provider default when omitted\); notifySubscribers: Boolean \(provider default when omitted\); privacy: YoutubePrivacy \(provider default when omitted\) \(private \| public \| unlisted\); title: String \}\) \} |
+| `aiAssisted` | boolean | No | Whether AI assisted with creating the post |
+| `draftId` | string | No | Draft identifier associated with the post |
+| `ideaId` | string | No | Source idea identifier |
+| `source` | string | No | Source application identifier |
+| `tagIds` | json | No | Array of tag IDs; on edit, \[\] clears tags and omission preserves them |
+| `needsApproval` | boolean | No | Request approval on creation \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | The created post |
-|   ↳ `id` | string | Post ID |
-|   ↳ `text` | string | Post text content |
-|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
-|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
-|   ↳ `channelId` | string | Channel the post belongs to |
-|   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
-|   ↳ `shareMode` | string | Share mode used for the post |
-|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
-|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
-|     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
-|   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
-|     ↳ `type` | string | Asset type |
-|     ↳ `mimeType` | string | MIME type of the asset |
-|     ↳ `source` | string | Source URL of the asset |
-|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+|   ↳ `id` | string | Post id |
+|   ↳ `allowedActions` | array | Post allowedActions |
+|   ↳ `assets` | array | Post assets |
+|     ↳ `__typename` | string | Concrete Asset variant |
+|     ↳ `id` | string | VideoAsset id |
+|     ↳ `document` | object | DocumentAsset document |
+|       ↳ `filesize` | number | DocumentMetadata filesize |
+|       ↳ `numPages` | number | DocumentMetadata numPages |
+|       ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|       ↳ `title` | string | DocumentMetadata title |
+|     ↳ `mimeType` | string | VideoAsset mimeType |
+|     ↳ `source` | string | VideoAsset source |
+|     ↳ `thumbnail` | string | VideoAsset thumbnail |
+|     ↳ `type` | string | VideoAsset type |
+|     ↳ `image` | object | ImageAsset image |
+|       ↳ `altText` | string | ImageMetadata altText |
+|       ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|       ↳ `height` | number | ImageMetadata height |
+|       ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|       ↳ `userTags` | array | ImageMetadata userTags |
+|         ↳ `handle` | string | UserTag handle |
+|         ↳ `x` | number | UserTag x |
+|         ↳ `y` | number | UserTag y |
+|       ↳ `width` | number | ImageMetadata width |
+|     ↳ `video` | object | VideoAsset video |
+|       ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|       ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|       ↳ `durationMs` | number | VideoMetadata durationMs |
+|       ↳ `fileSize` | number | VideoMetadata fileSize |
+|       ↳ `frameRate` | number | VideoMetadata frameRate |
+|       ↳ `height` | number | VideoMetadata height |
+|       ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|       ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|       ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|       ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|       ↳ `title` | string | VideoMetadata title |
+|       ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|       ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|       ↳ `width` | number | VideoMetadata width |
+|   ↳ `author` | object | Post author |
+|     ↳ `id` | string | Author id |
+|     ↳ `avatar` | string | Author avatar |
+|     ↳ `email` | string | Author email |
+|     ↳ `isDeleted` | boolean | Author isDeleted |
+|     ↳ `name` | string | Author name |
+|     ↳ `urn` | string | Author urn |
+|   ↳ `channel` | object | Post channel |
+|     ↳ `id` | string | Channel id |
+|     ↳ `allowedActions` | array | Channel allowedActions |
+|     ↳ `avatar` | string | Channel avatar |
+|     ↳ `descriptor` | string | Channel descriptor |
+|     ↳ `displayName` | string | Channel displayName |
+|     ↳ `externalLink` | string | Channel externalLink |
+|     ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|     ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|     ↳ `isLocked` | boolean | Channel isLocked |
+|     ↳ `isNew` | boolean | Channel isNew |
+|     ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|     ↳ `linkShortening` | object | Channel linkShortening |
+|       ↳ `config` | object | ChannelLinkShortening config |
+|         ↳ `domain` | string | LinkShorteningConfig domain |
+|         ↳ `name` | string | LinkShorteningConfig name |
+|       ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|     ↳ `metadata` | object | Channel metadata |
+|       ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|       ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|       ↳ `boards` | array | PinterestMetadata boards |
+|         ↳ `id` | string | PinterestBoard id |
+|         ↳ `avatar` | string | PinterestBoard avatar |
+|         ↳ `description` | string | PinterestBoard description |
+|         ↳ `name` | string | PinterestBoard name |
+|         ↳ `serviceId` | string | PinterestBoard serviceId |
+|         ↳ `url` | string | PinterestBoard url |
+|       ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|       ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|       ↳ `locationData` | object | FacebookMetadata locationData |
+|         ↳ `googleAccountId` | string | LocationData googleAccountId |
+|         ↳ `location` | string | LocationData location |
+|         ↳ `mapsLink` | string | LocationData mapsLink |
+|       ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|       ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|       ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|       ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|       ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|       ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|     ↳ `name` | string | Channel name |
+|     ↳ `organizationId` | string | Channel organizationId |
+|     ↳ `postingGoal` | object | Channel postingGoal |
+|       ↳ `goal` | number | PostingGoal goal |
+|       ↳ `periodEnd` | string | PostingGoal periodEnd |
+|       ↳ `periodStart` | string | PostingGoal periodStart |
+|       ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|       ↳ `sentCount` | number | PostingGoal sentCount |
+|       ↳ `status` | string | PostingGoal status |
+|     ↳ `postingSchedule` | array | Channel postingSchedule |
+|       ↳ `day` | string | ScheduleV2 day |
+|       ↳ `paused` | boolean | ScheduleV2 paused |
+|       ↳ `times` | array | ScheduleV2 times |
+|     ↳ `products` | array | Channel products |
+|     ↳ `scopes` | array | Channel scopes |
+|     ↳ `service` | string | Channel service |
+|     ↳ `serviceId` | string | Channel serviceId |
+|     ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|     ↳ `timezone` | string | Channel timezone |
+|     ↳ `type` | string | Channel type |
+|     ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|       ↳ `limit` | number | WeeklyPostingLimit limit |
+|       ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|       ↳ `sent` | number | WeeklyPostingLimit sent |
+|     ↳ `createdAt` | string | Channel createdAt |
+|     ↳ `updatedAt` | string | Channel updatedAt |
+|   ↳ `channelId` | string | Post channelId |
+|   ↳ `channelService` | string | Post channelService |
+|   ↳ `contentItemId` | string | Post contentItemId |
+|   ↳ `dueAt` | string | Post dueAt |
+|   ↳ `error` | object | Post error |
+|     ↳ `message` | string | PostPublishingError message |
+|     ↳ `rawError` | string | PostPublishingError rawError |
+|     ↳ `supportUrl` | string | PostPublishingError supportUrl |
+|   ↳ `externalLink` | string | Post externalLink |
+|   ↳ `ideaId` | string | Post ideaId |
+|   ↳ `isCustomScheduled` | boolean | Post isCustomScheduled |
+|   ↳ `metadata` | object | Post metadata |
+|     ↳ `__typename` | string | Concrete PostMetadata variant |
+|     ↳ `annotations` | array | SubstackPostMetadata annotations |
+|       ↳ `content` | string | Annotation content |
+|       ↳ `indices` | array | Annotation indices |
+|       ↳ `text` | string | Annotation text |
+|       ↳ `type` | string | Annotation type |
+|       ↳ `url` | string | Annotation url |
+|     ↳ `firstComment` | string | LinkedInPostMetadata firstComment |
+|     ↳ `geolocation` | object | InstagramPostMetadata geolocation |
+|       ↳ `id` | string | InstagramGeolocation id |
+|       ↳ `text` | string | InstagramGeolocation text |
+|     ↳ `isAiGenerated` | boolean | TiktokPostMetadata isAiGenerated |
+|     ↳ `link` | string | InstagramPostMetadata link |
+|     ↳ `shouldShareToFeed` | boolean | InstagramPostMetadata shouldShareToFeed |
+|     ↳ `stickerFields` | object | InstagramPostMetadata stickerFields |
+|       ↳ `music` | string | InstagramStickerFields music |
+|       ↳ `other` | string | InstagramStickerFields other |
+|       ↳ `products` | string | InstagramStickerFields products |
+|       ↳ `text` | string | InstagramStickerFields text |
+|       ↳ `topics` | string | InstagramStickerFields topics |
+|     ↳ `type` | string | SubstackPostMetadata type |
+|     ↳ `linkAttachment` | object | SubstackPostMetadata linkAttachment |
+|       ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|       ↳ `text` | string | LinkAttachment text |
+|       ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|       ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|       ↳ `title` | string | LinkAttachment title |
+|       ↳ `url` | string | LinkAttachment url |
+|     ↳ `title` | string | TiktokPostMetadata title |
+|     ↳ `retweet` | object | TwitterPostMetadata retweet |
+|       ↳ `id` | string | RetweetMetadata id |
+|       ↳ `text` | string | RetweetMetadata text |
+|       ↳ `thumbnails` | array | RetweetMetadata thumbnails |
+|       ↳ `url` | string | RetweetMetadata url |
+|       ↳ `user` | object | RetweetMetadata user |
+|         ↳ `avatar` | string | RetweetUserMetadata avatar |
+|         ↳ `name` | string | RetweetUserMetadata name |
+|         ↳ `username` | string | RetweetUserMetadata username |
+|       ↳ `createdAt` | string | RetweetMetadata createdAt |
+|     ↳ `thread` | array | BlueskyPostMetadata thread |
+|       ↳ `assets` | array | ThreadedPost assets |
+|         ↳ `__typename` | string | Concrete Asset variant |
+|         ↳ `id` | string | VideoAsset id |
+|         ↳ `document` | object | DocumentAsset document |
+|           ↳ `filesize` | number | DocumentMetadata filesize |
+|           ↳ `numPages` | number | DocumentMetadata numPages |
+|           ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|           ↳ `title` | string | DocumentMetadata title |
+|         ↳ `mimeType` | string | VideoAsset mimeType |
+|         ↳ `source` | string | VideoAsset source |
+|         ↳ `thumbnail` | string | VideoAsset thumbnail |
+|         ↳ `type` | string | VideoAsset type |
+|         ↳ `image` | object | ImageAsset image |
+|           ↳ `altText` | string | ImageMetadata altText |
+|           ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|           ↳ `height` | number | ImageMetadata height |
+|           ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|           ↳ `userTags` | array | ImageMetadata userTags |
+|             ↳ `handle` | string | UserTag handle |
+|             ↳ `x` | number | UserTag x |
+|             ↳ `y` | number | UserTag y |
+|           ↳ `width` | number | ImageMetadata width |
+|         ↳ `video` | object | VideoAsset video |
+|           ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|           ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|           ↳ `durationMs` | number | VideoMetadata durationMs |
+|           ↳ `fileSize` | number | VideoMetadata fileSize |
+|           ↳ `frameRate` | number | VideoMetadata frameRate |
+|           ↳ `height` | number | VideoMetadata height |
+|           ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|           ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|           ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|           ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|           ↳ `title` | string | VideoMetadata title |
+|           ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|           ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|           ↳ `width` | number | VideoMetadata width |
+|       ↳ `linkAttachment` | object | ThreadedPost linkAttachment |
+|         ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|         ↳ `text` | string | LinkAttachment text |
+|         ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|         ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|         ↳ `title` | string | LinkAttachment title |
+|         ↳ `url` | string | LinkAttachment url |
+|       ↳ `metadata` | object | ThreadedPost metadata |
+|         ↳ `bluesky` | object | ThreadItemMetadata bluesky |
+|           ↳ `linkAttachment` | object | ThreadItemBlueskyMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|         ↳ `threads` | object | ThreadItemMetadata threads |
+|           ↳ `linkAttachment` | object | ThreadItemThreadsMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|       ↳ `text` | string | ThreadedPost text |
+|     ↳ `threadCount` | number | BlueskyPostMetadata threadCount |
+|     ↳ `board` | object | PinterestPostMetadata board |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `url` | string | PinterestPostMetadata url |
+|     ↳ `details` | object | GoogleBusinessPostMetadata details |
+|       ↳ `__typename` | string | Concrete GoogleBusinessPostDetails variant |
+|       ↳ `button` | string | GoogleBusinessEventMetaData button |
+|       ↳ `link` | string | GoogleBusinessEventMetaData link |
+|       ↳ `code` | string | GoogleBusinessOfferMetaData code |
+|       ↳ `endDate` | string | GoogleBusinessEventMetaData endDate |
+|       ↳ `startDate` | string | GoogleBusinessEventMetaData startDate |
+|       ↳ `terms` | string | GoogleBusinessOfferMetaData terms |
+|       ↳ `title` | string | GoogleBusinessEventMetaData title |
+|       ↳ `endTime` | string | GoogleBusinessEventMetaData endTime |
+|       ↳ `isFullDayEvent` | boolean | GoogleBusinessEventMetaData isFullDayEvent |
+|       ↳ `startTime` | string | GoogleBusinessEventMetaData startTime |
+|     ↳ `category` | object | YoutubePostMetadata category |
+|       ↳ `categoryId` | string | YoutubeCategory categoryId |
+|       ↳ `title` | string | YoutubeCategory title |
+|     ↳ `embeddable` | boolean | YoutubePostMetadata embeddable |
+|     ↳ `license` | string | YoutubePostMetadata license |
+|     ↳ `madeForKids` | boolean | YoutubePostMetadata madeForKids |
+|     ↳ `notifySubscribers` | boolean | YoutubePostMetadata notifySubscribers |
+|     ↳ `privacy` | string | YoutubePostMetadata privacy |
+|     ↳ `spoilerText` | string | MastodonPostMetadata spoilerText |
+|     ↳ `locationId` | string | ThreadsPostMetadata locationId |
+|     ↳ `locationName` | string | ThreadsPostMetadata locationName |
+|     ↳ `topic` | string | ThreadsPostMetadata topic |
+|   ↳ `metrics` | array | Post metrics |
+|     ↳ `description` | string | PostMetric description |
+|     ↳ `name` | string | PostMetric name |
+|     ↳ `type` | string | PostMetric type |
+|     ↳ `unit` | string | PostMetric unit |
+|     ↳ `value` | number | PostMetric value |
+|   ↳ `metricsUpdatedAt` | string | Post metricsUpdatedAt |
+|   ↳ `notes` | array | Post notes |
+|     ↳ `id` | string | Note id |
+|     ↳ `allowedActions` | array | Note allowedActions |
+|     ↳ `author` | object | Note author |
+|       ↳ `id` | string | Author id |
+|       ↳ `avatar` | string | Author avatar |
+|       ↳ `email` | string | Author email |
+|       ↳ `isDeleted` | boolean | Author isDeleted |
+|       ↳ `name` | string | Author name |
+|       ↳ `urn` | string | Author urn |
+|     ↳ `text` | string | Note text |
+|     ↳ `type` | string | Note type |
+|     ↳ `createdAt` | string | Note createdAt |
+|     ↳ `updatedAt` | string | Note updatedAt |
+|   ↳ `notificationStatus` | string | Post notificationStatus |
+|   ↳ `schedulingType` | string | Post schedulingType |
+|   ↳ `sentAt` | string | Post sentAt |
+|   ↳ `sharedNow` | boolean | Post sharedNow |
+|   ↳ `shareMode` | string | Post shareMode |
+|   ↳ `status` | string | Post status |
+|   ↳ `tags` | array | Post tags |
+|     ↳ `id` | string | Tag id |
+|     ↳ `color` | string | Tag color |
+|     ↳ `colorName` | string | Tag colorName |
+|     ↳ `isLocked` | boolean | Tag isLocked |
+|     ↳ `name` | string | Tag name |
+|   ↳ `text` | string | Post text |
+|   ↳ `via` | string | Post via |
+|   ↳ `createdAt` | string | Post createdAt |
+|   ↳ `updatedAt` | string | Post updatedAt |
 
 ### Buffer Edit Post
 
@@ -95,44 +386,322 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 | `apiKey` | string | Yes | Buffer API key |
 | `postId` | string | Yes | ID of the post to edit |
 | `text` | string | No | New text content of the post |
-| `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
-| `schedulingType` | string | No | How the post publishes: automatic \(Buffer publishes it, default\) or notification \(you get a mobile reminder\) |
+| `mode` | string | No | Change the share mode to addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\). Omit to keep the current schedule |
+| `schedulingType` | string | No | Change how the post publishes: automatic \(Buffer publishes it\) or notification \(mobile reminder\). Omit to keep the current publishing method |
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out. Replaces existing attachments |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
+| `assets` | json | No | Array of assets: \{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}. Choose exactly one variant per asset. Omit when using media. On edit, \[\] clears attachments and omission preserves them. |
+| `metadata` | json | No | \{ bluesky: BlueskyPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); facebook: FacebookPostMetadataInput \(\{ annotations: \[AnnotationInputFacebook!\] \(\{ content: String!; indices: \[Int!\]!; text: String!; url: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); type: PostTypeFacebook! \(post \| reel \| story\) \}\); google: GoogleBusinessPostMetadataInput \(\{ detailsEvent: GoogleBusinessEventMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); endDate: DateTime; isFullDayEvent: Boolean!; link: String; startDate: DateTime; title: String \}\); detailsOffer: GoogleBusinessOfferMetaDataInput \(\{ code: String; endDate: DateTime; link: String; startDate: DateTime; terms: String; title: String \}\); detailsWhatsNew: GoogleBusinessWhatsNewMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); link: String \}\); title: String; type: PostTypeGoogleBusiness! \(event \| offer \| whats_new\) \}\); instagram: InstagramPostMetadataInput \(\{ firstComment: String; geolocation: InstagramGeolocationInput \(\{ id: String; text: String \}\); isAiGenerated: Boolean; link: String; shouldShareToFeed: Boolean!; stickerFields: InstagramStickerFieldsInput \(\{ music: String; other: String; products: String; text: String; topics: String \}\); type: PostType! \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); linkedin: LinkedInPostMetadataInput \(\{ annotations: \[AnnotationInputLinkedIn!\] \(\{ id: String!; entity: String!; length: Int!; link: String!; localizedName: String!; start: Int!; vanityName: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); mastodon: MastodonPostMetadataInput \(\{ spoilerText: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); pinterest: PinterestPostMetadataInput \(\{ boardServiceId: String; title: String; url: String \}\); substack: SubstackPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadsPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); locationId: String; locationName: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\); topic: String; type: PostType \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); tiktok: TikTokPostMetadataInput \(\{ isAiGenerated: Boolean; title: String \}\); twitter: TwitterPostMetadataInput \(\{ isAiGenerated: Boolean; retweet: RetweetMetadataInput \(\{ id: String!; comment: String \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); youtube: YoutubePostMetadataInput \(\{ categoryId: String; embeddable: Boolean \(provider default when omitted\); isAiGenerated: Boolean; license: YoutubeLicense \(provider default when omitted\) \(creativeCommon \| youtube\); madeForKids: Boolean \(provider default when omitted\); notifySubscribers: Boolean \(provider default when omitted\); privacy: YoutubePrivacy \(provider default when omitted\) \(private \| public \| unlisted\); title: String \}\) \} |
+| `aiAssisted` | boolean | No | Whether AI assisted with creating the post |
+| `draftId` | string | No | Draft identifier associated with the post |
+| `ideaId` | string | No | Source idea identifier |
+| `source` | string | No | Source application identifier |
+| `tagIds` | json | No | Array of tag IDs; on edit, \[\] clears tags and omission preserves them |
+| `approvalChange` | string | No | Draft approval change: request submits for approval, revert withdraws the request |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | The updated post |
-|   ↳ `id` | string | Post ID |
-|   ↳ `text` | string | Post text content |
-|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
-|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
-|   ↳ `channelId` | string | Channel the post belongs to |
-|   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
-|   ↳ `shareMode` | string | Share mode used for the post |
-|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
-|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
-|     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
-|   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
-|     ↳ `type` | string | Asset type |
-|     ↳ `mimeType` | string | MIME type of the asset |
-|     ↳ `source` | string | Source URL of the asset |
-|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+|   ↳ `id` | string | Post id |
+|   ↳ `allowedActions` | array | Post allowedActions |
+|   ↳ `assets` | array | Post assets |
+|     ↳ `__typename` | string | Concrete Asset variant |
+|     ↳ `id` | string | VideoAsset id |
+|     ↳ `document` | object | DocumentAsset document |
+|       ↳ `filesize` | number | DocumentMetadata filesize |
+|       ↳ `numPages` | number | DocumentMetadata numPages |
+|       ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|       ↳ `title` | string | DocumentMetadata title |
+|     ↳ `mimeType` | string | VideoAsset mimeType |
+|     ↳ `source` | string | VideoAsset source |
+|     ↳ `thumbnail` | string | VideoAsset thumbnail |
+|     ↳ `type` | string | VideoAsset type |
+|     ↳ `image` | object | ImageAsset image |
+|       ↳ `altText` | string | ImageMetadata altText |
+|       ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|       ↳ `height` | number | ImageMetadata height |
+|       ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|       ↳ `userTags` | array | ImageMetadata userTags |
+|         ↳ `handle` | string | UserTag handle |
+|         ↳ `x` | number | UserTag x |
+|         ↳ `y` | number | UserTag y |
+|       ↳ `width` | number | ImageMetadata width |
+|     ↳ `video` | object | VideoAsset video |
+|       ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|       ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|       ↳ `durationMs` | number | VideoMetadata durationMs |
+|       ↳ `fileSize` | number | VideoMetadata fileSize |
+|       ↳ `frameRate` | number | VideoMetadata frameRate |
+|       ↳ `height` | number | VideoMetadata height |
+|       ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|       ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|       ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|       ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|       ↳ `title` | string | VideoMetadata title |
+|       ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|       ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|       ↳ `width` | number | VideoMetadata width |
+|   ↳ `author` | object | Post author |
+|     ↳ `id` | string | Author id |
+|     ↳ `avatar` | string | Author avatar |
+|     ↳ `email` | string | Author email |
+|     ↳ `isDeleted` | boolean | Author isDeleted |
+|     ↳ `name` | string | Author name |
+|     ↳ `urn` | string | Author urn |
+|   ↳ `channel` | object | Post channel |
+|     ↳ `id` | string | Channel id |
+|     ↳ `allowedActions` | array | Channel allowedActions |
+|     ↳ `avatar` | string | Channel avatar |
+|     ↳ `descriptor` | string | Channel descriptor |
+|     ↳ `displayName` | string | Channel displayName |
+|     ↳ `externalLink` | string | Channel externalLink |
+|     ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|     ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|     ↳ `isLocked` | boolean | Channel isLocked |
+|     ↳ `isNew` | boolean | Channel isNew |
+|     ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|     ↳ `linkShortening` | object | Channel linkShortening |
+|       ↳ `config` | object | ChannelLinkShortening config |
+|         ↳ `domain` | string | LinkShorteningConfig domain |
+|         ↳ `name` | string | LinkShorteningConfig name |
+|       ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|     ↳ `metadata` | object | Channel metadata |
+|       ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|       ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|       ↳ `boards` | array | PinterestMetadata boards |
+|         ↳ `id` | string | PinterestBoard id |
+|         ↳ `avatar` | string | PinterestBoard avatar |
+|         ↳ `description` | string | PinterestBoard description |
+|         ↳ `name` | string | PinterestBoard name |
+|         ↳ `serviceId` | string | PinterestBoard serviceId |
+|         ↳ `url` | string | PinterestBoard url |
+|       ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|       ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|       ↳ `locationData` | object | FacebookMetadata locationData |
+|         ↳ `googleAccountId` | string | LocationData googleAccountId |
+|         ↳ `location` | string | LocationData location |
+|         ↳ `mapsLink` | string | LocationData mapsLink |
+|       ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|       ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|       ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|       ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|       ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|       ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|     ↳ `name` | string | Channel name |
+|     ↳ `organizationId` | string | Channel organizationId |
+|     ↳ `postingGoal` | object | Channel postingGoal |
+|       ↳ `goal` | number | PostingGoal goal |
+|       ↳ `periodEnd` | string | PostingGoal periodEnd |
+|       ↳ `periodStart` | string | PostingGoal periodStart |
+|       ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|       ↳ `sentCount` | number | PostingGoal sentCount |
+|       ↳ `status` | string | PostingGoal status |
+|     ↳ `postingSchedule` | array | Channel postingSchedule |
+|       ↳ `day` | string | ScheduleV2 day |
+|       ↳ `paused` | boolean | ScheduleV2 paused |
+|       ↳ `times` | array | ScheduleV2 times |
+|     ↳ `products` | array | Channel products |
+|     ↳ `scopes` | array | Channel scopes |
+|     ↳ `service` | string | Channel service |
+|     ↳ `serviceId` | string | Channel serviceId |
+|     ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|     ↳ `timezone` | string | Channel timezone |
+|     ↳ `type` | string | Channel type |
+|     ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|       ↳ `limit` | number | WeeklyPostingLimit limit |
+|       ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|       ↳ `sent` | number | WeeklyPostingLimit sent |
+|     ↳ `createdAt` | string | Channel createdAt |
+|     ↳ `updatedAt` | string | Channel updatedAt |
+|   ↳ `channelId` | string | Post channelId |
+|   ↳ `channelService` | string | Post channelService |
+|   ↳ `contentItemId` | string | Post contentItemId |
+|   ↳ `dueAt` | string | Post dueAt |
+|   ↳ `error` | object | Post error |
+|     ↳ `message` | string | PostPublishingError message |
+|     ↳ `rawError` | string | PostPublishingError rawError |
+|     ↳ `supportUrl` | string | PostPublishingError supportUrl |
+|   ↳ `externalLink` | string | Post externalLink |
+|   ↳ `ideaId` | string | Post ideaId |
+|   ↳ `isCustomScheduled` | boolean | Post isCustomScheduled |
+|   ↳ `metadata` | object | Post metadata |
+|     ↳ `__typename` | string | Concrete PostMetadata variant |
+|     ↳ `annotations` | array | SubstackPostMetadata annotations |
+|       ↳ `content` | string | Annotation content |
+|       ↳ `indices` | array | Annotation indices |
+|       ↳ `text` | string | Annotation text |
+|       ↳ `type` | string | Annotation type |
+|       ↳ `url` | string | Annotation url |
+|     ↳ `firstComment` | string | LinkedInPostMetadata firstComment |
+|     ↳ `geolocation` | object | InstagramPostMetadata geolocation |
+|       ↳ `id` | string | InstagramGeolocation id |
+|       ↳ `text` | string | InstagramGeolocation text |
+|     ↳ `isAiGenerated` | boolean | TiktokPostMetadata isAiGenerated |
+|     ↳ `link` | string | InstagramPostMetadata link |
+|     ↳ `shouldShareToFeed` | boolean | InstagramPostMetadata shouldShareToFeed |
+|     ↳ `stickerFields` | object | InstagramPostMetadata stickerFields |
+|       ↳ `music` | string | InstagramStickerFields music |
+|       ↳ `other` | string | InstagramStickerFields other |
+|       ↳ `products` | string | InstagramStickerFields products |
+|       ↳ `text` | string | InstagramStickerFields text |
+|       ↳ `topics` | string | InstagramStickerFields topics |
+|     ↳ `type` | string | SubstackPostMetadata type |
+|     ↳ `linkAttachment` | object | SubstackPostMetadata linkAttachment |
+|       ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|       ↳ `text` | string | LinkAttachment text |
+|       ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|       ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|       ↳ `title` | string | LinkAttachment title |
+|       ↳ `url` | string | LinkAttachment url |
+|     ↳ `title` | string | TiktokPostMetadata title |
+|     ↳ `retweet` | object | TwitterPostMetadata retweet |
+|       ↳ `id` | string | RetweetMetadata id |
+|       ↳ `text` | string | RetweetMetadata text |
+|       ↳ `thumbnails` | array | RetweetMetadata thumbnails |
+|       ↳ `url` | string | RetweetMetadata url |
+|       ↳ `user` | object | RetweetMetadata user |
+|         ↳ `avatar` | string | RetweetUserMetadata avatar |
+|         ↳ `name` | string | RetweetUserMetadata name |
+|         ↳ `username` | string | RetweetUserMetadata username |
+|       ↳ `createdAt` | string | RetweetMetadata createdAt |
+|     ↳ `thread` | array | BlueskyPostMetadata thread |
+|       ↳ `assets` | array | ThreadedPost assets |
+|         ↳ `__typename` | string | Concrete Asset variant |
+|         ↳ `id` | string | VideoAsset id |
+|         ↳ `document` | object | DocumentAsset document |
+|           ↳ `filesize` | number | DocumentMetadata filesize |
+|           ↳ `numPages` | number | DocumentMetadata numPages |
+|           ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|           ↳ `title` | string | DocumentMetadata title |
+|         ↳ `mimeType` | string | VideoAsset mimeType |
+|         ↳ `source` | string | VideoAsset source |
+|         ↳ `thumbnail` | string | VideoAsset thumbnail |
+|         ↳ `type` | string | VideoAsset type |
+|         ↳ `image` | object | ImageAsset image |
+|           ↳ `altText` | string | ImageMetadata altText |
+|           ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|           ↳ `height` | number | ImageMetadata height |
+|           ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|           ↳ `userTags` | array | ImageMetadata userTags |
+|             ↳ `handle` | string | UserTag handle |
+|             ↳ `x` | number | UserTag x |
+|             ↳ `y` | number | UserTag y |
+|           ↳ `width` | number | ImageMetadata width |
+|         ↳ `video` | object | VideoAsset video |
+|           ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|           ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|           ↳ `durationMs` | number | VideoMetadata durationMs |
+|           ↳ `fileSize` | number | VideoMetadata fileSize |
+|           ↳ `frameRate` | number | VideoMetadata frameRate |
+|           ↳ `height` | number | VideoMetadata height |
+|           ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|           ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|           ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|           ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|           ↳ `title` | string | VideoMetadata title |
+|           ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|           ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|           ↳ `width` | number | VideoMetadata width |
+|       ↳ `linkAttachment` | object | ThreadedPost linkAttachment |
+|         ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|         ↳ `text` | string | LinkAttachment text |
+|         ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|         ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|         ↳ `title` | string | LinkAttachment title |
+|         ↳ `url` | string | LinkAttachment url |
+|       ↳ `metadata` | object | ThreadedPost metadata |
+|         ↳ `bluesky` | object | ThreadItemMetadata bluesky |
+|           ↳ `linkAttachment` | object | ThreadItemBlueskyMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|         ↳ `threads` | object | ThreadItemMetadata threads |
+|           ↳ `linkAttachment` | object | ThreadItemThreadsMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|       ↳ `text` | string | ThreadedPost text |
+|     ↳ `threadCount` | number | BlueskyPostMetadata threadCount |
+|     ↳ `board` | object | PinterestPostMetadata board |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `url` | string | PinterestPostMetadata url |
+|     ↳ `details` | object | GoogleBusinessPostMetadata details |
+|       ↳ `__typename` | string | Concrete GoogleBusinessPostDetails variant |
+|       ↳ `button` | string | GoogleBusinessEventMetaData button |
+|       ↳ `link` | string | GoogleBusinessEventMetaData link |
+|       ↳ `code` | string | GoogleBusinessOfferMetaData code |
+|       ↳ `endDate` | string | GoogleBusinessEventMetaData endDate |
+|       ↳ `startDate` | string | GoogleBusinessEventMetaData startDate |
+|       ↳ `terms` | string | GoogleBusinessOfferMetaData terms |
+|       ↳ `title` | string | GoogleBusinessEventMetaData title |
+|       ↳ `endTime` | string | GoogleBusinessEventMetaData endTime |
+|       ↳ `isFullDayEvent` | boolean | GoogleBusinessEventMetaData isFullDayEvent |
+|       ↳ `startTime` | string | GoogleBusinessEventMetaData startTime |
+|     ↳ `category` | object | YoutubePostMetadata category |
+|       ↳ `categoryId` | string | YoutubeCategory categoryId |
+|       ↳ `title` | string | YoutubeCategory title |
+|     ↳ `embeddable` | boolean | YoutubePostMetadata embeddable |
+|     ↳ `license` | string | YoutubePostMetadata license |
+|     ↳ `madeForKids` | boolean | YoutubePostMetadata madeForKids |
+|     ↳ `notifySubscribers` | boolean | YoutubePostMetadata notifySubscribers |
+|     ↳ `privacy` | string | YoutubePostMetadata privacy |
+|     ↳ `spoilerText` | string | MastodonPostMetadata spoilerText |
+|     ↳ `locationId` | string | ThreadsPostMetadata locationId |
+|     ↳ `locationName` | string | ThreadsPostMetadata locationName |
+|     ↳ `topic` | string | ThreadsPostMetadata topic |
+|   ↳ `metrics` | array | Post metrics |
+|     ↳ `description` | string | PostMetric description |
+|     ↳ `name` | string | PostMetric name |
+|     ↳ `type` | string | PostMetric type |
+|     ↳ `unit` | string | PostMetric unit |
+|     ↳ `value` | number | PostMetric value |
+|   ↳ `metricsUpdatedAt` | string | Post metricsUpdatedAt |
+|   ↳ `notes` | array | Post notes |
+|     ↳ `id` | string | Note id |
+|     ↳ `allowedActions` | array | Note allowedActions |
+|     ↳ `author` | object | Note author |
+|       ↳ `id` | string | Author id |
+|       ↳ `avatar` | string | Author avatar |
+|       ↳ `email` | string | Author email |
+|       ↳ `isDeleted` | boolean | Author isDeleted |
+|       ↳ `name` | string | Author name |
+|       ↳ `urn` | string | Author urn |
+|     ↳ `text` | string | Note text |
+|     ↳ `type` | string | Note type |
+|     ↳ `createdAt` | string | Note createdAt |
+|     ↳ `updatedAt` | string | Note updatedAt |
+|   ↳ `notificationStatus` | string | Post notificationStatus |
+|   ↳ `schedulingType` | string | Post schedulingType |
+|   ↳ `sentAt` | string | Post sentAt |
+|   ↳ `sharedNow` | boolean | Post sharedNow |
+|   ↳ `shareMode` | string | Post shareMode |
+|   ↳ `status` | string | Post status |
+|   ↳ `tags` | array | Post tags |
+|     ↳ `id` | string | Tag id |
+|     ↳ `color` | string | Tag color |
+|     ↳ `colorName` | string | Tag colorName |
+|     ↳ `isLocked` | boolean | Tag isLocked |
+|     ↳ `name` | string | Tag name |
+|   ↳ `text` | string | Post text |
+|   ↳ `via` | string | Post via |
+|   ↳ `createdAt` | string | Post createdAt |
+|   ↳ `updatedAt` | string | Post updatedAt |
 
 ### Buffer Get Posts
 
@@ -150,40 +719,612 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 | `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
 | `sortBy` | string | No | Field to sort by: dueAt or createdAt \(default dueAt\) |
 | `sortDirection` | string | No | Sort direction: asc or desc \(default asc\) |
+| `filter` | json | No | \{ channelIds: \[ChannelId!\]; dueAt: DateTimeComparator \(\{ end: DateTime; start: DateTime \}\); dueAtPresence: DateTimePresence \(absent \| present\); postTypes: \[PostType!\] \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\); status: \[PostStatus!\] \(draft \| error \| needs_approval \| scheduled \| sending \| sent\); tags: TagComparator \(\{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \}\); createdAt: DateTimeComparator \(\{ end: DateTime; start: DateTime \}\) \} |
+| `sort` | json | No | Ordered list of sort keys: \{ direction: SortDirection! \(asc \| desc\); field: PostSortableKey! \(dueAt \| createdAt\) \}. Overrides sortBy/sortDirection. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `posts` | array | Posts matching the filters |
-|   ↳ `id` | string | Post ID |
-|   ↳ `text` | string | Post text content |
-|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
-|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
-|   ↳ `channelId` | string | Channel the post belongs to |
-|   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
-|   ↳ `shareMode` | string | Share mode used for the post |
-|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
-|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
-|     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
-|   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
-|     ↳ `type` | string | Asset type |
-|     ↳ `mimeType` | string | MIME type of the asset |
-|     ↳ `source` | string | Source URL of the asset |
-|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+|   ↳ `id` | string | Post id |
+|   ↳ `allowedActions` | array | Post allowedActions |
+|   ↳ `assets` | array | Post assets |
+|     ↳ `__typename` | string | Concrete Asset variant |
+|     ↳ `id` | string | VideoAsset id |
+|     ↳ `document` | object | DocumentAsset document |
+|       ↳ `filesize` | number | DocumentMetadata filesize |
+|       ↳ `numPages` | number | DocumentMetadata numPages |
+|       ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|       ↳ `title` | string | DocumentMetadata title |
+|     ↳ `mimeType` | string | VideoAsset mimeType |
+|     ↳ `source` | string | VideoAsset source |
+|     ↳ `thumbnail` | string | VideoAsset thumbnail |
+|     ↳ `type` | string | VideoAsset type |
+|     ↳ `image` | object | ImageAsset image |
+|       ↳ `altText` | string | ImageMetadata altText |
+|       ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|       ↳ `height` | number | ImageMetadata height |
+|       ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|       ↳ `userTags` | array | ImageMetadata userTags |
+|         ↳ `handle` | string | UserTag handle |
+|         ↳ `x` | number | UserTag x |
+|         ↳ `y` | number | UserTag y |
+|       ↳ `width` | number | ImageMetadata width |
+|     ↳ `video` | object | VideoAsset video |
+|       ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|       ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|       ↳ `durationMs` | number | VideoMetadata durationMs |
+|       ↳ `fileSize` | number | VideoMetadata fileSize |
+|       ↳ `frameRate` | number | VideoMetadata frameRate |
+|       ↳ `height` | number | VideoMetadata height |
+|       ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|       ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|       ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|       ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|       ↳ `title` | string | VideoMetadata title |
+|       ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|       ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|       ↳ `width` | number | VideoMetadata width |
+|   ↳ `author` | object | Post author |
+|     ↳ `id` | string | Author id |
+|     ↳ `avatar` | string | Author avatar |
+|     ↳ `email` | string | Author email |
+|     ↳ `isDeleted` | boolean | Author isDeleted |
+|     ↳ `name` | string | Author name |
+|     ↳ `urn` | string | Author urn |
+|   ↳ `channel` | object | Post channel |
+|     ↳ `id` | string | Channel id |
+|     ↳ `allowedActions` | array | Channel allowedActions |
+|     ↳ `avatar` | string | Channel avatar |
+|     ↳ `descriptor` | string | Channel descriptor |
+|     ↳ `displayName` | string | Channel displayName |
+|     ↳ `externalLink` | string | Channel externalLink |
+|     ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|     ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|     ↳ `isLocked` | boolean | Channel isLocked |
+|     ↳ `isNew` | boolean | Channel isNew |
+|     ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|     ↳ `linkShortening` | object | Channel linkShortening |
+|       ↳ `config` | object | ChannelLinkShortening config |
+|         ↳ `domain` | string | LinkShorteningConfig domain |
+|         ↳ `name` | string | LinkShorteningConfig name |
+|       ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|     ↳ `metadata` | object | Channel metadata |
+|       ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|       ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|       ↳ `boards` | array | PinterestMetadata boards |
+|         ↳ `id` | string | PinterestBoard id |
+|         ↳ `avatar` | string | PinterestBoard avatar |
+|         ↳ `description` | string | PinterestBoard description |
+|         ↳ `name` | string | PinterestBoard name |
+|         ↳ `serviceId` | string | PinterestBoard serviceId |
+|         ↳ `url` | string | PinterestBoard url |
+|       ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|       ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|       ↳ `locationData` | object | FacebookMetadata locationData |
+|         ↳ `googleAccountId` | string | LocationData googleAccountId |
+|         ↳ `location` | string | LocationData location |
+|         ↳ `mapsLink` | string | LocationData mapsLink |
+|       ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|       ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|       ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|       ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|       ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|       ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|     ↳ `name` | string | Channel name |
+|     ↳ `organizationId` | string | Channel organizationId |
+|     ↳ `postingGoal` | object | Channel postingGoal |
+|       ↳ `goal` | number | PostingGoal goal |
+|       ↳ `periodEnd` | string | PostingGoal periodEnd |
+|       ↳ `periodStart` | string | PostingGoal periodStart |
+|       ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|       ↳ `sentCount` | number | PostingGoal sentCount |
+|       ↳ `status` | string | PostingGoal status |
+|     ↳ `postingSchedule` | array | Channel postingSchedule |
+|       ↳ `day` | string | ScheduleV2 day |
+|       ↳ `paused` | boolean | ScheduleV2 paused |
+|       ↳ `times` | array | ScheduleV2 times |
+|     ↳ `products` | array | Channel products |
+|     ↳ `scopes` | array | Channel scopes |
+|     ↳ `service` | string | Channel service |
+|     ↳ `serviceId` | string | Channel serviceId |
+|     ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|     ↳ `timezone` | string | Channel timezone |
+|     ↳ `type` | string | Channel type |
+|     ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|       ↳ `limit` | number | WeeklyPostingLimit limit |
+|       ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|       ↳ `sent` | number | WeeklyPostingLimit sent |
+|     ↳ `createdAt` | string | Channel createdAt |
+|     ↳ `updatedAt` | string | Channel updatedAt |
+|   ↳ `channelId` | string | Post channelId |
+|   ↳ `channelService` | string | Post channelService |
+|   ↳ `contentItemId` | string | Post contentItemId |
+|   ↳ `dueAt` | string | Post dueAt |
+|   ↳ `error` | object | Post error |
+|     ↳ `message` | string | PostPublishingError message |
+|     ↳ `rawError` | string | PostPublishingError rawError |
+|     ↳ `supportUrl` | string | PostPublishingError supportUrl |
+|   ↳ `externalLink` | string | Post externalLink |
+|   ↳ `ideaId` | string | Post ideaId |
+|   ↳ `isCustomScheduled` | boolean | Post isCustomScheduled |
+|   ↳ `metadata` | object | Post metadata |
+|     ↳ `__typename` | string | Concrete PostMetadata variant |
+|     ↳ `annotations` | array | SubstackPostMetadata annotations |
+|       ↳ `content` | string | Annotation content |
+|       ↳ `indices` | array | Annotation indices |
+|       ↳ `text` | string | Annotation text |
+|       ↳ `type` | string | Annotation type |
+|       ↳ `url` | string | Annotation url |
+|     ↳ `firstComment` | string | LinkedInPostMetadata firstComment |
+|     ↳ `geolocation` | object | InstagramPostMetadata geolocation |
+|       ↳ `id` | string | InstagramGeolocation id |
+|       ↳ `text` | string | InstagramGeolocation text |
+|     ↳ `isAiGenerated` | boolean | TiktokPostMetadata isAiGenerated |
+|     ↳ `link` | string | InstagramPostMetadata link |
+|     ↳ `shouldShareToFeed` | boolean | InstagramPostMetadata shouldShareToFeed |
+|     ↳ `stickerFields` | object | InstagramPostMetadata stickerFields |
+|       ↳ `music` | string | InstagramStickerFields music |
+|       ↳ `other` | string | InstagramStickerFields other |
+|       ↳ `products` | string | InstagramStickerFields products |
+|       ↳ `text` | string | InstagramStickerFields text |
+|       ↳ `topics` | string | InstagramStickerFields topics |
+|     ↳ `type` | string | SubstackPostMetadata type |
+|     ↳ `linkAttachment` | object | SubstackPostMetadata linkAttachment |
+|       ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|       ↳ `text` | string | LinkAttachment text |
+|       ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|       ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|       ↳ `title` | string | LinkAttachment title |
+|       ↳ `url` | string | LinkAttachment url |
+|     ↳ `title` | string | TiktokPostMetadata title |
+|     ↳ `retweet` | object | TwitterPostMetadata retweet |
+|       ↳ `id` | string | RetweetMetadata id |
+|       ↳ `text` | string | RetweetMetadata text |
+|       ↳ `thumbnails` | array | RetweetMetadata thumbnails |
+|       ↳ `url` | string | RetweetMetadata url |
+|       ↳ `user` | object | RetweetMetadata user |
+|         ↳ `avatar` | string | RetweetUserMetadata avatar |
+|         ↳ `name` | string | RetweetUserMetadata name |
+|         ↳ `username` | string | RetweetUserMetadata username |
+|       ↳ `createdAt` | string | RetweetMetadata createdAt |
+|     ↳ `thread` | array | BlueskyPostMetadata thread |
+|       ↳ `assets` | array | ThreadedPost assets |
+|         ↳ `__typename` | string | Concrete Asset variant |
+|         ↳ `id` | string | VideoAsset id |
+|         ↳ `document` | object | DocumentAsset document |
+|           ↳ `filesize` | number | DocumentMetadata filesize |
+|           ↳ `numPages` | number | DocumentMetadata numPages |
+|           ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|           ↳ `title` | string | DocumentMetadata title |
+|         ↳ `mimeType` | string | VideoAsset mimeType |
+|         ↳ `source` | string | VideoAsset source |
+|         ↳ `thumbnail` | string | VideoAsset thumbnail |
+|         ↳ `type` | string | VideoAsset type |
+|         ↳ `image` | object | ImageAsset image |
+|           ↳ `altText` | string | ImageMetadata altText |
+|           ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|           ↳ `height` | number | ImageMetadata height |
+|           ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|           ↳ `userTags` | array | ImageMetadata userTags |
+|             ↳ `handle` | string | UserTag handle |
+|             ↳ `x` | number | UserTag x |
+|             ↳ `y` | number | UserTag y |
+|           ↳ `width` | number | ImageMetadata width |
+|         ↳ `video` | object | VideoAsset video |
+|           ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|           ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|           ↳ `durationMs` | number | VideoMetadata durationMs |
+|           ↳ `fileSize` | number | VideoMetadata fileSize |
+|           ↳ `frameRate` | number | VideoMetadata frameRate |
+|           ↳ `height` | number | VideoMetadata height |
+|           ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|           ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|           ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|           ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|           ↳ `title` | string | VideoMetadata title |
+|           ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|           ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|           ↳ `width` | number | VideoMetadata width |
+|       ↳ `linkAttachment` | object | ThreadedPost linkAttachment |
+|         ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|         ↳ `text` | string | LinkAttachment text |
+|         ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|         ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|         ↳ `title` | string | LinkAttachment title |
+|         ↳ `url` | string | LinkAttachment url |
+|       ↳ `metadata` | object | ThreadedPost metadata |
+|         ↳ `bluesky` | object | ThreadItemMetadata bluesky |
+|           ↳ `linkAttachment` | object | ThreadItemBlueskyMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|         ↳ `threads` | object | ThreadItemMetadata threads |
+|           ↳ `linkAttachment` | object | ThreadItemThreadsMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|       ↳ `text` | string | ThreadedPost text |
+|     ↳ `threadCount` | number | BlueskyPostMetadata threadCount |
+|     ↳ `board` | object | PinterestPostMetadata board |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `url` | string | PinterestPostMetadata url |
+|     ↳ `details` | object | GoogleBusinessPostMetadata details |
+|       ↳ `__typename` | string | Concrete GoogleBusinessPostDetails variant |
+|       ↳ `button` | string | GoogleBusinessEventMetaData button |
+|       ↳ `link` | string | GoogleBusinessEventMetaData link |
+|       ↳ `code` | string | GoogleBusinessOfferMetaData code |
+|       ↳ `endDate` | string | GoogleBusinessEventMetaData endDate |
+|       ↳ `startDate` | string | GoogleBusinessEventMetaData startDate |
+|       ↳ `terms` | string | GoogleBusinessOfferMetaData terms |
+|       ↳ `title` | string | GoogleBusinessEventMetaData title |
+|       ↳ `endTime` | string | GoogleBusinessEventMetaData endTime |
+|       ↳ `isFullDayEvent` | boolean | GoogleBusinessEventMetaData isFullDayEvent |
+|       ↳ `startTime` | string | GoogleBusinessEventMetaData startTime |
+|     ↳ `category` | object | YoutubePostMetadata category |
+|       ↳ `categoryId` | string | YoutubeCategory categoryId |
+|       ↳ `title` | string | YoutubeCategory title |
+|     ↳ `embeddable` | boolean | YoutubePostMetadata embeddable |
+|     ↳ `license` | string | YoutubePostMetadata license |
+|     ↳ `madeForKids` | boolean | YoutubePostMetadata madeForKids |
+|     ↳ `notifySubscribers` | boolean | YoutubePostMetadata notifySubscribers |
+|     ↳ `privacy` | string | YoutubePostMetadata privacy |
+|     ↳ `spoilerText` | string | MastodonPostMetadata spoilerText |
+|     ↳ `locationId` | string | ThreadsPostMetadata locationId |
+|     ↳ `locationName` | string | ThreadsPostMetadata locationName |
+|     ↳ `topic` | string | ThreadsPostMetadata topic |
+|   ↳ `metrics` | array | Post metrics |
+|     ↳ `description` | string | PostMetric description |
+|     ↳ `name` | string | PostMetric name |
+|     ↳ `type` | string | PostMetric type |
+|     ↳ `unit` | string | PostMetric unit |
+|     ↳ `value` | number | PostMetric value |
+|   ↳ `metricsUpdatedAt` | string | Post metricsUpdatedAt |
+|   ↳ `notes` | array | Post notes |
+|     ↳ `id` | string | Note id |
+|     ↳ `allowedActions` | array | Note allowedActions |
+|     ↳ `author` | object | Note author |
+|       ↳ `id` | string | Author id |
+|       ↳ `avatar` | string | Author avatar |
+|       ↳ `email` | string | Author email |
+|       ↳ `isDeleted` | boolean | Author isDeleted |
+|       ↳ `name` | string | Author name |
+|       ↳ `urn` | string | Author urn |
+|     ↳ `text` | string | Note text |
+|     ↳ `type` | string | Note type |
+|     ↳ `createdAt` | string | Note createdAt |
+|     ↳ `updatedAt` | string | Note updatedAt |
+|   ↳ `notificationStatus` | string | Post notificationStatus |
+|   ↳ `schedulingType` | string | Post schedulingType |
+|   ↳ `sentAt` | string | Post sentAt |
+|   ↳ `sharedNow` | boolean | Post sharedNow |
+|   ↳ `shareMode` | string | Post shareMode |
+|   ↳ `status` | string | Post status |
+|   ↳ `tags` | array | Post tags |
+|     ↳ `id` | string | Tag id |
+|     ↳ `color` | string | Tag color |
+|     ↳ `colorName` | string | Tag colorName |
+|     ↳ `isLocked` | boolean | Tag isLocked |
+|     ↳ `name` | string | Tag name |
+|   ↳ `text` | string | Post text |
+|   ↳ `via` | string | Post via |
+|   ↳ `createdAt` | string | Post createdAt |
+|   ↳ `updatedAt` | string | Post updatedAt |
+| `edges` | array | Edges with cursor and full post node |
+|   ↳ `cursor` | string | Cursor for this node |
+|   ↳ `node` | object | node output from the tool |
+|     ↳ `id` | string | Post id |
+|     ↳ `allowedActions` | array | Post allowedActions |
+|     ↳ `assets` | array | Post assets |
+|       ↳ `__typename` | string | Concrete Asset variant |
+|       ↳ `id` | string | VideoAsset id |
+|       ↳ `document` | object | DocumentAsset document |
+|         ↳ `filesize` | number | DocumentMetadata filesize |
+|         ↳ `numPages` | number | DocumentMetadata numPages |
+|         ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|         ↳ `title` | string | DocumentMetadata title |
+|       ↳ `mimeType` | string | VideoAsset mimeType |
+|       ↳ `source` | string | VideoAsset source |
+|       ↳ `thumbnail` | string | VideoAsset thumbnail |
+|       ↳ `type` | string | VideoAsset type |
+|       ↳ `image` | object | ImageAsset image |
+|         ↳ `altText` | string | ImageMetadata altText |
+|         ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|         ↳ `height` | number | ImageMetadata height |
+|         ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|         ↳ `userTags` | array | ImageMetadata userTags |
+|           ↳ `handle` | string | UserTag handle |
+|           ↳ `x` | number | UserTag x |
+|           ↳ `y` | number | UserTag y |
+|         ↳ `width` | number | ImageMetadata width |
+|       ↳ `video` | object | VideoAsset video |
+|         ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|         ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|         ↳ `durationMs` | number | VideoMetadata durationMs |
+|         ↳ `fileSize` | number | VideoMetadata fileSize |
+|         ↳ `frameRate` | number | VideoMetadata frameRate |
+|         ↳ `height` | number | VideoMetadata height |
+|         ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|         ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|         ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|         ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|         ↳ `title` | string | VideoMetadata title |
+|         ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|         ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|         ↳ `width` | number | VideoMetadata width |
+|     ↳ `author` | object | Post author |
+|       ↳ `id` | string | Author id |
+|       ↳ `avatar` | string | Author avatar |
+|       ↳ `email` | string | Author email |
+|       ↳ `isDeleted` | boolean | Author isDeleted |
+|       ↳ `name` | string | Author name |
+|       ↳ `urn` | string | Author urn |
+|     ↳ `channel` | object | Post channel |
+|       ↳ `id` | string | Channel id |
+|       ↳ `allowedActions` | array | Channel allowedActions |
+|       ↳ `avatar` | string | Channel avatar |
+|       ↳ `descriptor` | string | Channel descriptor |
+|       ↳ `displayName` | string | Channel displayName |
+|       ↳ `externalLink` | string | Channel externalLink |
+|       ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|       ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|       ↳ `isLocked` | boolean | Channel isLocked |
+|       ↳ `isNew` | boolean | Channel isNew |
+|       ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|       ↳ `linkShortening` | object | Channel linkShortening |
+|         ↳ `config` | object | ChannelLinkShortening config |
+|           ↳ `domain` | string | LinkShorteningConfig domain |
+|           ↳ `name` | string | LinkShorteningConfig name |
+|         ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|       ↳ `metadata` | object | Channel metadata |
+|         ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|         ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|         ↳ `boards` | array | PinterestMetadata boards |
+|           ↳ `id` | string | PinterestBoard id |
+|           ↳ `avatar` | string | PinterestBoard avatar |
+|           ↳ `description` | string | PinterestBoard description |
+|           ↳ `name` | string | PinterestBoard name |
+|           ↳ `serviceId` | string | PinterestBoard serviceId |
+|           ↳ `url` | string | PinterestBoard url |
+|         ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|         ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|         ↳ `locationData` | object | FacebookMetadata locationData |
+|           ↳ `googleAccountId` | string | LocationData googleAccountId |
+|           ↳ `location` | string | LocationData location |
+|           ↳ `mapsLink` | string | LocationData mapsLink |
+|         ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|         ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|         ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|         ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|         ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|         ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|       ↳ `name` | string | Channel name |
+|       ↳ `organizationId` | string | Channel organizationId |
+|       ↳ `postingGoal` | object | Channel postingGoal |
+|         ↳ `goal` | number | PostingGoal goal |
+|         ↳ `periodEnd` | string | PostingGoal periodEnd |
+|         ↳ `periodStart` | string | PostingGoal periodStart |
+|         ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|         ↳ `sentCount` | number | PostingGoal sentCount |
+|         ↳ `status` | string | PostingGoal status |
+|       ↳ `postingSchedule` | array | Channel postingSchedule |
+|         ↳ `day` | string | ScheduleV2 day |
+|         ↳ `paused` | boolean | ScheduleV2 paused |
+|         ↳ `times` | array | ScheduleV2 times |
+|       ↳ `products` | array | Channel products |
+|       ↳ `scopes` | array | Channel scopes |
+|       ↳ `service` | string | Channel service |
+|       ↳ `serviceId` | string | Channel serviceId |
+|       ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|       ↳ `timezone` | string | Channel timezone |
+|       ↳ `type` | string | Channel type |
+|       ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|         ↳ `limit` | number | WeeklyPostingLimit limit |
+|         ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|         ↳ `sent` | number | WeeklyPostingLimit sent |
+|       ↳ `createdAt` | string | Channel createdAt |
+|       ↳ `updatedAt` | string | Channel updatedAt |
+|     ↳ `channelId` | string | Post channelId |
+|     ↳ `channelService` | string | Post channelService |
+|     ↳ `contentItemId` | string | Post contentItemId |
+|     ↳ `dueAt` | string | Post dueAt |
+|     ↳ `error` | object | Post error |
+|       ↳ `message` | string | PostPublishingError message |
+|       ↳ `rawError` | string | PostPublishingError rawError |
+|       ↳ `supportUrl` | string | PostPublishingError supportUrl |
+|     ↳ `externalLink` | string | Post externalLink |
+|     ↳ `ideaId` | string | Post ideaId |
+|     ↳ `isCustomScheduled` | boolean | Post isCustomScheduled |
+|     ↳ `metadata` | object | Post metadata |
+|       ↳ `__typename` | string | Concrete PostMetadata variant |
+|       ↳ `annotations` | array | SubstackPostMetadata annotations |
+|         ↳ `content` | string | Annotation content |
+|         ↳ `indices` | array | Annotation indices |
+|         ↳ `text` | string | Annotation text |
+|         ↳ `type` | string | Annotation type |
+|         ↳ `url` | string | Annotation url |
+|       ↳ `firstComment` | string | LinkedInPostMetadata firstComment |
+|       ↳ `geolocation` | object | InstagramPostMetadata geolocation |
+|         ↳ `id` | string | InstagramGeolocation id |
+|         ↳ `text` | string | InstagramGeolocation text |
+|       ↳ `isAiGenerated` | boolean | TiktokPostMetadata isAiGenerated |
+|       ↳ `link` | string | InstagramPostMetadata link |
+|       ↳ `shouldShareToFeed` | boolean | InstagramPostMetadata shouldShareToFeed |
+|       ↳ `stickerFields` | object | InstagramPostMetadata stickerFields |
+|         ↳ `music` | string | InstagramStickerFields music |
+|         ↳ `other` | string | InstagramStickerFields other |
+|         ↳ `products` | string | InstagramStickerFields products |
+|         ↳ `text` | string | InstagramStickerFields text |
+|         ↳ `topics` | string | InstagramStickerFields topics |
+|       ↳ `type` | string | SubstackPostMetadata type |
+|       ↳ `linkAttachment` | object | SubstackPostMetadata linkAttachment |
+|         ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|         ↳ `text` | string | LinkAttachment text |
+|         ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|         ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|         ↳ `title` | string | LinkAttachment title |
+|         ↳ `url` | string | LinkAttachment url |
+|       ↳ `title` | string | TiktokPostMetadata title |
+|       ↳ `retweet` | object | TwitterPostMetadata retweet |
+|         ↳ `id` | string | RetweetMetadata id |
+|         ↳ `text` | string | RetweetMetadata text |
+|         ↳ `thumbnails` | array | RetweetMetadata thumbnails |
+|         ↳ `url` | string | RetweetMetadata url |
+|         ↳ `user` | object | RetweetMetadata user |
+|           ↳ `avatar` | string | RetweetUserMetadata avatar |
+|           ↳ `name` | string | RetweetUserMetadata name |
+|           ↳ `username` | string | RetweetUserMetadata username |
+|         ↳ `createdAt` | string | RetweetMetadata createdAt |
+|       ↳ `thread` | array | BlueskyPostMetadata thread |
+|         ↳ `assets` | array | ThreadedPost assets |
+|           ↳ `__typename` | string | Concrete Asset variant |
+|           ↳ `id` | string | VideoAsset id |
+|           ↳ `document` | object | DocumentAsset document |
+|             ↳ `filesize` | number | DocumentMetadata filesize |
+|             ↳ `numPages` | number | DocumentMetadata numPages |
+|             ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|             ↳ `title` | string | DocumentMetadata title |
+|           ↳ `mimeType` | string | VideoAsset mimeType |
+|           ↳ `source` | string | VideoAsset source |
+|           ↳ `thumbnail` | string | VideoAsset thumbnail |
+|           ↳ `type` | string | VideoAsset type |
+|           ↳ `image` | object | ImageAsset image |
+|             ↳ `altText` | string | ImageMetadata altText |
+|             ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|             ↳ `height` | number | ImageMetadata height |
+|             ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|             ↳ `userTags` | array | ImageMetadata userTags |
+|               ↳ `handle` | string | UserTag handle |
+|               ↳ `x` | number | UserTag x |
+|               ↳ `y` | number | UserTag y |
+|             ↳ `width` | number | ImageMetadata width |
+|           ↳ `video` | object | VideoAsset video |
+|             ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|             ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|             ↳ `durationMs` | number | VideoMetadata durationMs |
+|             ↳ `fileSize` | number | VideoMetadata fileSize |
+|             ↳ `frameRate` | number | VideoMetadata frameRate |
+|             ↳ `height` | number | VideoMetadata height |
+|             ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|             ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|             ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|             ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|             ↳ `title` | string | VideoMetadata title |
+|             ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|             ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|             ↳ `width` | number | VideoMetadata width |
+|         ↳ `linkAttachment` | object | ThreadedPost linkAttachment |
+|           ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|           ↳ `text` | string | LinkAttachment text |
+|           ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|           ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|           ↳ `title` | string | LinkAttachment title |
+|           ↳ `url` | string | LinkAttachment url |
+|         ↳ `metadata` | object | ThreadedPost metadata |
+|           ↳ `bluesky` | object | ThreadItemMetadata bluesky |
+|             ↳ `linkAttachment` | object | ThreadItemBlueskyMetadata linkAttachment |
+|               ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|               ↳ `text` | string | LinkAttachment text |
+|               ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|               ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|               ↳ `title` | string | LinkAttachment title |
+|               ↳ `url` | string | LinkAttachment url |
+|           ↳ `threads` | object | ThreadItemMetadata threads |
+|             ↳ `linkAttachment` | object | ThreadItemThreadsMetadata linkAttachment |
+|               ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|               ↳ `text` | string | LinkAttachment text |
+|               ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|               ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|               ↳ `title` | string | LinkAttachment title |
+|               ↳ `url` | string | LinkAttachment url |
+|         ↳ `text` | string | ThreadedPost text |
+|       ↳ `threadCount` | number | BlueskyPostMetadata threadCount |
+|       ↳ `board` | object | PinterestPostMetadata board |
+|         ↳ `id` | string | PinterestBoard id |
+|         ↳ `avatar` | string | PinterestBoard avatar |
+|         ↳ `description` | string | PinterestBoard description |
+|         ↳ `name` | string | PinterestBoard name |
+|         ↳ `serviceId` | string | PinterestBoard serviceId |
+|         ↳ `url` | string | PinterestBoard url |
+|       ↳ `url` | string | PinterestPostMetadata url |
+|       ↳ `details` | object | GoogleBusinessPostMetadata details |
+|         ↳ `__typename` | string | Concrete GoogleBusinessPostDetails variant |
+|         ↳ `button` | string | GoogleBusinessEventMetaData button |
+|         ↳ `link` | string | GoogleBusinessEventMetaData link |
+|         ↳ `code` | string | GoogleBusinessOfferMetaData code |
+|         ↳ `endDate` | string | GoogleBusinessEventMetaData endDate |
+|         ↳ `startDate` | string | GoogleBusinessEventMetaData startDate |
+|         ↳ `terms` | string | GoogleBusinessOfferMetaData terms |
+|         ↳ `title` | string | GoogleBusinessEventMetaData title |
+|         ↳ `endTime` | string | GoogleBusinessEventMetaData endTime |
+|         ↳ `isFullDayEvent` | boolean | GoogleBusinessEventMetaData isFullDayEvent |
+|         ↳ `startTime` | string | GoogleBusinessEventMetaData startTime |
+|       ↳ `category` | object | YoutubePostMetadata category |
+|         ↳ `categoryId` | string | YoutubeCategory categoryId |
+|         ↳ `title` | string | YoutubeCategory title |
+|       ↳ `embeddable` | boolean | YoutubePostMetadata embeddable |
+|       ↳ `license` | string | YoutubePostMetadata license |
+|       ↳ `madeForKids` | boolean | YoutubePostMetadata madeForKids |
+|       ↳ `notifySubscribers` | boolean | YoutubePostMetadata notifySubscribers |
+|       ↳ `privacy` | string | YoutubePostMetadata privacy |
+|       ↳ `spoilerText` | string | MastodonPostMetadata spoilerText |
+|       ↳ `locationId` | string | ThreadsPostMetadata locationId |
+|       ↳ `locationName` | string | ThreadsPostMetadata locationName |
+|       ↳ `topic` | string | ThreadsPostMetadata topic |
+|     ↳ `metrics` | array | Post metrics |
+|       ↳ `description` | string | PostMetric description |
+|       ↳ `name` | string | PostMetric name |
+|       ↳ `type` | string | PostMetric type |
+|       ↳ `unit` | string | PostMetric unit |
+|       ↳ `value` | number | PostMetric value |
+|     ↳ `metricsUpdatedAt` | string | Post metricsUpdatedAt |
+|     ↳ `notes` | array | Post notes |
+|       ↳ `id` | string | Note id |
+|       ↳ `allowedActions` | array | Note allowedActions |
+|       ↳ `author` | object | Note author |
+|         ↳ `id` | string | Author id |
+|         ↳ `avatar` | string | Author avatar |
+|         ↳ `email` | string | Author email |
+|         ↳ `isDeleted` | boolean | Author isDeleted |
+|         ↳ `name` | string | Author name |
+|         ↳ `urn` | string | Author urn |
+|       ↳ `text` | string | Note text |
+|       ↳ `type` | string | Note type |
+|       ↳ `createdAt` | string | Note createdAt |
+|       ↳ `updatedAt` | string | Note updatedAt |
+|     ↳ `notificationStatus` | string | Post notificationStatus |
+|     ↳ `schedulingType` | string | Post schedulingType |
+|     ↳ `sentAt` | string | Post sentAt |
+|     ↳ `sharedNow` | boolean | Post sharedNow |
+|     ↳ `shareMode` | string | Post shareMode |
+|     ↳ `status` | string | Post status |
+|     ↳ `tags` | array | Post tags |
+|       ↳ `id` | string | Tag id |
+|       ↳ `color` | string | Tag color |
+|       ↳ `colorName` | string | Tag colorName |
+|       ↳ `isLocked` | boolean | Tag isLocked |
+|       ↳ `name` | string | Tag name |
+|     ↳ `text` | string | Post text |
+|     ↳ `via` | string | Post via |
+|     ↳ `createdAt` | string | Post createdAt |
+|     ↳ `updatedAt` | string | Post updatedAt |
 | `pageInfo` | object | Pagination info for fetching the next page |
-|   ↳ `hasNextPage` | boolean | Whether more results are available |
-|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+|   ↳ `endCursor` | string | PaginationPageInfo endCursor |
+|   ↳ `hasNextPage` | boolean | PaginationPageInfo hasNextPage |
+|   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
+|   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
 ### Buffer Get Post
 
@@ -201,31 +1342,301 @@ Get a single Buffer post by ID, including its status, schedule, and media
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | The requested post |
-|   ↳ `id` | string | Post ID |
-|   ↳ `text` | string | Post text content |
-|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
-|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
-|   ↳ `channelId` | string | Channel the post belongs to |
-|   ↳ `channelService` | string | Social network of the channel |
-|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
-|   ↳ `shareMode` | string | Share mode used for the post |
-|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
-|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
-|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
-|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
-|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
-|   ↳ `externalLink` | string | Link to the published post on the social network |
-|   ↳ `error` | object | Publishing error details when the post failed |
-|     ↳ `message` | string | Error message |
-|     ↳ `supportUrl` | string | Support article URL |
-|     ↳ `rawError` | string | Raw error from the network |
-|   ↳ `assets` | array | Media attached to the post |
-|     ↳ `id` | string | Asset ID |
-|     ↳ `type` | string | Asset type |
-|     ↳ `mimeType` | string | MIME type of the asset |
-|     ↳ `source` | string | Source URL of the asset |
-|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+|   ↳ `id` | string | Post id |
+|   ↳ `allowedActions` | array | Post allowedActions |
+|   ↳ `assets` | array | Post assets |
+|     ↳ `__typename` | string | Concrete Asset variant |
+|     ↳ `id` | string | VideoAsset id |
+|     ↳ `document` | object | DocumentAsset document |
+|       ↳ `filesize` | number | DocumentMetadata filesize |
+|       ↳ `numPages` | number | DocumentMetadata numPages |
+|       ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|       ↳ `title` | string | DocumentMetadata title |
+|     ↳ `mimeType` | string | VideoAsset mimeType |
+|     ↳ `source` | string | VideoAsset source |
+|     ↳ `thumbnail` | string | VideoAsset thumbnail |
+|     ↳ `type` | string | VideoAsset type |
+|     ↳ `image` | object | ImageAsset image |
+|       ↳ `altText` | string | ImageMetadata altText |
+|       ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|       ↳ `height` | number | ImageMetadata height |
+|       ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|       ↳ `userTags` | array | ImageMetadata userTags |
+|         ↳ `handle` | string | UserTag handle |
+|         ↳ `x` | number | UserTag x |
+|         ↳ `y` | number | UserTag y |
+|       ↳ `width` | number | ImageMetadata width |
+|     ↳ `video` | object | VideoAsset video |
+|       ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|       ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|       ↳ `durationMs` | number | VideoMetadata durationMs |
+|       ↳ `fileSize` | number | VideoMetadata fileSize |
+|       ↳ `frameRate` | number | VideoMetadata frameRate |
+|       ↳ `height` | number | VideoMetadata height |
+|       ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|       ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|       ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|       ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|       ↳ `title` | string | VideoMetadata title |
+|       ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|       ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|       ↳ `width` | number | VideoMetadata width |
+|   ↳ `author` | object | Post author |
+|     ↳ `id` | string | Author id |
+|     ↳ `avatar` | string | Author avatar |
+|     ↳ `email` | string | Author email |
+|     ↳ `isDeleted` | boolean | Author isDeleted |
+|     ↳ `name` | string | Author name |
+|     ↳ `urn` | string | Author urn |
+|   ↳ `channel` | object | Post channel |
+|     ↳ `id` | string | Channel id |
+|     ↳ `allowedActions` | array | Channel allowedActions |
+|     ↳ `avatar` | string | Channel avatar |
+|     ↳ `descriptor` | string | Channel descriptor |
+|     ↳ `displayName` | string | Channel displayName |
+|     ↳ `externalLink` | string | Channel externalLink |
+|     ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|     ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|     ↳ `isLocked` | boolean | Channel isLocked |
+|     ↳ `isNew` | boolean | Channel isNew |
+|     ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|     ↳ `linkShortening` | object | Channel linkShortening |
+|       ↳ `config` | object | ChannelLinkShortening config |
+|         ↳ `domain` | string | LinkShorteningConfig domain |
+|         ↳ `name` | string | LinkShorteningConfig name |
+|       ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|     ↳ `metadata` | object | Channel metadata |
+|       ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|       ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|       ↳ `boards` | array | PinterestMetadata boards |
+|         ↳ `id` | string | PinterestBoard id |
+|         ↳ `avatar` | string | PinterestBoard avatar |
+|         ↳ `description` | string | PinterestBoard description |
+|         ↳ `name` | string | PinterestBoard name |
+|         ↳ `serviceId` | string | PinterestBoard serviceId |
+|         ↳ `url` | string | PinterestBoard url |
+|       ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|       ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|       ↳ `locationData` | object | FacebookMetadata locationData |
+|         ↳ `googleAccountId` | string | LocationData googleAccountId |
+|         ↳ `location` | string | LocationData location |
+|         ↳ `mapsLink` | string | LocationData mapsLink |
+|       ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|       ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|       ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|       ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|       ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|       ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|     ↳ `name` | string | Channel name |
+|     ↳ `organizationId` | string | Channel organizationId |
+|     ↳ `postingGoal` | object | Channel postingGoal |
+|       ↳ `goal` | number | PostingGoal goal |
+|       ↳ `periodEnd` | string | PostingGoal periodEnd |
+|       ↳ `periodStart` | string | PostingGoal periodStart |
+|       ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|       ↳ `sentCount` | number | PostingGoal sentCount |
+|       ↳ `status` | string | PostingGoal status |
+|     ↳ `postingSchedule` | array | Channel postingSchedule |
+|       ↳ `day` | string | ScheduleV2 day |
+|       ↳ `paused` | boolean | ScheduleV2 paused |
+|       ↳ `times` | array | ScheduleV2 times |
+|     ↳ `products` | array | Channel products |
+|     ↳ `scopes` | array | Channel scopes |
+|     ↳ `service` | string | Channel service |
+|     ↳ `serviceId` | string | Channel serviceId |
+|     ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|     ↳ `timezone` | string | Channel timezone |
+|     ↳ `type` | string | Channel type |
+|     ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|       ↳ `limit` | number | WeeklyPostingLimit limit |
+|       ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|       ↳ `sent` | number | WeeklyPostingLimit sent |
+|     ↳ `createdAt` | string | Channel createdAt |
+|     ↳ `updatedAt` | string | Channel updatedAt |
+|   ↳ `channelId` | string | Post channelId |
+|   ↳ `channelService` | string | Post channelService |
+|   ↳ `contentItemId` | string | Post contentItemId |
+|   ↳ `dueAt` | string | Post dueAt |
+|   ↳ `error` | object | Post error |
+|     ↳ `message` | string | PostPublishingError message |
+|     ↳ `rawError` | string | PostPublishingError rawError |
+|     ↳ `supportUrl` | string | PostPublishingError supportUrl |
+|   ↳ `externalLink` | string | Post externalLink |
+|   ↳ `ideaId` | string | Post ideaId |
+|   ↳ `isCustomScheduled` | boolean | Post isCustomScheduled |
+|   ↳ `metadata` | object | Post metadata |
+|     ↳ `__typename` | string | Concrete PostMetadata variant |
+|     ↳ `annotations` | array | SubstackPostMetadata annotations |
+|       ↳ `content` | string | Annotation content |
+|       ↳ `indices` | array | Annotation indices |
+|       ↳ `text` | string | Annotation text |
+|       ↳ `type` | string | Annotation type |
+|       ↳ `url` | string | Annotation url |
+|     ↳ `firstComment` | string | LinkedInPostMetadata firstComment |
+|     ↳ `geolocation` | object | InstagramPostMetadata geolocation |
+|       ↳ `id` | string | InstagramGeolocation id |
+|       ↳ `text` | string | InstagramGeolocation text |
+|     ↳ `isAiGenerated` | boolean | TiktokPostMetadata isAiGenerated |
+|     ↳ `link` | string | InstagramPostMetadata link |
+|     ↳ `shouldShareToFeed` | boolean | InstagramPostMetadata shouldShareToFeed |
+|     ↳ `stickerFields` | object | InstagramPostMetadata stickerFields |
+|       ↳ `music` | string | InstagramStickerFields music |
+|       ↳ `other` | string | InstagramStickerFields other |
+|       ↳ `products` | string | InstagramStickerFields products |
+|       ↳ `text` | string | InstagramStickerFields text |
+|       ↳ `topics` | string | InstagramStickerFields topics |
+|     ↳ `type` | string | SubstackPostMetadata type |
+|     ↳ `linkAttachment` | object | SubstackPostMetadata linkAttachment |
+|       ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|       ↳ `text` | string | LinkAttachment text |
+|       ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|       ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|       ↳ `title` | string | LinkAttachment title |
+|       ↳ `url` | string | LinkAttachment url |
+|     ↳ `title` | string | TiktokPostMetadata title |
+|     ↳ `retweet` | object | TwitterPostMetadata retweet |
+|       ↳ `id` | string | RetweetMetadata id |
+|       ↳ `text` | string | RetweetMetadata text |
+|       ↳ `thumbnails` | array | RetweetMetadata thumbnails |
+|       ↳ `url` | string | RetweetMetadata url |
+|       ↳ `user` | object | RetweetMetadata user |
+|         ↳ `avatar` | string | RetweetUserMetadata avatar |
+|         ↳ `name` | string | RetweetUserMetadata name |
+|         ↳ `username` | string | RetweetUserMetadata username |
+|       ↳ `createdAt` | string | RetweetMetadata createdAt |
+|     ↳ `thread` | array | BlueskyPostMetadata thread |
+|       ↳ `assets` | array | ThreadedPost assets |
+|         ↳ `__typename` | string | Concrete Asset variant |
+|         ↳ `id` | string | VideoAsset id |
+|         ↳ `document` | object | DocumentAsset document |
+|           ↳ `filesize` | number | DocumentMetadata filesize |
+|           ↳ `numPages` | number | DocumentMetadata numPages |
+|           ↳ `thumbnails` | array | DocumentMetadata thumbnails |
+|           ↳ `title` | string | DocumentMetadata title |
+|         ↳ `mimeType` | string | VideoAsset mimeType |
+|         ↳ `source` | string | VideoAsset source |
+|         ↳ `thumbnail` | string | VideoAsset thumbnail |
+|         ↳ `type` | string | VideoAsset type |
+|         ↳ `image` | object | ImageAsset image |
+|           ↳ `altText` | string | ImageMetadata altText |
+|           ↳ `animatedThumbnail` | string | ImageMetadata animatedThumbnail |
+|           ↳ `height` | number | ImageMetadata height |
+|           ↳ `isAnimated` | boolean | ImageMetadata isAnimated |
+|           ↳ `userTags` | array | ImageMetadata userTags |
+|             ↳ `handle` | string | UserTag handle |
+|             ↳ `x` | number | UserTag x |
+|             ↳ `y` | number | UserTag y |
+|           ↳ `width` | number | ImageMetadata width |
+|         ↳ `video` | object | VideoAsset video |
+|           ↳ `audioCodec` | string | VideoMetadata audioCodec |
+|           ↳ `containerFormat` | string | VideoMetadata containerFormat |
+|           ↳ `durationMs` | number | VideoMetadata durationMs |
+|           ↳ `fileSize` | number | VideoMetadata fileSize |
+|           ↳ `frameRate` | number | VideoMetadata frameRate |
+|           ↳ `height` | number | VideoMetadata height |
+|           ↳ `isTranscodingRequired` | boolean | VideoMetadata isTranscodingRequired |
+|           ↳ `isVideoProcessing` | boolean | VideoMetadata isVideoProcessing |
+|           ↳ `rotationDegree` | number | VideoMetadata rotationDegree |
+|           ↳ `thumbnailOffset` | number | VideoMetadata thumbnailOffset |
+|           ↳ `title` | string | VideoMetadata title |
+|           ↳ `videoBitRate` | number | VideoMetadata videoBitRate |
+|           ↳ `videoCodec` | string | VideoMetadata videoCodec |
+|           ↳ `width` | number | VideoMetadata width |
+|       ↳ `linkAttachment` | object | ThreadedPost linkAttachment |
+|         ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|         ↳ `text` | string | LinkAttachment text |
+|         ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|         ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|         ↳ `title` | string | LinkAttachment title |
+|         ↳ `url` | string | LinkAttachment url |
+|       ↳ `metadata` | object | ThreadedPost metadata |
+|         ↳ `bluesky` | object | ThreadItemMetadata bluesky |
+|           ↳ `linkAttachment` | object | ThreadItemBlueskyMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|         ↳ `threads` | object | ThreadItemMetadata threads |
+|           ↳ `linkAttachment` | object | ThreadItemThreadsMetadata linkAttachment |
+|             ↳ `expandedUrl` | string | LinkAttachment expandedUrl |
+|             ↳ `text` | string | LinkAttachment text |
+|             ↳ `thumbnail` | string | LinkAttachment thumbnail |
+|             ↳ `thumbnails` | array | LinkAttachment thumbnails |
+|             ↳ `title` | string | LinkAttachment title |
+|             ↳ `url` | string | LinkAttachment url |
+|       ↳ `text` | string | ThreadedPost text |
+|     ↳ `threadCount` | number | BlueskyPostMetadata threadCount |
+|     ↳ `board` | object | PinterestPostMetadata board |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `url` | string | PinterestPostMetadata url |
+|     ↳ `details` | object | GoogleBusinessPostMetadata details |
+|       ↳ `__typename` | string | Concrete GoogleBusinessPostDetails variant |
+|       ↳ `button` | string | GoogleBusinessEventMetaData button |
+|       ↳ `link` | string | GoogleBusinessEventMetaData link |
+|       ↳ `code` | string | GoogleBusinessOfferMetaData code |
+|       ↳ `endDate` | string | GoogleBusinessEventMetaData endDate |
+|       ↳ `startDate` | string | GoogleBusinessEventMetaData startDate |
+|       ↳ `terms` | string | GoogleBusinessOfferMetaData terms |
+|       ↳ `title` | string | GoogleBusinessEventMetaData title |
+|       ↳ `endTime` | string | GoogleBusinessEventMetaData endTime |
+|       ↳ `isFullDayEvent` | boolean | GoogleBusinessEventMetaData isFullDayEvent |
+|       ↳ `startTime` | string | GoogleBusinessEventMetaData startTime |
+|     ↳ `category` | object | YoutubePostMetadata category |
+|       ↳ `categoryId` | string | YoutubeCategory categoryId |
+|       ↳ `title` | string | YoutubeCategory title |
+|     ↳ `embeddable` | boolean | YoutubePostMetadata embeddable |
+|     ↳ `license` | string | YoutubePostMetadata license |
+|     ↳ `madeForKids` | boolean | YoutubePostMetadata madeForKids |
+|     ↳ `notifySubscribers` | boolean | YoutubePostMetadata notifySubscribers |
+|     ↳ `privacy` | string | YoutubePostMetadata privacy |
+|     ↳ `spoilerText` | string | MastodonPostMetadata spoilerText |
+|     ↳ `locationId` | string | ThreadsPostMetadata locationId |
+|     ↳ `locationName` | string | ThreadsPostMetadata locationName |
+|     ↳ `topic` | string | ThreadsPostMetadata topic |
+|   ↳ `metrics` | array | Post metrics |
+|     ↳ `description` | string | PostMetric description |
+|     ↳ `name` | string | PostMetric name |
+|     ↳ `type` | string | PostMetric type |
+|     ↳ `unit` | string | PostMetric unit |
+|     ↳ `value` | number | PostMetric value |
+|   ↳ `metricsUpdatedAt` | string | Post metricsUpdatedAt |
+|   ↳ `notes` | array | Post notes |
+|     ↳ `id` | string | Note id |
+|     ↳ `allowedActions` | array | Note allowedActions |
+|     ↳ `author` | object | Note author |
+|       ↳ `id` | string | Author id |
+|       ↳ `avatar` | string | Author avatar |
+|       ↳ `email` | string | Author email |
+|       ↳ `isDeleted` | boolean | Author isDeleted |
+|       ↳ `name` | string | Author name |
+|       ↳ `urn` | string | Author urn |
+|     ↳ `text` | string | Note text |
+|     ↳ `type` | string | Note type |
+|     ↳ `createdAt` | string | Note createdAt |
+|     ↳ `updatedAt` | string | Note updatedAt |
+|   ↳ `notificationStatus` | string | Post notificationStatus |
+|   ↳ `schedulingType` | string | Post schedulingType |
+|   ↳ `sentAt` | string | Post sentAt |
+|   ↳ `sharedNow` | boolean | Post sharedNow |
+|   ↳ `shareMode` | string | Post shareMode |
+|   ↳ `status` | string | Post status |
+|   ↳ `tags` | array | Post tags |
+|     ↳ `id` | string | Tag id |
+|     ↳ `color` | string | Tag color |
+|     ↳ `colorName` | string | Tag colorName |
+|     ↳ `isLocked` | boolean | Tag isLocked |
+|     ↳ `name` | string | Tag name |
+|   ↳ `text` | string | Post text |
+|   ↳ `via` | string | Post via |
+|   ↳ `createdAt` | string | Post createdAt |
+|   ↳ `updatedAt` | string | Post updatedAt |
 
 ### Buffer Delete Post
 
@@ -255,23 +1666,209 @@ List the social media channels connected to a Buffer organization, including the
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+| `filter` | json | No | \{ isLocked: Boolean; product: Product \(analyze \| buffer \| comments \| engage \| publish \| startPage\) \} |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `channels` | array | Channels connected to the organization |
-|   ↳ `id` | string | Channel ID |
+|   ↳ `id` | string | Channel id |
+|   ↳ `allowedActions` | array | Channel allowedActions |
+|   ↳ `avatar` | string | Channel avatar |
+|   ↳ `descriptor` | string | Channel descriptor |
+|   ↳ `displayName` | string | Channel displayName |
+|   ↳ `externalLink` | string | Channel externalLink |
+|   ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|   ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|   ↳ `isLocked` | boolean | Channel isLocked |
+|   ↳ `isNew` | boolean | Channel isNew |
+|   ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|   ↳ `linkShortening` | object | Channel linkShortening |
+|     ↳ `config` | object | ChannelLinkShortening config |
+|       ↳ `domain` | string | LinkShorteningConfig domain |
+|       ↳ `name` | string | LinkShorteningConfig name |
+|     ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|   ↳ `metadata` | object | Channel metadata |
+|     ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|     ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|     ↳ `boards` | array | PinterestMetadata boards |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|     ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|     ↳ `locationData` | object | FacebookMetadata locationData |
+|       ↳ `googleAccountId` | string | LocationData googleAccountId |
+|       ↳ `location` | string | LocationData location |
+|       ↳ `mapsLink` | string | LocationData mapsLink |
+|     ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|     ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|     ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|     ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|     ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|     ↳ `wabaId` | string | WhatsAppMetadata wabaId |
 |   ↳ `name` | string | Channel name |
-|   ↳ `displayName` | string | Channel display name |
-|   ↳ `service` | string | Social network \(instagram, linkedin, twitter, ...\) |
-|   ↳ `serviceId` | string | ID of the account on the social network |
-|   ↳ `avatar` | string | Channel avatar URL |
+|   ↳ `organizationId` | string | Channel organizationId |
+|   ↳ `postingGoal` | object | Channel postingGoal |
+|     ↳ `goal` | number | PostingGoal goal |
+|     ↳ `periodEnd` | string | PostingGoal periodEnd |
+|     ↳ `periodStart` | string | PostingGoal periodStart |
+|     ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|     ↳ `sentCount` | number | PostingGoal sentCount |
+|     ↳ `status` | string | PostingGoal status |
+|   ↳ `postingSchedule` | array | Channel postingSchedule |
+|     ↳ `day` | string | ScheduleV2 day |
+|     ↳ `paused` | boolean | ScheduleV2 paused |
+|     ↳ `times` | array | ScheduleV2 times |
+|   ↳ `products` | array | Channel products |
+|   ↳ `scopes` | array | Channel scopes |
+|   ↳ `service` | string | Channel service |
+|   ↳ `serviceId` | string | Channel serviceId |
+|   ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
 |   ↳ `timezone` | string | Channel timezone |
-|   ↳ `type` | string | Channel type \(page, profile, business, ...\) |
-|   ↳ `isQueuePaused` | boolean | Whether the posting queue is paused |
-|   ↳ `isDisconnected` | boolean | Whether the channel needs reconnection |
-|   ↳ `organizationId` | string | Organization the channel belongs to |
+|   ↳ `type` | string | Channel type |
+|   ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|     ↳ `limit` | number | WeeklyPostingLimit limit |
+|     ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|     ↳ `sent` | number | WeeklyPostingLimit sent |
+|   ↳ `createdAt` | string | Channel createdAt |
+|   ↳ `updatedAt` | string | Channel updatedAt |
+
+### Buffer Get Channel
+
+Get one connected channel, including its posting schedule, limits and network settings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key with account:read permission |
+| `channelId` | string | Yes | Buffer channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channel` | object | Connected channel |
+|   ↳ `id` | string | Channel id |
+|   ↳ `allowedActions` | array | Channel allowedActions |
+|   ↳ `avatar` | string | Channel avatar |
+|   ↳ `descriptor` | string | Channel descriptor |
+|   ↳ `displayName` | string | Channel displayName |
+|   ↳ `externalLink` | string | Channel externalLink |
+|   ↳ `hasActiveMemberDevice` | boolean | Channel hasActiveMemberDevice |
+|   ↳ `isDisconnected` | boolean | Channel isDisconnected |
+|   ↳ `isLocked` | boolean | Channel isLocked |
+|   ↳ `isNew` | boolean | Channel isNew |
+|   ↳ `isQueuePaused` | boolean | Channel isQueuePaused |
+|   ↳ `linkShortening` | object | Channel linkShortening |
+|     ↳ `config` | object | ChannelLinkShortening config |
+|       ↳ `domain` | string | LinkShorteningConfig domain |
+|       ↳ `name` | string | LinkShorteningConfig name |
+|     ↳ `isEnabled` | boolean | ChannelLinkShortening isEnabled |
+|   ↳ `metadata` | object | Channel metadata |
+|     ↳ `__typename` | string | Concrete ChannelMetadata variant |
+|     ↳ `defaultToReminders` | boolean | YoutubeMetadata defaultToReminders |
+|     ↳ `boards` | array | PinterestMetadata boards |
+|       ↳ `id` | string | PinterestBoard id |
+|       ↳ `avatar` | string | PinterestBoard avatar |
+|       ↳ `description` | string | PinterestBoard description |
+|       ↳ `name` | string | PinterestBoard name |
+|       ↳ `serviceId` | string | PinterestBoard serviceId |
+|       ↳ `url` | string | PinterestBoard url |
+|     ↳ `maxCharacters` | number | MastodonMetadata maxCharacters |
+|     ↳ `serverUrl` | string | BlueskyMetadata serverUrl |
+|     ↳ `locationData` | object | FacebookMetadata locationData |
+|       ↳ `googleAccountId` | string | LocationData googleAccountId |
+|       ↳ `location` | string | LocationData location |
+|       ↳ `mapsLink` | string | LocationData mapsLink |
+|     ↳ `subscriptionType` | string | TwitterMetadata subscriptionType |
+|     ↳ `shouldShowLinkedinAnalyticsRefreshBanner` | boolean | LinkedInMetadata shouldShowLinkedinAnalyticsRefreshBanner |
+|     ↳ `businessPortfolioId` | string | WhatsAppMetadata businessPortfolioId |
+|     ↳ `lastSubscribedAt` | string | WhatsAppMetadata lastSubscribedAt |
+|     ↳ `phoneNumberId` | string | WhatsAppMetadata phoneNumberId |
+|     ↳ `wabaId` | string | WhatsAppMetadata wabaId |
+|   ↳ `name` | string | Channel name |
+|   ↳ `organizationId` | string | Channel organizationId |
+|   ↳ `postingGoal` | object | Channel postingGoal |
+|     ↳ `goal` | number | PostingGoal goal |
+|     ↳ `periodEnd` | string | PostingGoal periodEnd |
+|     ↳ `periodStart` | string | PostingGoal periodStart |
+|     ↳ `scheduledCount` | number | PostingGoal scheduledCount |
+|     ↳ `sentCount` | number | PostingGoal sentCount |
+|     ↳ `status` | string | PostingGoal status |
+|   ↳ `postingSchedule` | array | Channel postingSchedule |
+|     ↳ `day` | string | ScheduleV2 day |
+|     ↳ `paused` | boolean | ScheduleV2 paused |
+|     ↳ `times` | array | ScheduleV2 times |
+|   ↳ `products` | array | Channel products |
+|   ↳ `scopes` | array | Channel scopes |
+|   ↳ `service` | string | Channel service |
+|   ↳ `serviceId` | string | Channel serviceId |
+|   ↳ `showTrendingTopicSuggestions` | boolean | Channel showTrendingTopicSuggestions |
+|   ↳ `timezone` | string | Channel timezone |
+|   ↳ `type` | string | Channel type |
+|   ↳ `weeklyPostingLimit` | object | Channel weeklyPostingLimit |
+|     ↳ `limit` | number | WeeklyPostingLimit limit |
+|     ↳ `scheduled` | number | WeeklyPostingLimit scheduled |
+|     ↳ `sent` | number | WeeklyPostingLimit sent |
+|   ↳ `createdAt` | string | Channel createdAt |
+|   ↳ `updatedAt` | string | Channel updatedAt |
+
+### Buffer Get Aggregated Post Metrics
+
+Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key with insights:read permission |
+| `organizationId` | string | Yes | Buffer organization ID |
+| `startDateTime` | string | Yes | Start of aggregation window as an ISO 8601 timestamp |
+| `endDateTime` | string | Yes | End of aggregation window as an ISO 8601 timestamp |
+| `channelIds` | json | No | Channel ID array or comma-separated IDs. Omit for all permitted channels; \[\] returns an empty result. |
+| `tags` | json | No | \{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aggregatedPostMetrics` | object | Aggregated performance metrics |
+|   ↳ `metrics` | array | AggregatedPostMetrics metrics |
+|     ↳ `description` | string | PostMetric description |
+|     ↳ `name` | string | PostMetric name |
+|     ↳ `type` | string | PostMetric type |
+|     ↳ `unit` | string | PostMetric unit |
+|     ↳ `value` | number | PostMetric value |
+|   ↳ `metricsUpdatedAt` | string | AggregatedPostMetrics metricsUpdatedAt |
+
+### Buffer Get Daily Posting Limits
+
+Check sent and scheduled post counts against each channel’s daily limit for a date
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key with posts:read permission |
+| `channelIds` | json | Yes | Channel ID array or comma-separated IDs; all channels must belong to the same organization |
+| `date` | string | No | ISO 8601 timestamp for the date to check; omit for today |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limits` | array | Daily limit status per channel |
+|   ↳ `channelId` | string | DailyPostingLimitStatus channelId |
+|   ↳ `isAtLimit` | boolean | DailyPostingLimitStatus isAtLimit |
+|   ↳ `limit` | number | DailyPostingLimitStatus limit |
+|   ↳ `scheduled` | number | DailyPostingLimitStatus scheduled |
+|   ↳ `sent` | number | DailyPostingLimitStatus sent |
 
 ### Buffer Create Idea
 
@@ -283,20 +1880,50 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
-| `text` | string | Yes | Text content of the idea |
+| `text` | string | No | Text content of the idea |
 | `title` | string | No | Optional title for the idea |
 | `groupId` | string | No | Optional idea group \(board column\) to place the idea in |
+| `content` | json | No | \{ aiAssisted: Boolean; date: DateTime; media: \[IdeaMediaInput!\] \(\{ url: String!; alt: String; thumbnailUrl: String; type: MediaType! \(image \| gif \| video \| link \| document \| unsupported\); size: Int; source: IdeaMediaSourceInput \(\{ name: String!; id: String; trigger: String; author: String; authorUrl: String \}\) \}\); services: \[Service!\] \(bluesky \| facebook \| googlebusiness \| instagram \| linkedin \| mastodon \| pinterest \| startPage \| substack \| threads \| tiktok \| twitter \| whatsapp \| youtube\); tags: \[TagInput!\] \(\{ id: ID!; name: String!; color: String! \}\); text: String; title: String \} |
+| `group` | json | No | \{ groupId: ID; placeAfterId: ID \} |
+| `cta` | string | No | Call to action tracking value |
+| `templateId` | string | No | Template ID used to create the idea |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `idea` | object | The created idea |
-|   ↳ `id` | string | Idea ID |
-|   ↳ `organizationId` | string | Organization the idea belongs to |
-|   ↳ `groupId` | string | Idea group ID |
-|   ↳ `title` | string | Idea title |
-|   ↳ `text` | string | Idea text content |
+|   ↳ `id` | string | Idea id |
+|   ↳ `content` | object | Idea content |
+|     ↳ `aiAssisted` | boolean | IdeaContent aiAssisted |
+|     ↳ `date` | string | IdeaContent date |
+|     ↳ `media` | array | IdeaContent media |
+|       ↳ `id` | string | IdeaMedia id |
+|       ↳ `alt` | string | IdeaMedia alt |
+|       ↳ `size` | number | IdeaMedia size |
+|       ↳ `source` | object | IdeaMedia source |
+|         ↳ `id` | string | IdeaMediaSource id |
+|         ↳ `author` | string | IdeaMediaSource author |
+|         ↳ `authorUrl` | string | IdeaMediaSource authorUrl |
+|         ↳ `name` | string | IdeaMediaSource name |
+|       ↳ `thumbnailUrl` | string | IdeaMedia thumbnailUrl |
+|       ↳ `type` | string | IdeaMedia type |
+|       ↳ `url` | string | IdeaMedia url |
+|     ↳ `services` | array | IdeaContent services |
+|     ↳ `tags` | array | IdeaContent tags |
+|       ↳ `id` | string | PublishingTag id |
+|       ↳ `color` | string | PublishingTag color |
+|       ↳ `colorName` | string | PublishingTag colorName |
+|       ↳ `name` | string | PublishingTag name |
+|     ↳ `text` | string | IdeaContent text |
+|     ↳ `title` | string | IdeaContent title |
+|   ↳ `groupId` | string | Idea groupId |
+|   ↳ `organizationId` | string | Idea organizationId |
+|   ↳ `position` | number | Idea position |
+|   ↳ `createdAt` | number | Idea createdAt |
+|   ↳ `updatedAt` | number | Idea updatedAt |
+|   ↳ `title` | string | Idea content title |
+|   ↳ `text` | string | Idea content text |
 
 ### Buffer Get Ideas
 
@@ -310,20 +1937,84 @@ List content ideas saved in a Buffer organization
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `limit` | number | No | Maximum number of ideas to return \(default 20\) |
 | `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
+| `groupFilter` | json | No | \{ groups: \[ID!\]; membership: IdeaGroupMembership \(grouped \| ungrouped\) \} |
+| `tagsFilter` | json | No | \{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \} |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ideas` | array | Content ideas in the organization |
-|   ↳ `id` | string | Idea ID |
-|   ↳ `organizationId` | string | Organization the idea belongs to |
-|   ↳ `groupId` | string | Idea group ID |
-|   ↳ `title` | string | Idea title |
-|   ↳ `text` | string | Idea text content |
+|   ↳ `id` | string | Idea id |
+|   ↳ `content` | object | Idea content |
+|     ↳ `aiAssisted` | boolean | IdeaContent aiAssisted |
+|     ↳ `date` | string | IdeaContent date |
+|     ↳ `media` | array | IdeaContent media |
+|       ↳ `id` | string | IdeaMedia id |
+|       ↳ `alt` | string | IdeaMedia alt |
+|       ↳ `size` | number | IdeaMedia size |
+|       ↳ `source` | object | IdeaMedia source |
+|         ↳ `id` | string | IdeaMediaSource id |
+|         ↳ `author` | string | IdeaMediaSource author |
+|         ↳ `authorUrl` | string | IdeaMediaSource authorUrl |
+|         ↳ `name` | string | IdeaMediaSource name |
+|       ↳ `thumbnailUrl` | string | IdeaMedia thumbnailUrl |
+|       ↳ `type` | string | IdeaMedia type |
+|       ↳ `url` | string | IdeaMedia url |
+|     ↳ `services` | array | IdeaContent services |
+|     ↳ `tags` | array | IdeaContent tags |
+|       ↳ `id` | string | PublishingTag id |
+|       ↳ `color` | string | PublishingTag color |
+|       ↳ `colorName` | string | PublishingTag colorName |
+|       ↳ `name` | string | PublishingTag name |
+|     ↳ `text` | string | IdeaContent text |
+|     ↳ `title` | string | IdeaContent title |
+|   ↳ `groupId` | string | Idea groupId |
+|   ↳ `organizationId` | string | Idea organizationId |
+|   ↳ `position` | number | Idea position |
+|   ↳ `createdAt` | number | Idea createdAt |
+|   ↳ `updatedAt` | number | Idea updatedAt |
+|   ↳ `title` | string | Idea content title |
+|   ↳ `text` | string | Idea content text |
+| `edges` | array | Edges with cursor and full idea node |
+|   ↳ `cursor` | string | Cursor for this node |
+|   ↳ `node` | object | node output from the tool |
+|     ↳ `id` | string | Idea id |
+|     ↳ `content` | object | Idea content |
+|       ↳ `aiAssisted` | boolean | IdeaContent aiAssisted |
+|       ↳ `date` | string | IdeaContent date |
+|       ↳ `media` | array | IdeaContent media |
+|         ↳ `id` | string | IdeaMedia id |
+|         ↳ `alt` | string | IdeaMedia alt |
+|         ↳ `size` | number | IdeaMedia size |
+|         ↳ `source` | object | IdeaMedia source |
+|           ↳ `id` | string | IdeaMediaSource id |
+|           ↳ `author` | string | IdeaMediaSource author |
+|           ↳ `authorUrl` | string | IdeaMediaSource authorUrl |
+|           ↳ `name` | string | IdeaMediaSource name |
+|         ↳ `thumbnailUrl` | string | IdeaMedia thumbnailUrl |
+|         ↳ `type` | string | IdeaMedia type |
+|         ↳ `url` | string | IdeaMedia url |
+|       ↳ `services` | array | IdeaContent services |
+|       ↳ `tags` | array | IdeaContent tags |
+|         ↳ `id` | string | PublishingTag id |
+|         ↳ `color` | string | PublishingTag color |
+|         ↳ `colorName` | string | PublishingTag colorName |
+|         ↳ `name` | string | PublishingTag name |
+|       ↳ `text` | string | IdeaContent text |
+|       ↳ `title` | string | IdeaContent title |
+|     ↳ `groupId` | string | Idea groupId |
+|     ↳ `organizationId` | string | Idea organizationId |
+|     ↳ `position` | number | Idea position |
+|     ↳ `createdAt` | number | Idea createdAt |
+|     ↳ `updatedAt` | number | Idea updatedAt |
+|     ↳ `title` | string | Idea content title |
+|     ↳ `text` | string | Idea content text |
 | `pageInfo` | object | Pagination info for fetching the next page |
-|   ↳ `hasNextPage` | boolean | Whether more results are available |
-|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+|   ↳ `endCursor` | string | PaginationPageInfo endCursor |
+|   ↳ `hasNextPage` | boolean | PaginationPageInfo hasNextPage |
+|   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
+|   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
 ### Buffer Get Idea Groups
 
@@ -341,9 +2032,9 @@ List idea groups (board columns) in a Buffer organization, including the group I
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ideaGroups` | array | Idea groups \(board columns\) in the organization |
-|   ↳ `id` | string | Idea group ID |
-|   ↳ `name` | string | Idea group name |
-|   ↳ `isLocked` | boolean | Whether the group is locked |
+|   ↳ `id` | string | IdeaGroup id |
+|   ↳ `isLocked` | boolean | IdeaGroup isLocked |
+|   ↳ `name` | string | IdeaGroup name |
 
 ### Buffer Get Account
 
@@ -354,20 +2045,52 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Buffer API key |
+| `organizationFilter` | json | No | \{ organizationId: String! \} |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | object | The authenticated Buffer account |
-|   ↳ `id` | string | Account ID |
+|   ↳ `id` | string | Account id |
 |   ↳ `email` | string | Account email |
-|   ↳ `name` | string | Account holder name |
-|   ↳ `timezone` | string | Account timezone |
-|   ↳ `organizations` | array | Organizations the account belongs to |
-|     ↳ `id` | string | Organization ID |
+|   ↳ `backupEmail` | string | Account backupEmail |
+|   ↳ `avatar` | string | Account avatar |
+|   ↳ `createdAt` | string | Account createdAt |
+|   ↳ `organizations` | array | Account organizations |
+|     ↳ `id` | string | Organization id |
+|     ↳ `channelCount` | number | Organization channelCount |
+|     ↳ `limits` | object | Organization limits |
+|       ↳ `channels` | number | OrganizationLimits channels |
+|       ↳ `generateContent` | number | OrganizationLimits generateContent |
+|       ↳ `ideaGroups` | number | OrganizationLimits ideaGroups |
+|       ↳ `ideas` | number | OrganizationLimits ideas |
+|       ↳ `members` | number | OrganizationLimits members |
+|       ↳ `postTemplates` | number | OrganizationLimits postTemplates |
+|       ↳ `savedReplies` | number | OrganizationLimits savedReplies |
+|       ↳ `scheduledPosts` | number | OrganizationLimits scheduledPosts |
+|       ↳ `scheduledStoriesPerChannel` | number | OrganizationLimits scheduledStoriesPerChannel |
+|       ↳ `scheduledThreadsPerChannel` | number | OrganizationLimits scheduledThreadsPerChannel |
+|       ↳ `tags` | number | OrganizationLimits tags |
+|     ↳ `members` | object | Organization members |
+|       ↳ `totalCount` | number | MemberConnection totalCount |
 |     ↳ `name` | string | Organization name |
-|     ↳ `channelCount` | number | Number of connected channels |
-|     ↳ `ownerEmail` | string | Email of the organization owner |
+|     ↳ `ownerEmail` | string | Organization ownerEmail |
+|     ↳ `shouldEnforce2FASetup` | boolean | Organization shouldEnforce2FASetup |
+|   ↳ `timezone` | string | Account timezone |
+|   ↳ `name` | string | Account name |
+|   ↳ `preferences` | object | Account preferences |
+|     ↳ `timeFormat` | string | Preferences timeFormat |
+|     ↳ `startOfWeek` | string | Preferences startOfWeek |
+|     ↳ `defaultScheduleOption` | string | Preferences defaultScheduleOption |
+|   ↳ `connectedApps` | array | Account connectedApps |
+|     ↳ `category` | string | ConnectedApp category |
+|     ↳ `clientId` | string | ConnectedApp clientId |
+|     ↳ `description` | string | ConnectedApp description |
+|     ↳ `name` | string | ConnectedApp name |
+|     ↳ `scopes` | array | ConnectedApp scopes |
+|     ↳ `userId` | string | ConnectedApp userId |
+|     ↳ `website` | string | ConnectedApp website |
+|     ↳ `createdAt` | string | ConnectedApp createdAt |
 
 

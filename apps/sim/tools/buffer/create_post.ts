@@ -1,6 +1,8 @@
+import { bufferInputDescription } from '@/tools/buffer/schema'
 import {
   type BufferCreatePostParams,
   type BufferPostResponse,
+  bufferStringList,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -79,6 +81,54 @@ export const bufferCreatePostTool: InternalToolConfig<BufferCreatePostParams, Bu
         visibility: 'user-or-llm',
         description: 'Alt text for an attached image',
       },
+      assets: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: `Array of assets: ${bufferInputDescription('AssetInput')}. Choose exactly one variant per asset. Omit when using media. On edit, [] clears attachments and omission preserves them.`,
+      },
+      metadata: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: bufferInputDescription('PostInputMetaData'),
+      },
+      aiAssisted: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Whether AI assisted with creating the post',
+      },
+      draftId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Draft identifier associated with the post',
+      },
+      ideaId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Source idea identifier',
+      },
+      source: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Source application identifier',
+      },
+      tagIds: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Array of tag IDs; on edit, [] clears tags and omission preserves them',
+      },
+      needsApproval: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Request approval on creation (default false)',
+      },
     },
 
     operation: {
@@ -93,6 +143,14 @@ export const bufferCreatePostTool: InternalToolConfig<BufferCreatePostParams, Bu
         media: params.media,
         mediaType: params.mediaType,
         mediaAltText: params.mediaAltText,
+        assets: params.assets,
+        metadata: params.metadata,
+        aiAssisted: params.aiAssisted,
+        draftId: params.draftId,
+        ideaId: params.ideaId,
+        source: params.source,
+        tagIds: params.tagIds == null ? params.tagIds : bufferStringList(params.tagIds),
+        needsApproval: params.needsApproval,
       }),
     },
 

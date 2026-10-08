@@ -1,20 +1,17 @@
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import { toArray, toRecord } from '@sim/utils/object'
+import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
+import { bufferOutputProperties, bufferSelection, projectBufferObject } from '@/tools/buffer/schema'
+import type { ToolResponse } from '@/tools/types'
 
-/** Single GraphQL endpoint for the Buffer API. */
 export const BUFFER_API_URL = 'https://api.buffer.com'
-
-/** Valid values for the `mode` argument of createPost/editPost. */
 export const BUFFER_SHARE_MODES = [
   'addToQueue',
   'shareNext',
   'shareNow',
   'customScheduled',
 ] as const
-
-/** Valid values for the `schedulingType` argument of createPost/editPost. */
 export const BUFFER_SCHEDULING_TYPES = ['automatic', 'notification'] as const
-
-/** Valid post status filter values for the posts query. */
 export const BUFFER_POST_STATUSES = [
   'draft',
   'needs_approval',
@@ -26,363 +23,734 @@ export const BUFFER_POST_STATUSES = [
 
 type BufferShareMode = (typeof BUFFER_SHARE_MODES)[number]
 type BufferSchedulingType = (typeof BUFFER_SCHEDULING_TYPES)[number]
-
-/** Every Buffer tool authenticates with the account API key as a Bearer token. */
 interface BufferBaseParams {
   apiKey: string
 }
 
-/**
- * Builds the standard headers shared by every Buffer GraphQL request.
- */
+/** Builds the Bearer token headers for Buffer's GraphQL API. */
 export function bufferHeaders(apiKey: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  }
+  return { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
 }
 
-/**
- * Parses a Buffer GraphQL response and returns its `data` payload.
- * Throws with a readable message when the transport fails or the
- * response carries top-level GraphQL errors.
- */
-export async function parseBufferGraphQLResponse(response: Response): Promise<Record<string, any>> {
-  let payload: { data?: Record<string, any>; errors?: Array<{ message?: string }> }
+/** Reads a bounded GraphQL envelope and rejects transport and provider errors. */
+export async function parseBufferGraphQLResponse(
+  response: Response
+): Promise<Record<string, unknown>> {
+  const bytes = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+    label: 'Buffer API response',
+  })
+  let payload: Record<string, unknown>
   try {
-    payload = await response.json()
+    payload = toRecord(JSON.parse(bytes.toString('utf8')))
   } catch {
     throw new Error(`Buffer API error (HTTP ${response.status})`)
   }
-  if (payload.errors?.length) {
-    throw new Error(payload.errors[0]?.message || 'Buffer API error')
-  }
-  if (!payload.data) {
-    throw new Error(`Buffer API returned no data (HTTP ${response.status})`)
-  }
-  return payload.data
+  const errors = toArray(payload.errors).map(toRecord)
+  if (errors.length)
+    throw new Error(typeof errors[0]?.message === 'string' ? errors[0].message : 'Buffer API error')
+  if (!response.ok || !payload.data) throw new Error(`Buffer API error (HTTP ${response.status})`)
+  return toRecord(payload.data)
 }
 
-/** GraphQL selection set shared by every operation that returns a Post. */
-export const BUFFER_POST_SELECTION = `
-  id
-  text
-  status
-  via
-  channelId
-  channelService
-  schedulingType
-  shareMode
-  isCustomScheduled
-  sharedNow
-  createdAt
-  updatedAt
-  dueAt
-  sentAt
-  externalLink
-  error {
-    message
-    supportUrl
-    rawError
-  }
-  assets {
-    id
-    type
-    mimeType
-    source
-    thumbnail
-  }
-`
+export const BUFFER_POST_SELECTION = bufferSelection('Post')
+export const BUFFER_IDEA_SELECTION = bufferSelection('Idea')
+export const POST_OUTPUT_PROPERTIES = bufferOutputProperties('Post')
+export const CHANNEL_OUTPUT_PROPERTIES = bufferOutputProperties('Channel')
+export const ACCOUNT_OUTPUT_PROPERTIES = bufferOutputProperties('Account')
+export const IDEA_OUTPUT_PROPERTIES = {
+  ...bufferOutputProperties('Idea'),
+  title: { type: 'string' as const, nullable: true, description: 'Idea content title' },
+  text: { type: 'string' as const, nullable: true, description: 'Idea content text' },
+}
+export const IDEA_GROUP_OUTPUT_PROPERTIES = bufferOutputProperties('IdeaGroup')
+export const PAGE_INFO_OUTPUT_PROPERTIES = bufferOutputProperties('PaginationPageInfo')
 
-// region Shared object shapes
-
-interface BufferAsset {
-  id: string | null
-  type: string
-  mimeType: string
-  source: string
-  thumbnail: string
+/** Projects the documented post fields, including network-specific metadata. */
+export function mapBufferPost(value: unknown): BufferPost {
+  return projectBufferObject('Post', value)
 }
 
-interface BufferPostError {
-  message: string
-  supportUrl: string | null
-  rawError: string | null
+/** Projects the documented channel settings and network metadata. */
+export function mapBufferChannel(value: unknown): BufferChannel {
+  return projectBufferObject('Channel', value)
 }
 
-export interface BufferPost {
+/** Projects account and organization details. */
+export function mapBufferAccount(value: unknown): BufferAccount {
+  return projectBufferObject('Account', value)
+}
+/** Projects all cursor pagination fields. */
+export function mapBufferPageInfo(value: unknown): BufferPaginationPageInfo {
+  return projectBufferObject('PaginationPageInfo', value)
+}
+/** Projects an idea board column. */
+export function mapBufferIdeaGroup(value: unknown): BufferIdeaGroup {
+  return projectBufferObject('IdeaGroup', value)
+}
+
+/** Keeps legacy title/text outputs alongside the complete idea content. */
+export function mapBufferIdea(value: unknown): BufferIdea {
+  const idea = projectBufferObject('Idea', value)
+  return { ...idea, title: idea.content?.title ?? null, text: idea.content?.text ?? null }
+}
+
+export interface BufferAccount {
   id: string
+  email: string
+  backupEmail: string | null
+  avatar: string
+  createdAt: string | null
+  organizations: Array<BufferOrganization>
+  timezone: string | null
+  name: string | null
+  preferences: BufferPreferences | null
+  connectedApps: Array<BufferConnectedApp> | null
+}
+
+export interface BufferAggregatedPostMetrics {
+  metrics: Array<BufferPostMetric>
+  metricsUpdatedAt: string | null
+}
+
+interface BufferAnnotation {
+  content: string
+  indices: Array<number>
   text: string
-  status: string
-  via: string
-  channelId: string
-  channelService: string
-  schedulingType: string | null
-  shareMode: string
-  isCustomScheduled: boolean
-  sharedNow: boolean
-  createdAt: string
-  updatedAt: string
-  dueAt: string | null
-  sentAt: string | null
-  externalLink: string | null
-  error: BufferPostError | null
-  assets: BufferAsset[]
+  type: string
+  url: string
+}
+
+type BufferAsset = BufferDocumentAsset | BufferImageAsset | BufferVideoAsset
+
+interface BufferAuthor {
+  id: string
+  avatar: string
+  email: string
+  isDeleted: boolean
+  name: string | null
+  urn: string | null
+}
+
+interface BufferBlueskyMetadata {
+  __typename?: 'BlueskyMetadata'
+  serverUrl: string
+}
+
+interface BufferBlueskyPostMetadata {
+  __typename?: 'BlueskyPostMetadata'
+  annotations: Array<BufferAnnotation>
+  linkAttachment: BufferLinkAttachment | null
+  thread: Array<BufferThreadedPost>
+  threadCount: number
+  type: string
 }
 
 export interface BufferChannel {
   id: string
-  name: string
+  allowedActions: Array<string>
+  avatar: string
+  descriptor: string
   displayName: string | null
+  externalLink: string | null
+  hasActiveMemberDevice: boolean
+  isDisconnected: boolean
+  isLocked: boolean
+  isNew: boolean
+  isQueuePaused: boolean
+  linkShortening: BufferChannelLinkShortening
+  metadata: BufferChannelMetadata | null
+  name: string
+  organizationId: string
+  postingGoal: BufferPostingGoal | null
+  postingSchedule: Array<BufferScheduleV2>
+  products: Array<string> | null
+  scopes: Array<string | null>
   service: string
   serviceId: string
-  avatar: string
+  showTrendingTopicSuggestions: boolean
   timezone: string
   type: string
-  isQueuePaused: boolean
-  isDisconnected: boolean
-  organizationId: string
+  weeklyPostingLimit: BufferWeeklyPostingLimit | null
+  createdAt: string
+  updatedAt: string
 }
 
-interface BufferOrganization {
-  id: string
+interface BufferChannelLinkShortening {
+  config: BufferLinkShorteningConfig | null
+  isEnabled: boolean
+}
+
+type BufferChannelMetadata =
+  | BufferInstagramMetadata
+  | BufferTiktokMetadata
+  | BufferYoutubeMetadata
+  | BufferPinterestMetadata
+  | BufferMastodonMetadata
+  | BufferBlueskyMetadata
+  | BufferGoogleBusinessMetadata
+  | BufferFacebookMetadata
+  | BufferTwitterMetadata
+  | BufferLinkedInMetadata
+  | BufferWhatsAppMetadata
+
+interface BufferConnectedApp {
+  category: string | null
+  clientId: string
+  description: string
   name: string
-  channelCount: number
-  ownerEmail: string
+  scopes: Array<string>
+  userId: string
+  website: string
+  createdAt: string
 }
 
-interface BufferAccount {
-  id: string
-  email: string
-  name: string | null
-  timezone: string | null
-  organizations: BufferOrganization[]
+export interface BufferDailyPostingLimitStatus {
+  channelId: string
+  isAtLimit: boolean
+  limit: number | null
+  scheduled: number
+  sent: number
+}
+
+interface BufferDocumentAsset {
+  __typename?: 'DocumentAsset'
+  id: string | null
+  document: BufferDocumentMetadata
+  mimeType: string
+  source: string
+  thumbnail: string
+  type: string
+}
+
+interface BufferDocumentMetadata {
+  filesize: number | null
+  numPages: number
+  thumbnails: Array<string>
+  title: string | null
+}
+
+interface BufferFacebookMetadata {
+  __typename?: 'FacebookMetadata'
+  locationData: BufferLocationData | null
+}
+
+interface BufferFacebookPostMetadata {
+  __typename?: 'FacebookPostMetadata'
+  annotations: Array<BufferAnnotation>
+  firstComment: string | null
+  linkAttachment: BufferLinkAttachment | null
+  title: string | null
+  type: string
+}
+
+interface BufferGoogleBusinessEventMetaData {
+  __typename?: 'GoogleBusinessEventMetaData'
+  button: string
+  endDate: string
+  endTime: string | null
+  isFullDayEvent: boolean
+  link: string | null
+  startDate: string
+  startTime: string | null
+  title: string
+}
+
+interface BufferGoogleBusinessMetadata {
+  __typename?: 'GoogleBusinessMetadata'
+  locationData: BufferLocationData | null
+}
+
+interface BufferGoogleBusinessOfferMetaData {
+  __typename?: 'GoogleBusinessOfferMetaData'
+  code: string | null
+  endDate: string
+  link: string | null
+  startDate: string
+  terms: string | null
+  title: string
+}
+
+type BufferGoogleBusinessPostDetails =
+  | BufferGoogleBusinessWhatsNewMetaData
+  | BufferGoogleBusinessOfferMetaData
+  | BufferGoogleBusinessEventMetaData
+
+interface BufferGoogleBusinessPostMetadata {
+  __typename?: 'GoogleBusinessPostMetadata'
+  annotations: Array<BufferAnnotation>
+  details: BufferGoogleBusinessPostDetails | null
+  title: string | null
+  type: string
+}
+
+interface BufferGoogleBusinessWhatsNewMetaData {
+  __typename?: 'GoogleBusinessWhatsNewMetaData'
+  button: string
+  link: string | null
 }
 
 export interface BufferIdea {
   id: string
-  organizationId: string
+  content: BufferIdeaContent
   groupId: string | null
+  organizationId: string
+  position: number | null
+  createdAt: number
+  updatedAt: number
   title: string | null
   text: string | null
 }
 
-interface BufferIdeaGroup {
+interface BufferIdeaContent {
+  aiAssisted: boolean
+  date: string | null
+  media: Array<BufferIdeaMedia> | null
+  services: Array<string>
+  tags: Array<BufferPublishingTag>
+  text: string | null
+  title: string | null
+}
+
+export interface BufferIdeaGroup {
   id: string
-  name: string
   isLocked: boolean
+  name: string
 }
 
-interface BufferPageInfo {
-  hasNextPage: boolean
+interface BufferIdeaMedia {
+  id: string
+  alt: string | null
+  size: number | null
+  source: BufferIdeaMediaSource | null
+  thumbnailUrl: string | null
+  type: string
+  url: string
+}
+
+interface BufferIdeaMediaSource {
+  id: string | null
+  author: string | null
+  authorUrl: string | null
+  name: string
+}
+
+interface BufferImageAsset {
+  __typename?: 'ImageAsset'
+  id: string | null
+  image: BufferImageMetadata
+  mimeType: string
+  source: string
+  thumbnail: string
+  type: string
+}
+
+interface BufferImageMetadata {
+  altText: string
+  animatedThumbnail: string | null
+  height: number
+  isAnimated: boolean
+  userTags: Array<BufferUserTag> | null
+  width: number
+}
+
+interface BufferInstagramGeolocation {
+  id: string | null
+  text: string | null
+}
+
+interface BufferInstagramMetadata {
+  __typename?: 'InstagramMetadata'
+  defaultToReminders: boolean
+}
+
+interface BufferInstagramPostMetadata {
+  __typename?: 'InstagramPostMetadata'
+  annotations: Array<BufferAnnotation>
+  firstComment: string | null
+  geolocation: BufferInstagramGeolocation | null
+  isAiGenerated: boolean
+  link: string | null
+  shouldShareToFeed: boolean
+  stickerFields: BufferInstagramStickerFields | null
+  type: string
+}
+
+interface BufferInstagramStickerFields {
+  music: string | null
+  other: string | null
+  products: string | null
+  text: string | null
+  topics: string | null
+}
+
+interface BufferLinkAttachment {
+  expandedUrl: string | null
+  text: string
+  thumbnail: string | null
+  thumbnails: Array<string>
+  title: string
+  url: string
+}
+
+interface BufferLinkShorteningConfig {
+  domain: string
+  name: string
+}
+
+interface BufferLinkedInMetadata {
+  __typename?: 'LinkedInMetadata'
+  shouldShowLinkedinAnalyticsRefreshBanner: boolean
+}
+
+interface BufferLinkedInPostMetadata {
+  __typename?: 'LinkedInPostMetadata'
+  annotations: Array<BufferAnnotation>
+  firstComment: string | null
+  linkAttachment: BufferLinkAttachment | null
+  type: string
+}
+
+interface BufferLocationData {
+  googleAccountId: string | null
+  location: string | null
+  mapsLink: string | null
+}
+
+interface BufferMastodonMetadata {
+  __typename?: 'MastodonMetadata'
+  maxCharacters: number
+  serverUrl: string
+}
+
+interface BufferMastodonPostMetadata {
+  __typename?: 'MastodonPostMetadata'
+  annotations: Array<BufferAnnotation>
+  spoilerText: string | null
+  thread: Array<BufferThreadedPost>
+  threadCount: number
+  type: string
+}
+
+interface BufferMemberConnection {
+  totalCount: number
+}
+
+interface BufferNote {
+  id: string
+  allowedActions: Array<string>
+  author: BufferAuthor
+  text: string
+  type: string
+  createdAt: string
+  updatedAt: string | null
+}
+
+interface BufferOrganization {
+  id: string
+  channelCount: number
+  limits: BufferOrganizationLimits
+  members: BufferMemberConnection
+  name: string
+  ownerEmail: string
+  shouldEnforce2FASetup: boolean
+}
+
+interface BufferOrganizationLimits {
+  channels: number
+  generateContent: number
+  ideaGroups: number
+  ideas: number
+  members: number
+  postTemplates: number
+  savedReplies: number
+  scheduledPosts: number
+  scheduledStoriesPerChannel: number
+  scheduledThreadsPerChannel: number
+  tags: number
+}
+
+export interface BufferPaginationPageInfo {
   endCursor: string | null
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+  startCursor: string | null
 }
 
-// endregion
-
-// region Response mappers
-
-/** GraphQL selection set shared by every operation that returns an Idea. */
-export const BUFFER_IDEA_SELECTION = `
-  id
-  organizationId
-  groupId
-  content {
-    title
-    text
-  }
-`
-
-/**
- * Maps a raw GraphQL Idea node onto the stable output shape.
- */
-export function mapBufferIdea(idea: Record<string, any>): BufferIdea {
-  return {
-    id: idea.id,
-    organizationId: idea.organizationId ?? '',
-    groupId: idea.groupId ?? null,
-    title: idea.content?.title ?? null,
-    text: idea.content?.text ?? null,
-  }
+interface BufferPinterestBoard {
+  id: string
+  avatar: string | null
+  description: string | null
+  name: string
+  serviceId: string
+  url: string
 }
 
-/**
- * Maps a raw GraphQL Post node onto the stable output shape.
- */
-export function mapBufferPost(post: Record<string, any>): BufferPost {
-  return {
-    id: post.id,
-    text: post.text ?? '',
-    status: post.status ?? '',
-    via: post.via ?? '',
-    channelId: post.channelId ?? '',
-    channelService: post.channelService ?? '',
-    schedulingType: post.schedulingType ?? null,
-    shareMode: post.shareMode ?? '',
-    isCustomScheduled: post.isCustomScheduled ?? false,
-    sharedNow: post.sharedNow ?? false,
-    createdAt: post.createdAt ?? '',
-    updatedAt: post.updatedAt ?? '',
-    dueAt: post.dueAt ?? null,
-    sentAt: post.sentAt ?? null,
-    externalLink: post.externalLink ?? null,
-    error: post.error
-      ? {
-          message: post.error.message ?? '',
-          supportUrl: post.error.supportUrl ?? null,
-          rawError: post.error.rawError ?? null,
-        }
-      : null,
-    assets: (post.assets ?? []).map((asset: Record<string, any>) => ({
-      id: asset.id ?? null,
-      type: asset.type ?? '',
-      mimeType: asset.mimeType ?? '',
-      source: asset.source ?? '',
-      thumbnail: asset.thumbnail ?? '',
-    })),
-  }
+interface BufferPinterestMetadata {
+  __typename?: 'PinterestMetadata'
+  boards: Array<BufferPinterestBoard>
 }
 
-/**
- * Maps a raw GraphQL Channel node onto the stable output shape.
- */
-export function mapBufferChannel(channel: Record<string, any>): BufferChannel {
-  return {
-    id: channel.id,
-    name: channel.name ?? '',
-    displayName: channel.displayName ?? null,
-    service: channel.service ?? '',
-    serviceId: channel.serviceId ?? '',
-    avatar: channel.avatar ?? '',
-    timezone: channel.timezone ?? '',
-    type: channel.type ?? '',
-    isQueuePaused: channel.isQueuePaused ?? false,
-    isDisconnected: channel.isDisconnected ?? false,
-    organizationId: channel.organizationId ?? '',
-  }
+interface BufferPinterestPostMetadata {
+  __typename?: 'PinterestPostMetadata'
+  annotations: Array<BufferAnnotation>
+  board: BufferPinterestBoard | null
+  title: string | null
+  type: string
+  url: string | null
 }
 
-// endregion
-
-// region Output property maps
-
-export const POST_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  id: { type: 'string', description: 'Post ID' },
-  text: { type: 'string', description: 'Post text content' },
-  status: {
-    type: 'string',
-    description: 'Post status (draft, needs_approval, scheduled, sending, sent, error)',
-  },
-  via: { type: 'string', description: 'How the post was created (buffer, network, api)' },
-  channelId: { type: 'string', description: 'Channel the post belongs to' },
-  channelService: { type: 'string', description: 'Social network of the channel' },
-  schedulingType: {
-    type: 'string',
-    nullable: true,
-    description: 'How the post publishes (automatic or notification)',
-  },
-  shareMode: { type: 'string', description: 'Share mode used for the post' },
-  isCustomScheduled: { type: 'boolean', description: 'Whether the post has a custom schedule' },
-  sharedNow: { type: 'boolean', description: 'Whether the post was shared immediately' },
-  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
-  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
-  dueAt: { type: 'string', nullable: true, description: 'Scheduled publish time (ISO 8601)' },
-  sentAt: { type: 'string', nullable: true, description: 'Publish timestamp (ISO 8601)' },
-  externalLink: {
-    type: 'string',
-    nullable: true,
-    description: 'Link to the published post on the social network',
-  },
-  error: {
-    type: 'object',
-    nullable: true,
-    description: 'Publishing error details when the post failed',
-    properties: {
-      message: { type: 'string', description: 'Error message' },
-      supportUrl: { type: 'string', nullable: true, description: 'Support article URL' },
-      rawError: { type: 'string', nullable: true, description: 'Raw error from the network' },
-    },
-  },
-  assets: {
-    type: 'array',
-    description: 'Media attached to the post',
-    items: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', nullable: true, description: 'Asset ID' },
-        type: { type: 'string', description: 'Asset type' },
-        mimeType: { type: 'string', description: 'MIME type of the asset' },
-        source: { type: 'string', description: 'Source URL of the asset' },
-        thumbnail: { type: 'string', description: 'Thumbnail URL of the asset' },
-      },
-    },
-  },
+export interface BufferPost {
+  id: string
+  allowedActions: Array<string>
+  assets: Array<BufferAsset>
+  author: BufferAuthor | null
+  channel: BufferChannel
+  channelId: string
+  channelService: string
+  contentItemId: string | null
+  dueAt: string | null
+  error: BufferPostPublishingError | null
+  externalLink: string | null
+  ideaId: string | null
+  isCustomScheduled: boolean
+  metadata: BufferPostMetadata | null
+  metrics: Array<BufferPostMetric> | null
+  metricsUpdatedAt: string | null
+  notes: Array<BufferNote>
+  notificationStatus: string | null
+  schedulingType: string | null
+  sentAt: string | null
+  sharedNow: boolean
+  shareMode: string
+  status: string
+  tags: Array<BufferTag>
+  text: string
+  via: string
+  createdAt: string
+  updatedAt: string
 }
 
-export const CHANNEL_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  id: { type: 'string', description: 'Channel ID' },
-  name: { type: 'string', description: 'Channel name' },
-  displayName: { type: 'string', nullable: true, description: 'Channel display name' },
-  service: { type: 'string', description: 'Social network (instagram, linkedin, twitter, ...)' },
-  serviceId: { type: 'string', description: 'ID of the account on the social network' },
-  avatar: { type: 'string', description: 'Channel avatar URL' },
-  timezone: { type: 'string', description: 'Channel timezone' },
-  type: { type: 'string', description: 'Channel type (page, profile, business, ...)' },
-  isQueuePaused: { type: 'boolean', description: 'Whether the posting queue is paused' },
-  isDisconnected: { type: 'boolean', description: 'Whether the channel needs reconnection' },
-  organizationId: { type: 'string', description: 'Organization the channel belongs to' },
+type BufferPostMetadata =
+  | BufferInstagramPostMetadata
+  | BufferFacebookPostMetadata
+  | BufferLinkedInPostMetadata
+  | BufferTwitterPostMetadata
+  | BufferPinterestPostMetadata
+  | BufferGoogleBusinessPostMetadata
+  | BufferYoutubePostMetadata
+  | BufferMastodonPostMetadata
+  | BufferTiktokPostMetadata
+  | BufferThreadsPostMetadata
+  | BufferBlueskyPostMetadata
+  | BufferSubstackPostMetadata
+
+interface BufferPostMetric {
+  description: string
+  name: string
+  type: string
+  unit: string
+  value: number
 }
 
-export const ACCOUNT_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  id: { type: 'string', description: 'Account ID' },
-  email: { type: 'string', description: 'Account email' },
-  name: { type: 'string', nullable: true, description: 'Account holder name' },
-  timezone: { type: 'string', nullable: true, description: 'Account timezone' },
-  organizations: {
-    type: 'array',
-    description: 'Organizations the account belongs to',
-    items: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Organization ID' },
-        name: { type: 'string', description: 'Organization name' },
-        channelCount: { type: 'number', description: 'Number of connected channels' },
-        ownerEmail: { type: 'string', description: 'Email of the organization owner' },
-      },
-    },
-  },
+interface BufferPostPublishingError {
+  message: string
+  rawError: string | null
+  supportUrl: string | null
 }
 
-export const IDEA_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  id: { type: 'string', description: 'Idea ID' },
-  organizationId: { type: 'string', description: 'Organization the idea belongs to' },
-  groupId: { type: 'string', nullable: true, description: 'Idea group ID' },
-  title: { type: 'string', nullable: true, description: 'Idea title' },
-  text: { type: 'string', nullable: true, description: 'Idea text content' },
+interface BufferPostingGoal {
+  goal: number
+  periodEnd: string
+  periodStart: string
+  scheduledCount: number
+  sentCount: number
+  status: string
 }
 
-export const IDEA_GROUP_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  id: { type: 'string', description: 'Idea group ID' },
-  name: { type: 'string', description: 'Idea group name' },
-  isLocked: { type: 'boolean', description: 'Whether the group is locked' },
+interface BufferPreferences {
+  timeFormat: string | null
+  startOfWeek: string | null
+  defaultScheduleOption: string
 }
 
-export const PAGE_INFO_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  hasNextPage: { type: 'boolean', description: 'Whether more results are available' },
-  endCursor: {
-    type: 'string',
-    nullable: true,
-    description: 'Cursor to pass as "after" for the next page',
-  },
+interface BufferPublishingTag {
+  id: string
+  color: string
+  colorName: string | null
+  name: string
 }
 
-// endregion
+interface BufferRetweetMetadata {
+  id: string
+  text: string
+  thumbnails: Array<string>
+  url: string
+  user: BufferRetweetUserMetadata
+  createdAt: string
+}
 
-// region Tool params
+interface BufferRetweetUserMetadata {
+  avatar: string
+  name: string
+  username: string
+}
+
+interface BufferScheduleV2 {
+  day: string
+  paused: boolean
+  times: Array<string>
+}
+
+interface BufferSubstackPostMetadata {
+  __typename?: 'SubstackPostMetadata'
+  annotations: Array<BufferAnnotation>
+  linkAttachment: BufferLinkAttachment | null
+  type: string
+}
+
+interface BufferTag {
+  id: string
+  color: string
+  colorName: string | null
+  isLocked: boolean
+  name: string
+}
+
+interface BufferThreadItemBlueskyMetadata {
+  linkAttachment: BufferLinkAttachment | null
+}
+
+interface BufferThreadItemMetadata {
+  bluesky: BufferThreadItemBlueskyMetadata | null
+  threads: BufferThreadItemThreadsMetadata | null
+}
+
+interface BufferThreadItemThreadsMetadata {
+  linkAttachment: BufferLinkAttachment | null
+}
+
+interface BufferThreadedPost {
+  assets: Array<BufferAsset>
+  linkAttachment: BufferLinkAttachment | null
+  metadata: BufferThreadItemMetadata | null
+  text: string
+}
+
+interface BufferThreadsPostMetadata {
+  __typename?: 'ThreadsPostMetadata'
+  annotations: Array<BufferAnnotation>
+  linkAttachment: BufferLinkAttachment | null
+  locationId: string | null
+  locationName: string | null
+  thread: Array<BufferThreadedPost>
+  threadCount: number
+  topic: string | null
+  type: string
+}
+
+interface BufferTiktokMetadata {
+  __typename?: 'TiktokMetadata'
+  defaultToReminders: boolean
+}
+
+interface BufferTiktokPostMetadata {
+  __typename?: 'TiktokPostMetadata'
+  annotations: Array<BufferAnnotation>
+  isAiGenerated: boolean
+  title: string | null
+  type: string
+}
+
+interface BufferTwitterMetadata {
+  __typename?: 'TwitterMetadata'
+  subscriptionType: string | null
+}
+
+interface BufferTwitterPostMetadata {
+  __typename?: 'TwitterPostMetadata'
+  annotations: Array<BufferAnnotation>
+  isAiGenerated: boolean
+  retweet: BufferRetweetMetadata | null
+  thread: Array<BufferThreadedPost>
+  threadCount: number
+  type: string
+}
+
+interface BufferUserTag {
+  handle: string
+  x: number
+  y: number
+}
+
+interface BufferVideoAsset {
+  __typename?: 'VideoAsset'
+  id: string | null
+  mimeType: string
+  source: string
+  thumbnail: string
+  type: string
+  video: BufferVideoMetadata
+}
+
+interface BufferVideoMetadata {
+  audioCodec: string | null
+  containerFormat: string | null
+  durationMs: number
+  fileSize: number | null
+  frameRate: number | null
+  height: number
+  isTranscodingRequired: boolean
+  isVideoProcessing: boolean
+  rotationDegree: number | null
+  thumbnailOffset: number | null
+  title: string | null
+  videoBitRate: number | null
+  videoCodec: string | null
+  width: number
+}
+
+interface BufferWeeklyPostingLimit {
+  limit: number
+  scheduled: number
+  sent: number
+}
+
+interface BufferWhatsAppMetadata {
+  __typename?: 'WhatsAppMetadata'
+  businessPortfolioId: string
+  lastSubscribedAt: string | null
+  phoneNumberId: string
+  wabaId: string
+}
+
+interface BufferYoutubeCategory {
+  categoryId: string
+  title: string
+}
+
+interface BufferYoutubeMetadata {
+  __typename?: 'YoutubeMetadata'
+  defaultToReminders: boolean
+}
+
+interface BufferYoutubePostMetadata {
+  __typename?: 'YoutubePostMetadata'
+  annotations: Array<BufferAnnotation>
+  category: BufferYoutubeCategory | null
+  embeddable: boolean
+  isAiGenerated: boolean
+  license: string | null
+  madeForKids: boolean
+  notifySubscribers: boolean
+  privacy: string | null
+  title: string | null
+  type: string
+}
 
 export interface BufferCreatePostParams extends BufferBaseParams {
   channelId: string
-  text?: string
+  text?: string | null
   mode: BufferShareMode
   schedulingType?: BufferSchedulingType
   dueAt?: string
@@ -390,18 +758,34 @@ export interface BufferCreatePostParams extends BufferBaseParams {
   media?: unknown
   mediaType?: 'auto' | 'image' | 'video'
   mediaAltText?: string
+  assets?: unknown
+  metadata?: unknown
+  aiAssisted?: boolean
+  draftId?: string
+  ideaId?: string
+  source?: string
+  tagIds?: unknown
+  needsApproval?: boolean
 }
 
 export interface BufferEditPostParams extends BufferBaseParams {
   postId: string
-  text?: string
-  mode: BufferShareMode
-  schedulingType?: BufferSchedulingType
+  text?: string | null
+  mode?: BufferShareMode | null
+  schedulingType?: BufferSchedulingType | null
   dueAt?: string
   saveToDraft?: boolean
   media?: unknown
   mediaType?: 'auto' | 'image' | 'video'
   mediaAltText?: string
+  assets?: unknown
+  metadata?: unknown
+  aiAssisted?: boolean
+  draftId?: string
+  ideaId?: string
+  source?: string
+  tagIds?: unknown
+  approvalChange?: string
 }
 
 export interface BufferDeletePostParams extends BufferBaseParams {
@@ -420,23 +804,34 @@ export interface BufferGetPostsParams extends BufferBaseParams {
   after?: string
   sortBy?: string
   sortDirection?: string
+  filter?: unknown
+  sort?: unknown
 }
 
 export interface BufferGetChannelsParams extends BufferBaseParams {
   organizationId: string
+  filter?: unknown
 }
 
-export type BufferGetAccountParams = BufferBaseParams
+export interface BufferGetAccountParams extends BufferBaseParams {
+  organizationFilter?: unknown
+}
 
 export interface BufferCreateIdeaParams extends BufferBaseParams {
   organizationId: string
-  text: string
+  text?: string
   title?: string
   groupId?: string
+  content?: unknown
+  group?: unknown
+  cta?: string
+  templateId?: string
 }
 
 export interface BufferGetIdeasParams extends BufferBaseParams {
   organizationId: string
+  groupFilter?: unknown
+  tagsFilter?: unknown
   limit?: number
   after?: string
 }
@@ -444,10 +839,6 @@ export interface BufferGetIdeasParams extends BufferBaseParams {
 export interface BufferGetIdeaGroupsParams extends BufferBaseParams {
   organizationId: string
 }
-
-// endregion
-
-// region Tool responses
 
 export interface BufferPostResponse extends ToolResponse {
   output: {
@@ -465,7 +856,8 @@ export interface BufferDeletePostResponse extends ToolResponse {
 export interface BufferPostsResponse extends ToolResponse {
   output: {
     posts: BufferPost[]
-    pageInfo: BufferPageInfo
+    edges: { cursor: string; node: BufferPost }[]
+    pageInfo: BufferPaginationPageInfo
   }
 }
 
@@ -490,7 +882,8 @@ export interface BufferIdeaResponse extends ToolResponse {
 export interface BufferIdeasResponse extends ToolResponse {
   output: {
     ideas: BufferIdea[]
-    pageInfo: BufferPageInfo
+    edges: { cursor: string; node: BufferIdea }[]
+    pageInfo: BufferPaginationPageInfo
   }
 }
 
@@ -500,4 +893,52 @@ export interface BufferIdeaGroupsResponse extends ToolResponse {
   }
 }
 
-// endregion
+export interface BufferGetChannelParams extends BufferBaseParams {
+  channelId: string
+}
+export interface BufferChannelResponse extends ToolResponse {
+  output: { channel: BufferChannel }
+}
+export interface BufferAggregatedMetricsParams extends BufferBaseParams {
+  organizationId: string
+  startDateTime: string
+  endDateTime: string
+  channelIds?: unknown
+  tags?: unknown
+}
+export interface BufferAggregatedMetricsResponse extends ToolResponse {
+  output: { aggregatedPostMetrics: BufferAggregatedPostMetrics }
+}
+export interface BufferDailyLimitsParams extends BufferBaseParams {
+  channelIds: unknown
+  date?: string
+}
+export interface BufferDailyLimitsResponse extends ToolResponse {
+  output: { limits: BufferDailyPostingLimitStatus[] }
+}
+
+/** Bounds each request to one page without silently fetching additional results. */
+export function bufferPageSize(value: number): number {
+  if (!Number.isInteger(value) || value < 1 || value > 100)
+    throw new Error('Page size must be an integer from 1 to 100 (integration limit)')
+  return value
+}
+
+/** Accepts workflow JSON arrays and the block's comma-separated ID convenience input. */
+export function bufferStringList(value: unknown): string[] {
+  const parsed: unknown =
+    typeof value === 'string'
+      ? value.trim().startsWith('[')
+        ? JSON.parse(value)
+        : value
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+      : value
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((entry): entry is string => typeof entry === 'string')
+  )
+    throw new Error('Expected an array of string IDs')
+  return parsed
+}

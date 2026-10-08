@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import {
   BUFFER_API_URL,
   type BufferDeletePostParams,
@@ -56,15 +57,15 @@ export const bufferDeletePostTool: ToolConfig<BufferDeletePostParams, BufferDele
 
   transformResponse: async (response: Response) => {
     const data = await parseBufferGraphQLResponse(response)
-    const result = data.deletePost
+    const result = toRecord(data.deletePost)
     if (result?.__typename !== 'DeletePostSuccess') {
-      throw new Error(result?.message || 'Failed to delete post')
+      throw new Error(typeof result.message === 'string' ? result.message : 'Failed to delete post')
     }
     return {
       success: true,
       output: {
         deleted: true,
-        id: result.id,
+        id: String(result.id),
       },
     }
   },

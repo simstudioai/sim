@@ -3758,7 +3758,7 @@
       "slug": "buffer",
       "name": "Buffer",
       "description": "Schedule and publish social media posts across connected channels",
-      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.",
       "bgColor": "#FFFFFF",
       "iconName": "BufferIcon",
       "docsUrl": "https://docs.sim.ai/integrations/buffer",
@@ -3788,6 +3788,18 @@
           "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
         },
         {
+          "name": "Get Channel",
+          "description": "Get one connected channel, including its posting schedule, limits and network settings"
+        },
+        {
+          "name": "Get Aggregated Post Metrics",
+          "description": "Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days"
+        },
+        {
+          "name": "Get Daily Posting Limits",
+          "description": "Check sent and scheduled post counts against each channel’s daily limit for a date"
+        },
+        {
           "name": "Create Idea",
           "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
         },
@@ -3804,7 +3816,7 @@
           "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

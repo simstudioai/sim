@@ -2811,7 +2811,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='0 0 86.7 97.9'
+      viewBox='0 0 67 67'
       fill='currentColor'
       role='img'
       xmlns='http://www.w3.org/2000/svg'
@@ -2819,7 +2819,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M0,22.3L43.1,0l43.6,22.3L43.1,44.8L0,22.3z M43.1,83.1l-29.4-16L0,74.5l43.1,23.4l43.6-23.4l-13.9-7.4 L43.1,83.1z M13.7,42l29.4,14.5L72.9,42l13.9,6.8L43.1,69.9L0,48.7L13.7,42z'
+        d='M18.009,43.225l15.178,7.817l15.378,-7.817l7.164,3.639l-22.542,11.469l-22.25,-11.469l7.072,-3.639Z M18.017,29.688l15.17,7.812l15.37,-7.812l7.172,3.645l-22.542,11.459l-22.25,-11.459l7.08,-3.645Z M33.187,8.333l-22.25,11.459l22.25,11.458l22.542,-11.458l-22.542,-11.459Z'
       />
     </svg>
   )

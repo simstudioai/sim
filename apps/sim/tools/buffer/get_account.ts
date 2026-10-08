@@ -1,29 +1,18 @@
+import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
   BUFFER_API_URL,
   type BufferAccountResponse,
   type BufferGetAccountParams,
   bufferHeaders,
+  mapBufferAccount,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
 import type { ToolConfig } from '@/tools/types'
 
-const GET_ACCOUNT_QUERY = `
-  query GetAccount {
-    account {
-      id
-      email
-      name
-      timezone
-      organizations {
-        id
-        name
-        channelCount
-        ownerEmail
-      }
-    }
-  }
-`
+const GET_ACCOUNT_QUERY = `query GetAccount($organizationFilter: OrganizationFilterInput) {
+  account { ${bufferSelection('Account').replace('organizations {', 'organizations(filter: $organizationFilter) {')} }
+}`
 
 export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAccountResponse> = {
   id: 'buffer_get_account',
@@ -39,13 +28,26 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
       visibility: 'user-only',
       description: 'Buffer API key',
     },
+    organizationFilter: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription('OrganizationFilterInput'),
+    },
   },
 
   request: {
     url: BUFFER_API_URL,
     method: 'POST',
     headers: (params) => bufferHeaders(params.apiKey),
-    body: () => ({ query: GET_ACCOUNT_QUERY }),
+    body: (params) => ({
+      query: GET_ACCOUNT_QUERY,
+      variables: {
+        organizationFilter: params.organizationFilter
+          ? parseBufferInput('OrganizationFilterInput', params.organizationFilter)
+          : null,
+      },
+    }),
   },
 
   transformResponse: async (response: Response) => {
@@ -57,18 +59,7 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
     return {
       success: true,
       output: {
-        account: {
-          id: account.id,
-          email: account.email ?? '',
-          name: account.name ?? null,
-          timezone: account.timezone ?? null,
-          organizations: (account.organizations ?? []).map((org: Record<string, any>) => ({
-            id: org.id,
-            name: org.name ?? '',
-            channelCount: org.channelCount ?? 0,
-            ownerEmail: org.ownerEmail ?? '',
-          })),
-        },
+        account: mapBufferAccount(account),
       },
     }
   },
