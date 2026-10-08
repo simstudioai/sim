@@ -8,13 +8,13 @@ vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 async function loadRuntime() {
-  const [{ db }, schema, { eq, inArray }, { GET }] = await Promise.all([
+  const [{ db }, schema, { eq, inArray, sql }, { GET }] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
     import('drizzle-orm'),
     import('@/app/api/audit-logs/export/route'),
   ])
-  return { db, schema, eq, inArray, GET }
+  return { db, schema, eq, inArray, sql, GET }
 }
 
 describe('Organization audit CSV export in PostgreSQL', () => {
@@ -138,6 +138,52 @@ describe('Organization audit CSV export in PostgreSQL', () => {
       expect(response.headers.get('x-export-truncated')).toBe('1')
       expect(Buffer.from(csv).toString('utf8')).not.toContain(eventId)
     } finally {
+      await db
+        .update(schema.auditLog)
+        .set({ metadata: { organizationId, changedFields: ['name'] } })
+        .where(eq(schema.auditLog.id, eventId))
+    }
+  })
+
+  it('keeps the valid prefix without decoding an oversized database record', async () => {
+    const { db, schema, eq, sql } = runtime
+    const prefixId = generateId()
+    await db.insert(schema.auditLog).values({
+      id: prefixId,
+      actorId: departedId,
+      action: 'organization.updated',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      metadata: { organizationId },
+      createdAt: new Date(Date.now() + 1000),
+    })
+    await db
+      .update(schema.auditLog)
+      .set({
+        metadata: sql`jsonb_build_object('organizationId', ${organizationId}::text, 'fixture', repeat('x', 70 * 1024 * 1024))`,
+      })
+      .where(eq(schema.auditLog.id, eventId))
+    const parse = JSON.parse
+    let largestDecodedValue = 0
+    const decoding = vi.spyOn(JSON, 'parse').mockImplementation((text, reviver) => {
+      largestDecodedValue = Math.max(largestDecodedValue, Buffer.byteLength(text, 'utf8'))
+      return parse(text, reviver)
+    })
+    try {
+      const response = await runtime.GET(
+        new NextRequest(
+          `http://localhost:3000/api/audit-logs/export?organizationId=${organizationId}&includeDeparted=true&actorId=${departedId}`
+        )
+      )
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-export-truncated')).toBe('1')
+      const csv = await response.text()
+      expect(csv).toContain(prefixId)
+      expect(csv).not.toContain(eventId)
+      expect(largestDecodedValue).toBeLessThanOrEqual(64 * 1024 * 1024)
+    } finally {
+      decoding.mockRestore()
+      await db.delete(schema.auditLog).where(eq(schema.auditLog.id, prefixId))
       await db
         .update(schema.auditLog)
         .set({ metadata: { organizationId, changedFields: ['name'] } })

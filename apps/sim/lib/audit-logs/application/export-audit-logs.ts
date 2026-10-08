@@ -44,30 +44,38 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
       includeDeparted: input.includeDeparted,
     })
     const conditions = [scope, ...buildFilterConditions(input.filters)]
-    const rows: Awaited<ReturnType<typeof queryAuditLogs>>['data'] = []
+    const lines = [AUDIT_LOG_CSV_HEADER]
+    let rowCount = 0
     let cursor: string | undefined
     let bytes = Buffer.byteLength(AUDIT_LOG_CSV_HEADER, 'utf8')
     let truncated = false
-    pages: while (rows.length < EXPORT_MAX_ROWS) {
+    pages: while (rowCount < EXPORT_MAX_ROWS && bytes < EXPORT_MAX_BYTES) {
       request?.signal?.throwIfAborted()
       const page = await queryAuditLogs(
         conditions,
-        Math.min(EXPORT_PAGE_ROWS, EXPORT_MAX_ROWS - rows.length),
-        cursor
+        Math.min(EXPORT_PAGE_ROWS, EXPORT_MAX_ROWS - rowCount),
+        cursor,
+        EXPORT_MAX_BYTES
       )
       for (const row of page.data) {
-        bytes += Buffer.byteLength(toAuditLogCsvRow(row), 'utf8') + 1
-        if (bytes > EXPORT_MAX_BYTES) {
+        const line = toAuditLogCsvRow(row, EXPORT_MAX_BYTES - bytes - 1)
+        if (line === undefined) {
           truncated = true
           break pages
         }
-        rows.push(row)
+        bytes += Buffer.byteLength(line, 'utf8') + 1
+        lines.push(line)
+        rowCount++
+      }
+      if (page.truncated) {
+        truncated = true
+        break
       }
       if (!page.nextCursor) break
       cursor = page.nextCursor
-      truncated = rows.length >= EXPORT_MAX_ROWS
+      truncated = rowCount >= EXPORT_MAX_ROWS || bytes >= EXPORT_MAX_BYTES
     }
-    return { rows, truncated }
+    return { csv: lines.join('\n'), rowCount, truncated }
   },
   projectAudit: ({ input, result }) => ({
     action: AuditAction.AUDIT_LOGS_EXPORTED,
@@ -76,7 +84,7 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
     description: 'Exported organization audit logs',
     metadata: {
       format: 'csv',
-      rowCount: result.rows.length,
+      rowCount: result.rowCount,
       truncated: result.truncated,
       includeDeparted: input.includeDeparted,
       filters: Object.keys(input.filters).filter((key) =>

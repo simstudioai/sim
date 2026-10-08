@@ -158,12 +158,15 @@ function buildCursorCondition(cursor: string): SQL<unknown> | null {
 interface CursorPaginatedResult {
   data: DbAuditLog[]
   nextCursor?: string
+  truncated?: boolean
 }
 
+/** An optional byte budget bounds each database page before hydration and stops at oversized rows. */
 export async function queryAuditLogs(
   conditions: SQL<unknown>[],
   limit: number,
-  cursor?: string
+  cursor?: string,
+  maxBytes?: number
 ): Promise<CursorPaginatedResult> {
   const allConditions = [...conditions]
   if (cursor) {
@@ -171,11 +174,60 @@ export async function queryAuditLogs(
     if (cursorCondition) allConditions.push(cursorCondition)
   }
 
+  const condition = allConditions.length > 0 ? and(...allConditions) : undefined
+  const orderBy = [desc(sql`date_trunc('milliseconds', ${auditLog.createdAt})`), desc(auditLog.id)]
+  if (maxBytes !== undefined) {
+    return dbReplica.transaction(
+      async (tx) => {
+        const candidates = await tx
+          .select({
+            id: auditLog.id,
+            bytes: sql<number>`octet_length(row_to_json(${auditLog})::text)`.mapWith(Number),
+          })
+          .from(auditLog)
+          .where(condition)
+          .orderBy(...orderBy)
+          .limit(limit + 1)
+        const ids: string[] = []
+        let bytes = 0
+        let truncated = false
+        for (const candidate of candidates.slice(0, limit)) {
+          if (candidate.bytes > maxBytes) {
+            truncated = true
+            break
+          }
+          if (bytes + candidate.bytes > maxBytes) break
+          ids.push(candidate.id)
+          bytes += candidate.bytes
+        }
+        const data =
+          ids.length > 0
+            ? await tx
+                .select()
+                .from(auditLog)
+                .where(inArray(auditLog.id, ids))
+                .orderBy(...orderBy)
+                .limit(limit)
+            : []
+        const last = data.at(-1)
+        return {
+          data,
+          truncated,
+          nextCursor:
+            candidates.length > data.length && last
+              ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
+              : undefined,
+        }
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' }
+    )
+  }
+
   const rows = await dbReplica
     .select()
     .from(auditLog)
-    .where(allConditions.length > 0 ? and(...allConditions) : undefined)
-    .orderBy(desc(sql`date_trunc('milliseconds', ${auditLog.createdAt})`), desc(auditLog.id))
+    .where(condition)
+    .orderBy(...orderBy)
     .limit(limit + 1)
 
   const hasMore = rows.length > limit

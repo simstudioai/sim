@@ -128,7 +128,7 @@ Workspace invitation events include whether the invite is for an internal organi
   },
   {
     question: "Can I export audit logs?",
-    answer: "Yes. Download CSV from the audit viewer or paginate the API for your SIEM. CSV includes event, workspace, resource and actor IDs, IP address, user agent, surface and metadata. Organization administrators can include departed actors for historical investigations. CSV downloads are recorded in the audit trail and capped at 10,000 rows or 64 MB; the X-Export-Truncated header indicates a partial export. For continuous delivery, use an audit-log data drain."
+    answer: "Yes. Download CSV from the audit viewer or paginate the API for your SIEM. CSV includes event, workspace, resource and actor IDs, IP address, user agent, surface and metadata. Organization administrators can include departed actors for historical investigations. CSV downloads are recorded in the audit trail and capped at 10,000 rows or 64 MiB. Oversized records also end the download early; the X-Export-Truncated header indicates a partial export. For continuous delivery, use an audit-log data drain."
   },
   {
     question: "Are logs scoped to a single workspace or the whole organization?",

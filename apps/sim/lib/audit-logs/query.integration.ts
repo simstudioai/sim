@@ -28,7 +28,8 @@ describe('Audit pagination and drain tenant coverage in PostgreSQL', () => {
         action: 'organization.updated',
         resourceType: 'organization',
         resourceId: index === 3 ? generateId() : organizationId,
-        metadata: index === 0 ? { organizationId } : {},
+        metadata:
+          index === 0 ? { organizationId, fixture: 'x'.repeat(400) } : { fixture: 'x'.repeat(400) },
         createdAt: new Date('2026-01-01T12:00:00.123Z'),
       }))
     )
@@ -48,22 +49,33 @@ describe('Audit pagination and drain tenant coverage in PostgreSQL', () => {
     }
   })
 
-  it('returns every event once when pages split within a PostgreSQL millisecond', async () => {
-    const seen: string[] = []
-    let cursor: string | undefined
-    for (let pageIndex = 0; pageIndex < ids.length + 1; pageIndex++) {
-      const page = await runtime.query.queryAuditLogs(
-        [runtime.inArray(runtime.auditLog.id, ids)],
-        1,
-        cursor
-      )
-      seen.push(...page.data.map((row) => row.id))
-      if (!page.nextCursor) break
-      cursor = page.nextCursor
+  it.each([
+    { limit: 1, maxBytes: undefined, boundary: 'row limit' },
+    { limit: 10, maxBytes: 1000, boundary: 'byte limit' },
+  ])(
+    'returns every event once across a $boundary within one PostgreSQL millisecond',
+    async ({ limit, maxBytes }) => {
+      const seen: string[] = []
+      let cursor: string | undefined
+      for (let pageIndex = 0; pageIndex < ids.length + 1; pageIndex++) {
+        const page = await runtime.query.queryAuditLogs(
+          [runtime.inArray(runtime.auditLog.id, ids)],
+          limit,
+          cursor,
+          maxBytes
+        )
+        if (maxBytes !== undefined) {
+          expect(Buffer.byteLength(JSON.stringify(page.data), 'utf8')).toBeLessThanOrEqual(maxBytes)
+          expect(page.truncated).toBe(false)
+        }
+        seen.push(...page.data.map((row) => row.id))
+        if (!page.nextCursor) break
+        cursor = page.nextCursor
+      }
+      expect(seen).toHaveLength(ids.length)
+      expect(new Set(seen)).toEqual(new Set(ids))
     }
-    expect(seen).toHaveLength(ids.length)
-    expect(new Set(seen)).toEqual(new Set(ids))
-  })
+  )
 
   it('drains all organization-resource events and excludes the other tenant', async () => {
     const seen: string[] = []

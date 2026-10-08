@@ -165,55 +165,70 @@ afterAll(async () => {
 })
 
 describe('data drain durable delivery', () => {
-  it('checkpoints each accepted Datadog request before a later request fails', async () => {
-    await seedRows(6, 'x'.repeat(425_000))
-    await db
-      .update(dataDrains)
-      .set({
-        destinationType: 'datadog',
-        destinationConfig: { site: 'us1' },
-        destinationCredentials: await encryptCredentials({ apiKey: 'fixture-dd-key' }),
+  it.each([
+    { requestIdsReturned: true, failSecond: true, condition: 'before a later request fails' },
+    { requestIdsReturned: false, failSecond: false, condition: 'without provider request IDs' },
+  ])(
+    'retains each accepted Datadog request $condition',
+    async ({ requestIdsReturned, failSecond }) => {
+      await seedRows(6, 'x'.repeat(425_000))
+      await db
+        .update(dataDrains)
+        .set({
+          destinationType: 'datadog',
+          destinationConfig: { site: 'us1' },
+          destinationCredentials: await encryptCredentials({ apiKey: 'fixture-dd-key' }),
+        })
+        .where(eq(dataDrains.id, drainId))
+      mockGetDestination.mockReturnValue(datadogDestination)
+      const acceptedIds: string[] = []
+      const requestIds: string[] = []
+      let posts = 0
+      vi.stubGlobal('fetch', async (_url: unknown, init?: RequestInit) => {
+        posts++
+        if (failSecond && posts === 2)
+          return new Response('Rejected fixture request', { status: 403 })
+        const body = init?.body
+        if (typeof body !== 'string' && !(body instanceof Uint8Array))
+          throw new Error('Missing Datadog body')
+        const payload =
+          new Headers(init?.headers).get('content-encoding') === 'gzip'
+            ? gunzipSync(body).toString('utf8')
+            : typeof body === 'string'
+              ? body
+              : Buffer.from(body).toString('utf8')
+        const rows = JSON.parse(payload) as Array<{ id: string }>
+        acceptedIds.push(...rows.map((row) => row.id))
+        const requestId = `fixture-request-${posts}`
+        requestIds.push(requestId)
+        return new Response(null, {
+          status: 202,
+          headers: requestIdsReturned ? { 'dd-request-id': requestId } : {},
+        })
       })
-      .where(eq(dataDrains.id, drainId))
-    mockGetDestination.mockReturnValue(datadogDestination)
-    const acceptedIds: string[] = []
-    const requestIds: string[] = []
-    let posts = 0
-    vi.stubGlobal('fetch', async (_url: unknown, init?: RequestInit) => {
-      posts++
-      if (posts === 2) return new Response('Rejected fixture request', { status: 403 })
-      const body = init?.body
-      if (typeof body !== 'string' && !(body instanceof Uint8Array))
-        throw new Error('Missing Datadog body')
-      const payload =
-        new Headers(init?.headers).get('content-encoding') === 'gzip'
-          ? gunzipSync(body).toString('utf8')
-          : typeof body === 'string'
-            ? body
-            : Buffer.from(body).toString('utf8')
-      const rows = JSON.parse(payload) as Array<{ id: string }>
-      acceptedIds.push(...rows.map((row) => row.id))
-      const requestId = `fixture-request-${posts}`
-      requestIds.push(requestId)
-      return new Response(null, { status: 202, headers: { 'dd-request-id': requestId } })
-    })
-    try {
-      await expect(runDrain(drainId, 'cron')).rejects.toThrow(/HTTP 403/)
-      const checkpoint = (await drainRow()).cursor
-      expect(checkpoint).not.toBeNull()
-      expect(JSON.parse(checkpoint ?? '{}').id).toBe(acceptedIds.at(-1))
-      await runDrain(drainId, 'cron')
-      expect(acceptedIds).toEqual(
-        Array.from({ length: 6 }, (_, index) => `${drainId}-${index.toString().padStart(6, '0')}`)
-      )
-      const runs = await db.select().from(dataDrainRuns).where(eq(dataDrainRuns.drainId, drainId))
-      const locators = runs.flatMap((run) => run.locators ?? [])
-      for (const id of requestIds)
-        expect(locators.some((locator) => locator.endsWith(`@${id}`))).toBe(true)
-    } finally {
-      vi.unstubAllGlobals()
+      try {
+        if (failSecond) {
+          await expect(runDrain(drainId, 'cron')).rejects.toThrow(/HTTP 403/)
+          const checkpoint = (await drainRow()).cursor
+          expect(checkpoint).not.toBeNull()
+          expect(JSON.parse(checkpoint ?? '{}').id).toBe(acceptedIds.at(-1))
+        }
+        await runDrain(drainId, 'cron')
+        expect(acceptedIds).toEqual(
+          Array.from({ length: 6 }, (_, index) => `${drainId}-${index.toString().padStart(6, '0')}`)
+        )
+        const runs = await db.select().from(dataDrainRuns).where(eq(dataDrainRuns.drainId, drainId))
+        const locators = runs.flatMap((run) => run.locators ?? [])
+        expect(new Set(locators).size).toBe(requestIds.length)
+        if (requestIdsReturned) {
+          for (const id of requestIds)
+            expect(locators.some((locator) => locator.endsWith(`@${id}`))).toBe(true)
+        }
+      } finally {
+        vi.unstubAllGlobals()
+      }
     }
-  })
+  )
 
   it('fails closed when malformed JSON credentials expose only a private-key fragment', async () => {
     await seedRows(1)

@@ -18,24 +18,39 @@ export const AUDIT_LOG_CSV_HEADER = toCsvRow([
   'Metadata',
 ])
 
-/** Formats the exported row identically for byte admission and the download response. */
-export function toAuditLogCsvRow(row: Awaited<ReturnType<typeof queryAuditLogs>>['data'][number]) {
-  return toCsvRow(
-    [
-      row.createdAt,
-      row.action,
-      row.resourceType,
-      row.resourceName,
-      row.actorEmail || row.actorName || 'System',
-      row.description,
-      row.id,
-      row.workspaceId,
-      row.resourceId,
-      row.actorId,
-      row.ipAddress,
-      row.userAgent,
-      row.surface,
-      row.metadata,
-    ].map((value) => formatCsvValue(value))
-  )
+/** Counts CSV escaping before allocating the encoded row, whose database input is already bounded. */
+export function toAuditLogCsvRow(
+  row: Awaited<ReturnType<typeof queryAuditLogs>>['data'][number],
+  maxBytes: number
+): string | undefined {
+  const values = [
+    row.createdAt,
+    row.action,
+    row.resourceType,
+    row.resourceName,
+    row.actorEmail || row.actorName || 'System',
+    row.description,
+    row.id,
+    row.workspaceId,
+    row.resourceId,
+    row.actorId,
+    row.ipAddress,
+    row.userAgent,
+    row.surface,
+    row.metadata,
+  ].map((value) => formatCsvValue(value))
+  let bytes = values.length - 1
+  for (const value of values) {
+    bytes += Buffer.byteLength(value, 'utf8')
+    if (bytes > maxBytes) return undefined
+    if (/[",\n\r]/.test(value)) {
+      bytes += 2
+      for (let quote = value.indexOf('"'); quote !== -1; quote = value.indexOf('"', quote + 1)) {
+        bytes++
+        if (bytes > maxBytes) return undefined
+      }
+    }
+    if (bytes > maxBytes) return undefined
+  }
+  return toCsvRow(values)
 }

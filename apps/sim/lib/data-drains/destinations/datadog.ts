@@ -241,7 +241,8 @@ export const datadogDestination: DrainDestination<
         let batchBytes = 2
         let rawBytes = 0
         let wireBytes = 0
-        let requestId: string | null = null
+        const locatorPrefix = `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`
+        let locator = locatorPrefix
         let requests = 0
         const sendBatch = async () => {
           const prepared = buildRequestBody(`[${batch.join(',')}]`, credentials.apiKey)
@@ -251,12 +252,11 @@ export const datadogDestination: DrainDestination<
             )
           }
           const response = await postWithRetries({ url, prepared, signal })
-          requestId = response.headers.get('dd-request-id')
+          const requestId = response.headers.get('dd-request-id')
+          locator = requestId ? `${locatorPrefix}@${requestId}` : `${locatorPrefix}-${requests}`
           await acknowledge?.({
             rowCount: batch.length,
-            locator: requestId
-              ? `datadog://${config.site}#${metadata.runId}-${metadata.sequence}@${requestId}`
-              : `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`,
+            locator,
           })
           rawBytes += prepared.rawBytes
           wireBytes += prepared.wireBytes
@@ -283,11 +283,7 @@ export const datadogDestination: DrainDestination<
           rawBytes,
           wireBytes,
         })
-        return {
-          locator: requestId
-            ? `datadog://${config.site}#${metadata.runId}-${metadata.sequence}@${requestId}`
-            : `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`,
-        }
+        return { locator }
       },
       async close() {},
     }
