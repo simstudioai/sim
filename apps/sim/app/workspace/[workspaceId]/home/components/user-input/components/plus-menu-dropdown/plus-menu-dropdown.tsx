@@ -169,6 +169,8 @@ export const PlusMenuDropdown = React.memo(
       includeFolderMentions: true,
     })
     const projectsEnabled = useFeatureFlag('projects')
+    const projectFilesEnabled = useFeatureFlag('project-files')
+    const projectSelectionEnabled = projectsEnabled && projectFilesEnabled
     const projectQuery = useProjectInventory(organizationId, inventoryEnabled && projectsEnabled)
     const projects =
       projectsEnabled && !projectQuery.isError
@@ -259,7 +261,11 @@ export const PlusMenuDropdown = React.memo(
       const q = query.toLowerCase().trim()
       if (!isMention && !q) return null
       const projectItems: MentionCandidate[] = (
-        q ? projects : projects.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT)
+        projectSelectionEnabled
+          ? q
+            ? projects
+            : projects.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT)
+          : EMPTY_PROJECTS
       )
         .filter((project) => project.name.toLowerCase().includes(q))
         .map((item) => ({ type: 'project', item }))
@@ -277,7 +283,7 @@ export const PlusMenuDropdown = React.memo(
             (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
           )
       return [...projectItems, ...workspaceItems, ...resourceItems]
-    }, [isMention, query, visibleResources, workspaces, projects])
+    }, [isMention, query, visibleResources, workspaces, projects, projectSelectionEnabled])
 
     const activeIndex = Math.max(
       0,
@@ -494,7 +500,7 @@ export const PlusMenuDropdown = React.memo(
                     key={project.id}
                     project={project}
                     workspaces={workspaces}
-                    onSelectProject={handleProjectSelect}
+                    onSelectProject={projectSelectionEnabled ? handleProjectSelect : undefined}
                     excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
                     selectFolders
                     onSelect={handleSelect}

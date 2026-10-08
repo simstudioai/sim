@@ -12,6 +12,7 @@ import {
   outboxEvent,
   permissions,
   projectWorkspace,
+  uploadSession,
   user,
   userStats,
   workspace,
@@ -56,6 +57,7 @@ import {
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
+import { createProjectFileUploadTransport } from '@/lib/mothership/agent-cli/project-file-upload-transport'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
 import { executeProjectFileCliRequest } from '@/lib/mothership/agent-cli/project-files'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
@@ -385,58 +387,68 @@ describe('private native Project writes against PostgreSQL and local storage', (
     }
   )
 
-  for (const field of ['name', 'folderPath', 'contentType'] as const) {
-    check(`a secret in Project create ${field} cannot escape as public metadata`, async () => {
-      const f = await fixture()
-      const secret = 'synthetic-metadata-canary'
-      if (field === 'folderPath')
-        await db.insert(folder).values({
-          id: generateId(),
-          projectId: f.projectId,
-          resourceType: 'file',
-          name: secret,
-          userId: f.userId,
-        })
-      const registry = new ResolvedSecretTraceRegistry(
-        [
-          {
-            name: 'TOKEN',
-            plaintext: secret,
-            encryptedValue: (await encryptSecret(secret)).encrypted,
-            scope: 'workspace',
-          },
-        ],
-        { userId: f.userId, workspaceId: f.workspaceId }
-      )
-      expect(registry.recordResolved('TOKEN', secret)).toBe(true)
-      const transport = createProjectFileWriteTransport({
-        endpoint: 'http://localhost:3200',
-        projectId: f.projectId,
-        context: { ...f.context, resolvedSecretTraceRegistry: registry },
-        fallback: async () => {
-          throw new Error('Unexpected fallback')
-        },
-      })
-      const response = await transport(
-        `http://localhost:3200/api/v2/projects/${f.projectId}/files`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            name: 'safe.txt',
-            content: 'safe body',
-            [field]:
-              field === 'folderPath'
-                ? `/${secret}`
-                : field === 'contentType'
-                  ? `text/${secret}`
-                  : `${secret}.txt`,
-          }),
+  for (const upload of [false, true]) {
+    for (const field of ['name', 'folderPath', 'contentType'] as const) {
+      check(
+        `a secret in Project ${upload ? 'upload' : 'create'} ${field} cannot escape as public metadata`,
+        async () => {
+          const f = await fixture()
+          const secret = 'synthetic-metadata-canary'
+          if (field === 'folderPath')
+            await db.insert(folder).values({
+              id: generateId(),
+              projectId: f.projectId,
+              resourceType: 'file',
+              name: secret,
+              userId: f.userId,
+            })
+          const registry = new ResolvedSecretTraceRegistry(
+            [
+              {
+                name: 'TOKEN',
+                plaintext: secret,
+                encryptedValue: (await encryptSecret(secret)).encrypted,
+                scope: 'workspace',
+              },
+            ],
+            { userId: f.userId, workspaceId: f.workspaceId }
+          )
+          expect(registry.recordResolved('TOKEN', secret)).toBe(true)
+          const transport = (
+            upload ? createProjectFileUploadTransport : createProjectFileWriteTransport
+          )({
+            endpoint: 'http://localhost:3200',
+            projectId: f.projectId,
+            context: { ...f.context, resolvedSecretTraceRegistry: registry },
+            fallback: async () => {
+              throw new Error('Unexpected fallback')
+            },
+          })
+          const response = await transport(
+            `http://localhost:3200/api/v2/projects/${f.projectId}/files${upload ? '/uploads' : ''}`,
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                name: 'safe.txt',
+                ...(upload ? { size: 9, contentType: 'text/plain' } : { content: 'safe body' }),
+                [field]:
+                  field === 'folderPath'
+                    ? `/${secret}`
+                    : field === 'contentType'
+                      ? `text/${secret}`
+                      : `${secret}.txt`,
+              }),
+            }
+          )
+          expect(response.status, await response.clone().text()).toBe(403)
+          expect(await rows(f.projectId)).toEqual([])
+          expect(
+            await db.select().from(uploadSession).where(eq(uploadSession.userId, f.userId))
+          ).toEqual([])
         }
       )
-      expect(response.status, await response.clone().text()).toBe(403)
-      expect(await rows(f.projectId)).toEqual([])
-    })
+    }
   }
 
   check('a private target cannot write a different Project', async () => {
@@ -555,6 +567,33 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         body: JSON.stringify({ name: 'safe.txt', content: 'safe text', encoding: 'utf-8' }),
       })
       expect(safe.status, await safe.clone().text()).toBe(201)
+      await db.insert(folder).values({
+        id: generateId(),
+        projectId: f.projectId,
+        resourceType: 'file',
+        name: canary,
+        userId: f.userId,
+      })
+      for (const metadata of [
+        { name: `${canary}.txt` },
+        { contentType: `text/${canary}` },
+        { folderPath: `/${canary}` },
+      ]) {
+        const denied = await callback('/uploads', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: 'safe.txt',
+            contentType: 'text/plain',
+            size: 9,
+            ...metadata,
+          }),
+        })
+        expect(denied.status, await denied.clone().text()).toBe(403)
+        expect(
+          await db.select().from(uploadSession).where(eq(uploadSession.userId, f.userId))
+        ).toEqual([])
+      }
       const bytes = Buffer.from('safe upload')
       const createdResponse = await callback('/uploads', {
         method: 'POST',

@@ -97,6 +97,7 @@ import type {
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -2025,7 +2026,10 @@ function ProjectFileResourceDisplay({
   title,
   onSelect,
 }: ProjectFileResourceDisplayProps) {
-  const { data, isError } = useProjectFile(projectId, fileId)
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const enabled = projectsEnabled && projectFilesEnabled
+  const { data, isError } = useProjectFile(enabled ? projectId : undefined, fileId)
   const file = data?.file
   const label = file?.name ?? title ?? 'File'
   if (isError) return <span role='status'>File unavailable.</span>

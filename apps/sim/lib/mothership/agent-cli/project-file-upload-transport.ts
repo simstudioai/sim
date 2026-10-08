@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
+import { requireCleanProjectFileMetadata } from '@/lib/mothership/agent-cli/project-file-write-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import { requireTrustedCopilotResourceExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import { toV2ProjectFileUpload } from '@/lib/projects/files/api/upload-presenter'
@@ -21,6 +22,7 @@ import {
 } from '@/lib/projects/files/application'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('ProjectFileUploadTransport')
 const UPLOADS_ROUTE = '/api/v2/projects/{projectId}/files/uploads'
@@ -31,6 +33,7 @@ export function createProjectFileUploadTransport(options: {
   projectId: string
   context: AgentCliExecutionContext
   fallback: typeof fetch
+  resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
   uploadProvenance?: () => WorkspaceFileSecretProvenance | Promise<WorkspaceFileSecretProvenance>
   uploadBinding?: {
     record(uploadId: string): Promise<void>
@@ -74,6 +77,9 @@ export function createProjectFileUploadTransport(options: {
         )
         if (!parsed.success) return parsed.response
         const { body } = parsed.data
+        await requireCleanProjectFileMetadata(body, options)
+        context.signal?.throwIfAborted()
+        request.signal.throwIfAborted()
         const session = await executeCopilotProjectFileUseCase(
           context,
           createProjectFileUploadSession,

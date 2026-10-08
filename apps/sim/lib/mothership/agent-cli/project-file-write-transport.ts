@@ -13,6 +13,7 @@ import {
 import { parseRequest } from '@/lib/api/server/validation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
+import { requireCleanProjectFileMetadata } from '@/lib/mothership/agent-cli/project-file-write-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import { requireTrustedCopilotResourceExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import { toV2ProjectFile } from '@/lib/projects/files/api/presenters'
@@ -151,13 +152,5 @@ async function requireCleanInlineText(
       'forbidden',
       'Project CLI writes currently require UTF-8 text with verified secret provenance'
     )
-  const registry = options.resolveSecretTraceRegistry
-    ? await options.resolveSecretTraceRegistry()
-    : context.resolvedSecretTraceRegistry
-  const provenance = registry?.exportCommittedProvenanceForValue(body, { anonymous: true })
-  if (!provenance?.complete || provenance.entries.length !== 0)
-    throw new OrchestrationError(
-      'forbidden',
-      'Project file content cannot be published without complete, empty secret provenance'
-    )
+  await requireCleanProjectFileMetadata(body, options)
 }

@@ -59,6 +59,10 @@ export async function proxySandboxProjectFileRequest(
     if (provenance.status !== 'exact') throw new Error('Workbench source provenance is unavailable')
     return provenance
   }
+  const resolveSecretTraceRegistry = async () =>
+    (await createDurableSecretProvenanceRegistry(await history(), {
+      userId: scope.userId,
+    })) ?? new ResolvedSecretTraceRegistry([], { userId: scope.userId })
   const bindingKey = `mothership:sandbox-resources:${token}:project-uploads:${encodeURIComponent(projectId)}`
   const redis = () => {
     const client = getRedisClient()
@@ -69,6 +73,7 @@ export async function proxySandboxProjectFileRequest(
     endpoint,
     projectId,
     context,
+    resolveSecretTraceRegistry,
     uploadBinding: {
       async record(uploadId) {
         await redis().eval(
@@ -98,13 +103,7 @@ export async function proxySandboxProjectFileRequest(
       endpoint,
       projectId,
       context,
-      async resolveSecretTraceRegistry() {
-        return (
-          (await createDurableSecretProvenanceRegistry(await history(), {
-            userId: scope.userId,
-          })) ?? new ResolvedSecretTraceRegistry([], { userId: scope.userId })
-        )
-      },
+      resolveSecretTraceRegistry,
       fallback: createProjectFileCliTransport(endpoint, context, { projectId }),
     }),
   })

@@ -180,6 +180,11 @@ class StaleStorageKeyError extends Error {
   }
 }
 
+interface UseStaleKeyRecoveryProps {
+  workspaceId: string | undefined
+  fileId?: string
+}
+
 /**
  * Re-resolve a workspace's file records after a read found its storage key superseded.
  *
@@ -199,10 +204,10 @@ class StaleStorageKeyError extends Error {
  * on the dead key showing a failure until something unrelated (a window focus, another consumer)
  * happens to re-resolve the record.
  */
-function useStaleKeyRecovery(
-  workspaceId: string | undefined,
-  fileId?: string
-): (error: unknown) => void {
+function useStaleKeyRecovery({
+  workspaceId,
+  fileId,
+}: UseStaleKeyRecoveryProps): (error: unknown) => void {
   const queryClient = useQueryClient()
   const source = useFileContentSource()
   const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
@@ -269,7 +274,7 @@ export function useWorkspaceFileContent(
 ): WorkspaceFileContentResult {
   const source = useFileContentSource()
   const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
+  const recoverStaleKey = useStaleKeyRecovery({ workspaceId, fileId })
   const query = useQuery({
     queryKey:
       ownerQuery?.adapter.contentKey(ownerQuery.id, fileId, raw ? 'raw' : 'text', key) ??
@@ -290,7 +295,12 @@ export function useWorkspaceFileContent(
   })
   return {
     data: query.data,
-    ...useStaleKeyRecoveryState(workspaceId, fileId, query.isLoading, query.error),
+    ...useStaleKeyRecoveryState({
+      workspaceId,
+      fileId,
+      isLoading: query.isLoading,
+      error: query.error,
+    }),
   }
 }
 
@@ -300,6 +310,13 @@ export interface WorkspaceFileContentResult {
   isLoading: boolean
   /** The failure worth showing the reader, or `null` while the address is still being re-resolved. */
   error: Error | null
+}
+
+interface UseStaleKeyRecoveryStateProps {
+  workspaceId: string | undefined
+  fileId: string
+  isLoading: boolean
+  error: unknown
 }
 
 /**
@@ -315,12 +332,12 @@ export interface WorkspaceFileContentResult {
  * record hands back the same key — the object is genuinely gone, not moved — the recovery ends, the
  * error surfaces, and the reader sees a real failure.
  */
-function useStaleKeyRecoveryState(
-  workspaceId: string | undefined,
-  fileId: string,
-  isLoading: boolean,
-  error: unknown
-): { isLoading: boolean; error: Error | null } {
+function useStaleKeyRecoveryState({
+  workspaceId,
+  fileId,
+  isLoading,
+  error,
+}: UseStaleKeyRecoveryStateProps): { isLoading: boolean; error: Error | null } {
   const source = useFileContentSource()
   const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
   const resolvingRecord = useIsFetching({
@@ -393,7 +410,7 @@ export function useWorkspaceFileBinary(
 ) {
   const source = useFileContentSource()
   const ownerQuery = resolveFileQueryOwner(source.owner, workspaceId)
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
+  const recoverStaleKey = useStaleKeyRecovery({ workspaceId, fileId })
   return useQuery({
     queryKey:
       ownerQuery?.adapter.contentKey(ownerQuery.id, fileId, 'binary', key, options?.version) ??

@@ -28,6 +28,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -692,7 +693,13 @@ async function privateUploadTransport(
   return createProjectFileUploadTransport({
     endpoint,
     projectId: f.projectId,
-    context,
+    context: {
+      ...context,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+        userId: f.editorId,
+        workspaceId: f.workspaceId,
+      }),
+    },
     fallback: createProjectFileCliTransport(endpoint, context, { projectId: f.projectId }),
     uploadProvenance,
   })
