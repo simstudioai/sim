@@ -33,3 +33,11 @@ export function createModelAccessGate(config: ModelGateConfig | null | undefined
     return allowedProviders.includes(providerId)
   }
 }
+
+/** Resolves the group's Agent default only while its existing model policy permits it. */
+export function resolveAgentDefaultModel(
+  config: (ModelGateConfig & Pick<PermissionGroupConfig, 'defaultAgentModel'>) | null | undefined
+): string | null {
+  const model = config?.defaultAgentModel
+  return model && createModelAccessGate(config)(model) ? model : null
+}

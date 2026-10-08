@@ -5017,7 +5017,7 @@
       "get": {
         "operationId": "getPermissionGroup",
         "summary": "Get Permission Group",
-        "description": "Get a permission group and its resolved restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Get a permission group and its resolved settings. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "permission_groups.read",
         "x-oauth-scope": "api:read",
         "tags": ["Permission Groups"],
@@ -16026,6 +16026,20 @@
                   "maxLength": 255
                 },
                 "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "required": [
@@ -16071,10 +16085,11 @@
               "hideSandboxesTab",
               "disableOAuthAppAccess",
               "disableKnowledgeBaseExport",
-              "deniedPartialAccessProjectIssues"
+              "deniedPartialAccessProjectIssues",
+              "defaultAgentModel"
             ],
             "additionalProperties": false,
-            "description": "Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none."
+            "description": "Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection."
           },
           "isDefault": {
             "type": "boolean",
@@ -16123,7 +16138,7 @@
         ],
         "additionalProperties": false,
         "title": "Permission group",
-        "description": "An organization permission group and its resolved restrictions."
+        "description": "An organization permission group and its resolved settings."
       },
       "ListPermissionGroupsResponse": {
         "type": "object",
@@ -16202,7 +16217,8 @@
                   "hideSandboxesTab": false,
                   "disableOAuthAppAccess": false,
                   "disableKnowledgeBaseExport": false,
-                  "deniedPartialAccessProjectIssues": []
+                  "deniedPartialAccessProjectIssues": [],
+                  "defaultAgentModel": null
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -16278,7 +16294,8 @@
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
-                "deniedPartialAccessProjectIssues": []
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16541,10 +16558,23 @@
                   "maxLength": 255
                 },
                 "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "additionalProperties": false,
-            "description": "Permission restrictions to set. Omitted keys use the default permission configuration."
+            "description": "Group settings to set. Omitted keys use the default permission configuration."
           },
           "isDefault": {
             "description": "Whether the group is the organization default. Only one group can be the default.",
@@ -16633,7 +16663,8 @@
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
-                "deniedPartialAccessProjectIssues": []
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16707,7 +16738,8 @@
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
-                "deniedPartialAccessProjectIssues": []
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16977,10 +17009,23 @@
                   "maxLength": 255
                 },
                 "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "additionalProperties": false,
-            "description": "Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list."
+            "description": "Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list."
           },
           "isDefault": {
             "description": "Whether the group is the organization default. Only one group can be the default.",
@@ -18263,6 +18308,20 @@
                       "maxLength": 255
                     },
                     "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+                  },
+                  "defaultAgentModel": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Default model for new Agent blocks. Null uses the platform default."
                   }
                 },
                 "required": [
@@ -18308,7 +18367,8 @@
                   "hideSandboxesTab",
                   "disableOAuthAppAccess",
                   "disableKnowledgeBaseExport",
-                  "deniedPartialAccessProjectIssues"
+                  "deniedPartialAccessProjectIssues",
+                  "defaultAgentModel"
                 ],
                 "additionalProperties": false
               },
@@ -18316,7 +18376,7 @@
                 "type": "null"
               }
             ],
-            "description": "Effective group restrictions. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies."
+            "description": "Effective group settings. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies."
           },
           "entitled": {
             "type": "boolean",

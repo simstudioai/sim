@@ -22,6 +22,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import {
   findWorkspacesNotInOrganization,
@@ -100,6 +101,12 @@ async function demoteDefault(organizationId: string, now: Date, tx: DbOrTx) {
     )
 }
 
+function validateAgentDefault(config: PermissionGroupConfig) {
+  if (config.defaultAgentModel && !resolveAgentDefaultModel(config)) {
+    throw new OrchestrationError('validation', 'Agent default must be an allowed model')
+  }
+}
+
 async function insertWorkspaceLinks(
   organizationId: string,
   groupId: string,
@@ -136,6 +143,8 @@ export async function createPermissionGroupRecord(
       'validation',
       'Select at least one workspace when the group targets specific workspaces'
     )
+  const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...input.config }
+  validateAgentDefault(config)
   return withPermissionGroupMutation(organizationId, async (tx) => {
     await validateProjectRestrictions(
       organizationId,
@@ -150,7 +159,7 @@ export async function createPermissionGroupRecord(
       organizationId,
       name: input.name,
       description: input.description || null,
-      config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...input.config },
+      config,
       createdBy: actorUserId,
       createdAt: now,
       updatedAt: now,
@@ -234,6 +243,7 @@ export async function updatePermissionGroupRecord(
     const config = updates.config
       ? { ...parsePermissionGroupConfig(group.config), ...updates.config }
       : parsePermissionGroupConfig(group.config)
+    validateAgentDefault(config)
     const [updated] = await tx
       .update(permissionGroup)
       .set({

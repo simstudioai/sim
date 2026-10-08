@@ -89,6 +89,19 @@ beforeEach(() => {
   mocks.allConflict.mockResolvedValue(null)
 })
 describe('permission group current organization authority', () => {
+  it.each([{ allowedModelProviders: ['anthropic'] }, { deniedModels: ['GPT-4O'] }])(
+    'refuses a partial update that blocks the stored Agent default: %j',
+    async (config) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.load.mockResolvedValue({ ...group, config: { defaultAgentModel: 'gpt-4o' } })
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...group, config: { defaultAgentModel: 'gpt-4o', ...config } },
+      ])
+      await expect(
+        updatePermissionGroup.execute({ principal, input: { ...scope, changes: { config } } })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
   it.each(['member', null])('refuses role %s before entitlement and group lookup', async (role) => {
     queueTableRows(member, role ? [{ role }] : [])
     await expect(getPermissionGroup.execute({ principal, input: scope })).rejects.toThrow()

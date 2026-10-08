@@ -40,6 +40,7 @@ import {
   PLATFORM_FEATURES,
 } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
   groupSearchParam,
   groupSearchUrlKeys,
@@ -60,6 +61,7 @@ import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { AgentDefault } from '@/ee/access-control/components/agent-default'
 import { ProjectIssueRestrictions } from '@/ee/access-control/components/project-issue-restrictions'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -1279,7 +1281,11 @@ export function GroupDetail({
 
   /** Persists the editing buffer — name/description are only sent when they changed. */
   const handleSaveConfig = async () => {
-    if (!trimmedName) return
+    if (
+      !trimmedName ||
+      (editingConfig.defaultAgentModel && !resolveAgentDefaultModel(editingConfig))
+    )
+      return
     try {
       const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
@@ -1477,7 +1483,9 @@ export function GroupDetail({
             saving: updatePermissionGroup.isPending,
             onSave: handleSaveConfig,
             onDiscard: handleDiscardConfig,
-            saveDisabled: !trimmedName,
+            saveDisabled:
+              !trimmedName ||
+              !!(editingConfig.defaultAgentModel && !resolveAgentDefaultModel(editingConfig)),
           }),
           {
             id: 'delete',
@@ -1645,6 +1653,14 @@ export function GroupDetail({
             <SettingsEmptyState variant='inline'>Loading providers</SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-7'>
+              <AgentDefault
+                config={editingConfig}
+                providerIds={allProviderIds}
+                workspaceId={workspaceId}
+                onChange={(defaultAgentModel) =>
+                  setEditingConfig((prev) => ({ ...prev, defaultAgentModel }))
+                }
+              />
               <div className='flex items-center gap-2'>
                 <ChipInput
                   icon={Search}

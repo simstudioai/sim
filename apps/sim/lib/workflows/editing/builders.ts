@@ -10,7 +10,10 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import {
+  createModelAccessGate,
+  resolveAgentDefaultModel,
+} from '@/lib/permission-groups/model-access'
 import {
   createToolAccessGate,
   isOperationAllowed,
@@ -289,10 +292,16 @@ export function createBlockFromParams(
     )
     blockConfig.subBlocks.forEach((subBlock) => {
       if (!blockState.subBlocks[subBlock.id]) {
+        const agentDefault =
+          params.type === 'agent' && subBlock.id === 'model'
+            ? resolveAgentDefaultModel(permissionConfig)
+            : null
         blockState.subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value: resolveSeededSubBlockValue(subBlock, writtenValues, isSeededValueAllowed),
+          value:
+            agentDefault ??
+            resolveSeededSubBlockValue(subBlock, writtenValues, isSeededValueAllowed),
         }
       } else {
         blockState.subBlocks[subBlock.id].type = subBlock.type

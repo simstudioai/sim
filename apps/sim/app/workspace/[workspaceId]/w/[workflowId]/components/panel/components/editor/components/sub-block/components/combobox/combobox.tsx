@@ -3,6 +3,7 @@ import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from '@xyflow/react'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -21,6 +22,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -106,6 +108,7 @@ export const ComboBox = memo(function ComboBox({
   const activeSearchTarget = useActiveSearchTarget()
   // Hooks and context
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
+  const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
 
@@ -116,7 +119,11 @@ export const ComboBox = memo(function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
+  const {
+    config: permissionConfig,
+    isModelUsable,
+    isLoading: isPermissionLoading,
+  } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
   // Derived option lists read the block's own values (a model's valid reasoning efforts);
@@ -296,9 +303,19 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
+   * Priority: group Agent default > explicit defaultValue > DEFAULT_MODEL > first option.
    */
   const defaultOptionValue = useMemo(() => {
+    const agentDefault =
+      config.id === 'model' && blockType === 'agent'
+        ? resolveAgentDefaultModel(permissionConfig)
+        : null
+    if (
+      agentDefault &&
+      evaluatedOptions.some((option) => getOptionValue(option) === agentDefault)
+    ) {
+      return agentDefault
+    }
     if (defaultValue !== undefined) {
       // Validate that the default value exists in the available (filtered) options
       const defaultInOptions = evaluatedOptions.find((opt) => getOptionValue(opt) === defaultValue)
@@ -330,7 +347,16 @@ export const ComboBox = memo(function ComboBox({
     }
 
     return undefined
-  }, [defaultValue, evaluatedOptions, subBlockId, getOptionValue, config.emptyIsValid])
+  }, [
+    defaultValue,
+    evaluatedOptions,
+    subBlockId,
+    getOptionValue,
+    config.emptyIsValid,
+    config.id,
+    blockType,
+    permissionConfig,
+  ])
 
   /**
    * Resolve the user-facing text for the current stored value.

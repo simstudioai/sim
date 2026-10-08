@@ -26,6 +26,8 @@ export interface PrepareBlockStateOptions {
   parentId?: string
   extent?: 'parent'
   triggerMode?: boolean
+  /** Preferred model for new Agent blocks; the seed gate still applies. */
+  agentDefaultModel?: string | null
   /**
    * Vetoes a declared default that the creator's permission group denies —
    * today the `operation` and `model` fields, both of which blocks pre-fill.
@@ -60,6 +62,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     extent,
     triggerMode = false,
     isSeededValueAllowed,
+    agentDefaultModel,
   } = options
 
   const blockConfig = getBlock(type)
@@ -103,6 +106,10 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
         initialValue = [createDefaultInputFormatField()]
       } else if (subBlock.type === 'table') {
         initialValue = []
+      }
+
+      if (type === 'agent' && subBlock.id === 'model' && agentDefaultModel) {
+        initialValue = agentDefaultModel
       }
 
       if (

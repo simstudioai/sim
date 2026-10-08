@@ -1398,7 +1398,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetPermissionGroupContract,
     summary: 'Get Permission Group',
     description:
-      'Get a permission group and its resolved restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'Get a permission group and its resolved settings. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
   collectDeniedOperationIds,
   isOperationAllowed,
@@ -14,6 +15,7 @@ import {
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export interface OperationAccess {
+  agentDefaultModel: string | null
   /**
    * Whether the permission config is still loading. Every list this module
    * filters reads as unrestricted until it resolves, so a surface that
@@ -71,11 +73,12 @@ export interface OperationAccess {
  * canvas search, block creation — agrees.
  */
 export function useOperationAccess(): OperationAccess {
-  const { isToolAllowed, isModelUsable, isLoading } = usePermissionConfig()
+  const { config, isToolAllowed, isModelUsable, isLoading } = usePermissionConfig()
 
   return useMemo(() => {
     const isReady = !isLoading
     return {
+      agentDefaultModel: isReady ? resolveAgentDefaultModel(config) : null,
       isPermissionLoading: isLoading,
       getDeniedOperations: (block, operationIds) =>
         isReady
@@ -95,5 +98,5 @@ export function useOperationAccess(): OperationAccess {
           : isModelUsable(value)
       },
     }
-  }, [isToolAllowed, isModelUsable, isLoading])
+  }, [config, isToolAllowed, isModelUsable, isLoading])
 }

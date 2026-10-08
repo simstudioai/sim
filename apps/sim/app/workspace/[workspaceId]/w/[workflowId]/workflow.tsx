@@ -898,7 +898,7 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { resolveSeedGate } = useOperationAccess()
+    const { resolveSeedGate, agentDefaultModel } = useOperationAccess()
 
     const addBlock = useCallback(
       (
@@ -933,6 +933,7 @@ const WorkflowContent = React.memo(
           extent,
           triggerMode,
           isSeededValueAllowed: seedGate,
+          agentDefaultModel,
         })
 
         const subBlockValues: Record<string, Record<string, unknown>> = {}
@@ -976,7 +977,13 @@ const WorkflowContent = React.memo(
         )
         usePanelEditorStore.getState().setCurrentBlockId(id)
       },
-      [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection, resolveSeedGate]
+      [
+        collaborativeBatchAddBlocks,
+        setSelectedEdges,
+        setPendingSelection,
+        resolveSeedGate,
+        agentDefaultModel,
+      ]
     )
 
     const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useExecutionStore(

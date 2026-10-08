@@ -2591,6 +2591,7 @@ export type CreatePermissionGroupBody = {
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
+    defaultAgentModel?: string | null
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -2645,6 +2646,7 @@ type CreatePermissionGroupResponseRef0 = {
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -6132,6 +6134,7 @@ type GetPermissionGroupResponseRef0 = {
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -7283,6 +7286,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   } | null
   entitled: boolean
   organizationId: string | null
@@ -8961,6 +8965,7 @@ type ListPermissionGroupsResponseRef0 = {
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -13251,6 +13256,7 @@ export type UpdatePermissionGroupBody = {
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
+    defaultAgentModel?: string | null
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -13305,6 +13311,7 @@ type UpdatePermissionGroupResponseRef0 = {
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -15291,8 +15298,7 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional group description.' },
       config: {
         kind: 'object',
-        describe:
-          'Permission restrictions to set. Omitted keys use the default permission configuration.',
+        describe: 'Group settings to set. Omitted keys use the default permission configuration.',
       },
       isDefault: {
         kind: 'boolean',
@@ -21521,7 +21527,7 @@ export const V2_OPERATIONS = {
       config: {
         kind: 'object',
         describe:
-          'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.',
+          'Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list.',
       },
       isDefault: {
         kind: 'boolean',
