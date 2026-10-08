@@ -310,10 +310,8 @@ export const DELETE = withRouteHandler(
         workspaceId,
       })
     } catch (error) {
-      if (
-        error instanceof WorkspaceBillingAccountRemovalError ||
-        error instanceof ProjectConflictError
-      ) {
+      if (error instanceof ProjectConflictError) return conflictResponse(error.message)
+      if (error instanceof WorkspaceBillingAccountRemovalError) {
         return badRequestResponse(error.message)
       }
       logger.error('Admin API: Failed to remove workspace member', { error, workspaceId, memberId })
