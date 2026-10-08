@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-06",
+  "updatedAt": "2026-10-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -15691,6 +15691,82 @@
       "tags": ["spreadsheet", "microsoft-365"]
     },
     {
+      "type": "intune",
+      "slug": "microsoft-intune",
+      "name": "Microsoft Intune",
+      "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
+      "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
+      "bgColor": "#0078D4",
+      "iconName": "IntuneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/intune",
+      "operations": [
+        {
+          "name": "List Devices",
+          "description": "Read one page of devices from Microsoft Intune"
+        },
+        {
+          "name": "Get Device",
+          "description": "Read device details from Microsoft Intune"
+        },
+        {
+          "name": "List Detected Apps",
+          "description": "Read one page of detected apps from Microsoft Intune"
+        },
+        {
+          "name": "Get Detected App",
+          "description": "Read detected app details from Microsoft Intune"
+        },
+        {
+          "name": "List App Devices",
+          "description": "Read one page of managed devices that have a detected application installed"
+        },
+        {
+          "name": "List Compliance Policies",
+          "description": "Read one page of compliance policies from Microsoft Intune"
+        },
+        {
+          "name": "Get Compliance Policy",
+          "description": "Read common metadata for an Intune compliance policy"
+        },
+        {
+          "name": "List Compliance Policy Device Statuses",
+          "description": "Read one page of compliance policy device statuses from Microsoft Intune"
+        },
+        {
+          "name": "List Device Configurations",
+          "description": "Read one page of device configurations from Microsoft Intune"
+        },
+        {
+          "name": "Get Device Configuration",
+          "description": "Read common metadata for an Intune device configuration"
+        },
+        {
+          "name": "Sync Device",
+          "description": "Request a device check-in to receive pending Intune policies and actions"
+        },
+        {
+          "name": "Reboot Device",
+          "description": "Request a device restart after explicit confirmation; may interrupt the signed-in user"
+        },
+        {
+          "name": "Remote Lock Device",
+          "description": "Request a remote device lock after explicit confirmation on supported platforms"
+        },
+        {
+          "name": "Retire Device",
+          "description": "Retire a device after explicit confirmation, removing company data and management"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-intune",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["microsoft-365", "monitoring", "automation"]
+    },
+    {
       "type": "microsoft_planner",
       "slug": "microsoft-planner",
       "name": "Microsoft Planner",
@@ -20078,6 +20154,98 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"]
+    },
+    {
+      "type": "ramp",
+      "slug": "ramp",
+      "name": "Ramp",
+      "description": "Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp",
+      "longDescription": "Connect Ramp to your agents to review company balances, employees, card transactions, physical and virtual cards, vendors, bills, and reimbursements. Add transaction memos and paginate through records with up to 100 results per request.",
+      "bgColor": "#E4F222",
+      "iconName": "RampIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ramp",
+      "operations": [
+        {
+          "name": "Get Business",
+          "description": "Fetch the company information in Ramp"
+        },
+        {
+          "name": "Get Balance",
+          "description": "Fetch the company balance information in Ramp"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in one page in Ramp"
+        },
+        {
+          "name": "Get User",
+          "description": "Fetch a user in Ramp"
+        },
+        {
+          "name": "List Transactions",
+          "description": "List transactions in one page in Ramp"
+        },
+        {
+          "name": "Get Transaction",
+          "description": "Fetch a transaction in Ramp"
+        },
+        {
+          "name": "List Physical Cards",
+          "description": "List physical cards in one page in Ramp"
+        },
+        {
+          "name": "Get Physical Card",
+          "description": "Fetch a physical card in Ramp"
+        },
+        {
+          "name": "List Virtual Cards",
+          "description": "List virtual cards in one page in Ramp"
+        },
+        {
+          "name": "Get Virtual Card",
+          "description": "Fetch a virtual card in Ramp"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List vendors in one page in Ramp"
+        },
+        {
+          "name": "Get Vendor",
+          "description": "Fetch a vendor in Ramp"
+        },
+        {
+          "name": "List Bills",
+          "description": "List bills in one page in Ramp"
+        },
+        {
+          "name": "Get Bill",
+          "description": "Fetch a bill in Ramp"
+        },
+        {
+          "name": "List Reimbursements",
+          "description": "List reimbursements in one page in Ramp"
+        },
+        {
+          "name": "Get Reimbursement",
+          "description": "Fetch a reimbursement in Ramp"
+        },
+        {
+          "name": "Get Memo",
+          "description": "Fetch a transaction memo in Ramp"
+        },
+        {
+          "name": "Create Memo",
+          "description": "Upload a new memo for a transaction in Ramp"
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "ramp",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "data-analytics", "automation"]
     },
     {
       "type": "rb2b",

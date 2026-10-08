@@ -39,6 +39,7 @@ import {
   HarmonicIcon,
   HubspotIcon,
   InstagramIcon,
+  IntuneIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -58,6 +59,7 @@ import {
   PipedriveIcon,
   PowerBIIcon,
   QuickBooksIcon,
+  RampIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -429,6 +431,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      },
+      'microsoft-intune': {
+        name: 'Microsoft Intune',
+        description: 'Read managed devices and policies, and request remote device actions.',
+        providerId: 'microsoft-intune',
+        icon: IntuneIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'DeviceManagementManagedDevices.Read.All',
+          'DeviceManagementConfiguration.Read.All',
+          'DeviceManagementManagedDevices.PrivilegedOperations.All',
+          'offline_access',
+        ],
       },
       'microsoft-planner': {
         name: 'Microsoft Planner',
@@ -1300,6 +1318,32 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'quickbooks',
   },
+  ramp: {
+    name: 'Ramp',
+    icon: RampIcon,
+    services: {
+      ramp: {
+        name: 'Ramp',
+        description:
+          'Read company spending, cards, bills, and reimbursements, and manage transaction memos.',
+        providerId: 'ramp',
+        icon: RampIcon,
+        baseProviderIcon: RampIcon,
+        scopes: [
+          'business:read',
+          'users:read',
+          'transactions:read',
+          'cards:read',
+          'vendors:read',
+          'bills:read',
+          'reimbursements:read',
+          'memos:read',
+          'memos:write',
+        ],
+      },
+    },
+    defaultService: 'ramp',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1890,6 +1934,20 @@ function getProviderAuthConfig(
         additionalHeaders: {
           'User-Agent': REDDIT_USER_AGENT,
         },
+      }
+    }
+    case 'ramp': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'ramp',
+        'RAMP_CLIENT_ID',
+        'RAMP_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.ramp.com/developer/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'wealthbox': {
