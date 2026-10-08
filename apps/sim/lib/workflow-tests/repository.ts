@@ -107,10 +107,11 @@ export async function insertWorkflowTestRun(values: {
   await db.insert(workflowTestRun).values({ ...values, status: 'running' })
 }
 
-/** A workflow a run executed and the deployment it ran; `null` is the draft. */
+/** A workflow a run executed, the deployment it ran (`null` is the draft), and one execution of it. */
 export interface RanAgainstEntry {
   workflowId: string
   deploymentVersionId: string | null
+  executionId: string
 }
 
 /** The workflows and deployments these executions ran, from their execution logs. */
@@ -120,10 +121,14 @@ export async function readExecutedDeployments(
 ): Promise<RanAgainstEntry[]> {
   if (executionIds.length === 0) return []
   const rows = await db
-    .selectDistinct({
-      workflowId: workflowExecutionLogs.workflowId,
-      deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-    })
+    .selectDistinctOn(
+      [workflowExecutionLogs.workflowId, workflowExecutionLogs.deploymentVersionId],
+      {
+        workflowId: workflowExecutionLogs.workflowId,
+        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+        executionId: workflowExecutionLogs.executionId,
+      }
+    )
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -131,9 +136,16 @@ export async function readExecutedDeployments(
         eq(workflowExecutionLogs.workspaceId, workspaceId)
       )
     )
+    .orderBy(workflowExecutionLogs.workflowId, workflowExecutionLogs.deploymentVersionId)
   return rows.flatMap((row) =>
     row.workflowId
-      ? [{ workflowId: row.workflowId, deploymentVersionId: row.deploymentVersionId }]
+      ? [
+          {
+            workflowId: row.workflowId,
+            deploymentVersionId: row.deploymentVersionId,
+            executionId: row.executionId,
+          },
+        ]
       : []
   )
 }

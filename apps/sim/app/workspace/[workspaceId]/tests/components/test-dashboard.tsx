@@ -3,7 +3,6 @@
 import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import {
   Badge,
-  Chip,
   cn,
   DashboardMetric,
   Table,
@@ -13,11 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@sim/emcn'
-import { CircleCheck, CircleX, Loader, Minus } from '@sim/emcn/icons'
+import { Loader } from '@sim/emcn/icons'
 import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
 import type { WorkflowTestDetail } from '@/lib/api/contracts/workflow-tests'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { TestRunPicker } from '@/app/workspace/[workspaceId]/tests/components/test-run-picker'
 import { useWorkflowTestRun } from '@/hooks/queries/workflow-tests'
+import { testRunSelectionKey, useTestRunSelectionStore } from '@/stores/workflow-tests/store'
 
 const WorkflowVersionPreview = lazy(() =>
   import('@/app/workspace/[workspaceId]/tests/components/workflow-version-preview').then(
@@ -25,45 +26,26 @@ const WorkflowVersionPreview = lazy(() =>
   )
 )
 
+const ExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((module) => ({ default: module.ExecutionSnapshot }))
+)
+
 type RunDetail = NonNullable<WorkflowTestDetail['latestRun']>
-type Run = WorkflowTestDetail['history'][number]
 type CaseResult = NonNullable<RunDetail['report']>['tests'][number]
 type CaseState = 'queued' | 'running' | 'pass' | 'fail' | 'skip' | 'none'
 
-const RUNS_SHOWN = 5
-
-const RUN_BADGE: Record<Run['status'], 'green' | 'red' | 'amber'> = {
-  passed: 'green',
-  failed: 'red',
-  error: 'red',
-  running: 'amber',
-}
-
-const CASE_STATE: Record<CaseState, { label: string; icon: ReactNode }> = {
-  queued: {
-    label: 'Queued',
-    icon: <Minus className='size-[14px] shrink-0 text-[var(--text-icon)]' />,
-  },
-  running: {
-    label: 'Running',
-    icon: <Loader animate className='size-[14px] shrink-0 text-[var(--brand-blue)]' />,
-  },
-  pass: {
-    label: 'Passed',
-    icon: <CircleCheck className='size-[14px] shrink-0 text-[var(--text-success)]' />,
-  },
-  fail: {
-    label: 'Failed',
-    icon: <CircleX className='size-[14px] shrink-0 text-[var(--text-error)]' />,
-  },
-  skip: {
-    label: 'Skipped',
-    icon: <Minus className='size-[14px] shrink-0 text-[var(--text-icon)]' />,
-  },
-  none: {
-    label: 'Not run',
-    icon: <Minus className='size-[14px] shrink-0 text-[var(--text-icon)]' />,
-  },
+const CASE_STATE: Record<
+  CaseState,
+  { label: string; variant: 'green' | 'red' | 'amber' | 'gray' }
+> = {
+  queued: { label: 'Queued', variant: 'gray' },
+  running: { label: 'Running', variant: 'amber' },
+  pass: { label: 'Passed', variant: 'green' },
+  fail: { label: 'Failed', variant: 'red' },
+  skip: { label: 'Skipped', variant: 'gray' },
+  none: { label: 'Not run', variant: 'gray' },
 }
 
 interface TestDashboardProps {
@@ -73,11 +55,14 @@ interface TestDashboardProps {
 }
 
 /**
- * How the test is doing: totals and freshness for one run (the latest unless a row in Runs is
- * chosen), what failed in it, and every recent run. A latest run still going shows live.
+ * How the test is doing in one run (the latest unless the run picker chose another): totals,
+ * freshness, every case, and what it ran against. A latest run still going shows live.
  */
 export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps) {
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const selectedRunId =
+    useTestRunSelectionStore(
+      (state) => state.selectedRunIds[testRunSelectionKey(workspaceId, name)]
+    ) ?? null
   const latestRunning = detail.latestRun?.status === 'running'
   const viewedRunId = latestRunning ? null : selectedRunId
   const selected = useWorkflowTestRun(workspaceId, name, viewedRunId)
@@ -106,6 +91,9 @@ export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps)
     <div className='@container/dashboard min-h-0 flex-1 overflow-y-auto'>
       <div className='flex flex-col gap-8 @min-[640px]/dashboard:px-8 px-4 py-6'>
         <div className='flex flex-col gap-4'>
+          <div className='-ml-2'>
+            <TestRunPicker workspaceId={workspaceId} name={name} detail={detail} />
+          </div>
           <div className='flex min-w-0 flex-wrap gap-6'>
             <Metric label='Passing' value={hasResults ? count('pass') : '—'} />
             <Metric label='Failing' value={hasResults ? count('fail') : '—'} />
@@ -135,54 +123,40 @@ export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps)
           <Freshness run={run} loading={Boolean(viewedRunId) && selected.isPending} />
         </div>
 
-        <SettingsSection
-          label={running ? `Tests · ${finished} of ${cases.length}` : `Tests · ${cases.length}`}
-        >
-          {cases.length === 0 ? (
-            <p className='text-[var(--text-muted)] text-small'>No tests yet</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Test</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className='text-right'>Duration</TableHead>
+        {cases.length === 0 ? (
+          <p className='text-[var(--text-muted)] text-small'>No tests yet</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Test</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className='text-right'>Duration</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cases.map((testCase) => (
+                <TableRow key={testCase.key}>
+                  <TableCell className='max-w-[420px] align-top'>
+                    <span className='whitespace-pre-wrap break-words'>{testCase.name}</span>
+                    {testCase.state === 'fail' && testCase.result && (
+                      <p className='mt-1 whitespace-pre-wrap break-words text-[var(--text-error)] text-caption'>
+                        {failureReason(testCase.result)}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell className='align-top'>
+                    <Badge variant={CASE_STATE[testCase.state].variant} dot size='sm'>
+                      {CASE_STATE[testCase.state].label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className='text-right align-top tabular-nums'>
+                    {testCase.result ? formatDuration(testCase.result.durationMs) : '—'}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cases.map((testCase) => (
-                  <TableRow key={testCase.key}>
-                    <TableCell className='max-w-[420px] align-top'>
-                      <span className='whitespace-pre-wrap break-words'>{testCase.name}</span>
-                      {testCase.state === 'fail' && testCase.result && (
-                        <p className='mt-1 whitespace-pre-wrap break-words text-[var(--text-error)] text-caption'>
-                          {failureReason(testCase.result)}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell className='align-top'>
-                      <span className='flex items-center gap-2'>
-                        {CASE_STATE[testCase.state].icon}
-                        {CASE_STATE[testCase.state].label}
-                      </span>
-                    </TableCell>
-                    <TableCell className='text-right align-top tabular-nums'>
-                      {testCase.result ? formatDuration(testCase.result.durationMs) : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </SettingsSection>
-
-        {detail.history.length > 0 && (
-          <RunsSection
-            runs={detail.history}
-            latestRunId={detail.latestRun?.id ?? null}
-            selectedRunId={viewedRunId ?? detail.latestRun?.id ?? null}
-            onSelect={(runId) => setSelectedRunId(runId === detail.latestRun?.id ? null : runId)}
-          />
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         {!running && run && run.ranAgainst.length > 0 && (
@@ -219,8 +193,12 @@ function freshnessLine(run: RunDetail | null): { lead: ReactNode; text: string }
   if (!run) return { lead: null, text: 'Not run yet' }
   if (run.status === 'running') {
     return {
-      lead: <Loader animate className='size-[14px] text-[var(--brand-blue)]' />,
-      text: 'Running against the latest workflows…',
+      lead: (
+        <Badge variant='amber' dot size='sm'>
+          Running
+        </Badge>
+      ),
+      text: 'Against the latest workflows',
     }
   }
   const when = formatRelativeTime(run.completedAt ?? run.startedAt)
@@ -257,32 +235,40 @@ interface WorkflowsSectionProps {
   workflows: RunDetail['ranAgainst']
 }
 
+type Previewing =
+  | { kind: 'version'; workflowId: string; version: number; title: string }
+  | { kind: 'snapshot'; executionId: string }
+
 /**
  * Each workflow the run executed and the version it ran, marked when that version is no longer
- * live. A deployed version opens on a read-only canvas.
+ * live. A deployed version opens on a read-only canvas; a draft opens as it was when the run used it.
  */
 function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
-  const [previewing, setPreviewing] = useState<{
-    workflowId: string
-    version: number
-    title: string
-  } | null>(null)
+  const [previewing, setPreviewing] = useState<Previewing | null>(null)
   return (
     <SettingsSection label='Ran against'>
       <Table>
         <TableBody>
           {workflows.map((workflow) => {
-            const label = `${workflow.name ?? 'Deleted workflow'}${
-              workflow.draft ? ' · Draft' : workflow.version ? ` · v${workflow.version}` : ''
-            }`
+            const name = workflow.name ?? 'Deleted workflow'
             const version = workflow.version
             const preview =
-              workflow.name !== null && !workflow.draft && version !== null
-                ? () => setPreviewing({ workflowId: workflow.workflowId, version, title: label })
-                : undefined
+              workflow.name === null
+                ? undefined
+                : workflow.draft
+                  ? () => setPreviewing({ kind: 'snapshot', executionId: workflow.executionId })
+                  : version !== null
+                    ? () =>
+                        setPreviewing({
+                          kind: 'version',
+                          workflowId: workflow.workflowId,
+                          version,
+                          title: `${name} · v${version}`,
+                        })
+                    : undefined
             return (
               <TableRow
-                key={workflow.workflowId}
+                key={workflow.executionId}
                 tabIndex={preview ? 0 : undefined}
                 onClick={preview}
                 onKeyDown={(event) => {
@@ -295,7 +281,20 @@ function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
                   preview && 'cursor-pointer transition-colors hover:bg-[var(--surface-active)]'
                 )}
               >
-                <TableCell>{label}</TableCell>
+                <TableCell>
+                  <span className='flex items-center gap-2'>
+                    {name}
+                    {workflow.draft ? (
+                      <Badge variant='gray-secondary' size='sm'>
+                        Draft
+                      </Badge>
+                    ) : (
+                      version !== null && (
+                        <span className='text-[var(--text-muted)]'>v{version}</span>
+                      )
+                    )}
+                  </span>
+                </TableCell>
                 <TableCell className='text-right'>
                   {workflow.stale && (
                     <Badge variant='amber' size='sm'>
@@ -308,115 +307,27 @@ function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
           })}
         </TableBody>
       </Table>
-      {previewing && (
+      {previewing?.kind === 'version' && (
         <Suspense fallback={null}>
-          <WorkflowVersionPreview {...previewing} onClose={() => setPreviewing(null)} />
+          <WorkflowVersionPreview
+            workflowId={previewing.workflowId}
+            version={previewing.version}
+            title={previewing.title}
+            onClose={() => setPreviewing(null)}
+          />
+        </Suspense>
+      )}
+      {previewing?.kind === 'snapshot' && (
+        <Suspense fallback={null}>
+          <ExecutionSnapshot
+            executionId={previewing.executionId}
+            isModal
+            isOpen
+            onClose={() => setPreviewing(null)}
+          />
         </Suspense>
       )}
     </SettingsSection>
-  )
-}
-
-interface RunsSectionProps {
-  runs: Run[]
-  latestRunId: string | null
-  selectedRunId: string | null
-  onSelect: (runId: string) => void
-}
-
-function RunsSection({ runs, latestRunId, selectedRunId, onSelect }: RunsSectionProps) {
-  const [showAll, setShowAll] = useState(false)
-  const shown = showAll ? runs : runs.slice(0, RUNS_SHOWN)
-  return (
-    <SettingsSection
-      label='Runs'
-      action={
-        latestRunId !== null && selectedRunId !== latestRunId ? (
-          <Chip onClick={() => onSelect(latestRunId)}>View latest</Chip>
-        ) : null
-      }
-    >
-      <Table>
-        <TableBody>
-          {shown.map((run) => (
-            <RunRow
-              key={run.id}
-              run={run}
-              latest={run.id === latestRunId}
-              selected={run.id === selectedRunId}
-              onSelect={() => onSelect(run.id)}
-            />
-          ))}
-        </TableBody>
-      </Table>
-      {runs.length > RUNS_SHOWN && (
-        <Chip className='mt-2 self-start' onClick={() => setShowAll((value) => !value)}>
-          {showAll ? 'Show fewer' : `Show all ${runs.length}`}
-        </Chip>
-      )}
-    </SettingsSection>
-  )
-}
-
-interface RunRowProps {
-  run: Run
-  latest: boolean
-  selected: boolean
-  onSelect: () => void
-}
-
-/** One run: how it went, how long it took, and when. Opens its results on the page. */
-function RunRow({ run, latest, selected, onSelect }: RunRowProps) {
-  const result =
-    run.status === 'passed' || run.status === 'failed'
-      ? `${run.passed} of ${run.passed + run.failed} passed`
-      : run.status === 'error'
-        ? 'Didn’t finish'
-        : 'Running'
-  const durationMs = run.completedAt
-    ? Date.parse(run.completedAt) - Date.parse(run.startedAt)
-    : null
-  return (
-    <TableRow
-      tabIndex={0}
-      aria-selected={selected}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onSelect()
-        }
-      }}
-      className={cn(
-        'cursor-pointer transition-colors hover:bg-[var(--surface-active)]',
-        selected && 'bg-[var(--surface-active)]',
-        !run.current && run.status !== 'running' && 'text-[var(--text-muted)]'
-      )}
-    >
-      <TableCell>
-        <span className='flex items-center gap-2'>
-          <Badge variant={RUN_BADGE[run.status]} dot size='sm'>
-            {result}
-          </Badge>
-          {latest && (
-            <Badge variant='gray-secondary' size='sm'>
-              Latest
-            </Badge>
-          )}
-          {run.version === 'draft' && (
-            <Badge variant='gray-secondary' size='sm'>
-              Draft
-            </Badge>
-          )}
-        </span>
-      </TableCell>
-      <TableCell className='w-[80px] text-right tabular-nums'>
-        {durationMs === null ? '—' : formatDuration(durationMs)}
-      </TableCell>
-      <TableCell className='w-[100px] text-right tabular-nums'>
-        {formatRelativeTime(run.completedAt ?? run.startedAt)}
-      </TableCell>
-    </TableRow>
   )
 }
 

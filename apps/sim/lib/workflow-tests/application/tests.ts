@@ -67,6 +67,8 @@ interface WorkflowTestRanAgainst {
   liveVersion: number | null
   /** The workflow was redeployed or deleted after this run. */
   stale: boolean
+  /** One execution of it in this run, whose snapshot is the workflow as it ran. */
+  executionId: string
 }
 
 type RunRow = Omit<WorkflowTestRunRow, 'report'>
@@ -96,6 +98,7 @@ function presentRanAgainst(row: RunRow, facts: DeploymentFacts): WorkflowTestRan
       draft: deploymentId === null,
       liveVersion: live?.version ?? null,
       stale: name === null || (deploymentId !== null && live?.id !== deploymentId),
+      executionId: entry.executionId,
     }
   })
 }
