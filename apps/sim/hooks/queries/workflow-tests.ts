@@ -11,8 +11,10 @@ import {
 export type WorkflowTestVersion = 'draft' | 'deployed'
 
 const WORKFLOW_TEST_STALE_TIME = 15_000
-/** While a run is in flight; 20 reads a minute stays inside the routes' per-user limit of 30. */
+/** While a run is in flight, so its progress and result appear as they land. */
 const WORKFLOW_TEST_RUNNING_REFETCH_INTERVAL = 3_000
+/** Otherwise, so a run started elsewhere (Sim, another person, the API) shows up. */
+const WORKFLOW_TEST_IDLE_REFETCH_INTERVAL = 15_000
 
 export const workflowTestKeys = {
   all: ['workflow-tests'] as const,
@@ -43,7 +45,7 @@ export function useWorkflowTests(workspaceId: string, options?: { enabled?: bool
     refetchInterval: (query) =>
       query.state.data?.tests.some((test) => test.status === 'running')
         ? WORKFLOW_TEST_RUNNING_REFETCH_INTERVAL
-        : false,
+        : WORKFLOW_TEST_IDLE_REFETCH_INTERVAL,
   })
 }
 
@@ -62,7 +64,7 @@ export function useWorkflowTest(workspaceId: string, name: string) {
     refetchInterval: (query) =>
       query.state.data?.latestRun?.status === 'running'
         ? WORKFLOW_TEST_RUNNING_REFETCH_INTERVAL
-        : false,
+        : WORKFLOW_TEST_IDLE_REFETCH_INTERVAL,
   })
 }
 
