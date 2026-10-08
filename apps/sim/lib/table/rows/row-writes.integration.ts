@@ -68,7 +68,7 @@ const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
     AND p.proname = 'bump_user_table_rows_version_at_commit'
 ) AS migrated`
 
-/** Whether the row triggers log to `user_table_row_changes` (0401) rather than lock the definition. */
+/** Whether the row triggers log to `user_table_row_changes` (0402) rather than lock the definition. */
 const [{ logsRowChanges }] = await control<{ logsRowChanges: boolean }[]>`SELECT EXISTS (
   SELECT 1 FROM pg_proc
   WHERE proname = 'increment_user_table_row_count_stmt' AND prosrc LIKE '%user_table_row_changes%'
