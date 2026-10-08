@@ -9,6 +9,7 @@ import { devtools } from 'zustand/middleware'
 interface TestRunSelectionState {
   selectedRunIds: Record<string, string>
   selectRun: (testKey: string, runId: string | null) => void
+  reset: () => void
 }
 
 export const useTestRunSelectionStore = create<TestRunSelectionState>()(
@@ -20,6 +21,7 @@ export const useTestRunSelectionStore = create<TestRunSelectionState>()(
           const { [testKey]: _previous, ...rest } = state.selectedRunIds
           return { selectedRunIds: runId === null ? rest : { ...rest, [testKey]: runId } }
         }),
+      reset: () => set({ selectedRunIds: {} }),
     }),
     { name: 'test-run-selection' }
   )

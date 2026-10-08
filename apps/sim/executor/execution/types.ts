@@ -285,7 +285,12 @@ export interface TestWorkflowBlock {
  * executions inherit the hooks.
  */
 export interface ExecutionTestHooks {
-  enterWorkflow(workflow: { workflowId: string; blocks: TestWorkflowBlock[] }): Promise<void>
+  /** `resolvedSecretTraceRegistry` redacts what this run sends back to the test. */
+  enterWorkflow(workflow: {
+    workflowId: string
+    blocks: TestWorkflowBlock[]
+    resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  }): Promise<void>
   /** Whether this block's handler is replaced; ids are workflow block ids, never clone ids. */
   mocksBlock(blockId: string): boolean
   resolveMock(call: MockedBlockCall, abortSignal?: AbortSignal): Promise<NormalizedBlockOutput>

@@ -1,5 +1,6 @@
 import { isUtf8 } from 'node:buffer'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { readWorkflowTestCases, testSourceHash } from '@/lib/workflow-tests/definition'
 import {
   getLiveWorkflowTestByBodyFileId,
@@ -25,7 +26,7 @@ export async function prepareWorkflowTestSourceWrite(input: {
   fileId: string
   workspaceId: string
   content: Buffer
-}): Promise<() => Promise<void>> {
+}): Promise<(tx: DbOrTx) => Promise<void>> {
   const test = await getLiveWorkflowTestByBodyFileId(input.fileId)
   if (!test) throw new OrchestrationError('not_found', 'File not found')
   const source = decodeTestSource(input.content)
@@ -34,5 +35,5 @@ export async function prepareWorkflowTestSourceWrite(input: {
     name: test.name,
     source,
   })
-  return () => updateWorkflowTestCases(test.id, cases, testSourceHash(source))
+  return (tx) => updateWorkflowTestCases(test.id, cases, testSourceHash(source), tx)
 }

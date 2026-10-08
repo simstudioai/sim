@@ -25,13 +25,18 @@ export interface WorkspaceFileContextInput {
   ownedFilePrincipal?: Principal
 }
 
-/** Principals the test operations admit; workspace API keys and system callers never reach one. */
-const OWNED_FILE_PRINCIPAL_KINDS = new Set<Principal['kind']>([
-  'session',
-  'personal_api_key',
-  'oauth_access_token',
-  'delegated',
-])
+/**
+ * The principals the test operations admit: people and Copilot acting for one. Workspace API
+ * keys, system callers, and the executor's delegation never reach a test file.
+ */
+function isOwnedFilePrincipal(principal: Principal): boolean {
+  if (principal.kind === 'delegated') return principal.serviceId === 'copilot'
+  return (
+    principal.kind === 'session' ||
+    principal.kind === 'personal_api_key' ||
+    principal.kind === 'oauth_access_token'
+  )
+}
 
 /**
  * A test file follows its test: it needs a live test and admits only the test operations'
@@ -42,7 +47,7 @@ export async function assertOwnedFileAccess(
   context: ActiveWorkspaceFileContext
 ): Promise<void> {
   if (context.fileContext !== 'test') return
-  if (!OWNED_FILE_PRINCIPAL_KINDS.has(principal.kind)) {
+  if (!isOwnedFilePrincipal(principal)) {
     throw new OrchestrationError('not_found', 'File not found')
   }
   if (!(await getLiveWorkflowTestByBodyFileId(context.fileId))) {

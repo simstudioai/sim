@@ -339,6 +339,7 @@ async function executeRevertWorkspaceFileVersion({
         }),
         expectedUpdatedAt: expectedContentAt ?? file.contentUpdatedAt ?? file.updatedAt,
         secretProvenancePolicy: { mode: 'reinstate', snapshot: provenance },
+        commitOwner,
       }
     )
   } catch (error) {
@@ -348,7 +349,6 @@ async function executeRevertWorkspaceFileVersion({
     throw error
   }
 
-  await commitOwner()
   logger.info('Reverted workspace file to a previous version', {
     workspaceId: context.workspaceId,
     fileId: context.fileId,

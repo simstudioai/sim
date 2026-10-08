@@ -19,9 +19,10 @@ import { testFilePath } from '@/lib/workflow-tests/paths'
 import {
   completeWorkflowTestRun,
   failWorkflowTestRun,
-  insertWorkflowTestRun,
+  insertWorkflowTestRuns,
   listLiveWorkflowTests,
-  readExecutedDeployments,
+  markWorkflowTestRunStarted,
+  readRanAgainst,
   recordWorkflowTestProgress,
   type WorkflowTestRow,
 } from '@/lib/workflow-tests/repository'
@@ -46,6 +47,7 @@ async function executeTestRun(params: {
   const { runId, test, principal, version } = params
   let sourceHash: string | null = null
   try {
+    await markWorkflowTestRunStarted(runId)
     const file = await getWorkspaceFile(test.workspaceId, test.bodyFileId, {
       includeTestFiles: true,
     })
@@ -53,7 +55,7 @@ async function executeTestRun(params: {
     const buffer = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_TEST_SOURCE_BYTES })
     const source = buffer.toString('utf-8')
     sourceHash = testSourceHash(source)
-    const report = await runWorkflowTestFile({
+    const { report, enteredWorkflowIds } = await runWorkflowTestFile({
       principal,
       workspaceId: test.workspaceId,
       source,
@@ -65,7 +67,12 @@ async function executeTestRun(params: {
     const executionIds = report.tests.flatMap((result) =>
       result.executions.map((execution) => execution.executionId)
     )
-    const ranAgainst = await readExecutedDeployments(executionIds, test.workspaceId)
+    const ranAgainst = await readRanAgainst({
+      executionIds,
+      enteredWorkflowIds,
+      workspaceId: test.workspaceId,
+      version,
+    })
     await completeWorkflowTestRun(runId, report, sourceHash, ranAgainst)
   } catch (error) {
     logger.warn('Workflow test run failed', {
@@ -113,16 +120,16 @@ export const startWorkflowTestRuns = defineAuthorizedWorkspaceUseCase({
 
     const actor = toPrincipalActor(principal)
     const runs = tests.map((test) => ({ runId: generateId(), test }))
-    for (const { runId, test } of runs) {
-      await insertWorkflowTestRun({
+    await insertWorkflowTestRuns(
+      runs.map(({ runId, test }) => ({
         id: runId,
         testId: test.id,
         workspaceId: context.workspaceId,
         version: input.version,
         triggeredByActor: actor,
         triggeredByUserId: resolvePrincipalSubjectUserId(principal) ?? null,
-      })
-    }
+      }))
+    )
     void (async () => {
       for (const { runId, test } of runs) {
         await executeTestRun({

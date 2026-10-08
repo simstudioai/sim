@@ -72,10 +72,11 @@ export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps)
   const progress = run?.progress ?? {}
   const results = new Map<string, CaseResult>()
   for (const result of run?.report?.tests ?? []) results.set(result.path.join(' > '), result)
-  /** An earlier run lists the cases it ran; otherwise the file's current cases, as they stand. */
-  const casePaths = viewedRunId
-    ? (run?.report?.tests ?? []).map((result) => result.path)
-    : detail.test.cases.map((testCase) => testCase.path)
+  /** A finished run lists the cases it ran; a running or missing one, the file's current cases. */
+  const casePaths =
+    !running && run?.report
+      ? run.report.tests.map((result) => result.path)
+      : detail.test.cases.map((testCase) => testCase.path)
   const cases = casePaths.map((path) => {
     const key = path.join(' > ')
     const result = results.get(key)
@@ -251,12 +252,14 @@ function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
         <TableBody>
           {workflows.map((workflow) => {
             const name = workflow.name ?? 'Deleted workflow'
-            const version = workflow.version
+            const { executionId, version } = workflow
             const preview =
               workflow.name === null
                 ? undefined
                 : workflow.draft
-                  ? () => setPreviewing({ kind: 'snapshot', executionId: workflow.executionId })
+                  ? executionId === null
+                    ? undefined
+                    : () => setPreviewing({ kind: 'snapshot', executionId })
                   : version !== null
                     ? () =>
                         setPreviewing({
@@ -268,7 +271,7 @@ function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
                     : undefined
             return (
               <TableRow
-                key={workflow.executionId}
+                key={workflow.workflowId}
                 tabIndex={preview ? 0 : undefined}
                 onClick={preview}
                 onKeyDown={(event) => {

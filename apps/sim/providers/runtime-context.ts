@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import {
   durableSecretProvenanceFromRegistry,
   importDurableSecretProvenance,
@@ -19,6 +19,7 @@ import {
 } from '@/executor/constants'
 import type { ExecutionTestHooks, MockedToolCall } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
@@ -132,11 +133,11 @@ function modelSuppliedToolInput(
   toolId: string,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  const declared = getToolParams(toolId)
+  const declared = getToolParams(toolId) ?? {}
   const input: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(params)) {
-    const visibility = declared?.[key]?.visibility
-    if (key !== '_context' && visibility !== 'user-only' && visibility !== 'hidden') {
+    const visibility = declared[key]?.visibility
+    if (Object.hasOwn(declared, key) && visibility !== 'user-only' && visibility !== 'hidden') {
       input[key] = value
     }
   }
@@ -152,6 +153,7 @@ async function resolveMockedTool(
   try {
     return { success: true, output: await testHooks.resolveToolMock(call, abortSignal) }
   } catch (error) {
+    if (abortSignal?.aborted) throw error
     return { success: false, output: {}, error: getErrorMessage(error) }
   }
 }
@@ -268,15 +270,21 @@ export async function executeProviderTool(
     !memoryRetrieval &&
     testHooks.mocksTool(callerBlockId, executionToolId)
   ) {
-    const response = await resolveMockedTool(
-      testHooks,
-      {
-        blockId: callerBlockId,
-        toolId: executionToolId,
-        input: modelSuppliedToolInput(executionToolId, params),
-      },
-      callerContext?.abortSignal
+    const input = projectResolvedSecretModelContent(
+      modelSuppliedToolInput(executionToolId, params),
+      registry
     )
+    const response: ToolResponse = input.safe
+      ? await resolveMockedTool(
+          testHooks,
+          { blockId: callerBlockId, toolId: executionToolId, input: toRecord(input.value) },
+          callerContext?.abortSignal
+        )
+      : {
+          success: false,
+          output: {},
+          error: `Mocked tool "${executionToolId}" has inputs whose secrets cannot be redacted`,
+        }
     return { rawResponse: response, modelResponse: response }
   }
 

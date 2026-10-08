@@ -1,7 +1,8 @@
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type JudgeVerdict, judgeRubric } from '@/lib/workflow-tests/judge'
@@ -29,6 +30,8 @@ import { normalizeName } from '@/executor/constants'
 import type { TestWorkflowBlock } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { hasToolId } from '@/tools/tool-ids'
 
@@ -85,6 +88,15 @@ async function loadWorkflowBlocks(
     throw new OrchestrationError('validation', `The workflow has no ${version} version to test`)
   }
   return state.blocks
+}
+
+/**
+ * A child's block names, read only to tell a mock of an unreached block from a misspelled one.
+ * The draft names them whether or not the child is deployed or ever runs; a deleted child names
+ * none, and running it fails in the executor if the run reaches it.
+ */
+async function loadChildBlockNames(workflowId: string): Promise<Record<string, BlockState>> {
+  return (await loadWorkflowFromNormalizedTables(workflowId))?.blocks ?? {}
 }
 
 /**
@@ -175,10 +187,15 @@ class RunMatcher implements MockMatcher {
 
   /** Workflows whose block names are known: every one that ran, and the children they call. */
   private readonly knownWorkflows = new Set<string>()
+  /** Whether the tested workflow started; secrets resolve only after it has. */
+  entered = false
+  /** The tested workflow's registry, which redacts its output before the test sees it. */
+  outputRegistry: ResolvedSecretTraceRegistry | undefined
 
   constructor(
     targets: TestTarget[],
-    private readonly loadChildBlocks: (workflowId: string) => Promise<Record<string, BlockState>>
+    private readonly loadChildBlocks: (workflowId: string) => Promise<Record<string, BlockState>>,
+    private readonly onEnter: (workflowId: string) => void
   ) {
     for (const target of targets) if (target.kind === 'tool') assertKnownTool(target.tool)
     this.targets = [...targets].sort(
@@ -189,10 +206,17 @@ class RunMatcher implements MockMatcher {
   async enterWorkflow({
     workflowId,
     blocks,
+    resolvedSecretTraceRegistry,
   }: {
     workflowId: string
     blocks: TestWorkflowBlock[]
+    resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   }): Promise<void> {
+    if (!this.entered) {
+      this.entered = true
+      this.outputRegistry = resolvedSecretTraceRegistry
+    }
+    this.onEnter(workflowId)
     const workflowName = await this.workflowName(workflowId)
     for (const block of blocks) this.blocks.set(block.id, block)
     await this.learnWorkflow(
@@ -317,7 +341,11 @@ class TestWorkflowRun {
       (error: unknown) => {
         const executionId = readAttemptedExecutionId(error) ?? ''
         if (hasExecutionResult(error)) return this.toOutcome(executionId, error.executionResult)
-        return { executionId, output: null, error: getErrorMessage(error), logs: [] }
+        return {
+          executionId,
+          ...this.redact({ output: null, error: getErrorMessage(error) }),
+          logs: [],
+        }
       }
     )
     void this.outcome.finally(() => this.channel.close(new Error('The workflow run finished')))
@@ -330,12 +358,24 @@ class TestWorkflowRun {
         : result.success
           ? undefined
           : (result.error ?? 'The workflow run failed')
-    return {
-      executionId,
-      output: result.output,
-      ...(error ? { error } : {}),
-      logs: result.logs ?? [],
+    const redacted = this.redact({ output: result.output, error })
+    return { executionId, ...redacted, logs: result.logs ?? [] }
+  }
+
+  /** What crosses into the sandbox, with this run's resolved secrets replaced; fails closed. */
+  private redact(value: { output: unknown; error: string | undefined }): {
+    output: unknown
+    error?: string
+  } {
+    if (!this.matcher.entered)
+      return { output: null, ...(value.error ? { error: value.error } : {}) }
+    const projection = projectResolvedSecretModelContent(value, this.matcher.outputRegistry)
+    if (!projection.safe) {
+      return { output: null, error: 'The workflow result could not be redacted of its secrets' }
     }
+    const projected = toRecord(projection.value)
+    const error = toStringOrNull(projected.error)
+    return { output: projected.output ?? null, ...(error ? { error } : {}) }
   }
 
   async next(): Promise<TestEvent> {
@@ -426,6 +466,8 @@ class TestWorkflowRun {
  */
 export class WorkflowTestSession {
   private readonly runs = new Map<string, TestWorkflowRun>()
+  /** Every workflow this file's runs executed, children included. */
+  readonly enteredWorkflowIds = new Set<string>()
 
   constructor(readonly config: WorkflowTestSessionConfig) {}
 
@@ -439,8 +481,8 @@ export class WorkflowTestSession {
     const workflowId = await resolveWorkflowId(workspaceId, args.workflow)
     const blocks = await loadWorkflowBlocks(workflowId, workspaceId, version)
     const triggerBlockId = chooseTrigger(args.workflow, blocks, args.trigger)
-    const matcher = new RunMatcher(args.targets, (childId) =>
-      loadWorkflowBlocks(childId, workspaceId, version)
+    const matcher = new RunMatcher(args.targets, loadChildBlockNames, (id) =>
+      this.enteredWorkflowIds.add(id)
     )
     const channel = createMockChannel(matcher)
     const abort = new AbortController()

@@ -95,6 +95,7 @@ export class DAGExecutor {
         type: block.metadata?.id ?? '',
         params: block.config.params ?? {},
       })),
+      resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
     })
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, {

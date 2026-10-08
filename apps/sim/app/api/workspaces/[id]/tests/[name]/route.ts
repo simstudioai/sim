@@ -12,7 +12,11 @@ export const GET = defineInternalJsonRoute({
   contract: getWorkflowTestContract,
   auth: internalSessionAuth,
   operation: workflowTestOperations.read,
-  rateLimit: internalRateLimits.user({ bucketName: 'workflow-tests' }),
+  rateLimit: internalRateLimits.user({
+    bucketName: 'workflow-tests-read',
+    // A running test polls these every 3s from each open page and chat tab.
+    config: { maxTokens: 240, refillRate: 120, refillIntervalMs: 60_000 },
+  }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,

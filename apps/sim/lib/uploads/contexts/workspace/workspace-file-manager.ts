@@ -2100,6 +2100,8 @@ export async function updateWorkspaceFileContent(
      * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
+    /** Records what the file's owner derives from these bytes, atomically with the bytes. */
+    commitOwner?: (tx: DbOrTx) => Promise<void>
   }
 ): Promise<VersionedWorkspaceFileRecord> {
   if (options.collabDocState && !options.expectedUpdatedAt) {
@@ -2234,6 +2236,7 @@ export async function updateWorkspaceFileContent(
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
+        await options.commitOwner?.(tx)
 
         const nextProvenance = await applyWorkspaceFileSecretProvenancePolicyInTx(
           tx,

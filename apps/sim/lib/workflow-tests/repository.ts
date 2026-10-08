@@ -5,6 +5,7 @@ import {
   workflowExecutionLogs,
   workflowTest,
   workflowTestRun,
+  workspaceFiles,
 } from '@sim/db/schema'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -89,36 +90,136 @@ export async function listLiveWorkflowTests(workspaceId: string): Promise<Workfl
     .orderBy(workflowTest.title)
 }
 
-export async function softDeleteWorkflowTest(testId: string): Promise<void> {
-  await db
-    .update(workflowTest)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(eq(workflowTest.id, testId))
-}
-
-export async function insertWorkflowTestRun(values: {
+/** Deletes a test with its source file; soft-delete cleanup later releases the file's storage. */
+export async function softDeleteWorkflowTest(test: {
   id: string
-  testId: string
-  workspaceId: string
-  version: WorkflowTestVersion
-  triggeredByActor: unknown
-  triggeredByUserId: string | null
+  bodyFileId: string
 }): Promise<void> {
-  await db.insert(workflowTestRun).values({ ...values, status: 'running' })
+  const now = new Date()
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workflowTest)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(eq(workflowTest.id, test.id))
+    await tx
+      .update(workspaceFiles)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(workspaceFiles.id, test.bodyFileId),
+          eq(workspaceFiles.context, 'test'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+  })
 }
 
-/** A workflow a run executed, the deployment it ran (`null` is the draft), and one execution of it. */
+/** Every file's run row in one statement, so a failure leaves none of them running. */
+export async function insertWorkflowTestRuns(
+  rows: Array<{
+    id: string
+    testId: string
+    workspaceId: string
+    version: WorkflowTestVersion
+    triggeredByActor: unknown
+    triggeredByUserId: string | null
+  }>
+): Promise<void> {
+  await db.insert(workflowTestRun).values(rows.map((row) => ({ ...row, status: 'running' })))
+}
+
+/** Files run one after another, so a run's clock starts when its file does, not when it queued. */
+export async function markWorkflowTestRunStarted(runId: string): Promise<void> {
+  await db
+    .update(workflowTestRun)
+    .set({ startedAt: new Date() })
+    .where(eq(workflowTestRun.id, runId))
+}
+
+/** A workflow a run executed and the deployment it ran; `null` is the draft. */
 export interface RanAgainstEntry {
   workflowId: string
   deploymentVersionId: string | null
-  executionId: string
+  /** A `runWorkflow()` execution of it, whose snapshot is the workflow as it ran; null for a child. */
+  executionId: string | null
+  /** For a draft, the workflow's `updatedAt` when the run ended; a later edit makes the run stale. */
+  draftUpdatedAt: string | null
+}
+
+type ExecutedWorkflow = Omit<RanAgainstEntry, 'draftUpdatedAt'>
+
+/**
+ * Every workflow a run executed: the ones `runWorkflow()` started, from their execution logs, and
+ * the children they called, which run inside their parent's execution and so log nothing of their
+ * own. A child ran the same version as its run: its live deployment, or its draft.
+ */
+export async function readRanAgainst(params: {
+  executionIds: string[]
+  enteredWorkflowIds: string[]
+  workspaceId: string
+  version: WorkflowTestVersion
+}): Promise<RanAgainstEntry[]> {
+  const started = await readExecutedDeployments(params.executionIds, params.workspaceId)
+  const startedIds = new Set(started.map((entry) => entry.workflowId))
+  const childIds = params.enteredWorkflowIds.filter((id) => !startedIds.has(id))
+  const children = await readChildVersions(childIds, params.version)
+  const executed = [...started, ...children]
+  const drafts = executed.filter((entry) => entry.deploymentVersionId === null)
+  const updatedAt = new Map(
+    drafts.length === 0
+      ? []
+      : (
+          await db
+            .select({ id: workflow.id, updatedAt: workflow.updatedAt })
+            .from(workflow)
+            .where(
+              inArray(
+                workflow.id,
+                drafts.map((entry) => entry.workflowId)
+              )
+            )
+        ).map((row) => [row.id, row.updatedAt.toISOString()])
+  )
+  return executed.map((entry) => ({
+    ...entry,
+    draftUpdatedAt:
+      entry.deploymentVersionId === null ? (updatedAt.get(entry.workflowId) ?? null) : null,
+  }))
+}
+
+async function readChildVersions(
+  workflowIds: string[],
+  version: WorkflowTestVersion
+): Promise<ExecutedWorkflow[]> {
+  if (workflowIds.length === 0) return []
+  if (version === 'draft') {
+    return workflowIds.map((workflowId) => ({
+      workflowId,
+      deploymentVersionId: null,
+      executionId: null,
+    }))
+  }
+  const active = await db
+    .select({ workflowId: workflowDeploymentVersion.workflowId, id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        inArray(workflowDeploymentVersion.workflowId, workflowIds),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+  return active.map((row) => ({
+    workflowId: row.workflowId,
+    deploymentVersionId: row.id,
+    executionId: null,
+  }))
 }
 
 /** The workflows and deployments these executions ran, from their execution logs. */
-export async function readExecutedDeployments(
+async function readExecutedDeployments(
   executionIds: string[],
   workspaceId: string
-): Promise<RanAgainstEntry[]> {
+): Promise<ExecutedWorkflow[]> {
   if (executionIds.length === 0) return []
   const rows = await db
     .selectDistinctOn(
@@ -152,6 +253,8 @@ export async function readExecutedDeployments(
 
 export interface DeploymentFacts {
   names: Map<string, string>
+  /** When each workflow last changed, draft edits included. */
+  updatedAt: Map<string, Date>
   /** Active deployment per workflow. */
   active: Map<string, { id: string; version: number }>
   /** Version number of every deployment asked about. */
@@ -163,11 +266,16 @@ export async function readDeploymentFacts(
   workflowIds: string[],
   deploymentVersionIds: string[]
 ): Promise<DeploymentFacts> {
-  const facts: DeploymentFacts = { names: new Map(), active: new Map(), versions: new Map() }
+  const facts: DeploymentFacts = {
+    names: new Map(),
+    updatedAt: new Map(),
+    active: new Map(),
+    versions: new Map(),
+  }
   if (workflowIds.length === 0) return facts
   const [workflows, active, versions] = await Promise.all([
     db
-      .select({ id: workflow.id, name: workflow.name })
+      .select({ id: workflow.id, name: workflow.name, updatedAt: workflow.updatedAt })
       .from(workflow)
       .where(and(inArray(workflow.id, workflowIds), isNull(workflow.archivedAt))),
     db
@@ -190,7 +298,10 @@ export async function readDeploymentFacts(
           .from(workflowDeploymentVersion)
           .where(inArray(workflowDeploymentVersion.id, deploymentVersionIds)),
   ])
-  for (const row of workflows) facts.names.set(row.id, row.name)
+  for (const row of workflows) {
+    facts.names.set(row.id, row.name)
+    facts.updatedAt.set(row.id, row.updatedAt)
+  }
   for (const row of active) facts.active.set(row.workflowId, { id: row.id, version: row.version })
   for (const row of versions) facts.versions.set(row.id, row.version)
   return facts

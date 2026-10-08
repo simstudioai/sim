@@ -1,11 +1,10 @@
+import { TEST_NAME_PATTERN } from '@/lib/api/contracts/mothership-tests'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 
 /** Test files live flat in this namespace as `tests/<name>.test.js`. */
 const TEST_FILE_PREFIX = 'tests/'
 export const TEST_FILE_SUFFIX = '.test.js'
-
-const TEST_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/
 
 export function testFilePath(name: string): string {
   return `${TEST_FILE_PREFIX}${name}${TEST_FILE_SUFFIX}`

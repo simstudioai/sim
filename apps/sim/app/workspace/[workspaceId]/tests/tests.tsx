@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { toast } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn'
 import { PlayOutline, ShieldCheck } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -149,7 +149,12 @@ export function Tests({ workspaceId }: TestsProps) {
         rows={rows}
         onRowClick={(name) => router.push(`/workspace/${workspaceId}/tests/${name}`)}
         emptyState={
-          debouncedSearch.trim() && query.data?.length ? (
+          query.error ? (
+            <div role='alert' className='flex flex-col items-center gap-3 p-6'>
+              <p className='text-[var(--text-error)] text-small'>{query.error.message}</p>
+              <Chip onClick={() => query.refetch()}>Retry</Chip>
+            </div>
+          ) : debouncedSearch.trim() && query.data?.length ? (
             <ResourceNoResults
               search={debouncedSearch}
               filterCount={0}

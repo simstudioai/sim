@@ -32,7 +32,7 @@ const runSummarySchema = z.object({
       draft: z.boolean(),
       liveVersion: z.number().int().nullable(),
       stale: z.boolean(),
-      executionId: z.string(),
+      executionId: z.string().nullable(),
     })
   ),
   current: z.boolean(),

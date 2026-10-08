@@ -10,8 +10,8 @@ import {
 export type WorkflowTestVersion = 'draft' | 'deployed'
 
 const WORKFLOW_TEST_STALE_TIME = 15_000
-/** While a run is in flight, so its result appears when it lands. */
-const WORKFLOW_TEST_RUNNING_REFETCH_INTERVAL = 1_000
+/** While a run is in flight; 20 reads a minute stays inside the routes' per-user limit of 30. */
+const WORKFLOW_TEST_RUNNING_REFETCH_INTERVAL = 3_000
 
 export const workflowTestKeys = {
   all: ['workflow-tests'] as const,

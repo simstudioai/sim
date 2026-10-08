@@ -78,6 +78,7 @@ async function updateAuthorizedWorkspaceFileContent({
         version: resolveWorkspaceFileVersionWrite(principal),
         ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         syncLiveDoc: input.syncLiveDoc,
+        commitOwner,
         secretProvenancePolicy: {
           ...(input.provenanceMode === 'preserve'
             ? { mode: 'preserve' as const }
@@ -95,7 +96,6 @@ async function updateAuthorizedWorkspaceFileContent({
     throw error
   }
 
-  await commitOwner()
   logger.info('Updated workspace file content', {
     workspaceId: canonical.workspaceId,
     fileId: canonical.fileId,

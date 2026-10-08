@@ -30,25 +30,28 @@ export interface RunWorkflowTestFileInput {
  * Runs one test file in the sandbox. Each `runWorkflow()` it makes becomes a real workflow
  * run whose mocked blocks are answered by the file's own mocks.
  */
-export async function runWorkflowTestFile(input: RunWorkflowTestFileInput): Promise<TestReport> {
+export async function runWorkflowTestFile(
+  input: RunWorkflowTestFileInput
+): Promise<{ report: TestReport; enteredWorkflowIds: string[] }> {
   const requestId = generateShortId(12)
-  openWorkflowTestSession(
-    requestId,
-    new WorkflowTestSession({
-      workspaceId: input.workspaceId,
-      principal: input.principal,
-      version: input.version,
-      only: input.only,
-      onProgress: input.onProgress,
-    })
-  )
+  const session = new WorkflowTestSession({
+    workspaceId: input.workspaceId,
+    principal: input.principal,
+    version: input.version,
+    only: input.only,
+    onProgress: input.onProgress,
+  })
+  openWorkflowTestSession(requestId, session)
   try {
     const bytes = await runSandboxTask(
       'workflow-test-run',
       { workspaceId: input.workspaceId, code: input.source, codeFilename: input.filePath },
       { requestId, ownerKey: `workspace:${input.workspaceId}`, signal: input.signal }
     )
-    return testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8')))
+    return {
+      report: testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8'))),
+      enteredWorkflowIds: [...session.enteredWorkflowIds],
+    }
   } finally {
     closeWorkflowTestSession(requestId)
   }

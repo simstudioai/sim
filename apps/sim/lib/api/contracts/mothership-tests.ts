@@ -1,11 +1,16 @@
 import { z } from 'zod'
 
 const scope = z.object({ workspaceId: z.string().min(1).max(100).optional() })
+/** A test file name: `tests/<name>.test.js`. */
+export const TEST_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/
+
 const nameSchema = z
   .string()
   .trim()
-  .min(1)
-  .max(80)
+  .regex(
+    TEST_NAME_PATTERN,
+    'Use a lowercase name of letters, numbers, and dashes, like billing-routing'
+  )
   .describe('Test file name: tests/<name>.test.js, lowercase letters, numbers, and dashes.')
 const versionSchema = z
   .enum(['draft', 'deployed'])

@@ -4,6 +4,7 @@ import {
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
+import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -66,6 +67,10 @@ export async function runWorkflowForTest(
   })
   // actorless-unsupported: tests run only for session, personal-key, OAuth, or delegated principals; workflow_tests.run admits no executor or workspace-key caller.
   const actorUserId = requirePrincipalSubjectUserId(principal)
+  // A suite outlives the request that started it, so a ban mid-suite stops the next run.
+  if ((await getActivelyBannedUserIds([actorUserId])).length > 0) {
+    throw new OrchestrationError('forbidden', 'This account is suspended')
+  }
   const executionId = generateId()
   const billingAttribution = await resolveBillingAttribution({
     actorUserId,

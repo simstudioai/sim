@@ -201,6 +201,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
              * The caller's own revision when it sent one, so the guard covers everything since
              * the content it read — not merely since this use case loaded the file.
              */
+            commitOwner,
             expectedUpdatedAt: input.expectedRevision
               ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
               : file.contentUpdatedAt,
@@ -222,7 +223,6 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         throw error
       }
 
-      await commitOwner()
       logger.info('Edited workspace file content', {
         workspaceId: context.workspaceId,
         fileId: context.fileId,

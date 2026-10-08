@@ -164,7 +164,10 @@ export const testsServerTool: BaseServerTool = {
           workspaceId,
           name: input.name,
         })
-        return { deleted: input.name }
+        const resources: ResourceChange[] = [
+          { op: 'remove', resource: { type: 'test', workspaceId, id: input.name } },
+        ]
+        return { deleted: input.name, resources }
       }
     }
   },

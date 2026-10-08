@@ -65,10 +65,10 @@ interface WorkflowTestRanAgainst {
   version: number | null
   draft: boolean
   liveVersion: number | null
-  /** The workflow was redeployed or deleted after this run. */
+  /** The workflow was redeployed, its draft edited, or it was deleted after this run. */
   stale: boolean
-  /** One execution of it in this run, whose snapshot is the workflow as it ran. */
-  executionId: string
+  /** A `runWorkflow()` execution of it, whose snapshot is the workflow as it ran; null for a child. */
+  executionId: string | null
 }
 
 type RunRow = Omit<WorkflowTestRunRow, 'report'>
@@ -97,10 +97,21 @@ function presentRanAgainst(row: RunRow, facts: DeploymentFacts): WorkflowTestRan
       version: deploymentId === null ? null : (facts.versions.get(deploymentId) ?? null),
       draft: deploymentId === null,
       liveVersion: live?.version ?? null,
-      stale: name === null || (deploymentId !== null && live?.id !== deploymentId),
+      stale:
+        name === null ||
+        (deploymentId === null ? draftEdited(entry, facts) : live?.id !== deploymentId),
       executionId: entry.executionId,
     }
   })
+}
+
+function draftEdited(entry: RanAgainstEntry, facts: DeploymentFacts): boolean {
+  const updatedAt = facts.updatedAt.get(entry.workflowId)
+  return (
+    entry.draftUpdatedAt === null ||
+    updatedAt === undefined ||
+    updatedAt.getTime() > Date.parse(entry.draftUpdatedAt)
+  )
 }
 
 function runStatus(row: Omit<WorkflowTestRunRow, 'report'>): WorkflowTestRunSummary['status'] {
@@ -360,7 +371,7 @@ export const deleteWorkflowTest = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   authorizeResource: ({ context }) => requireWorkflowTestsEnabled(context.workspaceOrganizationId),
   async execute({ context }) {
-    await softDeleteWorkflowTest(context.test.id)
+    await softDeleteWorkflowTest(context.test)
     return { deleted: true }
   },
 })

@@ -158,6 +158,22 @@ const HARNESS = `
     return track(assertion, check);
   };
   Object.setPrototypeOf(expect, baseExpect);
+  expect.assertions = (count) => {
+    if (!currentTest) throw new Error('expect.assertions() can only be called inside a test');
+    if (!Number.isInteger(count) || count < 0) throw new Error('expect.assertions() needs a whole number');
+    currentTest.expectedAssertions = count;
+  };
+  expect.hasAssertions = () => {
+    if (!currentTest) throw new Error('expect.hasAssertions() can only be called inside a test');
+    currentTest.expectsAssertions = true;
+  };
+  function checkAssertionCount(test) {
+    const made = test.checks.length;
+    if (test.expectedAssertions !== null && made !== test.expectedAssertions) {
+      throw new Error('Expected ' + test.expectedAssertions + ' assertions to be called but received ' + made);
+    }
+    if (test.expectsAssertions && made === 0) throw new Error('Expected at least one assertion to be called but received none');
+  }
 
   baseExpect.extend({
     async toMatchRubric(received, rubric, options) {
@@ -275,6 +291,7 @@ const HARNESS = `
 
   async function runWorkflow(workflow, input, options) {
     requireRunning('runWorkflow()');
+    if (!currentTest) throw new Error('runWorkflow() runs only inside a test, beforeEach, or afterEach; beforeAll and afterAll have no test to record it on');
     requireName('runWorkflow()', workflow);
     if (options !== undefined) {
       const extra = options === null || typeof options !== 'object' ? ['options'] : Object.keys(options).filter((key) => key !== 'trigger');
@@ -322,11 +339,18 @@ const HARNESS = `
     };
   }
 
-  function withTimeout(promise, ms, label) {
+  /** A timed-out case keeps running in the isolate, so every later case is reported unrun. */
+  let timedOutTest = null;
+  function withTimeout(promise, ms, label, onTimeout) {
     let timer;
     return Promise.race([
       promise,
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ' timed out after ' + ms + 'ms')), ms); }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          onTimeout();
+          reject(new Error(label + ' timed out after ' + ms + 'ms'));
+        }, ms);
+      }),
     ]).finally(() => clearTimeout(timer));
   }
 
@@ -361,9 +385,15 @@ const HARNESS = `
 
   async function runOne(suite, test, onlyNames) {
     const path = [...suitePath(suite), test.name];
-    const result = { path, status: 'pass', durationMs: 0, checks: [], executions: [], logs: [], runIds: [], matchedKeys: new Set(), activeCheck: null };
+    const result = { path, status: 'pass', durationMs: 0, checks: [], executions: [], logs: [], runIds: [], matchedKeys: new Set(), activeCheck: null, expectedAssertions: null, expectsAssertions: false };
     if (!willRun(suite, test, onlyNames)) {
       result.status = 'skip';
+      return result;
+    }
+    if (timedOutTest) {
+      result.status = 'fail';
+      result.error = { name: 'Error', message: 'Not run: "' + timedOutTest + '" timed out and may still be running' };
+      await call('testProgress', { path, status: result.status });
       return result;
     }
     await call('testProgress', { path, status: 'running' });
@@ -377,12 +407,13 @@ const HARNESS = `
         } finally {
           for (const s of suiteChain(suite).reverse()) await runHooks(s.hooks.afterEach);
         }
+        checkAssertionCount(result);
         const unmatched = [...registrations.values()].filter((r) => r.test === result && result.runIds.length > 0 && !result.matchedKeys.has(r.key));
         if (unmatched.length > 0) {
           const names = unmatched.map(describeRegistration);
           throw new Error(names.join(', ') + ' matched no block in the workflows this test ran');
         }
-      })(), test.timeoutMs, 'Test');
+      })(), test.timeoutMs, 'Test', () => { timedOutTest = path.join(' > '); });
     } catch (error) {
       result.status = 'fail';
       const owned = result.checks.find((check) => check.status === 'fail');

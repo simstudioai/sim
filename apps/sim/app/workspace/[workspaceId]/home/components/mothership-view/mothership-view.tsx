@@ -221,8 +221,8 @@ export const MothershipView = memo(
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
-    // A test shows its source, its results, or both, like an HTML file.
-    const isActivePreviewable = isActiveFilePreviewable || (canEdit && active?.type === 'test')
+    // A test shows its source, its results, or both, like an HTML file; the viewer enforces edits.
+    const isActivePreviewable = isActiveFilePreviewable || active?.type === 'test'
 
     return (
       <ChatPanelContent

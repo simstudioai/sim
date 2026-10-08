@@ -413,6 +413,7 @@ export const PlusMenuDropdown = React.memo(
             <OrganizationResourceInventory
               key={workspace.id}
               workspaceId={workspace.id}
+              excludeTypes={COMPOSER_EXCLUDED_TYPES}
               onChange={receiveInventory}
             />
           ))}
