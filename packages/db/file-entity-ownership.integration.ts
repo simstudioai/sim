@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0034_validate_file_workspace_binding'
+import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
@@ -12,13 +14,20 @@ const migration = readFileSync(
   'utf8'
 )
 
+const workspaceBindingMigration = readFileSync(
+  new URL('./migrations/0408_file_workspace_binding.sql', import.meta.url),
+  'utf8'
+)
+
 describe('file entity ownership migration in PostgreSQL', () => {
   const schemaName = `file_entity_${generateId().replaceAll('-', '')}`
   let sql: Sql
   let admin: Sql
 
   async function applyMigration() {
-    for (const statement of migration.split('--> statement-breakpoint')) {
+    for (const statement of `${migration}\n--> statement-breakpoint\n${workspaceBindingMigration}`.split(
+      '--> statement-breakpoint'
+    )) {
       if (statement.trim()) await sql.unsafe(statement)
     }
   }
@@ -166,6 +175,85 @@ describe('file entity ownership migration in PostgreSQL', () => {
       VALUES ('chat', 'project', 'user-a', 'project-a', 'chat-a')`).rejects.toMatchObject({
       code: '23514',
     })
+  })
+
+  it.each(['workspace', 'chat', 'mothership', 'execution', 'workspace-logos'])(
+    'requires a workspace owner on insert and update for %s files, including archived files',
+    async (context) => {
+      for (const deletedAt of [null, new Date()]) {
+        await expect(sql`INSERT INTO workspace_files (id, context, user_id, deleted_at)
+          VALUES ('unowned', ${context}, 'user-a', ${deletedAt})`).rejects.toMatchObject({
+          code: '23514',
+        })
+      }
+      await expect(sql`INSERT INTO workspace_files (id, context, user_id, organization_id)
+        VALUES ('wrong-owner', ${context}, 'user-a', 'organization-a')`).rejects.toMatchObject({
+        code: '23514',
+      })
+      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
+        VALUES ('owned', ${context}, 'user-a', 'workspace-a')`
+      await expect(
+        sql`UPDATE workspace_files SET workspace_id = NULL WHERE id = 'owned'`
+      ).rejects.toMatchObject({ code: '23514' })
+      await sql`INSERT INTO workspace_files (id, context, user_id)
+        VALUES ('personal', 'copilot', 'user-a')`
+      await expect(
+        sql`UPDATE workspace_files SET context = ${context} WHERE id = 'personal'`
+      ).rejects.toMatchObject({ code: '23514' })
+      expect(await sql`SELECT workspace_id FROM workspace_files WHERE id = 'owned'`).toEqual([
+        { workspace_id: 'workspace-a' },
+      ])
+    }
+  )
+
+  it('keeps personal and both knowledge-base owner types valid', async () => {
+    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, organization_id)
+      VALUES ('avatar', 'profile-pictures', 'user-a', NULL, NULL),
+        ('personal', 'copilot', 'user-a', NULL, NULL),
+        ('workspace-kb', 'knowledge-base', 'user-a', 'workspace-a', NULL),
+        ('organization-kb', 'knowledge-base', 'user-a', NULL, 'organization-a')`
+    expect(
+      await sql`SELECT file.id, owner.entity_type, owner.entity_id
+      FROM workspace_files file CROSS JOIN LATERAL workspace_file_owner(
+        file.context, file.workspace_id, file.project_id, file.organization_id, file.user_id
+      ) owner ORDER BY file.id`
+    ).toEqual([
+      { id: 'avatar', entity_type: 'user', entity_id: 'user-a' },
+      { id: 'organization-kb', entity_type: 'organization', entity_id: 'organization-a' },
+      { id: 'personal', entity_type: 'user', entity_id: 'user-a' },
+      { id: 'workspace-kb', entity_type: 'workspace', entity_id: 'workspace-a' },
+    ])
+  })
+
+  it('reports retained ownerless files without guessing, then validates after explicit repair and replays safely', async () => {
+    await sql`ALTER TABLE workspace_files DROP CONSTRAINT workspace_files_workspace_binding_check`
+    await sql`INSERT INTO workspace_files (id, context, user_id, deleted_at)
+      VALUES ('legacy-unowned', 'workspace', 'user-a', now())`
+    await applyMigration()
+    await applyMigration()
+    await expect(runScriptMigrations(sql, [validateFileWorkspaceBindingMigration])).rejects.toThrow(
+      'Workspace-scoped files are missing workspace_id'
+    )
+    expect(await sql`SELECT name FROM script_migrations`).toEqual([])
+    expect(await sql`SELECT workspace_id, user_id, key FROM workspace_files`).toEqual([
+      { workspace_id: null, user_id: 'user-a', key: 'unchanged-object-key' },
+    ])
+    expect(
+      await sql`SELECT convalidated FROM pg_constraint
+      WHERE conrelid = 'workspace_files'::regclass
+        AND conname = 'workspace_files_workspace_binding_check'`
+    ).toEqual([{ convalidated: false }])
+    await sql`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'legacy-unowned'`
+    await runScriptMigrations(sql, [validateFileWorkspaceBindingMigration])
+    await runScriptMigrations(sql, [validateFileWorkspaceBindingMigration])
+    expect(await sql`SELECT name FROM script_migrations`).toEqual([
+      { name: '0034_validate_file_workspace_binding' },
+    ])
+    expect(
+      await sql`SELECT convalidated FROM pg_constraint
+      WHERE conrelid = 'workspace_files'::regclass
+        AND conname = 'workspace_files_workspace_binding_check'`
+    ).toEqual([{ convalidated: true }])
   })
 
   it('allows independent concurrent file inserts into the same Project', async () => {

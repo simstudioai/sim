@@ -5,6 +5,7 @@
  * through the real `requestRunStop`, and a waiter that dies is settled by the stale-execution cron.
  * Deadlines are moved on the row itself, which is all the server reads.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -340,7 +341,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Bound turn fixture',
       ownerId: userId,
@@ -369,7 +370,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       await db.delete(auditLog).where(inArray(auditLog.resourceId, deviceIds))
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
     }
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

@@ -29,8 +29,11 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
+  bulkArchiveWorkspaceFileItems,
   createWorkspaceFileFolder,
   fileNameExistsInWorkspaceFolder,
+  moveWorkspaceFileItems,
+  updateWorkspaceFileFolder,
   workspaceFileNameFolderCondition,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -70,6 +73,110 @@ describe('workspace file names in PostgreSQL', () => {
     await seedKnowledgeAclFixture(ids)
     return ids
   }
+
+  it.each(['update', 'move', 'archive'] as const)(
+    'allows a small subtree %s when unrelated folders exceed the bulk limit',
+    async (operation) => {
+      const fixture = await seedWorkspace()
+      const rootId = generateId()
+      const targetId = generateId()
+      const childId = generateId()
+      await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+        SELECT ${rootId} || '-' || n, 'Unrelated ' || n, ${fixture.aliceId}, ${fixture.workspaceId}, 'file'
+        FROM generate_series(1, 5001) n`)
+      await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+        VALUES (${rootId}, 'Root', ${fixture.aliceId}, ${fixture.workspaceId}, 'file'),
+          (${targetId}, 'Target', ${fixture.aliceId}, ${fixture.workspaceId}, 'file')`)
+      await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+        VALUES (${childId}, 'Child', ${fixture.aliceId}, ${fixture.workspaceId}, 'file', ${rootId})`)
+      if (operation === 'update') {
+        await updateWorkspaceFileFolder({
+          workspaceId: fixture.workspaceId,
+          folderId: rootId,
+          parentId: targetId,
+        })
+      } else if (operation === 'move') {
+        await moveWorkspaceFileItems({
+          workspaceId: fixture.workspaceId,
+          folderIds: [rootId],
+          targetFolderId: targetId,
+        })
+      } else {
+        await bulkArchiveWorkspaceFileItems({
+          workspaceId: fixture.workspaceId,
+          folderIds: [rootId],
+        })
+      }
+      const rows = await db.execute<{ id: string; parentId: string | null; archived: boolean }>(sql`
+        SELECT id, parent_id AS "parentId", deleted_at IS NOT NULL AS archived
+        FROM folder WHERE id IN (${rootId}, ${childId}) ORDER BY name`)
+      expect([...rows]).toEqual([
+        { id: childId, parentId: rootId, archived: operation === 'archive' },
+        {
+          id: rootId,
+          parentId: operation === 'archive' ? null : targetId,
+          archived: operation === 'archive',
+        },
+      ])
+      const [unrelated] = await db.execute<{
+        count: number
+      }>(sql`SELECT count(*)::int AS count FROM folder
+        WHERE workspace_id = ${fixture.workspaceId} AND parent_id IS NULL AND deleted_at IS NULL
+          AND id NOT IN (${rootId}, ${childId}, ${targetId})`)
+      expect(unrelated.count).toBe(5001)
+    }
+  )
+
+  it('rejects a move whose actual subtree exceeds the bulk limit without changing its parent', async () => {
+    const fixture = await seedWorkspace()
+    const rootId = generateId()
+    const targetId = generateId()
+    await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+      VALUES (${rootId}, 'Root', ${fixture.aliceId}, ${fixture.workspaceId}, 'file'),
+        (${targetId}, 'Target', ${fixture.aliceId}, ${fixture.workspaceId}, 'file')`)
+    await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+      SELECT ${rootId} || '-' || n, 'Child ' || n, ${fixture.aliceId}, ${fixture.workspaceId}, 'file', ${rootId}
+      FROM generate_series(1, 5000) n`)
+    await expect(
+      updateWorkspaceFileFolder({
+        workspaceId: fixture.workspaceId,
+        folderId: rootId,
+        parentId: targetId,
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'File operation affects more than 5000 items',
+    })
+    expect([...(await db.execute(sql`SELECT parent_id FROM folder WHERE id = ${rootId}`))]).toEqual(
+      [{ parent_id: null }]
+    )
+  })
+
+  it('rejects descendant destinations when unrelated folders exceed the bulk limit', async () => {
+    const fixture = await seedWorkspace()
+    const rootId = generateId()
+    const childId = generateId()
+    await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+      SELECT ${rootId} || '-' || n, 'Unrelated ' || n, ${fixture.aliceId}, ${fixture.workspaceId}, 'file'
+      FROM generate_series(1, 5001) n`)
+    await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+      VALUES (${rootId}, 'Root', ${fixture.aliceId}, ${fixture.workspaceId}, 'file')`)
+    await db.execute(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+      VALUES (${childId}, 'Child', ${fixture.aliceId}, ${fixture.workspaceId}, 'file', ${rootId})`)
+    await expect(
+      updateWorkspaceFileFolder({
+        workspaceId: fixture.workspaceId,
+        folderId: rootId,
+        parentId: childId,
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Cannot move a folder into one of its descendants',
+    })
+    expect([...(await db.execute(sql`SELECT parent_id FROM folder WHERE id = ${rootId}`))]).toEqual(
+      [{ parent_id: null }]
+    )
+  })
 
   function upload(workspaceId: string, userId: string, name: string, folderId?: string | null) {
     return uploadWorkspaceFile(workspaceId, userId, Buffer.from(name), name, 'text/plain', {

@@ -116,6 +116,16 @@ DROP TRIGGER IF EXISTS workspace_files_validate_relations ON workspace_files;-->
 CREATE CONSTRAINT TRIGGER workspace_files_validate_relations
 AFTER INSERT OR UPDATE ON workspace_files DEFERRABLE INITIALLY IMMEDIATE
 FOR EACH ROW EXECUTE FUNCTION workspace_files_validate_relations();--> statement-breakpoint
+-- Relationship fences advance the row version without changing durable content or its provenance.
+-- Real inserts and metadata/content changes must still normalize before downstream triggers run.
+CREATE OR REPLACE FUNCTION workspace_file_content_version_millisecond()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW IS NOT DISTINCT FROM OLD THEN RETURN NEW; END IF;
+  NEW.content_updated_at := date_trunc('milliseconds', NEW.content_updated_at);
+  RETURN NEW;
+END;
+$$;--> statement-breakpoint
 CREATE OR REPLACE FUNCTION workspace_file_version_owner_match()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
