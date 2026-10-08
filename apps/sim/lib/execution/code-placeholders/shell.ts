@@ -106,8 +106,16 @@ interface ShellCommandScan {
   inRedirectTarget: boolean
 }
 
+/** The variable attributes visible at a point in the scan, which a heredoc body read there inherits. */
+interface ShellAttributeScope {
+  integerAttribute: Map<string, boolean>
+  associativeArrays: Set<string>
+}
+
 interface ShellOccurrenceContext {
   quote: ShellQuote
+  /** On a heredoc operator, the attributes in scope there, so its body scan sees the same arrays. */
+  scope?: ShellAttributeScope
   /** Its value reaches an arithmetic evaluation — a frame, or a command marked arithmetic later. */
   arithmetic?: boolean
   unsupported?: 'escaped sequence'
@@ -738,7 +746,8 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
   end: number,
   literalRoot: boolean,
   skippedRanges: Array<[number, number]> = [],
-  operatorStarts: ReadonlySet<number> = new Set()
+  operatorStarts: ReadonlySet<number> = new Set(),
+  inheritedScope?: ShellAttributeScope
 ): Map<T, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
     occurrencesWithin(occurrences, start, end).map(
@@ -747,7 +756,14 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
   )
   const contexts = new Map<T, ShellOccurrenceContext>()
   const frames: ShellScanFrame[] = [
-    { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
+    {
+      kind: 'root',
+      quote: 'none',
+      parenthesisDepth: 0,
+      literalRoot,
+      integerAttribute: new Map(inheritedScope?.integerAttribute),
+      associativeArrays: new Set(inheritedScope?.associativeArrays),
+    },
   ]
   let skippedRangeIndex = 0
   /**
@@ -790,6 +806,17 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       if (attribute !== undefined) return attribute
     }
     return false
+  }
+  /** The attributes visible here, outermost scope first so a nearer one overrides an integer flag. */
+  const visibleScope = (): ShellAttributeScope => {
+    const scope: ShellAttributeScope = { integerAttribute: new Map(), associativeArrays: new Set() }
+    for (const frame of frames) {
+      for (const [name, attribute] of frame.integerAttribute ?? []) {
+        scope.integerAttribute.set(name, attribute)
+      }
+      for (const name of frame.associativeArrays ?? []) scope.associativeArrays.add(name)
+    }
+    return scope
   }
   /** Whether `name` is a `declare -A` associative array, whose subscript is a string key, not arithmetic. */
   const isAssociativeArray = (name: string) =>
@@ -1012,6 +1039,7 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       const operatorContext: ShellOccurrenceContext = {
         quote: 'none',
         arithmetic: enclosingArithmetic,
+        scope: visibleScope(),
       }
       contexts.set(occurrence, operatorContext)
       if (sub >= 0) commandScanOf(frames[sub - 1]).contexts.push(operatorContext)
@@ -1034,10 +1062,15 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     }
 
     const character = code[index]
-    // The redirect-target flag covers only its one word; unquoted whitespace ends that word, so a
-    // following argument (`let x=1 >/dev/null {{x}}`) is marked by the command again.
-    if (frame.command?.inRedirectTarget && frame.quote === 'none' && /\s/.test(character)) {
+    // The redirect-target and assignment-value flags cover only their one word; unquoted whitespace
+    // ends that word. `scanWord` clears them at the next word too, but a placeholder-only word never
+    // reaches it, so `let x=1 >/dev/null {{x}}` is marked by the command again while the command name
+    // in `n=1 {{x}} arg` is not read as `n`'s integer value.
+    if (frame.command && frame.quote === 'none' && /\s/.test(character)) {
       frame.command.inRedirectTarget = false
+      frame.command.valueArithmetic = false
+      frame.command.pendingValue = false
+      frame.command.inPrefixValue = false
     }
     // Classify each command word before the quote branches consume a quote-initial word such as
     // `"-i"` or `'let'`. `scanWord` only sets state, never advances `index`; the characters below
@@ -1628,7 +1661,10 @@ export async function compileShellPlaceholders(
       bodyOccurrences,
       heredoc.bodyStart,
       heredoc.bodyEnd,
-      true
+      true,
+      [],
+      undefined,
+      rootContexts.get(heredocOperators[heredocIndex])?.scope
     )
     for (const occurrence of bodyOccurrences) {
       const edit = resolveInContext(occurrence, bodyContexts.get(occurrence), false)

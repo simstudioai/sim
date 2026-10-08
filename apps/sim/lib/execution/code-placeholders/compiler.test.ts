@@ -1060,6 +1060,8 @@ describe('code placeholder compiler', () => {
     '[[ "{{KEY}}" -eq 0 ]] && echo zero',
     'declare -i n; declare -a n; n={{KEY}}',
     'declare -i n; unset -f n; n={{KEY}}',
+    'declare -i n; n=1\\ {{KEY}}',
+    'declare -i n; cat <<PAYLOAD\n$(n={{KEY}})\nPAYLOAD',
     'if [[ 0 -lt {{KEY}} ]]; then echo positive; fi',
     '[[ -n x && ( "{{KEY}}" -ge 1 ) ]]',
     '[[ $(printf "%s" "{{KEY}}") -ne 0 ]]',
@@ -1194,6 +1196,9 @@ describe('code placeholder compiler', () => {
     'let x=1 > {{KEY}}',
     'declare -i n=1 >"{{KEY}}"',
     '[[ "{{KEY}}" == "-eq" ]]',
+    'declare -i n; n=1 {{KEY}} hello',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    'declare -A m=([hello]=world); cat <<PAYLOAD\n${m[{{KEY}}]}\nPAYLOAD',
   ])('compiles parameter and prefix text that is not an arithmetic operand: %s', async (code) => {
     // These forms use the value as pattern, default, or a shielded prefix — never arithmetic — so a
     // conservative scanner must not reject them. Each would fail compilation if wrongly rejected.
