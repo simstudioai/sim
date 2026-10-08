@@ -20,7 +20,7 @@ runs:
   steps:
     - name: Mount sticky disk
       if: inputs.provider == '' || inputs.provider == 'blacksmith'
-      uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+      uses: useblacksmith/stickydisk@3f6be1451e3cad893b778bc93495c80452a5da26 # v1
       with:
         key: ${{ inputs.key }}
         path: ${{ inputs.path }}
@@ -29,7 +29,7 @@ runs:
     # which would freeze the cache at the first run's contents.
     - name: Restore and save cache
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
         key: ${{ inputs.key }}-${{ github.run_id }}
         restore-keys: ${{ inputs.key }}-
