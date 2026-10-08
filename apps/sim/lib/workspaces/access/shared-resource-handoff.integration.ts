@@ -835,9 +835,14 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
-  it.each([true, false])(
-    'retains organization-only resources with no workspace membership (currentMember=%s)',
-    async (currentMember) => {
+  it.each([
+    { currentMember: true, sizeBytes: 8 },
+    { currentMember: false, sizeBytes: 8 },
+    { currentMember: true, sizeBytes: 0 },
+    { currentMember: false, sizeBytes: 0 },
+  ])(
+    'retains organization-only resources with no workspace membership (currentMember=$currentMember, size=$sizeBytes)',
+    async ({ currentMember, sizeBytes }) => {
       const fixture = await seedResources(false, false)
       const organizationId = generateId()
       const memberId = generateId()
@@ -926,7 +931,7 @@ describe('shared resource retention across workspace departure and account erasu
         key: `project/${binding.projectId}/fixture`,
         originalName: 'fixture',
         contentType: 'text/plain',
-        sizeBytes: 8,
+        sizeBytes,
         deletedAt: new Date(),
       })
       if (currentMember)

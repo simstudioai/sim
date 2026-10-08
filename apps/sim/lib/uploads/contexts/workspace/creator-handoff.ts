@@ -7,7 +7,6 @@ import {
   loadWorkspaceFileVersionHead,
   materializeWorkspaceFileVersionInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 /** Freezes implicit history under the writer lock before replacing a shared file's live creator. */
 export async function handoffFileCreatorsInTx(
@@ -25,7 +24,7 @@ export async function handoffFileCreatorsInTx(
   for (const file of files) {
     if (file.context !== 'workspace' && file.context !== 'project') continue
     const head = await loadWorkspaceFileVersionHead(file.id, tx)
-    if (isVersionHeadCurrent(head, file) || (!head && getWorkspaceFileSize(file) === 0)) continue
+    if (isVersionHeadCurrent(head, file)) continue
     const provenance =
       file.projectId && file.secretProvenanceVersion === null
         ? { status: 'unknown' as const, entries: [] }
