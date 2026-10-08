@@ -1353,7 +1353,11 @@ Create a new task in a Rocketlane project
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1370,7 +1374,11 @@ Create a new task in a Rocketlane project
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1432,7 +1440,11 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1449,7 +1461,11 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1526,7 +1542,11 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1543,7 +1563,11 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1622,7 +1646,11 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1639,7 +1667,11 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1718,7 +1750,11 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1735,7 +1771,11 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1797,7 +1837,11 @@ Add members as assignees to a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1814,7 +1858,11 @@ Add members as assignees to a Rocketlane task
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1876,7 +1924,11 @@ Remove assignees from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1893,7 +1945,11 @@ Remove assignees from a Rocketlane task
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1955,7 +2011,11 @@ Add members as followers to a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -1972,7 +2032,11 @@ Add members as followers to a Rocketlane task
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2034,7 +2098,11 @@ Remove followers from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2051,7 +2119,11 @@ Remove followers from a Rocketlane task
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2112,7 +2184,11 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2129,7 +2205,11 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2190,7 +2270,11 @@ Remove dependencies from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2207,7 +2291,11 @@ Remove dependencies from a Rocketlane task
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2778,7 +2866,11 @@ Create a time entry in Rocketlane against an adhoc activity, task, project phase
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2860,7 +2952,11 @@ Get a single Rocketlane time entry by ID
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2970,7 +3066,11 @@ List Rocketlane time entries with optional filters, sorting, and cursor-based pa
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -3075,7 +3175,11 @@ Search Rocketlane time entries with filters, sorting, and pagination (deprecated
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -3168,7 +3272,11 @@ Update a Rocketlane time entry by ID. The activityName, notes, billable, and min
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -3996,7 +4104,11 @@ List resource allocations in Rocketlane within a date range, with optional membe
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
 |   ↳ `member` | object | The team member allocated when allocationFor is TEAM_MEMBER |
+|     ↳ `roleId` | number | Unique identifier of the role |
+|     ↳ `roleName` | string | Name of the role |
 |   ↳ `placeholder` | object | The placeholder allocated when allocationFor is PLACEHOLDER |
+|     ↳ `roleId` | number | Unique identifier of the role |
+|     ↳ `roleName` | string | Name of the role |
 |   ↳ `createdAt` | number | Timestamp when the allocation was created \(epoch milliseconds\) |
 |   ↳ `updatedAt` | number | Timestamp when the allocation was last updated \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the allocation |

@@ -1,0 +1,406 @@
+---
+title: Microsoft Intune
+description: Manage devices, application inventory, and compliance with Microsoft Intune
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intune"
+  color="#0078D4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) helps organizations manage devices, applications, and compliance policies.
+
+With the Microsoft Intune block, you can:
+
+- **Review device inventory**: Read managed devices, their owners, operating systems, and compliance states.
+- **Inspect installed apps**: List detected applications and the devices where they were found.
+- **Review policies**: Read compliance and configuration metadata, and inspect compliance policy device statuses.
+- **Request device actions**: Sync, restart, remotely lock, or retire a selected device. Restart, lock, and retirement require explicit confirmation.
+
+Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. Self-hosted deployments use `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` with a matching callback at `/api/auth/oauth2/callback/microsoft-intune`.
+
+List operations return one page at a time. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata; platform-specific settings are excluded. An accepted device action means Intune received the request, not that the device completed it.
+
+In Sim, the Microsoft Intune block lets your agents prepare compliance reports, review software inventory, and coordinate approved help desk actions.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.
+
+
+
+## Actions
+
+### Microsoft Intune List Devices
+
+Read one page of devices from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+| `filter` | string | No | OData filter, for example complianceState eq 'noncompliant'; ignored with nextLink |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `devices` | array | List Devices |
+|   ↳ `id` | string | Intune managed device ID |
+|   ↳ `deviceName` | string | Device name |
+|   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
+|   ↳ `managementState` | string | Current device management state |
+|   ↳ `enrolledDateTime` | string | Enrollment time |
+|   ↳ `lastSyncDateTime` | string | Last check-in time |
+|   ↳ `operatingSystem` | string | Operating system |
+|   ↳ `osVersion` | string | Operating system version |
+|   ↳ `complianceState` | string | Device compliance state |
+|   ↳ `isEncrypted` | boolean | Whether device storage is encrypted |
+|   ↳ `userId` | string | Primary user ID |
+|   ↳ `userPrincipalName` | string | Primary user principal name |
+|   ↳ `userDisplayName` | string | Primary user display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `azureADDeviceId` | string | Microsoft Entra device ID |
+|   ↳ `serialNumber` | string | Device serial number |
+|   ↳ `manufacturer` | string | Device manufacturer |
+|   ↳ `model` | string | Device model |
+|   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
+|   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+
+### Microsoft Intune Get Device
+
+Read device details from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `managedDeviceId` | string | Yes | Intune managed device ID \(not the Microsoft Entra device ID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `device` | json | Get Device |
+|   ↳ `id` | string | Intune managed device ID |
+|   ↳ `deviceName` | string | Device name |
+|   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
+|   ↳ `managementState` | string | Current device management state |
+|   ↳ `enrolledDateTime` | string | Enrollment time |
+|   ↳ `lastSyncDateTime` | string | Last check-in time |
+|   ↳ `operatingSystem` | string | Operating system |
+|   ↳ `osVersion` | string | Operating system version |
+|   ↳ `complianceState` | string | Device compliance state |
+|   ↳ `isEncrypted` | boolean | Whether device storage is encrypted |
+|   ↳ `userId` | string | Primary user ID |
+|   ↳ `userPrincipalName` | string | Primary user principal name |
+|   ↳ `userDisplayName` | string | Primary user display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `azureADDeviceId` | string | Microsoft Entra device ID |
+|   ↳ `serialNumber` | string | Device serial number |
+|   ↳ `manufacturer` | string | Device manufacturer |
+|   ↳ `model` | string | Device model |
+|   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
+|   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+
+### Microsoft Intune List Detected Apps
+
+Read one page of detected apps from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `apps` | array | List Detected Apps |
+|   ↳ `id` | string | Detected application ID |
+|   ↳ `displayName` | string | Application display name |
+|   ↳ `version` | string | Application version |
+|   ↳ `sizeInByte` | number | Application size in bytes |
+|   ↳ `deviceCount` | number | Number of devices with this application |
+|   ↳ `publisher` | string | Application publisher |
+|   ↳ `platform` | string | Application platform |
+
+### Microsoft Intune Get Detected App
+
+Read detected app details from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `detectedAppId` | string | Yes | Detected application ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `app` | json | Get Detected App |
+|   ↳ `id` | string | Detected application ID |
+|   ↳ `displayName` | string | Application display name |
+|   ↳ `version` | string | Application version |
+|   ↳ `sizeInByte` | number | Application size in bytes |
+|   ↳ `deviceCount` | number | Number of devices with this application |
+|   ↳ `publisher` | string | Application publisher |
+|   ↳ `platform` | string | Application platform |
+
+### Microsoft Intune List App Devices
+
+Read one page of managed devices that have a detected application installed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+| `detectedAppId` | string | Yes | Detected application ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `devices` | array | List App Devices |
+|   ↳ `id` | string | Intune managed device ID |
+|   ↳ `deviceName` | string | Device name |
+|   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
+|   ↳ `managementState` | string | Current device management state |
+|   ↳ `enrolledDateTime` | string | Enrollment time |
+|   ↳ `lastSyncDateTime` | string | Last check-in time |
+|   ↳ `operatingSystem` | string | Operating system |
+|   ↳ `osVersion` | string | Operating system version |
+|   ↳ `complianceState` | string | Device compliance state |
+|   ↳ `isEncrypted` | boolean | Whether device storage is encrypted |
+|   ↳ `userId` | string | Primary user ID |
+|   ↳ `userPrincipalName` | string | Primary user principal name |
+|   ↳ `userDisplayName` | string | Primary user display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `azureADDeviceId` | string | Microsoft Entra device ID |
+|   ↳ `serialNumber` | string | Device serial number |
+|   ↳ `manufacturer` | string | Device manufacturer |
+|   ↳ `model` | string | Device model |
+|   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
+|   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+
+### Microsoft Intune List Compliance Policies
+
+Read one page of compliance policies from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `policies` | array | List Compliance Policies |
+|   ↳ `id` | string | Policy or configuration ID |
+|   ↳ `displayName` | string | Policy or configuration name |
+|   ↳ `description` | string | Administrator-provided description |
+|   ↳ `createdDateTime` | string | Creation time |
+|   ↳ `lastModifiedDateTime` | string | Last modification time |
+|   ↳ `version` | number | Policy or configuration version |
+
+### Microsoft Intune Get Compliance Policy
+
+Read common metadata for an Intune compliance policy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `compliancePolicyId` | string | Yes | Device compliance policy ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policy` | json | Get Compliance Policy |
+|   ↳ `id` | string | Policy or configuration ID |
+|   ↳ `displayName` | string | Policy or configuration name |
+|   ↳ `description` | string | Administrator-provided description |
+|   ↳ `createdDateTime` | string | Creation time |
+|   ↳ `lastModifiedDateTime` | string | Last modification time |
+|   ↳ `version` | number | Policy or configuration version |
+
+### Microsoft Intune List Compliance Policy Device Statuses
+
+Read one page of compliance policy device statuses from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+| `compliancePolicyId` | string | Yes | Device compliance policy ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `deviceStatuses` | array | List Compliance Policy Device Statuses |
+|   ↳ `id` | string | Device status record ID |
+|   ↳ `deviceDisplayName` | string | Device display name |
+|   ↳ `userName` | string | User name |
+|   ↳ `deviceModel` | string | Device model |
+|   ↳ `status` | string | Reported compliance status |
+|   ↳ `lastReportedDateTime` | string | Last status report time |
+|   ↳ `userPrincipalName` | string | User principal name |
+|   ↳ `complianceGracePeriodExpirationDateTime` | string | Compliance grace period expiration |
+
+### Microsoft Intune List Device Configurations
+
+Read one page of device configurations from Microsoft Intune
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Requested page size from 1 to 1000 \(default: 100\); ignored with nextLink |
+| `nextLink` | string | No | The nextLink from the previous response for this same operation and resource |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextLink` | string | Continuation URL for the next page; null when this is the final page |
+| `configurations` | array | List Device Configurations |
+|   ↳ `id` | string | Policy or configuration ID |
+|   ↳ `displayName` | string | Policy or configuration name |
+|   ↳ `description` | string | Administrator-provided description |
+|   ↳ `createdDateTime` | string | Creation time |
+|   ↳ `lastModifiedDateTime` | string | Last modification time |
+|   ↳ `version` | number | Policy or configuration version |
+
+### Microsoft Intune Get Device Configuration
+
+Read common metadata for an Intune device configuration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `configurationId` | string | Yes | Device configuration ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | Get Device Configuration |
+|   ↳ `id` | string | Policy or configuration ID |
+|   ↳ `displayName` | string | Policy or configuration name |
+|   ↳ `description` | string | Administrator-provided description |
+|   ↳ `createdDateTime` | string | Creation time |
+|   ↳ `lastModifiedDateTime` | string | Last modification time |
+|   ↳ `version` | number | Policy or configuration version |
+
+### Microsoft Intune Sync Device
+
+Request a device check-in to receive pending Intune policies and actions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `managedDeviceId` | string | Yes | Intune managed device ID \(not the Microsoft Entra device ID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+### Microsoft Intune Reboot Device
+
+Request a device restart after explicit confirmation; may interrupt the signed-in user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `managedDeviceId` | string | Yes | Intune managed device ID \(not the Microsoft Entra device ID\) |
+| `confirmAction` | boolean | Yes | Explicit user confirmation to perform this disruptive device action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+### Microsoft Intune Remote Lock Device
+
+Request a remote device lock after explicit confirmation on supported platforms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `managedDeviceId` | string | Yes | Intune managed device ID \(not the Microsoft Entra device ID\) |
+| `confirmAction` | boolean | Yes | Explicit user confirmation to perform this disruptive device action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+### Microsoft Intune Retire Device
+
+Retire a device after explicit confirmation, removing company data and management
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `managedDeviceId` | string | Yes | Intune managed device ID \(not the Microsoft Entra device ID\) |
+| `confirmAction` | boolean | Yes | Explicit user confirmation to perform this disruptive device action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Microsoft Intune account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-intune` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `DeviceManagementManagedDevices.Read.All` | View Intune managed devices and detected apps |
+| `DeviceManagementConfiguration.Read.All` | View Intune compliance policies, device configurations, and their device statuses |
+| `DeviceManagementManagedDevices.PrivilegedOperations.All` | Perform remote Intune device actions, including syncing, rebooting, locking, and retiring devices |
+| `offline_access` | Access account when not using the application |
+
+

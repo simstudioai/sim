@@ -14,6 +14,7 @@ import {
   generateIconMappings,
   getToolInfo,
   isFactoryToolDeclaration,
+  parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
 
@@ -50,6 +51,32 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('preserves nested fields referenced by private constants in the same module', () => {
+    const source = `
+      const MONEY_FIELDS = {
+        currency: { type: 'string', description: 'Currency code' },
+        value: { type: 'number', description: 'Minor units' },
+      } as const
+    `
+    expect(
+      parseConstProperties(
+        "amount: { type: 'json', properties: MONEY_FIELDS }",
+        'private-constant-fixture',
+        source,
+        0
+      )
+    ).toEqual({
+      amount: {
+        type: 'json',
+        description: '',
+        properties: {
+          currency: { type: 'string', description: 'Currency code' },
+          value: { type: 'number', description: 'Minor units' },
+        },
+      },
+    })
+  })
+
   it('preserves a satisfies block and replaces only the versioned download operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const DownloadBlock = ({

@@ -55,7 +55,16 @@ Create a new product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `id` | string | Unique variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `price` | string | Variant price |
+|     ↳ `compareAtPrice` | string | Compare at price |
+|     ↳ `sku` | string | Stock keeping unit |
+|     ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify Get Product
 
@@ -84,7 +93,16 @@ Get a single product by ID from your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `id` | string | Unique variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `price` | string | Variant price |
+|     ↳ `compareAtPrice` | string | Compare at price |
+|     ↳ `sku` | string | Stock keeping unit |
+|     ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify List Products
 
@@ -114,7 +132,16 @@ List products from your Shopify store with optional filtering
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `id` | string | Unique variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `price` | string | Variant price |
+|     ↳ `compareAtPrice` | string | Compare at price |
+|     ↳ `sku` | string | Stock keeping unit |
+|     ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -152,7 +179,16 @@ Update an existing product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `id` | string | Unique variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `price` | string | Variant price |
+|     ↳ `compareAtPrice` | string | Compare at price |
+|     ↳ `sku` | string | Stock keeping unit |
+|     ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify Delete Product
 
@@ -198,16 +234,99 @@ Get a single order by ID from your Shopify store
 |   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
 |   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
 |   ↳ `totalPriceSet` | object | Total order price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalTaxSet` | object | Total tax amount |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `note` | string | Order note |
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
+|     ↳ `id` | string | Unique customer identifier \(GID\) |
+|     ↳ `email` | string | Customer email address |
+|     ↳ `firstName` | string | Customer first name |
+|     ↳ `lastName` | string | Customer last name |
+|     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `id` | string | Unique line item identifier \(GID\) |
+|     ↳ `title` | string | Product title |
+|     ↳ `quantity` | number | Quantity ordered |
+|     ↳ `variant` | object | Associated product variant |
+|       ↳ `id` | string | Unique variant identifier \(GID\) |
+|       ↳ `title` | string | Variant title |
+|       ↳ `price` | string | Variant price |
+|       ↳ `compareAtPrice` | string | Compare at price |
+|       ↳ `sku` | string | Stock keeping unit |
+|       ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `originalTotalSet` | object | Original total price before discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `discountedTotalSet` | object | Total price after discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `billingAddress` | object | Billing address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `fulfillments` | array | Order fulfillments |
+|     ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|     ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|     ↳ `trackingInfo` | array | Tracking information for shipments |
+|       ↳ `company` | string | Shipping carrier name |
+|       ↳ `number` | string | Tracking number |
+|       ↳ `url` | string | Tracking URL |
 
 ### Shopify List Orders
 
@@ -238,16 +357,99 @@ List orders from your Shopify store with optional filtering
 |   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
 |   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
 |   ↳ `totalPriceSet` | object | Total order price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalTaxSet` | object | Total tax amount |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `note` | string | Order note |
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
+|     ↳ `id` | string | Unique customer identifier \(GID\) |
+|     ↳ `email` | string | Customer email address |
+|     ↳ `firstName` | string | Customer first name |
+|     ↳ `lastName` | string | Customer last name |
+|     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `id` | string | Unique line item identifier \(GID\) |
+|     ↳ `title` | string | Product title |
+|     ↳ `quantity` | number | Quantity ordered |
+|     ↳ `variant` | object | Associated product variant |
+|       ↳ `id` | string | Unique variant identifier \(GID\) |
+|       ↳ `title` | string | Variant title |
+|       ↳ `price` | string | Variant price |
+|       ↳ `compareAtPrice` | string | Compare at price |
+|       ↳ `sku` | string | Stock keeping unit |
+|       ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `originalTotalSet` | object | Original total price before discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `discountedTotalSet` | object | Total price after discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `billingAddress` | object | Billing address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `fulfillments` | array | Order fulfillments |
+|     ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|     ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|     ↳ `trackingInfo` | array | Tracking information for shipments |
+|       ↳ `company` | string | Shipping carrier name |
+|       ↳ `number` | string | Tracking number |
+|       ↳ `url` | string | Tracking URL |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -282,16 +484,99 @@ Update an existing order in your Shopify store (note, tags, email)
 |   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
 |   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
 |   ↳ `totalPriceSet` | object | Total order price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalTaxSet` | object | Total tax amount |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|     ↳ `shopMoney` | object | Amount in shop currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `presentmentMoney` | object | Amount in presentment currency |
+|       ↳ `amount` | string | Decimal money amount |
+|       ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `note` | string | Order note |
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
+|     ↳ `id` | string | Unique customer identifier \(GID\) |
+|     ↳ `email` | string | Customer email address |
+|     ↳ `firstName` | string | Customer first name |
+|     ↳ `lastName` | string | Customer last name |
+|     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `id` | string | Unique line item identifier \(GID\) |
+|     ↳ `title` | string | Product title |
+|     ↳ `quantity` | number | Quantity ordered |
+|     ↳ `variant` | object | Associated product variant |
+|       ↳ `id` | string | Unique variant identifier \(GID\) |
+|       ↳ `title` | string | Variant title |
+|       ↳ `price` | string | Variant price |
+|       ↳ `compareAtPrice` | string | Compare at price |
+|       ↳ `sku` | string | Stock keeping unit |
+|       ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `originalTotalSet` | object | Original total price before discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `discountedTotalSet` | object | Total price after discounts |
+|       ↳ `shopMoney` | object | Amount in shop currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|       ↳ `presentmentMoney` | object | Amount in presentment currency |
+|         ↳ `amount` | string | Decimal money amount |
+|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `billingAddress` | object | Billing address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `fulfillments` | array | Order fulfillments |
+|     ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|     ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|     ↳ `trackingInfo` | array | Tracking information for shipments |
+|       ↳ `company` | string | Shipping carrier name |
+|       ↳ `number` | string | Tracking number |
+|       ↳ `url` | string | Tracking URL |
 
 ### Shopify Cancel Order
 
@@ -350,8 +635,32 @@ Create a new customer in your Shopify store
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
+|     ↳ `amount` | string | Decimal money amount |
+|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `addresses` | array | Customer addresses |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `defaultAddress` | object | Customer default address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 
 ### Shopify Get Customer
 
@@ -379,8 +688,32 @@ Get a single customer by ID from your Shopify store
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
+|     ↳ `amount` | string | Decimal money amount |
+|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `addresses` | array | Customer addresses |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `defaultAddress` | object | Customer default address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 
 ### Shopify List Customers
 
@@ -409,8 +742,32 @@ List customers from your Shopify store with optional filtering
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
+|     ↳ `amount` | string | Decimal money amount |
+|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `addresses` | array | Customer addresses |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `defaultAddress` | object | Customer default address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -447,8 +804,32 @@ Update an existing customer in your Shopify store
 |   ↳ `note` | string | Internal notes about the customer |
 |   ↳ `tags` | array | Customer tags for categorization |
 |   ↳ `amountSpent` | object | Total amount spent by customer |
+|     ↳ `amount` | string | Decimal money amount |
+|     ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `addresses` | array | Customer addresses |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 |   ↳ `defaultAddress` | object | Customer default address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 
 ### Shopify Delete Customer
 
@@ -590,6 +971,17 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 |   ↳ `isActive` | boolean | Whether the location is active |
 |   ↳ `fulfillsOnlineOrders` | boolean | Whether the location fulfills online orders |
 |   ↳ `address` | object | Location address |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `address1` | string | Street address line 1 |
+|     ↳ `address2` | string | Street address line 2 |
+|     ↳ `city` | string | City |
+|     ↳ `province` | string | Province or state name |
+|     ↳ `provinceCode` | string | Province or state code |
+|     ↳ `country` | string | Country name |
+|     ↳ `countryCode` | string | Country code \(ISO 3166-1 alpha-2\) |
+|     ↳ `zip` | string | Postal or ZIP code |
+|     ↳ `phone` | string | Phone number |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -619,6 +1011,9 @@ Create a fulfillment to mark order items as shipped. Requires a fulfillment orde
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `trackingInfo` | array | Tracking information for shipments |
+|     ↳ `company` | string | Shipping carrier name |
+|     ↳ `number` | string | Tracking number |
+|     ↳ `url` | string | Tracking URL |
 |   ↳ `fulfillmentLineItems` | array | Fulfilled line items |
 |     ↳ `id` | string | Fulfillment line item identifier \(GID\) |
 |     ↳ `quantity` | number | Quantity fulfilled |
@@ -651,6 +1046,9 @@ List product collections from your Shopify store. Filter by title, type (custom/
 |   ↳ `sortOrder` | string | Product sort order in the collection |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `image` | object | Collection image |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -681,7 +1079,12 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 |   ↳ `sortOrder` | string | Product sort order in the collection |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `image` | object | Collection image |
+|     ↳ `id` | string | Unique image identifier \(GID\) |
+|     ↳ `url` | string | Image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 |   ↳ `products` | array | Products in the collection |
+|     ↳ `url` | string | Featured image URL |
+|     ↳ `altText` | string | Alternative text for accessibility |
 
 ## OAuth Scopes
 

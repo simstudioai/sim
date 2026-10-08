@@ -2970,7 +2970,7 @@ function resolveConstFromTypesContent(
   }
 
   const constRegex = new RegExp(
-    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
+    `\\b(?:export\\s+)?const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
     'g'
   )
   const constMatch = constRegex.exec(typesContent)
