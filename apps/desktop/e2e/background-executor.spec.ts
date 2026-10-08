@@ -377,6 +377,34 @@ test.describe('background executor', () => {
     })
   })
 
+  test('F: a call the user declines in a background chat never runs', async () => {
+    const userData = mkdtempSync(join(tmpdir(), 'sim-executor-f-declined-'))
+    const marker = join(userData, 'declined-marker.txt')
+    app = (await launch(sim, userData)).app
+    const deviceId = await registeredDevice(sim)
+    const pulls = () =>
+      sim.requests.filter((request) => request.startsWith('GET /api/desktop/inbox')).length
+    const pullsBefore = pulls()
+
+    const gated = sim.issue(
+      deviceId,
+      CHAT_B,
+      'terminal',
+      { operation: 'run', args: { command: `echo ran >> '${marker}'`, waitSeconds: 30 } },
+      'awaiting_approval'
+    )
+    // The device has pulled its inbox and seen the call waiting for approval.
+    await expect.poll(pulls).toBeGreaterThan(pullsBefore)
+    sim.decline(gated)
+
+    await check('F: the declined call is never claimed, and its command never runs', async () => {
+      await sleep(RECONCILE_MS * 2)
+      expect(sim.requireCall(gated).claims).toBe(0)
+      expect(sim.requireCall(gated).completions).toEqual([])
+      expect(readFileSafe(marker)).toBe('')
+    })
+  })
+
   test('G: only the device a turn is bound to claims its calls', async () => {
     const first = await launch(sim, mkdtempSync(join(tmpdir(), 'sim-executor-g1-')))
     const firstDevice = await registeredDevice(sim)

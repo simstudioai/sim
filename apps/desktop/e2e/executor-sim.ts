@@ -167,6 +167,13 @@ export class FixtureSim {
     this.ring(call.deviceId, 'approval')
   }
 
+  /** The user declines a held call: Sim settles it without the device and rings again. */
+  decline(toolCallId: string): void {
+    const call = this.requireCall(toolCallId)
+    call.status = 'cancelled'
+    this.ring(call.deviceId, 'approval')
+  }
+
   requireCall(toolCallId: string): FixtureCall {
     const call = this.calls.get(toolCallId)
     if (!call) throw new Error(`No fixture call ${toolCallId}`)
