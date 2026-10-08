@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
@@ -25,6 +26,7 @@ describe('patched Drizzle push against PostgreSQL', () => {
     fixtureUrl = url.toString()
     sql = postgres(fixtureUrl, { max: 1, onnotice: () => {} })
     directory = await mkdtemp(join(tmpdir(), 'push-policy-'))
+    await symlink(fileURLToPath(new URL('.', import.meta.url)), join(directory, 'scripts'))
     await writeFile(
       join(directory, 'drizzle.config.ts'),
       `export default {
@@ -91,6 +93,56 @@ ${source}`
   newEnabled: boolean('new_enabled').notNull().default(false),
 })`)
   }
+
+  it('keeps chunk and KB updates working after a push drops the keyword table and reconciliation fails', async () => {
+    await sql`CREATE TABLE knowledge_base (id text PRIMARY KEY, is_search_index boolean NOT NULL DEFAULT false)`
+    await sql`CREATE TABLE embedding (id text PRIMARY KEY, content text NOT NULL)`
+    await sql`CREATE TABLE embedding_keyword_search (id text PRIMARY KEY, content text NOT NULL)`
+    await sql`INSERT INTO knowledge_base VALUES ('kb', false)`
+    await sql`INSERT INTO embedding VALUES ('chunk', 'retained content')`
+    await sql`INSERT INTO embedding_keyword_search VALUES ('chunk', 'obsolete content')`
+    await sql.unsafe(`CREATE FUNCTION sync_embedding_keyword_search() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        DELETE FROM embedding_keyword_search WHERE id = NEW.id;
+        RETURN NEW;
+      END $$`)
+    await sql`CREATE TRIGGER embedding_keyword_search_sync AFTER UPDATE ON embedding
+      FOR EACH ROW EXECUTE FUNCTION sync_embedding_keyword_search()`
+    await sql.unsafe(`CREATE FUNCTION sync_knowledge_base_keyword_search() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        DELETE FROM embedding_keyword_search;
+        RETURN NEW;
+      END $$`)
+    await sql`CREATE TRIGGER knowledge_base_keyword_search_sync AFTER UPDATE ON knowledge_base
+      FOR EACH ROW EXECUTE FUNCTION sync_knowledge_base_keyword_search()`
+    await schema(`export const chunks = pgTable('embedding', {
+      id: text('id').primaryKey(), content: text('content').notNull(),
+    })
+export const knowledgeBases = pgTable('knowledge_base', {
+      id: text('id').primaryKey(), isSearchIndex: boolean('is_search_index').notNull().default(false),
+    })`)
+    const result = spawnSync(
+      'bun',
+      ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), '--force'],
+      {
+        cwd: directory,
+        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+        encoding: 'utf8',
+        timeout: 30_000,
+      }
+    )
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).not.toBe(0)
+    expect(await sql`SELECT to_regclass('embedding_keyword_search') AS projection`).toEqual([
+      { projection: null },
+    ])
+    await sql`UPDATE embedding SET content = 'updated content' WHERE id = 'chunk'`
+    await sql`UPDATE knowledge_base SET is_search_index = true WHERE id = 'kb'`
+    expect(await sql`SELECT content FROM embedding`).toEqual([{ content: 'updated content' }])
+    expect(await sql`SELECT is_search_index FROM knowledge_base`).toEqual([
+      { is_search_index: true },
+    ])
+  }, 30_000)
 
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
     await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`

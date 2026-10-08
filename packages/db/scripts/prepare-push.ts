@@ -27,13 +27,35 @@ export async function prepareForcedPush(sql: Sql): Promise<void> {
   })
 }
 
+/** Retires trigger dependencies that Drizzle cannot discover inside PL/pgSQL bodies. */
+async function prepareKeywordProjectionRemoval(sql: Sql): Promise<void> {
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL lock_timeout = '100ms'`
+    await tx`SET LOCAL statement_timeout = '5s'`
+    for (const [table, trigger] of [
+      ['knowledge_base', 'knowledge_base_keyword_search_sync'],
+      ['embedding', 'embedding_keyword_search_sync'],
+    ]) {
+      const [relation] = await tx<{ present: boolean }[]>`
+        SELECT to_regclass(${`public.${table}`}) IS NOT NULL AS present
+      `
+      if (!relation.present) continue
+      await tx.unsafe(`LOCK TABLE public.${table} IN SHARE ROW EXCLUSIVE MODE NOWAIT`)
+      await tx.unsafe(`DROP TRIGGER IF EXISTS ${trigger} ON public.${table}`)
+    }
+    await tx`DROP FUNCTION IF EXISTS public.sync_embedding_keyword_search(),
+      public.sync_knowledge_base_keyword_search() RESTRICT`
+  })
+}
+
 if (import.meta.main) {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('Missing DATABASE_URL')
   const sql = postgres(url, { max: 1, connect_timeout: 10 })
   try {
-    await prepareForcedPush(sql)
-    createLogger('DatabasePush').info('Forced push compatibility preparation completed')
+    if (process.argv.includes('--force')) await prepareForcedPush(sql)
+    await prepareKeywordProjectionRemoval(sql)
+    createLogger('DatabasePush').info('Schema push compatibility preparation completed')
   } finally {
     await sql.end()
   }

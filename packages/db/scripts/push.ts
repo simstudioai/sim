@@ -104,8 +104,14 @@ export async function runPush(args: string[]): Promise<number> {
       return code
     }
 
-    if (!help && args.includes('--force')) {
-      const code = await runCommand(['bun', '--env-file=.env', 'run', './scripts/prepare-push.ts'])
+    if (!help) {
+      const code = await runCommand([
+        'bun',
+        '--env-file=.env',
+        'run',
+        './scripts/prepare-push.ts',
+        ...(args.includes('--force') ? ['--force'] : []),
+      ])
       if (code !== 0) return code
     }
     const pushArgs = args.filter((arg) => arg !== '--interactive-renames')
