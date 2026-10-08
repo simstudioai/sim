@@ -321,7 +321,7 @@ export function UsageMonitoring({
               }}
             >
               <PopoverAnchor className='pointer-events-none absolute inset-0' />
-              <PopoverContent align='end' sideOffset={4} className='w-auto p-0'>
+              <PopoverContent align='end' sideOffset={4} padding='none' className='w-auto'>
                 {/** Calendar-day bounds stay date-only; the server makes the end exclusive. */}
                 <Calendar
                   mode='range'

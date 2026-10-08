@@ -291,7 +291,8 @@ function ReadyInlineDateEditor({
             ref={popoverRef}
             align='start'
             sideOffset={4}
-            className='w-auto p-0'
+            padding='none'
+            className='w-auto'
             onPointerDownCapture={handlePopoverPointerDown}
             onBlurCapture={scheduleBlurSave}
           >

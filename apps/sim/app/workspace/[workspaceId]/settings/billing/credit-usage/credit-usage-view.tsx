@@ -192,7 +192,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
             }}
           >
             <PopoverAnchor className='pointer-events-none absolute inset-0' />
-            <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
+            <PopoverContent align='start' sideOffset={4} padding='none' className='w-auto'>
               <Calendar
                 mode='range'
                 showTime
