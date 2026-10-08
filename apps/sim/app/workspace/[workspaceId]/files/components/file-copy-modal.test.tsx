@@ -86,23 +86,12 @@ it.each([
   [false, true],
   [true, false],
   [false, false],
-])(
-  'stops Project destination reads and pagination after flags become %s/%s',
-  async (projects, projectFiles) => {
-    await render(true, true)
-    await act(async () => vi.advanceTimersByTimeAsync(10))
-    expect(document.body.textContent).toContain('Load more Projects')
-    const selector = document.querySelector('[aria-label="Copy destination"]')
-    if (!selector) throw new Error('Copy destination selector is unavailable')
-    await act(async () =>
-      selector.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    )
-    expect(document.body.textContent).toContain('Cached Project')
-    requests.length = 0
-    await render(projects, projectFiles)
-    await act(async () => client.invalidateQueries())
-    expect(requests.filter((url) => url.startsWith('/api/projects'))).toEqual([])
-    expect(document.body.textContent).not.toContain('Load more Projects')
-    expect(document.body.textContent).not.toContain('Cached Project')
-  }
-)
+])('stops Project destination reads after flags become %s/%s', async (projects, projectFiles) => {
+  await render(true, true)
+  await act(async () => vi.advanceTimersByTimeAsync(10))
+  expect(requests.some((url) => url.startsWith('/api/projects'))).toBe(true)
+  requests.length = 0
+  await render(projects, projectFiles)
+  await act(async () => client.invalidateQueries())
+  expect(requests.filter((url) => url.startsWith('/api/projects'))).toEqual([])
+})

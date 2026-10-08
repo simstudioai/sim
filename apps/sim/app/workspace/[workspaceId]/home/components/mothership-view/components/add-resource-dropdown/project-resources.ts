@@ -39,11 +39,16 @@ function projectResources(
   }
 }
 
+interface UseAvailableProjectResourcesProps {
+  project: Pick<Project, 'id' | 'name'>
+  enabled?: boolean
+}
+
 /** Project resources retain their owner independently of any environment. */
-export function useAvailableProjectResources(
-  project: Pick<Project, 'id' | 'name'>,
-  enabled = true
-) {
+export function useAvailableProjectResources({
+  project,
+  enabled = true,
+}: UseAvailableProjectResourcesProps) {
   const projectFilesEnabled = useFeatureFlag('project-files')
   const active = enabled && projectFilesEnabled
   const query = useProjectFileInventory(project.id, active)
@@ -55,11 +60,16 @@ export function useAvailableProjectResources(
   )
 }
 
-/** Derives current Project inventories directly from their query observers. */
-export function useAvailableProjectInventories(
-  projects: ReadonlyArray<Pick<Project, 'id' | 'name'>>,
+interface UseAvailableProjectInventoriesProps {
+  projects: ReadonlyArray<Pick<Project, 'id' | 'name'>>
   enabled: boolean
-): Record<string, AvailableResources> {
+}
+
+/** Derives current Project inventories directly from their query observers. */
+export function useAvailableProjectInventories({
+  projects,
+  enabled,
+}: UseAvailableProjectInventoriesProps): Record<string, AvailableResources> {
   const projectFilesEnabled = useFeatureFlag('project-files')
   const active = enabled && projectFilesEnabled
   const queries = useProjectFileInventories(

@@ -206,7 +206,11 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
     () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }, projectOwner),
     [editor, file.id, file.name, projectOwner]
   )
-  useSelectionCopyBridge(containerRef, buildSelectionContext, projectOwner ?? workspaceId)
+  useSelectionCopyBridge({
+    containerRef,
+    buildContext: buildSelectionContext,
+    owner: projectOwner ?? workspaceId,
+  })
   return (
     <>
       {editor && <LinkHoverCard editor={editor} />}
@@ -1410,12 +1414,12 @@ export function LoadedRichMarkdownEditor({
     ]
   )
 
-  useSelectionCopyBridge(
+  useSelectionCopyBridge({
     containerRef,
-    buildSelectionContext,
-    projectOwner ?? workspaceId,
-    !showPlaceholder
-  )
+    buildContext: buildSelectionContext,
+    owner: projectOwner ?? workspaceId,
+    enabled: !showPlaceholder,
+  })
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own

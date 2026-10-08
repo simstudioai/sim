@@ -535,12 +535,12 @@ export const TextEditor = memo(function TextEditor({
 
   // Enable once content has loaded — the container (and Monaco) only mount after
   // the `isContentLoading` early return below, so the bridge must (re-)attach then.
-  useSelectionCopyBridge(
+  useSelectionCopyBridge({
     containerRef,
-    buildSelectionContext,
-    projectOwner ?? workspaceId,
-    !isContentLoading
-  )
+    buildContext: buildSelectionContext,
+    owner: projectOwner ?? workspaceId,
+    enabled: !isContentLoading,
+  })
 
   useEffect(() => {
     if (lastEditorValueRef.current === content) return

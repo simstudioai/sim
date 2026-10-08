@@ -1,1 +1,0 @@
-ALTER TYPE "public"."upload_session_purpose" ADD VALUE 'project_file' BEFORE 'table_import';

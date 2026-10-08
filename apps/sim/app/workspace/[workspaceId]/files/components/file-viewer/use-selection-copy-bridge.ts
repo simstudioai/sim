@@ -5,6 +5,15 @@ import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selecti
 import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ChatContext } from '@/stores/panel'
 
+interface UseSelectionCopyBridgeProps {
+  containerRef: RefObject<HTMLElement | null>
+  /** Returns null when there is no non-empty selection. */
+  buildContext: () => ChatContext | null
+  owner: string | FileOperationOwner | undefined
+  /** Reattaches when a loading gate mounts the container, since a ref is not reactive. */
+  enabled?: boolean
+}
+
 /**
  * Rides a selection {@link ChatContext} onto the editor's native copy so a
  * highlighted passage copied with Cmd+C pastes into Chat as a reference chip.
@@ -13,18 +22,13 @@ import type { ChatContext } from '@/stores/panel'
  * handler — Monaco and ProseMirror both `clearData()` before writing
  * `text/plain`, so the custom type must be added last to survive.
  *
- * @param buildContext - Returns null when there is no non-empty selection.
- * @param workspaceId - Workspace that owns the selected resource.
- * @param enabled - Re-runs the effect for a container that mounts late (behind a
- * loading gate); a ref isn't reactive, so the effect would otherwise bail on the
- * first render and never re-attach.
  */
-export function useSelectionCopyBridge(
-  containerRef: RefObject<HTMLElement | null>,
-  buildContext: () => ChatContext | null,
-  owner: string | FileOperationOwner | undefined,
-  enabled = true
-): void {
+export function useSelectionCopyBridge({
+  containerRef,
+  buildContext,
+  owner,
+  enabled = true,
+}: UseSelectionCopyBridgeProps): void {
   useEffect(() => {
     const dom = containerRef.current
     if (!dom || !enabled || !owner) return

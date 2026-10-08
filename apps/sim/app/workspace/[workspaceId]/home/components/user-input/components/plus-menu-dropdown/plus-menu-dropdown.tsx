@@ -190,10 +190,10 @@ export const PlusMenuDropdown = React.memo(
         current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
       )
     }, [])
-    const projectInventories = useAvailableProjectInventories(
+    const projectInventories = useAvailableProjectInventories({
       projects,
-      inventoryEnabled && Boolean(organizationId)
-    )
+      enabled: inventoryEnabled && Boolean(organizationId),
+    })
     const combined = organizationId
       ? mergeOrganizationResourceInventories(workspaces, inventories, projects, projectInventories)
       : workspaceInventory

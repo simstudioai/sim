@@ -36,7 +36,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   workspaceId: string | undefined
 }) {
   const scrollRef = useHorizontalWheelScroll()
-  const preview = useDocPreviewBinary(workspaceId, file)
+  const preview = useDocPreviewBinary({ workspaceId, file })
   const fileData = preview.data
 
   const [sheetNames, setSheetNames] = useState<string[]>([])

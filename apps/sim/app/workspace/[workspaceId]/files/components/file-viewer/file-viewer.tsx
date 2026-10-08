@@ -401,7 +401,7 @@ const IframePreview = memo(function IframePreview({
   file: ViewerFileRecord
   workspaceId: string | undefined
 }) {
-  const preview = useDocPreviewBinary(workspaceId, file)
+  const preview = useDocPreviewBinary({ workspaceId, file })
 
   const bufferSource = useMemo<PdfDocumentSource | null>(
     () => (preview.data ? { kind: 'buffer', buffer: preview.data } : null),
@@ -422,7 +422,13 @@ const IframePreview = memo(function IframePreview({
   )
 })
 
-function useBlobUrl(workspaceId: string | undefined, fileId: string, fileKey: string) {
+interface UseBlobUrlProps {
+  workspaceId: string | undefined
+  fileId: string
+  fileKey: string
+}
+
+function useBlobUrl({ workspaceId, fileId, fileKey }: UseBlobUrlProps) {
   const { data: fileData, isLoading, error } = useWorkspaceFileBinary(workspaceId, fileId, fileKey)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const blobUrlRef = useRef<string | null>(null)
@@ -466,7 +472,7 @@ const MediaPreview = memo(function MediaPreview({
     error: fetchError,
     blobUrl,
     replaceBlobUrl,
-  } = useBlobUrl(workspaceId, file.id, file.key)
+  } = useBlobUrl({ workspaceId, fileId: file.id, fileKey: file.key })
 
   const mediaType = resolveMediaMimeType(file.type, file.name, kind)
 

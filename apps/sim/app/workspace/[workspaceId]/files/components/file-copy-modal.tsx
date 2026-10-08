@@ -97,8 +97,8 @@ function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
       title='Destination'
       hint='Copies saved content. The original files stay in their current location.'
       error={
-        workspaces.isError && (!projectDestinationsEnabled || projects.isError)
-          ? 'Could not load destinations.'
+        workspaces.isError || (projectDestinationsEnabled && projects.isError)
+          ? 'Could not load all destinations.'
           : undefined
       }
     >

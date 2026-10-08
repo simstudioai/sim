@@ -25,7 +25,7 @@ export const PptxPreview = memo(function PptxPreview({
   file: ViewerFileRecord
   workspaceId: string | undefined
 }) {
-  const preview = useDocPreviewBinary(workspaceId, file)
+  const preview = useDocPreviewBinary({ workspaceId, file })
   const fileData = preview.data
   const cacheKey = pptxCacheKey(file.id, preview.dataUpdatedAt, fileData?.byteLength ?? 0)
 

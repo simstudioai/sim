@@ -554,7 +554,7 @@ export function ProjectResourceSubmenu({
   const [open, setOpen] = useState(false)
   const projectFilesEnabled = useFeatureFlag('project-files')
   const showFiles = projectFilesEnabled && !excludeTypes?.includes('file')
-  const inventory = useAvailableProjectResources(project, open && showFiles)
+  const inventory = useAvailableProjectResources({ project, enabled: open && showFiles })
   const sections = useResourceTreeSections(inventory)
   const fileNodes = sections.find((section) => section.type === 'file')?.nodes ?? []
   const workspaceById = new Map(workspaces.map((workspace) => [workspace.id, workspace]))
@@ -649,10 +649,10 @@ export function AddResourceDropdown({
       current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
     )
   }, [])
-  const projectInventories = useAvailableProjectInventories(
+  const projectInventories = useAvailableProjectInventories({
     projects,
-    open && Boolean(organizationId) && !excludeTypes?.includes('file')
-  )
+    enabled: open && Boolean(organizationId) && !excludeTypes?.includes('file'),
+  })
   const organizationInventory = mergeOrganizationResourceInventories(
     workspaces,
     inventories,

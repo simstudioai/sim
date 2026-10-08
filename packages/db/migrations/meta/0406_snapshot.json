@@ -1,6 +1,6 @@
 {
-  "id": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
-  "prevId": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "id": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "prevId": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -30225,7 +30225,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",

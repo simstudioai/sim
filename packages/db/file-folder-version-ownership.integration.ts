@@ -9,7 +9,7 @@ import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
-const migrations = ['0403_file_entity_ownership.sql', '0404_file_folder_version_ownership.sql'].map(
+const migrations = ['0404_file_entity_ownership.sql', '0405_file_folder_version_ownership.sql'].map(
   (name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8')
 )
 
@@ -552,7 +552,7 @@ describe('file ownership composed with enforced Project membership', () => {
       for (const source of [
         readFileSync(new URL('./migrations/0394_project_foundation.sql', import.meta.url), 'utf8'),
         readFileSync(
-          new URL('./migrations/0402_project_membership_enforcement.sql', import.meta.url),
+          new URL('./migrations/0403_project_membership_enforcement.sql', import.meta.url),
           'utf8'
         ),
         ...migrations,
