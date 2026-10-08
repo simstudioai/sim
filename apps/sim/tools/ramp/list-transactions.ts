@@ -51,7 +51,7 @@ export const rampListTransactionsTool: ToolConfig<
       description:
         'Filter for transactions with a `user_transaction_time` before the given date, in ISO8601 format.',
     },
-    state: {
+    transaction_state: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -86,7 +86,7 @@ export const rampListTransactionsTool: ToolConfig<
       if (params.department_id) query.set('department_id', params.department_id.trim())
       if (params.from_date) query.set('from_date', params.from_date.trim())
       if (params.to_date) query.set('to_date', params.to_date.trim())
-      if (params.state) query.set('state', params.state.trim())
+      if (params.transaction_state) query.set('state', params.transaction_state.trim())
       if (params.sync_status) query.set('sync_status', params.sync_status.trim())
       return `https://api.ramp.com/developer/v1/transactions?${query}`
     },
@@ -111,12 +111,12 @@ export const rampListTransactionsTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Pass this cursor as start to fetch the next page',
-      optional: true,
+      nullable: true,
     },
     nextPageUrl: {
       type: 'string',
       description: 'Ramp URL for the next page, or null on the last page',
-      optional: true,
+      nullable: true,
     },
   },
 }

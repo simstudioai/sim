@@ -463,10 +463,6 @@ export const RampBlock: BlockConfig = {
             ? undefined
             : params.is_memo_recurring === true || params.is_memo_recurring === 'true',
         status: params.status === '' ? undefined : params.status,
-        state:
-          params.operation === 'list_reimbursements'
-            ? params.reimbursement_state || undefined
-            : params.transaction_state || undefined,
         sync_status: params.sync_status === '' ? undefined : params.sync_status,
         approval_status: params.approval_status === '' ? undefined : params.approval_status,
         payment_status: params.payment_status === '' ? undefined : params.payment_status,

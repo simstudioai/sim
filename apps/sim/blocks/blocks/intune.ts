@@ -217,7 +217,6 @@ export const IntuneBlock: BlockConfig = {
           params.top === '' || params.top === undefined || params.top === null
             ? undefined
             : Number(params.top),
-        filter: params.operation === 'intune_list_devices' ? params.filter : undefined,
         confirmAction: params.confirmAction === true || params.confirmAction === 'true',
       }),
     },

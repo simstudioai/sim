@@ -77,6 +77,43 @@ describe('documentation tool metadata', () => {
     })
   })
 
+  it.each(['object', 'array'])('keeps nested constant fields inside their %s container', (type) => {
+    const source = `
+      const IMAGE_FIELDS = {
+        url: { type: 'string', description: 'Image URL' },
+        altText: { type: 'string', description: 'Alternative text' },
+      } as const
+    `
+    const properties = `
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: { type: 'object', properties: IMAGE_FIELDS },
+    `
+    const descriptor =
+      type === 'array'
+        ? `type: 'array', items: { type: 'object', properties: { ${properties} } }`
+        : `type: 'object', properties: { ${properties} }`
+    const parsed = parseConstProperties(
+      `products: { ${descriptor} }`,
+      `nested-constant-${type}-fixture`,
+      source,
+      0
+    )
+    const expected = {
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: {
+        type: 'object',
+        description: '',
+        properties: {
+          url: { type: 'string', description: 'Image URL' },
+          altText: { type: 'string', description: 'Alternative text' },
+        },
+      },
+    }
+    expect(
+      type === 'array' ? parsed.products.items.properties : parsed.products.properties
+    ).toEqual(expected)
+  })
+
   it('preserves a satisfies block and replaces only the versioned download operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const DownloadBlock = ({

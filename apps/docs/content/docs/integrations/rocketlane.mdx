@@ -1364,15 +1364,23 @@ Create a new task in a Rocketlane project
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1451,15 +1459,23 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1553,15 +1569,23 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1657,15 +1681,23 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1761,15 +1793,23 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1848,15 +1888,23 @@ Add members as assignees to a Rocketlane task
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -1935,15 +1983,23 @@ Remove assignees from a Rocketlane task
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -2022,15 +2078,23 @@ Add members as followers to a Rocketlane task
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -2109,15 +2173,23 @@ Remove followers from a Rocketlane task
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -2195,15 +2267,23 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -2281,15 +2361,23 @@ Remove dependencies from a Rocketlane task
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
@@ -3365,10 +3453,12 @@ Create a time-off for a team member in Rocketlane. Holidays and weekends within 
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -3406,10 +3496,12 @@ Retrieve a Rocketlane time-off by its ID
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -3470,10 +3562,12 @@ List time-offs in Rocketlane with optional date, type, and user filters, sorting
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -4104,11 +4198,19 @@ List resource allocations in Rocketlane within a date range, with optional membe
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
 |   ↳ `member` | object | The team member allocated when allocationFor is TEAM_MEMBER |
-|     ↳ `roleId` | number | Unique identifier of the role |
-|     ↳ `roleName` | string | Name of the role |
+|     ↳ `userId` | number | Unique identifier of the user |
+|     ↳ `firstName` | string | First name of the user |
+|     ↳ `lastName` | string | Last name of the user |
+|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `role` | object | Role of the member |
+|       ↳ `roleId` | number | Unique identifier of the role |
+|       ↳ `roleName` | string | Name of the role |
 |   ↳ `placeholder` | object | The placeholder allocated when allocationFor is PLACEHOLDER |
-|     ↳ `roleId` | number | Unique identifier of the role |
-|     ↳ `roleName` | string | Name of the role |
+|     ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|     ↳ `placeholderName` | string | Name of the placeholder |
+|     ↳ `role` | object | Role of the placeholder |
+|       ↳ `roleId` | number | Unique identifier of the role |
+|       ↳ `roleName` | string | Name of the role |
 |   ↳ `createdAt` | number | Timestamp when the allocation was created \(epoch milliseconds\) |
 |   ↳ `updatedAt` | number | Timestamp when the allocation was last updated \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the allocation |

@@ -72,7 +72,9 @@ export function buildIntuneCollectionUrl(
   }
   const url = new URL(path, INTUNE_BASE_URL)
   url.searchParams.set('$top', String(validatePageSize(params.top ?? 100)))
-  if (params.filter?.trim()) url.searchParams.set('$filter', params.filter.trim())
+  if (path === 'managedDevices' && params.filter?.trim()) {
+    url.searchParams.set('$filter', params.filter.trim())
+  }
   return url.toString()
 }
 

@@ -34,7 +34,7 @@ export const rampListReimbursementsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by user id',
     },
-    state: {
+    reimbursement_state: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -76,7 +76,7 @@ export const rampListReimbursementsTool: ToolConfig<
       const query = new URLSearchParams()
       appendRampPagination(query, params)
       if (params.user_id) query.set('user_id', params.user_id.trim())
-      if (params.state) query.set('state', params.state.trim())
+      if (params.reimbursement_state) query.set('state', params.reimbursement_state.trim())
       if (params.from_date) query.set('from_date', params.from_date.trim())
       if (params.to_date) query.set('to_date', params.to_date.trim())
       if (params.sync_status) query.set('sync_status', params.sync_status.trim())
@@ -103,12 +103,12 @@ export const rampListReimbursementsTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Pass this cursor as start to fetch the next page',
-      optional: true,
+      nullable: true,
     },
     nextPageUrl: {
       type: 'string',
       description: 'Ramp URL for the next page, or null on the last page',
-      optional: true,
+      nullable: true,
     },
   },
 }

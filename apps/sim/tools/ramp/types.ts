@@ -6,11 +6,11 @@ export interface RampAmount {
 }
 
 const RAMP_AMOUNT_PROPERTIES = {
-  currency: { type: 'string', description: 'Currency', optional: true },
+  currency: { type: 'string', description: 'Currency', nullable: true },
   value: {
     type: 'number',
     description: 'Amount in the smallest currency denomination; signed for transactions',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -24,13 +24,13 @@ const RAMP_CURRENCY_AMOUNT_PROPERTIES = {
   amount: {
     type: 'number',
     description: 'Amount in the smallest currency denomination',
-    optional: true,
+    nullable: true,
   },
-  currency_code: { type: 'string', description: 'Currency code', optional: true },
+  currency_code: { type: 'string', description: 'Currency code', nullable: true },
   minor_unit_conversion_rate: {
     type: 'number',
     description: 'Divide the amount by this factor to get the major currency value',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -41,16 +41,16 @@ export interface RampReimbursementAmount {
 }
 
 const RAMP_REIMBURSEMENT_AMOUNT_PROPERTIES = {
-  currency: { type: 'string', description: 'Currency', optional: true },
+  currency: { type: 'string', description: 'Currency', nullable: true },
   value: {
     type: 'number',
     description: 'Non-negative amount in the smallest currency denomination',
-    optional: true,
+    nullable: true,
   },
   minor_unit_conversion_rate: {
     type: 'number',
     description: 'Divide the amount by this factor to get the major currency value',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -63,11 +63,11 @@ export interface RampBillVendor {
 }
 
 const RAMP_BILL_VENDOR_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  name: { type: 'string', description: 'Name', optional: true },
-  remote_id: { type: 'string', description: 'Remote id', optional: true },
-  remote_name: { type: 'string', description: 'Remote name', optional: true },
-  type: { type: 'string', description: 'Type', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  name: { type: 'string', description: 'Name', nullable: true },
+  remote_id: { type: 'string', description: 'Remote id', nullable: true },
+  remote_name: { type: 'string', description: 'Remote name', nullable: true },
+  type: { type: 'string', description: 'Type', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampCardHolder {
@@ -79,11 +79,11 @@ export interface RampCardHolder {
 }
 
 const RAMP_CARD_HOLDER_PROPERTIES = {
-  user_id: { type: 'string', description: 'User id', optional: true },
-  first_name: { type: 'string', description: 'First name', optional: true },
-  last_name: { type: 'string', description: 'Last name', optional: true },
-  department_id: { type: 'string', description: 'Department id', optional: true },
-  department_name: { type: 'string', description: 'Department name', optional: true },
+  user_id: { type: 'string', description: 'User id', nullable: true },
+  first_name: { type: 'string', description: 'First name', nullable: true },
+  last_name: { type: 'string', description: 'Last name', nullable: true },
+  department_id: { type: 'string', description: 'Department id', nullable: true },
+  department_name: { type: 'string', description: 'Department name', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampBusiness {
@@ -98,22 +98,22 @@ export interface RampBusiness {
 }
 
 export const RAMP_BUSINESS_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  business_name_legal: { type: 'string', description: 'Business name legal', optional: true },
-  business_name_on_card: { type: 'string', description: 'Business name on card', optional: true },
-  active: { type: 'boolean', description: 'Active', optional: true },
-  created_time: { type: 'string', description: 'Created time', optional: true },
-  website: { type: 'string', description: 'Website', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  business_name_legal: { type: 'string', description: 'Business name legal', nullable: true },
+  business_name_on_card: { type: 'string', description: 'Business name on card', nullable: true },
+  active: { type: 'boolean', description: 'Active', nullable: true },
+  created_time: { type: 'string', description: 'Created time', nullable: true },
+  website: { type: 'string', description: 'Website', nullable: true },
   is_reimbursements_enabled: {
     type: 'boolean',
     description: 'Is reimbursements enabled',
-    optional: true,
+    nullable: true,
   },
   initial_approved_limit_amount: {
     type: 'json',
     description: 'Initial approved limit amount',
     properties: RAMP_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -132,34 +132,34 @@ export const RAMP_BALANCE_PROPERTIES = {
     type: 'json',
     description: 'Card limit amount',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   available_card_limit_amount: {
     type: 'json',
     description: 'Available card limit amount',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   card_balance_including_pending_amount: {
     type: 'json',
     description: 'Card balance including pending amount',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   card_balance_excluding_pending_amount: {
     type: 'json',
     description: 'Card balance excluding pending amount',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   statement_balance_amount: {
     type: 'json',
     description: 'Statement balance amount',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
-  next_billing_date: { type: 'string', description: 'Next billing date', optional: true },
-  prev_billing_date: { type: 'string', description: 'Prev billing date', optional: true },
+  next_billing_date: { type: 'string', description: 'Next billing date', nullable: true },
+  prev_billing_date: { type: 'string', description: 'Prev billing date', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampUser {
@@ -178,18 +178,18 @@ export interface RampUser {
 }
 
 export const RAMP_USER_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  first_name: { type: 'string', description: 'First name', optional: true },
-  last_name: { type: 'string', description: 'Last name', optional: true },
-  email: { type: 'string', description: 'Email', optional: true },
-  role: { type: 'string', description: 'Role', optional: true },
-  status: { type: 'string', description: 'Status', optional: true },
-  employee_id: { type: 'string', description: 'Employee id', optional: true },
-  department_id: { type: 'string', description: 'Department id', optional: true },
-  location_id: { type: 'string', description: 'Location id', optional: true },
-  manager_id: { type: 'string', description: 'Manager id', optional: true },
-  entity_id: { type: 'string', description: 'Entity id', optional: true },
-  is_manager: { type: 'boolean', description: 'Is manager', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  first_name: { type: 'string', description: 'First name', nullable: true },
+  last_name: { type: 'string', description: 'Last name', nullable: true },
+  email: { type: 'string', description: 'Email', nullable: true },
+  role: { type: 'string', description: 'Role', nullable: true },
+  status: { type: 'string', description: 'Status', nullable: true },
+  employee_id: { type: 'string', description: 'Employee id', nullable: true },
+  department_id: { type: 'string', description: 'Department id', nullable: true },
+  location_id: { type: 'string', description: 'Location id', nullable: true },
+  manager_id: { type: 'string', description: 'Manager id', nullable: true },
+  entity_id: { type: 'string', description: 'Entity id', nullable: true },
+  is_manager: { type: 'boolean', description: 'Is manager', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampTransaction {
@@ -212,41 +212,41 @@ export interface RampTransaction {
 }
 
 export const RAMP_TRANSACTION_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
   entity_amount: {
     type: 'json',
     description: 'Entity amount',
     properties: RAMP_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   merchant_amount: {
     type: 'json',
     description: 'Merchant amount',
     properties: RAMP_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
-  merchant_name: { type: 'string', description: 'Merchant name', optional: true },
-  merchant_descriptor: { type: 'string', description: 'Merchant descriptor', optional: true },
-  merchant_category_code: { type: 'string', description: 'Merchant category code', optional: true },
-  memo: { type: 'string', description: 'Memo', optional: true },
-  state: { type: 'string', description: 'State', optional: true },
-  card_id: { type: 'string', description: 'Card id', optional: true },
+  merchant_name: { type: 'string', description: 'Merchant name', nullable: true },
+  merchant_descriptor: { type: 'string', description: 'Merchant descriptor', nullable: true },
+  merchant_category_code: { type: 'string', description: 'Merchant category code', nullable: true },
+  memo: { type: 'string', description: 'Memo', nullable: true },
+  state: { type: 'string', description: 'State', nullable: true },
+  card_id: { type: 'string', description: 'Card id', nullable: true },
   card_holder: {
     type: 'json',
     description: 'Card holder',
     properties: RAMP_CARD_HOLDER_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
-  user_transaction_time: { type: 'string', description: 'User transaction time', optional: true },
-  settlement_date: { type: 'string', description: 'Settlement date', optional: true },
+  user_transaction_time: { type: 'string', description: 'User transaction time', nullable: true },
+  settlement_date: { type: 'string', description: 'Settlement date', nullable: true },
   all_requirements_met_and_approved: {
     type: 'boolean',
     description: 'All requirements met and approved',
-    optional: true,
+    nullable: true,
   },
-  sync_status: { type: 'string', description: 'Sync status', optional: true },
-  entity_id: { type: 'string', description: 'Entity id', optional: true },
-  updated_at: { type: 'string', description: 'Updated at', optional: true },
+  sync_status: { type: 'string', description: 'Sync status', nullable: true },
+  entity_id: { type: 'string', description: 'Entity id', nullable: true },
+  updated_at: { type: 'string', description: 'Updated at', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampPhysicalCard {
@@ -262,15 +262,15 @@ export interface RampPhysicalCard {
 }
 
 export const RAMP_PHYSICAL_CARD_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  cardholder_id: { type: 'string', description: 'Cardholder id', optional: true },
-  cardholder_name: { type: 'string', description: 'Cardholder name', optional: true },
-  display_name: { type: 'string', description: 'Display name', optional: true },
-  last_four: { type: 'string', description: 'Last four', optional: true },
-  state: { type: 'string', description: 'State', optional: true },
-  is_suspended: { type: 'boolean', description: 'Is suspended', optional: true },
-  fund_id: { type: 'string', description: 'Fund id', optional: true },
-  created_at: { type: 'string', description: 'Created at', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  cardholder_id: { type: 'string', description: 'Cardholder id', nullable: true },
+  cardholder_name: { type: 'string', description: 'Cardholder name', nullable: true },
+  display_name: { type: 'string', description: 'Display name', nullable: true },
+  last_four: { type: 'string', description: 'Last four', nullable: true },
+  state: { type: 'string', description: 'State', nullable: true },
+  is_suspended: { type: 'boolean', description: 'Is suspended', nullable: true },
+  fund_id: { type: 'string', description: 'Fund id', nullable: true },
+  created_at: { type: 'string', description: 'Created at', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampVirtualCard {
@@ -282,11 +282,11 @@ export interface RampVirtualCard {
 }
 
 export const RAMP_VIRTUAL_CARD_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  user_id: { type: 'string', description: 'User id', optional: true },
-  fund_id: { type: 'string', description: 'Fund id', optional: true },
-  is_card_suspended: { type: 'boolean', description: 'Is card suspended', optional: true },
-  created_at: { type: 'string', description: 'Created at', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  user_id: { type: 'string', description: 'User id', nullable: true },
+  fund_id: { type: 'string', description: 'Fund id', nullable: true },
+  is_card_suspended: { type: 'boolean', description: 'Is card suspended', nullable: true },
+  created_at: { type: 'string', description: 'Created at', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampVendor {
@@ -306,37 +306,37 @@ export interface RampVendor {
 }
 
 export const RAMP_VENDOR_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  name: { type: 'string', description: 'Name', optional: true },
-  name_legal: { type: 'string', description: 'Name legal', optional: true },
-  description: { type: 'string', description: 'Description', optional: true },
-  is_active: { type: 'boolean', description: 'Is active', optional: true },
-  external_vendor_id: { type: 'string', description: 'External vendor id', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  name: { type: 'string', description: 'Name', nullable: true },
+  name_legal: { type: 'string', description: 'Name legal', nullable: true },
+  description: { type: 'string', description: 'Description', nullable: true },
+  is_active: { type: 'boolean', description: 'Is active', nullable: true },
+  external_vendor_id: { type: 'string', description: 'External vendor id', nullable: true },
   accounting_vendor_remote_id: {
     type: 'string',
     description: 'Accounting vendor remote id',
-    optional: true,
+    nullable: true,
   },
-  vendor_owner_id: { type: 'string', description: 'Vendor owner id', optional: true },
-  country: { type: 'string', description: 'Country', optional: true },
-  created_at: { type: 'string', description: 'Created at', optional: true },
+  vendor_owner_id: { type: 'string', description: 'Vendor owner id', nullable: true },
+  country: { type: 'string', description: 'Country', nullable: true },
+  created_at: { type: 'string', description: 'Created at', nullable: true },
   total_spend_all_time: {
     type: 'json',
     description: 'Total spend all time',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   total_spend_last_30_days: {
     type: 'json',
     description: 'Total spend last 30 days',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   total_spend_ytd: {
     type: 'json',
     description: 'Total spend ytd',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -358,30 +358,30 @@ export interface RampBill {
 }
 
 export const RAMP_BILL_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  invoice_number: { type: 'string', description: 'Invoice number', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  invoice_number: { type: 'string', description: 'Invoice number', nullable: true },
   amount: {
     type: 'json',
     description: 'Amount in the smallest currency denomination',
     properties: RAMP_CURRENCY_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   vendor: {
     type: 'json',
     description: 'Vendor',
     properties: RAMP_BILL_VENDOR_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
-  memo: { type: 'string', description: 'Memo', optional: true },
-  status: { type: 'string', description: 'Status', optional: true },
-  status_summary: { type: 'string', description: 'Status summary', optional: true },
-  approval_status: { type: 'string', description: 'Approval status', optional: true },
-  sync_status: { type: 'string', description: 'Sync status', optional: true },
-  due_at: { type: 'string', description: 'Due at', optional: true },
-  issued_at: { type: 'string', description: 'Issued at', optional: true },
-  paid_at: { type: 'string', description: 'Paid at', optional: true },
-  created_at: { type: 'string', description: 'Created at', optional: true },
-  entity_id: { type: 'string', description: 'Entity id', optional: true },
+  memo: { type: 'string', description: 'Memo', nullable: true },
+  status: { type: 'string', description: 'Status', nullable: true },
+  status_summary: { type: 'string', description: 'Status summary', nullable: true },
+  approval_status: { type: 'string', description: 'Approval status', nullable: true },
+  sync_status: { type: 'string', description: 'Sync status', nullable: true },
+  due_at: { type: 'string', description: 'Due at', nullable: true },
+  issued_at: { type: 'string', description: 'Issued at', nullable: true },
+  paid_at: { type: 'string', description: 'Paid at', nullable: true },
+  created_at: { type: 'string', description: 'Created at', nullable: true },
+  entity_id: { type: 'string', description: 'Entity id', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampReimbursement {
@@ -406,34 +406,34 @@ export interface RampReimbursement {
 }
 
 export const RAMP_REIMBURSEMENT_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  user_id: { type: 'string', description: 'User id', optional: true },
-  user_email: { type: 'string', description: 'User email', optional: true },
-  user_full_name: { type: 'string', description: 'User full name', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  user_id: { type: 'string', description: 'User id', nullable: true },
+  user_email: { type: 'string', description: 'User email', nullable: true },
+  user_full_name: { type: 'string', description: 'User full name', nullable: true },
   entity_amount: {
     type: 'json',
     description: 'Entity amount',
     properties: RAMP_REIMBURSEMENT_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
   merchant_amount: {
     type: 'json',
     description: 'Merchant amount',
     properties: RAMP_REIMBURSEMENT_AMOUNT_PROPERTIES,
-    optional: true,
+    nullable: true,
   },
-  merchant: { type: 'string', description: 'Merchant', optional: true },
-  memo: { type: 'string', description: 'Memo', optional: true },
-  state: { type: 'string', description: 'State', optional: true },
-  direction: { type: 'string', description: 'Direction', optional: true },
-  type: { type: 'string', description: 'Type', optional: true },
-  transaction_date: { type: 'string', description: 'Transaction date', optional: true },
-  created_at: { type: 'string', description: 'Created at', optional: true },
-  submitted_at: { type: 'string', description: 'Submitted at', optional: true },
-  approved_at: { type: 'string', description: 'Approved at', optional: true },
-  payment_processed_at: { type: 'string', description: 'Payment processed at', optional: true },
-  sync_status: { type: 'string', description: 'Sync status', optional: true },
-  entity_id: { type: 'string', description: 'Entity id', optional: true },
+  merchant: { type: 'string', description: 'Merchant', nullable: true },
+  memo: { type: 'string', description: 'Memo', nullable: true },
+  state: { type: 'string', description: 'State', nullable: true },
+  direction: { type: 'string', description: 'Direction', nullable: true },
+  type: { type: 'string', description: 'Type', nullable: true },
+  transaction_date: { type: 'string', description: 'Transaction date', nullable: true },
+  created_at: { type: 'string', description: 'Created at', nullable: true },
+  submitted_at: { type: 'string', description: 'Submitted at', nullable: true },
+  approved_at: { type: 'string', description: 'Approved at', nullable: true },
+  payment_processed_at: { type: 'string', description: 'Payment processed at', nullable: true },
+  sync_status: { type: 'string', description: 'Sync status', nullable: true },
+  entity_id: { type: 'string', description: 'Entity id', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampMemo {
@@ -442,8 +442,8 @@ export interface RampMemo {
 }
 
 export const RAMP_MEMO_PROPERTIES = {
-  id: { type: 'string', description: 'Id', optional: true },
-  memo: { type: 'string', description: 'Memo', optional: true },
+  id: { type: 'string', description: 'Id', nullable: true },
+  memo: { type: 'string', description: 'Memo', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface RampGetBusinessParams {
@@ -501,7 +501,7 @@ export interface RampListTransactionsParams {
   department_id?: string
   from_date?: string
   to_date?: string
-  state?: string
+  transaction_state?: string
   sync_status?: string
   start?: string
   page_size?: number
@@ -641,7 +641,7 @@ export interface RampGetBillResponse extends ToolResponse {
 export interface RampListReimbursementsParams {
   accessToken: string
   user_id?: string
-  state?: string
+  reimbursement_state?: string
   from_date?: string
   to_date?: string
   sync_status?: string

@@ -173,7 +173,7 @@ List transactions in one page in Ramp
 | `department_id` | string | No | Filter by department. |
 | `from_date` | string | No | Filter for transactions with a `user_transaction_time` after the given date, in ISO8601 format. |
 | `to_date` | string | No | Filter for transactions with a `user_transaction_time` before the given date, in ISO8601 format. |
-| `state` | string | No | Filter by transaction state. If set to 'ALL', all transactions including 'DECLINED' will be listed. |
+| `transaction_state` | string | No | Filter by transaction state. If set to 'ALL', all transactions including 'DECLINED' will be listed. |
 | `sync_status` | string | No | Filter for transactions by sync status. If set, it supersedes sync_ready and has_no_sync_commits |
 | `start` | string | No | Next cursor from the previous response |
 | `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
@@ -529,7 +529,7 @@ List reimbursements in one page in Ramp
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user_id` | string | No | Filter by user id |
-| `state` | string | No | Filter by reimbursement state. |
+| `reimbursement_state` | string | No | Filter by reimbursement state. |
 | `from_date` | string | No | Filter reimbursements created after this date. |
 | `to_date` | string | No | Filter reimbursements created before this date. |
 | `sync_status` | string | No | Filter by sync status. Supersedes has_no_sync_commits and sync_ready. |

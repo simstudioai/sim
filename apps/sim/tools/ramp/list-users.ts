@@ -91,12 +91,12 @@ export const rampListUsersTool: ToolConfig<RampListUsersParams, RampListUsersRes
     nextCursor: {
       type: 'string',
       description: 'Pass this cursor as start to fetch the next page',
-      optional: true,
+      nullable: true,
     },
     nextPageUrl: {
       type: 'string',
       description: 'Ramp URL for the next page, or null on the last page',
-      optional: true,
+      nullable: true,
     },
   },
 }

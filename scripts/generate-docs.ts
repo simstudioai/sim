@@ -3041,7 +3041,7 @@ function parseConstFieldContent(
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = findTopLevelMatch(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -3103,7 +3103,7 @@ function parseConstFieldContent(
         }
 
         // Check for properties in items - either inline or const reference
-        const itemsPropsConstMatch = itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+        const itemsPropsConstMatch = findTopLevelMatch(itemsContent, PROPERTIES_CONST_PATTERN)
         if (itemsPropsConstMatch) {
           const resolvedProps = resolveConstFromTypesContent(
             itemsPropsConstMatch[1],

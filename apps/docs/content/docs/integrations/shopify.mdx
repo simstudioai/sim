@@ -55,16 +55,20 @@ Create a new product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
-|     ↳ `id` | string | Unique variant identifier \(GID\) |
-|     ↳ `title` | string | Variant title |
-|     ↳ `price` | string | Variant price |
-|     ↳ `compareAtPrice` | string | Compare at price |
-|     ↳ `sku` | string | Stock keeping unit |
-|     ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `edges` | array | Array of variant edges |
+|       ↳ `node` | object | Variant node |
+|         ↳ `id` | string | Unique variant identifier \(GID\) |
+|         ↳ `title` | string | Variant title |
+|         ↳ `price` | string | Variant price |
+|         ↳ `compareAtPrice` | string | Compare at price |
+|         ↳ `sku` | string | Stock keeping unit |
+|         ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
-|     ↳ `id` | string | Unique image identifier \(GID\) |
-|     ↳ `url` | string | Image URL |
-|     ↳ `altText` | string | Alternative text for accessibility |
+|     ↳ `edges` | array | Array of image edges |
+|       ↳ `node` | object | Image node |
+|         ↳ `id` | string | Unique image identifier \(GID\) |
+|         ↳ `url` | string | Image URL |
+|         ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify Get Product
 
@@ -93,16 +97,20 @@ Get a single product by ID from your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
-|     ↳ `id` | string | Unique variant identifier \(GID\) |
-|     ↳ `title` | string | Variant title |
-|     ↳ `price` | string | Variant price |
-|     ↳ `compareAtPrice` | string | Compare at price |
-|     ↳ `sku` | string | Stock keeping unit |
-|     ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `edges` | array | Array of variant edges |
+|       ↳ `node` | object | Variant node |
+|         ↳ `id` | string | Unique variant identifier \(GID\) |
+|         ↳ `title` | string | Variant title |
+|         ↳ `price` | string | Variant price |
+|         ↳ `compareAtPrice` | string | Compare at price |
+|         ↳ `sku` | string | Stock keeping unit |
+|         ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
-|     ↳ `id` | string | Unique image identifier \(GID\) |
-|     ↳ `url` | string | Image URL |
-|     ↳ `altText` | string | Alternative text for accessibility |
+|     ↳ `edges` | array | Array of image edges |
+|       ↳ `node` | object | Image node |
+|         ↳ `id` | string | Unique image identifier \(GID\) |
+|         ↳ `url` | string | Image URL |
+|         ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify List Products
 
@@ -132,16 +140,20 @@ List products from your Shopify store with optional filtering
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
-|     ↳ `id` | string | Unique variant identifier \(GID\) |
-|     ↳ `title` | string | Variant title |
-|     ↳ `price` | string | Variant price |
-|     ↳ `compareAtPrice` | string | Compare at price |
-|     ↳ `sku` | string | Stock keeping unit |
-|     ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `edges` | array | Array of variant edges |
+|       ↳ `node` | object | Variant node |
+|         ↳ `id` | string | Unique variant identifier \(GID\) |
+|         ↳ `title` | string | Variant title |
+|         ↳ `price` | string | Variant price |
+|         ↳ `compareAtPrice` | string | Compare at price |
+|         ↳ `sku` | string | Stock keeping unit |
+|         ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
-|     ↳ `id` | string | Unique image identifier \(GID\) |
-|     ↳ `url` | string | Image URL |
-|     ↳ `altText` | string | Alternative text for accessibility |
+|     ↳ `edges` | array | Array of image edges |
+|       ↳ `node` | object | Image node |
+|         ↳ `id` | string | Unique image identifier \(GID\) |
+|         ↳ `url` | string | Image URL |
+|         ↳ `altText` | string | Alternative text for accessibility |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -179,16 +191,20 @@ Update an existing product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
-|     ↳ `id` | string | Unique variant identifier \(GID\) |
-|     ↳ `title` | string | Variant title |
-|     ↳ `price` | string | Variant price |
-|     ↳ `compareAtPrice` | string | Compare at price |
-|     ↳ `sku` | string | Stock keeping unit |
-|     ↳ `inventoryQuantity` | number | Available inventory quantity |
+|     ↳ `edges` | array | Array of variant edges |
+|       ↳ `node` | object | Variant node |
+|         ↳ `id` | string | Unique variant identifier \(GID\) |
+|         ↳ `title` | string | Variant title |
+|         ↳ `price` | string | Variant price |
+|         ↳ `compareAtPrice` | string | Compare at price |
+|         ↳ `sku` | string | Stock keeping unit |
+|         ↳ `inventoryQuantity` | number | Available inventory quantity |
 |   ↳ `images` | object | Product images with edges/nodes structure |
-|     ↳ `id` | string | Unique image identifier \(GID\) |
-|     ↳ `url` | string | Image URL |
-|     ↳ `altText` | string | Alternative text for accessibility |
+|     ↳ `edges` | array | Array of image edges |
+|       ↳ `node` | object | Image node |
+|         ↳ `id` | string | Unique image identifier \(GID\) |
+|         ↳ `url` | string | Image URL |
+|         ↳ `altText` | string | Alternative text for accessibility |
 
 ### Shopify Delete Product
 
@@ -270,30 +286,32 @@ Get a single order by ID from your Shopify store
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
-|     ↳ `id` | string | Unique line item identifier \(GID\) |
-|     ↳ `title` | string | Product title |
-|     ↳ `quantity` | number | Quantity ordered |
-|     ↳ `variant` | object | Associated product variant |
-|       ↳ `id` | string | Unique variant identifier \(GID\) |
-|       ↳ `title` | string | Variant title |
-|       ↳ `price` | string | Variant price |
-|       ↳ `compareAtPrice` | string | Compare at price |
-|       ↳ `sku` | string | Stock keeping unit |
-|       ↳ `inventoryQuantity` | number | Available inventory quantity |
-|     ↳ `originalTotalSet` | object | Original total price before discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|     ↳ `discountedTotalSet` | object | Total price after discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `edges` | array | Array of line item edges |
+|       ↳ `node` | object | Line item node |
+|         ↳ `id` | string | Unique line item identifier \(GID\) |
+|         ↳ `title` | string | Product title |
+|         ↳ `quantity` | number | Quantity ordered |
+|         ↳ `variant` | object | Associated product variant |
+|           ↳ `id` | string | Unique variant identifier \(GID\) |
+|           ↳ `title` | string | Variant title |
+|           ↳ `price` | string | Variant price |
+|           ↳ `compareAtPrice` | string | Compare at price |
+|           ↳ `sku` | string | Stock keeping unit |
+|           ↳ `inventoryQuantity` | number | Available inventory quantity |
+|         ↳ `originalTotalSet` | object | Original total price before discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|         ↳ `discountedTotalSet` | object | Total price after discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
@@ -393,30 +411,32 @@ List orders from your Shopify store with optional filtering
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
-|     ↳ `id` | string | Unique line item identifier \(GID\) |
-|     ↳ `title` | string | Product title |
-|     ↳ `quantity` | number | Quantity ordered |
-|     ↳ `variant` | object | Associated product variant |
-|       ↳ `id` | string | Unique variant identifier \(GID\) |
-|       ↳ `title` | string | Variant title |
-|       ↳ `price` | string | Variant price |
-|       ↳ `compareAtPrice` | string | Compare at price |
-|       ↳ `sku` | string | Stock keeping unit |
-|       ↳ `inventoryQuantity` | number | Available inventory quantity |
-|     ↳ `originalTotalSet` | object | Original total price before discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|     ↳ `discountedTotalSet` | object | Total price after discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `edges` | array | Array of line item edges |
+|       ↳ `node` | object | Line item node |
+|         ↳ `id` | string | Unique line item identifier \(GID\) |
+|         ↳ `title` | string | Product title |
+|         ↳ `quantity` | number | Quantity ordered |
+|         ↳ `variant` | object | Associated product variant |
+|           ↳ `id` | string | Unique variant identifier \(GID\) |
+|           ↳ `title` | string | Variant title |
+|           ↳ `price` | string | Variant price |
+|           ↳ `compareAtPrice` | string | Compare at price |
+|           ↳ `sku` | string | Stock keeping unit |
+|           ↳ `inventoryQuantity` | number | Available inventory quantity |
+|         ↳ `originalTotalSet` | object | Original total price before discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|         ↳ `discountedTotalSet` | object | Total price after discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
@@ -520,30 +540,32 @@ Update an existing order in your Shopify store (note, tags, email)
 |     ↳ `lastName` | string | Customer last name |
 |     ↳ `phone` | string | Customer phone number |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
-|     ↳ `id` | string | Unique line item identifier \(GID\) |
-|     ↳ `title` | string | Product title |
-|     ↳ `quantity` | number | Quantity ordered |
-|     ↳ `variant` | object | Associated product variant |
-|       ↳ `id` | string | Unique variant identifier \(GID\) |
-|       ↳ `title` | string | Variant title |
-|       ↳ `price` | string | Variant price |
-|       ↳ `compareAtPrice` | string | Compare at price |
-|       ↳ `sku` | string | Stock keeping unit |
-|       ↳ `inventoryQuantity` | number | Available inventory quantity |
-|     ↳ `originalTotalSet` | object | Original total price before discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|     ↳ `discountedTotalSet` | object | Total price after discounts |
-|       ↳ `shopMoney` | object | Amount in shop currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
-|       ↳ `presentmentMoney` | object | Amount in presentment currency |
-|         ↳ `amount` | string | Decimal money amount |
-|         ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|     ↳ `edges` | array | Array of line item edges |
+|       ↳ `node` | object | Line item node |
+|         ↳ `id` | string | Unique line item identifier \(GID\) |
+|         ↳ `title` | string | Product title |
+|         ↳ `quantity` | number | Quantity ordered |
+|         ↳ `variant` | object | Associated product variant |
+|           ↳ `id` | string | Unique variant identifier \(GID\) |
+|           ↳ `title` | string | Variant title |
+|           ↳ `price` | string | Variant price |
+|           ↳ `compareAtPrice` | string | Compare at price |
+|           ↳ `sku` | string | Stock keeping unit |
+|           ↳ `inventoryQuantity` | number | Available inventory quantity |
+|         ↳ `originalTotalSet` | object | Original total price before discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|         ↳ `discountedTotalSet` | object | Total price after discounts |
+|           ↳ `shopMoney` | object | Amount in shop currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
+|           ↳ `presentmentMoney` | object | Amount in presentment currency |
+|             ↳ `amount` | string | Decimal money amount |
+|             ↳ `currencyCode` | string | Currency code \(ISO 4217\) |
 |   ↳ `shippingAddress` | object | Shipping address |
 |     ↳ `firstName` | string | First name |
 |     ↳ `lastName` | string | Last name |
@@ -1083,8 +1105,16 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 |     ↳ `url` | string | Image URL |
 |     ↳ `altText` | string | Alternative text for accessibility |
 |   ↳ `products` | array | Products in the collection |
-|     ↳ `url` | string | Featured image URL |
-|     ↳ `altText` | string | Alternative text for accessibility |
+|     ↳ `id` | string | Unique product identifier \(GID\) |
+|     ↳ `title` | string | Product title |
+|     ↳ `handle` | string | URL-friendly product identifier |
+|     ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|     ↳ `vendor` | string | Product vendor |
+|     ↳ `productType` | string | Product type classification |
+|     ↳ `totalInventory` | number | Total inventory across all variants |
+|     ↳ `featuredImage` | object | Featured product image |
+|       ↳ `url` | string | Featured image URL |
+|       ↳ `altText` | string | Alternative text for accessibility |
 
 ## OAuth Scopes
 
