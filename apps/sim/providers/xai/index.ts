@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -15,6 +16,7 @@ import {
   recordProviderConversationToolError,
   recordProviderConversationUsage,
 } from '@/providers/conversation-history'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
@@ -35,7 +37,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
@@ -45,6 +46,15 @@ import {
 import { createResponseFormatPayload } from '@/providers/xai/utils'
 
 const logger = createLogger('XAIProvider')
+
+/** xAI excludes separately reported reasoning tokens from its completion count. */
+function normalizeXaiUsage(usage: CompletionUsage): CompletionUsage {
+  return {
+    ...usage,
+    completion_tokens:
+      usage.completion_tokens + Math.max(0, usage.completion_tokens_details?.reasoning_tokens ?? 0),
+  }
+}
 
 /**
  * xAI's Grok models via an OpenAI-compatible chat-completions API
@@ -135,6 +145,32 @@ export const xAIProvider: ProviderConfig = {
       preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
     }
 
+    const tokens = { input: 0, output: 0, cacheRead: 0, total: 0 }
+    let inputCost = 0
+    let outputCost = 0
+    const recordUsage = (usage: CompletionUsage | undefined) => {
+      const modelUsage = getChatCompletionConversationUsage(usage)
+      if (!modelUsage || !usage) return
+      tokens.input += modelUsage.input
+      tokens.output += modelUsage.output
+      tokens.cacheRead += modelUsage.cacheRead ?? 0
+      tokens.total += usage.total_tokens
+      const cost = priceModelUsage(request.model, modelUsage, LIST_PRICE_POLICY)
+      inputCost += cost.input
+      outputCost += cost.output
+    }
+    const getCost = (toolCost = 0) => {
+      const input = Number.parseFloat(inputCost.toFixed(8))
+      const output = Number.parseFloat(outputCost.toFixed(8))
+      return {
+        input,
+        output,
+        total: Number.parseFloat((input + output + toolCost).toFixed(8)),
+        pricing: priceModelUsage(request.model, { input: 0, output: 0 }, LIST_PRICE_POLICY).pricing,
+        ...(toolCost ? { toolCost } : {}),
+      }
+    }
+
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info('XAI Provider - Using direct streaming (no tools)')
 
@@ -167,24 +203,12 @@ export const xAIProvider: ProviderConfig = {
           createOpenAICompatibleAgentEventStream(streamResponse, {
             providerName: 'xAI',
             request,
+            normalizeUsage: normalizeXaiUsage,
             onComplete: ({ content, usage }) => {
               output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+              recordUsage(usage)
+              output.tokens = { ...tokens }
+              output.cost = getCost()
             },
           }),
       })
@@ -221,6 +245,8 @@ export const xAIProvider: ProviderConfig = {
         await prepareConversationGeneration(request, 'chat-completions', initialPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (currentResponse.usage) currentResponse.usage = normalizeXaiUsage(currentResponse.usage)
+      recordUsage(currentResponse.usage)
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
         await captureProviderConversationStep(
           request,
@@ -232,11 +258,6 @@ export const xAIProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      const tokens = {
-        input: currentResponse.usage?.prompt_tokens || 0,
-        output: currentResponse.usage?.completion_tokens || 0,
-        total: currentResponse.usage?.total_tokens || 0,
-      }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...formattedMessages]
@@ -511,6 +532,9 @@ export const xAIProvider: ProviderConfig = {
             await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (currentResponse.usage)
+            currentResponse.usage = normalizeXaiUsage(currentResponse.usage)
+          recordUsage(currentResponse.usage)
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
             await captureProviderConversationStep(
               request,
@@ -545,12 +569,6 @@ export const xAIProvider: ProviderConfig = {
 
           if (currentResponse.choices[0]?.message?.content) {
             content = currentResponse.choices[0].message.content
-          }
-
-          if (currentResponse.usage) {
-            tokens.input += currentResponse.usage.prompt_tokens || 0
-            tokens.output += currentResponse.usage.completion_tokens || 0
-            tokens.total += currentResponse.usage.total_tokens || 0
           }
 
           iterationCount++
@@ -591,6 +609,8 @@ export const xAIProvider: ProviderConfig = {
               await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
+            if (finalResponse.usage) finalResponse.usage = normalizeXaiUsage(finalResponse.usage)
+            recordUsage(finalResponse.usage)
             if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
               await captureProviderConversationStep(
                 request,
@@ -614,12 +634,6 @@ export const xAIProvider: ProviderConfig = {
             if (finalResponse.choices[0]?.message?.content) {
               content = finalResponse.choices[0].message.content
             }
-            if (finalResponse.usage) {
-              tokens.input += finalResponse.usage.prompt_tokens || 0
-              tokens.output += finalResponse.usage.completion_tokens || 0
-              tokens.total += finalResponse.usage.total_tokens || 0
-            }
-
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               finalResponse,
@@ -636,14 +650,7 @@ export const xAIProvider: ProviderConfig = {
         throw error
       }
       if (request.stream) {
-        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-        const toolCost = sumToolCosts(toolResults)
-        const finalCost = {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          toolCost: toolCost || undefined,
-          total: accumulatedCost.total + toolCost,
-        }
+        const finalCost = getCost(sumToolCosts(toolResults))
 
         const streamingResult = createStreamingExecution({
           model: request.model,
@@ -657,11 +664,7 @@ export const xAIProvider: ProviderConfig = {
             iterations: iterationCount + 1,
             timeSegments,
           },
-          initialTokens: {
-            input: tokens.input,
-            output: tokens.output,
-            total: tokens.total,
-          },
+          initialTokens: { ...tokens },
           initialCost: finalCost,
           toolCalls:
             toolCalls.length > 0
@@ -674,7 +677,7 @@ export const xAIProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) => {
             output.content = content
-            output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+            output.tokens = { ...tokens }
             output.cost = finalCost
             finalizeTiming()
             return createSettledAgentEventStream(content)
@@ -699,6 +702,7 @@ export const xAIProvider: ProviderConfig = {
         content,
         model: request.model,
         tokens,
+        cost: getCost(sumToolCosts(toolResults)),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         timing: {
