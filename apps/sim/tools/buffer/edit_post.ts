@@ -1,6 +1,8 @@
+import { bufferInputDescription } from '@/tools/buffer/schema'
 import {
   type BufferEditPostParams,
   type BufferPostResponse,
+  bufferStringList,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -33,17 +35,17 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
     },
     mode: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'How to share the post: addToQueue, shareNext, shareNow, or customScheduled (requires dueAt)',
+        'Change the share mode to addToQueue, shareNext, shareNow, or customScheduled (requires dueAt). Omit to keep the current schedule',
     },
     schedulingType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'How the post publishes: automatic (Buffer publishes it, default) or notification (you get a mobile reminder)',
+        'Change how the post publishes: automatic (Buffer publishes it) or notification (mobile reminder). Omit to keep the current publishing method',
     },
     dueAt: {
       type: 'string',
@@ -77,6 +79,61 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
       visibility: 'user-or-llm',
       description: 'Alt text for an attached image',
     },
+    assets: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'AssetInput',
+        'Array of image, video, or document assets. Choose exactly one variant per asset. Omit when using media. An empty array clears attachments; omission preserves them.'
+      ),
+    },
+    metadata: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'PostInputMetaData',
+        'Network-specific settings, including threads, link attachments, and publishing options.'
+      ),
+    },
+    aiAssisted: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether AI assisted with creating the post',
+    },
+    draftId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Draft identifier associated with the post',
+    },
+    ideaId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Source idea identifier',
+    },
+    source: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Source application identifier',
+    },
+    tagIds: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Array of tag IDs; on edit, [] clears tags and omission preserves them',
+    },
+    approvalChange: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Draft approval change: request submits for approval, revert withdraws the request',
+    },
   },
 
   operation: {
@@ -91,6 +148,14 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
       media: params.media,
       mediaType: params.mediaType,
       mediaAltText: params.mediaAltText,
+      assets: params.assets,
+      metadata: params.metadata,
+      aiAssisted: params.aiAssisted,
+      draftId: params.draftId,
+      ideaId: params.ideaId,
+      source: params.source,
+      tagIds: params.tagIds == null ? params.tagIds : bufferStringList(params.tagIds),
+      approvalChange: params.approvalChange,
     }),
   },
 
