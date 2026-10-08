@@ -25,7 +25,7 @@ import {
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
-import { readFileText } from '@/lib/uploads/client/text-content'
+import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
@@ -337,6 +337,7 @@ export function useWorkspaceFileContent(
     },
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
+    retry: (failureCount, error) => failureCount < 1 && !(error instanceof FileTextSizeError),
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })

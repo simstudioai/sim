@@ -1,4 +1,5 @@
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 
 const TEXT_EDITABLE_MIME_TYPES = new Set([
@@ -132,7 +133,7 @@ export type FileCategory =
   | 'unsupported'
 
 export function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
-  mimeType = mimeType?.split(';', 1)[0].trim().toLowerCase() ?? null
+  mimeType = normalizeMimeType(mimeType)
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
@@ -147,8 +148,6 @@ export function resolveFileCategory(mimeType: string | null, filename: string): 
   const sourceName = filename.replace(/\.(example|template|sample|dist|default)$/i, '')
   const nameKey = getFileExtension(sourceName) || sourceName.toLowerCase()
   if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
-  if (/^\.?env(?: \(\d+\))*(?:\.[\w.-]+)?$/i.test(filename)) return 'text-editable'
-  if (/^dockerfile\.[\w.-]+$/i.test(filename)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
   if (AUDIO_PREVIEWABLE_EXTENSIONS.has(ext)) return 'audio-previewable'
@@ -156,6 +155,8 @@ export function resolveFileCategory(mimeType: string | null, filename: string): 
   if (DOCX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'docx-previewable'
   if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
   if (XLSX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'xlsx-previewable'
+  if (/^\.?env(?: \(\d+\))*(?:\.[\w.-]+)?$/i.test(filename)) return 'text-editable'
+  if (/^dockerfile\.[\w.-]+$/i.test(filename)) return 'text-editable'
 
   return 'unsupported'
 }

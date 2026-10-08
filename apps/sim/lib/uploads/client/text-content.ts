@@ -5,7 +5,8 @@ export const MAX_TEXT_PREVIEW_BYTES = PASTE_LIMITS.TEXT_EDITOR_BYTES
 export const TEXT_PREVIEW_SIZE_MESSAGE =
   'This file is too large to preview. Download it to view its contents.'
 
-class FileTextSizeError extends Error {
+/** A deterministic preview limit failure that must not trigger a download retry. */
+export class FileTextSizeError extends Error {
   constructor() {
     super(TEXT_PREVIEW_SIZE_MESSAGE)
     this.name = 'FileTextSizeError'
