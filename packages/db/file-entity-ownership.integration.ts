@@ -10,12 +10,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
 const migration = readFileSync(
-  new URL('./migrations/0403_file_entity_ownership.sql', import.meta.url),
+  new URL('./migrations/0404_file_entity_ownership.sql', import.meta.url),
   'utf8'
 )
 
 const workspaceBindingMigration = readFileSync(
-  new URL('./migrations/0409_file_workspace_binding.sql', import.meta.url),
+  new URL('./migrations/0410_file_workspace_binding.sql', import.meta.url),
   'utf8'
 )
 
