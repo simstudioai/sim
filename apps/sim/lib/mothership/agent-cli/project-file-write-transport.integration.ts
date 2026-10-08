@@ -20,6 +20,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   remoteSandboxProviderMock,
@@ -204,6 +205,67 @@ async function rows(projectId: string) {
 }
 
 describe('private native Project writes against PostgreSQL and local storage', () => {
+  for (const [operation, signalOwner] of [
+    ['create', 'context'],
+    ['update', 'context'],
+    ['create', 'request'],
+    ['update', 'request'],
+  ] as const) {
+    check(
+      `${signalOwner} cancellation during provenance lookup prevents ${operation}`,
+      async () => {
+        const f = await fixture()
+        if (operation === 'update') expect((await create(f.projectId, f.context)).exitCode).toBe(0)
+        const before = await rows(f.projectId)
+        const controller = new AbortController()
+        const entered = createDeferred<void>()
+        const registry = createDeferred<ResolvedSecretTraceRegistry>()
+        const endpoint = 'http://localhost:3200'
+        const transport = createProjectFileWriteTransport({
+          endpoint,
+          projectId: f.projectId,
+          context: {
+            ...f.context,
+            signal: signalOwner === 'context' ? controller.signal : undefined,
+          },
+          resolveSecretTraceRegistry: () => {
+            entered.resolve()
+            return registry.promise
+          },
+          fallback: async () => {
+            throw new Error('Unexpected fallback')
+          },
+        })
+        const result = transport(
+          `${endpoint}/api/v2/projects/${f.projectId}/files${operation === 'update' ? `/${before[0].id}/content` : ''}`,
+          {
+            method: operation === 'update' ? 'PUT' : 'POST',
+            signal: signalOwner === 'request' ? controller.signal : undefined,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(
+              operation === 'update'
+                ? {
+                    content: 'cancelled content',
+                    expectedRevision: workspaceFileRevision(before[0]),
+                  }
+                : { name: 'cancelled.txt', content: 'cancelled content' }
+            ),
+          }
+        )
+        const rejected = expect(result).rejects.toThrow('cancelled during provenance lookup')
+        await entered.promise
+        controller.abort(new Error('cancelled during provenance lookup'))
+        registry.resolve(new ResolvedSecretTraceRegistry([], { userId: f.userId }))
+        await rejected
+        expect(await rows(f.projectId)).toEqual(before)
+        if (operation === 'update')
+          expect(await readFile(join(storageRoot, before[0].key), 'utf8')).toBe(
+            'Architecture notes'
+          )
+      }
+    )
+  }
+
   check('request bodies and headers cannot mint provenance or Copilot authority', async () => {
     const f = await fixture()
     const endpoint = 'http://localhost:3200'
@@ -467,6 +529,18 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
       expect((await callback(`/uploads/${upload.id}/complete`, complete, otherToken)).status).toBe(
         403
       )
+      const beforeUnattributedUpload = await rows(f.projectId)
+      await recordSessionFileInput(sessionKey, machine, {
+        status: 'exact',
+        entries: [
+          { encryptedValue: (await encryptSecret('unattributed synthetic value')).encrypted },
+        ],
+      })
+      expect((await callback(`/uploads/${upload.id}/complete`, complete)).status).toBe(503)
+      expect(await rows(f.projectId)).toEqual(beforeUnattributedUpload)
+      await redis.del(historyKey)
+      await initializeSessionFileProvenance(sessionKey, machine)
+      await recordSessionFileInput(sessionKey, machine, evidence)
       const response = await callback(`/uploads/${upload.id}/complete`, complete)
       expect(response.status, await response.clone().text()).toBe(200)
       const completed = v2CompleteProjectFileUploadContract.response.schema.parse(

@@ -83,7 +83,17 @@ export async function proxySandboxProjectFileRequest(
       },
     },
     /** Direct uploads conservatively retain the physical machine's complete source history. */
-    uploadProvenance: history,
+    async uploadProvenance() {
+      const provenance = await history()
+      request.signal.throwIfAborted()
+      return {
+        status: 'exact',
+        entries: provenance.entries.map((entry) => {
+          if (!entry.sourceUserId) throw new Error('Workbench source identity is unavailable')
+          return { ...entry, sourceUserId: entry.sourceUserId }
+        }),
+      }
+    },
     fallback: createProjectFileWriteTransport({
       endpoint,
       projectId,

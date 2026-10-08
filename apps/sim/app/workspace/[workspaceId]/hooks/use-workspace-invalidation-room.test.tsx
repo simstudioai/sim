@@ -66,7 +66,20 @@ describe('useWorkspaceInvalidationRoom', () => {
     }
   })
 
-  /*
+  it('refreshes once per shared cache group and retains a surviving subscriber', () => {
+    const refresh = vi.fn()
+    const first = mount('ws-1', 'workspace-files', refresh, 'shared-cache')
+    mount('ws-1', 'workspace-files', refresh, 'shared-cache')
+    const changed = socket.on.mock.calls.find(([event]) => event === 'workspace-files-changed')?.[1]
+    if (!changed) throw new Error('Missing workspace change subscription')
+    act(() => changed({ workspaceId: 'ws-1' }))
+    expect(refresh).toHaveBeenCalledTimes(1)
+    unmount(first)
+    act(() => changed({ workspaceId: 'ws-1' }))
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  /**
    * An editor can show several folder pickers, each subscribing to the same
    * room. Without reference counting the first to unmount emitted `leave` and
    * evicted the socket, so its still-mounted siblings silently stopped

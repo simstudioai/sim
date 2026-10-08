@@ -76,6 +76,8 @@ export function createProjectFileWriteTransport(options: {
         if (!parsed.success) return parsed.response
         const { params, body } = parsed.data
         await requireCleanInlineText(body, options)
+        options.context.signal?.throwIfAborted()
+        request.signal.throwIfAborted()
         const result = await executeCopilotProjectFileUseCase(
           options.context,
           createProjectFile,
@@ -105,6 +107,8 @@ export function createProjectFileWriteTransport(options: {
       if (!parsed.success) return parsed.response
       const { params, body } = parsed.data
       await requireCleanInlineText(body, options)
+      options.context.signal?.throwIfAborted()
+      request.signal.throwIfAborted()
       const target = { projectId, fileId: params.fileId }
       const result = await executeCopilotProjectFileUseCase(
         options.context,

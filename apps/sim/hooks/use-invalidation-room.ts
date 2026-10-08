@@ -60,7 +60,10 @@ function createSharedRoomSubscription(
     for (const group of callbacks.values()) {
       for (const callback of group) {
         if (event === 'denied') callback.denied?.()
-        else if (event === 'changed' || callback.refreshOnJoin) callback.changed()
+        else if (event === 'changed' || callback.refreshOnJoin) {
+          callback.changed()
+          break
+        }
       }
     }
   }

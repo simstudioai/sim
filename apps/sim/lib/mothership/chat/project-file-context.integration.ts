@@ -541,7 +541,10 @@ describe('legacy browser file address compatibility', () => {
         createRouteContext({ chatId: f.chatId })
       )
       expect(history.status).toBe(200)
-      expect(toRecord(toRecord(await history.json()).chat).resources).toEqual(resources)
+      expect(toRecord(toRecord(await history.json()).chat).resources).toEqual([
+        { ...resources[0], workspaceId: f.workspaceId },
+        resources[1],
+      ])
 
       const removed = await removeMothershipResource(
         createMockRequest({
