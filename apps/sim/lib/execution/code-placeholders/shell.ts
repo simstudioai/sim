@@ -92,6 +92,8 @@ interface ShellCommandScan {
   indexedOption?: boolean
   /** The command is a builtin (`unset`/`read`/…) whose name arguments carry arithmetic subscripts. */
   nameArgumentBuiltin?: boolean
+  /** An `unset -f` was read, so its arguments name functions and leave variable attributes alone. */
+  unsetsFunctions?: boolean
   /** True once the command word (past any `name=value` assignment prefix) has been read. */
   sawCommandWord: boolean
   /** A non-arithmetic assignment prefix is being read, so a later keyword must not mark its value. */
@@ -545,6 +547,45 @@ function shellExpansion(name: string, quote: ShellQuote): string {
   return expansion
 }
 
+/** Whether an expansion (`$…`, a backtick, `<(`/`>(`) starts at `index`. */
+function expansionStarts(value: string, index: number): boolean {
+  const character = value[index]
+  if (character === '$' || character === '`') return true
+  return (character === '<' || character === '>') && value[index + 1] === '('
+}
+
+/**
+ * The reason a value could run a command if it reached arithmetic evaluation, or undefined if it
+ * cannot. Arithmetic expands an array subscript again, so a subscript holding an expansion runs it.
+ * This backs up the position scan: any `[ … ]` holding an expansion is refused, as is an
+ * unbalanced bracket or an open quote inside one, since bash would then find the subscript's end in
+ * surrounding code. Quotes and escapes count inside a subscript, so a quoted `]` does not end it.
+ */
+function unsafeArithmeticSubscript(value: string): string | undefined {
+  let depth = 0
+  let quote: '"' | "'" | undefined
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]
+    if (depth > 0 && expansionStarts(value, index)) return 'an array subscript with an expansion'
+    if (quote === "'") {
+      if (character === "'") quote = undefined
+    } else if (character === '\\') {
+      index += 1
+      if (depth > 0 && expansionStarts(value, index)) return 'an array subscript with an expansion'
+    } else if (quote === '"') {
+      if (character === '"') quote = undefined
+    } else if (depth > 0 && (character === '"' || character === "'")) {
+      quote = character
+    } else if (character === '[') {
+      depth += 1
+    } else if (character === ']') {
+      if (depth === 0) return 'an unbalanced array subscript'
+      depth -= 1
+    }
+  }
+  return depth > 0 || quote ? 'an unbalanced array subscript' : undefined
+}
+
 function isLegacyShellPlaceholder(occurrence: CodePlaceholderOccurrence): boolean {
   const inner = occurrence.raw.slice(2, -2)
   return inner.trim() === occurrence.name && SHELL_BARE_NAME.test(occurrence.name)
@@ -756,12 +797,14 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
   /** A subscript frame for `name`'s array: a string key for an associative array, else an arithmetic index. */
   const subscriptFrameFor = (name: string | undefined) =>
     subscriptFrame(isAssociativeArray(name ?? '') ? 'keysubscript' : 'arithmetic')
-  /** Forget a name's tracked type in every scope — on `unset`, or a re-declaration that changes it. */
+  /** Forget a name's tracked array type in every scope — a re-declaration as `-a`/`-A` resets it. */
+  const clearArrayType = (name: string) => {
+    for (const frame of frames) frame.associativeArrays?.delete(name)
+  }
+  /** Forget everything tracked about a name in every scope — `unset` removes its attributes too. */
   const clearNameType = (name: string) => {
-    for (const frame of frames) {
-      frame.associativeArrays?.delete(name)
-      frame.integerAttribute?.delete(name)
-    }
+    clearArrayType(name)
+    for (const frame of frames) frame.integerAttribute?.delete(name)
   }
   /** Whether a `>`/`<` redirect operator immediately precedes `at`, across any intervening blanks. */
   const precededByRedirect = (at: number): boolean => {
@@ -895,9 +938,10 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
     ) {
       const declared = SHELL_NAME.exec(word)?.[0]
       if (declared) {
-        // A re-declaration resets the name's type before this one's attributes apply, so a later
-        // `declare -a` (indexed) clears an earlier `-A` (associative) and vice versa.
-        if (command.associativeOption || command.indexedOption) clearNameType(declared)
+        // A re-declaration resets the name's array type before this one's attributes apply, so a
+        // later `declare -a` (indexed) clears an earlier `-A` (associative) and vice versa. The
+        // integer attribute survives it — only `+i` or `unset` removes that.
+        if (command.associativeOption || command.indexedOption) clearArrayType(declared)
         if (command.associativeOption) (frame.associativeArrays ??= new Set()).add(declared)
         if (command.integerOption) {
           ;(frame.integerAttribute ??= new Map()).set(declared, command.integerOption === 'set')
@@ -905,9 +949,12 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       }
     }
     // `unset name` removes the variable and its attributes, so a later indexed reuse is arithmetic
-    // again. A bare name only — `unset name[i]` removes one element, not the array's type.
-    if (command.nameArgumentBuiltin && command.sawCommandWord && SHELL_BARE_NAME.test(word)) {
-      clearNameType(word)
+    // again. A bare name only — `unset name[i]` removes one element, not the array's type — and not
+    // under `-f`, which removes a function of that name and leaves the variable alone.
+    if (command.nameArgumentBuiltin && command.sawCommandWord) {
+      const option = DECLARATION_OPTION.exec(word)
+      if (option?.[1] === '-' && option[2].includes('f')) command.unsetsFunctions = true
+      else if (!command.unsetsFunctions && SHELL_BARE_NAME.test(word)) clearNameType(word)
     }
     // An assignment is one only in command-prefix or declaration-argument position; `echo n=1` or
     // `printf a[i]=1` passes an ordinary string that bash never evaluates.
@@ -1431,6 +1478,14 @@ export async function compileShellPlaceholders(
     if (resolved?.value.includes('\0')) {
       throw new CodePlaceholderCompileError(
         `Variable placeholder "${occurrence.name}" cannot contain NUL in shell code`,
+        input.code,
+        occurrence.start
+      )
+    }
+    const unsafeSubscript = resolved && unsafeArithmeticSubscript(resolved.value)
+    if (unsafeSubscript && !input.analysisOnly) {
+      throw new CodePlaceholderCompileError(
+        `Variable placeholder "${occurrence.name}" cannot contain ${unsafeSubscript} in shell code`,
         input.code,
         occurrence.start
       )

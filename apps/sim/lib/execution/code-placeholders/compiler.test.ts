@@ -1058,6 +1058,8 @@ describe('code placeholder compiler', () => {
     "echo $(( $(cat <<-'EOF'\n\t{{KEY}}\n\tEOF\n) + 1 ))",
     '[[ {{KEY}} -eq 0 ]] && echo zero',
     '[[ "{{KEY}}" -eq 0 ]] && echo zero',
+    'declare -i n; declare -a n; n={{KEY}}',
+    'declare -i n; unset -f n; n={{KEY}}',
     'if [[ 0 -lt {{KEY}} ]]; then echo positive; fi',
     '[[ -n x && ( "{{KEY}}" -ge 1 ) ]]',
     '[[ $(printf "%s" "{{KEY}}") -ne 0 ]]',
@@ -1136,7 +1138,7 @@ describe('code placeholder compiler', () => {
   })
 
   it('preserves shell literal arithmetic text and leaves completed arithmetic frames', async () => {
-    const value = 'values[$(printf injected >&2)]'
+    const value = 'values[1]'
     const compiled = await compileCodePlaceholders({
       code: [
         'printf "%s\\n" "{{KEY}}"',
@@ -1180,6 +1182,7 @@ describe('code placeholder compiler', () => {
     '$(let x=1 <<EOF\n{{KEY}}\nEOF\n)',
     // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
     'declare -A m; m[{{KEY}}]=x; printf "%s\\n" "${m[{{KEY}}]}"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
     'declare -A m; printf "%s\\n" "${m[{{KEY}}]}"',
     'declare -iA m; m[{{KEY}}]=1',
     'read -p "items[{{KEY}}]" name',
@@ -1198,7 +1201,7 @@ describe('code placeholder compiler', () => {
       compileCodePlaceholders({
         code,
         language: CodeLanguage.Shell,
-        environmentVariables: { KEY: 'values[$(printf injected >&2)]' },
+        environmentVariables: { KEY: 'values[1]' },
       })
     ).resolves.toBeDefined()
   })
@@ -1214,7 +1217,7 @@ describe('code placeholder compiler', () => {
   })
 
   it('compiles shell placeholders beside arithmetic that never evaluates them', async () => {
-    const value = 'values[$(printf injected >&2)]'
+    const value = 'values[1]'
     const compiled = await compileCodePlaceholders({
       code: [
         '[ "{{KEY}}" -eq 0 ] 2>/dev/null || printf "%s\\n" not-zero',
@@ -1247,6 +1250,62 @@ describe('code placeholder compiler', () => {
       `not-zero\nmatched\n${value}\n${value}\n${value}\n${value}\ny${value}\n` +
         `let ${value}\nitems[${value}]\n${value}\n1\n${value} 2\n`
     )
+  })
+
+  it.each([
+    ['an expansion in a subscript', 'a[$(cmd)]', 'an array subscript with an expansion'],
+    [
+      'a quoted bracket ending the walk early',
+      'a["]$(cmd)"]',
+      'an array subscript with an expansion',
+    ],
+    ['a backtick in a subscript', 'a[`cmd`]', 'an array subscript with an expansion'],
+    ['a process substitution in a subscript', 'a[<(cmd)]', 'an array subscript with an expansion'],
+    ['an escaped expansion in a subscript', 'a[\\$x]', 'an array subscript with an expansion'],
+    ['an unclosed subscript', 'a[', 'an unbalanced array subscript'],
+    ['a stray closing bracket', '$(cmd)]', 'an unbalanced array subscript'],
+    ['an open quote in a subscript', 'a["]', 'an unbalanced array subscript'],
+  ])('refuses a shell value with %s wherever it lands', async (_case, value, reason) => {
+    for (const code of ['printf "%s\\n" "{{KEY}}"', "cat <<'EOF'\n{{KEY}}\nEOF"]) {
+      await expect(
+        compileCodePlaceholders({
+          code,
+          language: CodeLanguage.Shell,
+          environmentVariables: { KEY: value },
+        })
+      ).rejects.toThrow(reason)
+    }
+  })
+
+  it.each(['values[1]', '["a", "b"]', '{"items": [1, 2]}', '$HOME and $(date)', "it's [done]"])(
+    'compiles a shell value whose subscripts hold no expansion: %s',
+    async (value) => {
+      const compiled = await compileCodePlaceholders({
+        code: 'printf "%s\\n" "{{KEY}}"',
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: value },
+      })
+      expect(executeShell(compiled.code, compiled.bindings)).toBe(`${value}\n`)
+    }
+  )
+
+  it('refuses arithmetic positions whose values are safe alone', async () => {
+    // Code can supply the brackets, or split a subscript across adjacent placeholders, so the value
+    // guard cannot judge these alone; the position scan refuses them.
+    await expect(
+      compileCodePlaceholders({
+        code: 'total=$(( a[{{KEY}}] ))',
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: '$(cmd)' },
+      })
+    ).rejects.toThrow('is not supported in shell arithmetic')
+    await expect(
+      compileCodePlaceholders({
+        code: 'total=$(( {{LEFT}}{{RIGHT}} ))',
+        language: CodeLanguage.Shell,
+        environmentVariables: { LEFT: 'a', RIGHT: '1' },
+      })
+    ).rejects.toThrow('is not supported in shell arithmetic')
   })
 
   it('discovers shell arithmetic placeholders without compiling missing values', async () => {
