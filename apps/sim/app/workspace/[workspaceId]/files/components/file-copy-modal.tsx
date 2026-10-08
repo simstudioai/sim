@@ -14,6 +14,7 @@ import {
 import { Duplicate } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { FileCopySource } from '@/lib/api/contracts/file-copy-input'
+import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { useCopyFileItems, useFileCopyDestination } from '@/hooks/queries/file-copy'
 import { useProjects } from '@/hooks/queries/projects'
@@ -30,6 +31,36 @@ interface CopyDestination {
 }
 
 export function FileCopyModal({ source, onClose }: FileCopyModalProps) {
+  if (
+    source.fileIds.length > MAX_WORKSPACE_FILE_BULK_REQUEST_IDS ||
+    source.folderIds.length > MAX_WORKSPACE_FILE_BULK_REQUEST_IDS
+  ) {
+    return (
+      <ChipModal
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+        srTitle='Copy selection too large'
+      >
+        <ChipModalHeader icon={Duplicate} onClose={onClose}>
+          Selection too large
+        </ChipModalHeader>
+        <ChipModalBody>
+          <p>
+            Select up to {MAX_WORKSPACE_FILE_BULK_REQUEST_IDS.toLocaleString()} files and{' '}
+            {MAX_WORKSPACE_FILE_BULK_REQUEST_IDS.toLocaleString()} folders per copy. Reduce your
+            selection and try again.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter onCancel={onClose} defaultAction='dismiss' />
+      </ChipModal>
+    )
+  }
+  return <FileCopyDestinationPicker source={source} onClose={onClose} />
+}
+
+function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
   const workspaces = useWorkspacesQuery()
   const projects = useProjects()
   const copy = useCopyFileItems()

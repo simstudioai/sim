@@ -949,7 +949,6 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
-  embeddingKeywordSearch: ['id', 'knowledgeBaseId', 'documentId', 'enabled', 'contentTsv'],
   embeddingKeywordTin: [
     'id',
     'knowledgeBaseId',
@@ -2214,7 +2213,6 @@ export const GENERATED_SCHEMA_ENUMS = {
 
 /** Every other schema export whose initializer is a plain literal. */
 export const GENERATED_SCHEMA_CONSTANTS = {
-  EMBEDDING_KEYWORD_TIN_INDEX: 'embedding_keyword_tin_content_idx',
   SCIM_SCOPES: ['users:read', 'users:write', 'groups:read', 'groups:write'],
 } as const
 

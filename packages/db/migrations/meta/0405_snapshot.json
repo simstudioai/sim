@@ -1,6 +1,6 @@
 {
-  "id": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
-  "prevId": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "id": "007d0d81-be3a-443a-a49b-d7c1317b43ec",
+  "prevId": "2b2df413-017e-4a63-8dc6-58cb5c4188a6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7823,105 +7823,6 @@
           "value": "num_nonnulls(\"embedding\", \"embedding_384\", \"embedding_768\", \"embedding_1024\", \"embedding_3072\") = 1"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.embedding_keyword_search": {
-      "name": "embedding_keyword_search",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "knowledge_base_id": {
-          "name": "knowledge_base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_tsv": {
-          "name": "content_tsv",
-          "type": "tsvector",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "embedding_keyword_search_kb_idx": {
-          "name": "embedding_keyword_search_kb_idx",
-          "columns": [
-            {
-              "expression": "knowledge_base_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "embedding_keyword_search_document_idx": {
-          "name": "embedding_keyword_search_document_idx",
-          "columns": [
-            {
-              "expression": "document_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "embedding_keyword_search_content_idx": {
-          "name": "embedding_keyword_search_content_idx",
-          "columns": [
-            {
-              "expression": "content_tsv",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "embedding_keyword_search_id_embedding_id_fk": {
-          "name": "embedding_keyword_search_id_embedding_id_fk",
-          "tableFrom": "embedding_keyword_search",
-          "tableTo": "embedding",
-          "columnsFrom": ["id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.embedding_keyword_tin": {
@@ -30324,7 +30225,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",

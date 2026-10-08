@@ -125,7 +125,7 @@ async function enforce() {
   try {
     const migration = await readFile(
       new URL(
-        '../../../../../packages/db/migrations/0401_project_membership_enforcement.sql',
+        '../../../../../packages/db/migrations/0402_project_membership_enforcement.sql',
         import.meta.url
       ),
       'utf8'
