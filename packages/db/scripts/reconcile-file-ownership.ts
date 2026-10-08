@@ -9,6 +9,7 @@ const sql = postgres(url, { max: 1, connect_timeout: 10 })
 
 const migrations = [
   '0313_puzzling_zodiak.sql',
+  '0358_workspace_file_content_version_precision.sql',
   '0359_workspace_file_search_chunks.sql',
   '0403_file_entity_ownership.sql',
   '0404_file_folder_version_ownership.sql',
