@@ -114,7 +114,6 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   clientInformation(): OAuthClientInformationMixed | undefined {
-    if (this.row.clientInformation) return this.row.clientInformation
     if (this.preregistered) {
       return {
         client_id: this.preregistered.clientId,
@@ -128,7 +127,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
         issuer: this.preregistered.issuer ?? this.row.tokens?.issuer,
       }
     }
-    return undefined
+    return this.row.clientInformation ?? undefined
   }
 
   async saveClientInformation(info: OAuthClientInformationMixed): Promise<void> {

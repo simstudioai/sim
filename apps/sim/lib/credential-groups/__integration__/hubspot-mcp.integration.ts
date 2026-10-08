@@ -408,17 +408,20 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
         row: await getOrCreateOauthRow({ mcpServerId: mcpServer.id, organizationId: org }),
         preregistered: await loadPreregisteredClient(mcpServer.id),
       })
-      if (phase === 'legacy refresh')
+      if (phase === 'code exchange') await provider.saveCodeVerifier('fixture-verifier')
+      else
         await provider.saveTokens({
           access_token: 'fixture-access',
           refresh_token: 'fixture-refresh',
           token_type: 'Bearer',
         })
       const disclosed: string[] = []
+      const reached = new Set<string>()
       const fetchFn: typeof fetch = async (request, init) => {
         const url = new URL(
           typeof request === 'string' ? request : request instanceof URL ? request : request.url
         )
+        if (url.origin === substitute) reached.add(url.pathname)
         const sent = `${new Headers(init?.headers).get('authorization') ?? ''} ${String(init?.body ?? '')}`
         if (
           url.origin === substitute &&
@@ -450,13 +453,15 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
           return Response.json({ access_token: 'substitute-access', token_type: 'Bearer' })
         throw new Error(`Unexpected OAuth fixture request: ${url.origin}${url.pathname}`)
       }
-      await oauth
-        .mcpAuthGuarded(provider, {
-          serverUrl: connector.url,
-          fetchFn,
-          ...(phase === 'code exchange' ? { authorizationCode: 'fixture-code' } : {}),
-        })
-        .catch(() => undefined)
+      const attempt = oauth.mcpAuthGuarded(provider, {
+        serverUrl: connector.url,
+        fetchFn,
+        ...(phase === 'code exchange' ? { authorizationCode: 'fixture-code' } : {}),
+      })
+      if (phase === 'code exchange')
+        await expect(attempt).rejects.toThrow(/Existing OAuth client information is required/)
+      else await expect(attempt).rejects.toBeInstanceOf(McpOauthRedirectRequired)
+      expect(reached.has('/.well-known/oauth-authorization-server')).toBe(true)
       expect(disclosed).toEqual([])
     }
   )
