@@ -11,6 +11,7 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
+import { providerIdsForService } from '@/lib/oauth/utils'
 
 export type {
   IntegrationAvailability,
@@ -26,14 +27,19 @@ export function getIntegrationAvailability() {
 
 /** OAuth clients are independent of the authentication method a workflow block exposes. */
 export function getOAuthServiceAvailability(
-  services: readonly Pick<OAuthServiceMetadata, 'providerId' | 'authType'>[]
+  services: readonly Pick<
+    OAuthServiceMetadata,
+    'providerId' | 'authType' | 'additionalProviderIds'
+  >[]
 ): { providerId: string; available: boolean }[] {
   return services
     .filter((service) => service.authType === 'oauth')
-    .map((service) => ({
-      providerId: service.providerId,
-      available: isOAuthServiceDeploymentAvailable(service.providerId),
-    }))
+    .flatMap((service) =>
+      [service.providerId, ...(service.additionalProviderIds ?? [])].map((providerId) => ({
+        providerId,
+        available: isOAuthProviderDeploymentAvailable(providerId),
+      }))
+    )
 }
 
 function getIntegrationAvailabilityByType(): ReadonlyMap<string, IntegrationAvailability> {
@@ -82,7 +88,12 @@ export function isIntegrationDeploymentAvailableForVisibility(
 }
 
 export function isOAuthServiceDeploymentAvailable(serviceId: string): boolean {
-  const normalized = serviceId.toLowerCase()
+  return providerIdsForService(serviceId.toLowerCase()).some(isOAuthProviderDeploymentAvailable)
+}
+
+/** Whether the exact app that issues a provider's grants is configured. */
+export function isOAuthProviderDeploymentAvailable(providerId: string): boolean {
+  const normalized = providerId.toLowerCase()
   const cached = oauthServiceAvailability.get(normalized)
   if (cached !== undefined) return cached
   const capabilityId = resolveOAuthClientCapabilityId(normalized)

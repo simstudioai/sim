@@ -7,6 +7,7 @@ import {
 } from '@/lib/integrations/availability'
 import {
   getIntegrationAvailability,
+  isOAuthProviderDeploymentAvailable,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { getGitHubInstallationConfiguration } from '@/lib/oauth/github-installation'
@@ -171,7 +172,9 @@ export function createIntegrationCredentialVisibility({
     }
     if (type !== 'service_account') {
       const owners = oauthOwnersByProviderId.get(providerId)
-      if (owners) return owners.some(isOAuthServiceVisible)
+      if (owners) {
+        return isOAuthProviderDeploymentAvailable(providerId) && owners.some(isOAuthServiceVisible)
+      }
     }
 
     if (type !== 'oauth') {

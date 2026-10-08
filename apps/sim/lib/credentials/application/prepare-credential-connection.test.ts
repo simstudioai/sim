@@ -85,6 +85,25 @@ describe('prepareCredentialConnection', () => {
     })
   })
 
+  it('preserves an explicitly selected OAuth client instead of substituting the service default', async () => {
+    mocks.listCatalog.mockResolvedValue([
+      {
+        ...gmailProvider,
+        serviceId: 'onedrive',
+        name: 'OneDrive',
+        authorizationOptions: [
+          { providerId: 'onedrive', label: 'Work or school account' },
+          { providerId: 'onedrive-personal', label: 'Personal Microsoft account' },
+        ],
+      },
+    ])
+    const result = await prepareCredentialConnection.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', providerName: 'onedrive-personal' },
+    })
+    expect(result.providerId).toBe('onedrive-personal')
+  })
+
   it('prepares personal GitLab setup without inventing an OAuth provider', async () => {
     const result = await prepareCredentialConnection.execute({
       principal,

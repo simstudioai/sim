@@ -62,6 +62,7 @@ import {
   requireAvailableServiceAccountCredentialProvider,
   type ServiceAccountCredentialProviderCatalogEntry,
 } from '@/lib/credentials/application/provider-catalog'
+import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 
 const mocks = {
   ...hoisted,
@@ -128,18 +129,12 @@ describe('listCredentialProviderCatalog', () => {
       isCredentialVisible: ({ providerId }: { providerId: string }) =>
         providerId === 'claude-platform-service-account',
     })
-    mocks.getServiceConfigByServiceId.mockImplementation((serviceId: string) => {
-      if (serviceId === 'salesforce') {
-        return {
-          providerIdLabels: {
-            salesforce: 'Production',
-            'salesforce-sandbox': 'Sandbox',
-          },
-        }
-      }
-      if (serviceId === 'trello') return {}
-      return null
-    })
+    mocks.getServiceConfigByServiceId.mockImplementation(
+      (serviceId: string) =>
+        Object.values(OAUTH_PROVIDERS).find((provider) => provider.services[serviceId])?.services[
+          serviceId
+        ] ?? null
+    )
   })
 
   it('applies the narrower permission-group allowlist to OAuth availability', async () => {

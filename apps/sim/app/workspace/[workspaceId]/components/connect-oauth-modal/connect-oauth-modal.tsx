@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react'
+import { isMicrosoftPersonalProvider } from '@sim/deployment-config/env-capabilities'
 import {
   Badge,
   ChipModal,
@@ -37,6 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
+import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import {
   assertMicrosoftDataverseWebOAuthAvailable,
   useConnectMicrosoftDataverseOAuthService,
@@ -176,6 +178,8 @@ export type ConnectOAuthModalProps =
 export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const { open, onOpenChange, mode, docsUrl } = props
   const isConnect = mode === 'connect'
+  const { data: integrationAvailability, isPending: isAvailabilityPending } =
+    useIntegrationAvailability()
 
   const declaredProviderId = useMemo(
     () => props.providerId ?? (props.serviceId ? getProviderIdFromServiceId(props.serviceId) : ''),
@@ -187,23 +191,37 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
    * more than one (Salesforce production vs sandbox). Offered on connect only:
    * a reauthorize must return to the server that issued the credential.
    */
-  const { authServerOptions, authServerHint } = useMemo(() => {
+  const { authServerOptions, authServerHint, hasPersonalAccountOption } = useMemo(() => {
     const service = isConnect ? getServiceConfigByProviderId(declaredProviderId) : null
     const labels = service?.providerIdLabels
     if (!service?.additionalProviderIds?.length || !labels) {
-      return { authServerOptions: [], authServerHint: undefined }
+      return { authServerOptions: [], authServerHint: undefined, hasPersonalAccountOption: false }
     }
+    const supportsPersonalAccounts = service.additionalProviderIds.some(isMicrosoftPersonalProvider)
     return {
-      authServerOptions: [service.providerId, ...service.additionalProviderIds].map((value) => ({
-        value,
-        label: labels[value] ?? value,
-      })),
+      authServerOptions: [service.providerId, ...service.additionalProviderIds]
+        .filter(
+          (providerId) =>
+            !supportsPersonalAccounts ||
+            (integrationAvailability?.oauthServiceAvailability.find(
+              (entry) => entry.providerId === providerId
+            )?.available ??
+              !isMicrosoftPersonalProvider(providerId))
+        )
+        .map((value) => ({
+          value,
+          label: labels[value] ?? value,
+        })),
       authServerHint: service.providerIdPickerHint,
+      hasPersonalAccountOption: supportsPersonalAccounts,
     }
-  }, [isConnect, declaredProviderId])
+  }, [isConnect, declaredProviderId, integrationAvailability])
 
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
-  const providerId = selectedProviderId ?? declaredProviderId
+  const defaultOption =
+    authServerOptions.find((option) => option.value === declaredProviderId) ??
+    (!isMicrosoftPersonalProvider(declaredProviderId) ? authServerOptions[0] : undefined)
+  const providerId = selectedProviderId ?? defaultOption?.value ?? declaredProviderId
   const requiredScopes = props.requiredScopes ?? EMPTY_SCOPES
 
   const [displayName, setDisplayName] = useState('')
@@ -492,6 +510,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     connectMicrosoftDataverseOAuthService.isPending
   const isDisabled = isConnect
     ? !displayName.trim() ||
+      (hasPersonalAccountOption && isAvailabilityPending) ||
       !dataverseEnvironmentForm.isComplete ||
       Boolean(clientConfiguration?.fields.some((field) => !oauthClientFields[field.id]?.trim())) ||
       isPending ||
@@ -536,10 +555,14 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           </p>
         )}
 
-        {authServerOptions.length > 0 && (
+        {authServerOptions.length > 1 && (
           <ChipModalField
             type='dropdown'
-            title='Environment'
+            title={
+              authServerOptions.some((option) => isMicrosoftPersonalProvider(option.value))
+                ? 'Account type'
+                : 'Environment'
+            }
             value={providerId}
             onChange={setSelectedProviderId}
             options={authServerOptions}

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { MICROSOFT_PERSONAL_PROVIDERS } from '@sim/deployment-config/env-capabilities'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
@@ -31,6 +32,7 @@ const MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS = 10_000
 const MICROSOFT_GRAPH_SCOPE_PREFIX = 'https://graph.microsoft.com/'
 /** The Microsoft providers whose accounts a Credential Group can collect per person. */
 const MICROSOFT_MANAGED_OAUTH_PROVIDER_IDS = new Set([
+  ...Object.keys(MICROSOFT_PERSONAL_PROVIDERS),
   'microsoft-teams',
   'outlook',
   'onedrive',

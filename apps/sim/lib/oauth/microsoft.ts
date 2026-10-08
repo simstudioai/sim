@@ -1,3 +1,4 @@
+import { MICROSOFT_PERSONAL_PROVIDERS } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 
@@ -12,6 +13,7 @@ const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
 export const PROACTIVE_REFRESH_THRESHOLD_DAYS = 7
 
 export const MICROSOFT_PROVIDERS = new Set([
+  ...Object.keys(MICROSOFT_PERSONAL_PROVIDERS),
   'microsoft-ad',
   'microsoft-dataverse',
   'microsoft-excel',

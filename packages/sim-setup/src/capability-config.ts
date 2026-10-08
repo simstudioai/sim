@@ -1053,6 +1053,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     NOTION_CLIENT_ID: { input: 'text' },
     NOTION_CLIENT_SECRET: { input: 'secret' },
   },
+  'microsoft-personal': {
+    MICROSOFT_PERSONAL_CLIENT_ID: { input: 'text' },
+    MICROSOFT_PERSONAL_CLIENT_SECRET: { input: 'secret' },
+  },
   microsoft: {
     MICROSOFT_CLIENT_ID: { input: 'text' },
     MICROSOFT_CLIENT_SECRET: { input: 'secret' },

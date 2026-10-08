@@ -175,6 +175,49 @@ describe('managed OAuth token resolution', () => {
     }
   )
 
+  it.each([
+    { stored: 'onedrive-personal', requested: 'onedrive', allowed: true },
+    { stored: 'onedrive', requested: 'onedrive-personal', allowed: false },
+    { stored: 'outlook-personal', requested: 'onedrive', allowed: false },
+  ] as const)(
+    'resolves $stored only for compatible service $requested',
+    async ({ stored, requested, allowed }) => {
+      setEnv({
+        MICROSOFT_CLIENT_ID: 'work-client',
+        MICROSOFT_CLIENT_SECRET: 'work-secret',
+        MICROSOFT_PERSONAL_CLIENT_ID: 'personal-client',
+        MICROSOFT_PERSONAL_CLIENT_SECRET: 'personal-secret',
+      })
+      const adapter = createStandardOAuthCredentialGroupProviderAdapter(stored)
+      const policy = await adapter.getPolicy(undefined, {})
+      mocks.getAdapter.mockReturnValue(adapter)
+      dbChainMockFns.limit.mockResolvedValue([
+        {
+          ...mondayCredentialRow(),
+          providerId: stored,
+          authorizationAppId: policy.authorizationAppId,
+          managedOauthScopeVersion: policy.scopeVersion,
+          grantedScopes: policy.requiredScopes,
+          accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
+        },
+      ])
+      const resolution = resolveManagedOAuthToken({
+        ...mondayTokenResolutionParams(),
+        expectedProviderId: requested,
+        requiredScopes: ['Files.Read'],
+      })
+      if (allowed)
+        await expect(resolution).resolves.toMatchObject({
+          accessToken: 'xoxp-slack-token',
+          refreshed: false,
+        })
+      else
+        await expect(resolution).rejects.toMatchObject({
+          code: 'MANAGED_CREDENTIAL_PROVIDER_MISMATCH',
+        })
+    }
+  )
+
   it('rejects missing granted-scope metadata', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ ...mondayCredentialRow(), grantedScopes: null }])
     await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toMatchObject({

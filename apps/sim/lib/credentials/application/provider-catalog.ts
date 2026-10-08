@@ -1,6 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
+import { isMicrosoftPersonalProvider } from '@sim/deployment-config/env-capabilities'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
+import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import {
   CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS,
   type ClientCredentialAccountField,
@@ -272,46 +275,58 @@ export async function listCredentialProviderCatalog(
     oauthServices: services,
   })
 
-  const oauthEntries: OAuthCredentialProviderCatalogEntry[] = oauthServices.map((service) => {
+  const oauthEntries: OAuthCredentialProviderCatalogEntry[] = oauthServices.flatMap((service) => {
     const config = getServiceConfigByServiceId(service.serviceId)
     if (!config) {
       throw new Error(`OAuth service ${service.serviceId} is missing its canonical configuration`)
     }
-    const providerIds = [service.providerId, ...(service.additionalProviderIds ?? [])]
+    const providerIds = [service.providerId, ...(service.additionalProviderIds ?? [])].filter(
+      (providerId) =>
+        (!service.additionalProviderIds?.some(isMicrosoftPersonalProvider) ||
+          inspectConfiguredOAuthClient(providerId).state === 'ready') &&
+        (oauthType !== 'managed_oauth' || findCredentialGroupProviderFromProviderId(providerId))
+    )
+    if (providerIds.length === 0) return []
     if (providerIds.length > 1 && !config.providerIdLabels) {
       throw new Error(`OAuth service ${service.serviceId} is missing provider option labels`)
     }
     const authorizationOptions = providerIds.map((providerId) => {
-      const label = providerIds.length === 1 ? service.name : config.providerIdLabels?.[providerId]
+      const label =
+        config.providerIdLabels?.[providerId] ??
+        (providerIds.length === 1 ? service.name : undefined)
       if (!label) {
         throw new Error(`OAuth provider ${providerId} is missing its authorization option label`)
       }
       return { providerId, label }
     })
 
-    return {
-      type: 'oauth',
-      serviceId: service.serviceId,
-      name: service.name,
-      description: service.description,
-      providerFamily: service.baseProvider,
-      available:
-        oauthType === 'managed_oauth'
-          ? visibility.isCredentialVisible({ providerId: service.providerId, type: oauthType })
-          : visibility.isOAuthServiceVisible(service),
-      supportsReconnect: true,
-      authorizationOptions,
-      fields: (service.clientConfiguration?.fields ?? []).map((field) => ({
-        id: field.id,
-        label: field.label,
-        placeholder: field.placeholder,
-        required: true,
-        secret: field.secret,
-        multiline: false,
-        ...(field.options ? { options: [...field.options] } : {}),
-        ...(field.hint ? { hint: field.hint } : {}),
-      })),
-    }
+    return [
+      {
+        type: 'oauth',
+        serviceId: service.serviceId,
+        name: service.name,
+        description: service.description,
+        providerFamily: service.baseProvider,
+        available:
+          oauthType === 'managed_oauth'
+            ? providerIds.some((providerId) =>
+                visibility.isCredentialVisible({ providerId, type: oauthType })
+              )
+            : visibility.isOAuthServiceVisible(service),
+        supportsReconnect: true,
+        authorizationOptions,
+        fields: (service.clientConfiguration?.fields ?? []).map((field) => ({
+          id: field.id,
+          label: field.label,
+          placeholder: field.placeholder,
+          required: true,
+          secret: field.secret,
+          multiline: false,
+          ...(field.options ? { options: [...field.options] } : {}),
+          ...(field.hint ? { hint: field.hint } : {}),
+        })),
+      },
+    ]
   })
 
   const serviceAccountOwners = new Map<string, OAuthServiceMetadata>()

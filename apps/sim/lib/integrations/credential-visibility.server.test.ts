@@ -54,6 +54,7 @@ function availability(
 
 describe('integration credential visibility', () => {
   beforeEach(() => {
+    integrationsAvailabilityMockFns.mockIsOAuthProviderDeploymentAvailable.mockReset()
     getBlockMock.mockImplementation((type: string) => ({ type }) as never)
     getIntegrationAvailabilityMock.mockReturnValue([
       availability('notion_v2', 'limited', {
@@ -65,6 +66,34 @@ describe('integration credential visibility', () => {
         serviceAccountAvailable: true,
       }),
     ])
+  })
+
+  it('uses the issuing client when a service has independently configured OAuth apps', () => {
+    getIntegrationAvailabilityMock.mockReturnValue([
+      availability('onedrive', 'ready', { oauthAvailable: true, serviceAccountAvailable: false }),
+    ])
+    integrationsAvailabilityMockFns.mockIsOAuthProviderDeploymentAvailable.mockImplementation(
+      (providerId) => providerId === 'onedrive-personal'
+    )
+    const visibility = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes: null,
+      blockVisibility: null,
+      oauthServices: [
+        {
+          serviceId: 'onedrive',
+          providerId: 'onedrive',
+          additionalProviderIds: ['onedrive-personal'],
+          authType: 'oauth',
+          name: 'OneDrive',
+          description: 'OneDrive files',
+          baseProvider: 'microsoft',
+        },
+      ],
+    })
+    expect(visibility.isCredentialVisible({ providerId: 'onedrive-personal', type: 'oauth' })).toBe(
+      true
+    )
+    expect(visibility.isCredentialVisible({ providerId: 'onedrive', type: 'oauth' })).toBe(false)
   })
 
   it.each([

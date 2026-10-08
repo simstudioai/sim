@@ -4599,6 +4599,7 @@ interface OAuthDocsSources {
   getSlackApprovalGatedScopes: (enabled: boolean) => readonly string[]
   getOAuthClientCapabilityFields: (serviceId: string) => readonly string[] | null
   salesforceLoginHosts: Readonly<Record<string, string>>
+  microsoftPersonalProviders: Readonly<Record<string, string>>
 }
 
 let oauthDocsSources: OAuthDocsSources | null = null
@@ -4624,6 +4625,7 @@ async function loadOAuthDocsSources(): Promise<OAuthDocsSources> {
     getSlackApprovalGatedScopes: oauth.getSlackApprovalGatedScopes,
     getOAuthClientCapabilityFields: capabilities.getOAuthClientCapabilityFields,
     salesforceLoginHosts: salesforce.SALESFORCE_LOGIN_HOSTS,
+    microsoftPersonalProviders: capabilities.MICROSOFT_PERSONAL_PROVIDERS,
   }
   return oauthDocsSources
 }
@@ -4631,14 +4633,15 @@ async function loadOAuthDocsSources(): Promise<OAuthDocsSources> {
 /**
  * The path a provider returns to after consent, or null when the service does
  * not use an OAuth 2.0 redirect (Trello authorizes with an API key). Better
- * Auth connectors declare their redirect literally (Salesforce builds one per
- * login host); Instagram, Shopify, and QuickBooks own a route at that path.
+ * Auth connectors declare their redirect literally or through provider registries;
+ * Instagram, Shopify, and QuickBooks own a route at that path.
  */
 function oauthCallbackPath(providerId: string, sources: OAuthDocsSources): string | null {
   const callbackPath = `/api/auth/oauth2/callback/${providerId}`
   const registered =
     readSourceFile(CONNECTOR_PROVIDERS_PATH).includes(`${callbackPath}\``) ||
     providerId in sources.salesforceLoginHosts ||
+    providerId in sources.microsoftPersonalProviders ||
     fs.existsSync(path.join(OAUTH_CALLBACK_ROUTES_PATH, providerId, 'route.ts'))
   return registered ? callbackPath : null
 }
@@ -4714,7 +4717,11 @@ async function buildOAuthScopesSection(
     const uri = `\`<NEXT_PUBLIC_APP_URL>${callbackPath}\``
     return [label ? `${escapeMdxCell(label)}: ${uri}` : uri]
   })
-  const envFields = sources.getOAuthClientCapabilityFields(oauthServiceId)
+  const envFields = [
+    ...new Set(
+      providerIds.flatMap((providerId) => sources.getOAuthClientCapabilityFields(providerId) ?? [])
+    ),
+  ]
   const settings: string[] = []
   if (redirects.length) settings.push(`| Redirect URI | ${redirects.join('<br />')} |`)
   if (envFields?.length) {

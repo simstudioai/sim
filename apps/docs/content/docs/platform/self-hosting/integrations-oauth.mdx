@@ -117,6 +117,20 @@ One app registration in [Entra ID](https://entra.microsoft.com) covers all of th
 
 The same variables also power "Sign in with Microsoft".
 
+#### Personal Microsoft accounts
+
+OneDrive, Outlook (mail and calendar), and Word files stored in OneDrive also support personal Microsoft accounts. Configure **one separate app registration** for all three, with personal Microsoft accounts enabled and access token version `2`. Keep the existing Microsoft app and its credentials unchanged: saved connections and Microsoft sign-in continue using them.
+
+| Environment variables | Provider IDs |
+|---|---|
+| `MICROSOFT_PERSONAL_CLIENT_ID`<br />`MICROSOFT_PERSONAL_CLIENT_SECRET` | `onedrive-personal`, `outlook-personal`, `microsoft-word-personal` |
+
+Register each provider's callback as a **Web** redirect URI, for example `https://<your-domain>/api/auth/oauth2/callback/onedrive-personal`. Use delegated Microsoft Graph permissions from the integration's OAuth Scopes section. Personal connections use Microsoft's `/consumers` authority. Set the new credentials on both the web app and workers that refresh tokens, then restart them. The personal account option appears when both values are configured; reconnecting a saved connection preserves its original app.
+
+For Connected Accounts, request the optional ID token claims `email`, `xms_edov`, `verified_primary_email`, and `verified_secondary_email` on the new registration. Sim requires a verified email signal when enrolling a managed account. See Microsoft's [optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference).
+
+Excel's workbook API, SharePoint, Teams, Planner, Power BI, Dataverse, Intune, and Active Directory integrations require organizational accounts. Enabling personal accounts on an app registration does not change those API restrictions. See Microsoft's [Excel permissions](https://learn.microsoft.com/en-us/graph/api/workbook-createsession?view=graph-rest-1.0#permissions) and [supported account types](https://learn.microsoft.com/en-us/entra/identity-platform/v2-supported-account-types).
+
 For Power BI, register `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-powerbi` as a **Web** redirect URI. Sim requests the delegated Power BI API scopes `Workspace.Read.All`, `Report.Read.All`, and `Dataset.ReadWrite.All` with the explicit `https://analysis.windows.net/powerbi/api/` resource prefix, plus identity and offline-access scopes. Connect an organizational account from its home tenant. Power BI uses a separate connection from Microsoft Graph integrations; Credential Groups and service-principal authentication are not supported in this version. See the [Power BI integration](/integrations/powerbi) for permissions and tenant settings.
 
 ### GitHub Search

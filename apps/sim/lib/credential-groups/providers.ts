@@ -1,3 +1,4 @@
+import { isMicrosoftPersonalProvider } from '@sim/deployment-config/env-capabilities'
 import type { OAuthServiceConfig } from '@/lib/oauth'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 
@@ -12,7 +13,10 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'google-sheets',
   'microsoft-teams',
   'outlook',
+  'outlook-personal',
   'onedrive',
+  'onedrive-personal',
+  'microsoft-word-personal',
   'sharepoint',
   'microsoft-excel',
   'confluence',
@@ -111,6 +115,21 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   onedrive: {
     serviceId: 'onedrive',
     description: 'Let each person connect one OneDrive account',
+    configuration: 'oauth',
+  },
+  'onedrive-personal': {
+    serviceId: 'onedrive',
+    description: 'Let each person connect one personal OneDrive account',
+    configuration: 'oauth',
+  },
+  'outlook-personal': {
+    serviceId: 'outlook',
+    description: 'Let each person connect one personal Outlook account',
+    configuration: 'oauth',
+  },
+  'microsoft-word-personal': {
+    serviceId: 'microsoft-word',
+    description: 'Let each person connect one personal Microsoft Word account',
     configuration: 'oauth',
   },
   sharepoint: {
@@ -255,7 +274,14 @@ export function getCredentialGroupProviderService(
       `Credential Group provider ${provider} references missing OAuth service ${support.serviceId}`
     )
   }
-  return service
+  return isMicrosoftPersonalProvider(provider)
+    ? {
+        ...service,
+        providerId: provider,
+        name: `${service.name} (personal)`,
+        additionalProviderIds: undefined,
+      }
+    : service
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {

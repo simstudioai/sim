@@ -20,6 +20,7 @@ import {
   getOAuthServiceAvailability,
   isIntegrationDeploymentAvailable,
   isIntegrationDeploymentAvailableForVisibility,
+  isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -44,6 +45,49 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
+  it('exposes personal-capable integrations without an organizational client', () => {
+    const values = {
+      MICROSOFT_PERSONAL_CLIENT_ID: 'personal-client',
+      MICROSOFT_PERSONAL_CLIENT_SECRET: 'personal-secret',
+    }
+    for (const type of ['onedrive', 'outlook', 'microsoft_word']) {
+      expect(availabilityFor(type, values)).toMatchObject({
+        state: 'ready',
+        oauthAvailable: true,
+        missingFields: [],
+      })
+    }
+    expect(availabilityFor('microsoft_excel_v2', values)).toMatchObject({
+      state: 'unavailable',
+      oauthAvailable: false,
+    })
+    expect(
+      availabilityFor('onedrive', { MICROSOFT_PERSONAL_CLIENT_ID: 'personal-client' })
+    ).toMatchObject({ state: 'misconfigured', oauthAvailable: false })
+  })
+
+  it('separates service readiness from individual Microsoft client readiness', () => {
+    setEnv({
+      MICROSOFT_CLIENT_ID: undefined,
+      MICROSOFT_CLIENT_SECRET: undefined,
+      MICROSOFT_PERSONAL_CLIENT_ID: 'personal-client',
+      MICROSOFT_PERSONAL_CLIENT_SECRET: 'personal-secret',
+    })
+    expect(isOAuthServiceDeploymentAvailable('onedrive')).toBe(true)
+    expect(
+      getOAuthServiceAvailability([
+        {
+          providerId: 'onedrive',
+          additionalProviderIds: ['onedrive-personal'],
+          authType: 'oauth',
+        },
+      ])
+    ).toEqual([
+      { providerId: 'onedrive', available: false },
+      { providerId: 'onedrive-personal', available: true },
+    ])
+  })
+
   it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
     expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
     expect(

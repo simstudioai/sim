@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { MICROSOFT_PERSONAL_PROVIDERS } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -194,6 +195,21 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
   const providers: GenericOAuthConfig[] = [
+    ...Object.keys(MICROSOFT_PERSONAL_PROVIDERS).map(
+      (providerId): GenericOAuthConfig => ({
+        providerId,
+        clientId: env.MICROSOFT_PERSONAL_CLIENT_ID as string,
+        clientSecret: env.MICROSOFT_PERSONAL_CLIENT_SECRET as string,
+        authorizationUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
+        tokenUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
+        scopes: getCanonicalScopesForProvider(providerId),
+        responseType: 'code',
+        accessType: 'offline',
+        pkce: true,
+        redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/${providerId}`,
+        getUserInfo: async (tokens) => getMicrosoftUserInfoFromIdToken(tokens, providerId),
+      })
+    ),
     createGitHubRepositoriesProvider({
       clientId: env.GITHUB_APP_CLIENT_ID as string,
       clientSecret: env.GITHUB_APP_CLIENT_SECRET as string,
