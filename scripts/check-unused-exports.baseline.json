@@ -409,7 +409,6 @@
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence.ts#activateCaretLabel",
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts#EditorCollaboration",
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts#MarkdownFindController",
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors.ts#slugifyHeading",
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts#MarkdownMention",
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts#Mention",
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts#MentionChip",

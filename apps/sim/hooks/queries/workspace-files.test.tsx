@@ -290,7 +290,9 @@ describe('useWorkspaceFileContent while a superseded key is being re-resolved', 
       return { success: true, files: [] }
     })
 
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, retryDelay: 0 } },
+    })
     const root: Root = createRoot(document.createElement('div'))
     let result: WorkspaceFileContentResult | undefined
 
