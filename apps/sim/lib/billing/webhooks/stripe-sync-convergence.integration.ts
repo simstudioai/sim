@@ -255,9 +255,16 @@ async function leaveOrganization(userId: string, organizationId: string) {
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
 }
 
+/**
+ * The sync event enqueued last for a subscription. `created_at` is the enqueuing transaction's
+ * start time, compared at microsecond precision, so it orders events from different
+ * transactions. No test enqueues two of one type for one subscription in a single transaction,
+ * and a tie fails loudly rather than being broken arbitrarily: `outbox_event` has no per-insert
+ * sequence to break it with.
+ */
 async function latestOutboxEventId(eventType: string, subscriptionId: string) {
-  const [latest] = await testDatabase
-    .select({ id: outboxEvent.id })
+  const [latest, previous] = await testDatabase
+    .select({ id: outboxEvent.id, createdAt: sql<string>`${outboxEvent.createdAt}::text` })
     .from(outboxEvent)
     .where(
       and(
@@ -265,13 +272,12 @@ async function latestOutboxEventId(eventType: string, subscriptionId: string) {
         sql`${outboxEvent.payload} ->> 'subscriptionId' = ${subscriptionId}`
       )
     )
-    .orderBy(
-      desc(outboxEvent.createdAt),
-      sql`(${outboxEvent.payload} ->> 'committedAt')::numeric desc nulls last`,
-      desc(outboxEvent.id)
-    )
-    .limit(1)
+    .orderBy(desc(outboxEvent.createdAt))
+    .limit(2)
   if (!latest) throw new Error(`No ${eventType} event for ${subscriptionId}`)
+  if (previous?.createdAt === latest.createdAt) {
+    throw new Error(`Two ${eventType} events for ${subscriptionId} share one enqueue time`)
+  }
   return latest.id
 }
 
