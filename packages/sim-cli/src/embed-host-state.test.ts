@@ -1,12 +1,10 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from '#sim-cli/embed'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
-
-afterEach(() => vi.unstubAllEnvs())
 
 describe('embedded CLI host isolation', () => {
   it.each([

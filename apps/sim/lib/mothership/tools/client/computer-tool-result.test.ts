@@ -134,6 +134,40 @@ describe('native computer model projection', () => {
     }
   )
 
+  it.each([false, true])(
+    'omits an oversized screenshot while retaining usable state and dispatch certainty (nested=%s)',
+    (nested) => {
+      const state = snapshot()
+      state.screenshot = {
+        base64: Buffer.alloc(8 * 1024 * 1024).toString('base64'),
+        mimeType: 'image/png',
+        width: 3840,
+        height: 2160,
+      }
+      const result = computerToolResultForModel(nested ? sequence(state) : state)
+      const body = JSON.stringify({
+        toolCallId: 'large-screenshot',
+        status: 'success',
+        message: 'Observed',
+        data: result,
+      })
+      expect(Buffer.byteLength(body)).toBeLessThan(10 * 1024 * 1024)
+      expect(result).not.toHaveProperty('observations')
+      const projected = 'observation' in result ? result.observation : result
+      expect(projected).toMatchObject({
+        screenshotError: expect.stringContaining('omitted'),
+        accessibilityTree: expect.stringContaining('editor AXTextArea'),
+      })
+      expect(projected).not.toHaveProperty('screenshotSize')
+      if (nested)
+        expect(result).toMatchObject({
+          dispatched: true,
+          verified: false,
+          sequence: { completedSteps: 1 },
+        })
+    }
+  )
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {

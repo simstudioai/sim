@@ -129,7 +129,6 @@ describe('documentation tool metadata', () => {
       }
     `)
     expect(block.tools?.access).toEqual(['example_read_v2', 'example_list_v2', 'example_comments'])
-
   })
 
   it('preserves a satisfies block and replaces only the versioned download operation', () => {

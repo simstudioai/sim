@@ -1,6 +1,8 @@
 import type { ComputerUseResult, ComputerUseSnapshot } from '@sim/desktop-bridge/computer-use'
 import { truncateAtCodePoint } from '@sim/utils/string'
 
+// Keep encoded pixels below the 10 MiB completion body cap, with room for state and its envelope.
+const MAX_SCREENSHOT_BASE64_BYTES = 9 * 1024 * 1024
 const MAX_STATE_BYTES = 44 * 1024
 const encoder = new TextEncoder()
 
@@ -44,6 +46,9 @@ function nodeRow(node: ComputerUseSnapshot['nodes'][number]): string {
 
 function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   const { screenshot, nodes, windows: allWindows, ...state } = result
+  const image =
+    screenshot && screenshot.base64.length <= MAX_SCREENSHOT_BASE64_BYTES ? screenshot : undefined
+  const screenshotOmitted = Boolean(screenshot && !image)
   const selectedWindow = allWindows.find((candidate) => candidate.windowId === state.windowId)
   const windows = [
     ...(selectedWindow ? [selectedWindow] : []),
@@ -51,16 +56,22 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   ].map((window) => ({ ...window, title: truncateAtCodePoint(window.title, 256, '') }))
   const model = {
     ...state,
+    ...(screenshotOmitted
+      ? {
+          screenshotError:
+            'Screenshot omitted because its encoded size exceeds completion limits. Accessibility state is still available.',
+        }
+      : {}),
     windows,
     omittedWindowCount: allWindows.length - windows.length,
     accessibilityTree: '',
     omittedNodeCount: nodes.length,
     nodeTextLimit: 512,
-    ...(screenshot
+    ...(image
       ? {
-          screenshotSize: { width: screenshot.width, height: screenshot.height },
+          screenshotSize: { width: image.width, height: image.height },
           content: selectedWindow
-            ? `Screenshot of window ${state.windowId}. Coordinate actions use window-local macOS points. Convert encoded image coordinates: x = imageX * ${selectedWindow.width} / ${screenshot.width}; y = imageY * ${selectedWindow.height} / ${screenshot.height}. Accessibility screenRect coordinates are global points; subtract window origin (${selectedWindow.x}, ${selectedWindow.y}). Prefer element IDs.`
+            ? `Screenshot of window ${state.windowId}. Coordinate actions use window-local macOS points. Convert encoded image coordinates: x = imageX * ${selectedWindow.width} / ${image.width}; y = imageY * ${selectedWindow.height} / ${image.height}. Accessibility screenRect coordinates are global points; subtract window origin (${selectedWindow.x}, ${selectedWindow.y}). Prefer element IDs.`
             : 'Screenshot coordinate mapping is unavailable. Use accessibility element IDs or take a fresh state before acting.',
         }
       : {}),
@@ -145,9 +156,14 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
       state.truncated ||
       selected.size < nodes.length ||
       windows.length < allWindows.length ||
-      clipped,
-    observations: screenshot
-      ? [{ name: 'Computer screenshot', mediaType: screenshot.mimeType, data: screenshot.base64 }]
-      : undefined,
+      clipped ||
+      screenshotOmitted,
+    ...(image
+      ? {
+          observations: [
+            { name: 'Computer screenshot', mediaType: image.mimeType, data: image.base64 },
+          ],
+        }
+      : {}),
   }
 }

@@ -6,6 +6,8 @@ import {
 } from '@sim/desktop-bridge/computer-use'
 import { generateId } from '@sim/utils/id'
 
+// ComputerUse.swift bounds each request line independently of the decoded argument schema.
+const MAX_REQUEST_BYTES = 128 * 1024
 const MAX_FRAME_BYTES = 16 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 30_000
 
@@ -38,14 +40,21 @@ export class NativeComputerUseClient implements ComputerUseNativeClient {
     await this.stopping
     if (generation !== this.generation) throw new Error('Computer Use stopped.')
     if (this.pending.size >= 16) return Promise.reject(new Error('Computer Use is busy.'))
-    const child = this.start()
     const id = generateId()
+    const request = JSON.stringify({ id, method, params })
+    if (Buffer.byteLength(request, 'utf8') > MAX_REQUEST_BYTES)
+      throw new ComputerUseError({
+        code: 'invalid_request',
+        message: 'Computer Use request exceeds 128 KiB.',
+        dispatchState: 'not_started',
+      })
+    const child = this.start()
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.stopWithError(new Error('Computer Use timed out; inspect the app before retrying.'))
       }, REQUEST_TIMEOUT_MS)
       this.pending.set(id, { resolve, reject, timer })
-      child.stdin.write(`${JSON.stringify({ id, method, params })}\n`, (error) => {
+      child.stdin.write(`${request}\n`, (error) => {
         if (error && this.child === child)
           this.stopWithError(new Error('Computer Use helper disconnected.'))
       })
