@@ -59,8 +59,8 @@ export function testSourceHash(source: string): string {
 /** The source `tests create` starts a test file with: one empty describe, ready for cases. */
 export function starterTestSource(title: string): string {
   return [
-    "import { describe, expect, it } from 'vitest'",
-    "import { mockBlock, runWorkflow, spyOnBlock } from 'sim:test'",
+    "import { describe, expect, it, vi } from 'vitest'",
+    "import { mockBlock, mockTool, runWorkflow, spyOnBlock } from 'sim:test'",
     '',
     `describe(${JSON.stringify(title)}, () => {})`,
     '',
