@@ -6,7 +6,6 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
-import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import {
   tableWorkflowColumnsMock,
@@ -16,7 +15,11 @@ import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/async-jobs/config', () => asyncJobsMock)
+const { mockBatchEnqueueAndWait } = vi.hoisted(() => ({ mockBatchEnqueueAndWait: vi.fn() }))
+
+vi.mock('@/lib/core/async-jobs/config', () => ({
+  getJobQueue: async () => ({ batchEnqueueAndWait: mockBatchEnqueueAndWait }),
+}))
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 
@@ -72,7 +75,7 @@ describe('table run dispatcher against real PostgreSQL', () => {
       runs.map((payload) => ({ payload }))
     )
     const dispatched: string[] = []
-    asyncJobsMockFns.mockJobQueue.batchEnqueueAndWait.mockImplementation(
+    mockBatchEnqueueAndWait.mockImplementation(
       async (_kind: string, items: Array<{ payload: { rowId: string } }>) => {
         for (const item of items) dispatched.push(item.payload.rowId)
       }

@@ -1592,11 +1592,12 @@ describe('table row writes against real PostgreSQL', () => {
         table,
         'lockless-batch'
       )
+    // Byte order, as migration 0228 sets on the column: `db:push` leaves the default collation.
     const orderedNames = async (tableId: string) =>
       (
-        await control<{ name: string; order_key: string }[]>`
-          SELECT data->>'name' AS name, order_key FROM user_table_rows
-          WHERE table_id = ${tableId} ORDER BY order_key, id`
+        await control<{ name: string }[]>`
+          SELECT data->>'name' AS name FROM user_table_rows
+          WHERE table_id = ${tableId} ORDER BY order_key COLLATE "C", id`
       ).map((row) => row.name)
 
     it('lets every insert path commit while another transaction holds the retired row-order lock', async () => {
