@@ -111,4 +111,28 @@ describe('kieProvider', () => {
     expect(body.reasoning).toMatchObject({ effort: 'high' })
     expect(result).toMatchObject({ content: 'pong' })
   })
+
+  it('downgrades a saved forced tool to auto for GPT 6.1 Sol', async () => {
+    fetchMock.mockResolvedValue(Response.json(RESPONSES_RESULT))
+
+    await kieProvider.executeRequest({
+      model: 'kie/gpt-6-1-sol',
+      apiKey: 'kie-key',
+      messages: [{ role: 'user', content: 'Look this up' }],
+      tools: [
+        {
+          id: 'lookup',
+          name: 'lookup',
+          description: 'Lookup',
+          params: {},
+          parameters: { type: 'object', properties: {}, required: [] },
+          usageControl: 'force',
+        },
+      ],
+    })
+
+    const { body } = sentRequest()
+    expect(body.tool_choice).toBe('auto')
+    expect(body.tools).toMatchObject([{ type: 'function', name: 'lookup' }])
+  })
 })

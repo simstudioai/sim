@@ -3,8 +3,8 @@
  * block docs page from the provider registry, so the docs can never drift from
  * the code:
  *
- * - Thinking visibility per model comes from `capabilities.thinking.streamed`
- *   (explicit) or the per-provider defaults in `getThinkingStreamVisibility`.
+ * - Thinking visibility comes from explicit model capabilities or the provider
+ *   defaults in `getThinkingStreamVisibility`.
  * - Live tool-call streaming comes from `STREAMING_TOOL_CALL_PROVIDERS`.
  *
  * Content is rewritten between the `agent-stream-capabilities` markers in
