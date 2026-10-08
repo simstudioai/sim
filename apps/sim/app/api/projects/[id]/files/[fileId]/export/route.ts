@@ -1,4 +1,7 @@
-import { exportProjectFileSnapshotContract } from '@/lib/api/contracts/project-file-downloads'
+import {
+  exportProjectFileSnapshotContract,
+  MAX_PROJECT_FILE_SNAPSHOT_BODY_BYTES,
+} from '@/lib/api/contracts/project-file-downloads'
 import {
   defineInternalBinaryRoute,
   internalOrchestrationErrorPolicy,
@@ -10,6 +13,7 @@ import { exportProjectFileSnapshot } from '@/lib/projects/files/application'
 
 export const POST = defineInternalBinaryRoute({
   contract: exportProjectFileSnapshotContract,
+  parseOptions: { maxBodyBytes: MAX_PROJECT_FILE_SNAPSHOT_BODY_BYTES },
   auth: internalSessionAuth,
   operation: exportProjectFileSnapshot.operation,
   rateLimit: internalRateLimits.none({ reason: 'Authenticated bounded Markdown snapshot export' }),

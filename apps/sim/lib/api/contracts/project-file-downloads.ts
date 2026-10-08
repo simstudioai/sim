@@ -1,3 +1,4 @@
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import type { z } from 'zod'
 import {
   projectFileParamsSchema,
@@ -16,6 +17,9 @@ export const downloadProjectFileItemsContract = defineRouteContract({
   query: downloadProjectFileItemsQuerySchema,
   response: { mode: 'binary' },
 })
+
+/** JSON can encode each source byte as a six-byte Unicode escape, plus the envelope. */
+export const MAX_PROJECT_FILE_SNAPSHOT_BODY_BYTES = 6 * PASTE_LIMITS.RICH_MARKDOWN_BYTES + 1024
 
 export const exportProjectFileSnapshotBodySchema = exportWorkspaceFileSnapshotBodySchema.strict()
 export type ExportProjectFileSnapshotBody = z.input<typeof exportProjectFileSnapshotBodySchema>

@@ -78,7 +78,7 @@ export const completeProjectFileUploadContract = defineRouteContract({
   path: '/api/projects/[id]/files/uploads/[uploadId]/complete',
   params: projectFileUploadParamsSchema,
   headers: v2UploadTokenHeadersSchema,
-  body: noInputSchema,
+  body: noInputSchema.default({}),
   response: { mode: 'json', schema: projectFileUploadSessionSchema },
 })
 

@@ -264,7 +264,10 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
         }
       )
       const derivative = input.preview
-        ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key)
+        ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key, {
+            owner: context.owner,
+            onArtifactWrite: (key) => writtenArtifactKeys.add(key),
+          })
         : null
       if (derivative)
         assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')

@@ -193,7 +193,10 @@ describe('Public share canonical ownership in PostgreSQL', () => {
     async () => {
       await file()
       await share(sql)
-      await sql`DELETE FROM "user" WHERE id = 'user-a'`
+      await sql.begin(async (tx) => {
+        await tx`UPDATE workspace_files SET user_id = 'user-b' WHERE user_id = 'user-a'`
+        await tx`DELETE FROM "user" WHERE id = 'user-a'`
+      })
       expect(await sql`SELECT token, created_by FROM public_share`).toEqual([
         { token: 'share', created_by: null },
       ])

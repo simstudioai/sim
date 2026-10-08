@@ -8,6 +8,7 @@ vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
 
 import { defineRouteContract } from '@/lib/api/contracts'
+import { completeProjectFileUploadContract } from '@/lib/api/contracts/project-file-uploads'
 import {
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
@@ -328,5 +329,29 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Internal server error' })
+  })
+})
+
+describe('optional upload completion JSON', () => {
+  it.each([undefined, '{}'])('accepts an empty completion body: %s', async (body) => {
+    const handler = defineInternalJsonRoute({
+      contract: defineRouteContract({
+        method: 'POST',
+        path: '/api/test/complete',
+        body: completeProjectFileUploadContract.body,
+        response: { mode: 'json', schema: z.object({ completed: z.boolean() }) },
+      }),
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Parser regression' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      parseOptions: { optionalJsonBody: true },
+      mapInput: () => undefined,
+      useCase: { operation, execute: async () => ({ completed: true }) },
+    })
+    const response = await handler(
+      new NextRequest('http://localhost/api/test/complete', { method: 'POST', body })
+    )
+    expect(response.status).toBe(200)
   })
 })

@@ -11,6 +11,7 @@ import {
 } from '@/lib/public-shares/api'
 import {
   authorizePublicFileShare,
+  checkPublicFileShareContent,
   readPublicFileShareContent,
 } from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
@@ -34,6 +35,7 @@ export const GET = withRouteHandler(
       })
       if (!auth.authorized) return publicFileAuthDenied(auth)
       if (request.method === 'HEAD') {
+        await checkPublicFileShareContent(auth.grant)
         return new NextResponse(null, {
           headers: {
             'Cache-Control': FILE_CACHE_CONTROL.revalidate,

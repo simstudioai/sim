@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError } from '@sim/utils/errors'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-doc-outbox'
 
@@ -26,7 +26,7 @@ export async function finishFileContentEffects(
   } catch (error) {
     logger.warn('Live document reconciliation deferred after inline processing error', {
       ...context,
-      error: getErrorMessage(error),
+      error: describeError(error),
     })
   }
 }

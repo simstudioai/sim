@@ -107,10 +107,22 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         entity_id text NOT NULL, permission_type text NOT NULL);
       CREATE TABLE permission_group (id text PRIMARY KEY, organization_id text,
         config jsonb, updated_at timestamp);
-      CREATE TABLE workspace_files (id text PRIMARY KEY, project_id text,
-        workspace_id text, context text NOT NULL, size_bytes bigint, deleted_at timestamp);
-      CREATE TABLE workspace_file_version (id text PRIMARY KEY,
-        file_id text REFERENCES workspace_files(id) ON DELETE CASCADE, size_bytes bigint NOT NULL);
+      CREATE TABLE "user" (id text PRIMARY KEY);
+      CREATE TABLE folder (LIKE public.folder INCLUDING DEFAULTS, PRIMARY KEY (id));
+      CREATE TABLE workspace_files (LIKE public.workspace_files INCLUDING DEFAULTS, PRIMARY KEY (id));
+      ALTER TABLE workspace_files
+        ALTER COLUMN user_id SET DEFAULT 'user-a',
+        ALTER COLUMN key SET DEFAULT 'fixture-key',
+        ALTER COLUMN original_name SET DEFAULT 'fixture.txt',
+        ALTER COLUMN content_type SET DEFAULT 'text/plain';
+      CREATE TABLE workspace_file_version (LIKE public.workspace_file_version INCLUDING DEFAULTS,
+        PRIMARY KEY (id), FOREIGN KEY (file_id) REFERENCES workspace_files(id) ON DELETE CASCADE,
+        UNIQUE (file_id, version));
+      ALTER TABLE workspace_file_version
+        ALTER COLUMN version SET DEFAULT 1,
+        ALTER COLUMN key SET DEFAULT 'history-key',
+        ALTER COLUMN content_type SET DEFAULT 'text/plain',
+        ALTER COLUMN source SET DEFAULT 'unknown';
       CREATE TABLE knowledge_base (id text PRIMARY KEY, workspace_id text);
       CREATE TABLE document (id text PRIMARY KEY, knowledge_base_id text, connector_id text,
         file_size bigint, deleted_at timestamp);
@@ -121,7 +133,8 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
 
   beforeEach(async () => {
     vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
-    await sql`TRUNCATE workspace_file_version, workspace_files, project, workspace, organization, user_stats, member, subscription, project_workspace, permissions, permission_group`
+    await sql`TRUNCATE "user", folder, workspace_file_version, workspace_files, project, workspace, organization, user_stats, member, subscription, project_workspace, permissions, permission_group`
+    await sql`INSERT INTO "user" (id) VALUES ('user-a'), ('user-b')`
     await sql`INSERT INTO organization (id) VALUES ('organization-a'), ('organization-b')`
     await sql`INSERT INTO user_stats (id, user_id) VALUES ('stats-a', 'user-a'), ('stats-b', 'user-b')`
     await sql`INSERT INTO project (id, owner_id, organization_id)
@@ -299,19 +312,32 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         await releaseWrite.promise
       })
       await Promise.race([written.promise, write])
-      const teardown = database.transaction(async (tx) => {
-        const [connection] = await tx.execute<{ pid: number }>(
-          query`SELECT pg_backend_pid() AS pid`
+      const teardown = database
+        .transaction(async (tx) => {
+          const [connection] = await tx.execute<{ pid: number }>(
+            query`SELECT pg_backend_pid() AS pid`
+          )
+          teardownPid.resolve(connection.pid)
+          await prepareProjectsForAccountDeletion(tx, 'user-a', [])
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
         )
-        teardownPid.resolve(connection.pid)
-        await prepareProjectsForAccountDeletion(tx, 'user-a', [])
-      })
       try {
-        await waitForDatabaseLock(await teardownPid.promise)
+        await Promise.race([
+          waitForDatabaseLock(await teardownPid.promise),
+          teardown.then((error) => {
+            if (error) throw error
+            throw new Error('Account teardown completed before waiting for the Project write')
+          }),
+        ])
       } finally {
         releaseWrite.resolve()
+        await Promise.all([write, teardown])
       }
-      await Promise.all([write, teardown])
+      const teardownError = await teardown
+      if (teardownError) throw teardownError
       expect(
         await sql`SELECT user_id, storage_used_bytes::integer AS bytes FROM user_stats ORDER BY user_id`
       ).toEqual([
@@ -321,6 +347,9 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       expect((await sql`SELECT owner_id FROM project WHERE id = 'project-a'`)[0].owner_id).toBe(
         'user-b'
       )
+      expect(
+        (await sql`SELECT user_id FROM workspace_files WHERE id = 'project-file'`)[0].user_id
+      ).toBe('user-b')
       expect(
         (await sql`SELECT billed_account_user_id FROM workspace WHERE id = 'workspace-a'`)[0]
           .billed_account_user_id
@@ -484,9 +513,11 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       await database.transaction(async (tx) => {
         const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(
-          query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 100, NULL)`
+          query`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes, deleted_at) VALUES ('file', 'project-a', NULL, 'project', 100, NULL)`
         )
-        await tx.execute(query`INSERT INTO workspace_file_version VALUES ('version', 'file', 500)`)
+        await tx.execute(
+          query`INSERT INTO workspace_file_version (id, file_id, size_bytes) VALUES ('version', 'file', 500)`
+        )
         await prepared.applyDelta(100)
       })
       await database.transaction(async (tx) => {
@@ -521,11 +552,11 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
   check(
     'moves exact Project heads once across payers, including archived heads but excluding versions',
     async () => {
-      await sql`INSERT INTO workspace_files VALUES
+      await sql`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes, deleted_at) VALUES
       ('active', 'project-a', NULL, 'project', 40, NULL),
       ('archived', 'project-a', NULL, 'project', 60, now()),
       ('other', 'project-b', NULL, 'project', 25, NULL)`
-      await sql`INSERT INTO workspace_file_version VALUES ('version', 'active', 900)`
+      await sql`INSERT INTO workspace_file_version (id, file_id, size_bytes) VALUES ('version', 'active', 900)`
       await sql`UPDATE organization SET storage_used_bytes = 125 WHERE id = 'organization-a'`
       await database.transaction((tx) =>
         changeProjectStoragePayersInTx(tx, [
@@ -564,12 +595,12 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
   check(
     'reconciliation adds Project heads once and refuses incomplete canonical size metadata',
     async () => {
-      await sql`INSERT INTO workspace_files VALUES
+      await sql`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes, deleted_at) VALUES
       ('workspace-file', NULL, 'workspace-a', 'workspace', 20, NULL),
       ('project-file', 'project-a', NULL, 'project', 40, NULL),
       ('archived', 'project-a', NULL, 'project', 60, now()),
       ('chat', NULL, 'workspace-a', 'mothership', 999, NULL)`
-      await sql`INSERT INTO workspace_file_version VALUES ('version', 'project-file', 900)`
+      await sql`INSERT INTO workspace_file_version (id, file_id, size_bytes) VALUES ('version', 'project-file', 900)`
       const store = createPostgresStorageReconciliationStore(sql)
       await store.reconcileWorkspaces(['workspace-a'])
       await store.reconcileOrganization('organization-a')
@@ -647,7 +678,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
     const write = database.transaction(async (tx) => {
       const prepared = await prepareFileStorageMutationInTx(tx, context())
       await tx.execute(
-        query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
+        query`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes, deleted_at) VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
       )
       await prepared.applyDelta(40)
       changed.resolve()
@@ -684,7 +715,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
       const write = database.transaction(async (tx) => {
         const prepared = await prepareFileStorageMutationInTx(tx, context())
         await tx.execute(
-          query`INSERT INTO workspace_files VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
+          query`INSERT INTO workspace_files (id, project_id, workspace_id, context, size_bytes, deleted_at) VALUES ('file', 'project-a', NULL, 'project', 40, NULL)`
         )
         await prepared.applyDelta(40)
         changed.resolve()
