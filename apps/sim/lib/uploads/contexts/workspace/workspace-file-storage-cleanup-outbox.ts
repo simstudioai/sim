@@ -10,11 +10,10 @@ import {
   type OutboxHandlerRegistry,
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('WorkspaceFileStorageCleanup')
-
-export const WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT = 'workspace-file.storage.cleanup'
 
 interface WorkspaceFileStorageCleanupPayload {
   key: string

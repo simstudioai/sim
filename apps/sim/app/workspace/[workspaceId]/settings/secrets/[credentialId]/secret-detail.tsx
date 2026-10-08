@@ -21,7 +21,6 @@ import {
   CredentialDetailLayout,
   CredentialMembersSection,
   DetailSection,
-  UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
@@ -302,12 +301,6 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           onOpenChange={setIsShareModalOpen}
         />
       )}
-
-      <UnsavedChangesModal
-        open={form.showUnsavedAlert}
-        onOpenChange={form.setShowUnsavedAlert}
-        onDiscard={form.confirmDiscard}
-      />
     </>
   )
 }

@@ -1,12 +1,14 @@
 import type { db } from '@sim/db'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import {
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
+  KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/processing-events'
 import type { DocumentProcessingLane } from '@/lib/knowledge/documents/processing-payload'
 import type { DocumentProcessingSnapshot } from '@/lib/knowledge/documents/processing-recovery-queue'
 import type { ProcessingOptions } from '@/lib/knowledge/documents/service'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
-
-export const KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT = 'knowledge.document.processing.dispatch'
 
 export interface KnowledgeDocumentProcessingOutboxPayload {
   knowledgeBaseId: string
@@ -27,9 +29,6 @@ export function enqueueKnowledgeDocumentProcessing(
 ): Promise<string> {
   return enqueueOutboxEvent(executor, KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT, payload)
 }
-
-export const KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT =
-  'knowledge.document.deferred-retry-check'
 
 /** Thrown failures only: every wait in `checkDeferredDocumentRetry` defers without spending one. */
 export const DEFERRED_RETRY_CHECK_MAX_ATTEMPTS = 5

@@ -20,6 +20,8 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { getAllOAuthServices, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -126,6 +128,26 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       fields: [],
     }
   }
+  if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Oracle Database connection',
+      description:
+        'Connect to Oracle Database with a saved username, password, and optional TCPS wallet.',
+      docsUrl: 'https://docs.sim.ai/integrations/oracledb',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"host":"db.example.com","protocol":"tcps","serviceName":"APP","username":"app_user","password":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: 'JSON object with host, port, protocol (tcp or tcps), connectionType (serviceName or sid), the selected identifier, username, password, and optional walletContent and walletPassword.',
+        },
+      ],
+    }
+  }
   if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {
     return {
       name: 'Google service account',
@@ -208,6 +230,63 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           placeholder: 'xoxb-...',
           required: true,
           secret: true,
+          multiline: false,
+        },
+      ],
+    }
+  }
+  if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'OCI API key',
+      description: 'Connect Oracle Cloud Infrastructure with an API signing key.',
+      docsUrl: 'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm',
+      fields: [
+        {
+          id: 'tenancyOcid',
+          label: 'Tenancy OCID',
+          placeholder: 'ocid1.tenancy.oc1..',
+          required: true,
+          secret: false,
+          multiline: false,
+        },
+        {
+          id: 'userOcid',
+          label: 'User OCID',
+          placeholder: 'ocid1.user.oc1..',
+          required: true,
+          secret: false,
+          multiline: false,
+        },
+        {
+          id: 'fingerprint',
+          label: 'Fingerprint',
+          placeholder: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+          required: true,
+          secret: false,
+          multiline: false,
+        },
+        {
+          id: 'privateKey',
+          label: 'Private key',
+          placeholder: '-----BEGIN PRIVATE KEY-----',
+          required: true,
+          secret: true,
+          multiline: true,
+        },
+        {
+          id: 'privateKeyPassphrase',
+          label: 'Private-key passphrase',
+          placeholder: 'Optional',
+          required: false,
+          secret: true,
+          multiline: false,
+        },
+        {
+          id: 'region',
+          label: 'Region',
+          placeholder: 'us-ashburn-1',
+          required: true,
+          secret: false,
           multiline: false,
         },
       ],

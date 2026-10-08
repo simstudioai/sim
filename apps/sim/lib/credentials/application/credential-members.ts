@@ -3,7 +3,10 @@ import { requirePrincipalSubjectUserId, type SessionPrincipal } from '@sim/auth/
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrdinaryCredentialType } from '@/lib/credentials/access'
-import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
+import {
+  defineAuthorizedCredentialUseCase,
+  requireManageableCredentialType,
+} from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import {
@@ -11,9 +14,11 @@ import {
   credentialUserOperations,
 } from '@/lib/credentials/application/operations'
 import {
+  type CredentialMemberPageInput,
   leaveCredentialMembership,
   listCredentialMembers,
   listCredentialMembershipsForUser,
+  listCredentialMembersPage,
   removeCredentialMember,
   upsertCredentialMember,
 } from '@/lib/credentials/members'
@@ -22,32 +27,33 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 interface CredentialMemberResourceInput {
   credentialId: string
-}
-
-function resolveSessionCredentialContext(
-  _principal: SessionPrincipal,
-  input: CredentialMemberResourceInput
-) {
-  return resolveCredentialApplicationContext(input)
+  assertedWorkspaceId?: string
 }
 
 export const listCredentialMembersUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.listMembers,
   resolveContext: ({
-    principal,
     input,
   }: {
-    principal: SessionPrincipal
-    input: CredentialMemberResourceInput
-  }) => resolveSessionCredentialContext(principal, input),
+    input: CredentialMemberResourceInput & Partial<CredentialMemberPageInput>
+  }) => resolveCredentialApplicationContext(input),
   authorizationOptions: {},
-  async execute({ principal, context }) {
+  async execute({ principal, input, context }) {
+    requireManageableCredentialType(principal, context.credential)
     if (context.credential.type === 'personal_token') {
-      if (context.credential.createdBy !== principal.userId)
+      if (context.credential.createdBy !== requirePrincipalSubjectUserId(principal))
         throw new OrchestrationError('not_found', 'Credential not found')
-      return { members: [] }
+      return { members: [], nextCursorKeys: null }
     }
-    return { members: await listCredentialMembers(context.credential) }
+    if (input.limit !== undefined) {
+      return listCredentialMembersPage(context, {
+        limit: input.limit,
+        sortBy: input.sortBy ?? 'email',
+        sortOrder: input.sortOrder ?? 'asc',
+        cursorKeys: input.cursorKeys,
+      })
+    }
+    return { members: await listCredentialMembers(context.credential), nextCursorKeys: null }
   },
 })
 
@@ -58,14 +64,10 @@ export interface UpsertCredentialMemberInput extends CredentialMemberResourceInp
 
 export const upsertCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.upsertMember,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: SessionPrincipal
-    input: UpsertCredentialMemberInput
-  }) => resolveSessionCredentialContext(principal, input),
+  resolveContext: ({ input }: { input: UpsertCredentialMemberInput }) =>
+    resolveCredentialApplicationContext(input),
   async execute({ principal, input, context }) {
+    requireManageableCredentialType(principal, context.credential)
     const result = await upsertCredentialMember({
       credential: context.credential,
       actorUserId: requirePrincipalSubjectUserId(principal),
@@ -106,14 +108,10 @@ export interface RemoveCredentialMemberInput extends CredentialMemberResourceInp
 
 export const removeCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.removeMember,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: SessionPrincipal
-    input: RemoveCredentialMemberInput
-  }) => resolveSessionCredentialContext(principal, input),
-  async execute({ input, context }) {
+  resolveContext: ({ input }: { input: RemoveCredentialMemberInput }) =>
+    resolveCredentialApplicationContext(input),
+  async execute({ principal, input, context }) {
+    requireManageableCredentialType(principal, context.credential)
     await removeCredentialMember({ credential: context.credential, targetUserId: input.userId })
     return { success: true as const, targetUserId: input.userId }
   },

@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeCSS = generateThemeCSS()
   const application = (
     <ToastProvider>
+      <SettingsNavigationGuard />
       <DesktopUpdateNotification />
       <PasteAdmissionGuard />
       <PostHogProvider consentRequired={isHosted}>

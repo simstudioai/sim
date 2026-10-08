@@ -17,6 +17,10 @@ import {
 } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 import {
+  PROJECT_FILE_PREFIX_CLEANUP_EVENT,
+  PROJECT_STORAGE_RECONCILE_EVENT,
+} from '@/lib/projects/files/outbox-events'
+import {
   getStorageConfig,
   USE_BLOB_STORAGE,
   USE_GCS_STORAGE,
@@ -29,8 +33,6 @@ import { abortProviderUpload, UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-ses
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 
-const EVENT_TYPE = 'project-file.storage.prefix-cleanup'
-const RECONCILE_EVENT_TYPE = 'project-file.storage.reconcile'
 const PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
 const RECONCILE_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -69,8 +71,8 @@ export async function recoverProjectStorageReconciliation(now = new Date()): Pro
     })
     .where(
       and(
-        eq(outboxEvent.id, RECONCILE_EVENT_TYPE),
-        eq(outboxEvent.eventType, RECONCILE_EVENT_TYPE),
+        eq(outboxEvent.id, PROJECT_STORAGE_RECONCILE_EVENT),
+        eq(outboxEvent.eventType, PROJECT_STORAGE_RECONCILE_EVENT),
         eq(outboxEvent.status, 'dead_letter'),
         lte(outboxEvent.processedAt, new Date(now.getTime() - RECONCILE_INTERVAL_MS))
       )
@@ -133,15 +135,15 @@ async function enqueueSweeps(
   payload: CleanupPayload,
   retiredAt = new Date()
 ) {
-  await enqueueOutboxEvent(executor, EVENT_TYPE, payload)
-  await enqueueOutboxEvent(executor, EVENT_TYPE, payload, {
+  await enqueueOutboxEvent(executor, PROJECT_FILE_PREFIX_CLEANUP_EVENT, payload)
+  await enqueueOutboxEvent(executor, PROJECT_FILE_PREFIX_CLEANUP_EVENT, payload, {
     availableAt: projectUploadCleanupAvailableAt(retiredAt),
   })
   await executor
     .insert(outboxEvent)
     .values({
-      id: RECONCILE_EVENT_TYPE,
-      eventType: RECONCILE_EVENT_TYPE,
+      id: PROJECT_STORAGE_RECONCILE_EVENT,
+      eventType: PROJECT_STORAGE_RECONCILE_EVENT,
       payload: {},
       availableAt: projectUploadCleanupAvailableAt(retiredAt),
     })
@@ -594,6 +596,6 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
 }
 
 export const projectFilePrefixCleanupOutboxHandlers = {
-  [EVENT_TYPE]: cleanupPrefix,
-  [RECONCILE_EVENT_TYPE]: reconcilePrefixes,
+  [PROJECT_FILE_PREFIX_CLEANUP_EVENT]: cleanupPrefix,
+  [PROJECT_STORAGE_RECONCILE_EVENT]: reconcilePrefixes,
 } satisfies OutboxHandlerRegistry

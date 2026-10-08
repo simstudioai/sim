@@ -59,6 +59,9 @@ export const authMock = {
       resetPassword: authMockFns.mockResetPassword,
     },
     $context: Promise.resolve({
+      options: { socialProviders: {} },
+      socialProviders: [],
+      trustedProviders: [],
       internalAdapter: {
         createSession: authMockFns.mockCreateSession,
         updateSession: authMockFns.mockUpdateSession,

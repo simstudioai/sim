@@ -44,7 +44,7 @@ import { isCollabReady } from '@/app/workspace/[workspaceId]/files/components/fi
 import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import { useMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
-import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
+import { scrollToHeading } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import {
   extractImageFiles,
@@ -180,6 +180,19 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
         'aria-multiline': 'true',
         'aria-readonly': 'true',
       },
+      handleClick: (_view, _pos, event) =>
+        Boolean(
+          (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')?.startsWith('#')
+        ),
+      handleDOMEvents: {
+        click: (view, event) => {
+          const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
+          if (!href?.startsWith('#')) return false
+          event.preventDefault()
+          scrollToHeading(view, href)
+          return true
+        },
+      },
     },
   })
   const buildSelectionContext = useCallback(
@@ -187,7 +200,12 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
     [editor, file.id, file.name]
   )
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
-  return <EditorContent ref={containerRef} editor={editor} className={EDITOR_SURFACE_CLASS} />
+  return (
+    <>
+      {editor && <LinkHoverCard editor={editor} />}
+      <EditorContent ref={containerRef} editor={editor} className={EDITOR_SURFACE_CLASS} />
+    </>
+  )
 }
 
 interface RichMarkdownEditorProps {
@@ -304,6 +322,7 @@ function RichMarkdownSurface({
     isStreamInteractionLocked,
     isContentLoading,
     hasContentError,
+    contentError,
     saveImmediately,
     hasConflict,
     isReloading,
@@ -333,7 +352,9 @@ function RichMarkdownSurface({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>
+          {contentError ?? 'Failed to load file content'}
+        </p>
       </div>
     )
   }
@@ -715,31 +736,34 @@ export function LoadedRichMarkdownEditor({
        * read-only follows directly. A same-page anchor (`[x](#slug)`) scrolls to the matching heading; a
        * same-origin in-app path navigates within the SPA (same tab); everything else opens a new tab.
        */
-      handleClick: (view, _pos, event) => {
-        const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
-        if (!href) return false
-        if (view.editable && !(event.metaKey || event.ctrlKey)) return false
-        if (href.startsWith('#')) {
-          const pos = findHeadingPos(view.state.doc, href.slice(1))
-          if (pos < 0) return false
-          ;(view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          })
+      // Preserve the selection on modifier-click; navigation runs on the native click below.
+      handleClick: (view, _pos, event) =>
+        (!view.editable || event.metaKey || event.ctrlKey) &&
+        Boolean((event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')),
+      handleDOMEvents: {
+        click: (view, event) => {
+          const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
+          if (!href) return false
+          if (view.editable && !(event.metaKey || event.ctrlKey)) return false
+          if (href.startsWith('#')) {
+            event.preventDefault()
+            scrollToHeading(view, href)
+            return true
+          }
+          const normalized = normalizeLinkHref(href)
+          if (!normalized) return false
+          event.preventDefault()
+          if (
+            !(event.metaKey || event.ctrlKey) &&
+            normalized.startsWith('/') &&
+            !normalized.startsWith('//')
+          ) {
+            routerRef.current.push(normalized)
+            return true
+          }
+          window.open(normalized, '_blank', 'noopener,noreferrer')
           return true
-        }
-        const normalized = normalizeLinkHref(href)
-        if (!normalized) return false
-        if (
-          !(event.metaKey || event.ctrlKey) &&
-          normalized.startsWith('/') &&
-          !normalized.startsWith('//')
-        ) {
-          routerRef.current.push(normalized)
-          return true
-        }
-        window.open(normalized, '_blank', 'noopener,noreferrer')
-        return true
+        },
       },
       transformPasted: (slice, view) =>
         normalizePastedImageSources(slice, view.state.doc, resolveImageSrcRef.current),

@@ -164,6 +164,11 @@ export interface StreamingContext {
   requestId?: string
   executionId?: string
   runId?: string
+  /**
+   * The device whose background executor runs this run's desktop tools, null when the chat view
+   * runs them. Read from the run on the first desktop call; undefined until then.
+   */
+  desktopDeviceId?: string | null
   messageId: string
   /**
    * Shared by all live resume legs. Reconnects replay events without resuming Go; any future
@@ -265,6 +270,13 @@ export interface OrchestratorOptions {
    * `interactive`, which is a trust classification, not executor routing.
    */
   clientToolPickupExpected?: boolean
+  /**
+   * The turn's desktop claims local reads (`read_local_file`, user-local VFS reads) through
+   * authorize before reading, so they are persisted pending and fail fast when nothing picks them
+   * up. Absent for older desktops, and on a recovered leg, where local reads keep the established
+   * running state and the authorize route accepts them as before.
+   */
+  desktopClaimsLocalReads?: boolean
 }
 
 export interface OrchestratorResult {

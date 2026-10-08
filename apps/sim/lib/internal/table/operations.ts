@@ -275,7 +275,6 @@ export async function executeTableQueryRowsV2(
       includeTotal: !body.cursor,
       includeRunState: false,
       allowExpandedLimit: true,
-      requireV2Feature: true,
       includePersistedSecretProvenance,
       requestId: context.requestId,
     },

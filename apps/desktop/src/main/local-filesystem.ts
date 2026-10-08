@@ -19,7 +19,7 @@ import {
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { escapeRegExp, truncate } from '@sim/utils/string'
+import { escapeRegExp, stripTrailingSlashes, truncate } from '@sim/utils/string'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
@@ -74,6 +74,22 @@ class LocalFilesystemError extends Error {
     this.name = 'LocalFilesystemError'
   }
 }
+
+function mountNotFound(): LocalFilesystemError {
+  return new LocalFilesystemError(
+    'MOUNT_NOT_FOUND',
+    'That local folder is no longer available. Select it again.'
+  )
+}
+
+/** Operations that read inside one granted folder, named by the request's `uri`. */
+const GRANT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
+  'list',
+  'glob',
+  'read',
+  'grep',
+  'stat',
+])
 
 interface GrantedMount extends LocalFilesystemMount {
   rootPath: string
@@ -157,7 +173,8 @@ function normalizeVfsDisplaySegment(segment: string): string {
     .replace(/\s+/g, ' ')
 }
 
-function mountVfsRoot(mount: GrantedMount): string {
+/** The `user-local/<name>--<id>` directory a granted folder appears under in the model's VFS. */
+export function mountVfsRoot(mount: Pick<GrantedMount, 'id' | 'name'>): string {
   return `user-local/${encodeURIComponent(normalizeVfsDisplaySegment(mount.name))}--${mount.id}`
 }
 
@@ -420,7 +437,13 @@ export class LocalFilesystemService {
       }
 
       let data: LocalFilesystemData
+      // Reads and searches answer only while their folder is still granted: one forgotten while
+      // they ran must not hand back what they found in it.
+      let grant: GrantedMount | null = null
       try {
+        if (GRANT_SCOPED_OPERATIONS.has(request.operation)) {
+          grant = this.parseUri(this.requiredUri(request)).mount
+        }
         switch (request.operation) {
           case 'mount_directory':
             data = await this.mountDirectory()
@@ -470,6 +493,7 @@ export class LocalFilesystemService {
           this.activeRequests.delete(requestId)
         }
       }
+      if (grant && this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)
@@ -532,7 +556,7 @@ export class LocalFilesystemService {
         // request carrying them is the renderer searching for something the
         // model did not ask for, or hiding results it believes are complete.
         if (request.query !== undefined || request.include !== undefined) return false
-        const rawPath = typeof args.path === 'string' ? args.path.replace(/\/+$/, '') : ''
+        const rawPath = typeof args.path === 'string' ? stripTrailingSlashes(args.path) : ''
         const uriAllowed =
           rawPath === 'user-local'
             ? [...this.mounts.values()].some((mount) => request.uri === mount.uri)
@@ -889,12 +913,7 @@ export class LocalFilesystemService {
     }
 
     const mount = this.mounts.get(parsed.hostname)
-    if (!mount) {
-      throw new LocalFilesystemError(
-        'MOUNT_NOT_FOUND',
-        'That local folder is no longer available. Select it again.'
-      )
-    }
+    if (!mount) throw mountNotFound()
 
     const encodedSegments = parsed.pathname.split('/').filter(Boolean)
     const segments = encodedSegments.map((segment) => {
@@ -989,7 +1008,7 @@ export class LocalFilesystemService {
     if (rawPathPrefix !== undefined && typeof rawPathPrefix !== 'string') {
       throw new LocalFilesystemError('INVALID_REQUEST', 'pathPrefix must be a string.')
     }
-    const pathPrefix = typeof rawPathPrefix === 'string' ? rawPathPrefix.replace(/\/+$/, '') : ''
+    const pathPrefix = typeof rawPathPrefix === 'string' ? stripTrailingSlashes(rawPathPrefix) : ''
     const matcher = compileGlob(pattern)
     const resolvedPath = await this.resolveUri(uri)
     const baseStat = await stat(resolvedPath.realPath)

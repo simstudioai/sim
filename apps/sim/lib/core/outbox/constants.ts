@@ -6,3 +6,5 @@ export const OUTBOX_PROCESSOR_INTERVAL_MS = 60_000
 export const OUTBOX_PROCESSOR_CONCURRENCY = Math.ceil(
   (OUTBOX_PROCESSOR_MAX_DURATION_SECONDS * 1000) / OUTBOX_PROCESSOR_INTERVAL_MS
 )
+/** Every Nth scheduled tick runs the processor's recovery, reaping and pruning even with nothing due. */
+export const OUTBOX_MAINTENANCE_EVERY_INTERVALS = 5

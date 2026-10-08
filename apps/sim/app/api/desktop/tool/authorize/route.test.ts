@@ -17,7 +17,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
 
-const claimToolExecution = mothershipAsyncRunsMockFns.mockClaimToolExecution
+const claimDesktopToolCall = mothershipAsyncRunsMockFns.mockClaimDesktopToolCall
 const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
 const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
@@ -50,7 +50,7 @@ describe('desktop tool authorization', () => {
       userId: 'user-1',
       status: 'active',
     })
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimDesktopToolCall.mockResolvedValue({ outcome: 'claimed' })
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -70,6 +70,26 @@ describe('desktop tool authorization', () => {
       toolName: 'browser_fill_form',
       args: { fields },
     })
+  })
+
+  it("refuses a chat view's claim on a run bound to a desktop's background executor", async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'bound-click',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_click',
+      args: { ref: 'e1' },
+    })
+    getRunSegment.mockResolvedValueOnce({
+      id: 'run-1',
+      chatId: 'chat-1',
+      userId: 'user-1',
+      status: 'active',
+      desktopDeviceId: 'device-1',
+    })
+
+    const response = await POST(request('bound-click'))
+    expect(response.status).toBe(409)
   })
 
   it('rejects retired browser tools retained only for history', async () => {
@@ -193,7 +213,7 @@ describe('desktop tool authorization', () => {
       new OrchestrationError('not_found', 'Workspace not found')
     )
     expect((await POST(request('import-1', true))).status).toBe(404)
-    claimToolExecution.mockResolvedValueOnce({ outcome: 'existing' })
+    claimDesktopToolCall.mockResolvedValueOnce({ outcome: 'existing' })
     expect((await POST(request('import-1', true))).status).toBe(409)
   })
 

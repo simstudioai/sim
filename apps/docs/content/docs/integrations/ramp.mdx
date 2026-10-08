@@ -1,0 +1,674 @@
+---
+title: Ramp
+description: Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ramp"
+  color="#E4F222"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ramp](https://ramp.com/) helps businesses manage corporate cards, expenses, bills, and reimbursements.
+
+With the Ramp block, you can:
+
+- **Review spending**: Read company balances, transactions, vendors, and employee details.
+- **Inspect cards**: List and read physical and virtual cards, including ownership and suspension status.
+- **Prepare finance reviews**: Read bills and reimbursements with date, status, and employee filters.
+- **Document expenses**: Read and add memos for transaction records.
+
+Save your Ramp developer app's client ID and client secret as a credential, then select it in the Ramp block. Use a production app owned by your business with the **Client Credentials** grant enabled. This connection accesses your own business's Ramp data; sandbox credentials are not supported.
+
+Enable these scopes on your app: `business:read`, `users:read`, `transactions:read`, `cards:read`, `vendors:read`, `bills:read`, `reimbursements:read`, `memos:read`, and `memos:write`. Sim requests these scopes when it obtains an access token and automatically obtains a new token when needed. You do not need a redirect URI or a Sim-owned OAuth application. See [Ramp's authorization guide](https://docs.ramp.com/developer-api/v1/authorization) for app setup and permissions.
+
+The OAuth deployment settings below apply to the optional browser consent flow. They are not required when you save your own app's client credentials.
+
+List operations return one page at a time, with 2–100 results per page. Pass `nextCursor` as the pagination cursor to continue. Money outputs preserve Ramp's currency and minor-unit fields; avoid combining different currencies.
+
+In Sim, the Ramp block lets your agents prepare spend reports, organize bill and reimbursement reviews, inspect employee cards, and save approved transaction memos.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect Ramp to your agents to review company balances, employees, card transactions, physical and virtual cards, vendors, bills, and reimbursements. Add transaction memos and paginate through records with up to 100 results per request.
+
+
+
+## Actions
+
+### Ramp Get Business
+
+Fetch the company information in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `business` | json | Business details |
+|   ↳ `id` | string | Id |
+|   ↳ `business_name_legal` | string | Business name legal |
+|   ↳ `business_name_on_card` | string | Business name on card |
+|   ↳ `active` | boolean | Active |
+|   ↳ `created_time` | string | Created time |
+|   ↳ `website` | string | Website |
+|   ↳ `is_reimbursements_enabled` | boolean | Is reimbursements enabled |
+|   ↳ `initial_approved_limit_amount` | json | Initial approved limit amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
+
+### Ramp Get Balance
+
+Fetch the company balance information in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `balance` | json | Balance details |
+|   ↳ `card_limit_amount` | json | Card limit amount |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `available_card_limit_amount` | json | Available card limit amount |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `card_balance_including_pending_amount` | json | Card balance including pending amount |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `card_balance_excluding_pending_amount` | json | Card balance excluding pending amount |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `statement_balance_amount` | json | Statement balance amount |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `next_billing_date` | string | Next billing date |
+|   ↳ `prev_billing_date` | string | Prev billing date |
+
+### Ramp List Users
+
+List users in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | filter by email |
+| `status` | string | No | Filter only for users with the given status. Defaults to returning all active and inactive users, but not suspended users |
+| `department_id` | string | No | filter by department |
+| `entity_id` | string | No | filter by business entity |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | One page of users |
+|   ↳ `id` | string | Id |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `email` | string | Email |
+|   ↳ `role` | string | Role |
+|   ↳ `status` | string | Status |
+|   ↳ `employee_id` | string | Employee id |
+|   ↳ `department_id` | string | Department id |
+|   ↳ `location_id` | string | Location id |
+|   ↳ `manager_id` | string | Manager id |
+|   ↳ `entity_id` | string | Entity id |
+|   ↳ `is_manager` | boolean | Is manager |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get User
+
+Fetch a user in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | Yes | User id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | User details |
+|   ↳ `id` | string | Id |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `email` | string | Email |
+|   ↳ `role` | string | Role |
+|   ↳ `status` | string | Status |
+|   ↳ `employee_id` | string | Employee id |
+|   ↳ `department_id` | string | Department id |
+|   ↳ `location_id` | string | Location id |
+|   ↳ `manager_id` | string | Manager id |
+|   ↳ `entity_id` | string | Entity id |
+|   ↳ `is_manager` | boolean | Is manager |
+
+### Ramp List Transactions
+
+List transactions in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | No | Filter by user. |
+| `department_id` | string | No | Filter by department. |
+| `from_date` | string | No | Filter for transactions with a `user_transaction_time` after the given date, in ISO8601 format. |
+| `to_date` | string | No | Filter for transactions with a `user_transaction_time` before the given date, in ISO8601 format. |
+| `transaction_state` | string | No | Filter by transaction state. If set to 'ALL', all transactions including 'DECLINED' will be listed. |
+| `sync_status` | string | No | Filter for transactions by sync status. If set, it supersedes sync_ready and has_no_sync_commits |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactions` | array | One page of transactions |
+|   ↳ `id` | string | Id |
+|   ↳ `entity_amount` | json | Entity amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
+|   ↳ `merchant_amount` | json | Merchant amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
+|   ↳ `merchant_name` | string | Merchant name |
+|   ↳ `merchant_descriptor` | string | Merchant descriptor |
+|   ↳ `merchant_category_code` | string | Merchant category code |
+|   ↳ `memo` | string | Memo |
+|   ↳ `state` | string | State |
+|   ↳ `card_id` | string | Card id |
+|   ↳ `card_holder` | json | Card holder |
+|     ↳ `user_id` | string | User id |
+|     ↳ `first_name` | string | First name |
+|     ↳ `last_name` | string | Last name |
+|     ↳ `department_id` | string | Department id |
+|     ↳ `department_name` | string | Department name |
+|   ↳ `user_transaction_time` | string | User transaction time |
+|   ↳ `settlement_date` | string | Settlement date |
+|   ↳ `all_requirements_met_and_approved` | boolean | All requirements met and approved |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `entity_id` | string | Entity id |
+|   ↳ `updated_at` | string | Updated at |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Transaction
+
+Fetch a transaction in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transaction_id` | string | Yes | Transaction id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transaction` | json | Transaction details |
+|   ↳ `id` | string | Id |
+|   ↳ `entity_amount` | json | Entity amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
+|   ↳ `merchant_amount` | json | Merchant amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Amount in the smallest currency denomination; signed for transactions |
+|   ↳ `merchant_name` | string | Merchant name |
+|   ↳ `merchant_descriptor` | string | Merchant descriptor |
+|   ↳ `merchant_category_code` | string | Merchant category code |
+|   ↳ `memo` | string | Memo |
+|   ↳ `state` | string | State |
+|   ↳ `card_id` | string | Card id |
+|   ↳ `card_holder` | json | Card holder |
+|     ↳ `user_id` | string | User id |
+|     ↳ `first_name` | string | First name |
+|     ↳ `last_name` | string | Last name |
+|     ↳ `department_id` | string | Department id |
+|     ↳ `department_name` | string | Department name |
+|   ↳ `user_transaction_time` | string | User transaction time |
+|   ↳ `settlement_date` | string | Settlement date |
+|   ↳ `all_requirements_met_and_approved` | boolean | All requirements met and approved |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `entity_id` | string | Entity id |
+|   ↳ `updated_at` | string | Updated at |
+
+### Ramp List Physical Cards
+
+List physical cards in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | No | Filter by card owner. |
+| `display_name` | string | No | Filter by display name. |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `physicalCards` | array | One page of physical cards |
+|   ↳ `id` | string | Id |
+|   ↳ `cardholder_id` | string | Cardholder id |
+|   ↳ `cardholder_name` | string | Cardholder name |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `last_four` | string | Last four |
+|   ↳ `state` | string | State |
+|   ↳ `is_suspended` | boolean | Is suspended |
+|   ↳ `fund_id` | string | Fund id |
+|   ↳ `created_at` | string | Created at |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Physical Card
+
+Fetch a physical card in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `card_id` | string | Yes | Card id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `physicalCard` | json | PhysicalCard details |
+|   ↳ `id` | string | Id |
+|   ↳ `cardholder_id` | string | Cardholder id |
+|   ↳ `cardholder_name` | string | Cardholder name |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `last_four` | string | Last four |
+|   ↳ `state` | string | State |
+|   ↳ `is_suspended` | boolean | Is suspended |
+|   ↳ `fund_id` | string | Fund id |
+|   ↳ `created_at` | string | Created at |
+
+### Ramp List Virtual Cards
+
+List virtual cards in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | No | Filter by card owner. |
+| `entity_id` | string | No | Filter by business entity. |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `virtualCards` | array | One page of virtual cards |
+|   ↳ `id` | string | Id |
+|   ↳ `user_id` | string | User id |
+|   ↳ `fund_id` | string | Fund id |
+|   ↳ `is_card_suspended` | boolean | Is card suspended |
+|   ↳ `created_at` | string | Created at |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Virtual Card
+
+Fetch a virtual card in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `card_id` | string | Yes | Card id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `virtualCard` | json | VirtualCard details |
+|   ↳ `id` | string | Id |
+|   ↳ `user_id` | string | User id |
+|   ↳ `fund_id` | string | Fund id |
+|   ↳ `is_card_suspended` | boolean | Is card suspended |
+|   ↳ `created_at` | string | Created at |
+
+### Ramp List Vendors
+
+List vendors in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | No | Filter by name |
+| `external_vendor_id` | string | No | Filter by customer-defined external vendor ID. This is independent of accounting system remote IDs. |
+| `vendor_owner_id` | string | No | Unique identifier of the user which owns this vendor. |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendors` | array | One page of vendors |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `name_legal` | string | Name legal |
+|   ↳ `description` | string | Description |
+|   ↳ `is_active` | boolean | Is active |
+|   ↳ `external_vendor_id` | string | External vendor id |
+|   ↳ `accounting_vendor_remote_id` | string | Accounting vendor remote id |
+|   ↳ `vendor_owner_id` | string | Vendor owner id |
+|   ↳ `country` | string | Country |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `total_spend_all_time` | json | Total spend all time |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `total_spend_last_30_days` | json | Total spend last 30 days |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `total_spend_ytd` | json | Total spend ytd |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Vendor
+
+Fetch a vendor in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendor_id` | string | Yes | Vendor id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendor` | json | Vendor details |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `name_legal` | string | Name legal |
+|   ↳ `description` | string | Description |
+|   ↳ `is_active` | boolean | Is active |
+|   ↳ `external_vendor_id` | string | External vendor id |
+|   ↳ `accounting_vendor_remote_id` | string | Accounting vendor remote id |
+|   ↳ `vendor_owner_id` | string | Vendor owner id |
+|   ↳ `country` | string | Country |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `total_spend_all_time` | json | Total spend all time |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `total_spend_last_30_days` | json | Total spend last 30 days |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `total_spend_ytd` | json | Total spend ytd |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+
+### Ramp List Bills
+
+List bills in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendor_id` | string | No | Filter bills by vendor. |
+| `payment_status` | string | No | List bills of the provided payment status. |
+| `approval_status` | string | No | List bills of the provided bill approval status. Note that this is separate from the approval status for payment release. |
+| `from_due_date` | string | No | Shows only bills with a due_at on or after this date. This parameter should be provided as a datetime string that conforms to ISO 8601 |
+| `to_due_date` | string | No | Shows only bills with a due_at on or before this date. This parameter should be provided as a datetime string that conforms to ISO 8601 |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bills` | array | One page of bills |
+|   ↳ `id` | string | Id |
+|   ↳ `invoice_number` | string | Invoice number |
+|   ↳ `amount` | json | Amount in the smallest currency denomination |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `vendor` | json | Vendor |
+|     ↳ `id` | string | Id |
+|     ↳ `name` | string | Name |
+|     ↳ `remote_id` | string | Remote id |
+|     ↳ `remote_name` | string | Remote name |
+|     ↳ `type` | string | Type |
+|   ↳ `memo` | string | Memo |
+|   ↳ `status` | string | Status |
+|   ↳ `status_summary` | string | Status summary |
+|   ↳ `approval_status` | string | Approval status |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `due_at` | string | Due at |
+|   ↳ `issued_at` | string | Issued at |
+|   ↳ `paid_at` | string | Paid at |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `entity_id` | string | Entity id |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Bill
+
+Fetch a bill in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `bill_id` | string | Yes | Bill id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bill` | json | Bill details |
+|   ↳ `id` | string | Id |
+|   ↳ `invoice_number` | string | Invoice number |
+|   ↳ `amount` | json | Amount in the smallest currency denomination |
+|     ↳ `amount` | number | Amount in the smallest currency denomination |
+|     ↳ `currency_code` | string | Currency code |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `vendor` | json | Vendor |
+|     ↳ `id` | string | Id |
+|     ↳ `name` | string | Name |
+|     ↳ `remote_id` | string | Remote id |
+|     ↳ `remote_name` | string | Remote name |
+|     ↳ `type` | string | Type |
+|   ↳ `memo` | string | Memo |
+|   ↳ `status` | string | Status |
+|   ↳ `status_summary` | string | Status summary |
+|   ↳ `approval_status` | string | Approval status |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `due_at` | string | Due at |
+|   ↳ `issued_at` | string | Issued at |
+|   ↳ `paid_at` | string | Paid at |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `entity_id` | string | Entity id |
+
+### Ramp List Reimbursements
+
+List reimbursements in one page in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | No | Filter by user id |
+| `reimbursement_state` | string | No | Filter by reimbursement state. |
+| `from_date` | string | No | Filter reimbursements created after this date. |
+| `to_date` | string | No | Filter reimbursements created before this date. |
+| `sync_status` | string | No | Filter by sync status. Supersedes has_no_sync_commits and sync_ready. |
+| `start` | string | No | Next cursor from the previous response |
+| `page_size` | number | No | Results per page, from 2 to 100 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reimbursements` | array | One page of reimbursements |
+|   ↳ `id` | string | Id |
+|   ↳ `user_id` | string | User id |
+|   ↳ `user_email` | string | User email |
+|   ↳ `user_full_name` | string | User full name |
+|   ↳ `entity_amount` | json | Entity amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Non-negative amount in the smallest currency denomination |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `merchant_amount` | json | Merchant amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Non-negative amount in the smallest currency denomination |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `merchant` | string | Merchant |
+|   ↳ `memo` | string | Memo |
+|   ↳ `state` | string | State |
+|   ↳ `direction` | string | Direction |
+|   ↳ `type` | string | Type |
+|   ↳ `transaction_date` | string | Transaction date |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `submitted_at` | string | Submitted at |
+|   ↳ `approved_at` | string | Approved at |
+|   ↳ `payment_processed_at` | string | Payment processed at |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `entity_id` | string | Entity id |
+| `nextCursor` | string | Pass this cursor as start to fetch the next page |
+| `nextPageUrl` | string | Ramp URL for the next page, or null on the last page |
+
+### Ramp Get Reimbursement
+
+Fetch a reimbursement in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reimbursement_id` | string | Yes | Reimbursement id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reimbursement` | json | Reimbursement details |
+|   ↳ `id` | string | Id |
+|   ↳ `user_id` | string | User id |
+|   ↳ `user_email` | string | User email |
+|   ↳ `user_full_name` | string | User full name |
+|   ↳ `entity_amount` | json | Entity amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Non-negative amount in the smallest currency denomination |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `merchant_amount` | json | Merchant amount |
+|     ↳ `currency` | string | Currency |
+|     ↳ `value` | number | Non-negative amount in the smallest currency denomination |
+|     ↳ `minor_unit_conversion_rate` | number | Divide the amount by this factor to get the major currency value |
+|   ↳ `merchant` | string | Merchant |
+|   ↳ `memo` | string | Memo |
+|   ↳ `state` | string | State |
+|   ↳ `direction` | string | Direction |
+|   ↳ `type` | string | Type |
+|   ↳ `transaction_date` | string | Transaction date |
+|   ↳ `created_at` | string | Created at |
+|   ↳ `submitted_at` | string | Submitted at |
+|   ↳ `approved_at` | string | Approved at |
+|   ↳ `payment_processed_at` | string | Payment processed at |
+|   ↳ `sync_status` | string | Sync status |
+|   ↳ `entity_id` | string | Entity id |
+
+### Ramp Get Memo
+
+Fetch a transaction memo in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transaction_id` | string | Yes | Transaction id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memo` | json | Memo details |
+|   ↳ `id` | string | Id |
+|   ↳ `memo` | string | Memo |
+
+### Ramp Create Memo
+
+Upload a new memo for a transaction in Ramp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transaction_id` | string | Yes | Transaction id |
+| `memo` | string | Yes | Transaction memo text \(maximum 255 characters\) |
+| `is_memo_recurring` | boolean | No | Apply the memo to similar future transactions \(deprecated by Ramp\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memo` | json | Memo details |
+|   ↳ `id` | string | Id |
+|   ↳ `memo` | string | Memo |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Ramp account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/ramp` |
+| Environment variables | `RAMP_CLIENT_ID`, `RAMP_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `business:read` | View Ramp business details and balances |
+| `users:read` | View Ramp users and roles |
+| `transactions:read` | View Ramp transactions |
+| `cards:read` | View Ramp physical and virtual card details |
+| `vendors:read` | View Ramp vendors |
+| `bills:read` | View Ramp bills |
+| `reimbursements:read` | View Ramp reimbursements |
+| `memos:read` | View Ramp transaction memos |
+| `memos:write` | Create and update Ramp transaction memos |
+
+

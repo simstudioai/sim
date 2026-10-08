@@ -1,6 +1,6 @@
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import { getBlock } from '@/blocks'
 import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'
 

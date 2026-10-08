@@ -30,6 +30,20 @@ describe('token service-account error helpers', () => {
   })
 
   describe('fetchProvider', () => {
+    it('preserves caller cancellation instead of reporting a provider outage', async () => {
+      const controller = new AbortController()
+      const reason = new Error('Caller cancelled credential verification')
+      controller.abort(reason)
+      mockFetch.mockImplementationOnce((_input: unknown, init: RequestInit) => {
+        init.signal?.throwIfAborted()
+        return Promise.resolve(new Response())
+      })
+
+      await expect(fetchProvider(PROVIDER_URL, { signal: controller.signal }, 'self')).rejects.toBe(
+        reason
+      )
+    })
+
     it('maps a rejected fetch to provider_unavailable 502', async () => {
       mockFetch.mockRejectedValue(new TypeError('fetch failed'))
 

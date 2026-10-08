@@ -475,7 +475,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     const message = workflowName
       ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
       : 'This workflow run failed. Investigate the error in this run and help me fix it.'
-    if (sendMothershipMessage(message, [context])) return
+    if (sendMothershipMessage({ content: message, contexts: [context] })) return
     if (MothershipHandoffStorage.store({ message, contexts: [context] }, workspaceId)) {
       router.push(`/workspace/${workspaceId}/home`)
     }

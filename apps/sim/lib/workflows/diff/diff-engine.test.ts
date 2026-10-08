@@ -60,7 +60,6 @@ vi.mock('@/lib/workflows/subblocks/visibility', () => ({
 }))
 
 vi.mock('@/lib/workflows/triggers/triggers', () => ({
-  TRIGGER_TYPES: {},
   classifyStartBlockType: () => null,
   StartBlockPath: {},
   getTriggerOutputs: () => ({}),

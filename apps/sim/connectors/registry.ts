@@ -46,6 +46,7 @@ import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import { otterConnectorMeta } from '@/connectors/otter/meta'
 import { outlookConnectorMeta } from '@/connectors/outlook/meta'
 import { pagerdutyConnectorMeta } from '@/connectors/pagerduty/meta'
+import { planeConnectorMeta } from '@/connectors/plane/meta'
 import { redditConnectorMeta } from '@/connectors/reddit/meta'
 import { rootlyConnectorMeta } from '@/connectors/rootly/meta'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
@@ -123,6 +124,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   otter: otterConnectorMeta,
   outlook: outlookConnectorMeta,
   pagerduty: pagerdutyConnectorMeta,
+  plane: planeConnectorMeta,
   reddit: redditConnectorMeta,
   rootly: rootlyConnectorMeta,
   s3: s3ConnectorMeta,

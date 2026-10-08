@@ -128,6 +128,15 @@ export function isWorkflowToolExecutionClaimable(
   )
 }
 
+/** The confirmation status a settled call reports: its durable terminal status, as the wire names it. */
+export function getTerminalConfirmationStatus(
+  status: AsyncTerminalStatus
+): AsyncConfirmationStatus {
+  if (status === ASYNC_TOOL_STATUS.completed) return ASYNC_TOOL_CONFIRMATION_STATUS.success
+  if (status === ASYNC_TOOL_STATUS.cancelled) return ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+  return ASYNC_TOOL_CONFIRMATION_STATUS.error
+}
+
 export function isTerminalAsyncStatus(
   status: CopilotAsyncToolStatus | AsyncLifecycleStatus | string | null | undefined
 ): status is AsyncTerminalStatus {

@@ -898,7 +898,8 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { resolveSeedGate } = useOperationAccess()
+    const { resolveSeedGate, agentDefaultModel, isAgentDefaultReady, refetchModelSettings } =
+      useOperationAccess()
 
     const addBlock = useCallback(
       (
@@ -913,6 +914,11 @@ const WorkflowContent = React.memo(
         triggerMode?: boolean,
         presetSubBlockValues?: Record<string, unknown>
       ) => {
+        if (type === 'agent' && !isAgentDefaultReady) {
+          void refetchModelSettings({ cancelRefetch: false })
+          toast({ message: 'Model settings are not ready. Try again.' })
+          return
+        }
         setPendingSelection([id])
         setSelectedEdges(new Map())
         pendingFocusBlockIdRef.current = id
@@ -933,6 +939,7 @@ const WorkflowContent = React.memo(
           extent,
           triggerMode,
           isSeededValueAllowed: seedGate,
+          agentDefaultModel,
         })
 
         const subBlockValues: Record<string, Record<string, unknown>> = {}
@@ -976,7 +983,15 @@ const WorkflowContent = React.memo(
         )
         usePanelEditorStore.getState().setCurrentBlockId(id)
       },
-      [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection, resolveSeedGate]
+      [
+        collaborativeBatchAddBlocks,
+        setSelectedEdges,
+        setPendingSelection,
+        resolveSeedGate,
+        agentDefaultModel,
+        isAgentDefaultReady,
+        refetchModelSettings,
+      ]
     )
 
     const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useExecutionStore(

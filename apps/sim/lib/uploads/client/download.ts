@@ -3,6 +3,8 @@ import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
 export interface FileDownloadSource {
@@ -43,10 +45,7 @@ export async function triggerFileDownload(
   record: WorkspaceFileRecord,
   source?: FileDownloadSource | null
 ): Promise<void> {
-  const isMarkdown =
-    record.type === 'text/markdown' ||
-    record.type === 'text/x-markdown' ||
-    /\.(?:md|markdown)$/i.test(record.name)
+  const isMarkdown = isMarkdownFile(record) || normalizeMimeType(record.type) === 'text/x-markdown'
 
   const content =
     isMarkdown &&

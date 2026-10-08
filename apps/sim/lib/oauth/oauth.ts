@@ -39,6 +39,7 @@ import {
   HarmonicIcon,
   HubspotIcon,
   InstagramIcon,
+  IntuneIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -54,10 +55,12 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OracleIcon,
   OutlookIcon,
   PipedriveIcon,
   PowerBIIcon,
   QuickBooksIcon,
+  RampIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -66,6 +69,7 @@ import {
   SpotifyIcon,
   TikTokIcon,
   TrelloIcon,
+  VantaIcon,
   VertexIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -429,6 +433,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      },
+      'microsoft-intune': {
+        name: 'Microsoft Intune',
+        description: 'Read managed devices and policies, and request remote device actions.',
+        providerId: 'microsoft-intune',
+        icon: IntuneIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'DeviceManagementManagedDevices.Read.All',
+          'DeviceManagementConfiguration.Read.All',
+          'DeviceManagementManagedDevices.PrivilegedOperations.All',
+          'offline_access',
+        ],
       },
       'microsoft-planner': {
         name: 'Microsoft Planner',
@@ -1072,6 +1092,74 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracledb: {
+    name: 'Oracle Database',
+    icon: OracleIcon,
+    services: {
+      oracledb: {
+        name: 'Oracle Database',
+        description: 'Query and manage Oracle Database with a saved connection.',
+        providerId: 'oracledb',
+        serviceAccountProviderId: 'oracledb-service-account',
+        authType: 'service_account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'oracledb',
+  },
+  oci: {
+    name: 'Oracle Cloud Infrastructure',
+    icon: OracleIcon,
+    services: {
+      oci: {
+        name: 'Oracle Cloud Infrastructure',
+        description: 'Connect OCI services with an API signing key.',
+        providerId: 'oci',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci',
+  },
+  'oracle-epm': {
+    name: 'Oracle EPM',
+    icon: OracleIcon,
+    services: {
+      'oracle-epm': {
+        name: 'Oracle EPM',
+        description: 'Connect an EPM environment with an integration user.',
+        providerId: 'oracle-epm',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm',
+  },
+  'oracle-fusion': {
+    name: 'Oracle Fusion',
+    icon: OracleIcon,
+    services: {
+      'oracle-fusion': {
+        name: 'Oracle Fusion',
+        description: 'Connect Fusion Applications with an integration user.',
+        providerId: 'oracle-fusion',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-fusion',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1299,6 +1387,51 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'quickbooks',
+  },
+  ramp: {
+    name: 'Ramp',
+    icon: RampIcon,
+    services: {
+      ramp: {
+        name: 'Ramp',
+        description:
+          'Read company spending, cards, bills, and reimbursements, and manage transaction memos.',
+        providerId: 'ramp',
+        serviceAccountProviderId: 'ramp-service-account',
+        authType: 'oauth',
+        icon: RampIcon,
+        baseProviderIcon: RampIcon,
+        scopes: [
+          'business:read',
+          'users:read',
+          'transactions:read',
+          'cards:read',
+          'vendors:read',
+          'bills:read',
+          'reimbursements:read',
+          'memos:read',
+          'memos:write',
+        ],
+      },
+    },
+    defaultService: 'ramp',
+  },
+  vanta: {
+    name: 'Vanta',
+    icon: VantaIcon,
+    services: {
+      vanta: {
+        name: 'Vanta',
+        description: 'Read compliance data and manage evidence in Vanta.',
+        providerId: 'vanta',
+        serviceAccountProviderId: 'vanta-service-account',
+        authType: 'service_account',
+        icon: VantaIcon,
+        baseProviderIcon: VantaIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'vanta',
   },
   hubspot: {
     name: 'HubSpot',
@@ -1890,6 +2023,20 @@ function getProviderAuthConfig(
         additionalHeaders: {
           'User-Agent': REDDIT_USER_AGENT,
         },
+      }
+    }
+    case 'ramp': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'ramp',
+        'RAMP_CLIENT_ID',
+        'RAMP_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.ramp.com/developer/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'wealthbox': {

@@ -131,6 +131,26 @@ describe('Copilot Confirm API Route', () => {
     expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('resolved-secret')
   })
 
+  it("refuses a chat view's report for a call a desktop's background executor owns", async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_click',
+      status: 'pending',
+      claimedBy: null,
+    })
+    getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', desktopDeviceId: 'device-1' })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop refused this claim',
+      })
+    )
+
+    expect(response.status).toBe(409)
+  })
+
   it('atomically detaches a live background confirmation', async () => {
     const response = await POST(
       createMockPostRequest({
@@ -165,7 +185,7 @@ describe('Copilot Confirm API Route', () => {
       })
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(409)
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
     expect(detachAsyncToolCall).not.toHaveBeenCalled()
     expect(encryptSecret).not.toHaveBeenCalled()
@@ -233,8 +253,10 @@ describe('Copilot Confirm API Route', () => {
         })
       )
 
-      expect(response.status).toBe(404)
-      expect(await response.json()).toEqual({ error: 'Pending client tool call not found' })
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: 'The desktop app holds this tool call; only its own result settles it',
+      })
       expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
       expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
       expect(completeAsyncToolCall).not.toHaveBeenCalled()
@@ -283,6 +305,29 @@ describe('Copilot Confirm API Route', () => {
     }
   )
 
+  it('refuses a not-started report for a call the desktop already claimed', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'running',
+      claimedBy: 'desktop-browser',
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop action did not start.',
+        data: { notStarted: true },
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'The desktop app holds this tool call; only its own result settles it',
+    })
+  })
+
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -300,7 +345,7 @@ describe('Copilot Confirm API Route', () => {
       })
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(409)
     expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(expect.any(Object), 'desktop-browser')
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })

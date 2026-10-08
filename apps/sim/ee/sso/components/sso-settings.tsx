@@ -235,11 +235,10 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         />
       </div>
 
-      {tab === 'domains' && (
-        <SettingsPanel docsLink={DOCS_LINKS.domains}>
-          <VerifiedDomainsSection organizationId={organizationId} />
-        </SettingsPanel>
-      )}
+      <div hidden={tab !== 'domains'}>
+        {tab === 'domains' && <SettingsPanel docsLink={DOCS_LINKS.domains} />}
+        <VerifiedDomainsSection organizationId={organizationId} active={tab === 'domains'} />
+      </div>
 
       {provisioningAvailable && (
         <div hidden={tab !== 'provisioning'}>

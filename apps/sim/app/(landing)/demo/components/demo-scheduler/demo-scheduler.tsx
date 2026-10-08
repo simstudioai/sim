@@ -98,6 +98,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
   useEffect(() => {
     let cancelled = false
     const trackDemoBooked = () => {
+      if (cancelled) return
       if (measurement) {
         trackGoogleEvent('get_a_demo', {
           page_path: '/demo',

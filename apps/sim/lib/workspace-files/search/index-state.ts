@@ -330,6 +330,12 @@ export async function failFileSearchRevision(
   })
 }
 
+/**
+ * A build {@link cleanupFileSearchBuilds} reclaims: retired, or abandoned past its lease. Implies
+ * `expires_at IS NOT NULL`, so `workspace_file_search_build_cleanup_idx` serves it.
+ */
+export const fileSearchBuildExpired = sql`${workspaceFileSearchBuild.expiresAt} <= now()`
+
 /** Expired and invalidated builds drain without cascading a large delete through file mutations. */
 export async function cleanupFileSearchBuilds(): Promise<number> {
   const deadline = Date.now() + FILE_SEARCH_CLEANUP_BUDGET_MS
@@ -344,7 +350,7 @@ export async function cleanupFileSearchBuilds(): Promise<number> {
       const builds = await tx.execute<{
         id: string
       }>(sql`SELECT id FROM workspace_file_search_build
-        WHERE expires_at <= now() ORDER BY expires_at, id LIMIT ${FILE_SEARCH_CLEANUP_BATCH_BUILDS} FOR UPDATE SKIP LOCKED`)
+        WHERE ${fileSearchBuildExpired} ORDER BY expires_at, id LIMIT ${FILE_SEARCH_CLEANUP_BATCH_BUILDS} FOR UPDATE SKIP LOCKED`)
       if (!builds.length) return null
       const buildIds = sql.join(
         builds.map((build) => sql`${build.id}`),

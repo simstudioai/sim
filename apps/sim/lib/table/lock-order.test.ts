@@ -7,12 +7,9 @@
  */
 import { userTableDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { featureFlagsMock } from '@sim/testing/mocks/feature-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { importAppendRows } from '@/lib/table/import-data'
 import type { TableDefinition } from '@/lib/table/types'
-
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),

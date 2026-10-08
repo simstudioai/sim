@@ -3,6 +3,7 @@ import { outboxEvent } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 
@@ -10,8 +11,6 @@ export interface DocumentProcessingContinuation {
   readonly deferredUntil: Date
   readonly processingQueueToken: string
 }
-
-export const KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT = 'knowledge.document.processing.resume'
 
 /**
  * Uses the deployment's existing durable worker. The outbox path covers ordinary

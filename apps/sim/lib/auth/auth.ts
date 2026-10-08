@@ -1,6 +1,5 @@
 import { cache } from 'react'
 import { oauthProvider } from '@better-auth/oauth-provider'
-import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
@@ -46,6 +45,13 @@ import {
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
 import { getAuthDatabase } from '@/lib/auth/database-context'
+import {
+  type AuthenticationSecurityAuditSnapshot,
+  captureAuthenticationSecurityAudit,
+  recordAuthenticationAudit,
+  recordAuthenticationSecurityAudit,
+  recordPasswordResetAudit,
+} from '@/lib/auth/lifecycle-audit'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
@@ -66,6 +72,7 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
+import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
@@ -103,6 +110,10 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import {
+  reconcileSubscriptionSyncFromStripe,
+  recordCustomerRestoreAfterHook,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
@@ -900,206 +911,259 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
-    onPasswordReset: async ({ user: resetUser }) => {
-      const { AuditAction, AuditResourceType, recordAudit } = await import('@sim/audit')
-      recordAudit({
-        actorId: resetUser.id,
-        actorName: resetUser.name,
-        actorEmail: resetUser.email,
-        action: AuditAction.PASSWORD_RESET,
-        resourceType: AuditResourceType.PASSWORD,
-        resourceId: resetUser.id,
-        description: `Password reset completed for ${resetUser.email}`,
-      })
+    onPasswordReset: async ({ user: resetUser }, request) => {
+      await recordPasswordResetAudit({ kind: 'completed', userId: resetUser.id, request })
     },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
-      if (
-        ((ctx.path.startsWith('/oauth2/') &&
-          ctx.path !== '/oauth2/link' &&
-          !ctx.path.startsWith('/oauth2/callback/')) ||
-          ctx.path === '/.well-known/oauth-authorization-server') &&
-        isAuthDisabled
-      ) {
-        throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
-      }
-
-      /**
-       * Better Auth 1.6.27 re-enters OAuth authorization when its own session
-       * refresh sets a cookie, issuing a second code that is never returned.
-       * Suppressing sliding renewal only for this request prevents the orphan;
-       * the next ordinary session request can still renew the same session.
-       */
-      if (ctx.path === '/oauth2/authorize') await setShouldSkipSessionRefresh(true)
-
-      /**
-       * Restrict the unauthenticated sign-in endpoints to first-party login
-       * providers. Better Auth registers every generic-OAuth integration
-       * connector as a social provider, so without this guard `microsoft-ad`,
-       * `salesforce`, `jira`, and the rest are reachable through
-       * `/sign-in/social` and `/sign-in/oauth2` and can mint a session for any
-       * user by email (nOAuth account takeover). Connectors are connected only
-       * through the authenticated `/oauth2/link` flow, which is unaffected.
-       */
-      if (ctx.path === '/sign-in/social' || ctx.path === '/sign-in/oauth2') {
-        const requestedProviderId = getRequestedSignInProviderId(ctx.path, ctx.body)
-        if (!isSignInProviderAllowed(requestedProviderId)) {
-          throw new APIError('FORBIDDEN', {
-            message:
-              'This provider can only be connected from a signed-in account and cannot be used to sign in.',
-          })
+      try {
+        /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
+        if (
+          ((ctx.path.startsWith('/oauth2/') &&
+            ctx.path !== '/oauth2/link' &&
+            !ctx.path.startsWith('/oauth2/callback/')) ||
+            ctx.path === '/.well-known/oauth-authorization-server') &&
+          isAuthDisabled
+        ) {
+          throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
         }
-      }
 
-      /**
-       * permission-group-enforced: oauth_apps.use, cli.use — account-level
-       * authorization uses the default group; token issuance rechecks it later.
-       * Explicit denial remains available even when access has been withheld.
-       */
-      if (
-        ctx.path === '/oauth2/authorize' ||
-        (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
-      ) {
-        const session = await getSessionFromCtx(ctx)
-        const userId = session?.user?.id
-        if (userId) {
-          if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+        /**
+         * Better Auth 1.6.27 re-enters OAuth authorization when its own session
+         * refresh sets a cookie, issuing a second code that is never returned.
+         * Suppressing sliding renewal only for this request prevents the orphan;
+         * the next ordinary session request can still renew the same session.
+         */
+        if (ctx.path === '/oauth2/authorize') await setShouldSkipSessionRefresh(true)
+
+        /**
+         * Restrict the unauthenticated sign-in endpoints to first-party login
+         * providers. Better Auth registers every generic-OAuth integration
+         * connector as a social provider, so without this guard `microsoft-ad`,
+         * `salesforce`, `jira`, and the rest are reachable through
+         * `/sign-in/social` and `/sign-in/oauth2` and can mint a session for any
+         * user by email (nOAuth account takeover). Connectors are connected only
+         * through the authenticated `/oauth2/link` flow, which is unaffected.
+         */
+        if (ctx.path === '/sign-in/social' || ctx.path === '/sign-in/oauth2') {
+          const requestedProviderId = getRequestedSignInProviderId(ctx.path, ctx.body)
+          if (!isSignInProviderAllowed(requestedProviderId)) {
             throw new APIError('FORBIDDEN', {
-              message: capabilityRefusal('oauth_apps.use'),
-              error: 'access_denied',
-              error_description: capabilityRefusal('oauth_apps.use'),
-            })
-          }
-          const isCli =
-            ctx.path === '/oauth2/authorize'
-              ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
-              : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
-          if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
-            throw new APIError('FORBIDDEN', {
-              message: capabilityRefusal('cli.use'),
-              error: 'access_denied',
-              error_description: capabilityRefusal('cli.use'),
-            })
-          }
-        }
-      }
-
-      if (ctx.path === '/oauth2/link' && ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID) {
-        try {
-          assertMicrosoftDataverseOAuthLinkRequest(
-            ctx.body.callbackURL,
-            ctx.body.scopes,
-            getCanonicalScopesForProvider(MICROSOFT_DATAVERSE_PROVIDER_ID)
-          )
-        } catch (error) {
-          throw new APIError('BAD_REQUEST', {
-            message: getErrorMessage(error, 'Invalid Dataverse OAuth request'),
-          })
-        }
-      }
-
-      if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
-        throw new APIError('FORBIDDEN', {
-          message: 'Registration is disabled, please contact your admin.',
-        })
-
-      if (!isEmailPasswordEnabled) {
-        const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
-        if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
-          throw new APIError('FORBIDDEN', {
-            message: 'Email/password authentication is disabled. Please use SSO to sign in.',
-          })
-      }
-
-      const isSignIn = ctx.path.startsWith('/sign-in')
-      const isSignUp = ctx.path.startsWith('/sign-up')
-
-      if (isSignIn || isSignUp) {
-        const accessControl = await getAccessControlConfig()
-        const requestEmail = ctx.body?.email?.toLowerCase()
-
-        // Banning an existing account is owned by better-auth's admin plugin (a
-        // `session.create.before` hook that blocks banned users at sign-in across
-        // all providers), so it is not re-checked here.
-        const hasAllowlist =
-          accessControl.allowedLoginEmails.length > 0 ||
-          accessControl.allowedLoginDomains.length > 0
-        if (hasAllowlist && requestEmail) {
-          const emailDomain = requestEmail.split('@')[1]
-          const isAllowed =
-            accessControl.allowedLoginEmails.includes(requestEmail) ||
-            (!!emailDomain && accessControl.allowedLoginDomains.includes(emailDomain))
-          if (!isAllowed) {
-            throw new APIError('FORBIDDEN', {
-              message: 'Access restricted. Please contact your administrator.',
+              message:
+                'This provider can only be connected from a signed-in account and cannot be used to sign in.',
             })
           }
         }
 
-        // Blocked emails/domains gate both signup and sign-in. OAuth/SSO sign-ins
-        // have no email in the body here; the session.create.before hook covers them.
-        if (isEmailBlockedByAccessControl(requestEmail, accessControl)) {
-          throw new APIError('FORBIDDEN', {
-            message: isSignUp
-              ? 'Sign-ups from this email are not allowed.'
-              : 'Access restricted. Please contact your administrator.',
-          })
+        /**
+         * permission-group-enforced: oauth_apps.use, cli.use — account-level
+         * authorization uses the default group; token issuance rechecks it later.
+         * Explicit denial remains available even when access has been withheld.
+         */
+        if (
+          ctx.path === '/oauth2/authorize' ||
+          (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
+        ) {
+          const session = await getSessionFromCtx(ctx)
+          const userId = session?.user?.id
+          if (userId) {
+            if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+              throw new APIError('FORBIDDEN', {
+                message: capabilityRefusal('oauth_apps.use'),
+                error: 'access_denied',
+                error_description: capabilityRefusal('oauth_apps.use'),
+              })
+            }
+            const isCli =
+              ctx.path === '/oauth2/authorize'
+                ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
+                : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
+            if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+              throw new APIError('FORBIDDEN', {
+                message: capabilityRefusal('cli.use'),
+                error: 'access_denied',
+                error_description: capabilityRefusal('cli.use'),
+              })
+            }
+          }
         }
 
         if (
-          isSignupMxValidationEnabled &&
-          ctx.path.startsWith('/sign-up/email') &&
-          ctx.body?.email
+          ctx.path === '/oauth2/link' &&
+          ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
         ) {
-          const mxCheck = await validateSignupEmailMx(
-            ctx.body.email,
-            accessControl.blockedEmailMxHosts
-          )
-          if (!mxCheck.allowed) {
-            throw new APIError('FORBIDDEN', {
-              message: 'Sign-ups from this email domain are not allowed.',
+          try {
+            assertMicrosoftDataverseOAuthLinkRequest(
+              ctx.body.callbackURL,
+              ctx.body.scopes,
+              getCanonicalScopesForProvider(MICROSOFT_DATAVERSE_PROVIDER_ID)
+            )
+          } catch (error) {
+            throw new APIError('BAD_REQUEST', {
+              message: getErrorMessage(error, 'Invalid Dataverse OAuth request'),
             })
           }
         }
-      }
 
-      /**
-       * Personal checkout guard. The Stripe plugin's `authorizeReference`
-       * only runs for organization references (it skips references equal to
-       * the session user), so personal checkout admission lives here. It
-       * prevents both a duplicate checkout while Stripe payment is pending
-       * and a personal plan for someone already covered by an organization.
-       */
-      if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
-        const session = await getSessionFromCtx(ctx)
-        const sessionUserId = session?.user?.id
-        if (sessionUserId) {
-          const requestBody = ctx.body ?? {}
-          const referenceId = resolveCheckoutReferenceId(
-            requestBody,
-            sessionUserId,
-            getActiveOrganizationId(session)
-          )
-          if (referenceId) {
-            const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
-            try {
-              if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
-                await assertPersonalCheckoutAllowed(sessionUserId)
-              }
-            } catch (error) {
-              await releaseCheckoutAdmission(checkoutAdmissionClaim)
-              throw error
+        if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
+          throw new APIError('FORBIDDEN', {
+            message: 'Registration is disabled, please contact your admin.',
+          })
+
+        if (!isEmailPasswordEnabled) {
+          const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
+          if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
+            throw new APIError('FORBIDDEN', {
+              message: 'Email/password authentication is disabled. Please use SSO to sign in.',
+            })
+        }
+
+        const isSignIn = ctx.path.startsWith('/sign-in')
+        const isSignUp = ctx.path.startsWith('/sign-up')
+
+        if (isSignIn || isSignUp) {
+          const accessControl = await getAccessControlConfig()
+          const requestEmail = ctx.body?.email?.toLowerCase()
+
+          // Banning an existing account is owned by better-auth's admin plugin (a
+          // `session.create.before` hook that blocks banned users at sign-in across
+          // all providers), so it is not re-checked here.
+          const hasAllowlist =
+            accessControl.allowedLoginEmails.length > 0 ||
+            accessControl.allowedLoginDomains.length > 0
+          if (hasAllowlist && requestEmail) {
+            const emailDomain = requestEmail.split('@')[1]
+            const isAllowed =
+              accessControl.allowedLoginEmails.includes(requestEmail) ||
+              (!!emailDomain && accessControl.allowedLoginDomains.includes(emailDomain))
+            if (!isAllowed) {
+              throw new APIError('FORBIDDEN', {
+                message: 'Access restricted. Please contact your administrator.',
+              })
             }
-            return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+          }
+
+          // Blocked emails/domains gate both signup and sign-in. OAuth/SSO sign-ins
+          // have no email in the body here; the session.create.before hook covers them.
+          if (isEmailBlockedByAccessControl(requestEmail, accessControl)) {
+            throw new APIError('FORBIDDEN', {
+              message: isSignUp
+                ? 'Sign-ups from this email are not allowed.'
+                : 'Access restricted. Please contact your administrator.',
+            })
+          }
+
+          if (
+            isSignupMxValidationEnabled &&
+            ctx.path.startsWith('/sign-up/email') &&
+            ctx.body?.email
+          ) {
+            const mxCheck = await validateSignupEmailMx(
+              ctx.body.email,
+              accessControl.blockedEmailMxHosts
+            )
+            if (!mxCheck.allowed) {
+              throw new APIError('FORBIDDEN', {
+                message: 'Sign-ups from this email domain are not allowed.',
+              })
+            }
           }
         }
-      }
 
-      return
+        /**
+         * Personal checkout guard. The Stripe plugin's `authorizeReference`
+         * only runs for organization references (it skips references equal to
+         * the session user), so personal checkout admission lives here. It
+         * prevents both a duplicate checkout while Stripe payment is pending
+         * and a personal plan for someone already covered by an organization.
+         */
+        if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
+          const session = await getSessionFromCtx(ctx)
+          const sessionUserId = session?.user?.id
+          if (sessionUserId) {
+            const requestBody = ctx.body ?? {}
+            const referenceId = resolveCheckoutReferenceId(
+              requestBody,
+              sessionUserId,
+              getActiveOrganizationId(session)
+            )
+            if (referenceId) {
+              const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
+              try {
+                if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
+                  await assertPersonalCheckoutAllowed(sessionUserId)
+                }
+              } catch (error) {
+                await releaseCheckoutAdmission(checkoutAdmissionClaim)
+                throw error
+              }
+              return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+            }
+          }
+        }
+
+        if (ctx.path === '/sign-out') {
+          const session = await getSessionFromCtx(ctx)
+          return { context: { authenticationAuditLogoutUserId: session?.user?.id } }
+        }
+        const securityAudit = await captureAuthenticationSecurityAudit({
+          path: ctx.path,
+          resolveActor: async () => {
+            const session = await getSessionFromCtx(ctx)
+            if (!session?.user || !session.session) return null
+            return {
+              userId: session.user.id,
+              sessionId: session.session.id,
+              role: session.user.role,
+              impersonatedBy: session.session.impersonatedBy,
+            }
+          },
+          requestedUserId: ctx.body?.userId,
+          requestedToken:
+            ctx.path === '/admin/revoke-user-session' ? ctx.body?.sessionToken : ctx.body?.token,
+        })
+        if (securityAudit) return { context: { authenticationSecurityAudit: securityAudit } }
+        return
+      } catch (error) {
+        await recordAuthenticationAudit({
+          path: ctx.path,
+          email: ctx.body?.email,
+          providerId: ctx.params?.providerId,
+          returned: error,
+          request: ctx.request ?? (ctx.headers ? { headers: ctx.headers } : undefined),
+        })
+        throw error
+      }
     }),
     after: createAuthMiddleware(async (ctx) => {
+      if (isBillingEnabled) await recordCustomerRestoreAfterHook(ctx)
+
+      const recordFinalAuthenticationResult = async (
+        admittedSsoProviderId?: string,
+        ssoAdmissionCompleted = false
+      ) => {
+        const auditContext = ctx as typeof ctx & {
+          authenticationAuditLogoutUserId?: string
+          authenticationSecurityAudit?: AuthenticationSecurityAuditSnapshot
+        }
+        await recordAuthenticationSecurityAudit({
+          snapshot: auditContext.authenticationSecurityAudit,
+          returned: ctx.context.returned,
+          request: ctx.request ?? (ctx.headers ? { headers: ctx.headers } : undefined),
+        })
+        return recordAuthenticationAudit({
+          path: ctx.path,
+          userId: ctx.context.newSession?.user?.id,
+          email: ctx.body?.email,
+          logoutUserId: auditContext.authenticationAuditLogoutUserId,
+          providerId: admittedSsoProviderId ?? ctx.params?.providerId ?? ctx.params?.id,
+          ssoAdmissionCompleted,
+          returned: ctx.context.returned,
+          redirectLocation: ctx.context.responseHeaders?.get('location'),
+          request: ctx.request ?? (ctx.headers ? { headers: ctx.headers } : undefined),
+        })
+      }
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const checkoutContext = ctx as typeof ctx & {
           billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
@@ -1109,17 +1173,26 @@ export const auth = betterAuth({
         }
       }
 
-      if (!isSsoEnabled) return
+      if (!isSsoEnabled) {
+        await recordFinalAuthenticationResult()
+        return
+      }
       const oauthState = ctx.path === '/sso/callback' ? await getOAuthState() : null
       const providerId = resolveSsoCallbackProviderId({
         path: ctx.path,
         routeProviderId: ctx.params?.providerId,
         stateProviderId: oauthState?.ssoProviderId,
       })
-      if (!providerId) return
+      if (!providerId) {
+        await recordFinalAuthenticationResult()
+        return
+      }
 
       const newSession = ctx.context.newSession
-      if (!newSession?.session || !newSession.user) return
+      if (!newSession?.session || !newSession.user) {
+        await recordFinalAuthenticationResult(providerId)
+        return
+      }
 
       let admissionErrorCode: string | null = null
       try {
@@ -1180,7 +1253,18 @@ export const auth = betterAuth({
         })
       }
 
-      if (!admissionErrorCode) return
+      if (!admissionErrorCode) {
+        await recordFinalAuthenticationResult(providerId, true)
+        return
+      }
+
+      await recordAuthenticationAudit({
+        path: ctx.path,
+        userId: newSession.user.id,
+        providerId,
+        failureReason: 'sso_admission_denied',
+        request: ctx.request ?? (ctx.headers ? { headers: ctx.headers } : undefined),
+      })
 
       try {
         await ctx.context.internalAdapter.deleteSession(newSession.session.token)
@@ -1370,61 +1454,10 @@ export const auth = betterAuth({
      * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
      * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
      * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
-     * section visible and `hasSSOAccess` passing while sign-in silently had no
+     * section visible and SSO entitlement passing while sign-in silently had no
      * SSO provider behind it.
      */
-    ...(isSsoEnabled
-      ? [
-          sso({
-            /**
-             * MUST stay false. Better Auth's link gate is
-             * `!isTrustedProvider && !userInfo.emailVerified`, so a true
-             * `email_verified` claim substitutes for the domain binding
-             * entirely: an IdP could assert any address — including one from a
-             * domain it does not own — and auto-link into that user's existing
-             * account. Since a provider row can be registered by any
-             * organization owner or admin (or by an operator via the register
-             * script), trusting the claim makes every account reachable from
-             * any tenant's IdP.
-             *
-             * Turning it on only ever set `emailVerified` on the local row; it
-             * was never what made linking work. Entra omits the claim, and SAML
-             * ignores it without an explicit `mapping.emailVerified` that the
-             * register contract does not accept — so SSO users are created
-             * unverified either way, and `domainVerification` below is the sole
-             * linking trust source, which is what `trustProviderByName: false`
-             * already assumes.
-             */
-            trustEmailVerified: false,
-            /**
-             * Marks a provider authoritative for its domain, which is what lets an
-             * SSO sign-in auto-link to an existing same-email account. Without it
-             * `isTrustedProvider` is always false and every user who already had a
-             * Sim account is stranded on "account not linked".
-             *
-             * Sim does not use Better Auth's DNS challenge endpoints: ownership is
-             * proven by the `sso_domain` flow before registration, and the register
-             * route mirrors that decision onto this flag.
-             *
-             * With `trustEmailVerified` off this is the only path to linking, and
-             * it is domain-scoped: `isTrustedProvider` additionally requires
-             * `validateEmailDomain(userInfo.email, provider.domain)`, so a
-             * provider can only ever claim identities inside the domain it proved.
-             */
-            domainVerification: { enabled: true },
-            organizationProvisioning: {
-              /**
-               * Better Auth writes member rows directly and bypasses Sim's seat,
-               * billing, session-policy, and audit invariants. Admission is owned
-               * by the application use case in the callback hook above.
-               */
-              disabled: true,
-              defaultRole: 'member',
-            },
-          }),
-        ]
-      : []),
-    // Only include the Stripe plugin when billing is enabled
+    ...(isSsoEnabled ? [configuredSsoPlugin] : []),
     ...(isBillingEnabled && stripeClient
       ? [
           stripe({
@@ -1727,6 +1760,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await reconcileSubscriptionSyncFromStripe(event)
                     await handleSubscriptionUsageUpdate(event)
                     break
                   }

@@ -12,17 +12,21 @@ import {
   workflowRegistryStoreMock,
   workflowRegistryStoreMockFns,
 } from '@sim/testing/mocks/workflow-registry-store.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sleep } from '@sim/utils/helpers'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 
 const {
   executeWorkflowWithFullLogging,
+  isReconnectStreamOpen,
   MockExecutionStreamHttpError,
   MockSSEEventHandlerError,
   MockSSEStreamInterruptedError,
 } = vi.hoisted(() => ({
   executeWorkflowWithFullLogging: vi.fn(),
+  isReconnectStreamOpen: vi.fn(() => false),
   MockExecutionStreamHttpError: class ExecutionStreamHttpError extends Error {
     constructor(
       message: string,
@@ -75,9 +79,16 @@ function requireAbortSignal(options: WorkflowExecutionOptions): AbortSignal {
   return options.abortSignal
 }
 
+/** Waits for the run tool to launch its client execution and returns the execution id. */
+async function launchedExecutionId(): Promise<string> {
+  await vi.waitFor(() => expect(executeWorkflowWithFullLogging).toHaveBeenCalled())
+  return executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+}
+
 vi.mock('@/hooks/use-execution-stream', () => ({
   ExecutionStreamHttpError: MockExecutionStreamHttpError,
   isExecutionStreamHttpError: (error: unknown) => error instanceof MockExecutionStreamHttpError,
+  isReconnectStreamOpen,
   SSEEventHandlerError: MockSSEEventHandlerError,
   SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
@@ -180,22 +191,24 @@ describe('run tool execution cancellation', () => {
     ['transport', new MockSSEStreamInterruptedError('Execution stream interrupted', 'exec-1')],
   ])(
     'releases a run whose stream was cut by a %s failure only after giving up ownership',
-    async (_kind, interruption) => {
+    async (kind, interruption) => {
+      // A dropped run keeps its workflow until it settles, so each case gets its own.
+      const workflowId = `wf-stream-${kind}`
       const ownedAtRelease: boolean[] = []
-      const listener = vi.fn((workflowId: string) => {
-        ownedAtRelease.push(isRunToolActiveForWorkflow(workflowId))
+      const listener = vi.fn((releasedWorkflowId: string) => {
+        ownedAtRelease.push(isRunToolActiveForWorkflow(releasedWorkflowId))
       })
       const unsubscribe = subscribeToRunToolRelease(listener)
       executeWorkflowWithFullLogging.mockRejectedValueOnce(interruption)
 
       try {
-        executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
-        await vi.waitFor(() => expect(listener).toHaveBeenCalledWith('wf-1'))
+        executeRunToolOnClient('tool-1', 'run_workflow', { workflowId })
+        await vi.waitFor(() => expect(listener).toHaveBeenCalledWith(workflowId))
 
         expect(listener).toHaveBeenCalledTimes(1)
         expect(ownedAtRelease).toEqual([false])
-        expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
-        expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', null)
+        expect(setIsExecuting).toHaveBeenCalledWith(workflowId, false)
+        expect(setCurrentExecutionId).toHaveBeenCalledWith(workflowId, null)
         expect(setIsExecuting.mock.invocationCallOrder.at(-1)).toBeLessThan(
           listener.mock.invocationCallOrder[0]
         )
@@ -241,7 +254,7 @@ describe('run tool execution cancellation', () => {
         })
     )
     executeRunToolOnClient('tool-override', 'run_workflow', { workflowId: 'wf-1' })
-    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    const executionId = await launchedExecutionId()
     expect(stopRunToolForExecution('wf-1', 'newer-manual-execution')).toBe(false)
     expect(mockRequestJson).not.toHaveBeenCalled()
     getCurrentExecutionId.mockReturnValue('newer-manual-execution')
@@ -283,9 +296,7 @@ describe('run tool execution cancellation', () => {
       useDeployedState: true,
     })
 
-    await Promise.resolve()
-    await Promise.resolve()
-
+    await launchedExecutionId()
     expect(executeWorkflowWithFullLogging).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: 'wf-1',
@@ -295,7 +306,7 @@ describe('run tool execution cancellation', () => {
         useDraftState: false,
       })
     )
-    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    const executionId = await launchedExecutionId()
     await vi.waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
         '/api/copilot/confirm',
@@ -320,8 +331,8 @@ describe('run tool execution cancellation', () => {
           })
       )
       const toolCallId = `owned-${outcome}`
-      executeRunToolOnClient(toolCallId, 'run_workflow', { workflowId: 'wf-1' })
-      const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+      executeRunToolOnClient(toolCallId, 'run_workflow', { workflowId: `wf-owned-${outcome}` })
+      const executionId = await launchedExecutionId()
       getCurrentExecutionId.mockReturnValue('new-manual-execution')
       setCurrentExecutionId.mockClear()
       setIsExecuting.mockClear()
@@ -513,7 +524,7 @@ describe('run tool execution cancellation', () => {
         })
       )
     })
-    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    const executionId = await launchedExecutionId()
     expect(fetchMock.mock.calls[0][1]?.body).toContain(`"executionId":"${executionId}"`)
     expect(fetchMock.mock.calls[0][1]?.body).not.toContain('workflow failed')
   })
@@ -667,5 +678,322 @@ describe('run tool execution cancellation', () => {
     })
     expect(fetchMock).not.toHaveBeenCalled()
     expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
+  })
+
+  describe('same-workflow calls issued while an agent run is in flight', () => {
+    /** Holds every client execution open until the test settles it by tool call id. */
+    function holdExecutions() {
+      const settle = new Map<string, (result: { success: boolean }) => void>()
+      onTestFinished(() => {
+        executeWorkflowWithFullLogging.mockReset()
+      })
+      executeWorkflowWithFullLogging.mockImplementation(
+        (options: WorkflowExecutionOptions) =>
+          new Promise((resolve, reject) => {
+            settle.set(String(options.copilotToolCallId), resolve)
+            requireAbortSignal(options).addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true }
+            )
+          })
+      )
+      const launchedToolCallIds = () =>
+        executeWorkflowWithFullLogging.mock.calls.map(
+          ([options]: [WorkflowExecutionOptions]) => options.copilotToolCallId
+        )
+      const finish = (toolCallId: string) => {
+        const resolve = settle.get(toolCallId)
+        if (!resolve) throw new Error(`${toolCallId} was never launched`)
+        resolve({ success: true })
+      }
+      return { finish, launchedToolCallIds }
+    }
+
+    function confirmBodies(): Array<Record<string, unknown>> {
+      return vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => url === '/api/copilot/confirm')
+        .map(([, init]) => JSON.parse(String(init?.body)))
+    }
+
+    function confirmStatuses(): Array<[unknown, unknown]> {
+      return confirmBodies().map((body) => [body.toolCallId, body.status])
+    }
+
+    function statusFetches(): number {
+      return mockRequestJson.mock.calls.filter(
+        ([contract]) => contract === getWorkflowExecutionContract
+      ).length
+    }
+
+    async function drain(workflowId = 'wf-1') {
+      await vi.waitFor(() => expect(isRunToolActiveForWorkflow(workflowId)).toBe(false))
+    }
+
+    /** Makes the next launched run lose its stream while the server keeps running it. */
+    function interruptFirstRun(executionId: string) {
+      let serverStatus = 'running'
+      mockRequestJson.mockImplementation(async (contract: unknown) =>
+        contract === getWorkflowExecutionContract ? { status: serverStatus } : { success: true }
+      )
+      executeWorkflowWithFullLogging.mockRejectedValueOnce(
+        new MockSSEStreamInterruptedError('Execution stream interrupted', executionId)
+      )
+      const released = vi.fn()
+      onTestFinished(subscribeToRunToolRelease(released))
+      return {
+        released,
+        setServerStatus: (status: string) => {
+          serverStatus = status
+        },
+      }
+    }
+
+    /** Controls whether the editor holds a reconnect stream open for the interrupted run. */
+    function reconnectStream(open: boolean) {
+      let isOpen = open
+      isReconnectStreamOpen.mockImplementation(() => isOpen)
+      onTestFinished(() => {
+        isReconnectStreamOpen.mockReset()
+        isReconnectStreamOpen.mockReturnValue(false)
+      })
+      return {
+        close: () => {
+          isOpen = false
+        },
+      }
+    }
+
+    it('runs them one at a time in the order they were issued instead of rejecting them as busy', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      executeRunToolOnClient('tool-c', 'run_workflow', { workflowId: 'wf-1' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+
+      finish('tool-a')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b', 'tool-c']))
+      finish('tool-c')
+      await drain()
+
+      expect(confirmStatuses()).toEqual([
+        ['tool-a', 'success'],
+        ['tool-b', 'success'],
+        ['tool-c', 'success'],
+      ])
+    })
+
+    it('keeps a call issued while the previous run is releasing behind the calls already waiting', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      let issuedLate = false
+      setIsExecuting.mockImplementation((workflowId: string, running: boolean) => {
+        if (workflowId === 'wf-1' && !running && !issuedLate) {
+          issuedLate = true
+          executeRunToolOnClient('tool-late', 'run_block', { workflowId: 'wf-1', blockId: 'b' })
+        }
+      })
+      onTestFinished(() => {
+        setIsExecuting.mockReset()
+      })
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+
+      finish('tool-a')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await vi.waitFor(() =>
+        expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b', 'tool-late'])
+      )
+      finish('tool-late')
+      await drain()
+    })
+
+    it('does not hold up a run of a different workflow', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+
+      executeRunToolOnClient('tool-a', 'run_workflow', { workflowId: 'wf-1' })
+      executeRunToolOnClient('tool-other', 'run_workflow', { workflowId: 'wf-2' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-other']))
+
+      finish('tool-a')
+      finish('tool-other')
+      await drain('wf-1')
+      await drain('wf-2')
+    })
+
+    it('cancels a stopped call that is still waiting without ever launching it', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      executeRunToolOnClient('tool-other-chat', 'run_block', {
+        workflowId: 'wf-1',
+        blockId: 'block-3',
+      })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+
+      stopRunToolExecutions(new Set(['tool-a', 'tool-b']))
+
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-other-chat']))
+      finish('tool-other-chat')
+      await drain()
+
+      const statusByToolCall = new Map(confirmStatuses())
+      expect(statusByToolCall.get('tool-a')).toBe('cancelled')
+      expect(statusByToolCall.get('tool-b')).toBe('cancelled')
+      expect(statusByToolCall.get('tool-other-chat')).toBe('success')
+    })
+
+    it('keeps the workflow for a run whose stream dropped until that run settles on the server', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      const { released, setServerStatus } = interruptFirstRun('exec-interrupted')
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
+      await vi.waitFor(() => expect(statusFetches()).toBeGreaterThan(2))
+
+      expect(launchedToolCallIds()).toEqual(['tool-a'])
+      expect(saveExecutionPointer).toHaveBeenCalledTimes(1)
+      expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
+
+      setServerStatus('completed')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await drain()
+      expect(confirmStatuses()).toEqual([
+        ['tool-a', 'background'],
+        ['tool-b', 'success'],
+      ])
+    })
+
+    it('checks a dropped run only while a call waits on it and no reconnect is following it', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      const { released, setServerStatus } = interruptFirstRun('exec-watched')
+      const reconnect = reconnectStream(true)
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
+      await sleep(20)
+      expect(isReconnectStreamOpen).not.toHaveBeenCalled()
+
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(isReconnectStreamOpen.mock.calls.length).toBeGreaterThan(2))
+      expect(statusFetches()).toBe(0)
+      expect(launchedToolCallIds()).toEqual(['tool-a'])
+
+      setServerStatus('completed')
+      reconnect.close()
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      expect(statusFetches()).toBe(1)
+      finish('tool-b')
+      await drain()
+    })
+
+    it('lets waiting calls run once the dropped run settles, even if its reconnect was abandoned', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      const { released, setServerStatus } = interruptFirstRun('exec-abandoned')
+      const reconnect = reconnectStream(true)
+      const running = new Map<string, boolean>()
+      setIsExecuting.mockImplementation((workflowId: string, value: boolean) => {
+        running.set(workflowId, value)
+      })
+      getWorkflowExecution.mockImplementation((workflowId: string) => ({
+        isExecuting: running.get(workflowId) ?? false,
+      }))
+      onTestFinished(() => {
+        setIsExecuting.mockReset()
+        getWorkflowExecution.mockReset()
+        getWorkflowExecution.mockImplementation(() => ({ isExecuting: false }))
+      })
+
+      loadExecutionPointer.mockResolvedValue({
+        workflowId: 'wf-1',
+        executionId: 'exec-abandoned',
+        lastEventId: 3,
+      })
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(released).toHaveBeenCalledWith('wf-1'))
+      // The editor's reconnect re-attaches, then the user navigates away and it is
+      // cancelled, leaving the execution marked current and running in the store.
+      setCurrentExecutionId('wf-1', 'exec-abandoned')
+      setIsExecuting('wf-1', true)
+      setServerStatus('completed')
+      await vi.waitFor(() =>
+        expect(isReconnectStreamOpen).toHaveBeenCalledWith('wf-1', 'exec-abandoned')
+      )
+      expect(launchedToolCallIds()).toEqual(['tool-a'])
+
+      reconnect.close()
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      // The abandoned run's pointer is gone before the next run saves its own.
+      expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+      expect(clearExecutionPointer.mock.invocationCallOrder[0]).toBeLessThan(
+        saveExecutionPointer.mock.invocationCallOrder.at(-1) ?? 0
+      )
+      finish('tool-b')
+      await drain()
+      expect(confirmStatuses()).toEqual([
+        ['tool-a', 'background'],
+        ['tool-b', 'success'],
+      ])
+    })
+
+    it('re-sends an undelivered completion while a later call owns the workflow', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+      let confirmsFailFor: string | null = 'tool-a'
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: string, init?: RequestInit) =>
+          confirmsFailFor && String(init?.body).includes(`"toolCallId":"${confirmsFailFor}"`)
+            ? { ok: false, status: 500 }
+            : { ok: true }
+        )
+      )
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+      const firstExecutionId = await launchedExecutionId()
+      finish('tool-a')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+
+      confirmsFailFor = null
+      await expect(bindRunToolToExecution('tool-a', 'wf-1')).resolves.toBe(true)
+
+      const delivered = confirmBodies()
+        .filter((body) => body.toolCallId === 'tool-a')
+        .at(-1)
+      expect(delivered).toMatchObject({ status: 'success', executionId: firstExecutionId })
+      finish('tool-b')
+      await drain()
+    })
+
+    it('treats a waiting call as already owned by this tab when the chat recovers it', async () => {
+      const { finish, launchedToolCallIds } = holdExecutions()
+
+      executeRunToolOnClient('tool-a', 'run_block', { workflowId: 'wf-1', blockId: 'block-1' })
+      executeRunToolOnClient('tool-b', 'run_block', { workflowId: 'wf-1', blockId: 'block-2' })
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a']))
+
+      await expect(bindRunToolToExecution('tool-b', 'wf-1')).resolves.toBe(true)
+
+      finish('tool-a')
+      await vi.waitFor(() => expect(launchedToolCallIds()).toEqual(['tool-a', 'tool-b']))
+      finish('tool-b')
+      await drain()
+      expect(confirmStatuses()).toEqual([
+        ['tool-a', 'success'],
+        ['tool-b', 'success'],
+      ])
+    })
   })
 })

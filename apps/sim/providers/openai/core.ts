@@ -15,6 +15,7 @@ import {
   isProviderConversationCaptureEnabled,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
+import { getModelCapabilities } from '@/providers/models'
 import { createOpenAIResponsesStreamingToolLoopStream } from '@/providers/openai/streaming-tool-loop'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import {
@@ -274,7 +275,13 @@ export async function executeResponsesProviderRequest(
 
   if (tools?.length) {
     preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, config.providerId)
-    const { tools: filteredTools, toolChoice } = preparedTools
+    const { tools: filteredTools, toolChoice: preparedToolChoice } = preparedTools
+    const toolChoice =
+      getModelCapabilities(config.capabilityModel ?? request.model)?.forcedToolUse === false
+        ? filteredTools?.length
+          ? 'auto'
+          : undefined
+        : preparedToolChoice
     trackingToolChoice = toolChoice
 
     if (filteredTools?.length) {

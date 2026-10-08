@@ -280,9 +280,10 @@ export interface SandboxHandle {
   extendLifetime?(lifetimeMs: number): Promise<void>
   /**
    * True when a deadline this handle already established keeps the sandbox alive for
-   * `lifetimeMs` from now, so {@link extendLifetime} would make no provider request.
+   * `lifetimeMs` counted from `fromMs`, so {@link extendLifetime} would make no provider
+   * request. The caller supplies the clock reading the window is measured from.
    */
-  outlives?(lifetimeMs: number): boolean
+  outlives?(lifetimeMs: number, fromMs: number): boolean
   /** Reads provider metadata without materializing the file contents. */
   getFileSize(path: string): Promise<number>
   readFile(path: string): Promise<string>

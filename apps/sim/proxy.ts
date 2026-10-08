@@ -457,7 +457,9 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
-    '/api/:path*', // Runtime CORS
+    // Runtime CORS. The desktop's raw upload routes are left out: running the proxy makes Next
+    // buffer the body, cutting it off at its 10 MB proxy limit, and those bodies are whole files.
+    '/api/((?!desktop/tool/(?:import|file)$).*)',
     // Catch-all for other pages, excluding static assets and public directories
     '/((?!api/|api$|_next/static|_next/image|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],

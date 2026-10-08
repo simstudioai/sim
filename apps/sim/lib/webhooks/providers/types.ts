@@ -200,6 +200,9 @@ export interface WebhookProviderHandler {
   /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
   createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>
 
+  /** Activate a prepared subscription only after its provider-managed credentials are durable. */
+  activateSubscription?(ctx: SubscriptionContext): Promise<void>
+
   /** Delete an external webhook subscription during cleanup. Strict outbox cleanup should throw. */
   deleteSubscription?(ctx: DeleteSubscriptionContext): Promise<void>
 

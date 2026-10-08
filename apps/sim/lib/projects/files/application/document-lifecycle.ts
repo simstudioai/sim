@@ -1,11 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import { PROJECT_FILE_DOCUMENT_RETIRE_EVENT } from '@/lib/projects/files/outbox-events'
 import { retireLiveProjectFileDoc } from '@/lib/realtime/notify'
 
-const RETIRE_DOCUMENT_EVENT = 'project-file.document.retire'
-
 export const projectFileDocumentOutboxHandlers = {
-  [RETIRE_DOCUMENT_EVENT]: async (payload, context) => {
+  [PROJECT_FILE_DOCUMENT_RETIRE_EVENT]: async (payload, context) => {
     if (
       !isRecordLike(payload) ||
       typeof payload.projectId !== 'string' ||

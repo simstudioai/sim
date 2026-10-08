@@ -55,7 +55,7 @@ export type ChatCompletionPayload = ChatCompletionCreateParamsNonStreaming & {
 }
 
 interface ChatCompletionExecutionConfig {
-  providerId: 'baseten' | 'together' | 'fireworks' | 'openrouter'
+  providerId: 'baseten' | 'together' | 'fireworks' | 'openrouter' | 'nebius'
   providerName: string
   client: OpenAI
   requestedModel: string

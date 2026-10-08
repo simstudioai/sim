@@ -80,6 +80,27 @@ describe('kieProvider', () => {
     expect(result).toMatchObject({ content: 'pong' })
   })
 
+  it.each([
+    ['none', false],
+    ['enabled', true],
+  ] as const)(
+    'sends Sonnet thinking %s as the documented boolean flag',
+    async (thinkingLevel, flag) => {
+      fetchMock.mockResolvedValue(Response.json(CLAUDE_MESSAGE))
+      await kieProvider.executeRequest({
+        model: 'kie/claude-sonnet-5-5',
+        apiKey: 'kie-key',
+        maxTokens: 1024,
+        thinkingLevel,
+        messages: [{ role: 'user', content: 'ping' }],
+      })
+      const { body } = sentRequest()
+      expect(body.thinkingFlag).toBe(flag)
+      expect(body.thinking).toBeUndefined()
+      expect(body.output_config).toBeUndefined()
+    }
+  )
+
   it('surfaces an HTTP 200 error envelope on the Claude route as an error', async () => {
     fetchMock.mockResolvedValue(Response.json({ code: 402, msg: 'Insufficient credits' }))
 
@@ -110,5 +131,29 @@ describe('kieProvider', () => {
     expect(body.stream).toBe(false)
     expect(body.reasoning).toMatchObject({ effort: 'high' })
     expect(result).toMatchObject({ content: 'pong' })
+  })
+
+  it('downgrades a saved forced tool to auto for GPT 6.1 Sol', async () => {
+    fetchMock.mockResolvedValue(Response.json(RESPONSES_RESULT))
+
+    await kieProvider.executeRequest({
+      model: 'kie/gpt-6-1-sol',
+      apiKey: 'kie-key',
+      messages: [{ role: 'user', content: 'Look this up' }],
+      tools: [
+        {
+          id: 'lookup',
+          name: 'lookup',
+          description: 'Lookup',
+          params: {},
+          parameters: { type: 'object', properties: {}, required: [] },
+          usageControl: 'force',
+        },
+      ],
+    })
+
+    const { body } = sentRequest()
+    expect(body.tool_choice).toBe('auto')
+    expect(body.tools).toMatchObject([{ type: 'function', name: 'lookup' }])
   })
 })

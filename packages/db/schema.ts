@@ -16,6 +16,7 @@ import {
   json,
   jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
@@ -792,6 +793,26 @@ export const resumeQueue = pgTable(
     ),
     newExecutionIdx: index('resume_queue_new_execution_idx').on(table.newExecutionId),
   })
+)
+
+/** Durable encrypted application permissions and tokens, plus expiring token-exchange failures. */
+export const clientCredentialToken = pgTable(
+  'client_credential_token',
+  {
+    id: text('id').primaryKey(),
+    encryptedValue: text('encrypted_value').notNull(),
+    accessTokenDigest: text('access_token_digest'),
+    expiresAt: timestamp('expires_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('client_credential_token_expires_at_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.accessTokenDigest} IS NULL`),
+    index('client_credential_token_access_token_digest_idx')
+      .on(table.accessTokenDigest)
+      .where(sql`${table.accessTokenDigest} IS NOT NULL`),
+  ]
 )
 
 export const environment = pgTable('environment', {
@@ -2102,7 +2123,7 @@ export const project = pgTable(
   })
 )
 
-/** Deferred membership and lifecycle triggers are installed by 0397 after the Project backfill. */
+/** Deferred membership and lifecycle triggers are installed by 0401 after the Project backfill. */
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
@@ -4483,6 +4504,34 @@ export const copilotOrganizationRequestStops = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.organizationId, table.streamId] })]
 )
 
+/**
+ * A Sim desktop install that can run a user's desktop tools while no chat view is open. The id is
+ * the install's own identifier; the row binds it to one user and to the Better Auth session that
+ * registered it, so signing out (which deletes that session) disconnects the device.
+ */
+export const desktopDevices = pgTable(
+  'desktop_devices',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    appVersion: text('app_version').notNull(),
+    platform: text('platform').notNull(),
+    capabilities: jsonb('capabilities').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('desktop_devices_user_id_idx').on(table.userId),
+    sessionIdIdx: index('desktop_devices_session_id_idx').on(table.sessionId),
+  })
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
@@ -4509,6 +4558,10 @@ export const copilotRuns = pgTable(
     provider: text('provider'),
     status: copilotRunStatusEnum('status').notNull().default('active'),
     requestContext: jsonb('request_context').notNull().default('{}'),
+    /** Set at admission when the turn's desktop runs its tools in the background executor. */
+    desktopDeviceId: text('desktop_device_id').references(() => desktopDevices.id, {
+      onDelete: 'set null',
+    }),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4534,6 +4587,10 @@ export const copilotRuns = pgTable(
       table.id
     ),
     streamIdUnique: uniqueIndex('copilot_runs_stream_id_unique').on(table.streamId),
+    desktopDeviceStartedAtIdx: index('copilot_runs_desktop_device_started_at_idx')
+      .on(table.desktopDeviceId, table.startedAt)
+      .where(sql`${table.desktopDeviceId} IS NOT NULL`)
+      .concurrently(),
   })
 )
 
@@ -4563,6 +4620,9 @@ export const copilotRunCheckpoints = pgTable(
   })
 )
 
+/** Orders tool calls by persistence, which follows the order the model emitted them in. */
+export const copilotAsyncToolCallsPersistSeq = pgSequence('copilot_async_tool_calls_persist_seq')
+
 export const copilotAsyncToolCalls = pgTable(
   'copilot_async_tool_calls',
   {
@@ -4591,6 +4651,19 @@ export const copilotAsyncToolCalls = pgTable(
      * a desktop claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
+    /**
+     * When a desktop call on a device-bound run must be claimed by: set once the call may run and
+     * is offered to its device. A call still unclaimed after it fails as never started.
+     */
+    pickupDeadlineAt: timestamp('pickup_deadline_at', { withTimezone: true }),
+    /**
+     * When this call was persisted, as a strictly increasing number: calls from one turn can share
+     * a millisecond, and a device must run them in the order the model emitted them. Null on rows
+     * persisted before the column existed.
+     */
+    persistSeq: bigint('persist_seq', { mode: 'number' }).default(
+      sql`nextval('copilot_async_tool_calls_persist_seq')`
+    ),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     /** One-use download-save admission; never released after an uncertain storage outcome. */
@@ -7632,7 +7705,7 @@ export const dataDrains = pgTable(
     destinationCredentials: text('destination_credentials').notNull(),
     scheduleCadence: dataDrainCadenceEnum('schedule_cadence').notNull(),
     enabled: boolean('enabled').notNull().default(true),
-    /** Opaque cursor — JSON-encoded, source-defined. Advances only on overall run success. */
+    /** Opaque cursor — JSON-encoded, source-defined. Advances after each acknowledged delivery checkpoint. */
     cursor: text('cursor'),
     lastRunAt: timestamp('last_run_at'),
     lastSuccessAt: timestamp('last_success_at'),

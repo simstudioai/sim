@@ -87,7 +87,7 @@ const grafanaTelemetry = grafanaFullyConfigured
 export default defineConfig({
   project: env.TRIGGER_PROJECT_ID!,
   runtime: 'node-24',
-  logLevel: 'log',
+  logLevel: 'info',
   maxDuration: 5400,
   retries: {
     enabledInDev: false,
@@ -164,6 +164,10 @@ export default defineConfig({
           './lib/execution/sandbox/bundles/pptxgenjs.cjs',
           './lib/execution/sandbox/bundles/docx.cjs',
           './lib/execution/sandbox/bundles/pdf-lib.cjs',
+          './lib/internal/oracledb/oracle-worker.cjs',
+          './scripts/oracledb-patch-self-test.cjs',
+          './scripts/verify-oracledb-patch.cjs',
+          '../../node_modules/oracledb/**/*',
         ],
       }),
       additionalPackages({

@@ -66,6 +66,18 @@ export const CHAT_RUN_DEADLINE_MS = 3_600_000
  */
 export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
 
+/**
+ * How long a desktop tool call (browser, terminal, local import) waits for the desktop app to
+ * claim it before it fails as never started.
+ *
+ * Same cause as the workflow grace: only the chat view showing this chat starts the call, so a
+ * call issued while the user is on another chat or page is claimed by nobody. A live view claims
+ * within a second or two (stream frame -> IPC -> authorize), and there is no server fallback to
+ * run instead, so the call fails with a "never started" result rather than parking
+ * until a watchdog calls it hung.
+ */
+export const DESKTOP_TOOL_PICKUP_GRACE_MS = 15_000
+
 /** SessionStorage key for persisting active stream metadata across page reloads. */
 export const STREAM_STORAGE_KEY = 'copilot_active_stream'
 
@@ -81,6 +93,12 @@ export const MOTHERSHIP_STREAM_REPLAY_HEADER = 'x-mothership-stream-replay'
 
 /** Durable chat identity returned after the send transaction commits, before SSE delivery. */
 export const MOTHERSHIP_CHAT_ID_HEADER = 'x-mothership-chat-id'
+
+/**
+ * Set to `device` on a turn's stream when a desktop app's background executor runs its desktop
+ * tools. A chat view reading that stream only shows those calls; it never starts or reports them.
+ */
+export const MOTHERSHIP_DESKTOP_EXECUTOR_HEADER = 'x-mothership-desktop-executor'
 
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'

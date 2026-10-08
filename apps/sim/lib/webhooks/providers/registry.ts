@@ -41,6 +41,7 @@ import { notionHandler } from '@/lib/webhooks/providers/notion'
 import { otterHandler } from '@/lib/webhooks/providers/otter'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
+import { planeHandler } from '@/lib/webhooks/providers/plane'
 import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
@@ -115,6 +116,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   otter: otterHandler,
   outlook: outlookHandler,
   pagerduty: pagerdutyHandler,
+  plane: planeHandler,
   quickbooks: quickBooksHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,

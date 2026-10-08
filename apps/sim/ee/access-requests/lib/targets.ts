@@ -5,9 +5,10 @@ import {
 import {
   FILE_SHARE_AUTH_TYPES,
   PERMISSION_GROUP_FIELDS,
+  PERMISSION_GROUP_RESTRICTION_KEYS,
   type PermissionGroupCapabilityScope,
   type PermissionGroupConfig,
-  type PermissionGroupConfigKey,
+  type PermissionGroupRestrictionKey,
 } from '@/lib/permission-groups/fields'
 import {
   resolveAccessControlBlockType,
@@ -75,7 +76,7 @@ export interface AccessRequestTargetDescription {
 export type AccessRequestPolicyValue = boolean | string[] | null
 
 export interface AccessRequestPolicyChange {
-  configKey: PermissionGroupConfigKey
+  configKey: PermissionGroupRestrictionKey
   label: string
   before: AccessRequestPolicyValue
   after: AccessRequestPolicyValue
@@ -426,7 +427,7 @@ export function buildAccessRequestPolicyDelta(
       break
   }
   const changes: AccessRequestPolicyChange[] = []
-  for (const configKey of Object.keys(PERMISSION_GROUP_FIELDS) as PermissionGroupConfigKey[]) {
+  for (const configKey of PERMISSION_GROUP_RESTRICTION_KEYS) {
     const before = config[configKey]
     const after = next[configKey]
     if (JSON.stringify(before) === JSON.stringify(after)) continue
