@@ -278,6 +278,7 @@ export const env = createEnv({
     FIREWORKS_API_KEY_3:                   z.string().min(1).optional(),           // Additional Fireworks API key for load balancing
     TOGETHER_API_KEY:                      z.string().optional(),                  // Optional Together AI API key for model listing and inference
     BASETEN_API_KEY:                       z.string().optional(),                  // Optional Baseten API key for model listing and inference
+    ATLASCLOUD_API_KEY:                    z.string().optional(),                  // Optional Atlas Cloud API key for model listing and inference
     COHERE_API_KEY:                        z.string().min(1).optional(),           // Cohere API key for reranker (rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5)
     COHERE_API_KEY_1:                      z.string().min(1).optional(),           // Primary Cohere API key for rotation
     COHERE_API_KEY_2:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing

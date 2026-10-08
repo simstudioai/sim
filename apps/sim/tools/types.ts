@@ -18,6 +18,7 @@ export type BYOKProviderId =
   | 'fireworks'
   | 'together'
   | 'baseten'
+  | 'atlascloud'
   | 'ollama-cloud'
   | 'kie'
   | 'falai'

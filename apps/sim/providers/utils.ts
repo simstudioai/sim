@@ -163,6 +163,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   fireworks: buildProviderMetadata('fireworks'),
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
+  atlascloud: buildProviderMetadata('atlascloud'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {

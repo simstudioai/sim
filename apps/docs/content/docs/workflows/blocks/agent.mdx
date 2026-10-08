@@ -29,7 +29,7 @@ The model that runs the step. Defaults to `claude-sonnet-5-5`. Type or pick any 
 
 For a custom cloud deployment, enter its provider prefix and model ID: `azure/my-deployment`, `azure-anthropic/my-deployment`, `bedrock/my-inference-profile`, or `vertex/my-gemini-model`. The prefix selects the provider and shows its credential fields even when the ID is absent from the catalog. Bedrock accepts full inference profile ARNs after `bedrock/`; Vertex uses the Gemini API and accepts Google model resource names. The deployment must support the selected provider's API. Custom IDs have no catalog pricing or token limits.
 
-Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Ollama, vLLM, and LiteLLM load their available models from the configured provider. New models appear through that discovery without a Sim catalog release. You can also enter a namespaced ID directly, such as `ollama-cloud/deepseek-v4.1-flash`, `openrouter/provider/model`, or `ollama/my-local-model`. Provider prefixes are case-insensitive; the model ID after the prefix keeps its original casing.
+Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Atlas Cloud, Ollama, vLLM, and LiteLLM load their available models from the configured provider. New models appear through that discovery without a Sim catalog release. You can also enter a namespaced ID directly, such as `ollama-cloud/deepseek-v4.1-flash`, `openrouter/provider/model`, or `ollama/my-local-model`. Provider prefixes are case-insensitive; the model ID after the prefix keeps its original casing.
 
 ### Jev evaluation models
 

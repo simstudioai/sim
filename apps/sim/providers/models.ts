@@ -10,6 +10,7 @@
 import type React from 'react'
 import {
   AnthropicIcon,
+  AtlasCloudIcon,
   AzureIcon,
   BasetenIcon,
   BedrockIcon,
@@ -273,6 +274,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 1 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
+  atlascloud: {
+    id: 'atlascloud',
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
+    name: 'Atlas Cloud',
+    description: 'One key for DeepSeek, GLM, Kimi, Qwen and MiniMax via Atlas Cloud',
+    defaultModel: '',
+    modelPatterns: [/^atlascloud\//],
+    icon: AtlasCloudIcon,
+    color: '#1B1B1F',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
       toolUsageControl: true,
     },
     contextInformationAvailable: false,

@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  getAtlascloudProviderModelsContract,
   getBaseProviderModelsContract,
   getBasetenProviderModelsContract,
   getFireworksProviderModelsContract,
@@ -91,6 +92,11 @@ async function requestProviderModels(
       })
     case 'baseten':
       return requestJson(getBasetenProviderModelsContract, {
+        query: { workspaceId },
+        signal,
+      })
+    case 'atlascloud':
+      return requestJson(getAtlascloudProviderModelsContract, {
         query: { workspaceId },
         signal,
       })

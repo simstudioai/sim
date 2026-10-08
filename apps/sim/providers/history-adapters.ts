@@ -115,6 +115,7 @@ export const providerHistoryProtocols: Record<
   fireworks: 'chat-completions',
   together: 'chat-completions',
   baseten: 'chat-completions',
+  atlascloud: 'chat-completions',
   vllm: 'chat-completions',
   litellm: 'chat-completions',
 }
