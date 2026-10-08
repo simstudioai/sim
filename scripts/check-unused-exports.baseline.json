@@ -1394,7 +1394,6 @@
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatListItemSchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatSteerBodySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatStreamQuerySchema",
-  "apps/sim/lib/api/contracts/copilot.ts#copilotConfirmBodySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotToolPermissionBodySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotToolPermissionDecisionSchema",
   "apps/sim/lib/api/contracts/copilot.ts#createWorkflowCopilotChatBodySchema",
