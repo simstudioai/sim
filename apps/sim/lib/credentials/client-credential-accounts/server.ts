@@ -5,6 +5,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
+import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
 import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
@@ -35,8 +37,8 @@ export interface ClientCredentialAccountFields {
   clientSecret?: string
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
-   * Salesforce My Domain host, Zoho Desk organization ID, or NetSuite
-   * SuiteTalk origin).
+   * Salesforce My Domain host, Zoho Desk organization ID, NetSuite SuiteTalk
+   * origin, or an Oracle EPM environment URL).
    */
   orgId: string
   /**
@@ -91,8 +93,8 @@ export interface ClientCredentialAccountMintResult {
   accessToken: string
   expiresInSeconds: number
   /**
-   * Provider API origin the minted token must be used against (Salesforce or
-   * NetSuite), forwarded to tools alongside the token.
+   * Provider API destination the minted token must be used against (Salesforce,
+   * NetSuite, or Oracle EPM), forwarded to tools alongside the token.
    */
   instanceUrl?: string
   /**
@@ -142,6 +144,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: mintRampServiceAccountToken,
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: mintVantaServiceAccountToken,
   [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleFusionServiceAccountToken,
+  [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleEpmServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
