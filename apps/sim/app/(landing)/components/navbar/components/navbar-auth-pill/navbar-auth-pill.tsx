@@ -1,5 +1,8 @@
+'use client'
+
 import { cn } from '@sim/emcn'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { LOGIN_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 interface NavbarAuthPillProps {
@@ -13,6 +16,7 @@ const SEGMENT_CLASSES =
 
 /** Two independent account links share one pill and a short inset divider. */
 export function NavbarAuthPill({ size = 'compact', className, onNavigate }: NavbarAuthPillProps) {
+  const demoOnly = usePathname() === '/search'
   const compact = size === 'compact'
 
   return (
@@ -29,22 +33,33 @@ export function NavbarAuthPill({ size = 'compact', className, onNavigate }: Navb
         href={LOGIN_HREF}
         prefetch={false}
         onClick={onNavigate}
-        className={cn(SEGMENT_CLASSES, 'rounded-l-full', compact ? 'px-3' : 'flex-auto px-2')}
+        className={cn(
+          SEGMENT_CLASSES,
+          demoOnly ? 'rounded-full' : 'rounded-l-full',
+          compact ? 'px-3' : 'flex-auto px-2'
+        )}
       >
         Log in
       </Link>
-      <span
-        aria-hidden='true'
-        className={cn('w-px shrink-0 self-center bg-[var(--border)]', compact ? 'h-3' : 'h-3.5')}
-      />
-      <Link
-        href={SIGNUP_HREF}
-        prefetch={false}
-        onClick={onNavigate}
-        className={cn(SEGMENT_CLASSES, 'rounded-r-full', compact ? 'px-3' : 'flex-auto px-2')}
-      >
-        Start building
-      </Link>
+      {!demoOnly && (
+        <>
+          <span
+            aria-hidden='true'
+            className={cn(
+              'w-px shrink-0 self-center bg-[var(--border)]',
+              compact ? 'h-3' : 'h-3.5'
+            )}
+          />
+          <Link
+            href={SIGNUP_HREF}
+            prefetch={false}
+            onClick={onNavigate}
+            className={cn(SEGMENT_CLASSES, 'rounded-r-full', compact ? 'px-3' : 'flex-auto px-2')}
+          >
+            Start building
+          </Link>
+        </>
+      )}
     </div>
   )
 }

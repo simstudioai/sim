@@ -40,6 +40,7 @@ export const LANDING_ROUTES = [
   'platform',
   'pricing',
   'privacy',
+  'search',
   'solutions',
   'tables',
   'terms',
