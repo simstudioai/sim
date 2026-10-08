@@ -37,12 +37,17 @@ jobs:
     runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          # ct diffs the chart against the PR base to decide whether the version
-          # was bumped, so a shallow clone would leave it nothing to compare.
+      - name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with: &chart-checkout-options
+          # Chart version checks need full history to compare against the PR base.
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with: *chart-checkout-options
 
       - name: Set up Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1

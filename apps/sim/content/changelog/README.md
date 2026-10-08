@@ -128,6 +128,7 @@ For a migrated historical release, use its original publication timestamp and Gi
 
 ## Maintenance
 
+- The [Sim workflow setup plan](./maintenance-workflow.md) describes scheduled collection, a persistent editorial queue, draft PR preparation, media production, and failure monitoring. It is a setup plan, not an active workflow. Keep this publishing guide as the source of editorial and media rules.
 - The release editor reviews candidates weekly and checks published links and hosted media monthly. Refresh destinations when docs move and verify deep anchors manually; the audit catches missing canonical source pages during every PR.
 - Keep the original slug, publication date, and RSS identity stable. Use `updated` only for a substantive correction. A future date does not schedule publication; leave the entry in draft until the intended deployment.
 - If availability changes after publication, update the existing entry with its current status and a clear next step. Preserve its URL rather than deleting it or reverting it to a draft. If a slug must change, add a redirect before moving it.
