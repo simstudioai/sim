@@ -787,6 +787,7 @@ export function useChat(
   // migrates this bucket onto the real chatId on first send. Rotated on
   // home reset so a new pending chat starts with an empty bucket.
   const pendingChatKeyRef = useRef<string>(`${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`)
+  const initializedChatScopeRef = useRef<{ scopeKey: string; chatId?: string } | null>(null)
   const pendingDesktopScopeIdRef = useRef(
     desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
   )
@@ -1740,6 +1741,10 @@ export function useChat(
   )
 
   useEffect(() => {
+    const initializedScope = initializedChatScopeRef.current
+    if (initializedScope?.scopeKey === scopeKey && initializedScope.chatId === initialChatId) return
+    // Replayed mount effects must retain resources from an already-consumed handoff.
+    initializedChatScopeRef.current = { scopeKey, chatId: initialChatId }
     const previousDesktopScopeId = desktopScopeIdRef.current
     const canDiscardPreviousPendingScope = !sendingRef.current
     const streamOwnerId = chatIdRef.current
@@ -5001,6 +5006,7 @@ export function useChat(
       }
       detachedChatResolutionControllers.clear()
       clearActiveTurn()
+      appliedChatHistoryKeyRef.current = undefined
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.
       useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
