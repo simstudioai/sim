@@ -17,7 +17,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  embeddingKeywordSearch,
   embeddingSearch,
   knowledgeBase,
   knowledgeConnector,
@@ -136,9 +135,6 @@ describe.each([
       .update(embeddingSearch)
       .set({ acl: ['s:nobody:-:stale'], connectorId: null })
       .where(eq(embeddingSearch.knowledgeBaseId, baseId))
-    await db
-      .delete(embeddingKeywordSearch)
-      .where(eq(embeddingKeywordSearch.knowledgeBaseId, baseId))
   })
 
   afterAll(async () => {

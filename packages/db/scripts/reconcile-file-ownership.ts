@@ -10,11 +10,11 @@ const sql = postgres(url, { max: 1, connect_timeout: 10 })
 const migrations = [
   '0313_puzzling_zodiak.sql',
   '0359_workspace_file_search_chunks.sql',
-  '0402_file_entity_ownership.sql',
-  '0403_file_folder_version_ownership.sql',
-  '0404_file_creator_lifetime.sql',
-  '0406_public_share_entity_ownership.sql',
-  '0407_file_search_owner_scope.sql',
+  '0403_file_entity_ownership.sql',
+  '0404_file_folder_version_ownership.sql',
+  '0405_file_creator_lifetime.sql',
+  '0407_public_share_entity_ownership.sql',
+  '0408_file_search_owner_scope.sql',
 ]
 
 try {

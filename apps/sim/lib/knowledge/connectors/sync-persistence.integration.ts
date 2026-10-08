@@ -37,8 +37,7 @@ describe('persistDocumentAcls in PostgreSQL', () => {
 
   const projected = () =>
     sql<{ id: string; acl: string[] | null }[]>`
-      SELECT id, acl FROM embedding_search
-      UNION ALL SELECT id, acl FROM embedding_keyword_tin ORDER BY id`
+      SELECT id, acl FROM embedding_search ORDER BY id`
 
   /** Bounded page transactions on this schema's connection; these fixtures hold no lease. */
   const pages = () => leaseTransaction('admin', undefined, drizzle(sql, { schema }))
@@ -58,7 +57,7 @@ describe('persistDocumentAcls in PostgreSQL', () => {
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
       acl_verified_at timestamp
     )`
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       await sql`CREATE TABLE ${sql(projection)} (
         id text PRIMARY KEY, document_id text NOT NULL, enabled boolean NOT NULL DEFAULT true,
         connector_id text, acl text[]
@@ -75,7 +74,6 @@ describe('persistDocumentAcls in PostgreSQL', () => {
     await sql`CREATE TRIGGER count_fan_out AFTER UPDATE OF connector_id, acl ON document
       FOR EACH ROW EXECUTE FUNCTION count_fan_out()`
     await sql`ALTER TABLE embedding_search DISABLE TRIGGER embedding_search_source_acl_set`
-    await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
   }, 60_000)
 
   afterAll(async () => {
@@ -85,11 +83,11 @@ describe('persistDocumentAcls in PostgreSQL', () => {
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE embedding_search, embedding_keyword_tin, document, fan_out`
+    await sql`TRUNCATE embedding_search, document, fan_out`
     await sql`INSERT INTO document (id, external_id, connector_id, acl, acl_verified_at) VALUES
       ('doc-same', 'file-same', 'admin', ARRAY[${ALICE}], now() - interval '1 day'),
       ('doc-moved', 'file-moved', 'admin', ARRAY[${ALICE}], now() - interval '1 day')`
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       const prefix = projection === 'embedding_search' ? 'vec' : 'kw'
       await sql`INSERT INTO ${sql(projection)} (id, document_id, connector_id, acl) VALUES
         (${`${prefix}-same-unfilled`}, 'doc-same', NULL, NULL),
@@ -111,8 +109,6 @@ describe('persistDocumentAcls in PostgreSQL', () => {
     expect(stored).toEqual({ acl: [ALICE], fresh: true })
     expect(await fannedOut()).toEqual([])
     expect((await projected()).filter((row) => row.id.includes('-same-'))).toEqual([
-      { id: 'kw-same-filled', acl: [ALICE] },
-      { id: 'kw-same-unfilled', acl: null },
       { id: 'vec-same-filled', acl: [ALICE] },
       { id: 'vec-same-unfilled', acl: null },
     ])
@@ -128,8 +124,6 @@ describe('persistDocumentAcls in PostgreSQL', () => {
     const [stored] = await sql<{ acl: string[] }[]>`SELECT acl FROM document WHERE id = 'doc-moved'`
     expect(stored.acl).toEqual([BOB])
     expect((await projected()).filter((row) => row.id.includes('-moved-'))).toEqual([
-      { id: 'kw-moved-filled', acl: [BOB] },
-      { id: 'kw-moved-unfilled', acl: null },
       { id: 'vec-moved-filled', acl: [BOB] },
       { id: 'vec-moved-unfilled', acl: null },
     ])
@@ -167,7 +161,7 @@ describe('persistDocumentAcls in PostgreSQL', () => {
     expect(await fannedOut()).toEqual(['doc-moved'])
     expect(
       (await projected()).filter((row) => row.id.endsWith('-filled')).map((row) => row.acl)
-    ).toEqual([[ALICE, BOB], [ALICE], [ALICE, BOB], [ALICE]])
+    ).toEqual([[ALICE, BOB], [ALICE]])
   })
   it('writes a changed ACL group larger than one change batch completely', async () => {
     const ids = Array.from(
@@ -233,7 +227,7 @@ describe('persistDocumentAcls in PostgreSQL', () => {
       const filled = (await projected())
         .filter((row) => row.id.endsWith('-same-filled'))
         .map((row) => row.acl)
-      expect(filled).toEqual(preserved ? [[ALICE], [ALICE]] : [[], []])
+      expect(filled).toEqual(preserved ? [[ALICE]] : [[]])
     }
   )
 })

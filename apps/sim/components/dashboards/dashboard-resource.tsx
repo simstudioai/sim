@@ -3,7 +3,7 @@
 import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
 import { DashboardLoading } from '@/components/dashboards/dashboard-loading'
 import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
-import { EmptyState } from '@/components/empty-state/empty-state'
+import { DashboardEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
@@ -42,10 +42,7 @@ function EnabledDashboardResource({ workspaceId }: DashboardResourceProps) {
           />
         </div>
       ) : (
-        <EmptyState
-          title='Dashboard'
-          description='Sim will build your dashboard here once your workspace is set up.'
-        />
+        <DashboardEmptyState />
       )}
     </Resource>
   )
