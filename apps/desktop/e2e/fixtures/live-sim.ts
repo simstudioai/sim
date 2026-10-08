@@ -159,21 +159,23 @@ class HeldRequest {
 }
 
 /**
- * The origin Electron and Sim share. It forwards everything to Sim unchanged, records each
- * request, can hold one until the test releases it, and serves one test-only route that
- * installs a seeded session's cookie the way Sim's own sign-in response would.
+ * The origin Electron and Sim share. It forwards everything to Sim, records each request, can
+ * hold one until the test releases it, rewrite an answer or cut the network, and serves one
+ * test-only route that installs a seeded session's cookie the way Sim's own sign-in response
+ * would.
  */
 export class SimProxy {
   readonly requests: ProxiedRequest[] = []
   readonly origin: string
-  /** How many chat turns `rewriteChatBody` rewrote. */
-  rewrittenChatBodies = 0
   private readonly server: Server
   private holds: HeldRequest[] = []
   /** Requests a hold is keeping from Sim right now. */
   private readonly heldEntries = new Set<ProxiedRequest>()
-  private chatBodyRewrite: ((body: Record<string, unknown>) => void) | undefined
+  private readonly answerRewrites = new Map<string, (body: Record<string, unknown>) => void>()
   private readonly sockets = new Set<Duplex>()
+  /** Every client connection open now, HTTP and upgraded alike. */
+  private readonly connections = new Set<Socket>()
+  private networkCut = false
 
   constructor(private readonly config: LiveSimConfig) {
     this.origin = `http://127.0.0.1:${config.proxyPort}`
@@ -182,6 +184,15 @@ export class SimProxy {
         if (!response.headersSent) response.writeHead(502)
         response.end(String(error))
       })
+    })
+    // While the network is cut, a new connection is reset as an unreachable host's would be.
+    this.server.on('connection', (socket: Socket) => {
+      if (this.networkCut) {
+        socket.destroy()
+        return
+      }
+      this.connections.add(socket)
+      socket.once('close', () => this.connections.delete(socket))
     })
     // Next's dev server pushes over a websocket; pass upgrades straight through.
     this.server.on('upgrade', (request, socket, head) => {
@@ -236,9 +247,29 @@ export class SimProxy {
     this.holds = []
   }
 
-  /** Rewrites the JSON body of chat turns the renderer sends, as a newer client would send it. */
-  rewriteChatBody(rewrite: ((body: Record<string, unknown>) => void) | undefined): void {
-    this.chatBodyRewrite = rewrite
+  /**
+   * Rewrites Sim's JSON answer to `path`, as a Sim configured otherwise would answer it; `undefined`
+   * stops rewriting it.
+   */
+  rewriteAnswer(
+    path: string,
+    rewrite: ((body: Record<string, unknown>) => void) | undefined
+  ): void {
+    if (rewrite) this.answerRewrites.set(path, rewrite)
+    else this.answerRewrites.delete(path)
+  }
+
+  /**
+   * Cuts the network between the app and Sim: every open connection drops mid-flight, the
+   * doorbell stream included, and new ones are reset until `restoreNetwork`.
+   */
+  cutNetwork(): void {
+    this.networkCut = true
+    for (const socket of this.connections) socket.destroy()
+  }
+
+  restoreNetwork(): void {
+    this.networkCut = false
   }
 
   /**
@@ -288,7 +319,7 @@ export class SimProxy {
       entry.status = 302
       return
     }
-    let body = await readBody(request)
+    const body = await readBody(request)
     const held = this.holds.find((candidate) => candidate.matches(method, url.pathname))
     if (held) {
       this.holds = this.holds.filter((candidate) => candidate !== held)
@@ -297,16 +328,20 @@ export class SimProxy {
       this.heldEntries.delete(entry)
       if (!deliver && !held.deliverIfAbandoned) return
     }
-    if (this.chatBodyRewrite && method === 'POST' && url.pathname === '/api/mothership/chat') {
-      const parsed: Record<string, unknown> = JSON.parse(body.toString('utf8'))
-      this.chatBodyRewrite(parsed)
-      this.rewrittenChatBodies += 1
-      body = Buffer.from(JSON.stringify(parsed))
-    }
     const target = new URL(url.pathname + url.search, this.config.upstream)
-    // The body is forwarded whole, so it is sent with a length rather than chunked.
-    const { 'transfer-encoding': _chunked, ...forwarded } = request.headers
-    const headers: IncomingHttpHeaders = { ...forwarded, 'content-length': String(body.length) }
+    const rewriteAnswer = this.answerRewrites.get(url.pathname)
+    // The body is forwarded whole, so it is sent with a length rather than chunked. An answer to
+    // rewrite is asked for uncompressed.
+    const {
+      'transfer-encoding': _chunked,
+      'accept-encoding': acceptEncoding,
+      ...forwarded
+    } = request.headers
+    const headers: IncomingHttpHeaders = {
+      ...forwarded,
+      ...(rewriteAnswer ? {} : { 'accept-encoding': acceptEncoding }),
+      'content-length': String(body.length),
+    }
     await new Promise<void>((resolve, reject) => {
       const clientGone = response.destroyed
       const upstream = httpRequest(target, { method, headers }, (upstreamResponse) => {
@@ -316,6 +351,20 @@ export class SimProxy {
         // A request delivered after its client gave up is answered to no one.
         if (clientGone) {
           upstreamResponse.resume()
+          return
+        }
+        if (rewriteAnswer && upstreamResponse.statusCode === 200) {
+          void readBody(upstreamResponse).then((raw) => {
+            const answer: Record<string, unknown> = JSON.parse(raw.toString('utf8'))
+            rewriteAnswer(answer)
+            const rewritten = Buffer.from(JSON.stringify(answer))
+            const { 'transfer-encoding': _chunked, ...answerHeaders } = upstreamResponse.headers
+            response.writeHead(200, {
+              ...answerHeaders,
+              'content-length': String(rewritten.length),
+            })
+            response.end(rewritten)
+          }, reject)
           return
         }
         response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
@@ -659,14 +708,6 @@ export class SimDatabase {
     return this.sql<{ id: string; status: string; desktopDeviceId: string | null }[]>`
       select id, status, desktop_device_id as "desktopDeviceId" from copilot_runs
       where chat_id = ${chatId} order by created_at`
-  }
-
-  async desktopDeviceCount(userId?: string): Promise<number> {
-    const [row] = userId
-      ? await this.sql<{ count: number }[]>`
-          select count(*)::int as count from desktop_devices where user_id = ${userId}`
-      : await this.sql<{ count: number }[]>`select count(*)::int as count from desktop_devices`
-    return row?.count ?? 0
   }
 
   /** Names of the files a workspace holds. */

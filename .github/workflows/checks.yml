@@ -307,8 +307,9 @@ jobs:
           key: ${{ steps.next-cache.outputs.key }}
           path: ./apps/sim/.next/dev
 
-      # Chat switches, Stop, sign-out, approval and the flag-off foreground round trip. The spec
-      # runs the recording proxy (the app's public origin) and the stand-in worker.
+      # Chat switches, Stop, sign-out, approval, the dormant-executor round trip, and background
+      # runs across a chat switch and a network cut. The spec runs the recording proxy (the app's
+      # public origin) and the stand-in worker.
       - name: Verify desktop tools in the Electron app against a local app
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3020

@@ -75,14 +75,16 @@
     "apps/realtime": { "includeEntryExports": false, "entry": ["src/bootstrap.ts"] },
     "apps/desktop": {
       "includeEntryExports": false,
-      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path.
+      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path; the nested
+      // Playwright run in e2e/check-report.spec.ts loads worker-restart.ts through its config.
       "entry": [
         "src/main/index.ts",
         "src/preload/*.ts",
         "src/preload/browser/index.ts",
         "src/renderer/*/index.tsx",
         "scripts/*.ts",
-        "e2e/fixtures/updater.ts"
+        "e2e/fixtures/updater.ts",
+        "e2e/fixtures/worker-restart.ts"
       ],
       // ensure-pty-prebuilds.ts assembles these package names for universal builds.
       "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
