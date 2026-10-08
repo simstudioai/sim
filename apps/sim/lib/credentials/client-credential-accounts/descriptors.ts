@@ -116,6 +116,7 @@ export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account'
 export const RAMP_SERVICE_ACCOUNT_PROVIDER_ID = 'ramp-service-account' as const
 export const VANTA_SERVICE_ACCOUNT_PROVIDER_ID = 'vanta-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
@@ -136,6 +137,7 @@ export type ClientCredentialAccountProviderId =
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RAMP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
@@ -642,6 +644,40 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
       'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
+  },
+  [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle EPM Cloud',
+    connectNoun: 'integration user',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'REST Base URL',
+        placeholder: 'https://example.oraclecloud.com',
+        secret: false,
+        hintPattern: /^https:\/\//,
+        hintMessage: 'Expected the HTTPS REST base URL for one Oracle EPM environment.',
+        hint: 'Enter the HTTPS base URL for your environment without /epmcloud or an API endpoint path. Include a gateway prefix only if your deployment requires it.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration username',
+        placeholder: 'integration.user@example.com',
+        secret: false,
+        hint: 'Basic authentication requires a user without MFA. Credentials are checked on the first product request.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Password',
+        placeholder: 'Paste the integration user password',
+        secret: true,
+        preserveWhitespace: true,
+      },
+    ],
+    docsUrl:
+      'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html',
+    helpText:
+      'The credential is bound to one EPM environment. Use a dedicated integration user with only the permissions its workflows require.',
   },
   [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,

@@ -1109,6 +1109,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'oci',
   },
+  'oracle-epm': {
+    name: 'Oracle EPM',
+    icon: OracleIcon,
+    services: {
+      'oracle-epm': {
+        name: 'Oracle EPM',
+        description: 'Connect an EPM environment with an integration user.',
+        providerId: 'oracle-epm',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm',
+  },
   'oracle-fusion': {
     name: 'Oracle Fusion',
     icon: OracleIcon,
