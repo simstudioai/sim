@@ -4132,6 +4132,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           forcedToolUse: false,
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+            noneMode: 'between_tools',
+          },
         },
         releaseDate: '2026-09-28',
       },

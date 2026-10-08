@@ -224,7 +224,9 @@ export function buildThinkingConfig(
         ...(requestSummarizedDisplay ? { display: 'summarized' as const } : {}),
       },
       // Levels are validated against the model's capability list above.
-      outputConfig: { effort: thinkingLevel as Anthropic.Messages.OutputConfig['effort'] },
+      ...(thinkingLevel !== 'enabled' && {
+        outputConfig: { effort: thinkingLevel as Anthropic.Messages.OutputConfig['effort'] },
+      }),
     }
   }
 

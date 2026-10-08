@@ -15,6 +15,7 @@ import {
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { extractChatCompletionText } from '@/providers/openai-compat/content'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
@@ -42,16 +43,6 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('MistralProvider')
-
-function extractMistralText(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .map((part) =>
-      isRecordLike(part) && part.type === 'text' && typeof part.text === 'string' ? part.text : ''
-    )
-    .join('')
-}
 
 /**
  * Mistral AI provider configuration
@@ -184,7 +175,7 @@ export const mistralProvider: ProviderConfig = {
             createOpenAICompatibleAgentEventStream(streamResponse, {
               providerName: 'Mistral',
               request,
-              extractContent: extractMistralText,
+              extractContent: extractChatCompletionText,
               onComplete: ({ content, usage }) => {
                 output.content = content
                 output.tokens = {
@@ -255,7 +246,7 @@ export const mistralProvider: ProviderConfig = {
       }
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = extractMistralText(currentResponse.choices[0]?.message?.content)
+      let content = extractChatCompletionText(currentResponse.choices[0]?.message?.content)
       const tokens = {
         input: currentResponse.usage?.prompt_tokens || 0,
         output: currentResponse.usage?.completion_tokens || 0,
@@ -397,7 +388,7 @@ export const mistralProvider: ProviderConfig = {
         const executionResults = await Promise.all(toolExecutionPromises)
         currentMessages.push({
           role: 'assistant',
-          content: null,
+          content: extractChatCompletionText(currentResponse.choices[0]?.message?.content) || null,
           tool_calls: toolCallsInResponse.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -514,9 +505,7 @@ export const mistralProvider: ProviderConfig = {
 
         modelTime += thisModelTime
 
-        if (currentResponse.choices[0]?.message?.content) {
-          content = extractMistralText(currentResponse.choices[0].message.content)
-        }
+        content = extractChatCompletionText(currentResponse.choices[0]?.message?.content) || content
 
         if (currentResponse.usage) {
           tokens.input += currentResponse.usage.prompt_tokens || 0
@@ -568,7 +557,8 @@ export const mistralProvider: ProviderConfig = {
           })
           modelTime += synthesisEndTime - synthesisStartTime
 
-          content = extractMistralText(synthesisResponse.choices[0]?.message?.content) || content
+          content =
+            extractChatCompletionText(synthesisResponse.choices[0]?.message?.content) || content
           if (synthesisResponse.usage) {
             tokens.input += synthesisResponse.usage.prompt_tokens || 0
             tokens.output += synthesisResponse.usage.completion_tokens || 0

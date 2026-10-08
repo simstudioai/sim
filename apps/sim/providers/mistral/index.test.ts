@@ -113,6 +113,34 @@ describe('mistralProvider.executeRequest', () => {
     expect(result.execution.output.content).toBe(answer)
   })
 
+  it.each([
+    { content: [] },
+    { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Private thought.' }] }] },
+  ])(
+    'preserves an earlier tool answer when later content has no answer text: $content',
+    async ({ content }) => {
+      mockCreate
+        .mockResolvedValueOnce({
+          ...toolResponse,
+          choices: [{ message: { ...toolResponse.choices[0].message, content: answerBlocks } }],
+        })
+        .mockResolvedValueOnce({ choices: [{ message: { content } }], usage })
+      const result = await mistralProvider.executeRequest({
+        model: 'mistral-large-4',
+        apiKey: 'key',
+        messages: [{ role: 'user', content: 'Use a tool' }],
+        tools: [makeTool('lookup')],
+      })
+      if ('stream' in result) throw new Error('Expected a settled response')
+      expect(JSON.parse(result.content)).toEqual({ ok: true })
+      const nextPayload = mockCreate.mock.calls[1][0]
+      expect(
+        nextPayload.messages.find((message: { role: string }) => message.role === 'assistant')
+          .content
+      ).toBe('{"ok":true}')
+    }
+  )
+
   it.each([false, true])(
     'normalizes the answer on the final allowed tool turn (streaming: %s)',
     async (stream) => {

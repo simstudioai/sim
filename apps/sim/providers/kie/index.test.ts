@@ -80,6 +80,27 @@ describe('kieProvider', () => {
     expect(result).toMatchObject({ content: 'pong' })
   })
 
+  it.each([
+    ['none', false],
+    ['enabled', true],
+  ] as const)(
+    'sends Sonnet thinking %s as the documented boolean flag',
+    async (thinkingLevel, flag) => {
+      fetchMock.mockResolvedValue(Response.json(CLAUDE_MESSAGE))
+      await kieProvider.executeRequest({
+        model: 'kie/claude-sonnet-5-5',
+        apiKey: 'kie-key',
+        maxTokens: 1024,
+        thinkingLevel,
+        messages: [{ role: 'user', content: 'ping' }],
+      })
+      const { body } = sentRequest()
+      expect(body.thinkingFlag).toBe(flag)
+      expect(body.thinking).toBeUndefined()
+      expect(body.output_config).toBeUndefined()
+    }
+  )
+
   it('surfaces an HTTP 200 error envelope on the Claude route as an error', async () => {
     fetchMock.mockResolvedValue(Response.json({ code: 402, msg: 'Insufficient credits' }))
 
