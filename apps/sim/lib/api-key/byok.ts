@@ -298,6 +298,27 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Baseten ${model}`)
   }
 
+  if (provider === 'atlascloud') {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'atlascloud')
+      if (byokResult) {
+        logger.info('Using BYOK key for Atlas Cloud', {
+          model,
+          workspaceId,
+          scope: byokResult.scope,
+        })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.ATLASCLOUD_API_KEY) {
+      return { apiKey: env.ATLASCLOUD_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for Atlas Cloud ${model}`)
+  }
+
   if (provider === 'ollama-cloud') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')

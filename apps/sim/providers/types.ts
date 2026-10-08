@@ -27,6 +27,7 @@ export type ProviderId =
   | 'fireworks'
   | 'together'
   | 'baseten'
+  | 'atlascloud'
   | 'vllm'
   | 'litellm'
   | 'bedrock'

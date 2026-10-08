@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { anthropicProvider } from '@/providers/anthropic'
+import { atlascloudProvider } from '@/providers/atlascloud'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { basetenProvider } from '@/providers/baseten'
@@ -55,6 +56,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   fireworks: fireworksProvider,
   together: togetherProvider,
   baseten: basetenProvider,
+  atlascloud: atlascloudProvider,
   ollama: ollamaProvider,
   'ollama-cloud': ollamaCloudProvider,
   bedrock: bedrockProvider,
