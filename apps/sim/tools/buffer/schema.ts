@@ -131,10 +131,14 @@ export function projectBufferObject(type: string, value: unknown): unknown {
           if (itemRequired) throw new Error(`Buffer returned null for ${type}.${field}[]`)
           return null
         }
-        return object ? projectBufferObject(nestedType, entry) : entry
+        return object
+          ? projectBufferObject(nestedType, entry)
+          : parseValue(nestedType, entry, `Buffer response ${type}.${field}[]`)
       })
     } else {
-      result[field] = object ? projectBufferObject(nestedType, candidate) : candidate
+      result[field] = object
+        ? projectBufferObject(nestedType, candidate)
+        : parseValue(nestedType, candidate, `Buffer response ${type}.${field}`)
     }
   }
   return result

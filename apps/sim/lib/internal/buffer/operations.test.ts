@@ -158,6 +158,53 @@ describe('Buffer operations', () => {
     }
   )
 
+  it.each([
+    { corruption: { text: 42 }, error: 'Post.text must be a string' },
+    {
+      corruption: { isCustomScheduled: 'false' },
+      error: 'Post.isCustomScheduled must be a boolean',
+    },
+    { corruption: { allowedActions: [42] }, error: 'Post.allowedActions[] must be a string' },
+    { corruption: { status: 'invalid-status' }, error: 'Post.status must be one of' },
+    {
+      corruption: { allowedActions: ['invalid-action'] },
+      error: 'Post.allowedActions[] must be one of',
+    },
+    {
+      corruption: {
+        channel: {
+          ...bufferPostFixture.channel,
+          weeklyPostingLimit: { limit: 1.5, scheduled: 0, sent: 0 },
+        },
+      },
+      error: 'WeeklyPostingLimit.limit must be an integer',
+    },
+  ])('rejects malformed provider scalar values: $error', async ({ corruption, error }) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      Response.json({
+        data: {
+          editPost: {
+            __typename: 'PostActionSuccess',
+            post: { ...bufferPostFixture, ...corruption },
+          },
+        },
+      })
+    )
+    const response = await executeBufferTool({
+      toolId: 'buffer_edit_post',
+      input: { apiKey: 'buffer-key', postId: 'post-1', text: 'Updated caption' },
+      headers: new Headers(),
+      context: { workflowId: 'workflow-1', userId: 'user-1' },
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: expect.stringContaining(`Buffer response ${error}`),
+    })
+  })
+
   it('resolves stored media with trusted user context before the provider call', async () => {
     mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example/image.png' })
     const fetchMock = vi.fn().mockResolvedValue(
