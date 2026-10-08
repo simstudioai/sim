@@ -84,9 +84,9 @@ describe('backfillProjectionSourceAcl', () => {
         { scanned: 1, filled: 1, last_id: 'id-3' },
         { scanned: 0, filled: 0, last_id: null },
       ])
-      await expect(
-        backfillNow(session, 'embedding_keyword_tin', { pauseMs: 0 })
-      ).resolves.toMatchObject({ scanned: 3, written: 3, afterId: 'id-3', done: true })
+      await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).resolves.toMatchObject(
+        { scanned: 3, written: 3, afterId: 'id-3', done: true }
+      )
       expect(cursors).toEqual(['', 'id-2', 'id-2', 'id-2', 'id-3'])
     }
   )
@@ -95,9 +95,9 @@ describe('backfillProjectionSourceAcl', () => {
     const { session, cursors } = sessionOf(
       Array.from({ length: PROJECTION_SOURCE_ACL_PAGE_RETRIES + 1 }, () => postgresError('55P03'))
     )
-    await expect(
-      backfillNow(session, 'embedding_keyword_tin', { pauseMs: 0 })
-    ).rejects.toMatchObject({ code: '55P03' })
+    await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).rejects.toMatchObject({
+      code: '55P03',
+    })
     expect(cursors).toHaveLength(PROJECTION_SOURCE_ACL_PAGE_RETRIES + 1)
     expect(new Set(cursors)).toEqual(new Set(['']))
   })

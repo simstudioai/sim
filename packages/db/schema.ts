@@ -3951,39 +3951,8 @@ export const embedding = pgTable(
   })
 )
 
-/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_search — regular KB keyword queries read embedding.content_tsv.
-export const embeddingKeywordSearch = pgTable(
-  'embedding_keyword_search',
-  {
-    id: text('id')
-      .primaryKey()
-      .references(() => embedding.id, { onDelete: 'cascade' }),
-    knowledgeBaseId: text('knowledge_base_id').notNull(),
-    documentId: text('document_id').notNull(),
-    enabled: boolean('enabled').notNull(),
-    contentTsv: tsvector('content_tsv').notNull(),
-  },
-  (table) => ({
-    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
-    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
-    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
-  })
-)
-
-/** The Tin index over {@link embeddingKeywordTin}; valid only once the projection is backfilled. */
-export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
-
-/**
- * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
- * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
- * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. The row mirrors its document's source
- * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
- * the index, and the embedding and knowledge base triggers that own these rows, and only where
- * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
- */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_tin — only retired indexed Search ranks this projection.
+/** Compatibility storage for connector-detachment workers from before keyword retirement. */
+// contract-pending(after the keyword-projection retirement release and old connector-detachment workers have drained): drop embedding_keyword_tin — no new projection writer uses it.
 export const embeddingKeywordTin = pgTable(
   'embedding_keyword_tin',
   {
@@ -7064,13 +7033,13 @@ export const userTableDefinitions = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     /**
      * @remarks
-     * Monotonic counter bumped by triggers on `user_table_rows`: statement-level
-     * on INSERT/DELETE, and a deferred constraint trigger that bumps once per
-     * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
-     * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
-     * reused until the table mutates. Never written from application code — the
-     * triggers and the `user_table_row_changes` fold are the only writers. Read the
-     * live value through `lib/table/row-changes.ts`, never this column alone.
+     * Folded part of a monotonic counter: the triggers on `user_table_rows` log one
+     * `user_table_row_changes` row per INSERT/DELETE statement, and one per
+     * transaction when an UPDATE changes `data` or `order_key`; the fold adds their
+     * count here. Keys the versioned table-snapshot cache so a stored CSV under
+     * `v{rows_version}` is reused until the table mutates. Never written from
+     * application code — the fold is the only writer. Read the live value through
+     * `lib/table/row-changes.ts`, never this column alone.
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**
