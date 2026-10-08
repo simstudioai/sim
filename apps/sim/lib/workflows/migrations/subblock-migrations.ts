@@ -122,6 +122,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   /** List Channels now returns one page and a cursor; automatic page limits are retired. */
   slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
+  /** Google Ads moved API access to the OAuth client's Cloud project and retired developer tokens. */
+  google_ads: [{ from: 'developerToken', to: '_removed_developerToken' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
   /** Connected accounts resolve from the workspace; group selectors have no replacement. */

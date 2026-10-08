@@ -1,8 +1,9 @@
 import type {
   GoogleAdsAdPerformanceParams,
   GoogleAdsAdPerformanceResponse,
+  GoogleAdsApiResponse,
 } from '@/tools/google_ads/types'
-import { validateDate, validateDateRange, validateNumericId } from '@/tools/google_ads/types'
+import { buildDateCondition, validateLimit, validateNumericId } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsAdPerformanceTool: ToolConfig<
@@ -26,17 +27,18 @@ export const googleAdsAdPerformanceTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token for the Google Ads API',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation token from the previous page; keep the same customer and query inputs',
+    },
     customerId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Google Ads customer ID (numeric, no dashes)',
-    },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
     },
     managerCustomerId: {
       type: 'string',
@@ -93,7 +95,6 @@ export const googleAdsAdPerformanceTool: ToolConfig<
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
         headers['login-customer-id'] = validateNumericId(
@@ -117,41 +118,34 @@ export const googleAdsAdPerformanceTool: ToolConfig<
         conditions.push(`ad_group.id = ${validateNumericId(params.adGroupId, 'adGroupId')}`)
       }
 
-      if (params.startDate && params.endDate) {
-        const start = validateDate(params.startDate, 'startDate')
-        const end = validateDate(params.endDate, 'endDate')
-        conditions.push(`segments.date BETWEEN '${start}' AND '${end}'`)
-      } else {
-        const dateRange = validateDateRange(params.dateRange || 'LAST_30_DAYS')
-        conditions.push(`segments.date DURING ${dateRange}`)
-      }
+      conditions.push(buildDateCondition(params))
 
       query += ` WHERE ${conditions.join(' AND ')}`
       query += ' ORDER BY metrics.impressions DESC'
 
-      if (params.limit) {
-        query += ` LIMIT ${params.limit}`
+      if (params.limit !== undefined) {
+        query += ` LIMIT ${validateLimit(params.limit)}`
       }
 
-      return { query }
+      return { query, ...(params.pageToken ? { pageToken: params.pageToken } : {}) }
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse = await response.json()
 
     if (!response.ok) {
       const errorMessage =
         data?.error?.message ?? data?.error?.details?.[0]?.errors?.[0]?.message ?? 'Unknown error'
       return {
         success: false,
-        output: { ads: [], totalCount: 0 },
+        output: { ads: [], totalCount: 0, nextPageToken: null },
         error: errorMessage,
       }
     }
 
     const results = data.results ?? []
-    const ads = results.map((r: Record<string, any>) => ({
+    const ads = results.map((r) => ({
       adId: r.adGroupAd?.ad?.id ?? '',
       adGroupId: r.adGroup?.id ?? '',
       adGroupName: r.adGroup?.name ?? null,
@@ -171,11 +165,18 @@ export const googleAdsAdPerformanceTool: ToolConfig<
       output: {
         ads,
         totalCount: ads.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
 
   outputs: {
+    nextPageToken: {
+      type: 'string',
+      optional: true,
+      nullable: true,
+      description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
+    },
     ads: {
       type: 'array',
       description: 'Ad performance data broken down by date',
@@ -184,11 +185,23 @@ export const googleAdsAdPerformanceTool: ToolConfig<
         properties: {
           adId: { type: 'string', description: 'Ad ID' },
           adGroupId: { type: 'string', description: 'Parent ad group ID' },
-          adGroupName: { type: 'string', description: 'Parent ad group name' },
+          adGroupName: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Parent ad group name',
+          },
           campaignId: { type: 'string', description: 'Parent campaign ID' },
-          campaignName: { type: 'string', description: 'Parent campaign name' },
+          campaignName: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Parent campaign name',
+          },
           adType: {
             type: 'string',
+            optional: true,
+            nullable: true,
             description: 'Ad type (RESPONSIVE_SEARCH_AD, EXPANDED_TEXT_AD, etc.)',
           },
           impressions: { type: 'string', description: 'Number of impressions' },
@@ -197,15 +210,30 @@ export const googleAdsAdPerformanceTool: ToolConfig<
             type: 'string',
             description: 'Cost in micros (divide by 1,000,000 for currency value)',
           },
-          ctr: { type: 'number', description: 'Click-through rate (0.0 to 1.0)' },
-          conversions: { type: 'number', description: 'Number of conversions' },
-          date: { type: 'string', description: 'Date for this row (YYYY-MM-DD)' },
+          ctr: {
+            type: 'number',
+            optional: true,
+            nullable: true,
+            description: 'Click-through rate (0.0 to 1.0)',
+          },
+          conversions: {
+            type: 'number',
+            optional: true,
+            nullable: true,
+            description: 'Number of conversions',
+          },
+          date: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Date for this row (YYYY-MM-DD)',
+          },
         },
       },
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of result rows',
+      description: 'Number of rows in this page',
     },
   },
 }

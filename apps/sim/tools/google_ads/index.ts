@@ -14,4 +14,4 @@ export {
   googleAdsSearchTool,
 }
 
-export * from './types'
+export * from '@/tools/google_ads/types'

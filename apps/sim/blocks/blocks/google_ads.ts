@@ -19,7 +19,7 @@ export const GoogleAdsBlock: BlockConfig = {
     defaultTitle: 'Google Ads',
     sentences: {
       byOperation: {
-        list_customers: ['List all accessible ad accounts'],
+        list_customers: ['List directly accessible ad accounts'],
         list_campaigns: [
           { text: 'List campaigns in account', field: 'customerId', core: true },
           { text: ', with status', field: 'status' },
@@ -83,14 +83,6 @@ export const GoogleAdsBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'developerToken',
-      title: 'Developer Token',
-      type: 'short-input',
-      placeholder: 'Enter your Google Ads API developer token',
-      required: true,
-      password: true,
-    },
 
     {
       id: 'customerId',
@@ -136,7 +128,10 @@ export const GoogleAdsBlock: BlockConfig = {
 The query should:
 - Use valid GAQL syntax
 - Include relevant metrics when asking about performance
-- Include segments.date with a date range when using metrics
+- Filter segments.date to the requested date range for performance reports; SELECT segments.date only when a daily breakdown is wanted
+- Campaign lifecycle fields are campaign.start_date_time and campaign.end_date_time
+- Use compatible fields for the FROM resource and a positive integer LIMIT where appropriate
+- Queries are read-only; use customer_client on a manager account to discover linked customers
 - Be efficient and well-formatted
 
 Common resources: campaign, ad_group, ad_group_ad, keyword_view, search_term_view
@@ -181,6 +176,7 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
         { label: 'All (except removed)', id: '' },
         { label: 'Enabled', id: 'ENABLED' },
         { label: 'Paused', id: 'PAUSED' },
+        { label: 'Removed', id: 'REMOVED' },
       ],
       mode: 'advanced',
       condition: { field: 'operation', value: ['list_campaigns', 'list_ad_groups'] },
@@ -208,8 +204,22 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
-      condition: { field: 'dateRange', value: 'CUSTOM' },
-      required: { field: 'dateRange', value: 'CUSTOM' },
+      condition: {
+        field: 'dateRange',
+        value: 'CUSTOM',
+        and: { field: 'operation', value: ['campaign_performance', 'ad_performance'] },
+      },
+      required: {
+        field: 'dateRange',
+        value: 'CUSTOM',
+        and: { field: 'operation', value: ['campaign_performance', 'ad_performance'] },
+      },
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Generate a calendar date in YYYY-MM-DD format. Return ONLY the YYYY-MM-DD date.',
+        placeholder: 'Describe the report date...',
+      },
     },
 
     {
@@ -217,17 +227,31 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
       title: 'End Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
-      condition: { field: 'dateRange', value: 'CUSTOM' },
-      required: { field: 'dateRange', value: 'CUSTOM' },
+      condition: {
+        field: 'dateRange',
+        value: 'CUSTOM',
+        and: { field: 'operation', value: ['campaign_performance', 'ad_performance'] },
+      },
+      required: {
+        field: 'dateRange',
+        value: 'CUSTOM',
+        and: { field: 'operation', value: ['campaign_performance', 'ad_performance'] },
+      },
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Generate a calendar date in YYYY-MM-DD format. Return ONLY the YYYY-MM-DD date.',
+        placeholder: 'Describe the report date...',
+      },
     },
 
     {
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
-      placeholder: 'Pagination token',
+      placeholder: 'Token from the previous page; keep other inputs unchanged',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'search' },
+      condition: { field: 'operation', value: 'list_customers', not: true },
     },
 
     {
@@ -276,13 +300,12 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Google Ads OAuth credential' },
-    developerToken: { type: 'string', description: 'Google Ads API developer token' },
     customerId: { type: 'string', description: 'Google Ads customer ID (numeric, no dashes)' },
     managerCustomerId: { type: 'string', description: 'Manager account customer ID' },
     query: { type: 'string', description: 'GAQL query to execute' },
     campaignId: { type: 'string', description: 'Campaign ID to filter by' },
     adGroupId: { type: 'string', description: 'Ad group ID to filter by' },
-    status: { type: 'string', description: 'Status filter (ENABLED, PAUSED)' },
+    status: { type: 'string', description: 'Status filter (ENABLED, PAUSED, REMOVED)' },
     dateRange: { type: 'string', description: 'Date range for performance queries' },
     startDate: { type: 'string', description: 'Custom start date (YYYY-MM-DD)' },
     endDate: { type: 'string', description: 'Custom end date (YYYY-MM-DD)' },
@@ -292,35 +315,38 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
   outputs: {
     customerIds: {
       type: 'json',
-      description: 'List of accessible customer IDs (list_customers)',
+      description:
+        'Directly accessible customer IDs; use customer_client to discover manager subaccounts (list_customers)',
     },
     results: {
       type: 'json',
-      description: 'Query results (search)',
+      description: 'Rows of the selected GAQL fields (search)',
     },
     campaigns: {
       type: 'json',
-      description: 'Campaign data (list_campaigns, campaign_performance)',
+      description:
+        'Campaigns with IDs, names, status, dates and budgets (list_campaigns), or daily impressions, clicks, cost and conversions (campaign_performance)',
     },
     adGroups: {
       type: 'json',
-      description: 'Ad group data (list_ad_groups)',
+      description: 'Ad groups with ID, name, status, type and campaign identity (list_ad_groups)',
     },
     ads: {
       type: 'json',
-      description: 'Ad performance data (ad_performance)',
+      description:
+        'Daily ad metrics with ad, ad group and campaign IDs, impressions, clicks, cost, CTR and conversions (ad_performance)',
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of results',
+      description: 'Number of rows returned in this page',
     },
     totalResultsCount: {
       type: 'number',
-      description: 'Total results count (search)',
+      description: 'Total matching rows ignoring LIMIT (search)',
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for next page of results',
+      description: 'Next-page token for all reports and queries; null on the last page',
     },
   },
 }
@@ -361,7 +387,7 @@ export const GoogleAdsBlockMeta = {
       icon: GoogleAdsIcon,
       title: 'Google Ads + Stripe ROAS tracker',
       prompt:
-        'Create a scheduled workflow that joins Google Ads spend with Stripe revenue per campaign UTM, calculates true ROAS, and posts the per-channel breakdown to Slack each morning.',
+        'Create a scheduled workflow that joins Google Ads spend with Stripe revenue only where an explicit campaign ID or UTM mapping was captured, reports unmatched revenue separately, calculates attributed ROAS with that limitation, and posts the per-channel breakdown to Slack each morning.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'finance', 'reporting'],
@@ -379,9 +405,9 @@ export const GoogleAdsBlockMeta = {
     },
     {
       icon: GoogleAdsIcon,
-      title: 'Google Ads + Profound AI brand attribution',
+      title: 'Google Ads + Profound brand comparison',
       prompt:
-        'Build a scheduled workflow that joins Google Ads spend per campaign with Profound AI brand-visibility scores, writes a true-attribution table, and posts findings to Slack.',
+        'Build a scheduled workflow that joins Google Ads spend per campaign with Profound AI brand-visibility scores, writes a comparison table without claiming causal attribution, and posts findings to Slack.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'analysis'],
@@ -403,21 +429,21 @@ export const GoogleAdsBlockMeta = {
       description:
         'Pull Google Ads campaign performance for a date range and produce a clear metrics report.',
       content:
-        '# Report Campaign Performance\n\nUse Google Ads to summarize how campaigns are performing.\n\n## Steps\n1. List campaigns for the customer to know what is active.\n2. Use Campaign Performance over the chosen date range to pull impressions, clicks, cost, conversions, CTR, CPC, and ROAS.\n3. Rank campaigns by spend and by efficiency to surface what is working and what is not.\n\n## Output\nReturn a per-campaign metrics table plus a short narrative: top performers, underperformers, and where spend is being wasted. Note the date range used.',
+        '# Report Campaign Performance\n\nUse Google Ads to summarize how campaigns are performing.\n\n## Steps\n1. List campaigns for the customer to know what is active.\n2. Use Campaign Performance over the chosen date range to pull daily impressions, clicks, cost in micros, conversions, and CTR. Aggregate daily counts before calculating ratios; never average daily CTR. Convert micros to account currency by dividing by 1,000,000. Derive CPC as cost/clicks only when clicks is nonzero; ROAS requires conversion value from a compatible Custom Query and nonzero cost.\n3. Rank campaigns by spend and by efficiency to surface what is working and what is not.\n\n## Output\nReturn a per-campaign metrics table plus a short narrative: top performers, underperformers, and where spend is being wasted. Follow nextPageToken with unchanged inputs for complete coverage. Note the date range, currency and any partial coverage; test accounts do not serve ads and may return no metrics.',
     },
     {
       name: 'analyze-ad-performance',
       description:
         'Pull ad-level Google Ads performance and identify the best and worst creatives in each ad group.',
       content:
-        '# Analyze Ad Performance\n\nUse Google Ads to compare creatives within campaigns.\n\n## Steps\n1. List ad groups for the target campaign or customer.\n2. Use Ad Performance over the date range to pull per-ad clicks, conversions, CTR, and cost.\n3. Within each ad group, identify the strongest and weakest ads.\n\n## Output\nReturn, per ad group, the best and worst performing ads with their key metrics, plus a recommendation (scale, pause, or rewrite). Keep recommendations tied to the data.',
+        '# Analyze Ad Performance\n\nUse Google Ads to compare creatives within campaigns.\n\n## Steps\n1. List campaigns for the customer, then list ad groups for each target campaign.\n2. Use Ad Performance over the date range to pull per-ad clicks, conversions, CTR, and cost.\n3. Within each ad group, identify the strongest and weakest ads.\n\n## Output\nReturn, per ad group, the best and worst performing ads with their key metrics, plus a recommendation (scale, pause, or rewrite). Aggregate daily counts before comparing ratios; follow nextPageToken with unchanged inputs. Keep recommendations tied to sufficient data and leave changes to ads for human review.',
     },
     {
       name: 'run-gaql-query',
       description:
         'Run a custom GAQL query against Google Ads to answer a specific reporting question.',
       content:
-        '# Run GAQL Query\n\nUse Google Ads to answer an ad-hoc reporting question with GAQL.\n\n## Steps\n1. Clarify the metrics, dimensions, and segments the question needs.\n2. Write a valid GAQL query (SELECT fields FROM resource WHERE conditions) scoped to the customer and date range.\n3. Use the Custom Query operation to run it and read the rows.\n\n## Output\nReturn the result rows as a clean table along with the GAQL query that produced them, so the analysis is reproducible.',
+        '# Run GAQL Query\n\nUse Google Ads to answer an ad-hoc reporting question with GAQL.\n\n## Steps\n1. Clarify the metrics, dimensions, and segments the question needs.\n2. Write a valid GAQL query (SELECT fields FROM resource WHERE conditions) scoped to the customer and date range.\n3. Use the Custom Query operation to run it and read the rows. Follow nextPageToken with the identical query and customer until it is null or an explicit user limit is reached. Report any partial coverage.\n\n## Output\nReturn the result rows as a clean table along with the GAQL query that produced them, so the analysis is reproducible.',
     },
   ],
 } as const satisfies BlockMeta

@@ -20,7 +20,7 @@ const VALID_DATE_RANGES = new Set([
 
 /** Validates that a value is a numeric ID (digits only). */
 export function validateNumericId(value: string, fieldName: string): string {
-  const cleaned = value.replace(/-/g, '')
+  const cleaned = value.trim().replace(/-/g, '')
   if (!NUMERIC_ID_REGEX.test(cleaned)) {
     throw new Error(`${fieldName} must be numeric (digits only), got: ${value}`)
   }
@@ -36,15 +36,19 @@ export function validateStatus(value: string): string {
 }
 
 /** Validates a date string is in YYYY-MM-DD format. */
-export function validateDate(value: string, fieldName: string): string {
-  if (!DATE_REGEX.test(value)) {
+function validateDate(value: string, fieldName: string): string {
+  if (
+    !DATE_REGEX.test(value) ||
+    !Number.isFinite(Date.parse(value)) ||
+    new Date(value).toISOString().slice(0, 10) !== value
+  ) {
     throw new Error(`${fieldName} must be in YYYY-MM-DD format, got: ${value}`)
   }
   return value
 }
 
 /** Validates a date range is a known Google Ads predefined range. */
-export function validateDateRange(value: string): string {
+function validateDateRange(value: string): string {
   if (!VALID_DATE_RANGES.has(value)) {
     throw new Error(
       `Invalid date range: ${value}. Must be one of: ${[...VALID_DATE_RANGES].join(', ')}`
@@ -53,21 +57,74 @@ export function validateDateRange(value: string): string {
   return value
 }
 
+/** Builds a GAQL date predicate without silently discarding incomplete custom bounds. */
+export function buildDateCondition(params: {
+  startDate?: string
+  endDate?: string
+  dateRange?: string
+}): string {
+  if (params.startDate || params.endDate) {
+    if (!params.startDate || !params.endDate)
+      throw new Error('Custom dates require both startDate and endDate')
+    const start = validateDate(params.startDate, 'startDate')
+    const end = validateDate(params.endDate, 'endDate')
+    if (start > end) throw new Error('startDate must not be after endDate')
+    return `segments.date BETWEEN '${start}' AND '${end}'`
+  }
+  return `segments.date DURING ${validateDateRange(params.dateRange || 'LAST_30_DAYS')}`
+}
+
+/** GAQL LIMIT accepts positive integers; invalid limits must not become unbounded queries. */
+export function validateLimit(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1)
+    throw new Error('limit must be a positive safe integer')
+  return value
+}
+
+/** Selected fields from the documented GoogleAdsRow JSON mapping (int64 values are strings). */
+interface GoogleAdsRow {
+  campaign?: {
+    id?: string
+    name?: string
+    status?: string
+    advertisingChannelType?: string
+    startDateTime?: string
+    endDateTime?: string
+  }
+  campaignBudget?: { amountMicros?: string }
+  adGroup?: { id?: string; name?: string; status?: string; type?: string }
+  adGroupAd?: { ad?: { id?: string; type?: string } }
+  metrics?: {
+    impressions?: string
+    clicks?: string
+    costMicros?: string
+    ctr?: number
+    conversions?: number
+  }
+  segments?: { date?: string }
+}
+
+export interface GoogleAdsApiResponse<T = GoogleAdsRow> {
+  results?: T[]
+  resourceNames?: string[]
+  nextPageToken?: string
+  totalResultsCount?: string
+  error?: { message?: string; details?: { errors?: { message?: string }[] }[] }
+}
+
 interface GoogleAdsBaseParams {
   accessToken: string
   customerId: string
-  developerToken: string
   managerCustomerId?: string
+  pageToken?: string
 }
 
 export interface GoogleAdsListCustomersParams {
   accessToken: string
-  developerToken: string
 }
 
 export interface GoogleAdsSearchParams extends GoogleAdsBaseParams {
   query: string
-  pageToken?: string
 }
 
 export interface GoogleAdsListCampaignsParams extends GoogleAdsBaseParams {
@@ -126,6 +183,7 @@ export interface GoogleAdsListCampaignsResponse extends ToolResponse {
   output: {
     campaigns: GoogleAdsCampaign[]
     totalCount: number
+    nextPageToken: string | null
   }
 }
 
@@ -145,6 +203,7 @@ export interface GoogleAdsCampaignPerformanceResponse extends ToolResponse {
   output: {
     campaigns: GoogleAdsCampaignPerformance[]
     totalCount: number
+    nextPageToken: string | null
   }
 }
 
@@ -161,6 +220,7 @@ export interface GoogleAdsListAdGroupsResponse extends ToolResponse {
   output: {
     adGroups: GoogleAdsAdGroup[]
     totalCount: number
+    nextPageToken: string | null
   }
 }
 
@@ -183,5 +243,6 @@ export interface GoogleAdsAdPerformanceResponse extends ToolResponse {
   output: {
     ads: GoogleAdsAdPerformance[]
     totalCount: number
+    nextPageToken: string | null
   }
 }

@@ -1,8 +1,9 @@
 import type {
+  GoogleAdsApiResponse,
   GoogleAdsListCampaignsParams,
   GoogleAdsListCampaignsResponse,
 } from '@/tools/google_ads/types'
-import { validateNumericId, validateStatus } from '@/tools/google_ads/types'
+import { validateLimit, validateNumericId, validateStatus } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsListCampaignsTool: ToolConfig<
@@ -26,17 +27,18 @@ export const googleAdsListCampaignsTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token for the Google Ads API',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation token from the previous page; keep the same customer and query inputs',
+    },
     customerId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Google Ads customer ID (numeric, no dashes)',
-    },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
     },
     managerCustomerId: {
       type: 'string',
@@ -68,7 +70,6 @@ export const googleAdsListCampaignsTool: ToolConfig<
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
         headers['login-customer-id'] = validateNumericId(
@@ -80,7 +81,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
     },
     body: (params) => {
       let query =
-        'SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.start_date, campaign.end_date, campaign_budget.amount_micros FROM campaign'
+        'SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.start_date_time, campaign.end_date_time, campaign_budget.amount_micros FROM campaign'
 
       const conditions: string[] = []
       if (params.status) {
@@ -95,35 +96,35 @@ export const googleAdsListCampaignsTool: ToolConfig<
 
       query += ' ORDER BY campaign.name'
 
-      if (params.limit) {
-        query += ` LIMIT ${params.limit}`
+      if (params.limit !== undefined) {
+        query += ` LIMIT ${validateLimit(params.limit)}`
       }
 
-      return { query }
+      return { query, ...(params.pageToken ? { pageToken: params.pageToken } : {}) }
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse = await response.json()
 
     if (!response.ok) {
       const errorMessage =
         data?.error?.message ?? data?.error?.details?.[0]?.errors?.[0]?.message ?? 'Unknown error'
       return {
         success: false,
-        output: { campaigns: [], totalCount: 0 },
+        output: { campaigns: [], totalCount: 0, nextPageToken: null },
         error: errorMessage,
       }
     }
 
     const results = data.results ?? []
-    const campaigns = results.map((r: Record<string, any>) => ({
+    const campaigns = results.map((r) => ({
       id: r.campaign?.id ?? '',
       name: r.campaign?.name ?? '',
       status: r.campaign?.status ?? '',
       channelType: r.campaign?.advertisingChannelType ?? null,
-      startDate: r.campaign?.startDate ?? null,
-      endDate: r.campaign?.endDate ?? null,
+      startDate: r.campaign?.startDateTime?.slice(0, 10) ?? null,
+      endDate: r.campaign?.endDateTime?.slice(0, 10) ?? null,
       budgetAmountMicros: r.campaignBudget?.amountMicros ?? null,
     }))
 
@@ -132,11 +133,18 @@ export const googleAdsListCampaignsTool: ToolConfig<
       output: {
         campaigns,
         totalCount: campaigns.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
 
   outputs: {
+    nextPageToken: {
+      type: 'string',
+      optional: true,
+      nullable: true,
+      description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
+    },
     campaigns: {
       type: 'array',
       description: 'List of campaigns in the account',
@@ -148,13 +156,27 @@ export const googleAdsListCampaignsTool: ToolConfig<
           status: { type: 'string', description: 'Campaign status (ENABLED, PAUSED, REMOVED)' },
           channelType: {
             type: 'string',
+            optional: true,
+            nullable: true,
             description:
               'Advertising channel type (SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX)',
           },
-          startDate: { type: 'string', description: 'Campaign start date (YYYY-MM-DD)' },
-          endDate: { type: 'string', description: 'Campaign end date (YYYY-MM-DD)' },
+          startDate: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Campaign start date (YYYY-MM-DD)',
+          },
+          endDate: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Campaign end date (YYYY-MM-DD)',
+          },
           budgetAmountMicros: {
             type: 'string',
+            optional: true,
+            nullable: true,
             description: 'Daily budget in micros (divide by 1,000,000 for currency value)',
           },
         },
@@ -162,7 +184,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of campaigns returned',
+      description: 'Number of campaigns in this page',
     },
   },
 }

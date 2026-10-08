@@ -1,8 +1,9 @@
 import type {
+  GoogleAdsApiResponse,
   GoogleAdsCampaignPerformanceParams,
   GoogleAdsCampaignPerformanceResponse,
 } from '@/tools/google_ads/types'
-import { validateDate, validateDateRange, validateNumericId } from '@/tools/google_ads/types'
+import { buildDateCondition, validateNumericId } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsCampaignPerformanceTool: ToolConfig<
@@ -26,17 +27,18 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token for the Google Ads API',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation token from the previous page; keep the same customer and query inputs',
+    },
     customerId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Google Ads customer ID (numeric, no dashes)',
-    },
-    developerToken: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Google Ads API developer token',
     },
     managerCustomerId: {
       type: 'string',
@@ -81,7 +83,6 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
-        'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
         headers['login-customer-id'] = validateNumericId(
@@ -101,37 +102,30 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
         conditions.push(`campaign.id = ${validateNumericId(params.campaignId, 'campaignId')}`)
       }
 
-      if (params.startDate && params.endDate) {
-        const start = validateDate(params.startDate, 'startDate')
-        const end = validateDate(params.endDate, 'endDate')
-        conditions.push(`segments.date BETWEEN '${start}' AND '${end}'`)
-      } else {
-        const dateRange = validateDateRange(params.dateRange || 'LAST_30_DAYS')
-        conditions.push(`segments.date DURING ${dateRange}`)
-      }
+      conditions.push(buildDateCondition(params))
 
       query += ` WHERE ${conditions.join(' AND ')}`
       query += ' ORDER BY metrics.impressions DESC'
 
-      return { query }
+      return { query, ...(params.pageToken ? { pageToken: params.pageToken } : {}) }
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: GoogleAdsApiResponse = await response.json()
 
     if (!response.ok) {
       const errorMessage =
         data?.error?.message ?? data?.error?.details?.[0]?.errors?.[0]?.message ?? 'Unknown error'
       return {
         success: false,
-        output: { campaigns: [], totalCount: 0 },
+        output: { campaigns: [], totalCount: 0, nextPageToken: null },
         error: errorMessage,
       }
     }
 
     const results = data.results ?? []
-    const campaigns = results.map((r: Record<string, any>) => ({
+    const campaigns = results.map((r) => ({
       id: r.campaign?.id ?? '',
       name: r.campaign?.name ?? '',
       status: r.campaign?.status ?? '',
@@ -148,11 +142,18 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
       output: {
         campaigns,
         totalCount: campaigns.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
 
   outputs: {
+    nextPageToken: {
+      type: 'string',
+      optional: true,
+      nullable: true,
+      description: 'Continuation token, or null on the last page; reuse unchanged query inputs',
+    },
     campaigns: {
       type: 'array',
       description: 'Campaign performance data broken down by date',
@@ -168,15 +169,30 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
             type: 'string',
             description: 'Cost in micros (divide by 1,000,000 for currency value)',
           },
-          ctr: { type: 'number', description: 'Click-through rate (0.0 to 1.0)' },
-          conversions: { type: 'number', description: 'Number of conversions' },
-          date: { type: 'string', description: 'Date for this row (YYYY-MM-DD)' },
+          ctr: {
+            type: 'number',
+            optional: true,
+            nullable: true,
+            description: 'Click-through rate (0.0 to 1.0)',
+          },
+          conversions: {
+            type: 'number',
+            optional: true,
+            nullable: true,
+            description: 'Number of conversions',
+          },
+          date: {
+            type: 'string',
+            optional: true,
+            nullable: true,
+            description: 'Date for this row (YYYY-MM-DD)',
+          },
         },
       },
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of result rows',
+      description: 'Number of rows in this page',
     },
   },
 }
