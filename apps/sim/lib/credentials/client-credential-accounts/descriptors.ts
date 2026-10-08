@@ -348,7 +348,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'Client ID',
         placeholder: 'Paste the client ID',
         secret: false,
-        hint: 'Use a production app owned by your Ramp business with the Client Credentials grant enabled.',
       },
       {
         id: 'clientSecret',
@@ -369,7 +368,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'Client ID',
         placeholder: 'Paste the client ID',
         secret: false,
-        hint: 'Use a dedicated Manage Vanta app for Sim. Connecting replaces tokens issued outside Sim for this app.',
       },
       {
         id: 'clientSecret',
@@ -384,7 +382,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         secret: false,
         optional: true,
         options: VANTA_PERMISSION_OPTIONS,
-        hint: 'New connections default to read only. On reconnect, leave blank to keep current permissions. This app must always use the same permissions in Sim; use a separate app for different permissions.',
       },
       {
         id: 'dataCenter',
@@ -396,7 +393,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
           { value: 'us', label: 'Standard (US, EU, Australia)' },
           { value: 'gov', label: 'Vanta Government' },
         ],
-        hint: 'New connections default to Standard. On reconnect, leave blank to keep the current deployment.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/vanta',
