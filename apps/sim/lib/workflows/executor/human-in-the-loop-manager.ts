@@ -1479,6 +1479,9 @@ export class PauseResumeManager {
       isClientSession: baseSnapshot.metadata.isClientSession,
       resumeFromSnapshot: true,
       resumeTerminalNoop: stateCopy?.resumeTerminalNoop === true,
+      resumeHasPendingPauses: Object.entries(pausePoints).some(
+        ([id, point]) => id !== contextId && point.resumeStatus !== 'resumed'
+      ),
     }
 
     const resumeSnapshot = new ExecutionSnapshot(

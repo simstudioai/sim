@@ -136,7 +136,14 @@ export class ExecutionEngine {
       }
 
       /** A pause keeps a run whose stop block can still run; one proven unreachable fails. */
-      if (!this.cancelledFlag && (this.stopBlockUnreachable || this.pausedBlocks.size === 0)) {
+      const waitingForPausedBranch =
+        this.context.metadata.resumeFromSnapshot === true &&
+        this.context.metadata.resumeHasPendingPauses === true &&
+        !this.responseOutputLocked
+      if (
+        !this.cancelledFlag &&
+        (this.stopBlockUnreachable || (this.pausedBlocks.size === 0 && !waitingForPausedBranch))
+      ) {
         this.assertStopBlockReached()
       }
 

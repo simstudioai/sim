@@ -273,7 +273,7 @@ async function seed() {
       await tx`update workflow_blocks set type = ${fixture.type}, sub_blocks = '{}'::jsonb, data = ${JSON.stringify(config)}::text::jsonb where id = ${fixture.check}`
       await tx`insert into workflow_subflows (id, workflow_id, type, config) values (${fixture.check}, ${fixture.workflowId}, ${fixture.type}, ${JSON.stringify(config)}::text::jsonb)`
       await tx`insert into workflow_blocks (id, workflow_id, type, name, position_x, position_y, sub_blocks, data)
-        values (${fixture.inner}, ${fixture.workflowId}, 'wait', 'Inner', 0, 0, ${JSON.stringify(waitSubBlocks(0.01))}::text::jsonb, ${JSON.stringify({ parentId: fixture.check })}::text::jsonb)`
+        values (${fixture.inner}, ${fixture.workflowId}, 'human_in_the_loop_v2', 'Inner', 0, 0, '{}'::jsonb, ${JSON.stringify({ parentId: fixture.check })}::text::jsonb)`
       await tx`insert into workflow_edges (id, workflow_id, source_block_id, target_block_id, source_handle, target_handle)
         values (${generateId()}, ${fixture.workflowId}, ${fixture.check}, ${fixture.inner}, ${`${fixture.type}-start-source`}, 'target')`
       await tx`update workflow_edges set source_handle = ${`${fixture.type}-end-source`} where workflow_id = ${fixture.workflowId} and target_block_id = ${fixture.after}`
@@ -638,18 +638,55 @@ try {
 
   for (const fixture of containerPauses) {
     await check(
-      `${fixture.type}: resume preserves the container target through sentinel resolution`,
+      `${fixture.type}: pauses before and inside the container retain its stop target`,
       async () => {
-        const result = await resume(fixture, await pause(fixture, fixture.check))
-        assert.equal(result.blockOutputs?.[`${fixture.after}.status`], undefined)
-        const [saved] =
-          await sql`select execution_snapshot from paused_executions where execution_id = ${result.runId}`
-        const snapshot = record(JSON.parse(String(record(saved.execution_snapshot).snapshot)))
-        const states = record(record(snapshot.state).blockStates)
-        assert(
-          Object.keys(states).some((id) => id.includes(fixture.inner)),
-          'The container body must execute'
-        )
+        const paused = await pause(fixture, fixture.check)
+        const resumedScopes = new Set<number>()
+        const query = new URLSearchParams({
+          includeOutput: 'true',
+          selectedOutputs: `${fixture.after}.status`,
+        })
+        for (let step = 0; step < 3; step++) {
+          const [saved] =
+            await sql`select pause_points from paused_executions where execution_id = ${paused.runId}`
+          const pending = Object.entries(record(saved.pause_points)).find(
+            ([, point]) => record(point).resumeStatus !== 'resumed'
+          )
+          assert(pending, 'Every iteration or branch must pause before the container finishes')
+          const [contextId, point] = pending
+          if (step === 0) {
+            assert.equal(contextId, paused.contextId)
+          } else {
+            assert(String(record(point).blockId).startsWith(fixture.inner))
+            const scope = record(record(point)[`${fixture.type}Scope`])
+            assert.equal(scope[`${fixture.type}Id`], fixture.check)
+            const index = fixture.type === 'loop' ? scope.iteration : scope.branchIndex
+            assert(typeof index === 'number')
+            assert(!resumedScopes.has(index), 'Each iteration or branch resumes once')
+            resumedScopes.add(index)
+          }
+          const resumed = v2ExecuteWorkflowDataSchema.parse(
+            record(
+              await execute(
+                fixture.workflowId,
+                { contextId, input: { approved: true } },
+                { runId: paused.runId, timeoutMs: ROUTE_COMPILE_TIMEOUT_MS }
+              )
+            ).data
+          )
+          assert.notEqual(resumed.status, 'failed', JSON.stringify(resumed.error))
+          const status = v2WorkflowRunStatusSchema.parse(
+            (await get(`/api/v2/workflows/${fixture.workflowId}/runs/${paused.runId}?${query}`))
+              .data
+          )
+          assert.equal(status.blockOutputs?.[`${fixture.after}.status`], undefined)
+          if (step < 2) {
+            assert.notEqual(status.status, 'completed', 'The container still has a pending pause')
+          } else {
+            assert.equal(status.status, 'completed')
+          }
+        }
+        assert.equal(resumedScopes.size, 2)
       }
     )
   }

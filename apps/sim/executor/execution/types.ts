@@ -59,6 +59,8 @@ export interface ExecutionMetadata {
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  /** Other durable pauses remain after the current context resumes. */
+  resumeHasPendingPauses?: boolean
   /** Original workflow block ID, before loop/parallel sentinel resolution. */
   stopAfterBlockId?: string
   /** A resumed pause completed the stop target before the engine starts. */
