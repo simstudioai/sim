@@ -1,8 +1,7 @@
 /**
  * Row-write integration tests against the provisioned, disposable TEST_DATABASE_URL database (the
- * integration setup points DATABASE_URL at it too). The unique-value locks and the row-order lock
- * run for real everywhere; the `rows_version` cases also need the migrated deferred trigger and
- * skip without it.
+ * integration setup points DATABASE_URL at it too). The unique-value locks run for real
+ * everywhere; the `rows_version` cases also need the migrated deferred trigger and skip without it.
  */
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
@@ -24,11 +23,10 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
-import { bulkInsertImportBatch, importReplaceRows } from '@/lib/table/import-data'
+import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
-import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -121,6 +119,88 @@ async function untilSchemaLockWaiters(tableId: string, expected: number) {
   expect(waiting).toBe(expected)
 }
 
+type LockWaiters = { onDefinitionRow: number; onValueLock: number }
+
+/** The session {@link raceUnderHeldDefinitionRow} holds the definition row in, while it does. */
+let definitionRowHolder: number | null = null
+
+/**
+ * Polls until exactly `expected.onDefinitionRow` sessions wait on the held definition row (directly,
+ * or queued behind an earlier waiter for it) and `expected.onValueLock` wait on one of the table's
+ * unique locks, and returns the last count seen. Both counts are scoped to the table, so concurrent
+ * suites cannot skew them: a unique-lock waiter waits on the table's unique lock itself, or on a
+ * value lock while holding the table's unique lock shared.
+ */
+async function waitForLockWaiters(tableId: string, expected: LockWaiters) {
+  const uniqueLockKey = `user_table_unique:${tableId}`
+  let waiting: LockWaiters = { onDefinitionRow: 0, onValueLock: 0 }
+  for (let attempt = 0; attempt < 400; attempt++) {
+    await sleep(5)
+    ;[waiting] = await control<LockWaiters[]>`
+      WITH RECURSIVE behind_holder(pid) AS (
+        SELECT pid FROM pg_stat_activity
+        WHERE ${definitionRowHolder ?? 0}::int = ANY (pg_blocking_pids(pid))
+        UNION
+        SELECT a.pid FROM pg_stat_activity a
+        JOIN behind_holder b ON b.pid = ANY (pg_blocking_pids(a.pid))
+      ), lock AS (
+        SELECT hashtextextended(${uniqueLockKey}, 0) AS unique_key
+      ), advisory AS (
+        SELECT l.pid, l.granted,
+          l.classid = ((lock.unique_key >> 32) & 4294967295)::oid
+            AND l.objid = (lock.unique_key & 4294967295)::oid AS is_unique
+        FROM pg_locks l CROSS JOIN lock
+        WHERE l.locktype = 'advisory'
+          AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+      )
+      SELECT
+        (SELECT count(*) FROM pg_stat_activity a JOIN behind_holder USING (pid)
+          WHERE a.wait_event IN ('tuple', 'transactionid'))::int AS "onDefinitionRow",
+        count(*) FILTER (
+          WHERE NOT granted AND (
+            is_unique OR pid IN (SELECT pid FROM advisory WHERE granted AND is_unique)
+          )
+        )::int AS "onValueLock"
+      FROM advisory`
+    if (
+      waiting.onDefinitionRow === expected.onDefinitionRow &&
+      waiting.onValueLock === expected.onValueLock
+    ) {
+      break
+    }
+  }
+  return waiting
+}
+
+/**
+ * Holds the table's definition row `FOR UPDATE` while `writes` start, and releases it only once
+ * exactly `onDefinitionRow` of them wait on it and `onValueLock` wait on a unique-value lock. An
+ * insert's row write checks the row's foreign key to the definition, after its value locks and
+ * unique check, so this pins every write mid-flight; releasing any earlier could let them run
+ * one after another and prove nothing about the race.
+ */
+async function raceUnderHeldDefinitionRow(
+  tableId: string,
+  writes: Array<() => Promise<unknown>>,
+  expected: LockWaiters
+): Promise<PromiseSettledResult<unknown>[]> {
+  const holder = await control.reserve()
+  try {
+    await holder`BEGIN`
+    const [{ pid }] = await holder<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+    definitionRowHolder = pid
+    await holder`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`
+    const racers = Promise.allSettled(writes.map((write) => write()))
+    expect(await waitForLockWaiters(tableId, expected)).toEqual(expected)
+    await holder`COMMIT`
+    return await racers
+  } finally {
+    definitionRowHolder = null
+    await holder`ROLLBACK`.catch(() => {})
+    holder.release()
+  }
+}
+
 describe('table row writes against real PostgreSQL', () => {
   beforeAll(async () => {
     await control`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
@@ -158,79 +238,6 @@ describe('table row writes against real PostgreSQL', () => {
         'unique-race'
       )
 
-    type LockWaiters = { onOrderLock: number; onValueLock: number }
-
-    /**
-     * Polls until exactly `expected.onOrderLock` sessions wait on the table's row-order lock and
-     * `expected.onValueLock` wait on one of its unique locks, and returns the last count seen. Both
-     * counts are scoped to the table, so concurrent suites cannot skew them: a unique-lock waiter
-     * waits on the table's unique lock itself, or on a value lock while holding the table's unique
-     * lock shared.
-     */
-    async function waitForLockWaiters(tableId: string, expected: LockWaiters) {
-      const orderLockKey = `user_table_rows_pos:${tableId}`
-      const uniqueLockKey = `user_table_unique:${tableId}`
-      let waiting: LockWaiters = { onOrderLock: 0, onValueLock: 0 }
-      for (let attempt = 0; attempt < 400; attempt++) {
-        await sleep(5)
-        ;[waiting] = await control<LockWaiters[]>`
-          WITH lock AS (
-            SELECT hashtextextended(${orderLockKey}, 0) AS order_key,
-              hashtextextended(${uniqueLockKey}, 0) AS unique_key
-          ), advisory AS (
-            SELECT l.pid, l.granted,
-              l.classid = ((lock.order_key >> 32) & 4294967295)::oid
-                AND l.objid = (lock.order_key & 4294967295)::oid AS is_order,
-              l.classid = ((lock.unique_key >> 32) & 4294967295)::oid
-                AND l.objid = (lock.unique_key & 4294967295)::oid AS is_unique
-            FROM pg_locks l CROSS JOIN lock
-            WHERE l.locktype = 'advisory'
-              AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
-          )
-          SELECT
-            count(*) FILTER (WHERE NOT granted AND is_order)::int AS "onOrderLock",
-            count(*) FILTER (
-              WHERE NOT granted AND NOT is_order AND (
-                is_unique OR pid IN (SELECT pid FROM advisory WHERE granted AND is_unique)
-              )
-            )::int AS "onValueLock"
-          FROM advisory`
-        if (
-          waiting.onOrderLock === expected.onOrderLock &&
-          waiting.onValueLock === expected.onValueLock
-        ) {
-          break
-        }
-      }
-      return waiting
-    }
-
-    /**
-     * Holds the table's row-order lock while `writes` start, and releases it only once exactly
-     * `onOrderLock` of them wait on it and `onValueLock` wait on a unique-value lock. Inserts take
-     * their value locks and run their unique check before the row-order lock, so this pins every
-     * write mid-flight; releasing any earlier could let them run one after another and prove
-     * nothing about the race.
-     */
-    async function raceUnderHeldOrderLock(
-      tableId: string,
-      writes: Array<() => Promise<unknown>>,
-      expected: LockWaiters
-    ): Promise<PromiseSettledResult<unknown>[]> {
-      const holder = await control.reserve()
-      try {
-        await holder`BEGIN`
-        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
-        const racers = Promise.allSettled(writes.map((write) => write()))
-        expect(await waitForLockWaiters(tableId, expected)).toEqual(expected)
-        await holder`COMMIT`
-        return await racers
-      } finally {
-        await holder`ROLLBACK`.catch(() => {})
-        holder.release()
-      }
-    }
-
     async function storedCount(tableId: string, match: Record<string, JsonValue>) {
       const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
         FROM user_table_rows WHERE table_id = ${tableId} AND data @> ${control.json(match)}`
@@ -243,13 +250,13 @@ describe('table row writes against real PostgreSQL', () => {
     it('rejects the second of two concurrent single-row inserts of the same value', async () => {
       const table = await createTable(uniqueColumns)
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [
           () => insertEmail(table, 'dup@example.test'),
           () => insertEmail(table, 'dup@example.test'),
         ],
-        { onOrderLock: 1, onValueLock: 1 }
+        { onDefinitionRow: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
@@ -271,10 +278,14 @@ describe('table row writes against real PostgreSQL', () => {
           'unique-race'
         )
 
-      const results = await raceUnderHeldOrderLock(table.id, [insertScore('8'), insertScore(8)], {
-        onOrderLock: 1,
-        onValueLock: 1,
-      })
+      const results = await raceUnderHeldDefinitionRow(
+        table.id,
+        [insertScore('8'), insertScore(8)],
+        {
+          onDefinitionRow: 1,
+          onValueLock: 1,
+        }
+      )
 
       expect(fulfilled(results)).toBe(1)
       expect(await storedCount(table.id, { score: 8 })).toBe(1)
@@ -283,10 +294,10 @@ describe('table row writes against real PostgreSQL', () => {
     it('lets concurrent inserts of different values proceed together', async () => {
       const table = await createTable(uniqueColumns)
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [() => insertEmail(table, 'a@example.test'), () => insertEmail(table, 'b@example.test')],
-        { onOrderLock: 2, onValueLock: 0 }
+        { onDefinitionRow: 2, onValueLock: 0 }
       )
 
       expect(fulfilled(results)).toBe(2)
@@ -295,7 +306,7 @@ describe('table row writes against real PostgreSQL', () => {
     it('rejects a single insert racing a batch insert that holds the same value', async () => {
       const table = await createTable(uniqueColumns)
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [
           () =>
@@ -312,7 +323,7 @@ describe('table row writes against real PostgreSQL', () => {
             ),
           () => insertEmail(table, 'dup@example.test'),
         ],
-        { onOrderLock: 1, onValueLock: 1 }
+        { onDefinitionRow: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
@@ -325,14 +336,16 @@ describe('table row writes against real PostgreSQL', () => {
         { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
       ])
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [
           () => insertEmail(table, 'dup@example.test'),
           async () => {
             // Start the edit only once the insert has passed its check and holds its locks.
-            expect(await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })).toEqual({
-              onOrderLock: 1,
+            expect(
+              await waitForLockWaiters(table.id, { onDefinitionRow: 1, onValueLock: 0 })
+            ).toEqual({
+              onDefinitionRow: 1,
               onValueLock: 0,
             })
             return updateRow(
@@ -349,7 +362,7 @@ describe('table row writes against real PostgreSQL', () => {
             )
           },
         ],
-        { onOrderLock: 1, onValueLock: 1 }
+        { onDefinitionRow: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
@@ -359,7 +372,7 @@ describe('table row writes against real PostgreSQL', () => {
     it('lets a replace that adds the first unique column wait out a writer on an older schema', async () => {
       const table = await createTable([{ id: 'name', name: 'name', type: 'string' }])
       // The writer resolved the table while it still had a unique column, so it holds the unique
-      // lock shared and will want the row-order lock next.
+      // lock shared and will write its row next.
       const stale: TableDefinition = {
         ...table,
         schema: { columns: [...table.schema.columns, ...uniqueColumns] },
@@ -376,7 +389,13 @@ describe('table row writes against real PostgreSQL', () => {
         await lockUniqueValues(trx, stale, [{ email: 'stale@example.test' }])
         holdsUniqueLock()
         await released
-        await acquireRowOrderLock(trx, table.id)
+        await trx.insert(userTableRows).values({
+          id: `${table.id}-stale`,
+          tableId: table.id,
+          workspaceId,
+          data: { email: 'stale@example.test' },
+          orderKey: 'a0',
+        })
       })
       await holding
 
@@ -388,8 +407,8 @@ describe('table row writes against real PostgreSQL', () => {
           { rows: [{ name: 'fresh', code: 'c-1' }], workspaceId },
           'unique-race'
         )
-        expect(await waitForLockWaiters(table.id, { onOrderLock: 0, onValueLock: 1 })).toEqual({
-          onOrderLock: 0,
+        expect(await waitForLockWaiters(table.id, { onDefinitionRow: 0, onValueLock: 1 })).toEqual({
+          onDefinitionRow: 0,
           onValueLock: 1,
         })
       } finally {
@@ -429,7 +448,7 @@ describe('table row writes against real PostgreSQL', () => {
       const rows = Array.from({ length: 80 }, (_, i) => ({ email: `bulk-${i}@example.test` }))
       rows.push({ email: 'dup@example.test' })
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [
           () =>
@@ -446,7 +465,7 @@ describe('table row writes against real PostgreSQL', () => {
             ),
           () => insertEmail(table, 'dup@example.test'),
         ],
-        { onOrderLock: 1, onValueLock: 1 }
+        { onDefinitionRow: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
@@ -456,14 +475,16 @@ describe('table row writes against real PostgreSQL', () => {
     it('rejects an import batch racing a single insert of the same value', async () => {
       const table = await createTable(uniqueColumns)
 
-      const results = await raceUnderHeldOrderLock(
+      const results = await raceUnderHeldDefinitionRow(
         table.id,
         [
           () => insertEmail(table, 'dup@example.test'),
           async () => {
             // Start the import only once the insert has passed its check and holds its locks.
-            expect(await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })).toEqual({
-              onOrderLock: 1,
+            expect(
+              await waitForLockWaiters(table.id, { onDefinitionRow: 1, onValueLock: 0 })
+            ).toEqual({
+              onDefinitionRow: 1,
               onValueLock: 0,
             })
             return bulkInsertImportBatch(
@@ -478,7 +499,7 @@ describe('table row writes against real PostgreSQL', () => {
             )
           },
         ],
-        { onOrderLock: 1, onValueLock: 1 }
+        { onDefinitionRow: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
@@ -649,20 +670,20 @@ describe('table row writes against real PostgreSQL', () => {
       it('locks JSON values one by one, equating objects whose keys differ only in order', async () => {
         const table = await createTable(jsonColumns)
 
-        const different = await raceUnderHeldOrderLock(
+        const different = await raceUnderHeldDefinitionRow(
           table.id,
           [() => insertMeta(table, { a: 1 }), () => insertMeta(table, { a: 1, b: 2 })],
-          { onOrderLock: 2, onValueLock: 0 }
+          { onDefinitionRow: 2, onValueLock: 0 }
         )
         expect(fulfilled(different)).toBe(2)
 
-        const reordered = await raceUnderHeldOrderLock(
+        const reordered = await raceUnderHeldDefinitionRow(
           table.id,
           [
             () => insertMeta(table, { x: 1, y: [1, 2] }),
             () => insertMeta(table, { y: [1, 2], x: 1 }),
           ],
-          { onOrderLock: 1, onValueLock: 1 }
+          { onDefinitionRow: 1, onValueLock: 1 }
         )
         expect(fulfilled(reordered)).toBe(1)
         expect(await storedCount(table.id, { meta: { x: 1 } })).toBe(1)
@@ -1542,6 +1563,185 @@ describe('table row writes against real PostgreSQL', () => {
       expect((await getTableById(table.id))?.rowCount).toBe(count)
       // One log entry per write, except replace, which logs its DELETE and its INSERT.
       expect(await rowsVersion(table.id)).toBe(versionBefore + writes.length + 1)
+    })
+  })
+
+  describe('inserts without a table-wide lock', () => {
+    const insertName = (table: TableDefinition, name: string, placement = {}) =>
+      insertRow(
+        {
+          tableId: table.id,
+          workspaceId,
+          data: { name },
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+          ...placement,
+        },
+        table,
+        'lockless-insert'
+      )
+    const batchInsertNames = (table: TableDefinition, names: string[]) =>
+      batchInsertRows(
+        {
+          tableId: table.id,
+          workspaceId,
+          rows: names.map((name) => ({ name })),
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+        },
+        table,
+        'lockless-batch'
+      )
+    const orderedNames = async (tableId: string) =>
+      (
+        await control<{ name: string; order_key: string }[]>`
+          SELECT data->>'name' AS name, order_key FROM user_table_rows
+          WHERE table_id = ${tableId} ORDER BY order_key, id`
+      ).map((row) => row.name)
+
+    it('lets every insert path commit while another transaction holds the retired row-order lock', async () => {
+      const table = await createTable([
+        { id: 'name', name: 'name', type: 'string' },
+        { id: 'key', name: 'key', type: 'string', unique: true },
+      ])
+      await seedRows(table.id, [{ id: `${table.id}-a`, data: { name: 'a' }, orderKey: 'a0' }])
+      const writes: Array<[string, () => Promise<unknown>]> = [
+        ['append', () => insertName(table, 'b')],
+        ['at a position', () => insertName(table, 'c', { position: 0 })],
+        ['after a row', () => insertName(table, 'd', { afterRowId: `${table.id}-a` })],
+        ['batch', () => batchInsertNames(table, ['e', 'f'])],
+        [
+          'upsert',
+          () =>
+            upsertRow(
+              {
+                tableId: table.id,
+                workspaceId,
+                data: { name: 'g', key: 'g' },
+                conflictTarget: 'key',
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'lockless-upsert'
+            ),
+        ],
+        [
+          'import with a new column',
+          () =>
+            importAppendRows(
+              table,
+              [{ name: 'extra', type: 'string' }],
+              [{ name: 'h', extra: 'x' }],
+              { workspaceId, requestId: 'lockless-import', capabilityGovernedUserId: null }
+            ),
+        ],
+      ]
+
+      const holder = await control.reserve()
+      const elapsedMs: Record<string, number> = {}
+      try {
+        await holder`BEGIN`
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${table.id}`}, 0))`
+        for (const [name, write] of writes) {
+          const started = Date.now()
+          await write()
+          elapsedMs[name] = Date.now() - started
+        }
+      } finally {
+        await holder`ROLLBACK`.catch(() => {})
+        holder.release()
+      }
+
+      for (const [name] of writes) expect(elapsedMs[name], name).toBeLessThan(2_000)
+      expect((await orderedNames(table.id)).length).toBe(8)
+    })
+
+    it('gives appends that read the same last key distinct keys, keeping each batch together', async () => {
+      const table = await createTable(textColumns('name'))
+      await seedRows(table.id, [{ id: `${table.id}-a`, data: { name: 'seed' }, orderKey: 'a0' }])
+      const batches = Array.from({ length: 4 }, (_, b) =>
+        Array.from({ length: 5 }, (_, i) => `batch${b}-${i}`)
+      )
+      const singles = Array.from({ length: 4 }, (_, i) => `single${i}`)
+
+      // Every writer reads the table's last key before its row write waits on the held definition
+      // row, so all of them mint from the same `a0`.
+      const results = await raceUnderHeldDefinitionRow(
+        table.id,
+        [
+          ...batches.map((names) => () => batchInsertNames(table, names)),
+          ...singles.map((name) => () => insertName(table, name)),
+        ],
+        { onDefinitionRow: batches.length + singles.length, onValueLock: 0 }
+      )
+
+      expect(results.filter((result) => result.status === 'rejected')).toEqual([])
+      const [{ keys, distinct }] = await control<{ keys: number; distinct: number }[]>`
+        SELECT count(*)::int AS keys, count(DISTINCT order_key)::int AS distinct
+        FROM user_table_rows WHERE table_id = ${table.id}`
+      expect(distinct).toBe(keys)
+      const names = await orderedNames(table.id)
+      expect(names[0]).toBe('seed')
+      for (const batch of batches) {
+        const at = names.indexOf(batch[0])
+        expect(names.slice(at, at + batch.length)).toEqual(batch)
+      }
+    })
+
+    it('inserts at a position between two rows that share a key', async () => {
+      const table = await createTable(textColumns('name'))
+      await seedRows(table.id, [
+        { id: `${table.id}-0`, data: { name: 'a' }, orderKey: 'a0' },
+        { id: `${table.id}-1`, data: { name: 'b' }, orderKey: 'a1' },
+        { id: `${table.id}-2`, data: { name: 'c' }, orderKey: 'a1' },
+        { id: `${table.id}-3`, data: { name: 'd' }, orderKey: 'a2' },
+      ])
+
+      await insertName(table, 'new', { position: 2 })
+
+      const names = await orderedNames(table.id)
+      expect(names.indexOf('new')).toBe(3)
+      expect(names.at(-1)).toBe('d')
+    })
+
+    it('appends a row whose requested position is past the last row', async () => {
+      const table = await createTable(textColumns('name'))
+      await seedRows(table.id, [
+        { id: `${table.id}-0`, data: { name: 'a' }, orderKey: 'a0' },
+        { id: `${table.id}-1`, data: { name: 'b' }, orderKey: 'a1' },
+      ])
+
+      await insertName(table, 'new', { position: 10 })
+
+      expect(await orderedNames(table.id)).toEqual(['a', 'b', 'new'])
+    })
+
+    it('leaves only the later row set when two replaces run concurrently', async () => {
+      const table = await createTable(textColumns('name'))
+      await seedRows(table.id, [{ id: `${table.id}-old`, data: { name: 'old' }, orderKey: 'a0' }])
+      const replaceWith = (names: string[]) =>
+        replaceTableRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            rows: names.map((name) => ({ name })),
+            secretProvenance: undefined,
+          },
+          table,
+          'concurrent-replace'
+        )
+
+      const results = await Promise.allSettled([
+        replaceWith(['x1', 'x2']),
+        replaceWith(['y1', 'y2']),
+      ])
+
+      expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled'])
+      expect([
+        ['x1', 'x2'],
+        ['y1', 'y2'],
+      ]).toContainEqual(await orderedNames(table.id))
     })
   })
 
