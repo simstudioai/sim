@@ -19,6 +19,7 @@ import {
   getErrorMessage,
   getPostgresConstraintName,
   getPostgresErrorCode,
+  isPostgresCommitRejection,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -561,7 +562,7 @@ async function discardStagedFileContent(staged: StagedFileContent): Promise<void
   })
 }
 
-/** Keeps possibly committed bytes when the transaction fails after its callback has completed. */
+/** Discards known rollbacks while retaining bytes whose COMMIT outcome is uncertain. */
 async function finalizeStagedFileContent<T>(
   staged: StagedFileContent,
   prepare: (tx: DbTransaction) => Promise<T>
@@ -574,7 +575,7 @@ async function finalizeStagedFileContent<T>(
       return result
     })
   } catch (error) {
-    if (preparedForCommit) {
+    if (preparedForCommit && !isPostgresCommitRejection(error)) {
       logger.error(
         'File commit outcome is uncertain; retaining staged content for reconciliation',
         {
