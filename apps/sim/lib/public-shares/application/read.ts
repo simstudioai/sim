@@ -30,6 +30,7 @@ import {
   isCompiledDocumentBuffer,
 } from '@/lib/uploads/documents/compile'
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
@@ -167,22 +168,73 @@ export function readPublicFileShare({ grant }: PublicReadInput) {
   )
 }
 
-/** Checks current source availability without rendering, recording a download, or reading its bytes. */
+/** Checks cached representation availability without rendering or recording a download. */
 export async function checkPublicFileShareContent(
   grant: VerifiedPublicFileShareGrant
 ): Promise<void> {
   const operation = publicFileOperations.readContent
-  const initial = await withPublicFileShareGrant(
-    grant,
-    operation,
-    async (_tx, snapshot) => snapshot
-  )
-  const stored = await headObject(initial.file.key, initial.adapter.storageContext)
-  if (!stored) throw new OrchestrationError('not_found', 'File not found')
-  assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
-  await withPublicFileShareGrant(grant, operation, async (_tx, snapshot) => {
-    requireRevision(snapshot.file, initial.file)
-  })
+  try {
+    const initial = await withPublicFileShareGrant(
+      grant,
+      operation,
+      async (_tx, snapshot) => snapshot
+    )
+    const stored = await headObject(initial.file.key, initial.adapter.storageContext)
+    if (!stored) throw new OrchestrationError('not_found', 'File not found')
+    assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
+    const format = await getE2BDocFormat(initial.file.originalName)
+    let inputs: WorkspaceFileRow[] = []
+    if (format) {
+      const source = await downloadFile({
+        key: initial.file.key,
+        context: initial.adapter.storageContext,
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
+      if (!isCompiledDocumentBuffer(initial.file.originalName, source)) {
+        const text = source.toString('utf8')
+        const ids = [
+          ...new Set(
+            collectReferencedFileIds(
+              text,
+              isDocSandboxEnabled
+                ? getDocumentSourceLanguage(text, format, initial.file.contentType)
+                : 'javascript'
+            )
+          ),
+        ]
+        inputs = await withPublicFileShareGrant(grant, operation, async (tx, snapshot) => {
+          requireRevision(snapshot.file, initial.file)
+          return dependencies(tx, snapshot, ids)
+        })
+        const artifact = await initial.adapter.readCompiled({
+          owner: initial.owner,
+          source,
+          sourceMime: initial.file.contentType,
+          fileName: initial.file.originalName,
+          format,
+          dependencies: inputs,
+        })
+        assertKnownSizeWithinLimit(
+          artifact.buffer.length,
+          MAX_BUFFERED_TRANSFER_BYTES,
+          'shared file'
+        )
+      }
+    }
+    await withPublicFileShareGrant(grant, operation, async (tx, snapshot) => {
+      requireRevision(snapshot.file, initial.file)
+      const current = await dependencies(
+        tx,
+        snapshot,
+        inputs.map((file) => file.id)
+      )
+      for (let index = 0; index < current.length; index++) {
+        requireRevision(current[index], inputs[index])
+      }
+    })
+  } catch (error) {
+    throw asOrchestrationError(error) ?? error
+  }
 }
 
 /** A public read never executes generated document code; it serves current cached artifacts only. */
@@ -275,7 +327,7 @@ export async function readPublicFileShareContent({
         dependencies: manifest.dependencies,
       }))
     } else if (preview) {
-      const image = await initial.adapter.imagePreview(raw, initial.file.key)
+      const image = await resolveServableImageBytes(raw, initial.file.key, { owner: initial.owner })
       if (image) ({ buffer, contentType } = image)
     }
     return await finish(grant, manifest, operation, buffer, contentType, request)

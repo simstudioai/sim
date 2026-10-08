@@ -7,7 +7,6 @@ import { requireProjectFileApiEnabled } from '@/lib/projects/rollout.server'
 import { type E2BDocFormat, resolveServableDoc } from '@/lib/uploads/documents/compile'
 import { loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
-import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   type FileOwnerAdapters,
@@ -34,7 +33,6 @@ interface PublicFileOwnerAdapter {
   storageContext: 'workspace' | 'project'
   pageOptions(entityId: string): { workspaceId?: string; projectId?: string }
   readCompiled(input: DocumentRead): Promise<{ buffer: Buffer; contentType: string }>
-  imagePreview(buffer: Buffer, key: string): Promise<{ buffer: Buffer; contentType: string } | null>
 }
 
 const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
@@ -64,7 +62,6 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
         )
       return artifact
     },
-    imagePreview: resolveServableImageBytes,
   },
   project: {
     async load(tx, entityId) {
@@ -96,7 +93,6 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
         )
       return { buffer, contentType: format.contentType }
     },
-    imagePreview: resolveServableImageBytes,
   },
 }
 

@@ -1,5 +1,8 @@
+import { once } from 'node:events'
 import { Readable } from 'node:stream'
+import { finished } from 'node:stream/promises'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { ZipArchive } from 'archiver'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
@@ -24,36 +27,51 @@ export function presentWorkspaceFileArchive({
   )
   const archive = new ZipArchive({ store: true })
   archive.on('warning', (error: Error) => logger.warn('Archive warning', { error }))
-  const inputs: Readable[] = []
-  for (const [index, file] of filesToZip.entries()) {
-    const rendered = renderedDocuments.get(file.id)
-    if (rendered) archive.append(rendered, { name: entryPaths[index] })
-    else {
-      const input = Readable.from(
-        (async function* () {
-          const source = await downloadFileStream({
-            key: file.key,
-            context: file.storageContext ?? 'workspace',
-          })
-          try {
-            yield* source
-          } finally {
-            source.destroy()
-          }
-        })(),
-        { objectMode: false }
-      )
-      inputs.push(input)
-      input.once('error', (error) => archive.destroy(error))
-      archive.append(input, { name: entryPaths[index] })
-    }
-  }
+  const closed = new AbortController()
+  let activeInput: Readable | undefined
   archive.once('close', () => {
-    for (const input of inputs) input.destroy()
+    closed.abort()
+    activeInput?.destroy()
   })
-  archive.finalize().catch((error: Error) => {
-    logger.error('Failed to finalize file archive', { error })
-    archive.destroy(error)
+  async function appendEntries() {
+    for (const [index, file] of filesToZip.entries()) {
+      closed.signal.throwIfAborted()
+      const rendered = renderedDocuments.get(file.id)
+      const input =
+        rendered ??
+        Readable.from(
+          (async function* () {
+            const source = await downloadFileStream({
+              key: file.key,
+              context: file.storageContext ?? 'workspace',
+            })
+            try {
+              yield* source
+            } finally {
+              source.destroy()
+            }
+          })(),
+          { objectMode: false }
+        )
+      activeInput = input instanceof Readable ? input : undefined
+      const consumed = once(archive, 'entry', { signal: closed.signal })
+      const sourceFinished = activeInput
+        ? finished(activeInput, { readable: true, writable: false, cleanup: true })
+        : undefined
+      try {
+        archive.append(input, { name: entryPaths[index] })
+        await Promise.all([consumed, sourceFinished])
+      } finally {
+        activeInput?.destroy()
+        activeInput = undefined
+      }
+    }
+    await archive.finalize()
+  }
+  appendEntries().catch((error: unknown) => {
+    if (toError(error).name === 'AbortError') return
+    logger.error('Failed to build file archive', { error })
+    archive.destroy(toError(error))
   })
   return {
     body: nodeReadableToWebStream(archive),
