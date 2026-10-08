@@ -207,7 +207,9 @@ export const PlusMenuDropdown = React.memo(
       : combined.groups
     const isHydrating =
       combined.isHydrating ||
-      Boolean(organizationId && (workspacesPending || (projectsEnabled && projectQuery.isPending)))
+      Boolean(
+        organizationId && (workspacesPending || (projectSelectionEnabled && projectQuery.isPending))
+      )
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {

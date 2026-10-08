@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, createRef } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
@@ -120,4 +121,20 @@ it('stops Project tagging through the browse submenu when Project files are disa
   await act(async () => handle.current?.open({ left: 0, top: 0 }))
   await selectProject()
   expect(selected).toBeNull()
+})
+
+it('only waits for pending Projects when Project mentions are selectable', async () => {
+  const response = createDeferred<Response>()
+  vi.stubGlobal('fetch', (input: string) =>
+    input.startsWith('/api/projects?') ? response.promise : Promise.resolve(Response.json({}))
+  )
+  try {
+    await render(true)
+    await act(async () => handle.current?.open({ left: 0, top: 0 }, { mention: true }))
+    expect(handle.current?.selectActive()).toBe('hydrating')
+    await render(false)
+    expect(handle.current?.selectActive()).toBe('empty')
+  } finally {
+    await act(async () => response.resolve(Response.json({ projects: [], nextCursor: null })))
+  }
 })
