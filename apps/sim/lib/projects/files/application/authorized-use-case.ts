@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
+import { describeError, isPostgresCommitRejection } from '@sim/utils/errors'
 import {
   type AuthorizingUseCase,
   recordProjectedUseCaseAuditEntries,
@@ -92,7 +92,7 @@ export function defineAuthorizedProjectFileUseCase<
           return { context, result }
         })
       } catch (error) {
-        if (callbackCompleted) {
+        if (callbackCompleted && !isPostgresCommitRejection(error)) {
           logger.error('Project file commit outcome is uncertain; retaining prepared resources', {
             operation: definition.operation.id,
             projectId: args.input.projectId,
