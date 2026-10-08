@@ -515,9 +515,8 @@ export async function checkUniqueConstraintsDb(
 
 /**
  * Runs `check` on the caller's open transaction with seq scans penalized, then puts back the
- * transaction's previous setting. Unique checks now run inside write transactions ahead of the
- * row-order lock, and leaving the flag off for the rest of the transaction slowed the locked
- * position and INSERT statements that follow. Reading the previous value and setting the new one
+ * transaction's previous setting. Unique checks run inside write transactions, and leaving the
+ * flag off for the rest of the transaction slowed the position and INSERT statements that follow. Reading the previous value and setting the new one
  * in one statement keeps it one round trip each way; a caller that set the flag itself keeps it.
  */
 async function withSeqscanOffOn(

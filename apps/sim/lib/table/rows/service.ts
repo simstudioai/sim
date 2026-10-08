@@ -57,7 +57,6 @@ import {
   refitRowToSchema,
 } from '@/lib/table/rows/live-schema'
 import {
-  acquireRowOrderLock,
   type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
@@ -336,8 +335,8 @@ export interface TxRowWriteOptions extends RowWriteOptions {
 
 export interface BatchInsertOptions extends TxRowWriteOptions {
   /**
-   * The caller already holds `lockUniqueColumns` for the table in this transaction (bulk imports,
-   * which take it before the row-order lock), so the batch takes no per-value locks of its own.
+   * The caller already holds `lockUniqueColumns` for the table in this transaction (bulk imports),
+   * so the batch takes no per-value locks of its own.
    */
   uniqueColumnsLocked?: boolean
 }
@@ -352,9 +351,8 @@ export interface BatchInsertOptions extends TxRowWriteOptions {
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
  *
- * Takes the rows' unique-value locks (see `unique-locks.ts`) before the unique check and the
- * row-order lock, so a caller must not already hold the row-order lock unless it passes
- * `uniqueColumnsLocked`. Validates against `table` unless it passes `lockSchema`, so a caller that
+ * Takes the rows' unique-value locks (see `unique-locks.ts`) before the unique check unless the
+ * caller passes `uniqueColumnsLocked`. Validates against `table` unless it passes `lockSchema`, so a caller that
  * does not reads `table` under the table's schema lock in this transaction.
  */
 export async function batchInsertRowsWithTx(
@@ -422,7 +420,6 @@ export async function batchInsertRowsWithTx(
     ...(data.userId ? { createdBy: data.userId } : {}),
   })
 
-  await acquireRowOrderLock(trx, data.tableId)
   // Undo restore passes exact saved keys; otherwise append after the current max.
   const orderKeys =
     data.orderKeys && data.orderKeys.length > 0
@@ -548,10 +545,9 @@ export async function replaceTableRows(
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `replaceTableRows` and `importReplaceRows`.
  *
- * Takes the table's unique lock before its row-order lock, so a caller already holding the
- * row-order lock must take `lockUniqueColumns` first. Validates against `table` unless it passes
- * `lockSchema`, so a caller that does not reads `table` under the table's schema lock in this
- * transaction.
+ * Takes the table's unique lock exclusively, which also serializes concurrent replaces. Validates
+ * against `table` unless it passes `lockSchema`, so a caller that does not reads `table` under the
+ * table's schema lock in this transaction.
  */
 export async function replaceTableRowsWithTx(
   trx: DbTransaction,
@@ -632,15 +628,11 @@ export async function replaceTableRowsWithTx(
   if (!options.lockSchema) await setTableTxTimeouts(trx, { statementMs })
 
   // Every current row is about to go, so any concurrent write of a unique value conflicts with the
-  // replacement set: hold the unique columns exclusively, ahead of the row-order lock.
+  // replacement set: hold the unique columns exclusively. The lock is taken even without unique
+  // columns, which also serializes concurrent replaces: otherwise the second's DELETE would not see
+  // the first's rows, and the table would end up with both row sets. A plain insert that commits
+  // during a replace survives it, the outcome of running right after it.
   await lockUniqueColumns(trx, table)
-
-  // Serialize concurrent replaces (and concurrent auto-position inserts) on the
-  // same table. Without this, two concurrent replaces each see their own MVCC
-  // snapshot for the DELETE; the second's DELETE would not observe rows the
-  // first inserted, so both transactions commit and the table ends up with
-  // the union of both row sets instead of only the last caller's rows.
-  await acquireRowOrderLock(trx, data.tableId)
 
   const deleteCountRows = await trx.execute<{ count: number | string }>(sql`
     WITH deleted AS (
@@ -810,7 +802,7 @@ export async function upsertRow(
   const snapshotMatchFilter = upsertConflictProbe(target, data.data)
 
   // Resolve the plan limit BEFORE the tx (the lookup is a separate pool read; doing
-  // it inside the tx would hold a connection + the row-order lock during it). The
+  // it inside the tx would hold a connection + the value lock during it). The
   // insert branch enforces it; the update path doesn't add a row, so it's exempt.
   const rowLimit = await getMaxRowsPerTable(table.workspaceId)
 
@@ -843,7 +835,8 @@ export async function upsertRow(
       )
     }
     // Holds every unique value this row writes, the conflict target included, before the lookup
-    // and the unique check below: concurrent upserts and inserts of the same value serialize here.
+    // and the unique check below: concurrent upserts and inserts of the same value serialize here,
+    // so the lookup already sees a racing upsert's committed row.
     await lockUniqueValues(trx, live, [data.data])
 
     // Find existing row by single conflict target column
@@ -876,30 +869,8 @@ export async function upsertRow(
 
     const now = new Date()
 
-    // Resolve which row (if any) we should update. If the initial SELECT missed,
-    // acquire the lock and re-check — a concurrent upsert may have inserted the
-    // matching row between our SELECT and the INSERT path; without the re-check
-    // both transactions would insert and bypass the app-level unique check.
-    let matchedRowId = existingRow?.id
-    let previousData = existingRow?.data as RowData | undefined
-    if (!matchedRowId) {
-      await acquireRowOrderLock(trx, data.tableId)
-      const [racedRow] = await trx
-        .select({ id: userTableRows.id, data: userTableRows.data })
-        .from(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.tableId, data.tableId),
-            eq(userTableRows.workspaceId, data.workspaceId),
-            matchFilter
-          )
-        )
-        .limit(1)
-      if (racedRow) {
-        matchedRowId = racedRow.id
-        previousData = racedRow.data as RowData
-      }
-    }
+    const matchedRowId = existingRow?.id
+    const previousData = existingRow?.data as RowData | undefined
 
     if (matchedRowId) {
       assertRowUpdate(table, patchColumnIds(data.data))
