@@ -28,7 +28,7 @@ interface ProjectFileProps {
 }
 
 export function EmbeddedProjectFile({ projectId, fileId, ...viewerProps }: ProjectFileProps) {
-  useFileListRoom({ entityType: 'project', entityId: projectId })
+  useFileListRoom({ owner: { entityType: 'project', entityId: projectId } })
   const { data, isPending, error } = useProjectFile(projectId, fileId)
   if (isPending) {
     return (

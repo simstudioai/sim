@@ -20,7 +20,7 @@ interface UploadProbeProps {
 }
 
 function UploadProbe({ canWrite, onStart }: UploadProbeProps) {
-  const { uploadFiles } = useProjectFileUpload('project-upload', canWrite)
+  const { uploadFiles } = useProjectFileUpload({ projectId: 'project-upload', canWrite })
   return (
     <button
       type='button'

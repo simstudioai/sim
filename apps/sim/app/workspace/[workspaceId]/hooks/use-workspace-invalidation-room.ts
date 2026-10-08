@@ -10,5 +10,5 @@ export function useWorkspaceInvalidationRoom(
   onChanged: () => void,
   dedupeKey?: string
 ): void {
-  useInvalidationRoom(workspaceId, roomType, onChanged, { dedupeKey })
+  useInvalidationRoom({ ownerId: workspaceId, roomType, onChanged, dedupeKey })
 }

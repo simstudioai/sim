@@ -27,7 +27,10 @@ interface SharedRoomSubscription {
   dispose: () => void
 }
 
-interface InvalidationRoomOptions {
+interface UseInvalidationRoomProps {
+  ownerId: string
+  roomType: RoomType | null
+  onChanged: () => void
   dedupeKey?: string
   onAccessDenied?: () => void
   refreshOnJoin?: boolean
@@ -136,22 +139,23 @@ function createSharedRoomSubscription(
 }
 
 /** Shares presence-free subscriptions while preserving each owner's wire identity and query cache. */
-export function useInvalidationRoom(
-  ownerId: string,
-  roomType: RoomType | null,
-  onChanged: () => void,
-  options: InvalidationRoomOptions = {}
-): void {
+export function useInvalidationRoom({
+  ownerId,
+  roomType,
+  onChanged,
+  dedupeKey,
+  onAccessDenied,
+  refreshOnJoin,
+}: UseInvalidationRoomProps): void {
   const { socket } = useSocket()
   const callbacksRef = useRef({
     ownerId,
     roomType,
     onChanged,
-    onAccessDenied: options.onAccessDenied,
+    onAccessDenied,
   })
-  callbacksRef.current = { ownerId, roomType, onChanged, onAccessDenied: options.onAccessDenied }
+  callbacksRef.current = { ownerId, roomType, onChanged, onAccessDenied }
   const privateCallbackKeyRef = useRef(Symbol('invalidation-callback'))
-  const { dedupeKey, refreshOnJoin } = options
 
   useEffect(() => {
     if (!socket || !ownerId || !roomType) return

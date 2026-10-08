@@ -13,8 +13,13 @@ interface UploadProgress {
   folderId: string | null
 }
 
+interface UseProjectFileUploadProps {
+  projectId: string
+  canWrite: boolean
+}
+
 /** Captures the upload destination for a batch and retires it when its owner view unmounts. */
-export function useProjectFileUpload(projectId: string, canWrite: boolean) {
+export function useProjectFileUpload({ projectId, canWrite }: UseProjectFileUploadProps) {
   const { mutateAsync } = useUploadProjectFile()
   const notifyLimit = useLimitUpgradeToast()
   const active = useRef<AbortController | null>(null)

@@ -70,24 +70,26 @@ const FILE_LIST_ROOMS = {
   },
 } satisfies FileOwnerAdapters<FileListRoomAdapter>
 
+interface UseFileListRoomProps {
+  owner: EditableFileOwner | null
+}
+
 /** Invalidates the explicit owner's list pages and clears Project data when current access is lost. */
-export function useFileListRoom(owner: EditableFileOwner | null): void {
+export function useFileListRoom({ owner }: UseFileListRoomProps): void {
   const queryClient = useQueryClient()
   const adapter = owner
     ? requireFileOwnerAdapter<FileListRoomAdapter>(FILE_LIST_ROOMS, owner)
     : null
-  useInvalidationRoom(
-    owner?.entityId ?? '',
-    adapter?.roomType ?? null,
-    () => {
+  useInvalidationRoom({
+    ownerId: owner?.entityId ?? '',
+    roomType: adapter?.roomType ?? null,
+    onChanged: () => {
       if (owner) adapter?.invalidate(queryClient, owner.entityId)
     },
-    {
-      dedupeKey: adapter?.dedupeKey,
-      refreshOnJoin: adapter?.refreshOnJoin,
-      onAccessDenied: () => {
-        if (owner) void adapter?.deny?.(queryClient, owner.entityId)
-      },
-    }
-  )
+    dedupeKey: adapter?.dedupeKey,
+    refreshOnJoin: adapter?.refreshOnJoin,
+    onAccessDenied: () => {
+      if (owner) void adapter?.deny?.(queryClient, owner.entityId)
+    },
+  })
 }

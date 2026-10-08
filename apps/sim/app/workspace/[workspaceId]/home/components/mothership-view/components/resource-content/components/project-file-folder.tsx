@@ -25,7 +25,7 @@ interface EmbeddedProjectFileFolderProps {
 export function EmbeddedProjectFileFolder({ owner, folderId }: EmbeddedProjectFileFolderProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { addResource } = useMothershipResources()
-  useFileListRoom(owner)
+  useFileListRoom({ owner })
   const folders = useProjectFileFolders(owner.entityId)
   const folder = folders.data?.folders.find((item) => item.id === folderId)
   const list = useProjectFiles(

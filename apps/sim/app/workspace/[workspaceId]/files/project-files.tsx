@@ -107,7 +107,7 @@ export function ProjectFiles(props: ProjectFilesProps) {
 }
 
 function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
-  useFileListRoom({ entityType: 'project', entityId: project.id })
+  useFileListRoom({ owner: { entityType: 'project', entityId: project.id } })
   const uploadInput = useRef<HTMLInputElement>(null)
   const downloadInFlight = useRef(false)
   const navigation = useFileNavigation({ entityType: 'project', entityId: project.id })
@@ -173,7 +173,10 @@ function ProjectFilesContent({ project, workspaceId }: ProjectFilesProps) {
   const canWrite = file
     ? detail.data?.capabilities.canWrite
     : (list.data?.pages[0]?.capabilities.canWrite ?? folders.data?.capabilities.canWrite)
-  const upload = useProjectFileUpload(project.id, Boolean(canWrite) && !archived)
+  const upload = useProjectFileUpload({
+    projectId: project.id,
+    canWrite: Boolean(canWrite) && !archived,
+  })
   const files = list.data?.pages.flatMap((page) => page.files) ?? []
   const filesById = new Map(files.map((file) => [file.id, file]))
   const items = list.data?.pages.flatMap((page) => page.items) ?? []

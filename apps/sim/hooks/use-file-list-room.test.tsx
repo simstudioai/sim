@@ -7,7 +7,7 @@ import { expect, it, vi } from 'vitest'
 
 const room = vi.hoisted(() => ({ changed: undefined as (() => void) | undefined }))
 vi.mock('@/hooks/use-invalidation-room', () => ({
-  useInvalidationRoom: (_id: string, _type: string, changed: () => void) => {
+  useInvalidationRoom: ({ onChanged: changed }: { onChanged: () => void }) => {
     room.changed = changed
   },
 }))
@@ -16,7 +16,7 @@ import { workspaceFileTableKeys } from '@/hooks/queries/utils/file-table-keys'
 import { useFileListRoom } from '@/hooks/use-file-list-room'
 
 function RoomProbe() {
-  useFileListRoom({ entityType: 'project', entityId: 'changed-project' })
+  useFileListRoom({ owner: { entityType: 'project', entityId: 'changed-project' } })
   return null
 }
 

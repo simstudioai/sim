@@ -4,5 +4,7 @@ import { useFileListRoom } from '@/hooks/use-file-list-room'
 
 /** Workspace callers share the owner-aware list controller without changing their room identity. */
 export function useWorkspaceFilesRoom(workspaceId: string): void {
-  useFileListRoom(workspaceId ? { entityType: 'workspace', entityId: workspaceId } : null)
+  useFileListRoom({
+    owner: workspaceId ? { entityType: 'workspace', entityId: workspaceId } : null,
+  })
 }

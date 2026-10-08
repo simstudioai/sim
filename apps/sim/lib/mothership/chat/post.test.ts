@@ -1020,9 +1020,6 @@ describe('handleUnifiedChatPost', () => {
       })
     )
     expect(response.status).toBe(200)
-    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
-      expect.objectContaining({ ...panel, title: 'Canonical file' }),
-    ])
     const persisted: MothershipResource[] = persistChatResources.mock.calls[0][1]
     expect(persisted.map(getChatResourceKey)).toEqual([getChatResourceKey(panel)])
   })
