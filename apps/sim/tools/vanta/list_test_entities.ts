@@ -19,7 +19,13 @@ export const vantaListTestEntitiesTool: InternalToolConfig<
     'List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

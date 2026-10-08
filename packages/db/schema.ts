@@ -782,7 +782,7 @@ export const resumeQueue = pgTable(
   })
 )
 
-/** Shared encrypted tokens for providers that permit only one active token per application. */
+/** Durable encrypted application permissions and tokens, plus expiring token-exchange failures. */
 export const clientCredentialToken = pgTable(
   'client_credential_token',
   {
@@ -793,7 +793,9 @@ export const clientCredentialToken = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    index('client_credential_token_expires_at_idx').on(table.expiresAt),
+    index('client_credential_token_expires_at_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.accessTokenDigest} IS NULL`),
     index('client_credential_token_access_token_digest_idx')
       .on(table.accessTokenDigest)
       .where(sql`${table.accessTokenDigest} IS NOT NULL`),

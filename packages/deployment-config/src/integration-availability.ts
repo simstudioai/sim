@@ -107,7 +107,7 @@ function resolveOAuthIntegrationAvailability(
         type: integration.type,
         slug: integration.slug,
         name: integration.name,
-        state: 'ready',
+        state: 'limited',
         oauthAvailable: false,
         serviceAccountAvailable: true,
         missingFields: [],

@@ -13,7 +13,13 @@ export const vantaGetFrameworkTool: InternalToolConfig<
     'Get a Vanta compliance framework by ID, including its requirement categories and mapped controls',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

@@ -11,7 +11,13 @@ export const vantaGetPolicyTool: InternalToolConfig<VantaGetPolicyParams, VantaG
       'Get a Vanta security policy by ID, including its approval status and latest approved version documents',
     version: '1.0.0',
 
-    oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+    oauth: {
+      required: true,
+      provider: 'vanta',
+      credentialKind: 'service-account',
+      authoritativeParams: ['apiDomain'],
+      retryOnUnauthorized: true,
+    },
 
     params: {
       accessToken: {

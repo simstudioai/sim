@@ -13,7 +13,13 @@ export const vantaGetDocumentTool: InternalToolConfig<
     'Get a Vanta evidence document by ID, including its renewal schedule and deactivation status',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

@@ -10,7 +10,13 @@ export const vantaGetTestTool: InternalToolConfig<VantaGetTestParams, VantaGetTe
     'Get a Vanta automated compliance test by ID, including its status and remediation info',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

@@ -595,11 +595,13 @@ async function resolveClientCredentialAccountToken(
   providerId: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<ServiceAccountTokenResult> {
+  const signal = options?.signal
+  signal?.throwIfAborted()
   const cacheIdentity =
     options?.privacyMode === 'selector'
       ? privateCredentialIdentity('selector-client-credential', credentialId)
       : credentialId
-  return coalesceLocally(`ccsa:${cacheIdentity}`, async () => {
+  const resolution = coalesceLocally(`ccsa:${cacheIdentity}`, async () => {
     pruneExpiredClientCredentialCaches(Date.now())
     const [credentialRow] = await db
       .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
@@ -657,7 +659,7 @@ async function resolveClientCredentialAccountToken(
           privateKey: blob.privateKey,
           username: blob.username,
         },
-        { skipIdentity: true, signal: options?.signal }
+        { skipIdentity: true }
       )
       if (!usesSharedToken)
         clientCredentialTokenCache.set(cacheIdentity, {
@@ -673,13 +675,36 @@ async function resolveClientCredentialAccountToken(
         apiDomain: mint.apiDomain,
       }
     } catch (error) {
-      clientCredentialMintFailureCache.set(cacheIdentity, {
-        error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
-        secretFingerprint,
-        expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
-      })
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        clientCredentialMintFailureCache.set(cacheIdentity, {
+          error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
+          secretFingerprint,
+          expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
+        })
+      }
       throw error
     }
+  })
+  if (!signal) return resolution
+
+  // Caller cancellation must not terminate a mint shared by other workflows.
+  return new Promise<ServiceAccountTokenResult>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    resolution.then(
+      (result) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+    if (signal.aborted) onAbort()
   })
 }
 

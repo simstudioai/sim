@@ -18,8 +18,10 @@ const MAX_RAMP_AUTH_RESPONSE_BYTES = 64 * 1024
 
 async function readRampAuthResponse(
   response: Response,
-  step: string
+  step: string,
+  signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
+  signal?.throwIfAborted()
   if (!response.ok) {
     await response.body?.cancel().catch(() => {})
     throw new TokenServiceAccountValidationError(
@@ -36,9 +38,11 @@ async function readRampAuthResponse(
       await readResponseJsonWithLimit(response, {
         maxBytes: MAX_RAMP_AUTH_RESPONSE_BYTES,
         label: 'Ramp authentication response',
+        signal,
       })
     )
   } catch {
+    signal?.throwIfAborted()
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,
       reason: 'provider returned an invalid or oversized response',
@@ -51,6 +55,7 @@ export async function mintRampServiceAccountToken(
   fields: ClientCredentialAccountFields,
   options?: ClientCredentialAccountMintOptions
 ): Promise<ClientCredentialAccountMintResult> {
+  options?.signal?.throwIfAborted()
   const clientSecret = requireClientSecret(fields.clientSecret, 'ramp_token_mint', 'Ramp')
   const scopes = getScopesForService('ramp')
   const tokenResponse = await fetchProvider(
@@ -58,6 +63,7 @@ export async function mintRampServiceAccountToken(
     {
       method: 'POST',
       redirect: 'error',
+      signal: options?.signal,
       headers: {
         Authorization: `Basic ${Buffer.from(`${fields.clientId}:${clientSecret}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -69,7 +75,7 @@ export async function mintRampServiceAccountToken(
     },
     'ramp_token_mint'
   )
-  const token = await readRampAuthResponse(tokenResponse, 'ramp_token_mint')
+  const token = await readRampAuthResponse(tokenResponse, 'ramp_token_mint', options?.signal)
   if (
     typeof token.access_token !== 'string' ||
     !token.access_token.trim() ||
@@ -96,11 +102,16 @@ export async function mintRampServiceAccountToken(
     {
       method: 'GET',
       redirect: 'error',
+      signal: options?.signal,
       headers: { Authorization: `Bearer ${result.accessToken}` },
     },
     'ramp_business_lookup'
   )
-  const business = await readRampAuthResponse(businessResponse, 'ramp_business_lookup')
+  const business = await readRampAuthResponse(
+    businessResponse,
+    'ramp_business_lookup',
+    options?.signal
+  )
   if (typeof business.id !== 'string' || !business.id.trim()) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'ramp_business_lookup',

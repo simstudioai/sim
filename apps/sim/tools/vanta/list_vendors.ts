@@ -16,7 +16,13 @@ export const vantaListVendorsTool: InternalToolConfig<
     'List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

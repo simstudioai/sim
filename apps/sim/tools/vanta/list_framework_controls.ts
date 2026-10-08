@@ -18,7 +18,13 @@ export const vantaListFrameworkControlsTool: InternalToolConfig<
   description: 'List the controls that belong to a specific Vanta compliance framework',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

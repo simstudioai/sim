@@ -19,7 +19,13 @@ export const vantaListMonitoredComputersTool: InternalToolConfig<
     'List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

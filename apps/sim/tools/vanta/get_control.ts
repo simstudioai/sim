@@ -13,7 +13,13 @@ export const vantaGetControlTool: InternalToolConfig<
     'Get a Vanta security control by ID, including its status and evidence pass/fail counts',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

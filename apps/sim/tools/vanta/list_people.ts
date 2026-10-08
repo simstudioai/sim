@@ -16,7 +16,13 @@ export const vantaListPeopleTool: InternalToolConfig<
     'List the people tracked in a Vanta account with employment status, group membership, and security task completion',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

@@ -76,6 +76,7 @@ export const RampBlock: BlockConfig = {
       type: 'oauth-input',
       canonicalParamId: 'oauthCredential',
       serviceId: 'ramp',
+      credentialKind: 'any',
       requiredScopes: getScopesForService('ramp'),
       placeholder: 'Select Ramp credential',
       required: true,

@@ -19,7 +19,13 @@ export const vantaListVulnerabilitiesTool: InternalToolConfig<
     'List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

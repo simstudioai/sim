@@ -16,7 +16,13 @@ export const vantaUploadDocumentFileTool: InternalToolConfig<
     'Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

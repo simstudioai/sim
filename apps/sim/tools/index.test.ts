@@ -59,6 +59,7 @@ import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
@@ -80,6 +81,9 @@ import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptio
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
+import { vantaListFrameworksTool } from '@/tools/vanta/list_frameworks'
+import { vantaSubmitDocumentTool } from '@/tools/vanta/submit_document'
+import { vantaUploadDocumentFileTool } from '@/tools/vanta/upload_document_file'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
@@ -7237,5 +7241,241 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
     expect(result.error).toContain('cannot supply the apiKey')
     expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+})
+
+describe('Vanta saved credential rejection recovery', () => {
+  const credentialId = 'vanta-saved-credential'
+  const apiDomain = 'https://api.vanta.com'
+  const context = () => createToolExecutionContext({ userId: 'user-1' })
+  let resolutions: number
+
+  beforeEach(() => {
+    Object.assign(tools, {
+      vanta_list_frameworks: vantaListFrameworksTool,
+      vanta_submit_document: vantaSubmitDocumentTool,
+      vanta_upload_document_file: vantaUploadDocumentFileTool,
+    })
+    mockGetInternalToolOperationHandler.mockResolvedValue(executeVantaTool)
+    resolutions = 0
+    mockResolveExecutorCredentialToken.mockImplementation(async (input) => {
+      if (input.credentialId !== credentialId || input.userId !== 'user-1') {
+        throw new Error('Credential authority changed')
+      }
+      resolutions++
+      return {
+        credentialType: 'service_account',
+        accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+        apiDomain,
+      }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(tools, 'vanta_list_frameworks')
+    Reflect.deleteProperty(tools, 'vanta_submit_document')
+    Reflect.deleteProperty(tools, 'vanta_upload_document_file')
+  })
+
+  it('re-authorizes the same saved credential and retries a rejected token at its trusted origin', async () => {
+    const requests: Array<{ url: string; authorization: string | null }> = []
+    mockResolveExecutorCredentialToken.mockImplementation(async (input) => {
+      if (input.credentialId !== credentialId || input.userId !== 'user-1') {
+        throw new Error('Credential authority changed')
+      }
+      resolutions++
+      return {
+        credentialType: 'service_account',
+        accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+        apiDomain: resolutions === 1 ? apiDomain : 'https://api.vanta-gov.com',
+      }
+    })
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(url),
+        authorization: new Headers(init?.headers).get('authorization'),
+      })
+      return requests.length === 1
+        ? Response.json({ error: 'Token expired' }, { status: 401 })
+        : Response.json({ results: { data: [{ id: 'soc2', displayName: 'SOC 2' }] } })
+    })
+
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId, apiDomain: 'https://attacker.example' },
+      { executionContext: context() }
+    )
+
+    expect(result).toMatchObject({ success: true, output: { frameworks: [{ id: 'soc2' }] } })
+    expect(requests).toEqual([
+      { url: `${apiDomain}/v1/frameworks`, authorization: 'Bearer old-token' },
+      { url: 'https://api.vanta-gov.com/v1/frameworks', authorization: 'Bearer fresh-token' },
+    ])
+  })
+
+  it('rebuilds the complete multipart evidence upload after authentication rejection', async () => {
+    const uploads: Array<{
+      token: string | null
+      name: string
+      body: string
+      description: FormDataEntryValue | null
+    }> = []
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(String(url), init)
+      const form = await request.formData()
+      const file = form.get('file')
+      if (!(file instanceof File)) throw new Error('Evidence file missing')
+      uploads.push({
+        token: request.headers.get('authorization'),
+        name: file.name,
+        body: await file.text(),
+        description: form.get('description'),
+      })
+      return uploads.length === 1
+        ? Response.json({ error: 'Token expired' }, { status: 401 })
+        : Response.json({ id: 'uploaded-evidence', fileName: file.name })
+    })
+
+    const result = await executeTool(
+      'vanta_upload_document_file',
+      {
+        oauthCredential: credentialId,
+        documentId: 'document-1',
+        fileContent: Buffer.from('audit evidence').toString('base64'),
+        fileName: 'evidence.txt',
+        description: 'Quarterly access review',
+      },
+      { executionContext: context() }
+    )
+
+    expect(result).toMatchObject({ success: true, output: { upload: { id: 'uploaded-evidence' } } })
+    expect(uploads).toEqual([
+      {
+        token: 'Bearer old-token',
+        name: 'evidence.txt',
+        body: 'audit evidence',
+        description: 'Quarterly access review',
+      },
+      {
+        token: 'Bearer fresh-token',
+        name: 'evidence.txt',
+        body: 'audit evidence',
+        description: 'Quarterly access review',
+      },
+    ])
+  })
+
+  it('stops after a second authentication rejection', async () => {
+    const tokens: Array<string | null> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      return Response.json({ error: 'Token rejected' }, { status: tokens.length > 2 ? 503 : 401 })
+    })
+    const result = await executeTool(
+      'vanta_submit_document',
+      { oauthCredential: credentialId, documentId: 'document-1' },
+      { executionContext: context() }
+    )
+    expect(result.success).toBe(false)
+    expect(tokens).toEqual(['Bearer old-token', 'Bearer fresh-token'])
+  })
+
+  it.each([403, 429, 503])(
+    'does not replay a document submission after status %s',
+    async (status) => {
+      const methods: Array<string | undefined> = []
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        methods.push(init?.method)
+        return Response.json({ error: 'Provider rejected the request' }, { status })
+      })
+      const result = await executeTool(
+        'vanta_submit_document',
+        { oauthCredential: credentialId, documentId: 'document-1' },
+        { executionContext: context() }
+      )
+      expect(result.success).toBe(false)
+      expect(methods).toEqual(['POST'])
+    }
+  )
+
+  it('does not replay a document submission after a network failure', async () => {
+    const methods: Array<string | undefined> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      methods.push(init?.method)
+      throw new Error('Connection reset')
+    })
+    const result = await executeTool(
+      'vanta_submit_document',
+      { oauthCredential: credentialId, documentId: 'document-1' },
+      { executionContext: context() }
+    )
+    expect(result.success).toBe(false)
+    expect(methods).toEqual(['POST'])
+  })
+
+  it('stops without another provider request when credential authorization is revoked', async () => {
+    const tokens: Array<string | null> = []
+    mockResolveExecutorCredentialToken.mockImplementation(async () => {
+      resolutions++
+      if (resolutions > 1) throw new Error('Credential access denied')
+      return { credentialType: 'service_account', accessToken: 'old-token', apiDomain }
+    })
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      return Response.json({ error: 'Token expired' }, { status: 401 })
+    })
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId },
+      { executionContext: context() }
+    )
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Credential access denied'),
+    })
+    expect(tokens).toEqual(['Bearer old-token'])
+  })
+
+  it('does not start another provider request after cancellation', async () => {
+    const controller = new AbortController()
+    const tokens: Array<string | null> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      controller.abort()
+      return Response.json({ error: 'Token expired' }, { status: 401 })
+    })
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId },
+      { executionContext: context(), signal: controller.signal }
+    )
+    expect(result.success).toBe(false)
+    expect(tokens).toEqual(['Bearer old-token'])
+  })
+
+  it('keeps the original operation deadline across the retried provider request', async () => {
+    vi.useFakeTimers()
+    try {
+      const tokens: Array<string | null> = []
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        tokens.push(new Headers(init?.headers).get('authorization'))
+        await vi.advanceTimersByTimeAsync(60)
+        return tokens.length === 1
+          ? Response.json({ error: 'Token expired' }, { status: 401 })
+          : Response.json({ results: { data: [] } })
+      })
+      const result = await executeTool(
+        'vanta_list_frameworks',
+        { oauthCredential: credentialId, timeout: 100 },
+        { executionContext: context() }
+      )
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/abort|timed? ?out/i),
+      })
+      expect(tokens).toEqual(['Bearer old-token', 'Bearer fresh-token'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

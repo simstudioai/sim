@@ -15,7 +15,13 @@ export const vantaDownloadDocumentFileTool: InternalToolConfig<
     'Download a file previously uploaded to a Vanta evidence document and store it in execution files',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

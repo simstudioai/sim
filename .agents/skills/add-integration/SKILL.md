@@ -72,8 +72,9 @@ identity endpoints rather than guessing which person a client-credentials token 
 redirect to OAuth. Give its basic/advanced pair one `canonicalParamId: 'oauthCredential'`, with
 the correct `serviceId`, and wire tool OAuth metadata to that same service. Tokens and trusted
 API origins are hidden execution inputs; the model receives a credential ID, never a secret.
-Use `credentialKind: 'service-account'` when only service accounts are supported; leave the picker
-unfiltered when existing browser OAuth connections must remain selectable. Per-connection scope
+Use `credentialKind: 'service-account'` when only service accounts are supported, including in
+tool OAuth metadata. Use `credentialKind: 'any'` on the picker when both browser OAuth and saved
+service accounts are supported; omitting it defaults the connect action to browser OAuth. Per-connection scope
 choices belong in the descriptor and encrypted credential, not an all-permissions block
 `requiredScopes` array that would reject read-only connections.
 
@@ -465,7 +466,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Set `integrationType` to the correct `IntegrationType` enum value
 - [ ] `{Service}BlockMeta.tags` lists every applicable `IntegrationTag` (tags live on the meta, not the block)
 - [ ] Defined operation dropdown with all operations
-- [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
+- [ ] Added the saved-credential picker with the supported `credentialKind`; browser OAuth scopes
+      use `getScopesForService('{service}')`, while variable service-account permissions stay on the credential
 - [ ] Added conditional fields per operation
 - [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder`
 - [ ] Set up dependsOn for cascading selectors
@@ -491,13 +493,15 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Existing usage and the migration/removal decision are established; any required compatibility is verified through serialization and execution
 - [ ] New connection and reconnect flows verified in the running UI
 
-### OAuth Scopes (if OAuth service)
+### Browser OAuth Scopes (if authorization-code flow is supported)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
 - [ ] Added scope descriptions in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] Used `getCanonicalScopesForProvider()` in `lib/auth/connectors/providers.ts` (never hardcode)
-- [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
+- [ ] Used `getScopesForService()` for the browser OAuth permissions the block needs (never hardcode)
+- [ ] A picker that also accepts service accounts does not require broader scopes than every supported
+      connection needs; per-connection service-account permissions are validated by the descriptor/minter
 
-### Deployment Availability (if OAuth service)
+### Deployment Availability (if using the saved-credential picker)
 - [ ] Block declares exactly one distinct `oauth-input.serviceId`
 - [ ] Browser OAuth resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry; independent service accounts work without deployment OAuth fields
 - [ ] Every new OAuth capability field exists in `apps/sim/lib/core/config/env.ts`

@@ -14,7 +14,13 @@ export const vantaListTestsTool: InternalToolConfig<VantaListTestsParams, VantaL
       'List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category',
     version: '1.0.0',
 
-    oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+    oauth: {
+      required: true,
+      provider: 'vanta',
+      credentialKind: 'service-account',
+      authoritativeParams: ['apiDomain'],
+      retryOnUnauthorized: true,
+    },
 
     params: {
       accessToken: {

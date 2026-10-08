@@ -11,7 +11,13 @@ export const vantaGetPersonTool: InternalToolConfig<VantaGetPersonParams, VantaG
       'Get a person tracked in Vanta by ID, including employment, leave, and security task status',
     version: '1.0.0',
 
-    oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+    oauth: {
+      required: true,
+      provider: 'vanta',
+      credentialKind: 'service-account',
+      authoritativeParams: ['apiDomain'],
+      retryOnUnauthorized: true,
+    },
 
     params: {
       accessToken: {

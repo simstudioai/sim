@@ -4,7 +4,7 @@ import { db } from '@sim/db'
 import { clientCredentialToken } from '@sim/db/schema'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { like, or } from 'drizzle-orm'
+import { eq, like, or } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   invalidateVantaClientToken,
@@ -145,6 +145,47 @@ describe('Vanta application token lifecycle against shared storage', () => {
     await expect(resolveVantaClientToken({ ...input, scope: WRITE })).rejects.toThrow(
       /separate Vanta application/i
     )
+    expect(await isActive(first.accessToken)).toBe(true)
+  })
+
+  it.each(['expiry', '401'] as const)(
+    'retains application permissions after token %s',
+    async (reason) => {
+      const input = fields(`durable-scope-${reason}`)
+      const first = await resolveVantaClientToken(input)
+      if (reason === 'expiry') {
+        const tokenDigest = createHash('sha256')
+          .update(JSON.stringify([first.apiDomain, first.accessToken]))
+          .digest('hex')
+        await db
+          .update(clientCredentialToken)
+          .set({ expiresAt: new Date(Date.now() - 1000) })
+          .where(eq(clientCredentialToken.accessTokenDigest, tokenDigest))
+      } else {
+        await invalidateVantaClientToken(first.accessToken, first.apiDomain)
+      }
+      const count = tokenRequests
+      await expect(resolveVantaClientToken({ ...input, scope: WRITE })).rejects.toMatchObject({
+        code: 'permission_conflict',
+      })
+      expect(tokenRequests).toBe(count)
+      const renewed = await resolveVantaClientToken(input)
+      expect(await isActive(renewed.accessToken)).toBe(true)
+    }
+  )
+
+  it('does not replace application permissions when a different client secret is supplied', async () => {
+    const input = fields('durable-scope-secret-rotation')
+    const first = await resolveVantaClientToken(input)
+    const count = tokenRequests
+    await expect(
+      resolveVantaClientToken({
+        ...input,
+        clientSecret: `rotated-${input.clientId}`,
+        scope: WRITE,
+      })
+    ).rejects.toMatchObject({ code: 'permission_conflict' })
+    expect(tokenRequests).toBe(count)
     expect(await isActive(first.accessToken)).toBe(true)
   })
 

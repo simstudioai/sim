@@ -19,7 +19,13 @@ export const vantaListVulnerableAssetsTool: InternalToolConfig<
     'List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

@@ -1,3 +1,5 @@
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
@@ -66,6 +68,107 @@ describe('Ramp client credential exchange', () => {
     expect(JSON.stringify(result.identity)).not.toContain(FIELDS.clientSecret)
     expect(JSON.stringify(result.identity)).not.toContain(TOKEN.access_token)
   })
+
+  it.each(['token', 'business'])(
+    'preserves caller cancellation during the %s request',
+    async (step) => {
+      const controller = new AbortController()
+      const reached = createDeferred<void>()
+      const release = createDeferred<void>()
+      const reason = new DOMException('Workflow cancelled', 'AbortError')
+      const requestedPaths: string[] = []
+      mockFetch.mockImplementation(async (input, init) => {
+        const url = new URL(String(input))
+        requestedPaths.push(url.pathname)
+        if (url.pathname.endsWith(`/${step}`)) {
+          const aborted = createDeferred<void>()
+          const onAbort = () => aborted.reject(init?.signal?.reason)
+          init?.signal?.addEventListener('abort', onAbort, { once: true })
+          reached.resolve()
+          try {
+            await Promise.race([release.promise, aborted.promise])
+            init?.signal?.throwIfAborted()
+          } finally {
+            init?.signal?.removeEventListener('abort', onAbort)
+          }
+        }
+        return url.pathname.endsWith('/token')
+          ? jsonResponse(TOKEN)
+          : jsonResponse({ id: 'business-1' })
+      })
+
+      let rejection: unknown
+      const mint = mintRampServiceAccountToken(FIELDS, { signal: controller.signal }).catch(
+        (error: unknown) => {
+          rejection = error
+          throw error
+        }
+      )
+      const rejected = expect(mint).rejects.toBe(reason)
+      await reached.promise
+      controller.abort(reason)
+      await flushMicrotasks(20)
+      const rejectionWhileRequestPending = rejection
+      release.resolve()
+      await rejected
+      expect(rejectionWhileRequestPending).toBe(reason)
+      expect(requestedPaths).toEqual(
+        step === 'token'
+          ? ['/developer/v1/token']
+          : ['/developer/v1/token', '/developer/v1/business']
+      )
+    }
+  )
+
+  it.each(['token', 'business'])(
+    'preserves caller cancellation while streaming the %s response',
+    async (step) => {
+      const controller = new AbortController()
+      const reading = createDeferred<void>()
+      const finish = createDeferred<void>()
+      const reason = new DOMException('Workflow cancelled during response', 'AbortError')
+      let cancelled = false
+      const response = new Response(
+        new ReadableStream({
+          async pull(stream) {
+            reading.resolve()
+            await finish.promise
+            if (!cancelled) {
+              stream.enqueue(
+                new TextEncoder().encode(
+                  JSON.stringify(step === 'token' ? TOKEN : { id: 'business-1' })
+                )
+              )
+              stream.close()
+            }
+          },
+          cancel() {
+            cancelled = true
+          },
+        })
+      )
+      if (step === 'business') mockFetch.mockResolvedValueOnce(jsonResponse(TOKEN))
+      mockFetch.mockResolvedValueOnce(response)
+      if (step === 'token') mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'business-1' }))
+
+      let rejection: unknown
+      const mint = mintRampServiceAccountToken(FIELDS, { signal: controller.signal }).catch(
+        (error: unknown) => {
+          rejection = error
+          throw error
+        }
+      )
+      const rejected = expect(mint).rejects.toBe(reason)
+      await reading.promise
+      await flushMicrotasks(20)
+      controller.abort(reason)
+      await flushMicrotasks(20)
+      const rejectionWhileResponsePending = rejection
+      finish.resolve()
+      await rejected
+      expect(rejectionWhileResponsePending).toBe(reason)
+    }
+  )
 
   it('renews using the reported lifetime without requiring a business lookup', async () => {
     mockFetch.mockImplementation(async (input) => {

@@ -30,7 +30,7 @@ export interface VantaClientTokenOptions {
   signal?: AbortSignal
 }
 
-interface VantaTokenEnvelope {
+interface VantaApplicationState {
   accessToken: string
   secretFingerprint: string
   scope: string
@@ -80,7 +80,7 @@ class VantaScopeConflictError extends TokenServiceAccountValidationError {
   }
 }
 
-function decodeToken(value: string): VantaTokenEnvelope {
+function decodeApplicationState(value: string): VantaApplicationState {
   const parsed: unknown = JSON.parse(value)
   if (
     !isRecordLike(parsed) ||
@@ -90,7 +90,7 @@ function decodeToken(value: string): VantaTokenEnvelope {
     typeof parsed.scope !== 'string' ||
     !SCOPES.some((scope) => scope === parsed.scope)
   )
-    throw unavailable('stored token is malformed')
+    throw unavailable('stored application state is malformed')
   return {
     accessToken: parsed.accessToken,
     secretFingerprint: parsed.secretFingerprint,
@@ -168,7 +168,8 @@ async function exchangeToken(
 /**
  * Centralizes Vanta's single active token across saved credentials,
  * connects, and workers. The application identity owns the lock; secrets and permissions never
- * create parallel token chains. All shared cache material is encrypted at rest.
+ * create parallel token chains. The first successful connection fixes the application's
+ * permissions, independently of token expiry. Shared application state is encrypted at rest.
  * @see https://developer.vanta.com/docs/concepts/authentication
  */
 export async function resolveVantaClientToken(
@@ -200,7 +201,8 @@ export async function resolveVantaClientToken(
     await db.execute(sql`
       DELETE FROM ${clientCredentialToken} WHERE ${clientCredentialToken.id} IN (
         SELECT ${clientCredentialToken.id} FROM ${clientCredentialToken}
-        WHERE ${clientCredentialToken.expiresAt} < now()
+        WHERE ${clientCredentialToken.accessTokenDigest} IS NULL
+          AND ${clientCredentialToken.expiresAt} < now()
         ORDER BY ${clientCredentialToken.expiresAt} LIMIT 100 FOR UPDATE SKIP LOCKED
       )`)
     const outcome = await db.transaction<VantaClientTokenResult | { failure: VantaTokenFailure }>(
@@ -213,25 +215,24 @@ export async function resolveVantaClientToken(
           .from(clientCredentialToken)
           .where(inArray(clientCredentialToken.id, [applicationKey, failureKey]))
         const existing = entries.find((entry) => entry.id === applicationKey)
-        const existingToken = existing
-          ? decodeToken((await decryptSecret(existing.encryptedValue)).decrypted)
+        const existingState = existing
+          ? decodeApplicationState((await decryptSecret(existing.encryptedValue)).decrypted)
           : null
-        const matchingSecret = existingToken?.secretFingerprint === secretFingerprint
+        if (existingState && existingState.scope !== scope) {
+          throw new VantaScopeConflictError()
+        }
+        const matchingSecret = existingState?.secretFingerprint === secretFingerprint
         if (
-          existingToken &&
+          existingState &&
           matchingSecret &&
           existing &&
-          existing.expiresAt.getTime() > Date.now()
+          existing.expiresAt.getTime() - Date.now() > EXPIRY_BUFFER_MS
         ) {
-          if (existingToken.scope !== scope) {
-            throw new VantaScopeConflictError()
+          return {
+            accessToken: existingState.accessToken,
+            expiresInSeconds: Math.floor((existing.expiresAt.getTime() - Date.now()) / 1000),
+            apiDomain,
           }
-          if (existing.expiresAt.getTime() - Date.now() > EXPIRY_BUFFER_MS)
-            return {
-              accessToken: existingToken.accessToken,
-              expiresInSeconds: Math.floor((existing.expiresAt.getTime() - Date.now()) / 1000),
-              apiDomain,
-            }
         }
         const failure = entries.find(
           (entry) => entry.id === failureKey && entry.expiresAt.getTime() > Date.now()

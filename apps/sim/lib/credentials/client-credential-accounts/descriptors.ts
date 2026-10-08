@@ -384,7 +384,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         secret: false,
         optional: true,
         options: VANTA_PERMISSION_OPTIONS,
-        hint: 'New connections default to read only. On reconnect, leave blank to keep current permissions. All connections to one app must use the same permissions.',
+        hint: 'New connections default to read only. On reconnect, leave blank to keep current permissions. This app must always use the same permissions in Sim; use a separate app for different permissions.',
       },
       {
         id: 'dataCenter',

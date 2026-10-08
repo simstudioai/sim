@@ -12,7 +12,13 @@ export const vantaSubmitDocumentTool: InternalToolConfig<
     'Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

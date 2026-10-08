@@ -1516,6 +1516,7 @@
             }
           ],
           "isUnique": false,
+          "where": "\"client_credential_token\".\"access_token_digest\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

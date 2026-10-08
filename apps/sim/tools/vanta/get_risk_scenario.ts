@@ -13,7 +13,13 @@ export const vantaGetRiskScenarioTool: InternalToolConfig<
     'Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

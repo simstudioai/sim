@@ -11,7 +11,13 @@ export const vantaGetVendorTool: InternalToolConfig<VantaGetVendorParams, VantaG
       'Get a Vanta vendor by ID, including risk levels, contract details, and authentication info',
     version: '1.0.0',
 
-    oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+    oauth: {
+      required: true,
+      provider: 'vanta',
+      credentialKind: 'service-account',
+      authoritativeParams: ['apiDomain'],
+      retryOnUnauthorized: true,
+    },
 
     params: {
       accessToken: {

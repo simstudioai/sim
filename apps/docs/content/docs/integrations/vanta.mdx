@@ -28,6 +28,8 @@ Create a **Manage Vanta** application in Vanta's Developer Console, then add a V
 
 Standard Vanta deployments, including US, EU, and AU tenants, use `api.vanta.com`; Vanta Gov uses `api.vanta-gov.com`. Read operations require `vanta-api.all:read`; submitting documents also requires `vanta-api.all:write`; evidence uploads require `vanta-api.documents:upload`. Grant the scopes needed for your workflows when creating the application. See [Vanta's authentication documentation](https://developer.vanta.com/reference/manage-vanta/overview).
 
+The first successful connection sets this application's permissions in Sim. Every connection to that application must always use the same permissions, including after tokens expire or credentials are reconnected. Leave permissions blank on reconnect to retain the current choice. To choose different permissions, create a separate Manage Vanta application and connect it in Sim.
+
 If your workflow entered credentials directly on a Vanta block, create and select a saved Vanta credential before running it again. Use a dedicated Vanta application for Sim: Vanta allows one active access token per application, so another client obtaining a new token can invalidate Sim's token.
 {/* MANUAL-CONTENT-END */}
 

@@ -19,7 +19,13 @@ export const vantaListRiskScenariosTool: InternalToolConfig<
     'List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'vanta', authoritativeParams: ['apiDomain'] },
+  oauth: {
+    required: true,
+    provider: 'vanta',
+    credentialKind: 'service-account',
+    authoritativeParams: ['apiDomain'],
+    retryOnUnauthorized: true,
+  },
 
   params: {
     accessToken: {

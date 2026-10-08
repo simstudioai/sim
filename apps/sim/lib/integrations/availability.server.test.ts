@@ -105,12 +105,12 @@ describe('integration availability', () => {
     expect(resolveOAuthClientCapabilityId('quickbooks')).toBeNull()
   })
 
-  it('makes a service-account-only integration ready without requiring an OAuth client', () => {
+  it('routes a service-account-only integration through limited account connection', () => {
     expect(availabilityFor('vanta')).toEqual({
       type: 'vanta',
       slug: 'vanta',
       name: 'Vanta',
-      state: 'ready',
+      state: 'limited',
       oauthAvailable: false,
       serviceAccountAvailable: true,
       missingFields: [],
