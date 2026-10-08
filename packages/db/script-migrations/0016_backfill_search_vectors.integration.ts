@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
 import {
-  backfillSearchKeywords,
   backfillSearchVectors,
   buildSearchIndexes,
 } from '@sim/db/script-migrations/0016_backfill_search_vectors'
@@ -27,6 +26,7 @@ describe('search projection upgrade in PostgreSQL', () => {
       'document',
       'embedding',
       'embedding_search',
+      'embedding_keyword_tin',
       'knowledge_projection_dirty',
     ]) {
       await admin.unsafe(
@@ -128,31 +128,6 @@ describe('search projection upgrade in PostgreSQL', () => {
     expect(await backfillSearchVectors(sql)).toBe(0)
   }, 60_000)
 
-  it('backfills identical keyword vectors and keeps content edits, scope changes, and deletes current', async () => {
-    expect(await backfillSearchKeywords(sql)).toBe(501)
-    expect(await backfillSearchKeywords(sql)).toBe(0)
-    const [initial] = await sql`SELECT count(*)::int AS count FROM embedding e
-      JOIN embedding_keyword_search s ON s.id = e.id
-      WHERE e.content_tsv IS DISTINCT FROM s.content_tsv
-        OR e.enabled IS DISTINCT FROM s.enabled
-        OR e.knowledge_base_id IS DISTINCT FROM s.knowledge_base_id
-        OR e.document_id IS DISTINCT FROM s.document_id`
-    expect(initial.count).toBe(0)
-    await sql`UPDATE embedding SET content = 'Revised deployment instructions',
-      knowledge_base_id = 'full', document_id = 'revised-document', enabled = false
-      WHERE id = 'chunk-2'`
-    expect(
-      await sql`SELECT knowledge_base_id, document_id, enabled,
-      content_tsv = to_tsvector('english', 'Revised deployment instructions') AS current
-      FROM embedding_keyword_search WHERE id = 'chunk-2'`
-    ).toEqual([
-      { knowledge_base_id: 'full', document_id: 'revised-document', enabled: false, current: true },
-    ])
-    await sql`DELETE FROM embedding WHERE id = 'chunk-2'`
-    expect(await sql`SELECT id FROM embedding_keyword_search WHERE id = 'chunk-2'`).toHaveLength(0)
-    expect(await backfillSearchKeywords(sql)).toBe(0)
-  })
-
   it('repairs an interrupted index build and preserves valid indexes on replay', async () => {
     await expect(
       sql.unsafe(
@@ -167,18 +142,18 @@ describe('search projection upgrade in PostgreSQL', () => {
     await buildSearchIndexes(sql)
     const indexes = await sql`SELECT indexrelid, indisvalid FROM pg_index
       INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
-      WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
+      WHERE indrelid = 'embedding_search'::regclass
         AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
-          ('embedding_search_document_lookup_idx', 'embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+          ('embedding_search_document_lookup_idx'))
       ORDER BY indexrelid`
-    expect(indexes).toHaveLength(10)
+    expect(indexes).toHaveLength(7)
     expect(indexes.every((index) => index.indisvalid)).toBe(true)
     await buildSearchIndexes(sql)
     const replay = await sql`SELECT indexrelid, indisvalid FROM pg_index
       INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
-      WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
+      WHERE indrelid = 'embedding_search'::regclass
         AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
-          ('embedding_search_document_lookup_idx', 'embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+          ('embedding_search_document_lookup_idx'))
       ORDER BY indexrelid`
     expect(replay).toEqual(indexes)
   }, 60_000)
@@ -242,32 +217,6 @@ describe('search projection upgrade in PostgreSQL', () => {
     expect(await sql`SELECT id FROM embedding_search WHERE id = 'chunk-1'`).toHaveLength(0)
   })
 
-  it.each([128, 512])(
-    'stores a %i-token keyword vector without widening semantic candidates',
-    async (tokens) => {
-      const id = generateId()
-      await sql.unsafe(
-        `INSERT INTO embedding
-      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length,
-        token_count, start_offset, end_offset, embedding)
-      SELECT $1, 'full', $1, 0, $1, string_agg(md5(n::text), ' '), $2 * 33,
-        $2, 0, $2 * 33, array_fill(0.01::real, ARRAY[1536])::vector(1536)
-      FROM generate_series(1, $2::int) n`,
-        [id, tokens]
-      )
-      const [row] = await sql`SELECT s.content_tsv = e.content_tsv AS identical,
-      pg_column_toast_chunk_id(s.content_tsv) IS NULL AS inline,
-      pg_column_size(s.content_tsv) AS bytes
-      FROM embedding_keyword_search s JOIN embedding e ON e.id = s.id WHERE s.id = ${id}`
-      expect(row.identical).toBe(true)
-      expect(row.bytes).toBeGreaterThan(2048)
-      expect(row.inline).toBe(tokens === 128)
-      expect(
-        (await sql`SELECT count(*)::int AS count FROM embedding_search WHERE id = ${id}`)[0].count
-      ).toBe(1)
-    }
-  )
-
   it.each([1536, 3072])(
     'keeps lookup identities inline beside %i-dimensional vectors',
     async (width) => {
@@ -295,7 +244,6 @@ describe('search projection upgrade in PostgreSQL', () => {
   it.each([
     { name: 'binary', table: 'embedding_search', backfill: backfillEmbeddingSearch },
     { name: 'vector', table: 'embedding_search', backfill: backfillSearchVectors },
-    { name: 'keyword', table: 'embedding_keyword_search', backfill: backfillSearchKeywords },
   ])(
     'resumes $name after cancellation and traverses fully populated source pages',
     async ({ name, table, backfill }) => {
@@ -364,7 +312,6 @@ describe('search projection upgrade in PostgreSQL', () => {
         array_fill(0.01::real, ARRAY[1536])::vector(1536)
       FROM generate_series(1, 1001) n`)
     await sql`DELETE FROM embedding_search WHERE id > 'upgrade-0501' AND id LIKE 'upgrade-%'`
-    await sql`DELETE FROM embedding_keyword_search WHERE id LIKE 'upgrade-%'`
     await sql.unsafe(`CREATE FUNCTION cancel_projection_upgrade() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
         IF NEW.id = 'upgrade-0750' THEN
@@ -391,10 +338,9 @@ describe('search projection upgrade in PostgreSQL', () => {
       { name: '0016_backfill_search_vectors' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
-      JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id
+      JOIN embedding_search s ON s.id = e.id
       WHERE e.id LIKE 'upgrade-%' AND s."binary" = binary_quantize(e.embedding)::bit(1536)
-        AND s.vector_512 = subvector(e.embedding, 1, 512)::halfvec(512)
-        AND k.content_tsv = e.content_tsv`
+        AND s.vector_512 = subvector(e.embedding, 1, 512)::halfvec(512)`
     expect(complete).toBe(1001)
     /** Search retirement is an operator command; a deploy's full registry run never starts it. */
     expect(

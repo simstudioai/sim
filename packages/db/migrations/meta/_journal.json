@@ -2801,6 +2801,13 @@
       "when": 1791447472721,
       "tag": "0400_vanta_client_token",
       "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1791487459599,
+      "tag": "0401_retire_keyword_projection",
+      "breakpoints": true
     }
   ]
 }
