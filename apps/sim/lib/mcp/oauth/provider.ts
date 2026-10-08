@@ -43,6 +43,24 @@ export interface PreregisteredClient {
   configurationFingerprint?: string
   scope?: string
   tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post'
+  /**
+   * Authorization server the credentials are registered with. When unset, they are bound to
+   * the issuer of the current grant, so the SDK never presents the secret to another server.
+   */
+  issuer?: string
+}
+
+/**
+ * Grants saved before the SDK stamped `issuer` are otherwise refreshed against whichever
+ * authorization server the MCP server names. A pinned registration could only have obtained
+ * them from its own server, so they are bound to it.
+ */
+export function withPinnedIssuer(
+  tokens: OAuthTokens | undefined,
+  preregistered: PreregisteredClient | undefined
+): OAuthTokens | undefined {
+  if (!tokens || tokens.issuer || !preregistered?.issuer) return tokens
+  return { ...tokens, issuer: preregistered.issuer }
 }
 
 interface SimMcpOauthProviderInit {
@@ -96,7 +114,6 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   clientInformation(): OAuthClientInformationMixed | undefined {
-    if (this.row.clientInformation) return this.row.clientInformation
     if (this.preregistered) {
       return {
         client_id: this.preregistered.clientId,
@@ -107,9 +124,10 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
         token_endpoint_auth_method:
           this.preregistered.tokenEndpointAuthMethod ??
           (this.preregistered.clientSecret ? 'client_secret_post' : 'none'),
+        issuer: this.preregistered.issuer ?? this.row.tokens?.issuer,
       }
     }
-    return undefined
+    return this.row.clientInformation ?? undefined
   }
 
   async saveClientInformation(info: OAuthClientInformationMixed): Promise<void> {
@@ -119,7 +137,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   tokens(): OAuthTokens | undefined {
-    return this.row.tokens ?? undefined
+    return withPinnedIssuer(this.row.tokens ?? undefined, this.preregistered)
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
@@ -226,6 +244,8 @@ export async function loadPreregisteredClient(
     if (!row.clientId || !row.clientSecret)
       throw new Error('HubSpot OAuth registration is incomplete')
   }
+  const issuer =
+    row.connectorId === 'hubspot' ? MANAGED_MCP_CONNECTORS.hubspot.authorizationServer : undefined
   if (!row.clientId) return undefined
   let clientSecret: string | undefined
   if (row.clientSecret) {
@@ -240,5 +260,5 @@ export async function loadPreregisteredClient(
       throw new Error('Failed to decrypt preregistered MCP OAuth client secret')
     }
   }
-  return { clientId: row.clientId, clientSecret }
+  return { clientId: row.clientId, clientSecret, issuer }
 }
