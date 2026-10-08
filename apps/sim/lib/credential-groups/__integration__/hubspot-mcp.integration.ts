@@ -52,6 +52,7 @@ const SHARED_CLIENTS = [
     clientIdKey: 'HUBSPOT_MCP_CLIENT_ID',
     clientSecretKey: 'HUBSPOT_MCP_CLIENT_SECRET',
     url: 'https://mcp.hubspot.com',
+    authorizationServer: 'https://mcp.hubspot.com',
     tokenAuthMethod: 'client_secret_post',
     scope: undefined,
   },
@@ -61,6 +62,7 @@ const SHARED_CLIENTS = [
     clientIdKey: 'ZOOM_MCP_CLIENT_ID',
     clientSecretKey: 'ZOOM_MCP_CLIENT_SECRET',
     url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    authorizationServer: 'https://zoom.us',
     tokenAuthMethod: 'client_secret_basic',
     scope: 'meeting:read:search meeting:read:assets',
   },
@@ -208,6 +210,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       expect(await loadPreregisteredClient(mcpServer.id)).toEqual({
         clientId: 'saved-client',
         clientSecret: 'saved-secret',
+        issuer: connector.authorizationServer,
       })
       for (const change of [
         { oauthClientId: null, oauthClientSecret: encrypted },
@@ -332,7 +335,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       'restricts generic OAuth %s to registered read permissions',
       async (phase) => {
         const { mcpServer } = await create()
-        const issuer = 'https://oauth.fixture.test'
+        const issuer = connector.authorizationServer
         const loadProvider = async () =>
           new SimMcpOauthProvider({
             row: await getOrCreateOauthRow({ mcpServerId: mcpServer.id, organizationId: org }),
@@ -427,7 +430,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
     })
     let exchanges = 0
     let challenge: string | null = null
-    const issuer = 'https://oauth.fixture.test'
+    const issuer = connector.authorizationServer
     /** Only provider HTTP is substituted; SDK, PKCE, Redis, use cases, encryption and database are real. */
     const fetchFn: typeof fetch = async (request, init) => {
       const url = new URL(

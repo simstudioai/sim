@@ -43,8 +43,8 @@ export async function revokeMcpOauthTokens(
     )
     if (
       !info ||
-      (row.tokens.issuer &&
-        !isSameAuthorizationServer(row.tokens.issuer, info.authorizationServerUrl))
+      !row.tokens.issuer ||
+      !isSameAuthorizationServer(row.tokens.issuer, info.authorizationServerUrl)
     ) {
       return
     }
@@ -87,15 +87,15 @@ export async function revokeMcpOauthTokens(
 }
 
 /**
- * Mirrors the SDK's issuer binding: tokens stamped for one authorization server are never
- * posted, with the client secret, to a different one the MCP server now advertises.
+ * Tokens are only posted, with the client secret, to the authorization server the SDK stamped
+ * them for. Unstamped legacy tokens are never revoked: their issuer cannot be verified.
  */
 function isSameAuthorizationServer(issuer: string, authorizationServerUrl: string): boolean {
   const normalize = (value: string) => {
     try {
-      return new URL(value).href.replace(/\/$/, '')
+      return new URL(value).href
     } catch {
-      return value.replace(/\/$/, '')
+      return value
     }
   }
   return normalize(issuer) === normalize(authorizationServerUrl)
