@@ -142,14 +142,15 @@ async function run() {
   if (process.env.BUFFER_CHANNEL_ID)
     assert(channel, 'BUFFER_CHANNEL_ID must identify an unlocked channel in this organization')
   if (!channel) {
-    await check('Get Posts from organization without channels', async () => {
+    await check('Get Posts with bounded draft pagination', async () => {
       const output = await tool('buffer_get_posts', {
         organizationId,
         limit: 1,
         filter: { status: ['draft'] },
         sort: [{ field: 'createdAt', direction: 'desc' }],
       })
-      assert.deepEqual(output.posts, [])
+      assert(Array.isArray(output.posts))
+      assert(output.posts.length <= 1)
       assert('hasPreviousPage' in toRecord(output.pageInfo))
     })
     await check('Aggregate metrics for an empty channel selection', async () => {

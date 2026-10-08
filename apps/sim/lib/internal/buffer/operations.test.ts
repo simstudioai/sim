@@ -12,6 +12,43 @@ import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { createBufferPost } from '@/lib/internal/buffer/operations'
 
 describe('Buffer operations', () => {
+  it('creates a text post when optional assets are null', async () => {
+    const providerInputs: Record<string, unknown>[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body: { variables: { input: Record<string, unknown> } } = JSON.parse(String(init?.body))
+      providerInputs.push(body.variables.input)
+      return Response.json({
+        data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+      })
+    })
+
+    const response = await executeBufferTool({
+      toolId: 'buffer_create_post',
+      input: {
+        apiKey: 'buffer-key',
+        channelId: 'channel-1',
+        mode: 'addToQueue',
+        text: 'Caption',
+        assets: null,
+      },
+      headers: new Headers(),
+      context: { workflowId: 'workflow-1', userId: 'user-1' },
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(providerInputs).toEqual([
+      {
+        channelId: 'channel-1',
+        mode: 'addToQueue',
+        schedulingType: 'automatic',
+        text: 'Caption',
+        assets: [],
+        needsApproval: false,
+      },
+    ])
+  })
+
   it.each([
     { scheduling: {}, expected: {} },
     { scheduling: { mode: null, schedulingType: null }, expected: {} },

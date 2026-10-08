@@ -67,6 +67,7 @@ function validateDueAt(
 export const bufferCreatePostInputSchema = z
   .object({
     ...sharedFields,
+    assets: sharedFields.assets.transform((assets) => assets ?? undefined),
     channelId: z.string().min(1, 'channelId is required'),
     mode: z.enum(['addToQueue', 'shareNext', 'shareNow', 'customScheduled']),
     schedulingType: z.enum(['automatic', 'notification']).default('automatic'),

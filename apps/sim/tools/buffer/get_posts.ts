@@ -142,19 +142,19 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
       }
       if (Object.keys(filter).length > 0) input.filter = filter
 
-      const sortBy = params.sortBy || 'dueAt'
-      if (!['dueAt', 'createdAt'].includes(sortBy)) {
-        throw new Error('sortBy must be either "dueAt" or "createdAt"')
+      if (params.sort) {
+        input.sort = typeof params.sort === 'string' ? JSON.parse(params.sort) : params.sort
+      } else {
+        const sortBy = params.sortBy || 'dueAt'
+        if (!['dueAt', 'createdAt'].includes(sortBy)) {
+          throw new Error('sortBy must be either "dueAt" or "createdAt"')
+        }
+        const sortDirection = params.sortDirection || 'asc'
+        if (!['asc', 'desc'].includes(sortDirection)) {
+          throw new Error('sortDirection must be either "asc" or "desc"')
+        }
+        input.sort = [{ field: sortBy, direction: sortDirection }]
       }
-      const sortDirection = params.sortDirection || 'asc'
-      if (!['asc', 'desc'].includes(sortDirection)) {
-        throw new Error('sortDirection must be either "asc" or "desc"')
-      }
-      input.sort = params.sort
-        ? typeof params.sort === 'string'
-          ? JSON.parse(params.sort)
-          : params.sort
-        : [{ field: sortBy, direction: sortDirection }]
 
       return {
         query: GET_POSTS_QUERY,

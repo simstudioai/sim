@@ -14,10 +14,15 @@ const ORG_OPS = [
   'get_aggregated_post_metrics',
 ]
 
-function jsonWand(toolId: string, field: string, example: string, placeholder: string) {
+function jsonWand(
+  toolId: string,
+  field: string,
+  example: string,
+  placeholder: string
+): NonNullable<SubBlockConfig['wandConfig']> {
   return {
     enabled: true,
-    generationType: 'json-object' as const,
+    generationType: example.trim().startsWith('[') ? 'json-array' : 'json-object',
     prompt: `Generate the Buffer ${field} input requested by the user. Follow this input contract: ${getToolMetadata(toolId)?.params[field]?.description ?? ''}. Example: ${example}. Use only resource IDs and URLs supplied by the user. Return ONLY the JSON.`,
     placeholder,
   }
@@ -663,12 +668,18 @@ export const BufferBlock: BlockConfig = {
             continue
           if (value === undefined || value === null || value === '') continue
           if ((key === 'mode' || key === 'schedulingType') && value === 'default') {
-            if (params.operation === 'create_post') {
-              result[key] = key === 'mode' ? 'addToQueue' : 'automatic'
-            }
+            result[key] =
+              params.operation === 'create_post'
+                ? key === 'mode'
+                  ? 'addToQueue'
+                  : 'automatic'
+                : undefined
             continue
           }
-          if (key === 'approvalChange' && value === 'default') continue
+          if (key === 'approvalChange' && value === 'default') {
+            result[key] = undefined
+            continue
+          }
           if (key === 'limit') {
             const limit = Number(value)
             if (Number.isFinite(limit)) result.limit = limit

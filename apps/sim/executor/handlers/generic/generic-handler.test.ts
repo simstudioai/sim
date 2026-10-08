@@ -1,6 +1,8 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
+import { BufferBlock } from '@/blocks/blocks/buffer'
 import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/index'
@@ -9,6 +11,8 @@ import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { bufferEditPostTool } from '@/tools/buffer/edit_post'
+import type { BufferEditPostParams } from '@/tools/buffer/types'
 import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -74,6 +78,50 @@ describe('GenericBlockHandler', () => {
 
     // Default mock implementations
     mockExecuteTool.mockResolvedValue({ success: true, output: { customResult: 'OK' } })
+  })
+
+  it('preserves the current Buffer schedule and approval state when editing only text', async () => {
+    mockGetBlock.mockReturnValue(BufferBlock)
+    mockGetTool.mockReturnValue(bufferEditPostTool)
+    const providerInputs: Record<string, unknown>[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body: { variables: { input: Record<string, unknown> } } = JSON.parse(String(init?.body))
+      providerInputs.push(body.variables.input)
+      return Response.json({
+        data: { editPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+      })
+    })
+    mockExecuteTool.mockImplementation(async (toolId: string, params: BufferEditPostParams) => {
+      const response = await executeBufferTool({
+        toolId,
+        input: bufferEditPostTool.operation.input(params),
+        headers: new Headers(),
+        context: { workflowId: mockContext.workflowId, userId: 'user-1' },
+        requestId: 'request-1',
+      })
+      if (!bufferEditPostTool.transformResponse) throw new Error('Missing response transformer')
+      return bufferEditPostTool.transformResponse(response)
+    })
+
+    await handler.execute(
+      mockContext,
+      {
+        ...mockBlock,
+        metadata: { id: 'buffer', name: 'Buffer' },
+        config: { tool: 'buffer_edit_post', params: {} },
+      },
+      {
+        operation: 'edit_post',
+        apiKey: 'buffer-key',
+        postId: 'post-1',
+        text: 'Updated caption',
+        mode: 'default',
+        schedulingType: 'default',
+        approvalChange: 'default',
+      }
+    )
+
+    expect(providerInputs).toEqual([{ id: 'post-1', text: 'Updated caption' }])
   })
 
   it('executes the standalone stable MCP action after argument resolution with trusted block scope', async () => {
