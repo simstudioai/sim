@@ -8,7 +8,6 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -57,26 +56,19 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [
-    ,
-    tableRowTtlEnabled,
-    modelSelectorEnabled,
-    planModeEnabled,
-    dashboardsEnabled,
-    workflowTestsEnabled,
-  ] = await Promise.all([
-    prefetchOrganizationSidebar(
-      queryClient,
-      organizationId,
-      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-      getActiveOrganizationId(session)
-    ),
-    isTableRowTtlEnabled(),
-    isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
-    isDashboardsEnabled(organizationId),
-    isWorkflowTestsEnabled(organizationId),
-  ])
+  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled, workflowTestsEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isMothershipModelSelectorEnabled(),
+      isPlanModeEnabled(),
+      isDashboardsEnabled(organizationId),
+      isWorkflowTestsEnabled(organizationId),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -85,7 +77,6 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}

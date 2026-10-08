@@ -507,7 +507,7 @@ export const fileUtilsMockFns = {
   mockCreateFileContentFromBase64: vi.fn(createFileContentFromBase64),
   mockGetFileExtension: vi.fn(getFileExtension),
   mockIsMarkdownFile: vi.fn((file: { type?: string | null; name: string }) => {
-    if (file.type === 'text/markdown') return true
+    if (file.type?.split(';', 1)[0].trim().toLowerCase() === 'text/markdown') return true
     const ext = getFileExtension(file.name)
     return ext === 'md' || ext === 'markdown'
   }),

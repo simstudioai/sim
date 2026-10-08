@@ -1,36 +1,32 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import type { EditorView } from '@tiptap/pm/view'
+import GithubSlugger from 'github-slugger'
 
-/**
- * Slugify heading text GitHub-style (lowercase, drop punctuation, collapse whitespace to hyphens) so
- * that `[label](#slug)` fragment links — written against how GitHub renders the same markdown —
- * resolve to the matching heading. Mirrors what `rehype-slug` produced in the old preview.
- */
-export function slugifyHeading(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-}
-
-/**
- * The document position of the heading a `#slug` fragment link targets, or -1 if none matches.
- * Computed on demand (at click time) rather than maintained as per-keystroke decorations. Duplicate
- * slugs are disambiguated GitHub-style: `intro`, `intro-1`, `intro-2`, …
- */
-export function findHeadingPos(doc: ProseMirrorNode, slug: string): number {
-  const seen = new Map<string, number>()
+/** Resolves GitHub heading fragments, including Unicode and collisions with existing suffixes. */
+function findHeadingPos(doc: ProseMirrorNode, slug: string): number {
+  const slugger = new GithubSlugger()
   let found = -1
   doc.descendants((node, pos) => {
     if (found >= 0) return false
     if (node.type.name !== 'heading') return true
-    const base = slugifyHeading(node.textContent)
-    if (!base) return true
-    const n = seen.get(base) ?? 0
-    seen.set(base, n + 1)
-    if ((n === 0 ? base : `${base}-${n}`) === slug) found = pos
-    return found < 0
+    if (slugger.slug(node.textContent) === slug) found = pos
+    return false
   })
   return found
+}
+
+/** Scrolls within this editor without navigating the page or changing the document selection. */
+export function scrollToHeading(view: EditorView, fragment: string): boolean {
+  let slug: string
+  try {
+    slug = decodeURIComponent(fragment.slice(1))
+  } catch {
+    return false
+  }
+  const pos = slug ? findHeadingPos(view.state.doc, slug) : 0
+  if (pos < 0) return false
+  const target = slug ? view.nodeDOM(pos) : view.dom
+  if (!(target instanceof HTMLElement)) return false
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return true
 }

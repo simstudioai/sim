@@ -92,29 +92,6 @@ const FEATURE_FLAGS = {
       'resolveTriggerRegion, so the whole deployment switches regions together.',
     fallback: 'TRIGGER_EU_REGION',
   },
-  'tables-v2-api': {
-    description:
-      'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
-      'its only caller. When off, that route returns 403 naming the gate (post-authz, so the ' +
-      'masquerade 404 served nobody and broke the table_v2 block confusingly). Despite the ' +
-      'name it does NOT gate any /api/v2/tables route. Gated by userId/orgId/admins via ' +
-      'AppConfig; off-AppConfig falls back to TABLES_V2_API.',
-    fallback: 'TABLES_V2_API',
-  },
-  'table-row-ttl': {
-    description:
-      'Enable TTL columns and the scheduled cleanup that removes expired table rows. ' +
-      'Global on/off only; existing TTL data remains readable when disabled.',
-    fallback: 'TABLE_ROW_TTL',
-  },
-  'credential-groups': {
-    description:
-      'Managed connected accounts, including organization account pools and their settings UI. ' +
-      'Uses orgId targeting only; workspace callers resolve their canonical organization. Hosted ' +
-      'owners also require an active Enterprise subscription. Organization Search additionally ' +
-      'requires knowledge-member-access. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
-    fallback: 'CREDENTIAL_GROUPS',
-  },
   projects: {
     description:
       'Expose the Project APIs once the membership backfill has validated. Global on/off only; ' +
@@ -125,9 +102,9 @@ const FEATURE_FLAGS = {
   'knowledge-member-access': {
     description:
       'Organization Search (live) and the permission-aware workspace connector modes: members ' +
-      '(per-member sync, which also requires credential-groups) and admin (source ACL ' +
+      '(per-member sync, which also requires the Credential Groups entitlement) and admin (source ACL ' +
       'mirroring, independent of managed identities). Organization Search UI, MCP, and ' +
-      'search APIs require this flag and credential-groups for the canonical orgId; ' +
+      'search APIs require this flag and the Credential Groups entitlement for the canonical orgId; ' +
       'user/admin/workspace targeting cannot enable another organization. Workspace connector ' +
       'modes use workspaceId; workspace retrieval defaults may additionally use user/admin ' +
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',

@@ -40,7 +40,10 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 /** Discriminator stored inside the encrypted Slack custom bot secret blob. */
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
+export const ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'oracledb-service-account' as const
+
 export type OAuthProvider =
+  | 'oracledb'
   | 'oracle-epm'
   | 'oracle-fusion'
   | 'github-repositories'
@@ -112,6 +115,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oracledb'
   | 'oracle-epm'
   | 'oracle-fusion'
   | 'oci'

@@ -1092,6 +1092,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracledb: {
+    name: 'Oracle Database',
+    icon: OracleIcon,
+    services: {
+      oracledb: {
+        name: 'Oracle Database',
+        description: 'Query and manage Oracle Database with a saved connection.',
+        providerId: 'oracledb',
+        serviceAccountProviderId: 'oracledb-service-account',
+        authType: 'service_account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'oracledb',
+  },
   oci: {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,

@@ -15246,11 +15246,11 @@
             ]
           },
           "serviceAccountJson": {
-            "description": "Write-only Google service-account JSON key.",
+            "description": "Write-only provider service-account JSON configuration, including Oracle Database connection fields.",
             "writeOnly": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 65536
+            "maxLength": 2097152
           },
           "apiToken": {
             "description": "Write-only provider API token.",
