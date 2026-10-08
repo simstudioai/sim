@@ -3557,7 +3557,6 @@
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2ListSecretsQuerySchema",
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretDeleteDataSchema",
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretNameSchema",
-  "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretSchema",
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretScopeSchema",
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretSortFields",
   "apps/sim/lib/api/contracts/v2/secrets.ts#v2SecretWithValueSchema",

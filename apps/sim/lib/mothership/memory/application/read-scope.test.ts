@@ -12,7 +12,10 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import { MEMORY_SCOPE_AUDIENCE, readMemoryScope } from './read-scope'
+import {
+  MEMORY_SCOPE_AUDIENCE,
+  readMemoryScope,
+} from '@/lib/mothership/memory/application/read-scope'
 
 const mocks = vi.hoisted(() => ({
   capability: vi.fn(),

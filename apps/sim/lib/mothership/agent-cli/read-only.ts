@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
+import { v2ListSecretsContract, v2SecretSchema } from '@/lib/api/contracts/v2/secrets'
 import { v2WorkflowGraphSchema } from '@/lib/api/contracts/v2/workflows'
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
@@ -33,7 +34,7 @@ export function readOnlyCliTransport(transport: typeof fetch): typeof fetch {
     const request = new Request(input, init)
     const path = new URL(request.url).pathname
     if (
-      /^\/api\/v2\/secrets(?:\/|$)/.test(path) ||
+      /^\/api\/v2\/secrets\//.test(path) ||
       (request.method !== 'GET' &&
         !(request.method === 'POST' && /^\/api\/v2\/tables\/[^/]+\/query(?:\/count)?$/.test(path)))
     ) {
@@ -45,7 +46,15 @@ export function readOnlyCliTransport(transport: typeof fetch): typeof fetch {
       )
     }
     const response = await transport(request)
-    if (!response.ok || !/^\/api\/v2\/workflows\/[^/]+\/state$/.test(path)) return response
+    if (!response.ok) return response
+    if (path === '/api/v2/secrets') {
+      const page = v2ListSecretsContract.response.schema.parse(await response.json())
+      return Response.json({
+        ...page,
+        data: page.data.map((secret) => v2SecretSchema.parse(secret)),
+      })
+    }
+    if (!/^\/api\/v2\/workflows\/[^/]+\/state$/.test(path)) return response
     const graph = v2WorkflowGraphSchema.parse(toRecord(await response.json()).data)
     const sanitized = sanitizeWorkflowForSharing(
       { blocks: graph.blocks as Record<string, BlockState> },
