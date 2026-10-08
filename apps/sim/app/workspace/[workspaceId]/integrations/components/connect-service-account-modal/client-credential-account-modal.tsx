@@ -33,7 +33,7 @@ import {
 
 const logger = createLogger('ClientCredentialAccountModal')
 
-const FALLBACK_ERROR_MESSAGE = "We couldn't add this credential. Try again in a moment."
+const FALLBACK_ERROR_MESSAGE = "We couldn't save this credential. Try again in a moment."
 
 /**
  * Maps server `error.code` values from client-credential verification (a real
@@ -52,6 +52,8 @@ function messageForClientCredentialError(
     switch (err.code) {
       case 'invalid_credentials':
         return `We couldn't authenticate with those credentials. Check that the ${fieldLabels} all belong to the same ${descriptor.serviceLabel} app and that the app is authorized.`
+      case 'permission_conflict':
+        return 'Use the same permissions for connections to this application, or create a separate application for different permissions.'
       case 'site_not_found': {
         // "host field" named a label no provider renders — Salesforce calls it
         // My Domain host, and Zoom/Box/Zoho Desk have no host field at all.
@@ -167,6 +169,7 @@ function ClientCredentialAccountModalForm({
 
   const isPending = createCredential.isPending || updateCredential.isPending
   const isDisabled = missingRequired || isPending
+  const actionLabel = credentialId ? 'Reconnect' : 'Add'
 
   const setField = (id: ClientCredentialAccountFieldId, value: string) => {
     setValues((current) => ({ ...current, [id]: value }))
@@ -215,7 +218,7 @@ function ClientCredentialAccountModalForm({
       onOpenChange(false)
     } catch (err: unknown) {
       setError(messageForClientCredentialError(err, descriptor, required))
-      logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
+      logger.error(`Failed to save ${descriptor.serviceLabel} service account credential`, err)
     }
   }
 
@@ -223,10 +226,10 @@ function ClientCredentialAccountModalForm({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={`Add ${serviceName} ${descriptor.connectNoun}`}
+      srTitle={`${actionLabel} ${serviceName} ${descriptor.connectNoun}`}
     >
       <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
-        Add {serviceName} {descriptor.connectNoun}
+        {actionLabel} {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>
         {visibleFields.map((field) => {
@@ -364,7 +367,11 @@ function ClientCredentialAccountModalForm({
           },
         ]}
         primaryAction={{
-          label: isPending ? 'Adding...' : `Add ${descriptor.connectNoun}`,
+          label: isPending
+            ? credentialId
+              ? 'Reconnecting...'
+              : 'Adding...'
+            : `${actionLabel} ${descriptor.connectNoun}`,
           onClick: handleSubmit,
           disabled: isDisabled,
         }}

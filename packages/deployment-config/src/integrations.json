@@ -27300,7 +27300,7 @@
       "slug": "vanta",
       "name": "Vanta",
       "description": "Query compliance status and manage evidence in Vanta",
-      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.",
+      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.",
       "bgColor": "#F8F4F3",
       "iconName": "VantaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/vanta",
@@ -27425,7 +27425,8 @@
       "operationCount": 29,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "vanta",
       "category": "tools",
       "integrationType": "security",
       "tags": ["monitoring", "automation", "document-processing"]

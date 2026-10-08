@@ -188,6 +188,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'completedAt',
     'failureReason',
   ],
+  clientCredentialToken: ['id', 'encryptedValue', 'accessTokenDigest', 'expiresAt', 'updatedAt'],
   environment: ['id', 'userId', 'variables', 'updatedAt'],
   organizationSecretSource: ['id', 'organizationId', 'mode', 'createdAt', 'updatedAt'],
   organizationSecret: ['id', 'sourceId', 'ownerUserId', 'name', 'encryptedValue', 'updatedAt'],

@@ -459,6 +459,13 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Provider certificate mapping identifier.'),
     orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
     dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+    scope: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Provider permissions; preserved on reconnect when omitted.'),
     authMethod: z
       .string()
       .trim()
@@ -708,6 +715,13 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Provider certificate mapping identifier.'),
   orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
   dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+  scope: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Provider permissions; preserved on reconnect when omitted.'),
   authMethod: z
     .string()
     .trim()

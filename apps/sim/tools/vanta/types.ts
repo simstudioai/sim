@@ -1,12 +1,9 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export type VantaRegion = 'us' | 'gov'
-
-interface VantaBaseParams {
-  clientId: string
-  clientSecret: string
-  region?: VantaRegion
+export interface VantaCredentialParams {
+  accessToken: string
+  apiDomain: string
 }
 
 interface VantaPaginationParams {
@@ -14,33 +11,37 @@ interface VantaPaginationParams {
   pageCursor?: string
 }
 
-export interface VantaListFrameworksParams extends VantaBaseParams, VantaPaginationParams {}
+export interface VantaListFrameworksParams extends VantaCredentialParams, VantaPaginationParams {}
 
-export interface VantaGetFrameworkParams extends VantaBaseParams {
+export interface VantaGetFrameworkParams extends VantaCredentialParams {
   frameworkId: string
 }
 
-export interface VantaListFrameworkControlsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListFrameworkControlsParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   frameworkId: string
 }
 
-export interface VantaListControlsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListControlsParams extends VantaCredentialParams, VantaPaginationParams {
   frameworkMatchesAny?: string
 }
 
-export interface VantaGetControlParams extends VantaBaseParams {
+export interface VantaGetControlParams extends VantaCredentialParams {
   controlId: string
 }
 
-export interface VantaListControlTestsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListControlTestsParams extends VantaCredentialParams, VantaPaginationParams {
   controlId: string
 }
 
-export interface VantaListControlDocumentsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListControlDocumentsParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   controlId: string
 }
 
-export interface VantaListTestsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListTestsParams extends VantaCredentialParams, VantaPaginationParams {
   statusFilter?: string
   categoryFilter?: string
   frameworkFilter?: string
@@ -50,29 +51,31 @@ export interface VantaListTestsParams extends VantaBaseParams, VantaPaginationPa
   isInRollout?: boolean
 }
 
-export interface VantaGetTestParams extends VantaBaseParams {
+export interface VantaGetTestParams extends VantaCredentialParams {
   testId: string
 }
 
-export interface VantaListTestEntitiesParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListTestEntitiesParams extends VantaCredentialParams, VantaPaginationParams {
   testId: string
   entityStatus?: string
 }
 
-export interface VantaListDocumentsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListDocumentsParams extends VantaCredentialParams, VantaPaginationParams {
   frameworkMatchesAny?: string
   statusMatchesAny?: string
 }
 
-export interface VantaGetDocumentParams extends VantaBaseParams {
+export interface VantaGetDocumentParams extends VantaCredentialParams {
   documentId: string
 }
 
-export interface VantaListDocumentUploadsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListDocumentUploadsParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   documentId: string
 }
 
-export interface VantaUploadDocumentFileParams extends VantaBaseParams {
+export interface VantaUploadDocumentFileParams extends VantaCredentialParams {
   documentId: string
   file?: unknown
   fileContent?: string
@@ -82,16 +85,16 @@ export interface VantaUploadDocumentFileParams extends VantaBaseParams {
   effectiveAtDate?: string
 }
 
-export interface VantaDownloadDocumentFileParams extends VantaBaseParams {
+export interface VantaDownloadDocumentFileParams extends VantaCredentialParams {
   documentId: string
   uploadedFileId: string
 }
 
-export interface VantaSubmitDocumentParams extends VantaBaseParams {
+export interface VantaSubmitDocumentParams extends VantaCredentialParams {
   documentId: string
 }
 
-export interface VantaListPeopleParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListPeopleParams extends VantaCredentialParams, VantaPaginationParams {
   emailAndNameFilter?: string
   employmentStatus?: string
   groupIdsMatchesAny?: string
@@ -100,21 +103,23 @@ export interface VantaListPeopleParams extends VantaBaseParams, VantaPaginationP
   taskStatusMatchesAny?: string
 }
 
-export interface VantaGetPersonParams extends VantaBaseParams {
+export interface VantaGetPersonParams extends VantaCredentialParams {
   personId: string
 }
 
-export interface VantaListPoliciesParams extends VantaBaseParams, VantaPaginationParams {}
+export interface VantaListPoliciesParams extends VantaCredentialParams, VantaPaginationParams {}
 
-export interface VantaGetPolicyParams extends VantaBaseParams {
+export interface VantaGetPolicyParams extends VantaCredentialParams {
   policyId: string
 }
 
-export interface VantaListMonitoredComputersParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListMonitoredComputersParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   complianceStatusFilterMatchesAny?: string
 }
 
-export interface VantaListRiskScenariosParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListRiskScenariosParams extends VantaCredentialParams, VantaPaginationParams {
   searchString?: string
   includeIgnored?: boolean
   type?: string
@@ -128,12 +133,12 @@ export interface VantaListRiskScenariosParams extends VantaBaseParams, VantaPagi
   orderBy?: string
 }
 
-export interface VantaGetRiskScenarioParams extends VantaBaseParams {
+export interface VantaGetRiskScenarioParams extends VantaCredentialParams {
   riskScenarioId: string
 }
 
 export interface VantaListVulnerabilityRemediationsParams
-  extends VantaBaseParams,
+  extends VantaCredentialParams,
     VantaPaginationParams {
   integrationId?: string
   severity?: string
@@ -142,27 +147,31 @@ export interface VantaListVulnerabilityRemediationsParams
   remediatedBeforeDate?: string
 }
 
-export interface VantaListVulnerableAssetsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListVulnerableAssetsParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   q?: string
   integrationId?: string
   assetType?: string
   assetExternalAccountId?: string
 }
 
-export interface VantaGetVulnerableAssetParams extends VantaBaseParams {
+export interface VantaGetVulnerableAssetParams extends VantaCredentialParams {
   vulnerableAssetId: string
 }
 
-export interface VantaListVendorsParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListVendorsParams extends VantaCredentialParams, VantaPaginationParams {
   name?: string
   statusMatchesAny?: string
 }
 
-export interface VantaGetVendorParams extends VantaBaseParams {
+export interface VantaGetVendorParams extends VantaCredentialParams {
   vendorId: string
 }
 
-export interface VantaListVulnerabilitiesParams extends VantaBaseParams, VantaPaginationParams {
+export interface VantaListVulnerabilitiesParams
+  extends VantaCredentialParams,
+    VantaPaginationParams {
   q?: string
   severity?: string
   isFixAvailable?: boolean

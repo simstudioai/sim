@@ -68,6 +68,7 @@ import {
   SpotifyIcon,
   TikTokIcon,
   TrelloIcon,
+  VantaIcon,
   VertexIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -1327,6 +1328,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description:
           'Read company spending, cards, bills, and reimbursements, and manage transaction memos.',
         providerId: 'ramp',
+        serviceAccountProviderId: 'ramp-service-account',
+        authType: 'oauth',
         icon: RampIcon,
         baseProviderIcon: RampIcon,
         scopes: [
@@ -1343,6 +1346,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'ramp',
+  },
+  vanta: {
+    name: 'Vanta',
+    icon: VantaIcon,
+    services: {
+      vanta: {
+        name: 'Vanta',
+        description: 'Read compliance data and manage evidence in Vanta.',
+        providerId: 'vanta',
+        serviceAccountProviderId: 'vanta-service-account',
+        authType: 'service_account',
+        icon: VantaIcon,
+        baseProviderIcon: VantaIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'vanta',
   },
   hubspot: {
     name: 'HubSpot',

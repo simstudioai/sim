@@ -15315,6 +15315,12 @@
             "minLength": 1,
             "maxLength": 32
           },
+          "scope": {
+            "description": "Provider permissions; preserved on reconnect when omitted.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
           "authMethod": {
             "description": "Provider authentication method.",
             "type": "string",

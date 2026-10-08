@@ -22,6 +22,7 @@ export type ServiceAccountFieldId =
   | 'certificateId'
   | 'orgId'
   | 'dataCenter'
+  | 'scope'
   | 'authMethod'
   | 'privateKey'
   | 'username'

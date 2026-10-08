@@ -65,6 +65,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
+  'ramp-service-account': ['ramp'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
   'slack-custom-bot': ['slack'],
@@ -72,6 +73,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // so its credential is offered on the block rather than an integration page.
   'snowflake-service-account': [],
   'trello-service-account': ['trello'],
+  'vanta-service-account': ['vanta'],
   'wealthbox-service-account': ['wealthbox'],
   'webflow-service-account': ['webflow'],
   'zoho-desk-service-account': ['zoho-desk'],

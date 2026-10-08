@@ -4639,8 +4639,6 @@
   "apps/sim/lib/internal/textract/normalizers.ts#normalizeExpenseField",
   "apps/sim/lib/internal/tool-operations/parse-contract-input.ts#ParsedInternalContractInput",
   "apps/sim/lib/internal/tts/client.ts#MAX_TTS_AUDIO_BYTES",
-  "apps/sim/lib/internal/vanta/client.ts#VANTA_API_BASE_URLS",
-  "apps/sim/lib/internal/vanta/client.ts#getVantaAccessToken",
   "apps/sim/lib/internal/vanta/input.ts#VANTA_MAX_UPLOAD_BASE64_LENGTH",
   "apps/sim/lib/internal/vanta/normalizers.ts#normalizeVantaPageInfo",
   "apps/sim/lib/internal/vanta/schema.ts#VantaQueryBodyInput",
