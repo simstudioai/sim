@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
+  copilotAsyncToolCalls,
   copilotChats,
+  copilotRuns,
   folder,
   outboxEvent,
   permissions,
@@ -17,6 +19,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sha256Hex } from '@sim/security/hash'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   remoteSandboxProviderMock,
@@ -55,7 +58,7 @@ import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
 import { executeProjectFileCliRequest } from '@/lib/mothership/agent-cli/project-files'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
-import { proxySandboxProjectFileRequest } from '@/lib/mothership/tools/sandbox-project-files'
+import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
 import {
@@ -341,7 +344,7 @@ describe('private native Project writes against PostgreSQL and local storage', (
 
 describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
   check(
-    'binds upload completion to its callback token across requests and persists machine source history',
+    'enforces live callback leases, binds uploads across requests and persists machine source history',
     async () => {
       const f = await fixture()
       const chatId = generateId()
@@ -349,6 +352,8 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         .insert(copilotChats)
         .values({ id: chatId, userId: f.userId, workspaceId: f.workspaceId, type: 'mothership' })
       const token = generateId()
+      const otherToken = generateId()
+      const apiKey = generateId()
       const sessionKey = chatSandboxSessionKey(chatId)
       const machine = { providerId: 'e2b' as const, sandboxId: generateId() }
       remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
@@ -362,8 +367,31 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         ownerToken: generateId(),
         chatId,
         workspaceId: f.workspaceId,
-        apiKeyHash: 'test',
+        apiKeyHash: sha256Hex(apiKey),
         fileOwnerProtocolVersion: 1 as const,
+      }
+      await db.insert(copilotRuns).values({
+        id: scope.runId,
+        executionId: generateId(),
+        streamId: generateId(),
+        chatId,
+        userId: f.userId,
+        workspaceId: f.workspaceId,
+      })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId: scope.runId,
+        toolCallId: scope.toolCallId,
+        toolName: 'run_code',
+        executionOwnerToken: scope.ownerToken,
+        executionStartedAt: new Date(),
+        executionLeaseExpiresAt: new Date(Date.now() + 60_000),
+      })
+      const redis = getRedisClient()
+      if (!redis) throw new Error('Expected integration Redis')
+      for (const leaseToken of [token, otherToken]) {
+        const prefix = `mothership:sandbox-resources:${leaseToken}`
+        callbackRedisKeys.push(`${prefix}:context`, `${prefix}:inbox`, `${prefix}:seen`)
+        await redis.set(`${prefix}:context`, JSON.stringify(scope), 'EX', 60)
       }
       const historyKey = `mothership:workbench-provenance:v2:${createHash('sha256')
         .update(JSON.stringify([sessionKey, machine.providerId, machine.sandboxId]))
@@ -374,16 +402,19 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
       )
       await initializeSessionFileProvenance(sessionKey, machine)
       const callback = (suffix: string, init?: RequestInit, callbackToken = token) => {
-        const path = `/api/v2/projects/${f.projectId}/files${suffix}`
-        return proxySandboxProjectFileRequest(
-          new Request(`http://localhost:3000${path}`, init),
-          callbackToken,
-          path,
-          '',
-          scope,
-          f.projectId
+        const path = `/api/mothership/sandbox/${callbackToken}/api/v2/projects/${f.projectId}/files${suffix}`
+        const headers = new Headers(init?.headers)
+        if (!headers.has('x-api-key')) headers.set('x-api-key', apiKey)
+        headers.set(
+          'x-mothership-file-owner',
+          JSON.stringify({ entityType: 'project', entityId: f.projectId })
+        )
+        return proxySandboxResourceRequest(
+          new Request(`http://localhost:3000${path}`, { ...init, headers }),
+          callbackToken
         )
       }
+      expect((await callback('', { headers: { 'x-api-key': generateId() } })).status).toBe(403)
       const canary = 'synthetic-workbench-callback-canary'
       const evidence = {
         status: 'exact' as const,
@@ -433,9 +464,9 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         metadata: uploadSessionObjectMetadata(upload),
       })
       const complete = { method: 'POST', headers: { 'upload-token': created.uploadToken } }
-      expect(
-        (await callback(`/uploads/${upload.id}/complete`, complete, generateId())).status
-      ).toBe(403)
+      expect((await callback(`/uploads/${upload.id}/complete`, complete, otherToken)).status).toBe(
+        403
+      )
       const response = await callback(`/uploads/${upload.id}/complete`, complete)
       expect(response.status, await response.clone().text()).toBe(200)
       const completed = v2CompleteProjectFileUploadContract.response.schema.parse(
@@ -467,10 +498,23 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         status: 'exact',
         entries: [],
       })
-      const read = await callback(`/${completed.file.id}/content`, undefined, generateId())
+      const read = await callback(`/${completed.file.id}/content`, undefined, otherToken)
       expect(read.status).toBe(200)
       expect(await read.text()).toBe('safe upload')
       expect(await readSessionSecretProvenance(sessionKey, freshMachine)).toEqual(evidence)
+      const effects = (
+        await redis.lrange(`mothership:sandbox-resources:${token}:inbox`, 0, -1)
+      ).map((entry) => JSON.parse(entry))
+      expect(effects.length).toBeGreaterThan(0)
+      for (const effect of effects) {
+        expect(effect.resource.owner).toEqual({ entityType: 'project', entityId: f.projectId })
+        expect(effect.resource.workspaceId).toBeUndefined()
+      }
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({ executionRevokedAt: new Date() })
+        .where(eq(copilotAsyncToolCalls.toolCallId, scope.toolCallId))
+      expect((await callback(`/${completed.file.id}/content`)).status).toBe(403)
     }
   )
 })
