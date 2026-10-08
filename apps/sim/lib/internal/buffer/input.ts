@@ -56,7 +56,7 @@ function validateDueAt(
       message: 'dueAt is required when mode is customScheduled',
     })
   }
-  if (body.media != null && body.assets !== undefined)
+  if (body.media != null && body.assets != null)
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['assets'],

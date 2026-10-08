@@ -82,6 +82,48 @@ describe('Buffer operations', () => {
     expect(providerInputs).toEqual([{ id: 'post-1', text: 'Updated caption', ...expected }])
   })
 
+  it.each([
+    { assets: null, status: 200 },
+    { assets: [], status: 400 },
+  ])(
+    'attaches edit media with absent assets but rejects explicit assets: $assets',
+    async ({ assets, status }) => {
+      mockResolveFileInputToUrl.mockResolvedValueOnce({
+        fileUrl: 'https://files.example/image.png',
+      })
+      const providerInputs: Record<string, unknown>[] = []
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+        const body: { variables: { input: Record<string, unknown> } } = JSON.parse(
+          String(init?.body)
+        )
+        providerInputs.push(body.variables.input)
+        return Response.json({
+          data: { editPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+        })
+      })
+
+      const response = await executeBufferTool({
+        toolId: 'buffer_edit_post',
+        input: {
+          apiKey: 'buffer-key',
+          postId: 'post-1',
+          media: { key: 'workspace/ws/file-1', name: 'image.png', size: 1, type: 'image/png' },
+          assets,
+        },
+        headers: new Headers(),
+        context: { workflowId: 'workflow-1', userId: 'user-1' },
+        requestId: 'request-1',
+      })
+
+      expect(response.status).toBe(status)
+      expect(providerInputs).toEqual(
+        status === 200
+          ? [{ id: 'post-1', assets: [{ image: { url: 'https://files.example/image.png' } }] }]
+          : []
+      )
+    }
+  )
+
   it('resolves stored media with trusted user context before the provider call', async () => {
     mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example/image.png' })
     const fetchMock = vi.fn().mockResolvedValue(
