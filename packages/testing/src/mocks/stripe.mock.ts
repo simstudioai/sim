@@ -77,7 +77,12 @@ export interface InMemoryStripeSubscription {
       quantity: number
       current_period_start: number
       current_period_end: number
-      price: { id: string; recurring: { interval: 'month' | 'year' } }
+      price: {
+        id: string
+        currency: string
+        unit_amount: number | null
+        recurring: { interval: 'month' | 'year' }
+      }
     }>
   }
 }
@@ -305,6 +310,9 @@ export function createInMemoryStripe() {
         > & {
           quantity?: number
           priceId?: string
+          /** Price amount in cents; omitted for prices whose amount no test reads. */
+          unitAmount?: number
+          metadata?: Record<string, string>
         }
     ) {
       const now = Math.floor(Date.now() / 1000)
@@ -320,7 +328,7 @@ export function createInMemoryStripe() {
         trial_start: null,
         trial_end: null,
         schedule: null,
-        metadata: {},
+        metadata: { ...subscription.metadata },
         items: {
           object: 'list',
           data: [
@@ -331,6 +339,8 @@ export function createInMemoryStripe() {
               current_period_end: now + 30 * 24 * 60 * 60,
               price: {
                 id: subscription.priceId ?? `price_${subscription.id}`,
+                currency: 'usd',
+                unit_amount: subscription.unitAmount ?? null,
                 recurring: { interval: 'month' },
               },
             },

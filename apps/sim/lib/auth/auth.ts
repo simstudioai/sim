@@ -98,6 +98,7 @@ import {
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -1667,6 +1668,19 @@ export const auth = betterAuth({
                     )
                   }
                 } catch (orgError) {
+                  if (orgError instanceof SubscriptionReferenceNotFoundError) {
+                    logger.error(
+                      '[onSubscriptionUpdate] Subscription references no existing organization or user; skipping organization resolution',
+                      {
+                        subscriptionId: subscription.id,
+                        stripeSubscriptionId: stripeSubscription.id,
+                        eventType: event.type,
+                        referenceId: subscription.referenceId,
+                        dbPlan: subscription.plan,
+                      }
+                    )
+                    return
+                  }
                   logger.error(
                     '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
                     {
