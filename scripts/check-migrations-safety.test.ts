@@ -70,7 +70,25 @@ describe('migration safety audit', () => {
     expect(`${stdout}${stderr}`).toContain('owner-to')
   }, 30_000)
 
-  it('allows a sequence owned by a table created in the same migration', async () => {
+  it.each(['"jobs"', '"public"."jobs"'])(
+    'allows a sequence owned by a table created in the same migration as %s',
+    async (table) => {
+      const dir = migrationsDir(
+        [
+          `CREATE TABLE ${table} ("id" text PRIMARY KEY, "position" bigint);--> statement-breakpoint`,
+          'CREATE SEQUENCE IF NOT EXISTS "public"."jobs_seq";--> statement-breakpoint',
+          'ALTER SEQUENCE "public"."jobs_seq" OWNED BY "jobs"."position";',
+        ].join('\n')
+      )
+      const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+      expect(`${stdout}${stderr}`).not.toContain('sequence-owned-by-existing-table')
+      expect(code).toBe(0)
+    },
+    30_000
+  )
+
+  it('matches a schema-qualified OWNED BY to an unqualified create in public', async () => {
     const dir = migrationsDir(
       [
         'CREATE TABLE "jobs" ("id" text PRIMARY KEY, "position" bigint);--> statement-breakpoint',
@@ -80,6 +98,44 @@ describe('migration safety audit', () => {
     )
     const { code, stdout, stderr } = await runAudit('--dir', dir)
 
+    expect(`${stdout}${stderr}`).not.toContain('sequence-owned-by-existing-table')
+    expect(code).toBe(0)
+  }, 30_000)
+
+  it.each([
+    [
+      'a conditional create, which may find the table already there',
+      'CREATE TABLE IF NOT EXISTS "jobs" ("id" text PRIMARY KEY, "position" bigint);--> statement-breakpoint\nALTER SEQUENCE "jobs_seq" OWNED BY "jobs"."position";',
+    ],
+    [
+      'a same-named table in another schema',
+      'CREATE TABLE "archive"."jobs" ("id" text PRIMARY KEY, "position" bigint);--> statement-breakpoint\nALTER SEQUENCE "jobs_seq" OWNED BY "public"."jobs"."position";',
+    ],
+    [
+      'an ownership change wrapped in a DO block',
+      'DO $$ BEGIN\n  ALTER SEQUENCE "jobs_seq" OWNED BY "jobs"."position";\nEXCEPTION WHEN undefined_table THEN NULL;\nEND $$;',
+    ],
+  ])(
+    'refuses OWNED BY through %s',
+    async (_case, sql) => {
+      const { code, stdout, stderr } = await runAudit('--dir', migrationsDir(sql))
+
+      expect(code).toBe(1)
+      expect(`${stdout}${stderr}`).toContain('sequence-owned-by-existing-table')
+    },
+    30_000
+  )
+
+  it('ignores ownership words inside string literals and comments', async () => {
+    const dir = migrationsDir(
+      [
+        '-- Hands owner to the support team in a later release.',
+        'COMMENT ON TABLE "jobs" IS \'Transfer owner to the support team, OWNED BY ops.jobs.id\';',
+      ].join('\n')
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(`${stdout}${stderr}`).not.toContain('owner-to')
     expect(`${stdout}${stderr}`).not.toContain('sequence-owned-by-existing-table')
     expect(code).toBe(0)
   }, 30_000)
