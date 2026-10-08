@@ -15,6 +15,7 @@ import {
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { reassignWorkflowOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
@@ -146,17 +147,16 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
       .update(knowledgeBase)
       .set({ userId, updatedAt })
       .where(and(eq(knowledgeBase.workspaceId, row.id), eq(knowledgeBase.userId, departingUserId)))
-    await tx
-      .update(workspaceFiles)
-      .set({ userId, updatedAt })
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, row.id),
-          eq(workspaceFiles.userId, departingUserId),
-          inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS),
-          isNull(workspaceFiles.chatId)
-        )
-      )
+    await handoffFileCreatorsInTx(
+      tx,
+      and(
+        eq(workspaceFiles.workspaceId, row.id),
+        eq(workspaceFiles.userId, departingUserId),
+        inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS),
+        isNull(workspaceFiles.chatId)
+      ),
+      userId
+    )
     await tx
       .update(workspaceFile)
       .set({ uploadedBy: userId })

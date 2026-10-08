@@ -778,13 +778,14 @@ describe('shared resource retention across workspace departure and account erasu
   )
 
   it.each([true, false])(
-    'retains organization-only resources with no workspace membership (currentMember=%s)',
+    'retains organization resources and upload history with no workspace membership (currentMember=%s)',
     async (currentMember) => {
       const fixture = await seedResources(false, false)
       const organizationId = generateId()
       const memberId = generateId()
       const kbId = generateId()
       const orgFileId = generateId()
+      const implicitFileId = generateId()
       const groupId = generateId()
       const providerId = generateId()
       organizationIds.push(organizationId)
@@ -794,6 +795,10 @@ describe('shared resource retention across workspace departure and account erasu
         slug: organizationId,
         createdAt: new Date(),
       })
+      await db
+        .update(workspace)
+        .set({ organizationId })
+        .where(eq(workspace.id, fixture.workspaceId))
       await db.insert(member).values({
         id: generateId(),
         organizationId,
@@ -829,6 +834,37 @@ describe('shared resource retention across workspace departure and account erasu
         deletedAt: new Date(),
       })
 
+      await db.insert(workspaceFiles).values({
+        id: implicitFileId,
+        key: `workspace/${fixture.workspaceId}/${implicitFileId}.txt`,
+        workspaceId: fixture.workspaceId,
+        userId: fixture.departingId,
+        context: 'workspace',
+        originalName: 'implicit-upload.txt',
+        contentType: 'text/plain',
+        sizeBytes: 8,
+      })
+      const assertUploadHistory = async () => {
+        expect(
+          await db
+            .select()
+            .from(workspaceFileVersion)
+            .where(eq(workspaceFileVersion.fileId, implicitFileId))
+        ).toMatchObject([{ version: 1, source: 'upload', authorUserIds: [fixture.departingId] }])
+        expect(
+          await db
+            .select({ userId: workspaceFiles.userId })
+            .from(workspaceFiles)
+            .where(eq(workspaceFiles.id, implicitFileId))
+        ).toEqual([{ userId: fixture.ownerId }])
+        expect(
+          await db
+            .select()
+            .from(workspaceFileVersion)
+            .where(eq(workspaceFileVersion.fileId, orgFileId))
+        ).toEqual([])
+      }
+
       await db.insert(permissionGroup).values({
         id: groupId,
         organizationId,
@@ -857,6 +893,7 @@ describe('shared resource retention across workspace departure and account erasu
           ).success
         ).toBe(true)
       if (currentMember) {
+        await assertUploadHistory()
         expect(
           await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, orgFileId))
         ).toMatchObject([
@@ -873,6 +910,7 @@ describe('shared resource retention across workspace departure and account erasu
         ).toMatchObject([{ userId: fixture.ownerId }])
       }
       await deleteUserAccount(fixture.departingId)
+      await assertUploadHistory()
       expect(
         await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, orgFileId))
       ).toMatchObject([

@@ -13,6 +13,7 @@ import {
   workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -31,6 +32,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   deleteWorkspaceFileVersion,
@@ -40,7 +42,10 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  replaceWorkspaceFileSecretProvenanceInTx,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
@@ -131,6 +136,202 @@ describe('workspace file version history in PostgreSQL', () => {
     })
     expect(await versionRows(fixture.fileId)).toEqual([])
   })
+
+  it('keeps original attribution, bytes and revision through repeated creator handoff and a later edit', async () => {
+    const fixture = await seedFile('original')
+    const [before] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    const provenance = {
+      status: 'exact' as const,
+      entries: [
+        {
+          sourceUserId: fixture.aliceId,
+          sourceWorkspaceId: fixture.workspaceId,
+          name: 'HISTORY_FIXTURE',
+          encryptedValue: (await encryptSecret('synthetic-history-value')).encrypted,
+        },
+      ],
+    }
+    await db.transaction((tx) =>
+      replaceWorkspaceFileSecretProvenanceInTx(
+        tx,
+        fixture.fileId,
+        before.contentUpdatedAt,
+        provenance
+      )
+    )
+    const sidecarsBefore = await db
+      .select()
+      .from(workspaceFileSecretProvenance)
+      .where(eq(workspaceFileSecretProvenance.fileId, fixture.fileId))
+    const [workspaceBefore] = await db
+      .select({ bytes: workspace.storageUsedBytes })
+      .from(workspace)
+      .where(eq(workspace.id, fixture.workspaceId))
+    for (const successor of [fixture.bobId, fixture.aliceId, fixture.bobId]) {
+      await db.transaction((tx) =>
+        handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), successor)
+      )
+    }
+    const [after] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    expect(after).toMatchObject({
+      key: before.key,
+      contentUpdatedAt: before.contentUpdatedAt,
+      uploadedAt: before.uploadedAt,
+      sizeBytes: before.sizeBytes,
+      userId: fixture.bobId,
+    })
+    const preserved = await versionRows(fixture.fileId)
+    expect(preserved).toHaveLength(1)
+    expect(preserved[0]).toMatchObject({
+      secretProvenanceStatus: 'exact',
+      secretProvenanceEntries: provenance.entries,
+    })
+    expect(
+      await db
+        .select()
+        .from(workspaceFileSecretProvenance)
+        .where(eq(workspaceFileSecretProvenance.fileId, fixture.fileId))
+    ).toEqual(sidecarsBefore)
+    expect(
+      await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+    ).toEqual([workspaceBefore])
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.bobId,
+      Buffer.from('second'),
+      undefined,
+      { version: { source: 'api', authorUserId: fixture.bobId } }
+    )
+    const rows = await versionRows(fixture.fileId)
+    expect(rows.map((row) => [row.version, row.source, row.authorUserIds])).toEqual([
+      [1, 'upload', [fixture.aliceId]],
+      [2, 'api', [fixture.bobId]],
+    ])
+    expect(await readVersionBytes(fixture.workspaceId, fixture.fileId, rows[0].key)).toBe(
+      'original'
+    )
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.aliceId)
+    )
+    expect(await versionRows(fixture.fileId)).toEqual(rows)
+  })
+
+  it('does not manufacture original authorship for previously overwritten unrecorded content', async () => {
+    const fixture = await seedFile('overwritten')
+    await db
+      .update(workspaceFiles)
+      .set({ contentUpdatedAt: new Date(Date.now() + 5000) })
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+    )
+    expect(await versionRows(fixture.fileId)).toMatchObject([
+      { version: 1, source: 'unknown', authorUserIds: [] },
+    ])
+  })
+
+  it('keeps an empty shell unversioned until its first content write after handoff', async () => {
+    const fixture = await seedFile('')
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+    )
+    expect(await versionRows(fixture.fileId)).toEqual([])
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.bobId,
+      Buffer.from('first'),
+      undefined,
+      { version: { source: 'api', authorUserId: fixture.bobId } }
+    )
+    expect(await versionRows(fixture.fileId)).toMatchObject([
+      { version: 1, source: 'api', authorUserIds: [fixture.bobId] },
+    ])
+  })
+
+  it.each(['handoff', 'write'] as const)(
+    'serializes creator handoff with a content write when %s waits first',
+    async (first) => {
+      const fixture = await seedFile('original')
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+      const blocker = db.transaction(async (tx) => {
+        await tx
+          .select()
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.id, fixture.fileId))
+          .for('update')
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+      })
+      const blockerPid = await ready.promise
+      const operations = {
+        handoff: () =>
+          db.transaction((tx) =>
+            handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+          ),
+        write: () =>
+          updateWorkspaceFileContent(
+            fixture.workspaceId,
+            fixture.fileId,
+            fixture.aliceId,
+            Buffer.from('second'),
+            undefined,
+            { version: { source: 'api', authorUserId: fixture.aliceId } }
+          ),
+      }
+      const pending: Promise<unknown>[] = []
+      try {
+        for (const operation of [first, first === 'handoff' ? 'write' : 'handoff'] as const) {
+          pending.push(operations[operation]())
+          await expect
+            .poll(
+              async () =>
+                (
+                  await db.execute(
+                    sql`WITH RECURSIVE blocked(pid) AS (
+                      SELECT pid FROM pg_stat_activity
+                      WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+                      UNION
+                      SELECT activity.pid FROM pg_stat_activity activity
+                      JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+                    ) SELECT pid FROM blocked`
+                  )
+                ).length,
+              { timeout: 5000 }
+            )
+            .toBe(pending.length)
+        }
+      } finally {
+        release.resolve()
+        await blocker
+        await Promise.all(pending)
+      }
+      const rows = await versionRows(fixture.fileId)
+      expect(rows.map((row) => [row.version, row.authorUserIds])).toEqual([
+        [1, [fixture.aliceId]],
+        [2, [fixture.aliceId]],
+      ])
+      expect(rows.filter((row) => row.supersededAt === null)).toHaveLength(1)
+      expect(await readVersionBytes(fixture.workspaceId, fixture.fileId, rows[0].key)).toBe(
+        'original'
+      )
+      expect((await getWorkspaceFile(fixture.workspaceId, fixture.fileId))?.uploadedBy).toBe(
+        fixture.bobId
+      )
+    }
+  )
 
   it.each([
     ['named', 'download'],

@@ -190,6 +190,35 @@ interface RecordedWorkspaceFileVersion {
   releasedKeys: string[]
 }
 
+/** Materializes current bytes under the file lock before content or creator attribution changes. */
+export async function materializeWorkspaceFileVersionInTx(
+  tx: DbTransaction,
+  previous: WorkspaceFileRow & { workspaceId: string },
+  head: WorkspaceFileVersionSummaryRow | undefined,
+  provenance: WorkspaceFileSecretProvenanceSnapshot,
+  now: Date
+): Promise<WorkspaceFileVersionSummaryRow> {
+  if (isVersionHeadCurrent(head, previous) && head) return head
+  if (head && head.supersededAt === null) await supersedeVersionInTx(tx, head.id, now)
+  const original = !head && isOriginalUploadContent(previous)
+  const [materialized] = await tx
+    .insert(workspaceFileVersion)
+    .values({
+      id: generateId(),
+      fileId: previous.id,
+      workspaceId: previous.workspaceId,
+      version: head ? head.version + 1 : INITIAL_WORKSPACE_FILE_VERSION,
+      ...contentColumns(previous, provenance),
+      contentHash: null,
+      source: original ? 'upload' : 'unknown',
+      authorUserIds: original && previous.userId ? [previous.userId] : [],
+      createdAt: previous.contentUpdatedAt,
+      updatedAt: previous.contentUpdatedAt,
+    })
+    .returning(versionSummaryColumns)
+  return materialized
+}
+
 /**
  * Records a committed content write in the file's history. Runs inside the content-write
  * transaction, under the file row's lock, which serializes version numbering and coalescing
@@ -214,24 +243,13 @@ export async function recordWorkspaceFileVersionInTx(
     if (!params.previousProvenance) {
       throw new Error('Outgoing workspace file content needs a provenance snapshot to be versioned')
     }
-    if (head && head.supersededAt === null) await supersedeVersionInTx(tx, head.id, now)
-    const original = !head && isOriginalUploadContent(previous)
-    const [materialized] = await tx
-      .insert(workspaceFileVersion)
-      .values({
-        id: generateId(),
-        fileId: previous.id,
-        workspaceId: params.workspaceId,
-        version: head ? head.version + 1 : INITIAL_WORKSPACE_FILE_VERSION,
-        ...contentColumns(previous, params.previousProvenance),
-        contentHash: null,
-        source: original ? 'upload' : 'unknown',
-        authorUserIds: original ? [previous.userId] : [],
-        createdAt: previous.contentUpdatedAt,
-        updatedAt: previous.contentUpdatedAt,
-      })
-      .returning(versionSummaryColumns)
-    head = materialized
+    head = await materializeWorkspaceFileVersionInTx(
+      tx,
+      { ...previous, workspaceId: params.workspaceId },
+      head,
+      params.previousProvenance,
+      now
+    )
   }
 
   const nextColumns = { ...contentColumns(next, params.nextProvenance), updatedAt: now }

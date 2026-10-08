@@ -9,6 +9,7 @@ import {
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
 /** Organization references survive even when their creator no longer has a membership row. */
 export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx, userId: string) {
@@ -76,16 +77,15 @@ export async function reassignOrganizationSharedResourcesTx(
         eq(knowledgeBase.userId, departingUserId)
       )
     )
-  await tx
-    .update(workspaceFiles)
-    .set({ userId, updatedAt })
-    .where(
-      and(
-        eq(workspaceFiles.organizationId, organizationId),
-        isNull(workspaceFiles.workspaceId),
-        eq(workspaceFiles.userId, departingUserId)
-      )
-    )
+  await handoffFileCreatorsInTx(
+    tx,
+    and(
+      eq(workspaceFiles.organizationId, organizationId),
+      isNull(workspaceFiles.workspaceId),
+      eq(workspaceFiles.userId, departingUserId)
+    ),
+    userId
+  )
   await tx
     .update(permissionGroup)
     .set({ createdBy: userId, updatedAt })
