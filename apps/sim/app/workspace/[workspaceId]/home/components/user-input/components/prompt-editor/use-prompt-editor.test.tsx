@@ -16,6 +16,7 @@ import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'
 
@@ -46,7 +47,22 @@ function renderPromptEditor(props: UsePromptEditorProps) {
   }
 
   function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <FeatureFlagsProvider
+          flags={{
+            projects: false,
+            'project-files': false,
+            dashboards: false,
+            'table-row-ttl': false,
+            'mothership-model-selector': false,
+            'mothership-plan-mode': false,
+          }}
+        >
+          {children}
+        </FeatureFlagsProvider>
+      </QueryClientProvider>
+    )
   }
 
   act(() => {

@@ -17,33 +17,42 @@ export function useFileUploadDrop({ enabled, onDrop }: UseFileUploadDropOptions)
   }, [])
   useDragTeardown(dismiss)
 
+  const onDragEnter = useCallback(
+    (event: DragEvent) => {
+      if (!hasExternalFiles(event.dataTransfer)) return
+      event.preventDefault()
+      if (!enabled) return
+      dragCounter.current++
+      setIsDraggingOver(true)
+    },
+    [enabled]
+  )
+  const onDragLeave = useCallback((event: DragEvent) => {
+    if (!hasExternalFiles(event.dataTransfer)) return
+    dragCounter.current = Math.max(0, dragCounter.current - 1)
+    if (dragCounter.current === 0) setIsDraggingOver(false)
+  }, [])
+  const onDragOver = useCallback(
+    (event: DragEvent) => {
+      if (!hasExternalFiles(event.dataTransfer)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = enabled ? 'copy' : 'none'
+    },
+    [enabled]
+  )
+  const handleDrop = useCallback(
+    (event: DragEvent) => {
+      if (!hasExternalFiles(event.dataTransfer)) return
+      event.preventDefault()
+      dismiss()
+      if (enabled) onDrop(Array.from(event.dataTransfer.files))
+    },
+    [dismiss, enabled, onDrop]
+  )
+
   return {
     isDraggingOver: enabled && isDraggingOver,
     dismiss,
-    handlers: {
-      onDragEnter: (event: DragEvent) => {
-        if (!hasExternalFiles(event.dataTransfer)) return
-        event.preventDefault()
-        if (!enabled) return
-        dragCounter.current++
-        setIsDraggingOver(true)
-      },
-      onDragLeave: (event: DragEvent) => {
-        if (!hasExternalFiles(event.dataTransfer)) return
-        dragCounter.current = Math.max(0, dragCounter.current - 1)
-        if (dragCounter.current === 0) setIsDraggingOver(false)
-      },
-      onDragOver: (event: DragEvent) => {
-        if (!hasExternalFiles(event.dataTransfer)) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = enabled ? 'copy' : 'none'
-      },
-      onDrop: (event: DragEvent) => {
-        if (!hasExternalFiles(event.dataTransfer)) return
-        event.preventDefault()
-        dismiss()
-        if (enabled) onDrop(Array.from(event.dataTransfer.files))
-      },
-    },
+    handlers: { onDragEnter, onDragLeave, onDragOver, onDrop: handleDrop },
   }
 }

@@ -26,6 +26,8 @@ type ClipboardOwnerPolicy = (context: ChatContext, owner: FileOperationOwner) =>
 
 const CLIPBOARD_OWNER_POLICIES: FileOwnerAdapters<ClipboardOwnerPolicy> = {
   workspace(context, owner) {
+    if ('workspaceId' in context && context.workspaceId && context.workspaceId !== owner.entityId)
+      return false
     if (context.kind !== 'file_selection' || !context.owner) return true
     const parsed = FileOperationOwner.safeParse(context.owner)
     return (
@@ -123,7 +125,9 @@ export function readSelectionContextFromClipboard(
       typeof parsed.fileName === 'string' &&
       parsed.fileId
     ) {
-      return parsed
+      return sourceOwner.data.entityType === 'workspace'
+        ? { ...parsed, workspaceId: sourceOwner.data.entityId }
+        : parsed
     }
     if (
       parsed.kind === 'table_selection' &&
@@ -132,7 +136,9 @@ export function readSelectionContextFromClipboard(
       Array.isArray(parsed.rowIds) &&
       parsed.rowIds.length > 0
     ) {
-      return parsed
+      return sourceOwner.data.entityType === 'workspace'
+        ? { ...parsed, workspaceId: sourceOwner.data.entityId }
+        : parsed
     }
   } catch {
     // Malformed payload — fall back to plain-text paste.

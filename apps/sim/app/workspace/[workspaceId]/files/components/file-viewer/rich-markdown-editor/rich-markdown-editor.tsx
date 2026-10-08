@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { getErrorMessage } from '@sim/utils/errors'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS, utf8ByteLength } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
@@ -678,7 +679,11 @@ export function LoadedRichMarkdownEditor({
               })
               .then((result) => result.file.url)
           : Promise.reject(new Error('File owner is required'))
-      ).catch(() => null)
+      ).catch((error) => {
+        if (projectId && !controller.signal.aborted)
+          toast.error(getErrorMessage(error, 'Unable to upload image'))
+        return null
+      })
       imageUploadsRef.current?.delete(controller)
       toast.dismiss(uploadingToastId)
       if (controller.signal.aborted) {

@@ -24,6 +24,7 @@ import {
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   useContextManagement,
   useIntegrationAutoMention,
@@ -182,10 +183,16 @@ export function usePromptEditor({
 }: UsePromptEditorProps) {
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const projectSelectionsEnabled = projectsEnabled && projectFilesEnabled
   const { data: workspaceProject } = useWorkspaceProject(
-    contextsEnabled && !organizationId ? workspaceId : undefined
+    contextsEnabled && projectSelectionsEnabled && !organizationId ? workspaceId : undefined
   )
-  const { data: projects } = useProjectInventory(organizationId, contextsEnabled)
+  const { data: projects } = useProjectInventory(
+    organizationId,
+    contextsEnabled && projectSelectionsEnabled
+  )
   const { data: workspaces } = useOrderedWorkspacesQuery(contextsEnabled && Boolean(organizationId))
   const selectionOwners = useMemo(() => {
     const owners: FileOperationOwner[] = []
@@ -196,11 +203,12 @@ export function usePromptEditor({
         if (workspace.organizationId === organizationId && workspace.id !== workspaceId)
           owners.push({ entityType: 'workspace', entityId: workspace.id })
       }
-      for (const project of projects ?? []) {
+      for (const project of projectSelectionsEnabled ? (projects ?? []) : []) {
         if (project.organizationId === organizationId && !project.archivedAt)
           owners.push({ entityType: 'project', entityId: project.id })
       }
     } else if (
+      projectSelectionsEnabled &&
       workspaceProject &&
       !workspaceProject.project.archivedAt &&
       workspaceProject.project.environments.some((environment) => environment.id === workspaceId)
@@ -208,7 +216,15 @@ export function usePromptEditor({
       owners.push({ entityType: 'project', entityId: workspaceProject.project.id })
     }
     return owners
-  }, [contextsEnabled, workspaceId, organizationId, projects, workspaces, workspaceProject])
+  }, [
+    contextsEnabled,
+    workspaceId,
+    organizationId,
+    projectSelectionsEnabled,
+    projects,
+    workspaces,
+    workspaceProject,
+  ])
   const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
     contextsEnabled ? workspaceId : ''
   )

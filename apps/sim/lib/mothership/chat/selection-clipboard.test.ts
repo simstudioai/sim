@@ -44,13 +44,19 @@ describe('selection clipboard codec', () => {
     const dt = fakeClipboard()
     attachSelectionContextToClipboard(dt, fileSelection, 'ws-1')
     expect(dt.getData(SIM_SELECTION_MIME)).toContain('file_selection')
-    expect(readSelectionContextFromClipboard(dt, 'ws-1')).toEqual(fileSelection)
+    expect(readSelectionContextFromClipboard(dt, 'ws-1')).toEqual({
+      ...fileSelection,
+      workspaceId: 'ws-1',
+    })
   })
 
   it('round-trips a table selection', () => {
     const dt = fakeClipboard()
     attachSelectionContextToClipboard(dt, tableSelection, 'ws-1')
-    expect(readSelectionContextFromClipboard(dt, 'ws-1')).toEqual(tableSelection)
+    expect(readSelectionContextFromClipboard(dt, 'ws-1')).toEqual({
+      ...tableSelection,
+      workspaceId: 'ws-1',
+    })
   })
 
   it('does not touch text/plain (rides alongside it)', () => {
@@ -165,4 +171,18 @@ it('admits Project selections only among explicit destination owners and rejects
     JSON.stringify({ version: 1, owner, sourceWorkspaceId: 'ws-1', context })
   )
   expect(readSelectionContextFromClipboard(dt, [owner])).toBeNull()
+})
+
+it('retains the admitted workspace address in organization-chat selections and rejects conflicting context scope', () => {
+  const owners = [{ entityType: 'workspace' as const, entityId: 'ws-1' }]
+  const dt = fakeClipboard()
+  for (const context of [fileSelection, tableSelection]) {
+    attachSelectionContextToClipboard(dt, context, 'ws-1')
+    expect(readSelectionContextFromClipboard(dt, owners)).toEqual({
+      ...context,
+      workspaceId: 'ws-1',
+    })
+    attachSelectionContextToClipboard(dt, { ...context, workspaceId: 'ws-2' }, 'ws-1')
+    expect(readSelectionContextFromClipboard(dt, owners)).toBeNull()
+  }
 })

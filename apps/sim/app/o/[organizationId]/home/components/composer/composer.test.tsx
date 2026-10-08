@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: mocks.workspaces }),
+  useOrderedWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
 vi.mock('@/hooks/queries/skills', () => ({
   useSkills: () => ({ data: [] }),
