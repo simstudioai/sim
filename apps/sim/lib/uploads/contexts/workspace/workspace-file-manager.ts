@@ -581,20 +581,64 @@ function assertStagedFileOwner(owner: EditableFileOwner, staged: StagedFileConte
   }
 }
 
-/** Persists cleanup before attempting deletion, so storage failures remain retryable. */
+/** Discards definitely uncommitted bytes without replacing the operation's original failure. */
 export async function discardStagedFileContent(staged: StagedFileContent): Promise<void> {
   assertStagedFileOwner(staged.owner, staged)
   if (adoptedUploadContents.has(staged))
     throw new Error('Staged bytes are owned by their upload session')
-  const events = await enqueueWorkspaceFileStorageCleanups(
-    db,
-    [staged.key],
-    staged.owner.entityType
-  )
+  let events: string[]
+  try {
+    events = await enqueueWorkspaceFileStorageCleanups(db, [staged.key], staged.owner.entityType)
+  } catch (error) {
+    logger.warn('Staged cleanup could not be persisted; attempting direct deletion', {
+      owner: staged.owner,
+      key: staged.key,
+      error: describeError(error),
+    })
+    try {
+      await deleteFile({ key: staged.key, context: staged.owner.entityType })
+    } catch (cleanupError) {
+      logger.error('Uncommitted file content could not be deleted or queued for cleanup', {
+        owner: staged.owner,
+        key: staged.key,
+        error: describeError(cleanupError),
+      })
+    }
+    return
+  }
   await processWorkspaceFileStorageCleanupsNow(events, {
     owner: staged.owner,
     reason: 'content commit failed',
   })
+}
+
+/** Keeps possibly committed bytes when the transaction fails after its callback has completed. */
+async function finalizeStagedFileContent<T>(
+  staged: StagedFileContent,
+  prepare: (tx: DbTransaction) => Promise<T>
+): Promise<T> {
+  let preparedForCommit = false
+  try {
+    return await db.transaction(async (tx) => {
+      const result = await prepare(tx)
+      preparedForCommit = true
+      return result
+    })
+  } catch (error) {
+    if (preparedForCommit) {
+      logger.error(
+        'File commit outcome is uncertain; retaining staged content for reconciliation',
+        {
+          owner: staged.owner,
+          key: staged.key,
+          error: describeError(error),
+        }
+      )
+    } else {
+      await discardStagedFileContent(staged)
+    }
+    throw error
+  }
 }
 
 /** Commits new canonical metadata and provenance under the owner's directory lock. */
@@ -739,43 +783,33 @@ export async function uploadWorkspaceFile(
         ...(options?.folderPath === undefined ? { folderId } : {}),
       })
 
-      let finalized: {
-        inserted: WorkspaceFileRow
-        updatedUsage: number | undefined
-        billing: StorageBillingContext
-      }
-      try {
-        finalized = await db.transaction(async (tx) => {
-          const accounting = await prepareFileAccountingInTx(tx, {
-            entityType: 'workspace',
-            entityId: workspaceId,
-          })
-          let activeFolderId = folderId
-          if (options?.folderPath !== undefined) {
-            await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
-            const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
-            const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
-            if (resolvedFolderId === undefined) {
-              throw new OrchestrationError('not_found', 'Target folder not found')
-            }
-            activeFolderId = resolvedFolderId
-          }
-          const inserted = await commitFileCreateInTx(tx, {
-            owner: { entityType: 'workspace', entityId: workspaceId },
-            staged: uploadResult,
-            identity,
-            userId,
-            folderId: activeFolderId,
-            exactName: true,
-            secretProvenance: options?.secretProvenance,
-          })
-          const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
-          return { inserted, updatedUsage: usage, billing: accounting.billing }
+      const finalized = await finalizeStagedFileContent(uploadResult, async (tx) => {
+        const accounting = await prepareFileAccountingInTx(tx, {
+          entityType: 'workspace',
+          entityId: workspaceId,
         })
-      } catch (finalizationError) {
-        await discardStagedFileContent(uploadResult)
-        throw finalizationError
-      }
+        let activeFolderId = folderId
+        if (options?.folderPath !== undefined) {
+          await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
+          const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
+          const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
+          if (resolvedFolderId === undefined) {
+            throw new OrchestrationError('not_found', 'Target folder not found')
+          }
+          activeFolderId = resolvedFolderId
+        }
+        const inserted = await commitFileCreateInTx(tx, {
+          owner: { entityType: 'workspace', entityId: workspaceId },
+          staged: uploadResult,
+          identity,
+          userId,
+          folderId: activeFolderId,
+          exactName: true,
+          secretProvenance: options?.secretProvenance,
+        })
+        const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
+        return { inserted, updatedUsage: usage, billing: accounting.billing }
+      })
 
       void maybeNotifyStorageLimitForBillingContext(finalized.billing, finalized.updatedUsage)
 
@@ -2478,60 +2512,46 @@ export async function updateWorkspaceFileContent(
       folderId: fileRecord.folderId,
     })
 
-    let finalized: {
-      file: WorkspaceFileRow
-      sizeDiff: number
-      updatedUsage: number | undefined
-      billing: StorageBillingContext
-      liveDocEventId: string | undefined
-      storageCleanupEventIds: string[]
-      currentVersion: number
-    }
-    try {
-      finalized = await db.transaction(async (tx) => {
-        const accounting = await prepareFileAccountingInTx(tx, {
-          entityType: 'workspace',
-          entityId: workspaceId,
-        })
-        const committed = await commitFileContentInTx(tx, {
-          owner: { entityType: 'workspace', entityId: workspaceId },
-          fileId,
-          staged,
-          ...options,
-        })
-        const {
-          file: updatedFile,
-          previous: currentFile,
-          sizeDiff,
-          storageCleanupEventIds,
-        } = committed
-        const updatedUsage = await accounting.mutation.applyDelta(sizeDiff)
-
-        const liveDocEventId =
-          options.syncLiveDoc !== false &&
-          (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
-            isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
-            ? await enqueueFileLiveDocReconciliation(tx, {
-                workspaceId,
-                fileId,
-                version: updatedFile.contentUpdatedAt.getTime(),
-              })
-            : undefined
-
-        return {
-          file: updatedFile,
-          sizeDiff,
-          updatedUsage,
-          billing: accounting.billing,
-          liveDocEventId,
-          storageCleanupEventIds,
-          currentVersion: committed.currentVersion,
-        }
+    const finalized = await finalizeStagedFileContent(staged, async (tx) => {
+      const accounting = await prepareFileAccountingInTx(tx, {
+        entityType: 'workspace',
+        entityId: workspaceId,
       })
-    } catch (finalizationError) {
-      await discardStagedFileContent(staged)
-      throw finalizationError
-    }
+      const committed = await commitFileContentInTx(tx, {
+        owner: { entityType: 'workspace', entityId: workspaceId },
+        fileId,
+        staged,
+        ...options,
+      })
+      const {
+        file: updatedFile,
+        previous: currentFile,
+        sizeDiff,
+        storageCleanupEventIds,
+      } = committed
+      const updatedUsage = await accounting.mutation.applyDelta(sizeDiff)
+
+      const liveDocEventId =
+        options.syncLiveDoc !== false &&
+        (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
+          isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
+          ? await enqueueFileLiveDocReconciliation(tx, {
+              workspaceId,
+              fileId,
+              version: updatedFile.contentUpdatedAt.getTime(),
+            })
+          : undefined
+
+      return {
+        file: updatedFile,
+        sizeDiff,
+        updatedUsage,
+        billing: accounting.billing,
+        liveDocEventId,
+        storageCleanupEventIds,
+        currentVersion: committed.currentVersion,
+      }
+    })
 
     if (finalized.sizeDiff !== 0) {
       void maybeNotifyStorageLimitForBillingContext(

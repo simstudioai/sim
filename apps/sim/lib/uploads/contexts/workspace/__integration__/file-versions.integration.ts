@@ -31,6 +31,8 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import * as storageBilling from '@/lib/billing/storage'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
@@ -49,6 +51,7 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
@@ -57,6 +60,7 @@ import {
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import * as storageService from '@/lib/uploads/core/storage-service'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import {
@@ -186,6 +190,167 @@ describe('workspace file version history in PostgreSQL', () => {
       expect(rejected, inspect(rejected, { depth: 8 })).toEqual([])
     }
   }
+
+  it.each([
+    { phase: 'upload', deleteUnavailable: false },
+    { phase: 'content', deleteUnavailable: false },
+    { phase: 'storage', deleteUnavailable: false },
+    { phase: 'content', deleteUnavailable: true },
+  ] as const)(
+    'preserves the original $phase failure and cleans uncommitted bytes when possible (delete unavailable=$deleteUnavailable)',
+    async ({ phase, deleteUnavailable }) => {
+      const fixture = await seedFile('original')
+      const operationError = new OrchestrationError('conflict', 'Staged operation failed')
+      const deleteFailure = deleteUnavailable
+        ? vi
+            .spyOn(storageService, 'deleteFile')
+            .mockRejectedValueOnce(new Error('Storage unavailable'))
+        : null
+      const enqueue = storageCleanup.enqueueWorkspaceFileStorageCleanups
+      const enqueueFailure = vi
+        .spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups')
+        .mockImplementation((executor, ...args) =>
+          executor === db
+            ? Promise.reject(new Error('Cleanup database unavailable'))
+            : enqueue(executor, ...args)
+        )
+      const upload = storageService.uploadFile
+      let stagedKey = ''
+      const uploadFailure = vi
+        .spyOn(storageService, 'uploadFile')
+        .mockImplementation(async (args) => {
+          const result = await upload(args)
+          stagedKey = result.key
+          if (phase === 'storage') throw operationError
+          return result
+        })
+      const accountingFailure =
+        phase === 'storage'
+          ? null
+          : vi
+              .spyOn(storageBilling, 'prepareFileAccountingInTx')
+              .mockRejectedValueOnce(operationError)
+      try {
+        const operation =
+          phase === 'content'
+            ? updateWorkspaceFileContent(
+                fixture.workspaceId,
+                fixture.fileId,
+                fixture.aliceId,
+                Buffer.from('replacement with more bytes'),
+                undefined,
+                { version: { source: 'api', authorUserId: fixture.aliceId } }
+              )
+            : uploadWorkspaceFile(
+                fixture.workspaceId,
+                fixture.aliceId,
+                Buffer.from('new upload'),
+                'failed.txt',
+                'text/plain',
+                { notifyWorkspaceChange: false }
+              )
+        await expect(operation).rejects.toBe(operationError)
+      } finally {
+        deleteFailure?.mockRestore()
+        accountingFailure?.mockRestore()
+        uploadFailure.mockRestore()
+        enqueueFailure.mockRestore()
+      }
+      expect(stagedKey).not.toBe('')
+      expect(await objectExists(stagedKey)).toBe(deleteUnavailable)
+      const retained = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!retained) throw new Error('file missing')
+      expect((await fetchWorkspaceFileBuffer(retained, { maxBytes: 1024 })).toString()).toBe(
+        'original'
+      )
+      expect(
+        await db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.key, stagedKey))
+      ).toEqual([])
+    }
+  )
+
+  it.each([
+    { operation: 'upload', enqueueAvailable: true },
+    { operation: 'content', enqueueAvailable: true },
+    { operation: 'upload', enqueueAvailable: false },
+    { operation: 'content', enqueueAvailable: false },
+  ] as const)(
+    'retains committed $operation bytes after acknowledgement loss (cleanup database available=$enqueueAvailable)',
+    async ({ operation, enqueueAvailable }) => {
+      const fixture = await seedFile('original')
+      const transaction = db.transaction.bind(db)
+      const lostAcknowledgement = vi
+        .spyOn(db, 'transaction')
+        .mockImplementationOnce(async (callback, config) => {
+          await transaction(callback, config)
+          throw new Error('Commit acknowledgement lost')
+        })
+      const enqueue = storageCleanup.enqueueWorkspaceFileStorageCleanups
+      const enqueueFailure = vi
+        .spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups')
+        .mockImplementation((executor, ...args) =>
+          !enqueueAvailable && executor === db
+            ? Promise.reject(new Error('Cleanup database unavailable'))
+            : enqueue(executor, ...args)
+        )
+      const upload = storageService.uploadFile
+      let stagedKey = ''
+      const capture = vi.spyOn(storageService, 'uploadFile').mockImplementation(async (args) => {
+        const result = await upload(args)
+        stagedKey = result.key
+        return result
+      })
+      try {
+        const result =
+          operation === 'content'
+            ? updateWorkspaceFileContent(
+                fixture.workspaceId,
+                fixture.fileId,
+                fixture.aliceId,
+                Buffer.from('committed content'),
+                undefined,
+                { version: { source: 'api', authorUserId: fixture.aliceId } }
+              )
+            : uploadWorkspaceFile(
+                fixture.workspaceId,
+                fixture.aliceId,
+                Buffer.from('committed content'),
+                'committed.txt',
+                'text/plain',
+                { notifyWorkspaceChange: false }
+              )
+        await expect(result).rejects.toThrow('Commit acknowledgement lost')
+      } finally {
+        capture.mockRestore()
+        enqueueFailure.mockRestore()
+        lostAcknowledgement.mockRestore()
+      }
+      const [committed] = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.key, stagedKey))
+      expect(committed?.id).toEqual(expect.any(String))
+      const file = await getWorkspaceFile(fixture.workspaceId, committed.id)
+      if (!file) throw new Error('committed file missing')
+      expect((await fetchWorkspaceFileBuffer(file, { maxBytes: 1024 })).toString()).toBe(
+        'committed content'
+      )
+      expect(
+        await db
+          .select({ id: outboxEvent.id })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT),
+              sql`${outboxEvent.payload}->>'key' = ${stagedKey}`
+            )
+          )
+      ).toEqual([])
+    }
+  )
 
   it('lists a never-rewritten file as an implicit version 1 attributed to its uploader', async () => {
     const fixture = await seedFile('original')
