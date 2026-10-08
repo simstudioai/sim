@@ -1,8 +1,11 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { and, inArray, notInArray } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
+
+const logger = createLogger('FileTabs')
 
 /** Row contexts that open as a file tab: workspace files and chat uploads. */
 const FILE_TAB_CONTEXTS = ['workspace', 'mothership']
@@ -38,8 +41,16 @@ export function withFileTabFlag<TArgs, TResult extends { data?: Record<string, u
     async execute(args, context) {
       const result = await tool.execute(args, context)
       const id = toStringOrNull(result.data?.id)
-      if (id === null || !(await findNonTabFileIds([id])).has(id)) return result
-      return { ...result, data: { ...result.data, fileTab: false } }
+      if (id === null) return result
+      let isTab: boolean
+      try {
+        isTab = !(await findNonTabFileIds([id])).has(id)
+      } catch (error) {
+        // The edit already saved, so a failed lookup opens no tab rather than failing it.
+        logger.error('Could not check whether an edited file is a file tab', { id, error })
+        isTab = false
+      }
+      return isTab ? result : { ...result, data: { ...result.data, fileTab: false } }
     },
   }
 }

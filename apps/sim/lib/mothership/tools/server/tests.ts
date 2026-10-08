@@ -144,8 +144,8 @@ export const testsServerTool: BaseServerTool = {
           )
           if (current.every((run) => run.status !== 'running')) {
             const resources: ResourceChange[] = current.map((run) => ({
-              op: 'upsert',
-              resource: { type: 'test', workspaceId, id: run.name, title: run.title },
+              op: 'refresh',
+              resource: { type: 'test', id: run.name },
             }))
             return {
               resources,

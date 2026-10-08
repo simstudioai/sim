@@ -390,7 +390,6 @@ export const readWorkflowTestRuns = defineAuthorizedWorkspaceUseCase({
       runs: rows.map((row) => ({
         ...presentRun(row, row.testSourceHash, facts),
         name: row.testName,
-        title: row.testTitle,
         report: row.report as TestReport | null,
       })),
     }

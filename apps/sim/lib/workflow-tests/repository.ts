@@ -437,24 +437,16 @@ export async function getWorkflowTestRunById(
 export async function listWorkflowTestRunsById(
   runIds: string[],
   workspaceId: string
-): Promise<
-  Array<WorkflowTestRunRow & { testName: string; testTitle: string; testSourceHash: string }>
-> {
+): Promise<Array<WorkflowTestRunRow & { testName: string; testSourceHash: string }>> {
   if (runIds.length === 0) return []
   const rows = await db
     .select({
       run: workflowTestRun,
       testName: workflowTest.name,
-      testTitle: workflowTest.title,
       testSourceHash: workflowTest.sourceHash,
     })
     .from(workflowTestRun)
     .innerJoin(workflowTest, eq(workflowTest.id, workflowTestRun.testId))
     .where(and(inArray(workflowTestRun.id, runIds), eq(workflowTestRun.workspaceId, workspaceId)))
-  return rows.map(({ run, testName, testTitle, testSourceHash }) => ({
-    ...run,
-    testName,
-    testTitle,
-    testSourceHash,
-  }))
+  return rows.map(({ run, testName, testSourceHash }) => ({ ...run, testName, testSourceHash }))
 }
