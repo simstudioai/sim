@@ -11,7 +11,6 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
-import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -66,7 +65,6 @@ export default async function WorkspaceLayout({
     cookieStore,
     initialOrgSettings,
     ,
-    tableRowTtlEnabled,
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
@@ -84,7 +82,6 @@ export default async function WorkspaceLayout({
       hostContext,
       activeOrganizationId
     ),
-    isTableRowTtlEnabled(),
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
@@ -100,7 +97,6 @@ export default async function WorkspaceLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
-          'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
         }}
