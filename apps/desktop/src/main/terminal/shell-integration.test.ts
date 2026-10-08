@@ -1,5 +1,13 @@
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { detectShell, ShellIntegrationParser } from '@/main/terminal/shell-integration'
+import {
+  buildShellLaunch,
+  detectShell,
+  ShellIntegrationParser,
+} from '@/main/terminal/shell-integration'
 
 const NONCE = 'testnonce'
 
@@ -65,6 +73,14 @@ describe('ShellIntegrationParser', () => {
     expect(markers).toEqual([{ kind: 'cwd', cwd: '/tmp/some dir' }])
   })
 
+  it("recognises the startup marker sent before the user's startup files", () => {
+    const parser = new ShellIntegrationParser(NONCE)
+    const { text, markers } = parser.parse(`${osc(`SimStartup;${NONCE}`)}loading`)
+
+    expect(text).toBe('loading')
+    expect(markers).toEqual([{ kind: 'startup' }])
+  })
+
   it('accepts ST as well as BEL as a terminator', () => {
     const parser = new ShellIntegrationParser(NONCE)
     const { text, markers } = parser.parse(`a\u001b]633;A;${NONCE}\u001b\\b`)
@@ -91,5 +107,50 @@ describe('detectShell', () => {
   it('returns null for shells without hooks, leaving the terminal uninstrumented', () => {
     expect(detectShell('/usr/bin/fish')).toBeNull()
     expect(detectShell('/bin/sh')).toBeNull()
+  })
+})
+
+/**
+ * The generated startup files run in a real shell, with the user's own files standing in as a
+ * temp home whose startup prints a line. The startup marker has to reach the terminal before that
+ * line, and only from the interactive shell the terminal runs.
+ */
+describe('startup marker', () => {
+  const STARTUP = `\u001b]633;SimStartup;${NONCE}\u0007`
+
+  function userHome(rcFile: string): string {
+    const home = mkdtempSync(join(tmpdir(), 'sim-shell-home-'))
+    writeFileSync(join(home, rcFile), 'echo user-startup\n')
+    return home
+  }
+
+  it.skipIf(!existsSync('/bin/zsh'))(
+    "zsh sends it before the user's files, interactively only",
+    () => {
+      const home = userHome('.zshrc')
+      const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }
+      const launch = buildShellLaunch('zsh', mkdtempSync(join(tmpdir(), 'sim-zsh-')), NONCE, env)
+      const run = (args: string[]) =>
+        spawnSync('/bin/zsh', args, { env: { ...env, ...launch.env }, encoding: 'utf8' }).stdout
+
+      const interactive = run([...launch.args, '-i', '-c', 'true'])
+      expect(interactive.indexOf(STARTUP)).toBeGreaterThanOrEqual(0)
+      expect(interactive.indexOf(STARTUP)).toBeLessThan(interactive.indexOf('user-startup'))
+      expect(run(['-c', 'echo script'])).toBe('script\n')
+    }
+  )
+
+  it.skipIf(!existsSync('/bin/bash'))("bash sends it before the user's files", () => {
+    const home = userHome('.bashrc')
+    const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }
+    const launch = buildShellLaunch('bash', mkdtempSync(join(tmpdir(), 'sim-bash-')), NONCE, env)
+    const output = spawnSync('/bin/bash', launch.args, {
+      env: { ...env, ...launch.env },
+      input: 'exit\n',
+      encoding: 'utf8',
+    }).stdout
+
+    expect(output.indexOf(STARTUP)).toBeGreaterThanOrEqual(0)
+    expect(output.indexOf(STARTUP)).toBeLessThan(output.indexOf('user-startup'))
   })
 })

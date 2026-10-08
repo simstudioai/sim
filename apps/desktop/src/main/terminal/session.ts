@@ -261,6 +261,21 @@ interface PendingCommand {
   resolve(result: TerminalRunResult): void
 }
 
+/** How long a new shell gets to reach its first prompt, each measured from its spawn. */
+export interface ShellStartupBounds {
+  /** To begin the startup files we generated; a shell that has not by then never will. */
+  unstartedMs: number
+  /** For startup files that did begin to reach a prompt. */
+  startingMs: number
+}
+
+/**
+ * How a wait for the shell's first prompt ended: `ready` with integration live; `not-instrumented`
+ * when our startup files never ran; `starting` when they are still running at the bound, often
+ * because something in them is waiting for input; `exited`; or `stopped` by the caller.
+ */
+export type ShellReadiness = 'ready' | 'not-instrumented' | 'starting' | 'exited' | 'stopped'
+
 export interface TerminalSessionCallbacks {
   onData(terminalId: string, data: string): void
   onState(): void
@@ -313,6 +328,9 @@ export class TerminalSession {
   private columns: number
   private lines: number
   private shellIntegration = false
+  /** The shell has begun the startup files we generated, so its integration is on the way. */
+  private startupBegun = false
+  private readonly spawnedAt = Date.now()
   private altScreen = false
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
@@ -325,7 +343,8 @@ export class TerminalSession {
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
-  private integrationWaiters: Array<() => void> = []
+  /** Pending shell-readiness waits, rechecked whenever the shell's startup moves on. */
+  private readonly readinessWaiters = new Set<() => void>()
 
   private constructor(
     options: TerminalSessionOptions,
@@ -333,7 +352,8 @@ export class TerminalSession {
     integrationDir: string,
     nonce: string,
     shellName: string,
-    shellEnv: NodeJS.ProcessEnv
+    shellEnv: NodeJS.ProcessEnv,
+    private readonly instrumented: boolean
   ) {
     this.callbacks = options.callbacks
     this.terminalId = options.terminalId
@@ -378,7 +398,15 @@ export class TerminalSession {
     })
 
     logger.info('Started terminal session', { shell: shellPath, instrumented: shell !== null })
-    return new TerminalSession(options, pty, integrationDir, nonce, shell ?? shellPath, shellEnv)
+    return new TerminalSession(
+      options,
+      pty,
+      integrationDir,
+      nonce,
+      shell ?? shellPath,
+      shellEnv,
+      shell !== null
+    )
   }
 
   /**
@@ -486,25 +514,50 @@ export class TerminalSession {
   }
 
   /**
-   * Resolves once the shell has emitted its first integration marker, or when
-   * `timeoutMs` elapses. A shell takes a few hundred milliseconds to run its
-   * startup files, so a command issued immediately after spawn would otherwise
-   * be refused for having no integration when it is merely early.
+   * Resolves once the shell reaches its first prompt with integration live, or once it is clear
+   * it will not: it never began our startup files within `bounds.unstartedMs` of spawning, it is
+   * still running them `bounds.startingMs` after spawning, it exited, or `signal` stopped the
+   * wait. A shell's startup files take a while, and longer on a busy machine, so a command issued
+   * soon after spawn would otherwise be refused when the shell is merely early.
    */
-  waitForShellIntegration(timeoutMs: number): Promise<boolean> {
-    if (this.shellIntegration) return Promise.resolve(true)
-    if (this.disposed) return Promise.resolve(false)
+  waitForShellIntegration(
+    bounds: ShellStartupBounds,
+    signal?: AbortSignal
+  ): Promise<ShellReadiness> {
     return new Promise((resolve) => {
-      const notify = () => {
-        clearTimeout(timer)
-        resolve(this.shellIntegration)
+      let timer: NodeJS.Timeout | null = null
+      const check = () => {
+        if (timer) clearTimeout(timer)
+        timer = null
+        const readiness = signal?.aborted ? 'stopped' : this.readiness(bounds)
+        if (readiness === null) {
+          const limit = this.startupBegun ? bounds.startingMs : bounds.unstartedMs
+          timer = setTimeout(check, Math.max(0, this.spawnedAt + limit - Date.now()))
+          return
+        }
+        this.readinessWaiters.delete(check)
+        signal?.removeEventListener('abort', check)
+        resolve(readiness)
       }
-      const timer = setTimeout(() => {
-        this.integrationWaiters = this.integrationWaiters.filter((entry) => entry !== notify)
-        resolve(this.shellIntegration)
-      }, timeoutMs)
-      this.integrationWaiters.push(notify)
+      this.readinessWaiters.add(check)
+      signal?.addEventListener('abort', check)
+      check()
     })
+  }
+
+  /** Where the shell's startup stands against `bounds`, or null while it may still get there. */
+  private readiness(bounds: ShellStartupBounds): ShellReadiness | null {
+    if (this.shellIntegration) return 'ready'
+    if (this.disposed) return 'exited'
+    const elapsed = Date.now() - this.spawnedAt
+    if (!this.startupBegun) {
+      return !this.instrumented || elapsed >= bounds.unstartedMs ? 'not-instrumented' : null
+    }
+    return elapsed >= bounds.startingMs ? 'starting' : null
+  }
+
+  private notifyReadinessWaiters(): void {
+    for (const check of [...this.readinessWaiters]) check()
   }
 
   write(data: string): void {
@@ -739,6 +792,7 @@ export class TerminalSession {
     if (this.flushTimer) clearTimeout(this.flushTimer)
     this.flushTimer = null
     this.finishCommand(null)
+    this.notifyReadinessWaiters()
     try {
       this.pty.kill()
     } catch {
@@ -794,13 +848,17 @@ export class TerminalSession {
     marker: ReturnType<ShellIntegrationParser['parse']>['markers'][number]
   ): void {
     switch (marker.kind) {
+      case 'startup':
+        if (!this.startupBegun) {
+          this.startupBegun = true
+          this.notifyReadinessWaiters()
+        }
+        break
       case 'prompt-start':
         if (!this.shellIntegration) {
           this.shellIntegration = true
           this.emitState()
-          const waiters = this.integrationWaiters
-          this.integrationWaiters = []
-          for (const notify of waiters) notify()
+          this.notifyReadinessWaiters()
         }
         break
       case 'command-line':
@@ -1030,9 +1088,7 @@ export class TerminalSession {
   private handleExit(): void {
     if (this.disposed) return
     this.disposed = true
-    const waiters = this.integrationWaiters
-    this.integrationWaiters = []
-    for (const notify of waiters) notify()
+    this.notifyReadinessWaiters()
     if (this.flushTimer) clearTimeout(this.flushTimer)
     this.flushTimer = null
     this.flush()
