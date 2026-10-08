@@ -83,7 +83,7 @@ jobs:
       - &checkout-plain
         name: Checkout code
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload integration test reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-reports-${{ matrix.provision }}-${{ matrix.shard }}
           path: |
@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload end-to-end reports and server logs
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: http-e2e-${{ matrix.group }}
           path: ${{ runner.temp }}/e2e/
@@ -231,7 +231,7 @@ jobs:
           fetch-depth: 2
       - name: Checkout code
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
       - name: Diff against the pull request's base
@@ -418,7 +418,7 @@ jobs:
 
       - name: Upload Electron E2E results and server logs
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-live-e2e-results
           path: ${{ runner.temp }}/e2e/
@@ -451,7 +451,7 @@ jobs:
       - &checkout-plain-depth2
         name: Checkout code
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
 
@@ -623,7 +623,7 @@ jobs:
 
       - name: Upload shell placeholder execution report
         if: failure() && matrix.shard == 1
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: shell-placeholders
           path: ${{ runner.temp }}/shell-placeholders.json
