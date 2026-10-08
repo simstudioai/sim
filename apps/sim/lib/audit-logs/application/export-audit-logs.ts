@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedAuditLogUseCase } from '@/lib/audit-logs/application/authorized-audit-log-use-case'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
+import { AUDIT_LOG_CSV_HEADER, toAuditLogCsvRow } from '@/lib/audit-logs/csv'
 import {
   type AuditLogFilterParams,
   buildFilterConditions,
@@ -45,7 +46,7 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
     const conditions = [scope, ...buildFilterConditions(input.filters)]
     const rows: Awaited<ReturnType<typeof queryAuditLogs>>['data'] = []
     let cursor: string | undefined
-    let bytes = 0
+    let bytes = Buffer.byteLength(AUDIT_LOG_CSV_HEADER, 'utf8')
     let truncated = false
     pages: while (rows.length < EXPORT_MAX_ROWS) {
       request?.signal?.throwIfAborted()
@@ -55,7 +56,7 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
         cursor
       )
       for (const row of page.data) {
-        bytes += Buffer.byteLength(JSON.stringify(row), 'utf8')
+        bytes += Buffer.byteLength(toAuditLogCsvRow(row), 'utf8') + 1
         if (bytes > EXPORT_MAX_BYTES) {
           truncated = true
           break pages

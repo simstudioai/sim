@@ -146,6 +146,39 @@ describe('Drain source coverage and payload safety in PostgreSQL', () => {
     }
   })
 
+  it('refuses metadata and transcript that together exceed the record budget', async () => {
+    const { db, schema, eq } = runtime
+    const [original] = await db
+      .select()
+      .from(schema.copilotChats)
+      .where(eq(schema.copilotChats.id, chatId))
+    const messageId = generateId()
+    await db
+      .update(schema.copilotChats)
+      .set({ config: { fixture: 'x'.repeat(550_000) } })
+      .where(eq(schema.copilotChats.id, chatId))
+    await db.insert(schema.copilotMessages).values({
+      id: messageId,
+      messageId: generateId(),
+      chatId,
+      role: 'user',
+      content: { text: 'x'.repeat(550_000) },
+      createdAt: old,
+    })
+    try {
+      await expect(async () => {
+        for await (const _rows of runtime.copilotChatsSource.pages(input())) {
+        }
+      }).rejects.toThrow(/record.*(bytes|size|limit)/i)
+    } finally {
+      await db.delete(schema.copilotMessages).where(eq(schema.copilotMessages.id, messageId))
+      await db
+        .update(schema.copilotChats)
+        .set({ config: original.config })
+        .where(eq(schema.copilotChats.id, chatId))
+    }
+  })
+
   it('keeps paging when a caller requests more rows than the source page budget', async () => {
     const scope = generateId()
     const eventIds = Array.from({ length: 101 }, () => generateId())

@@ -107,11 +107,15 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
           .from(copilotMessages)
           .where(messageCondition)
           .groupBy(copilotMessages.chatId)
-        for (const transcript of transcriptSizes) {
+        const transcriptBytes = new Map(
+          transcriptSizes.map((transcript) => [transcript.chatId, transcript.bytes])
+        )
+        for (const row of metaRows) {
           assertKnownSizeWithinLimit(
-            transcript.bytes,
+            Buffer.byteLength(JSON.stringify({ ...row, messages: [] }), 'utf8') +
+              (transcriptBytes.get(row.id) ?? 0),
             DATA_DRAIN_LIMITS.maxRowBytes,
-            'Drain transcript record'
+            'Drain chat record'
           )
         }
         const messageRows = await tx

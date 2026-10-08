@@ -117,4 +117,31 @@ describe('Organization audit CSV export in PostgreSQL', () => {
     )
     expect(response.status).toBe(400)
   })
+
+  it('bounds encoded CSV bytes and marks quote-heavy metadata as truncated', async () => {
+    const { db, schema, eq } = runtime
+    await db
+      .update(schema.auditLog)
+      .set({
+        metadata: { organizationId, fixture: '"'.repeat(24_000_000) },
+      })
+      .where(eq(schema.auditLog.id, eventId))
+    try {
+      const response = await runtime.GET(
+        new NextRequest(
+          `http://localhost:3000/api/audit-logs/export?organizationId=${organizationId}&includeDeparted=true&actorId=${departedId}`
+        )
+      )
+      expect(response.status).toBe(200)
+      const csv = await response.arrayBuffer()
+      expect(csv.byteLength).toBeLessThanOrEqual(64 * 1024 * 1024)
+      expect(response.headers.get('x-export-truncated')).toBe('1')
+      expect(Buffer.from(csv).toString('utf8')).not.toContain(eventId)
+    } finally {
+      await db
+        .update(schema.auditLog)
+        .set({ metadata: { organizationId, changedFields: ['name'] } })
+        .where(eq(schema.auditLog.id, eventId))
+    }
+  })
 })

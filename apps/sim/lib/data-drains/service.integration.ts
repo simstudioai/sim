@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { db } from '@sim/db'
 import {
   asyncJobs,
@@ -27,7 +28,10 @@ vi.mock('@/lib/data-drains/destinations/registry', () => ({ getDestination: mock
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
+import { getJobQueue } from '@/lib/core/async-jobs'
+import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { testDataDrain } from '@/lib/data-drains/application/use-cases'
+import { datadogDestination } from '@/lib/data-drains/destinations/datadog'
 import { dispatchDueDrains } from '@/lib/data-drains/dispatcher'
 import { encryptCredentials } from '@/lib/data-drains/encryption'
 import { enqueueDrain } from '@/lib/data-drains/enqueue'
@@ -161,6 +165,56 @@ afterAll(async () => {
 })
 
 describe('data drain durable delivery', () => {
+  it('checkpoints each accepted Datadog request before a later request fails', async () => {
+    await seedRows(6, 'x'.repeat(425_000))
+    await db
+      .update(dataDrains)
+      .set({
+        destinationType: 'datadog',
+        destinationConfig: { site: 'us1' },
+        destinationCredentials: await encryptCredentials({ apiKey: 'fixture-dd-key' }),
+      })
+      .where(eq(dataDrains.id, drainId))
+    mockGetDestination.mockReturnValue(datadogDestination)
+    const acceptedIds: string[] = []
+    const requestIds: string[] = []
+    let posts = 0
+    vi.stubGlobal('fetch', async (_url: unknown, init?: RequestInit) => {
+      posts++
+      if (posts === 2) return new Response('Rejected fixture request', { status: 403 })
+      const body = init?.body
+      if (typeof body !== 'string' && !(body instanceof Uint8Array))
+        throw new Error('Missing Datadog body')
+      const payload =
+        new Headers(init?.headers).get('content-encoding') === 'gzip'
+          ? gunzipSync(body).toString('utf8')
+          : typeof body === 'string'
+            ? body
+            : Buffer.from(body).toString('utf8')
+      const rows = JSON.parse(payload) as Array<{ id: string }>
+      acceptedIds.push(...rows.map((row) => row.id))
+      const requestId = `fixture-request-${posts}`
+      requestIds.push(requestId)
+      return new Response(null, { status: 202, headers: { 'dd-request-id': requestId } })
+    })
+    try {
+      await expect(runDrain(drainId, 'cron')).rejects.toThrow(/HTTP 403/)
+      const checkpoint = (await drainRow()).cursor
+      expect(checkpoint).not.toBeNull()
+      expect(JSON.parse(checkpoint ?? '{}').id).toBe(acceptedIds.at(-1))
+      await runDrain(drainId, 'cron')
+      expect(acceptedIds).toEqual(
+        Array.from({ length: 6 }, (_, index) => `${drainId}-${index.toString().padStart(6, '0')}`)
+      )
+      const runs = await db.select().from(dataDrainRuns).where(eq(dataDrainRuns.drainId, drainId))
+      const locators = runs.flatMap((run) => run.locators ?? [])
+      for (const id of requestIds)
+        expect(locators.some((locator) => locator.endsWith(`@${id}`))).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('fails closed when malformed JSON credentials expose only a private-key fragment', async () => {
     await seedRows(1)
     const fragment = 'malformed-private-key-fragment-028f'
@@ -466,20 +520,49 @@ describe('data drain durable delivery', () => {
     expect(received.flat()).toHaveLength(3)
   })
 
-  it('continues a queued backlog until every bounded window is delivered', async () => {
-    await seedRows(10001)
-    await dispatchDueDrains()
-    await vi.waitFor(
-      async () => {
-        expect(received.flat()).toHaveLength(10001)
-        const runs = await db.select().from(dataDrainRuns).where(eq(dataDrainRuns.drainId, drainId))
-        expect(runs.length).toBeGreaterThan(1)
-        expect(runs.every((run) => run.status === 'success')).toBe(true)
-      },
-      { timeout: 10_000 }
-    )
-    expect(new Set(received.flat().map((row) => row.id)).size).toBe(10001)
-  }, 30_000)
+  it.each([
+    { failContinuation: false, condition: 'without an enqueue failure' },
+    { failContinuation: true, condition: 'after a transient continuation enqueue failure' },
+  ])(
+    'continues every bounded window $condition',
+    async ({ failContinuation }) => {
+      await seedRows(10001)
+      const queue = await getJobQueue()
+      const enqueue = queue.enqueue.bind(queue)
+      let rejected = false
+      const fault = vi
+        .spyOn(queue, 'enqueue')
+        .mockImplementation(async (type, payload, options) => {
+          if (failContinuation && !rejected && received.flat().length === 10000) {
+            rejected = true
+            throw new AsyncJobEnqueueError('Transient fixture enqueue rejection', {
+              acceptance: 'rejected',
+              retryable: true,
+            })
+          }
+          return enqueue(type, payload, options)
+        })
+      try {
+        await dispatchDueDrains()
+        await vi.waitFor(
+          async () => {
+            expect(received.flat()).toHaveLength(10001)
+            const runs = await db
+              .select()
+              .from(dataDrainRuns)
+              .where(eq(dataDrainRuns.drainId, drainId))
+            expect(runs.length).toBeGreaterThan(1)
+            expect(runs.every((run) => run.status === 'success')).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
+        expect(new Set(received.flat().map((row) => row.id)).size).toBe(10001)
+      } finally {
+        fault.mockRestore()
+      }
+    },
+    30_000
+  )
 
   it('rechecks an organization entitlement before a queued worker reads or delivers its data', async () => {
     await seedRows(1)

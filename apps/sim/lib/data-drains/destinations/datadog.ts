@@ -224,7 +224,7 @@ export const datadogDestination: DrainDestination<
   openSession({ config, credentials }) {
     const url = buildEndpoint(config.site)
     return {
-      async deliver({ body, metadata, signal }) {
+      async deliver({ body, metadata, signal, acknowledge }) {
         const rows = parseNdjsonObjects(body)
         const entries = buildEntries(rows, config, metadata)
         const serializedEntries = entries.map((entry, index) => {
@@ -252,6 +252,12 @@ export const datadogDestination: DrainDestination<
           }
           const response = await postWithRetries({ url, prepared, signal })
           requestId = response.headers.get('dd-request-id')
+          await acknowledge?.({
+            rowCount: batch.length,
+            locator: requestId
+              ? `datadog://${config.site}#${metadata.runId}-${metadata.sequence}@${requestId}`
+              : `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`,
+          })
           rawBytes += prepared.rawBytes
           wireBytes += prepared.wireBytes
           requests++

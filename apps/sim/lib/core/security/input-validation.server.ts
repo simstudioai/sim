@@ -1156,13 +1156,10 @@ export async function secureFetchWithPinnedIP(
     proxyUrl: options.proxyUrl,
   })
   const outboundDispatcher = await transport.selectDispatcher()
-  if (requestTarget !== undefined && outboundDispatcher) {
-    await transport.destroy()
-    throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
-  }
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
+    const hostname = unwrapIpv6Brackets(parsed.hostname)
     const isHttps = parsed.protocol === 'https:'
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
@@ -1183,7 +1180,7 @@ export async function secureFetchWithPinnedIP(
     } else {
       pinnedLookup = createPinnedLookup(resolvedIP)
       agent =
-        options.connectionPool?.agent(isHttps, parsed.hostname, port, resolvedIP) ??
+        options.connectionPool?.agent(isHttps, hostname, port, resolvedIP) ??
         (isHttps
           ? new https.Agent({ lookup: pinnedLookup })
           : new http.Agent({ lookup: pinnedLookup }))
@@ -1207,7 +1204,7 @@ export async function secureFetchWithPinnedIP(
     }
 
     const requestOptions: http.RequestOptions = {
-      hostname: parsed.hostname,
+      hostname,
       port,
       path: requestTarget ?? parsed.pathname + parsed.search,
       method: options.method || 'GET',
@@ -1519,6 +1516,7 @@ export async function secureFetchWithPinnedIP(
       send = () => {
         void requestWithOutboundDispatcher(url, {
           dispatcher,
+          requestTarget,
           method: (options.method || 'GET') as Dispatcher.HttpMethod,
           headers: sanitizedHeaders,
           body: options.body,

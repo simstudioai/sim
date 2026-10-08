@@ -132,7 +132,8 @@ function createRequestHandler(): S3RequestHandler {
       const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
       signal.throwIfAborted()
       const hostname = request.hostname
-      const authority = hostname.includes(':') ? `[${hostname}]` : hostname
+      const authority =
+        hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
       const origin = `https://${authority}${request.port ? `:${request.port}` : ''}`
       const validation = await validateUrlWithDNS(origin, 'S3 endpoint', 'configuredEndpoint', {
         signal,

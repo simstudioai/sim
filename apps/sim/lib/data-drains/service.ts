@@ -30,8 +30,8 @@ export interface RunDrainResult {
 
 /**
  * Orchestrates one drain export. Source-/destination-agnostic — talks only to
- * the registry interfaces. Each acknowledged chunk checkpoints its cursor;
- * a crash between delivery and checkpoint can replay that chunk, so consumers
+ * the registry interfaces. Each provider acknowledgement checkpoints its cursor;
+ * a crash between delivery and checkpoint can replay those rows, so consumers
  * dedupe on the per-row `id` field. A database claim fences concurrent workers.
  */
 export async function runDrain(
@@ -195,8 +195,9 @@ export async function runDrain(
     session = activeSession
 
     let lines: string[] = []
+    let rowCursors: Cursor[] = []
+    let lineSizes: number[] = []
     let chunkBytes = 0
-    let chunkCursor: Cursor = cursor
     const softDeadline = startedAt.getTime() + DATA_DRAIN_LIMITS.softDurationMs
 
     async function deliverChunk(): Promise<void> {
@@ -204,6 +205,25 @@ export async function runDrain(
       signal.throwIfAborted()
       const rowCount = lines.length
       const body = Buffer.from(`${lines.join('\n')}\n`, 'utf8')
+      let acknowledgedRows = 0
+      const acknowledge = async (result: { locator: string; rowCount: number }) => {
+        if (
+          !Number.isInteger(result.rowCount) ||
+          result.rowCount <= 0 ||
+          acknowledgedRows + result.rowCount > rowCount
+        ) {
+          throw new Error('Invalid data drain delivery acknowledgement')
+        }
+        const nextRows = acknowledgedRows + result.rowCount
+        locators.push(result.locator)
+        rowsExported += result.rowCount
+        for (let index = acknowledgedRows; index < nextRows; index++) {
+          bytesWritten += lineSizes[index]
+        }
+        cursor = rowCursors[nextRows - 1]
+        await checkpoint('running')
+        acknowledgedRows = nextRows
+      }
       const result = await runWithOutboundOrganization(drain.organizationId, () =>
         activeSession.deliver({
           body,
@@ -217,15 +237,17 @@ export async function runDrain(
             runStartedAt: startedAt,
           },
           signal,
+          acknowledge,
         })
       )
-      locators.push(result.locator)
-      rowsExported += rowCount
-      bytesWritten += body.byteLength
-      cursor = chunkCursor
+      if (acknowledgedRows === 0) await acknowledge({ locator: result.locator, rowCount })
+      if (acknowledgedRows !== rowCount) {
+        throw new Error('Incomplete data drain delivery acknowledgement')
+      }
       sequence++
-      await checkpoint('running')
       lines = []
+      rowCursors = []
+      lineSizes = []
       chunkBytes = 0
     }
 
@@ -271,8 +293,9 @@ export async function runDrain(
           break pages
         }
         lines.push(line)
+        rowCursors.push(source.cursorAfter(row))
+        lineSizes.push(lineBytes)
         chunkBytes += lineBytes
-        chunkCursor = source.cursorAfter(row)
       }
       await deliverChunk()
       if (runWindowFull()) {

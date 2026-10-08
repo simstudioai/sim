@@ -224,6 +224,48 @@ describe('authentication audit history in PostgreSQL', () => {
     expect((await history()).some((event) => event.action === 'auth.login_succeeded')).toBe(false)
   })
 
+  it.each([
+    { path: '/sign-in/email', action: 'auth.login_failed' },
+    { path: '/request-password-reset', action: 'password.reset_requested' },
+  ])('omits ambiguous legacy email provenance for $action', async ({ path, action }) => {
+    const collisionId = generateId()
+    additionalUserIds.push(collisionId)
+    await db.insert(user).values({
+      id: collisionId,
+      name: 'Legacy authentication fixture',
+      email: email.toUpperCase(),
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await db
+      .insert(member)
+      .values({ id: generateId(), userId: collisionId, organizationId, role: 'member' })
+    const agent = `Authentication collision fixture ${generateId()}`
+    const attempt = request(path, {
+      email,
+      password: 'incorrect-fixture-password',
+      redirectTo: 'http://localhost:3000/reset-password',
+    })
+    attempt.headers.set('user-agent', agent)
+    try {
+      const response = await auth.handler(attempt)
+      expect(response.status).toBe(path === '/sign-in/email' ? 401 : 200)
+      const events = () => db.select().from(auditLog).where(eq(auditLog.userAgent, agent))
+      await expect
+        .poll(async () => (await events()).filter((event) => event.action === action).length)
+        .toBe(1)
+      const event = (await events()).find((event) => event.action === action)
+      if (!event) throw new Error('Authentication audit event missing')
+      expect(event.actorId).toBeNull()
+      expect(event.resourceId).toBeNull()
+      expect(event.metadata).not.toHaveProperty('targetUserId')
+      expect(event.metadata).not.toHaveProperty('organizationId')
+    } finally {
+      await db.delete(auditLog).where(eq(auditLog.userAgent, agent))
+    }
+  })
+
   it('attributes a password-reset request to its unauthenticated requester and the target organization', async () => {
     const response = await resetPassword(
       createMockRequest({

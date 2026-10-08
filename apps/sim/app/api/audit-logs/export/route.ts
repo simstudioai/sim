@@ -7,24 +7,7 @@ import {
 } from '@/lib/api/server/routes'
 import { exportAuditLogs } from '@/lib/audit-logs/application/export-audit-logs'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
-import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
-
-const CSV_HEADER = toCsvRow([
-  'Date',
-  'Action',
-  'Resource Type',
-  'Resource Name',
-  'Actor',
-  'Description',
-  'Event ID',
-  'Workspace ID',
-  'Resource ID',
-  'Actor ID',
-  'IP Address',
-  'User Agent',
-  'Surface',
-  'Metadata',
-])
+import { AUDIT_LOG_CSV_HEADER, toAuditLogCsvRow } from '@/lib/audit-logs/csv'
 
 export const GET = defineInternalBinaryRoute({
   contract: exportAuditLogsContract,
@@ -38,29 +21,7 @@ export const GET = defineInternalBinaryRoute({
   },
   useCase: exportAuditLogs,
   present: ({ rows, truncated }) => ({
-    body: [
-      CSV_HEADER,
-      ...rows.map((row) =>
-        toCsvRow(
-          [
-            row.createdAt,
-            row.action,
-            row.resourceType,
-            row.resourceName,
-            row.actorEmail || row.actorName || 'System',
-            row.description,
-            row.id,
-            row.workspaceId,
-            row.resourceId,
-            row.actorId,
-            row.ipAddress,
-            row.userAgent,
-            row.surface,
-            row.metadata,
-          ].map((value) => formatCsvValue(value))
-        )
-      ),
-    ].join('\n'),
+    body: [AUDIT_LOG_CSV_HEADER, ...rows.map(toAuditLogCsvRow)].join('\n'),
     contentType: 'text/csv; charset=utf-8',
     contentDisposition: `attachment; filename="audit-logs-${new Date().toISOString().slice(0, 10)}.csv"`,
     headers: { 'Cache-Control': 'no-store', 'X-Export-Truncated': truncated ? '1' : '0' },

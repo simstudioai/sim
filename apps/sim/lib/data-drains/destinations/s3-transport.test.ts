@@ -51,6 +51,31 @@ afterEach(() => {
 })
 
 describe('S3 drain transport security', () => {
+  it('delivers signed SDK requests to an already-bracketed public IPv6 endpoint', async () => {
+    const address = '2606:4700:4700::1111'
+    vi.spyOn(dns, 'lookup').mockResolvedValue([{ address, family: 6 }])
+    const session = s3Destination.openSession({
+      config: { ...config, endpoint: `https://[${address}]`, forcePathStyle: true },
+      credentials,
+    })
+    try {
+      await session.deliver({
+        body: Buffer.from('{"id":"event"}\n'),
+        contentType: 'application/x-ndjson',
+        metadata,
+        signal: new AbortController().signal,
+      })
+      expect(requests).toHaveLength(1)
+      expect(requests[0].hostname).toBe(address)
+      expect(requests[0].headers).toMatchObject({
+        host: `[${address}]`,
+        authorization: expect.stringContaining('AWS4-HMAC-SHA256'),
+      })
+    } finally {
+      await session.close()
+    }
+  })
+
   it('preserves the signed object request target through the shared egress guard', async () => {
     const target = '/exports/../raw/audit_logs/event.ndjson?x-id=PutObject'
     const response = await secureFetchWithPinnedIP(

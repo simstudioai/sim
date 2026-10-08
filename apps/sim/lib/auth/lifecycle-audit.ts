@@ -65,18 +65,23 @@ function isFailureRedirect(location: string | null | undefined): boolean {
 async function loadSubject(input: { userId?: string; email?: unknown }) {
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : undefined
   if (!input.userId && !email) return undefined
-  const [subject] = await db
+  const subjects = await db
     .select({
       id: user.id,
       name: user.name,
       email: user.email,
-      organizationId: member.organizationId,
     })
     .from(user)
-    .leftJoin(member, eq(member.userId, user.id))
     .where(input.userId ? eq(user.id, input.userId) : eq(foldedEmail(user.email), email ?? ''))
+    .limit(2)
+  if (subjects.length !== 1) return undefined
+  const subject = subjects[0]
+  const [membership] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, subject.id))
     .limit(1)
-  return subject
+  return { ...subject, organizationId: membership?.organizationId }
 }
 
 /** Records final authentication outcomes without persisting request bodies or bearer credentials. */
@@ -178,21 +183,21 @@ export async function recordPasswordResetAudit(input: {
 }): Promise<void> {
   try {
     const subject = await loadSubject(input)
-    if (!subject) return
     const completed = input.kind === 'completed'
+    if (completed && !subject) return
     recordAudit({
-      actorId: completed ? subject.id : null,
-      actorName: completed ? subject.name : 'Unauthenticated requester',
-      actorEmail: completed ? subject.email : null,
+      actorId: completed && subject ? subject.id : null,
+      actorName: completed && subject ? subject.name : 'Unauthenticated requester',
+      actorEmail: completed && subject ? subject.email : null,
       action: completed ? AuditAction.PASSWORD_RESET : AuditAction.PASSWORD_RESET_REQUESTED,
       resourceType: AuditResourceType.PASSWORD,
-      resourceId: subject.id,
-      resourceName: subject.email,
+      resourceId: subject?.id,
+      resourceName: subject?.email,
       description: completed ? 'Password reset completed' : 'Password reset requested',
       metadata: {
         outcome: 'success',
-        ...(subject.organizationId ? { organizationId: subject.organizationId } : {}),
-        ...(!completed ? { targetUserId: subject.id } : {}),
+        ...(subject?.organizationId ? { organizationId: subject.organizationId } : {}),
+        ...(!completed && subject ? { targetUserId: subject.id } : {}),
       },
       request: input.request,
     })
