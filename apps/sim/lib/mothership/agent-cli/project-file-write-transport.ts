@@ -154,7 +154,7 @@ async function requireCleanInlineText(
   const registry = options.resolveSecretTraceRegistry
     ? await options.resolveSecretTraceRegistry()
     : context.resolvedSecretTraceRegistry
-  const provenance = registry?.exportCommittedProvenanceForValue(body.content, { anonymous: true })
+  const provenance = registry?.exportCommittedProvenanceForValue(body, { anonymous: true })
   if (!provenance?.complete || provenance.entries.length !== 0)
     throw new OrchestrationError(
       'forbidden',

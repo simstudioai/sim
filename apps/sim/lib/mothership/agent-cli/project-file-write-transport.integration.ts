@@ -385,6 +385,60 @@ describe('private native Project writes against PostgreSQL and local storage', (
     }
   )
 
+  for (const field of ['name', 'folderPath', 'contentType'] as const) {
+    check(`a secret in Project create ${field} cannot escape as public metadata`, async () => {
+      const f = await fixture()
+      const secret = 'synthetic-metadata-canary'
+      if (field === 'folderPath')
+        await db.insert(folder).values({
+          id: generateId(),
+          projectId: f.projectId,
+          resourceType: 'file',
+          name: secret,
+          userId: f.userId,
+        })
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: secret,
+            encryptedValue: (await encryptSecret(secret)).encrypted,
+            scope: 'workspace',
+          },
+        ],
+        { userId: f.userId, workspaceId: f.workspaceId }
+      )
+      expect(registry.recordResolved('TOKEN', secret)).toBe(true)
+      const transport = createProjectFileWriteTransport({
+        endpoint: 'http://localhost:3200',
+        projectId: f.projectId,
+        context: { ...f.context, resolvedSecretTraceRegistry: registry },
+        fallback: async () => {
+          throw new Error('Unexpected fallback')
+        },
+      })
+      const response = await transport(
+        `http://localhost:3200/api/v2/projects/${f.projectId}/files`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: 'safe.txt',
+            content: 'safe body',
+            [field]:
+              field === 'folderPath'
+                ? `/${secret}`
+                : field === 'contentType'
+                  ? `text/${secret}`
+                  : `${secret}.txt`,
+          }),
+        }
+      )
+      expect(response.status, await response.clone().text()).toBe(403)
+      expect(await rows(f.projectId)).toEqual([])
+    })
+  }
+
   check('a private target cannot write a different Project', async () => {
     const f = await fixture()
     const other = await fixture()
