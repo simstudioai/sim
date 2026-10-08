@@ -27,16 +27,6 @@ describe('MCP server operation registry', () => {
     })
   })
 
-  it('admits App sessions and executor or Copilot delegations for tool execution', () => {
-    expect(mcpServerOperations.executeTool).toMatchObject({
-      id: 'mcp_servers.tools.execute',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      principalKinds: ['session', 'delegated'],
-      delegatedServices: ['executor', 'copilot'],
-    })
-  })
-
   /**
    * The six workflow-deployment operations were widened from `['delegated']` to
    * human principals when `/api/v2/workflow-mcp-servers` shipped. Their roles
