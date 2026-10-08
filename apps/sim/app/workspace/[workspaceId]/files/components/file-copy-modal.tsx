@@ -16,6 +16,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { FileCopySource } from '@/lib/api/contracts/file-copy-input'
 import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useCopyFileItems, useFileCopyDestination } from '@/hooks/queries/file-copy'
 import { useProjects } from '@/hooks/queries/projects'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
@@ -62,7 +63,10 @@ export function FileCopyModal({ source, onClose }: FileCopyModalProps) {
 
 function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
   const workspaces = useWorkspacesQuery()
-  const projects = useProjects()
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
+  const projectDestinationsEnabled = projectsEnabled && projectFilesEnabled
+  const projects = useProjects(undefined, { enabled: projectDestinationsEnabled })
   const copy = useCopyFileItems()
   const [selection, setSelection] = useState('')
   const destinations = useMemo(() => {
@@ -72,14 +76,14 @@ function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
         owner: { entityType: 'workspace', entityId: workspace.id },
         name: workspace.name,
       })
-    for (const page of projects.data?.pages ?? [])
+    for (const page of projectDestinationsEnabled ? (projects.data?.pages ?? []) : [])
       for (const project of page.projects)
         result.set(`project:${project.id}`, {
           owner: { entityType: 'project', entityId: project.id },
           name: project.name,
         })
     return result
-  }, [workspaces.data, projects.data])
+  }, [workspaces.data, projects.data, projectDestinationsEnabled])
   const destination = destinations.get(selection)
   const groups = ['project', 'workspace'].map((kind) => ({
     section: kind === 'project' ? 'Projects' : 'Environments',
@@ -92,7 +96,11 @@ function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
       type='custom'
       title='Destination'
       hint='Copies saved content. The original files stay in their current location.'
-      error={workspaces.isError && projects.isError ? 'Could not load destinations.' : undefined}
+      error={
+        workspaces.isError && (!projectDestinationsEnabled || projects.isError)
+          ? 'Could not load destinations.'
+          : undefined
+      }
     >
       <ChipSelect
         aria-label='Copy destination'
@@ -103,12 +111,14 @@ function FileCopyDestinationPicker({ source, onClose }: FileCopyModalProps) {
         searchable
         fullWidth
         placeholder={
-          workspaces.isPending && projects.isPending
+          workspaces.isPending && (!projectDestinationsEnabled || projects.isPending)
             ? 'Loading...'
-            : 'Choose a Project or environment'
+            : projectDestinationsEnabled
+              ? 'Choose a Project or environment'
+              : 'Choose an environment'
         }
       />
-      {projects.hasNextPage && (
+      {projectDestinationsEnabled && projects.hasNextPage && (
         <Chip disabled={projects.isFetchingNextPage} onClick={() => void projects.fetchNextPage()}>
           {projects.isFetchingNextPage ? 'Loading...' : 'Load more Projects'}
         </Chip>
