@@ -1480,6 +1480,7 @@ export const MICROSOFT_PERSONAL_PROVIDERS = {
   'microsoft-word-personal': 'microsoft-word',
 } as const
 
+/** Checks whether the exact provider ID belongs to the separate personal Microsoft app. */
 export function isMicrosoftPersonalProvider(
   providerId: string
 ): providerId is keyof typeof MICROSOFT_PERSONAL_PROVIDERS {
