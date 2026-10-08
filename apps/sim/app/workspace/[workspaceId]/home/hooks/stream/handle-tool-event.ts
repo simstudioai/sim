@@ -68,12 +68,10 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
       ? extractResourcesFromToolResult(name, params, output)
       : []
   const mcpResources = extractedResources.filter((resource) => resource.type === 'mcp')
-  if (replay && mcpResources.length) {
+  if (mcpResources.length) {
     const chatId = deps.chatIdRef.current
     if (chatId)
       void deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-  } else {
-    for (const resource of mcpResources) deps.addResource(resource)
   }
   if (!deps.workspaceId) return
   const calledBy = agentIdForSpan(ctx, node.spanId)

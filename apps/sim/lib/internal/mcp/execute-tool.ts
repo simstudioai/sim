@@ -236,16 +236,20 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
     }
     request.signal?.throwIfAborted()
     if (result.presentation) {
-      const registry = request.context.resolvedSecretTraceRegistry
+      const registry = request.context.resolvedSecretTraceRegistry?.forkForToolCall()
       if (provenance && registry) {
-        const imported = await registry.importCrossingProvenance(
-          provenance.exportProvenance(),
-          result.presentation,
-          { trusted: true, origin: `tool.${request.toolId}` }
-        )
+        const imported = await registry.importProvenance(provenance.exportProvenance(), {
+          trusted: true,
+          origin: `tool.${request.toolId}`,
+        })
         if (!imported) throw new Error('MCP presentation provenance could not be verified')
       }
-      result = await presentMcpToolResult(request.context, targetId, result, request.signal)
+      result = await presentMcpToolResult(
+        { ...request.context, resolvedSecretTraceRegistry: registry },
+        targetId,
+        result,
+        request.signal
+      )
     }
     const body =
       request.toolId === 'mcp_run_operation'

@@ -215,9 +215,13 @@ jobs:
           retention-days: 7
 
   mcp-app:
-    name: mcp-app
-    runs-on: ubuntu-latest
+    name: mcp-app (${{ matrix.browser }})
+    runs-on: *runner-4vcpu
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
     steps:
       - *checkout-mirror
       - *checkout-plain
@@ -225,19 +229,20 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
-      - name: Install Chromium
+      - name: Install browser
         working-directory: apps/sim
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps ${{ matrix.browser }}
       - name: Exercise MCP App sandbox
         working-directory: apps/sim
         env:
+          MCP_APP_E2E_BROWSER: ${{ matrix.browser }}
           MCP_APP_E2E_REPORT_PATH: ${{ runner.temp }}/mcp-app.json
         run: bun run test:mcp-app:e2e
       - name: Upload MCP App report
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: mcp-app-report
+          name: mcp-app-report-${{ matrix.browser }}
           path: ${{ runner.temp }}/mcp-app.json*
           if-no-files-found: warn
           retention-days: 7

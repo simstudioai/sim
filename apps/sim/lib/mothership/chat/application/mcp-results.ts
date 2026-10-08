@@ -7,6 +7,7 @@ import { buildMcpAppFrame } from '@/lib/mcp/app-frame'
 import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { executeMcpToolUseCase } from '@/lib/mcp/application/execute-tool'
 import { readManagedMcpResource, readMcpResource } from '@/lib/mcp/application/read-resource'
+import { projectMcpEncodedContents } from '@/lib/mcp/encoded-content'
 import { MCP_PRESENTATION_MAX_BYTES } from '@/lib/mcp/presentation'
 import { loadMcpPresentation, storeMcpPresentation } from '@/lib/mcp/presentation-storage'
 import { isManagedMcpConnectionId } from '@/lib/mcp/utils'
@@ -14,6 +15,8 @@ import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspa
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { normalizeInlineChatImage } from '@/lib/mothership/chat/inline-image-storage'
+import { extractResourcesFromToolResult } from '@/lib/mothership/resources/extraction'
+import { changeStoredChatResources } from '@/lib/mothership/resources/store'
 import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
 import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
@@ -84,7 +87,19 @@ export const publishMcpResult = defineAuthorizedChatUseCase({
   async execute({ context, input: sourceInput, request }) {
     const input = { ...sourceInput, signal: sourceInput.signal ?? request?.signal }
     await requirePresentationWorkspace(context, input.workspaceId)
-    return storeMcpPresentation({ ...input, chatId: context.chatId })
+    const receipt = await storeMcpPresentation({ ...input, chatId: context.chatId })
+    if (receipt?.items.length)
+      await changeStoredChatResources(
+        context.chatId,
+        {
+          kind: 'upsert',
+          resources: extractResourcesFromToolResult('mcp_run_operation', undefined, {
+            mcpPresentation: receipt,
+          }),
+        },
+        `mcp-presentation:${receipt.id}`
+      )
+    return receipt
   },
 })
 
@@ -121,6 +136,15 @@ export const readMcpResult = defineAuthorizedChatUseCase({
       arguments: manifest.arguments,
       result: manifest.result,
     }
+  },
+})
+
+export const readMcpResultMetadata = defineAuthorizedChatUseCase({
+  ...readDefinition,
+  async execute({ context, input: sourceInput, request }) {
+    const input = { ...sourceInput, signal: sourceInput.signal ?? request?.signal }
+    const manifest = await readManifest(context, input)
+    return { workspaceId: manifest.workspaceId, receipt: manifest.receipt }
   },
 })
 
@@ -251,21 +275,21 @@ export const readMcpAppResource = defineAuthorizedChatUseCase({
 })
 
 async function projectAppValue(
-  value: unknown,
+  value: Parameters<typeof projectMcpEncodedContents>[0],
   provenance: ResolvedSecretTraceProvenanceAccumulator,
   userId: string,
   workspaceId: string
 ) {
   const registry = new ResolvedSecretTraceRegistry([], { userId, workspaceId })
   if (
-    !(await registry.importCrossingProvenance(provenance.exportProvenance(), value, {
+    !(await registry.importProvenance(provenance.exportProvenance(), {
       trusted: true,
       origin: 'mcp.app',
     }))
   )
     throw new OrchestrationError('forbidden', 'MCP App response metadata could not be verified')
   const projection = projectResolvedSecretModelJsonContent(
-    value,
+    projectMcpEncodedContents(value, registry.forkForPropagatedEntries()),
     registry.forkForPropagatedEntries(),
     MCP_PRESENTATION_MAX_BYTES
   )

@@ -29,10 +29,18 @@ function McpAppFrame({ chatId, id, data, onClose }: McpAppFrameProps) {
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === 'dark' ? 'dark' : 'light'
   const themeRef = useRef<'dark' | 'light'>(theme)
-  themeRef.current = theme
   const [height, setHeight] = useState(400)
   const [error, setError] = useState<string>()
   const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    themeRef.current = theme
+    bridgeRef.current?.setHostContext({
+      theme,
+      displayMode: 'inline',
+      availableDisplayModes: ['inline'],
+    })
+  }, [theme])
 
   useEffect(() => {
     const frame = frameRef.current
@@ -50,7 +58,6 @@ function McpAppFrame({ chatId, id, data, onClose }: McpAppFrameProps) {
         },
       }
     )
-    bridgeRef.current = bridge
     const reportError = (cause: unknown) => {
       if (!lifecycle.signal.aborted) setError(getErrorMessage(cause))
     }
@@ -84,6 +91,12 @@ function McpAppFrame({ chatId, id, data, onClose }: McpAppFrameProps) {
       if (initialized || lifecycle.signal.aborted) return
       window.clearTimeout(initializationTimer)
       initialized = true
+      bridgeRef.current = bridge
+      bridge.setHostContext({
+        theme: themeRef.current,
+        displayMode: 'inline',
+        availableDisplayModes: ['inline'],
+      })
       void (async () => {
         await bridge.sendToolInput({ arguments: data.arguments })
         if (!lifecycle.signal.aborted) await bridge.sendToolResult(data.result)
@@ -122,14 +135,6 @@ function McpAppFrame({ chatId, id, data, onClose }: McpAppFrameProps) {
       void bridge.close()
     }
   }, [chatId, id, data, callTool, readResource])
-
-  useEffect(() => {
-    bridgeRef.current?.setHostContext({
-      theme,
-      displayMode: 'inline',
-      availableDisplayModes: ['inline'],
-    })
-  }, [theme])
 
   const close = async () => {
     if (closing) return

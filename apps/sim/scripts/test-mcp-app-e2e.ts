@@ -6,17 +6,19 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { json } from 'node:stream/consumers'
 import { fileURLToPath } from 'node:url'
-import { type Browser, chromium } from '@playwright/test'
+import { type Browser, chromium, webkit } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { PDFDocument } from 'pdf-lib'
 import { buildMcpAppFrame } from '@/lib/mcp/app-frame'
 
-/** Exercises the production sandbox with the real SDK and Chromium: handshake, isolation, CSP, source checks and teardown. */
+/** Exercises the production sandbox with the real SDK: handshake, isolation, CSP, source checks and teardown. */
 const logger = createLogger('McpAppE2E')
 const reportPath = process.env.MCP_APP_E2E_REPORT_PATH
 assert(reportPath, 'MCP_APP_E2E_REPORT_PATH must be provided')
+const browserName = process.env.MCP_APP_E2E_BROWSER ?? 'chromium'
+assert(browserName === 'chromium' || browserName === 'webkit', 'Unsupported MCP App browser')
 await writeFile(
   reportPath,
   JSON.stringify({
@@ -213,7 +215,7 @@ frame.src = '/frame';
         )
     }
   })
-  browser = await chromium.launch()
+  browser = await (browserName === 'webkit' ? webkit : chromium).launch()
 
   async function check(name: string, verify: () => Promise<void>) {
     const started = performance.now()
@@ -338,13 +340,16 @@ frame.src = '/frame';
     async () => {
       const before = calls
       await page.goto(`http://127.0.0.1:${address.port}/react`)
-      await page.getByRole('button', { name: 'Open Report', exact: true }).click()
+      await page.getByRole('button', { name: 'Open Report', exact: true }).focus()
+      await page.keyboard.press('Enter')
       const content = page.frameLocator('iframe').frameLocator('iframe').locator('pre')
       await content.filter({ hasText: '"ready":true' }).waitFor({ timeout: 20_000 })
       assert.deepEqual(JSON.parse(await content.innerText()).input, { city: 'Example' })
       assert.equal(calls, before + 1)
+      assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Open Report')
       await page.getByRole('button', { name: 'Close app', exact: true }).click()
       await page.locator('iframe').waitFor({ state: 'detached' })
+      assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Open Report')
       await page.getByRole('button', { name: 'Open Report', exact: true }).click()
       await content.filter({ hasText: '"ready":true' }).waitFor({ timeout: 20_000 })
       assert.equal(calls, before + 2)

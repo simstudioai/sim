@@ -569,44 +569,57 @@ class McpService {
     signal?: AbortSignal
   }) {
     const managed = params.managed
-    const config = await this.getServerConfig(params.serverId, managed?.scope ?? params.workspaceId)
-    if (!config) throw new Error('MCP server is unavailable')
-    return this.withServerClient(
-      {
-        key: this.poolKey(params.serverId, params.workspaceId, params.userId),
-        serverId: params.serverId,
-        allowPool: !params.managed,
-      },
-      managed
-        ? () =>
-            this.createManagedOauthClient(
-              config,
-              { credentialId: managed.connectionId, loadProvider: managed.loadAuthProvider },
-              params.signal
-            )
-        : this.buildClient(
-            config,
-            params.userId,
-            params.workspaceId,
-            undefined,
-            params.onResolvedSecretTraceProvenance,
-            params.signal
-          ),
-      (client) => {
-        if (!managed)
-          reportRetainedClientProvenance(
-            client.getResolvedSecretTraceProvenance?.(),
-            params.userId,
-            params.workspaceId,
-            params.onResolvedSecretTraceProvenance
-          )
-        return client.readResource(params.uri, {
-          signal: params.signal,
-          timeoutMs: 30_000,
-          includeListingMetadata: params.includeListingMetadata,
-        })
+    for (let attempt = 0; ; attempt++) {
+      params.signal?.throwIfAborted()
+      try {
+        const config = await this.getServerConfig(
+          params.serverId,
+          managed?.scope ?? params.workspaceId
+        )
+        if (!config) throw new Error('MCP server is unavailable')
+        return await this.withServerClient(
+          {
+            key: this.poolKey(params.serverId, params.workspaceId, params.userId),
+            serverId: params.serverId,
+            allowPool: !params.managed,
+          },
+          managed
+            ? () =>
+                this.createManagedOauthClient(
+                  config,
+                  { credentialId: managed.connectionId, loadProvider: managed.loadAuthProvider },
+                  params.signal
+                )
+            : this.buildClient(
+                config,
+                params.userId,
+                params.workspaceId,
+                undefined,
+                params.onResolvedSecretTraceProvenance,
+                params.signal
+              ),
+          (client) => {
+            if (!managed)
+              reportRetainedClientProvenance(
+                client.getResolvedSecretTraceProvenance?.(),
+                params.userId,
+                params.workspaceId,
+                params.onResolvedSecretTraceProvenance
+              )
+            return client.readResource(params.uri, {
+              signal: params.signal,
+              timeoutMs: 30_000,
+              includeListingMetadata: params.includeListingMetadata,
+            })
+          }
+        )
+      } catch (error) {
+        params.signal?.throwIfAborted()
+        if (!managed && attempt === 0 && (this.isSessionError(error) || isAuthError(error)))
+          continue
+        throw error
       }
-    )
+    }
   }
 
   /** Auth-scoped pool key: a server's resolved credentials depend on the (user, workspace) env. */

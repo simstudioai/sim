@@ -140,7 +140,9 @@ export async function handleResourceSideEffects(
             resources: resources.map((r) => ({ type: r.type, id: r.id, title: r.title })),
           })
           const upserts = resources.filter(
-            (resource) => !('clearViewId' in resource && resource.clearViewId === true)
+            (resource) =>
+              resource.type !== 'mcp' &&
+              !('clearViewId' in resource && resource.clearViewId === true)
           )
           persistChatResources(chatId, upserts).catch((err) => {
             logger.warn('Failed to persist chat resources', {

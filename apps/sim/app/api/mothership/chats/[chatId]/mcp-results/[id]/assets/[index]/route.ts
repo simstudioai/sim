@@ -12,10 +12,7 @@ export const GET = defineInternalBinaryRoute({
   contract: getMcpPresentationAssetContract,
   auth: internalSessionAuth,
   operation: readMcpResultAsset.operation,
-  rateLimit: internalRateLimits.none({
-    reason:
-      'Bounded private MCP result delivery requires current chat ownership and connection authorization for live resources.',
-  }),
+  rateLimit: internalRateLimits.user({ bucketName: 'mcp-apps' }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => params,
   useCase: readMcpResultAsset,

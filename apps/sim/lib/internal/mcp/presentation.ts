@@ -7,6 +7,7 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import type { ExecuteMcpToolResult } from '@/lib/mcp/application/execute-tool'
+import { projectMcpEncodedContents } from '@/lib/mcp/encoded-content'
 import { MCP_PRESENTATION_MAX_BYTES, type McpPresentationReceipt } from '@/lib/mcp/presentation'
 import { getMcpAppResourceUri } from '@/lib/mcp/presentation-metadata'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
@@ -46,10 +47,15 @@ export async function presentMcpToolResult(
   let receipt: McpPresentationReceipt | undefined
   try {
     if (getMcpAppResourceUri(tool) || result.content.some((item) => item.type !== 'text')) {
-      const value = { arguments: presentation.arguments, result, title: tool.title || tool.name }
+      const registry = context.resolvedSecretTraceRegistry?.forkForPropagatedEntries()
+      const value = {
+        arguments: presentation.arguments,
+        result: projectMcpEncodedContents(result, registry),
+        title: tool.title || tool.name,
+      }
       const projection = projectResolvedSecretModelJsonContent(
         value,
-        context.resolvedSecretTraceRegistry?.forkForPropagatedEntries(),
+        registry,
         MCP_PRESENTATION_MAX_BYTES
       )
       if (
@@ -109,12 +115,14 @@ export async function presentMcpToolResult(
             text: item.text,
             ...(item.annotations ? { annotations: item.annotations } : {}),
           }
-        : {
-            type: 'text' as const,
-            text: receipt
-              ? `Attached result: ${receipt.items.find((asset) => asset.index === index)?.title || 'file'}`
-              : 'MCP file output could not be displayed.',
-          }
+        : item.type === 'resource' && 'text' in item.resource
+          ? { type: 'text' as const, text: item.resource.text }
+          : {
+              type: 'text' as const,
+              text: receipt
+                ? `Attached result: ${receipt.items.find((asset) => asset.index === index)?.title || 'file'}`
+                : 'MCP file output could not be displayed.',
+            }
     ),
     ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
     ...(result.isError ? { isError: true } : {}),

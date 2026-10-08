@@ -15,11 +15,8 @@ function approvedDomains(value: unknown, allowWebSocket = false): string[] {
     const url = new URL(domain.replace('://*.', '://'))
     if (url.protocol === 'wss:' && !allowWebSocket)
       throw new OrchestrationError('validation', 'Static App resources require HTTPS')
-    if (
-      url.hostname === 'localhost' ||
-      url.hostname.endsWith('.localhost') ||
-      /^[\d.]+$/.test(url.hostname)
-    )
+    const hostname = url.hostname.replace(/\.$/, '')
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || /^[\d.]+$/.test(hostname))
       throw new OrchestrationError('validation', 'MCP Apps cannot access local network addresses')
     return domain
   })
@@ -45,7 +42,7 @@ export function buildMcpAppFrame(html: string, metadata: unknown) {
     `media-src data: blob: ${resources}`,
     `font-src data: ${resources}`,
     `connect-src ${connections || "'none'"}`,
-    'frame-src blob:',
+    "frame-src 'none'",
   ].join('; ')
   const encodedHtml = Buffer.from(html).toString('base64')
   const document = `<!doctype html><html><head><meta name="referrer" content="no-referrer"><style>html,body,iframe{margin:0;border:0;width:100%;height:100%;display:block;overflow:hidden}</style></head><body><script>
@@ -63,9 +60,7 @@ addEventListener('message', (event) => {
       if (started) return;
       started = true;
       const bytes = Uint8Array.from(atob('${encodedHtml}'), char => char.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], {type:'text/html'}));
-      frame.src = url;
-      frame.onload = () => URL.revokeObjectURL(url);
+      frame.srcdoc = new TextDecoder().decode(bytes);
       document.body.append(frame);
       return;
     }

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { truncate } from '@sim/utils/string'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isJsonWithinByteLimit } from '@/lib/core/utils/bounded-json'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   MCP_PRESENTATION_MAX_BYTES,
@@ -55,7 +56,7 @@ export async function storeMcpPresentation(input: {
   const digest = (value: string) => createHash('sha256').update(value).digest('hex')
   const id = digest(input.toolCallId)
   const appUri = getMcpAppResourceUri(input.tool)
-  const title = truncate(input.tool.title || input.tool.name, 200)
+  const title = truncateAtCodePoint(input.tool.title || input.tool.name, 197)
   const items = input.result.content.flatMap((item, index) => {
     if (item.type === 'text') return []
     const resource =
@@ -71,9 +72,9 @@ export async function storeMcpPresentation(input: {
       {
         index,
         identity,
-        title: truncate(
+        title: truncateAtCodePoint(
           item.type === 'resource_link' ? item.title || item.name : `${title} ${index + 1}`,
-          200
+          197
         ),
         mimeType,
         kind: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)
@@ -85,7 +86,7 @@ export async function storeMcpPresentation(input: {
     ]
   })
   if (!items.length && !appUri) return undefined
-  const manifest = manifestSchema.parse({
+  const candidate = {
     version: 1,
     workspaceId: input.workspaceId,
     connectionId: input.connectionId,
@@ -95,7 +96,10 @@ export async function storeMcpPresentation(input: {
     result: input.result,
     secretProvenance: input.secretProvenance,
     receipt: { id, title, hasApp: !!appUri, items },
-  })
+  }
+  if (!isJsonWithinByteLimit(candidate, MCP_PRESENTATION_MAX_BYTES))
+    throw new OrchestrationError('payload_too_large', 'MCP presentation exceeds 12 MiB')
+  const manifest = manifestSchema.parse(candidate)
   const buffer = Buffer.from(JSON.stringify(manifest))
   if (buffer.length > MCP_PRESENTATION_MAX_BYTES)
     throw new OrchestrationError('payload_too_large', 'MCP presentation exceeds 12 MiB')

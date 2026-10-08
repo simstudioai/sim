@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { json } from 'node:stream/consumers'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -32,13 +33,13 @@ import {
   readMcpAppResource,
   readMcpResult,
   readMcpResultAsset,
+  readMcpResultMetadata,
 } from '@/lib/mothership/chat/application/mcp-results'
 import { executeChatFileBlobCopies } from '@/lib/mothership/chat/fork-chat-files'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
-import { extractResourcesFromToolResult } from '@/lib/mothership/resources/extraction'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -52,6 +53,8 @@ const appUri = 'ui://fixture/view.html'
 const sourceUri = 'file:///report.txt'
 const credentialCanary = 'fixture-secret-7ea-not-for-display'
 let reflectCredential = false
+let encodedCredential = false
+let encodedMimeType = 'text/plain'
 let receivedCredential: string | string[] | undefined
 const session = createSessionPrincipal({ userId: owner })
 const transports = new Map<string, StreamableHTTPServerTransport>()
@@ -59,9 +62,30 @@ const blobs = new Set<string>()
 let appCalls = 0
 let appAvailable = true
 let listingOnlyPolicy = false
+let providerTitle = 'Quarterly report'
+let connectDomain = 'https://allowed.test'
+let rejectResourceStatus = 0
+let rejectResourcesPersistently = false
+let rejectedResourceReads = 0
+let rejectedSession: string | undefined
 let origin = ''
 const provider = createServer(async (request, response) => {
   try {
+    const body = request.method === 'POST' ? toRecord(await json(request)) : undefined
+    if (body?.method === 'resources/read' && rejectResourceStatus) {
+      response.writeHead(rejectResourceStatus).end()
+      rejectedResourceReads++
+      rejectedSession ??= String(request.headers['mcp-session-id'])
+      if (!rejectResourcesPersistently) rejectResourceStatus = 0
+      return
+    }
+    if (body?.method === 'resources/read' && rejectedSession) {
+      if (request.headers['mcp-session-id'] === rejectedSession) {
+        response.writeHead(404).end()
+        return
+      }
+      rejectedSession = undefined
+    }
     receivedCredential = request.headers['x-fixture-token']
     const sessionId = request.headers['mcp-session-id']
     let transport = typeof sessionId === 'string' ? transports.get(sessionId) : undefined
@@ -78,9 +102,7 @@ const provider = createServer(async (request, response) => {
         tools: [
           {
             name: 'show_report',
-            title: reflectCredential
-              ? String(request.headers['x-fixture-token'])
-              : 'Quarterly report',
+            title: reflectCredential ? String(request.headers['x-fixture-token']) : providerTitle,
             inputSchema: { type: 'object' as const },
             _meta: appAvailable ? { ui: { resourceUri: appUri } } : {},
           },
@@ -99,6 +121,21 @@ const provider = createServer(async (request, response) => {
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         if (params.name === 'change_report') {
           appCalls++
+          if (encodedCredential)
+            return {
+              content: [
+                {
+                  type: 'resource',
+                  resource: {
+                    uri: sourceUri,
+                    mimeType: encodedMimeType,
+                    blob: Buffer.from(
+                      `Encoded report: ${request.headers['x-fixture-token']}:end`
+                    ).toString('base64'),
+                  },
+                },
+              ],
+            }
           return {
             content: [
               {
@@ -110,6 +147,33 @@ const provider = createServer(async (request, response) => {
             ],
           }
         }
+        if (encodedCredential)
+          return {
+            content: [
+              {
+                type: 'resource',
+                resource: {
+                  uri: sourceUri,
+                  mimeType: encodedMimeType,
+                  blob: Buffer.from(
+                    `Encoded report: ${request.headers['x-fixture-token']}:end`
+                  ).toString('base64'),
+                },
+              },
+            ],
+          }
+        if (params.arguments?.linked)
+          return {
+            content: [
+              {
+                type: 'resource_link',
+                name: providerTitle,
+                title: providerTitle,
+                uri: sourceUri,
+                mimeType: 'text/plain',
+              },
+            ],
+          }
         if (params.arguments?.malformed)
           return { content: [{ type: 'image', mimeType: 'image/png', data: 'YR==' }] }
         return {
@@ -150,14 +214,20 @@ const provider = createServer(async (request, response) => {
           {
             uri: params.uri,
             mimeType: params.uri === appUri ? 'text/html;profile=mcp-app' : 'text/plain',
-            text: reflectCredential
-              ? `<p>${request.headers['x-fixture-token']}</p>`
-              : params.uri === appUri
-                ? '<!doctype html><p>Private app</p>'
-                : 'Remote resource bytes',
-            _meta: listingOnlyPolicy
-              ? {}
-              : { ui: { csp: { connectDomains: ['https://allowed.test'] } } },
+            ...(encodedCredential
+              ? {
+                  blob: Buffer.from(
+                    `<p>Encoded report: ${request.headers['x-fixture-token']}:end</p>`
+                  ).toString('base64'),
+                }
+              : {
+                  text: reflectCredential
+                    ? `<p>${request.headers['x-fixture-token']}</p>`
+                    : params.uri === appUri
+                      ? '<!doctype html><p>Private app</p>'
+                      : 'Remote resource bytes',
+                }),
+            _meta: listingOnlyPolicy ? {} : { ui: { csp: { connectDomains: [connectDomain] } } },
           },
         ],
       }))
@@ -170,15 +240,14 @@ const provider = createServer(async (request, response) => {
       })
       await protocol.connect(transport)
     }
-    await transport.handleRequest(request, response)
+    await transport.handleRequest(request, response, body)
   } catch {
     if (!response.headersSent) response.writeHead(500)
     response.end()
   }
 })
 
-async function executeReport(args?: Record<string, unknown>) {
-  const toolCallId = generateId()
+async function executeReport(args?: Record<string, unknown>, toolCallId = generateId()) {
   const context = {
     userId: owner,
     workspaceId,
@@ -221,7 +290,15 @@ async function executeReport(args?: Record<string, unknown>) {
     ],
   }
   for (const key of mcpPresentationCleanupKeys(chatId, message)) blobs.add(key)
-  return { result, receipt: receipt.mcpPresentation, message }
+  return { result, receipt: receipt.mcpPresentation, message, toolCallId }
+}
+
+function expectProtectedEncodedContent(blob: unknown) {
+  if (typeof blob !== 'string') throw new Error('Expected encoded resource bytes')
+  const text = Buffer.from(blob, 'base64').toString()
+  expect(text).toContain('Encoded report: ')
+  expect(text).toContain(':end')
+  expect(text).not.toContain(credentialCanary)
 }
 
 beforeAll(async () => {
@@ -297,7 +374,7 @@ describe('native MCP results over real transport, storage and Postgres', () => {
   it('reopens bytes after transcript stripping and keeps private widget metadata outside model output', async () => {
     const { result, receipt, message } = await executeReport()
     expect(JSON.stringify(result.output)).not.toContain('Only the app should receive this')
-    expect(JSON.stringify(result.output)).not.toContain('Private report bytes')
+    expect(JSON.stringify(result.output)).toContain('Private report bytes')
     await appendCopilotChatMessages(chatId, [message])
     const restored = await loadCopilotChatMessages(chatId)
     expect(
@@ -314,6 +391,13 @@ describe('native MCP results over real transport, storage and Postgres', () => {
       input: { chatId, id: receipt.id },
     })
     expect(reopened.result._meta?.privateWidgetData).toBe('Only the app should receive this')
+    const metadata = await readMcpResultMetadata.execute({
+      principal: session,
+      input: { chatId, id: receipt.id },
+    })
+    expect(metadata.receipt).toEqual(receipt)
+    expect('result' in metadata || 'arguments' in metadata).toBe(false)
+    expect(JSON.stringify(metadata)).not.toContain('Private report bytes')
     const plan = planForkMcpPresentations([message], chatId, forkId)
     for (const task of plan) blobs.add(task.targetKey)
     expect((await executeChatFileBlobCopies(plan)).failed).toBe(0)
@@ -408,20 +492,16 @@ describe('native MCP results over real transport, storage and Postgres', () => {
   it('updates one persisted artifact tab while retaining both immutable versions', async () => {
     const first = await executeReport({ revision: 1 })
     const second = await executeReport({ revision: 2 })
-    const resources = [first, second].map(({ result }) =>
-      extractResourcesFromToolResult('mcp_run_operation', undefined, result.output)
-    )
-    for (const list of resources)
-      await changeChatResources.execute({
-        principal: session,
-        input: { chatId, change: { kind: 'upsert', resources: list } },
-      })
+    await executeReport({ revision: 99 }, first.toolCallId)
     const [stored] = await db
       .select({ resources: copilotChats.resources })
       .from(copilotChats)
       .where(eq(copilotChats.id, chatId))
-    expect(stored.resources).toHaveLength(1)
-    expect(toArray(stored.resources)[0]).toMatchObject({
+    const matching = toArray(stored.resources).filter(
+      (resource) => toRecord(resource).id === first.receipt.items[0].identity
+    )
+    expect(matching).toHaveLength(1)
+    expect(matching[0]).toMatchObject({
       id: first.receipt.items[0].identity,
       mcp: { presentationId: second.receipt.id, index: 1 },
     })
@@ -432,6 +512,26 @@ describe('native MCP results over real transport, storage and Postgres', () => {
       })
       expect(asset.buffer.toString()).toBe(`Revision ${version + 1}`)
     }
+    await changeChatResources.execute({
+      principal: session,
+      input: {
+        chatId,
+        change: {
+          kind: 'remove',
+          resources: [{ type: 'mcp', id: first.receipt.items[0].identity }],
+        },
+      },
+    })
+    await executeReport({ revision: 99 }, first.toolCallId)
+    const [closed] = await db
+      .select({ resources: copilotChats.resources })
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+    expect(
+      toArray(closed.resources).some(
+        (resource) => toRecord(resource).id === first.receipt.items[0].identity
+      )
+    ).toBe(false)
   })
 
   it('rejects malformed provider bytes and aborts App calls before provider mutation', async () => {
@@ -468,6 +568,132 @@ describe('native MCP results over real transport, storage and Postgres', () => {
       listingOnlyPolicy = false
     }
   })
+  it('opens results with long provider tool and resource titles', async () => {
+    providerTitle = 'Long report title '.repeat(20)
+    try {
+      const { receipt } = await executeReport({ linked: true })
+      const asset = await readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 0 },
+      })
+      expect(asset.buffer.toString()).toBe('Remote resource bytes')
+    } finally {
+      providerTitle = 'Quarterly report'
+    }
+  })
+
+  it('rejects trailing-dot loopback domains in provider App policies', async () => {
+    const { receipt } = await executeReport()
+    try {
+      for (const domain of [
+        'https://localhost.',
+        'https://sub.localhost.',
+        'https://*.localhost.',
+      ]) {
+        connectDomain = domain
+        await expect(
+          readMcpAppFrame.execute({ principal: session, input: { chatId, id: receipt.id } })
+        ).rejects.toThrow('local network addresses')
+      }
+    } finally {
+      connectDomain = 'https://allowed.test'
+    }
+  })
+
+  it('recovers resource reads after an upstream session or credential rejection', async () => {
+    const { receipt } = await executeReport()
+    try {
+      for (const status of [400, 401, 404]) {
+        rejectResourceStatus = status
+        const result = await readMcpAppResource.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, uri: sourceUri },
+        })
+        expect(result.contents[0]).toMatchObject({ text: 'Remote resource bytes' })
+        expect(rejectResourceStatus).toBe(0)
+      }
+    } finally {
+      rejectResourceStatus = 0
+      rejectedSession = undefined
+    }
+  })
+
+  it('stops retrying when the provider continues to reject resource reads', async () => {
+    const { receipt } = await executeReport()
+    rejectResourceStatus = 404
+    rejectResourcesPersistently = true
+    const before = rejectedResourceReads
+    try {
+      await expect(
+        readMcpAppResource.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, uri: sourceUri },
+        })
+      ).rejects.toThrow('Streamable HTTP error')
+      expect(rejectedResourceReads - before).toBe(2)
+    } finally {
+      rejectResourceStatus = 0
+      rejectResourcesPersistently = false
+      rejectedSession = undefined
+    }
+  })
+
+  it('redacts credentials inside encoded files in saved results and live App responses', async () => {
+    encodedCredential = true
+    try {
+      const { receipt } = await executeReport()
+      const asset = await readMcpResultAsset.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, index: 0 },
+      })
+      expect(asset.buffer.toString()).toContain('Encoded report: ')
+      expect(asset.buffer.toString()).not.toContain(credentialCanary)
+      const saved = await readMcpResult.execute({
+        principal: session,
+        input: { chatId, id: receipt.id },
+      })
+      const savedResource = toRecord(toRecord(saved.result.content[0]).resource)
+      expectProtectedEncodedContent(savedResource.blob)
+      const live = await callMcpAppTool.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, name: 'change_report' },
+      })
+      const liveResource = toRecord(toRecord(live.content[0]).resource)
+      expectProtectedEncodedContent(liveResource.blob)
+      const resource = await readMcpAppResource.execute({
+        principal: session,
+        input: { chatId, id: receipt.id, uri: sourceUri },
+      })
+      expectProtectedEncodedContent(toRecord(resource.contents[0]).blob)
+      const frame = await readMcpAppFrame.execute({
+        principal: session,
+        input: { chatId, id: receipt.id },
+      })
+      const encoded = frame.buffer.toString().match(/atob\('([^']+)'\)/)?.[1]
+      expectProtectedEncodedContent(encoded)
+    } finally {
+      reflectCredential = false
+      encodedCredential = false
+    }
+  })
+
+  it('withholds protected bytes when an App declares an encoded binary file', async () => {
+    const { receipt } = await executeReport()
+    encodedCredential = true
+    encodedMimeType = 'application/octet-stream'
+    try {
+      await expect(
+        callMcpAppTool.execute({
+          principal: session,
+          input: { chatId, id: receipt.id, name: 'change_report' },
+        })
+      ).rejects.toThrow('MCP binary file contains protected content')
+    } finally {
+      encodedCredential = false
+      encodedMimeType = 'text/plain'
+    }
+  })
+
   it('redacts resolved credential echoes from saved and live App data', async () => {
     reflectCredential = true
     try {

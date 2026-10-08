@@ -5,8 +5,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { mcpPresentationAssetUrl } from '@/lib/mcp/presentation'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { resolveFileCategory } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-category'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer'
-import { useMcpPresentation } from '@/hooks/queries/mcp-presentations'
+import { useMcpPresentationMetadata } from '@/hooks/queries/mcp-presentations'
 import type { FileContentSource } from '@/hooks/use-file-content-source'
 
 interface McpResourceContentProps {
@@ -23,7 +24,7 @@ interface McpArtifactPreviewProps {
 const SNAPSHOT_DATE = new Date(0)
 
 function McpArtifactPreview({ chatId, presentationId, index }: McpArtifactPreviewProps) {
-  const { data, error, isPending } = useMcpPresentation(chatId, presentationId)
+  const { data, error, isPending } = useMcpPresentationMetadata(chatId, presentationId)
   if (isPending) return <p className='p-4 text-[var(--text-muted)] text-small'>Opening result…</p>
   if (error)
     return (
@@ -41,7 +42,7 @@ function McpArtifactPreview({ chatId, presentationId, index }: McpArtifactPrevie
   const previewable =
     plainText ||
     item.kind === 'image' ||
-    item.kind === 'audio' ||
+    (item.kind === 'audio' && resolveFileCategory(item.mimeType, '') === 'audio-previewable') ||
     item.mimeType === 'application/pdf'
   if (!previewable)
     return (
