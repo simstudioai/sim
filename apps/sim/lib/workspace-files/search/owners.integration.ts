@@ -481,31 +481,37 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
     }
   )
 
-  check('keeps empty and recursive folder scopes exact after the creator is detached', async () => {
-    const f = await fixture()
-    const folder = await createFolder(f, 'Architecture')
-    const child = await createFolder(f, 'Backend', folder.folder.id)
-    const created = await create(f, 'folderneedle', { folderId: child.folder.id })
-    await db
-      .update(workspaceFiles)
-      .set({ userId: null })
-      .where(eq(workspaceFiles.id, created.file.id))
-    await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
-    expect((await search(f, 'folderneedle', { folderPaths: [] })).results).toEqual([])
-    expect(
-      (
-        await search(f, 'folderneedle', {
-          folderPaths: ['/Architecture'],
-          includeSubfolders: false,
-        })
-      ).results
-    ).toEqual([])
-    expect(
-      (await search(f, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
-        (hit) => hit.fileId
+  check(
+    'keeps empty and recursive folder scopes exact after the creator is reassigned',
+    async () => {
+      const f = await fixture()
+      const folder = await createFolder(f, 'Architecture')
+      const child = await createFolder(f, 'Backend', folder.folder.id)
+      const created = await create(f, 'folderneedle', { folderId: child.folder.id })
+      await db
+        .update(workspaceFiles)
+        .set({ userId: f.readerId })
+        .where(eq(workspaceFiles.id, created.file.id))
+      await indexWorkspaceFileForSearch(
+        { owner: f.owner, ...(await claim(created.file.id)) },
+        signal
       )
-    ).toEqual([created.file.id])
-  })
+      expect((await search(f, 'folderneedle', { folderPaths: [] })).results).toEqual([])
+      expect(
+        (
+          await search(f, 'folderneedle', {
+            folderPaths: ['/Architecture'],
+            includeSubfolders: false,
+          })
+        ).results
+      ).toEqual([])
+      expect(
+        (await search(f, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
+          (hit) => hit.fileId
+        )
+      ).toEqual([created.file.id])
+    }
+  )
 
   check('rejects forged owner payloads without changing the current revision', async () => {
     const f = await fixture()

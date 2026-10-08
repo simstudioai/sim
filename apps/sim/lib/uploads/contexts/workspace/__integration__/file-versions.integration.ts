@@ -32,6 +32,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import {
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
@@ -131,6 +132,110 @@ describe('workspace file version history in PostgreSQL', () => {
       authorUserIds: [fixture.aliceId],
     })
     expect(await versionRows(fixture.fileId)).toEqual([])
+  })
+
+  it('keeps original attribution, bytes and revision through repeated creator handoff and a later edit', async () => {
+    const fixture = await seedFile('original')
+    const [before] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    for (const successor of [fixture.bobId, fixture.aliceId, fixture.bobId]) {
+      await db.transaction((tx) =>
+        handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), successor)
+      )
+    }
+    const [after] = await db
+      .select()
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    expect(after).toMatchObject({
+      key: before.key,
+      contentUpdatedAt: before.contentUpdatedAt,
+      uploadedAt: before.uploadedAt,
+      sizeBytes: before.sizeBytes,
+      userId: fixture.bobId,
+    })
+    expect(await versionRows(fixture.fileId)).toHaveLength(1)
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.bobId,
+      Buffer.from('second'),
+      undefined,
+      { version: { source: 'api', authorUserId: fixture.bobId } }
+    )
+    const rows = await versionRows(fixture.fileId)
+    expect(rows.map((row) => [row.version, row.source, row.authorUserIds])).toEqual([
+      [1, 'upload', [fixture.aliceId]],
+      [2, 'api', [fixture.bobId]],
+    ])
+    expect(await readVersionBytes(fixture.workspaceId, fixture.fileId, rows[0].key)).toBe(
+      'original'
+    )
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.aliceId)
+    )
+    expect(await versionRows(fixture.fileId)).toEqual(rows)
+  })
+
+  it('does not manufacture original authorship for previously overwritten unrecorded content', async () => {
+    const fixture = await seedFile('overwritten')
+    await db
+      .update(workspaceFiles)
+      .set({ contentUpdatedAt: new Date(Date.now() + 5000) })
+      .where(eq(workspaceFiles.id, fixture.fileId))
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+    )
+    expect(await versionRows(fixture.fileId)).toMatchObject([
+      { version: 1, source: 'unknown', authorUserIds: [] },
+    ])
+  })
+
+  it('keeps an empty shell unversioned until its first content write after handoff', async () => {
+    const fixture = await seedFile('')
+    await db.transaction((tx) =>
+      handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+    )
+    expect(await versionRows(fixture.fileId)).toEqual([])
+    await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.bobId,
+      Buffer.from('first'),
+      undefined,
+      { version: { source: 'api', authorUserId: fixture.bobId } }
+    )
+    expect(await versionRows(fixture.fileId)).toMatchObject([
+      { version: 1, source: 'api', authorUserIds: [fixture.bobId] },
+    ])
+  })
+
+  it('serializes content writes with creator handoff without duplicate or misattributed history', async () => {
+    const fixture = await seedFile('original')
+    await Promise.all([
+      db.transaction((tx) =>
+        handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+      ),
+      updateWorkspaceFileContent(
+        fixture.workspaceId,
+        fixture.fileId,
+        fixture.aliceId,
+        Buffer.from('second'),
+        undefined,
+        { version: { source: 'api', authorUserId: fixture.aliceId } }
+      ),
+    ])
+    const rows = await versionRows(fixture.fileId)
+    expect(rows.map((row) => [row.version, row.authorUserIds])).toEqual([
+      [1, [fixture.aliceId]],
+      [2, [fixture.aliceId]],
+    ])
+    expect(rows.filter((row) => row.supersededAt === null)).toHaveLength(1)
+    expect(await readVersionBytes(fixture.workspaceId, fixture.fileId, rows[0].key)).toBe(
+      'original'
+    )
   })
 
   it.each([

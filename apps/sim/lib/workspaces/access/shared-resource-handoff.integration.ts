@@ -282,6 +282,59 @@ describe('shared resource retention across workspace departure and account erasu
     }
   )
 
+  it('retains workspace-logo bindings after uploader departure and deletion', async () => {
+    const fixture = await seedResources(false)
+    const logoId = generateId()
+    await db.insert(workspaceFiles).values({
+      id: logoId,
+      userId: fixture.departingId,
+      workspaceId: fixture.workspaceId,
+      key: `workspace-logos/${fixture.workspaceId}/${logoId}.png`,
+      context: 'workspace-logos',
+      originalName: 'logo.png',
+      contentType: 'image/png',
+      sizeBytes: 8,
+    })
+    await db.transaction((tx) =>
+      revokeWorkspaceAccessTx(tx, {
+        workspaceId: fixture.workspaceId,
+        userId: fixture.departingId,
+      })
+    )
+    await deleteUserAccount(fixture.departingId)
+    expect(
+      await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, logoId))
+    ).toMatchObject([
+      { userId: fixture.ownerId, workspaceId: fixture.workspaceId, context: 'workspace-logos' },
+    ])
+  })
+
+  it('preserves an implicit original upload when its creator leaves', async () => {
+    const fixture = await seedResources(false)
+    await db.delete(workspaceFileVersion).where(eq(workspaceFileVersion.fileId, fixture.fileId))
+    await db.transaction((tx) =>
+      revokeWorkspaceAccessTx(tx, {
+        workspaceId: fixture.workspaceId,
+        userId: fixture.departingId,
+      })
+    )
+    expect(
+      await db
+        .select()
+        .from(workspaceFileVersion)
+        .where(eq(workspaceFileVersion.fileId, fixture.fileId))
+    ).toMatchObject([
+      { version: 1, source: 'upload', authorUserIds: [fixture.departingId], supersededAt: null },
+    ])
+    await deleteUserAccount(fixture.departingId)
+    expect(
+      await db
+        .select()
+        .from(workspaceFileVersion)
+        .where(eq(workspaceFileVersion.fileId, fixture.fileId))
+    ).toMatchObject([{ version: 1, authorUserIds: [fixture.departingId] }])
+  })
+
   it('repairs references left by departures before the handoff fix', async () => {
     const fixture = await seedResources(true, false)
     await deleteUserAccount(fixture.departingId)
@@ -908,6 +961,12 @@ describe('shared resource retention across workspace departure and account erasu
         ).toMatchObject([{ userId: fixture.ownerId }])
       }
       await deleteUserAccount(fixture.departingId)
+      expect(
+        await db
+          .select()
+          .from(workspaceFileVersion)
+          .where(eq(workspaceFileVersion.fileId, projectFileId))
+      ).toMatchObject([{ version: 1, source: 'upload', authorUserIds: [fixture.departingId] }])
       expect(
         await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, projectFileId))
       ).toMatchObject([{ userId: fixture.ownerId }])

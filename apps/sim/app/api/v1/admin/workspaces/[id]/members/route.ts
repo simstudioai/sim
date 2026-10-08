@@ -50,6 +50,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { ProjectConflictError } from '@/lib/projects/membership'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -389,10 +390,19 @@ export const DELETE = withRouteHandler(
         return notFoundResponse('Workspace member')
       }
 
-      await db.transaction(async (tx) => {
-        const result = await revokeWorkspaceAccessTx(tx, { workspaceId, userId: userId })
-        if (!result.revoked) throw new WorkspaceBillingAccountRemovalError()
+      const removed = await db.transaction(async (tx) => {
+        const result = await revokeWorkspaceAccessTx(tx, {
+          workspaceId,
+          userId,
+          expectedPermissionId: existingPermission.id,
+        })
+        if (!result.revoked) {
+          if (result.reason === 'membership-changed') return false
+          throw new WorkspaceBillingAccountRemovalError()
+        }
+        return true
       })
+      if (!removed) return notFoundResponse('Workspace member')
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
 
@@ -409,7 +419,10 @@ export const DELETE = withRouteHandler(
 
       return singleResponse({ removed: true, userId, workspaceId })
     } catch (error) {
-      if (error instanceof WorkspaceBillingAccountRemovalError) {
+      if (
+        error instanceof WorkspaceBillingAccountRemovalError ||
+        error instanceof ProjectConflictError
+      ) {
         return badRequestResponse(error.message)
       }
       logger.error('Admin API: Failed to remove workspace member', {

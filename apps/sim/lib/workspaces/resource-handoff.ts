@@ -19,10 +19,11 @@ import {
   handoffProjectsForWorkspaceDepartureTx,
   lockProjectsForResourceDepartureTx,
 } from '@/lib/projects/resource-handoff'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { reassignWorkflowOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
-const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat']
+const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat', 'workspace-logos']
 
 /** Finds surviving containers from ownership references, including departures predating handoff. */
 export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, userId: string) {
@@ -33,7 +34,7 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
       UNION ALL SELECT ${userTableDefinitions.workspaceId} FROM ${userTableDefinitions} WHERE ${userTableDefinitions.createdBy} = ${userId}
       UNION ALL SELECT ${knowledgeBase.workspaceId} FROM ${knowledgeBase} WHERE ${knowledgeBase.userId} = ${userId}
       UNION ALL SELECT ${workspaceFiles.workspaceId} FROM ${workspaceFiles}
-        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.context} IN ('workspace', 'knowledge-base', 'execution', 'chat') AND ${workspaceFiles.chatId} IS NULL
+        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.context} IN ('workspace', 'knowledge-base', 'execution', 'chat', 'workspace-logos') AND ${workspaceFiles.chatId} IS NULL
       UNION ALL SELECT ${workspaceFile.workspaceId} FROM ${workspaceFile} WHERE ${workspaceFile.uploadedBy} = ${userId}
       UNION ALL SELECT ${workflowMcpServer.workspaceId} FROM ${workflowMcpServer}
         WHERE ${workflowMcpServer.createdBy} = ${userId} AND NOT ${workflowMcpServer.isPublic}
@@ -152,17 +153,16 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
       .update(knowledgeBase)
       .set({ userId, updatedAt })
       .where(and(eq(knowledgeBase.workspaceId, row.id), eq(knowledgeBase.userId, departingUserId)))
-    await tx
-      .update(workspaceFiles)
-      .set({ userId, updatedAt })
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, row.id),
-          eq(workspaceFiles.userId, departingUserId),
-          inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS),
-          isNull(workspaceFiles.chatId)
-        )
-      )
+    await handoffFileCreatorsInTx(
+      tx,
+      and(
+        eq(workspaceFiles.workspaceId, row.id),
+        eq(workspaceFiles.userId, departingUserId),
+        inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS),
+        isNull(workspaceFiles.chatId)
+      ),
+      userId
+    )
     await tx
       .update(workspaceFile)
       .set({ uploadedBy: userId })

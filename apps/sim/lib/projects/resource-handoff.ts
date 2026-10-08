@@ -18,6 +18,7 @@ import {
   ProjectConflictError,
   tryLockProjects,
 } from '@/lib/projects/membership'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
 /**
  * An org admin, else a teammate who administers every surviving environment. With `hold`,
@@ -140,10 +141,11 @@ export async function handoffProjectCreatorReferencesTx(
         'Project successor must administer every surviving environment'
       )
   }
-  await tx
-    .update(workspaceFiles)
-    .set({ userId: successorId })
-    .where(and(eq(workspaceFiles.projectId, record.id), eq(workspaceFiles.userId, departingUserId)))
+  await handoffFileCreatorsInTx(
+    tx,
+    and(eq(workspaceFiles.projectId, record.id), eq(workspaceFiles.userId, departingUserId)),
+    successorId
+  )
   await tx
     .update(folder)
     .set({ userId: successorId })
