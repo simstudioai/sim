@@ -71,10 +71,20 @@ describe('bounded file text decoding', () => {
     }
   )
 
-  it('accepts the exact limit and empty responses', async () => {
-    await expect(
-      readFileText(new Response('a'.repeat(MAX_TEXT_PREVIEW_BYTES)))
-    ).resolves.toHaveLength(MAX_TEXT_PREVIEW_BYTES)
+  it.each([undefined, 'gzip'])(
+    'accepts the exact decoded limit with encoding %s',
+    async (encoding) => {
+      const headers = new Headers({
+        'content-length': String(MAX_TEXT_PREVIEW_BYTES + (encoding ? 100 : 0)),
+      })
+      if (encoding) headers.set('content-encoding', encoding)
+      await expect(
+        readFileText(new Response('a'.repeat(MAX_TEXT_PREVIEW_BYTES), { headers }))
+      ).resolves.toHaveLength(MAX_TEXT_PREVIEW_BYTES)
+    }
+  )
+
+  it('accepts empty responses', async () => {
     await expect(readFileText(new Response(null))).resolves.toBe('')
   })
 })

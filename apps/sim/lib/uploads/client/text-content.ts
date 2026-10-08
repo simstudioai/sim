@@ -13,9 +13,12 @@ export class FileTextSizeError extends Error {
   }
 }
 
-/** Bounds text previews even when storage omits or underreports Content-Length. */
+/** Bounds decoded text; Content-Length measures wire bytes for encoded responses. */
 export async function readFileText(response: Response): Promise<string> {
-  if (Number(response.headers.get('content-length')) > MAX_TEXT_PREVIEW_BYTES) {
+  if (
+    !response.headers.has('content-encoding') &&
+    Number(response.headers.get('content-length')) > MAX_TEXT_PREVIEW_BYTES
+  ) {
     await response.body?.cancel().catch(() => {})
     throw new FileTextSizeError()
   }
