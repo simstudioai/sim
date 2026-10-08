@@ -9723,7 +9723,7 @@
       "operations": [
         {
           "name": "List Customers",
-          "description": "List all Google Ads customer accounts accessible by the authenticated user"
+          "description": "List Google Ads accounts directly accessible by the authenticated user; query customer_client for manager subaccounts"
         },
         {
           "name": "List Campaigns",
