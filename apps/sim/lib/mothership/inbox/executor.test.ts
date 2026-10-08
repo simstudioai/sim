@@ -21,6 +21,10 @@ import {
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
 import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import {
@@ -37,18 +41,13 @@ import {
 } from '@sim/testing/mocks/workspaces-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetMessage,
-  mockGetAttachment,
-  mockRunHeadlessCopilotLifecycle,
-  mockSendInboxResponse,
-} = vi.hoisted(() => ({
+const { mockGetMessage, mockGetAttachment, mockSendInboxResponse } = vi.hoisted(() => ({
   mockGetMessage: vi.fn(),
   mockGetAttachment: vi.fn(),
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
 }))
 const { mockResolveOrCreateChat } = mothershipChatLifecycleMockFns
+const { mockRunHeadlessCopilotLifecycle } = mothershipHeadlessLifecycleMockFns
 const { mockBuildIntegrationToolSchemas } = mothershipChatPayloadMockFns
 const { mockUploadFile, mockDeleteFile } = storageServiceMockFns
 const { mockDeleteFileMetadata } = uploadsMetadataMockFns
@@ -84,9 +83,7 @@ vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
   requestChatTitle: vi.fn(),

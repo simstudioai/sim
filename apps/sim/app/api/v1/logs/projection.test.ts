@@ -67,7 +67,6 @@ const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
 workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockImplementation(
   async () => 'billed-user'
 )
-workspacesUtilsMockFns.mockGetWorkspaceOrganizationId.mockImplementation(async () => null)
 const { mockMaterializeExecutionDataForDisplay: mockMaterialize } = traceStoreMockFns
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions

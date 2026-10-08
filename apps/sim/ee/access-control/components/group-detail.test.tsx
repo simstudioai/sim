@@ -14,8 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PermissionGroup } from '@/lib/api/contracts/permission-groups'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
+import { allowedProvidersKeys } from '@/hooks/queries/allowed-providers'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('next/navigation', () => nextNavigationMock)
@@ -68,13 +70,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function render() {
+function render(currentGroup = group) {
   act(() =>
     root.render(
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams='?group-tab=providers'>
           <GroupDetail
-            group={group}
+            group={currentGroup}
             organizationId='org-1'
             workspaceOptions={[]}
             organizationWorkspaces={[]}
@@ -105,6 +107,32 @@ async function settle() {
 }
 
 describe('provider permission policy availability', () => {
+  it('stops warning after restoring the same provider membership in a different order', async () => {
+    providersUtilsMockFns.mockGetAllProviderIds.mockReturnValue(['openai', 'anthropic', 'google'])
+    client.setQueryData(allowedProvidersKeys.blacklisted(), { blacklistedProviders: [] })
+    render({
+      ...group,
+      config: { ...group.config, allowedModelProviders: ['openai', 'anthropic'] },
+    })
+    const toggle = container.querySelector<HTMLButtonElement>('#provider-openai')
+    if (!toggle) throw new Error('Missing provider toggle')
+    act(() => toggle.click())
+    let left = false
+    act(() =>
+      useSettingsDirtyStore.getState().requestLeave(() => {
+        left = true
+      })
+    )
+    expect(left).toBe(false)
+    act(() => toggle.click())
+    act(() =>
+      useSettingsDirtyStore.getState().requestLeave(() => {
+        left = true
+      })
+    )
+    expect(left).toBe(true)
+  })
+
   it('withholds provider edits until the server policy is known', () => {
     vi.stubGlobal(
       'fetch',

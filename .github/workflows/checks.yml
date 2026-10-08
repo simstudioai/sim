@@ -1,0 +1,737 @@
+name: checks
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
+    # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
+    # provisioning path produces. A new integration suite needs no workflow change.
+    #
+    # The two paths build different schemas (migrations add triggers, checks and NOT VALID
+    # constraints that `db:push` does not), so each runs the whole suite. Vitest splits each
+    # suite's files across four shards by measured duration (DurationBalancedSequencer in vitest.shared.ts); a
+    # shard runs its files one at a time against its own database. Files run serially, so a shard
+    # barely uses more than one core: 4 vCPU is enough.
+    name: integration (${{ matrix.provision }}, ${{ matrix.shard }}/4)
+    runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        provision: [push, migrate]
+        shard: [1, 2, 3, 4]
+    services:
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      postgres-legacy:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
+      NEXT_PUBLIC_APP_URL: https://test.sim.ai
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
+      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
+      # The mirror is one disk per repository that job steps can write to, so fork pull requests
+      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
+      # setup action's caches.
+      - &checkout-mirror
+        name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - &checkout-plain
+        name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision a fresh database through the supported command
+        working-directory: packages/db
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const extension of ["vector", "btree_gin", "pg_trgm"]) await sql`CREATE EXTENSION IF NOT EXISTS ${sql(extension)}`; await sql.end()'
+          bun run db:${{ matrix.provision }}
+
+      - name: Verify migration replay is a no-op
+        if: matrix.provision == 'migrate' && matrix.shard == 1
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      - name: Run packages/db integration tests
+        working-directory: packages/db
+        run: bun run test --mode integration --shard=${{ matrix.shard }}/4
+
+      - name: Run apps/sim integration tests
+        working-directory: apps/sim
+        # A non-UTC process zone keeps timestamp-without-time-zone handling honest.
+        env:
+          TZ: America/Los_Angeles
+        run: bun run test --mode integration --shard=${{ matrix.shard }}/4
+
+      - name: Verify cumulative billing timeout recovery on PostgreSQL 16
+        if: matrix.provision == 'push' && matrix.shard == 1
+        working-directory: apps/sim
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
+        run: >-
+          bun run test --mode integration lib/billing/core/usage-log.integration.ts
+          --outputFile.json=test-results/integration-pg16.json
+
+      - name: Upload integration test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-reports-${{ matrix.provision }}-${{ matrix.shard }}
+          path: |
+            packages/db/test-results/*.json
+            apps/sim/test-results/*.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Acceptance suites that cross a real HTTP boundary, one job per app, each on its own database.
+  # Off the integration jobs' path: the SCIM app boots hosted, which starts background usage replay
+  # against DATABASE_URL, so it must never share a database with suites asserting on billing rows.
+  # The suites exercise HTTP behavior rather than a provisioning path, so they run once, against
+  # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
+  #
+  # SCIM runs two suites against a hosted app and is the longest group, so it keeps the 8 vCPU
+  # runner; the others boot a smaller self-hosted app and fit on 4.
+  e2e:
+    name: e2e (${{ matrix.group }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.runner || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: scim
+            runner: blacksmith-8vcpu-ubuntu-2404
+          - group: cli
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - group: stop-after
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - group: desktop-inbox
+            runner: blacksmith-4vcpu-ubuntu-2404
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Only the desktop executor's app is given REDIS_URL: its doorbell and presence live there.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      # Migrations create their own extensions, as on a fresh self-hosted install.
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
+      # short of writing its report.
+      - name: Run end-to-end suites
+        working-directory: apps/sim
+        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      - name: Upload end-to-end reports and server logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: http-e2e-${{ matrix.group }}
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Pull requests skip the live desktop suite only when every change is clearly unrelated to the
+  # app it drives (docs, other apps, published content). Anything else, and any failure to work
+  # out the diff, runs it: a pull request that skipped it wrongly would first fail on staging.
+  desktop-changes:
+    name: desktop-changes
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ github.event_name != 'pull_request' || steps.diff.outputs.changed != 'false' }}
+    steps:
+      - name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - name: Checkout code
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
+      - name: Diff against the pull request's base
+        id: diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/desktop-live-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+
+  # Desktop tools in the real Electron app against a local app, on its own runner: the
+  # Electron app, the dev app and its realtime server together outgrow the e2e runner.
+  desktop-live:
+    name: desktop-live
+    needs: desktop-changes
+    if: needs.desktop-changes.outputs.changed == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: desktop-live-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
+      # Turbopack's dev cache turns the spec's route warm-up from a cold compile (~4 min) into a
+      # restore. It is content-addressed, so a pull request's changed modules still recompile; the
+      # key carries the installed Next version so an upgrade starts from an empty cache, and the
+      # event and fork segments keep untrusted runs off the cache trusted runs read.
+      - name: Resolve Turbopack dev cache key
+        id: next-cache
+        run: echo "key=${GITHUB_REPOSITORY}-next-dev-desktop-live-${GITHUB_EVENT_NAME}${FORK_SUFFIX}-$(jq -r .version node_modules/next/package.json)" >> "$GITHUB_OUTPUT"
+        env:
+          FORK_SUFFIX: ${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+
+      - name: Mount Turbopack dev cache
+        uses: ./.github/actions/cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ steps.next-cache.outputs.key }}
+          path: ./apps/sim/.next/dev
+
+      # Chat switches, Stop, sign-out, approval, the dormant-executor round trip, and background
+      # runs across a chat switch and a network cut. The spec runs the recording proxy (the app's
+      # public origin) and the stand-in worker.
+      - name: Verify desktop tools in the Electron app against a local app
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3020
+          BETTER_AUTH_URL: http://127.0.0.1:3020
+          REDIS_URL: redis://127.0.0.1:6379
+          SIM_AGENT_API_URL: http://127.0.0.1:3022
+          NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3023
+          SOCKET_SERVER_URL: http://127.0.0.1:3023
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          COPILOT_API_KEY: desktop-tools-e2e-ci-local-copilot-key
+          COPILOT_TOOL_PERMISSIONS_ENABLED: 'true'
+          MOTHERSHIP_SIM_TRANSPORT: direct
+          INTERNAL_API_SECRET: desktop-tools-e2e-ci-local-secret-at-least-32-characters
+          DISABLE_TELEMETRY: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+          READY_TIMEOUT_SECONDS: 300
+        run: |
+          report_dir="$RUNNER_TEMP/e2e"
+          next_log="$report_dir/desktop-tools-next.log"
+          mkdir -p "$report_dir"
+          # Each app runs in its own session under an E2E_APP tag, and stop-session.sh returns once
+          # every process it started has exited.
+          realtime_tag="desktop-realtime-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          server_tag="desktop-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          # Keeps the restored cache under the cap the dev scripts apply locally.
+          (cd apps/sim && bun run dev:cache:cap)
+          start_sim() {
+            (cd apps/sim && E2E_APP="$server_tag" exec setsid node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 \
+              --port 3021 >> "$next_log" 2>&1) &
+            server_pid=$!
+          }
+          # A corrupted cache aborts Turbopack instead of falling back. Only then is the shared cache
+          # dropped: a failing test must not cost every later run its warm cache.
+          cache_broken() {
+            grep -qiE 'cache corruption|turbopack.*panic|panicked' "$next_log" 2>/dev/null
+          }
+          # The cache directory is a mount point: empty it rather than remove it. Absolute, because
+          # the EXIT trap runs after the step has moved into apps/desktop.
+          clear_cache() {
+            find "$GITHUB_WORKSPACE/apps/sim/.next/dev" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          }
+          # SIGINT first: `next dev` SIGKILLs its server 100ms after SIGTERM, which discards a cache
+          # write in flight. stop-session.sh then removes anything still running.
+          # SIGINT is best-effort; the cleanup always runs, since workers and the detached telemetry
+          # flush can outlive a server that has already exited.
+          stop_sim() {
+            if kill -INT "$server_pid" 2>/dev/null; then
+              for _ in $(seq 1 30); do kill -0 "$server_pid" 2>/dev/null || break; sleep 1; done
+            fi
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+          }
+          (cd apps/realtime && PORT=3023 SIM_DB_ROLE=realtime ALLOWED_ORIGINS="$NEXT_PUBLIC_APP_URL" \
+            E2E_APP="$realtime_tag" exec setsid bun src/index.ts > "$report_dir/desktop-tools-realtime.log" 2>&1) &
+          realtime_pid=$!
+          start_sim
+          finish() {
+            status=$?
+            stop_sim || status=1
+            bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
+            wait "$server_pid" "$realtime_pid" 2>/dev/null || true
+            if cache_broken; then
+              echo "::warning::Turbopack reported a broken dev cache; clearing it for the next run."
+              clear_cache
+            fi
+            exit "$status"
+          }
+          trap finish EXIT
+          # The apps boot while the runner installs Electron's libraries and bundles the shell.
+          sudo apt-get update -q
+          sudo apt-get install -yq xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 \
+            libxtst6 libatk-bridge2.0-0t64 libxkbcommon0 > /dev/null
+          # Bundle only: `bun run build` also fetches the macOS node-pty prebuilds for packaging,
+          # which a Linux run does not use.
+          (cd apps/desktop && bun run scripts/build.ts)
+          started=$SECONDS
+          retried=0
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3021/api/health > /dev/null &&
+            curl --fail --silent --max-time 10 http://127.0.0.1:3023/health > /dev/null; do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              tail -n 200 "$next_log"
+              if [ "$retried" = 0 ] && cache_broken; then
+                echo "::warning::Turbopack rejected the restored dev cache; restarting from an empty cache."
+                bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$server_tag"
+                clear_cache
+                : > "$next_log"
+                retried=1
+                start_sim
+                continue
+              fi
+              exit 1
+            fi
+            kill -0 "$realtime_pid" 2>/dev/null || { tail -n 200 "$report_dir/desktop-tools-realtime.log"; exit 1; }
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] || { echo '::error::Local app did not become ready'; exit 1; }
+            sleep 2
+          done
+          echo "Local apps ready $((SECONDS - started))s after the Electron bundle"
+          cd apps/desktop
+          SIM_DESKTOP_E2E_SIM_URL=http://127.0.0.1:3021 \
+          SIM_DESKTOP_E2E_PROXY_PORT=3020 \
+          SIM_DESKTOP_E2E_AGENT_PORT=3022 \
+          SIM_DESKTOP_E2E_DATABASE_URL="$DATABASE_URL" \
+          SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
+          SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+            xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
+            --output "$report_dir/desktop-tools-results" --retries=0
+
+      - name: Upload Electron E2E results and server logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-live-e2e-results
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Lint, audits, type-check and the schema sync check: about two minutes of mostly cached work,
+  # kept off the test shards so neither waits on the other.
+  lint:
+    name: lint
+    runs-on: *runner-4vcpu
+    timeout-minutes: 15
+
+    steps:
+      # The diff-based audits below need a base commit to read, and the default
+      # depth of 1 clones a single commit with no parent. They normally fetch
+      # their base by SHA (see "Resolve base ref"), so this depth only covers the
+      # `HEAD~1` fallback — but without it that fallback resolves to nothing.
+      #
+      # Worth stating because the failure was invisible for so long: the migration
+      # audit read the resulting `git diff` failure as "no migrations changed" and
+      # exited 0, so it had never actually run on a push build.
+      # Same mirror/plain split as the integration job's checkout.
+      - &checkout-mirror-depth2
+        name: Checkout code (mirror)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        with:
+          fetch-depth: 2
+      - &checkout-plain-depth2
+        name: Checkout code
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache
+
+      # Surfaces known CVEs in the dependency tree. Non-blocking until the
+      # existing advisory backlog is triaged, then flip to a required gate by
+      # removing continue-on-error.
+      - name: Security audit
+        run: bun audit
+        continue-on-error: true
+
+      - name: Validate env flags
+        run: |
+          FILE="apps/sim/lib/core/config/env-flags.ts"
+          ERRORS=""
+
+          echo "Checking for hardcoded boolean env flags..."
+
+          # Use perl for multiline matching to catch both:
+          #   export const isHosted = true
+          #   export const isHosted =
+          #     true
+          HARDCODED=$(perl -0777 -ne 'while (/export const (is[A-Za-z]+)\s*=\s*\n?\s*(true|false)\b/g) { print "  $1 = $2\n" }' "$FILE")
+
+          if [ -n "$HARDCODED" ]; then
+            ERRORS="${ERRORS}\n❌ Env flags must not be hardcoded to boolean literals!\n\nFound hardcoded flags:\n${HARDCODED}\n\nEnv flags should derive their values from environment variables.\n"
+          fi
+
+          echo "Checking env flag naming conventions..."
+
+          # Check that all export const (except functions) start with 'is'
+          # This finds exports like "export const someFlag" that don't start with "is" or "get"
+          BAD_NAMES=$(grep -E "^export const [a-z]" "$FILE" | grep -vE "^export const (is|get)" | sed 's/export const \([a-zA-Z]*\).*/  \1/')
+
+          if [ -n "$BAD_NAMES" ]; then
+            ERRORS="${ERRORS}\n❌ Env flags must use 'is' prefix for boolean flags!\n\nFound incorrectly named flags:\n${BAD_NAMES}\n\nExample: 'hostedMode' should be 'isHostedMode'\n"
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            echo ""
+            echo -e "$ERRORS"
+            exit 1
+          fi
+
+          echo "✅ All env flags are properly configured"
+
+      # One fetch for both base-ref audits, and no `|| true`: a swallowed fetch leaves
+      # the base ref absent, which neither audit can tell apart from a branch that
+      # changed nothing. The block-registry check at least degrades to a visible
+      # `⚠ … skipping` line; the migration audit printed `✓ No new migrations to
+      # check` and exited 0, clearing the only guard on production DDL.
+      #
+      # Depth stays at 1 — without a merge-base the migration audit diffs the two
+      # tips, which under `--diff-filter=AM` is exactly the migrations new here.
+      #
+      # On push the base is `github.event.before`, the tip the branch had before
+      # this push — not `HEAD~1`, which names only the last commit and would let a
+      # multi-commit push slip every earlier commit's migrations past the audit.
+      # It is fetched by SHA at depth 1; the audits diff two tips and need no
+      # common ancestry. An all-zero `before` means the branch is new and has no
+      # predecessor to diff, so `HEAD~1` remains the fallback there.
+      - name: Resolve base ref for diff-based audits
+        id: audit_base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --depth=1 origin "${{ github.base_ref }}"
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] &&
+               [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            git fetch --depth=1 origin "${{ github.event.before }}"
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check block registry invariants
+        run: bun run apps/sim/scripts/check-block-registry.ts "${{ steps.audit_base.outputs.ref }}"
+
+      - name: Lint code
+        run: bun run lint:check
+
+      # Workflow syntax, expressions, `needs` references and runner labels. ShellCheck stays off
+      # here: the existing run blocks carry info-level findings that are their own cleanup.
+      - name: Lint workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color -shellcheck= -pyflakes=
+
+      # Every zero-argument `check:*` script, run concurrently. The list is derived in
+      # scripts/run-audits.ts, which also writes the per-audit timing table to the job
+      # summary and annotates failures. Audits needing a base ref stay separate below.
+      - name: Repo audits
+        run: bun run check:audits
+
+      - name: Verify docs manifest is in sync
+        run: bun run docs-manifest:check
+
+      - name: Migration safety (zero-downtime) audit
+        run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
+
+      # Every workspace, not just realtime. packages/emcn, packages/utils,
+      # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
+      # source was covered only as a side effect of `next build` in the separate
+      # `build` job. Note this does NOT cover apps/sim's tests — its tsconfig
+      # excludes *.test.ts(x), and including them today surfaces ~2.2k errors,
+      # so that is its own cleanup rather than a gate to switch on here.
+      - name: Type-check all workspaces
+        run: bunx turbo run type-check
+
+      - name: Check schema and migrations are in sync
+        working-directory: packages/db
+        run: |
+          bunx drizzle-kit generate --config=./drizzle.config.ts
+          if [ -n "$(git status --porcelain ./migrations)" ]; then
+            echo "❌ Schema and migrations are out of sync!"
+            echo "Run 'cd packages/db && bunx drizzle-kit generate' and commit the new migrations."
+            git status --porcelain ./migrations
+            git diff ./migrations
+            exit 1
+          fi
+          echo "✅ Schema and migrations are in sync"
+
+  # The root scripts and every workspace's Vitest suite (`bun run test`), split in two. apps/sim is
+  # about 98% of the time, so only its files are sharded; shard 1 also runs the root scripts and
+  # the other workspaces. Each shard keeps its own Turbo cache: pass-through args are part of the
+  # task hash, so a shard only ever replays its own result.
+  test:
+    name: test (${{ matrix.shard }}/2)
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+
+    steps:
+      - *checkout-mirror-depth2
+      - *checkout-plain-depth2
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache-test-${{ matrix.shard }}
+
+      # cloud-review-tools.test.ts runs the real helper on the runner, which shells
+      # out to rg. Blacksmith's image ships it, GitHub's doesn't.
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
+      - name: Verify shell placeholder compilation in Bash
+        if: matrix.shard == 1
+        working-directory: apps/sim
+        env:
+          SHELL_PLACEHOLDERS_REPORT_PATH: ${{ runner.temp }}/shell-placeholders.json
+        run: bun scripts/test-shell-placeholders-e2e.ts
+
+      - name: Upload shell placeholder execution report
+        if: failure() && matrix.shard == 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shell-placeholders
+          path: ${{ runner.temp }}/shell-placeholders.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Run tests
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
+          TURBO_CACHE_DIR: .turbo
+          SHARD: ${{ matrix.shard }}
+        run: |
+          if [ "$SHARD" = 1 ]; then
+            bun run test:scripts
+            bunx turbo run test --filter='!@sim/app'
+          fi
+          bunx turbo run test --filter=@sim/app -- --shard="$SHARD/2"
+
+  # Next.js production build, in parallel with lint + tests. Sticky disks are
+  # cloned from the last committed snapshot per job and committed last-writer-
+  # wins, so concurrent mounts are safe. The bun/node_modules disks are shared
+  # with the test jobs (the lockfile-hashed key means they only ever share when the
+  # dependency tree really is identical, so LWW loss is harmless), but the Turbo
+  # cache gets its own key: with a shared key, only the last committer's new
+  # entries survive each run, so the test and build Turbo entries would evict
+  # each other nondeterministically.
+  #
+  # Runner is sized for the COLD-cache build, which is what OOM-killed the 8vcpu
+  # tier (23 kills / 1074 runs at 98% of its 30.4 GB): warm peaks ~12 GB, cold
+  # peaked 51 GB. NODE_OPTIONS' --max-old-space-size caps only Node's JS heap,
+  # not the native Turbopack workers that dominate, so it cannot prevent this.
+  build:
+    name: build
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    # Build durations crossed 15 minutes as the app grew (10m02 on Jul 29 AM,
+    # 14m44 after the folders/desktop/library merges, then two straight
+    # timeouts) — GitHub reports a job timeout as "cancelled". 25 keeps
+    # headroom without masking a genuine hang.
+    timeout-minutes: 25
+
+    steps:
+      - *checkout-mirror
+      - *checkout-plain
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache-build
+
+      # No `.next/cache` mount: the Turbopack persistent build cache is off. A
+      # controlled A/B on one branch (PR #6078) with a byte-identical module graph
+      # measured compile at 113s with the cache off, 162s cold with it on, and
+      # 360s warm — the cache made the same build 3.2x slower, and it grew
+      # 5.1 GB -> 12 GB across two runs of an unchanged tree, so a disk degrades
+      # the more it is used. Mounting a disk nothing reads would only cost storage.
+
+      # Running out of RAM kills the whole VM and surfaces only as "the runner
+      # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
+      # with the real numbers so that failure is a one-line diagnosis instead of
+      # a mystery. Warn, never fail: a warm build peaks ~12 GB and a partial one
+      # ~28 GB, so a 32 GB runner still completes plenty of builds, and the
+      # GitHub fallback is the break-glass path — degrading it to a guaranteed
+      # failure would be worse than the risk this flags.
+      - name: Check runner memory headroom
+        run: |
+          TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
+          echo "Runner memory: ${TOTAL_GB} GB"
+          if [ "$TOTAL_GB" -lt 40 ]; then
+            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
+          fi
+
+      - name: Build application
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+          STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
+          STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
+          RESEND_API_KEY: 'dummy_key_for_ci_only'
+          AWS_REGION: 'us-west-2'
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
+          TURBO_CACHE_DIR: .turbo
+        run: bunx turbo run build --filter=@sim/app
+
+  # One status for every check above: the single check to require on a branch ruleset, so adding,
+  # sharding or renaming a job never means editing the ruleset. Skipped is a pass (the desktop live
+  # suite skips on pull requests that cannot affect it); a failure or a cancellation is not.
+  # `always()`, not `!cancelled()`: a skipped job satisfies a required check, so a gate that skips
+  # on a cancelled run would report a cancelled head commit as passing.
+  ci:
+    name: ci
+    needs: [integration, e2e, desktop-changes, desktop-live, lint, test, build]
+    if: ${{ always() }}
+    runs-on: *runner-2vcpu
+    timeout-minutes: 5
+    steps:
+      - name: Require every check to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          failed="$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<< "$RESULTS")"
+          if [ -n "$failed" ]; then
+            echo "::error::Checks did not pass:"
+            echo "$failed"
+            exit 1
+          fi
+          echo "All checks passed."

@@ -1,5 +1,6 @@
 import { task } from '@trigger.dev/sdk'
-import { runDrain } from '@/lib/data-drains/service'
+import { runQueuedDrain } from '@/lib/data-drains/enqueue'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import type { RunTrigger } from '@/lib/data-drains/types'
 
 interface RunDataDrainPayload {
@@ -9,6 +10,9 @@ interface RunDataDrainPayload {
 
 export const runDataDrainTask = task({
   id: 'run-data-drain',
+  queue: { concurrencyLimit: 1 },
+  maxDuration: DATA_DRAIN_LIMITS.hardDurationMs / 1000,
+  retry: { maxAttempts: 3 },
   run: async ({ drainId, trigger }: RunDataDrainPayload, { signal }) =>
-    runDrain(drainId, trigger, { signal }),
+    runQueuedDrain(drainId, trigger, signal),
 })

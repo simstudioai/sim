@@ -71,6 +71,7 @@ function queueIdentity({
   accountLinked?: boolean
   email?: string
 } = {}) {
+  queueTableRows(schemaMock.ssoProvider, [{ id: 'sso-1', organizationId }])
   queueTableRows(schemaMock.ssoProvider, [
     {
       id: 'sso-1',
@@ -152,7 +153,6 @@ describe('SSO JIT admission', () => {
       kind: 'denied',
       reason: 'provider-not-trusted',
     })
-    expect(mockAcquireOrganizationUserMutationLocks).not.toHaveBeenCalled()
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 

@@ -216,6 +216,17 @@ Search users in Thrive and return basic user information with pagination.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
@@ -269,6 +280,17 @@ Get a single user in Thrive by their ID and return basic user information.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
@@ -317,6 +339,17 @@ Get a single user in Thrive by their ref and return basic user information.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
 
@@ -1039,6 +1072,11 @@ Get a single content record in Thrive by its ID.
 |     ↳ `value` | number | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+|     ↳ `action` | string | Type of change or event recorded |
+|     ↳ `timestamp` | string | When the action occurred \(ISO 8601\) |
+|     ↳ `performedBy` | object | The actor that performed the action |
+|       ↳ `type` | string | Kind of actor \(e.g. user or system\) |
+|       ↳ `value` | string | Identifier or value of the actor |
 
 ### Thrive Query Content
 
@@ -1075,6 +1113,11 @@ Query content records in Thrive with pagination and filtering options.
 |     ↳ `value` | number | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+|     ↳ `action` | string | Type of change or event recorded |
+|     ↳ `timestamp` | string | When the action occurred \(ISO 8601\) |
+|     ↳ `performedBy` | object | The actor that performed the action |
+|       ↳ `type` | string | Kind of actor \(e.g. user or system\) |
+|       ↳ `value` | string | Identifier or value of the actor |
 | `pagination` | object | Pagination details |
 |   ↳ `totalResults` | number | Total number of results matching the query |
 |   ↳ `totalPages` | number | Total number of pages available |

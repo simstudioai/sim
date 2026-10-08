@@ -40,22 +40,6 @@ export class MockTableQueryValidationError extends Error {
 }
 
 /**
- * Stand-in for `TableRowTtlDisabledError` from `@/lib/table/errors`: same `name`,
- * `code: 'validation'`, `detailCode` and message. It extends `Error`, not the real
- * `OrchestrationError`, so code under test that checks `instanceof OrchestrationError` will not
- * match it; classifiers reading `.code` do.
- */
-export class MockTableRowTtlDisabledError extends Error {
-  readonly code = 'validation' as const
-  readonly detailCode = 'TABLE_ROW_TTL_DISABLED'
-
-  constructor() {
-    super('Expiration columns are not enabled')
-    this.name = 'TableRowTtlDisabledError'
-  }
-}
-
-/**
  * Stand-in for `CsvImportValidationError` from `@/lib/table/import`: same `name`,
  * `code: 'CSV_IMPORT_VALIDATION'`, message and `details`.
  */
@@ -279,7 +263,6 @@ export const tableMock = {
   ...tableRowsServiceMock,
   ...tableServiceMock,
   TableQueryValidationError: MockTableQueryValidationError,
-  TableRowTtlDisabledError: MockTableRowTtlDisabledError,
   CsvImportValidationError: MockCsvImportValidationError,
   TableViewValidationError: MockTableViewValidationError,
   DEFAULT_CURRENCY_CODE: 'USD',

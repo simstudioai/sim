@@ -44,10 +44,10 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   enterpriseMetadataSyncPayloadSchema,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
+import { ENTERPRISE_METADATA_SYNC_EVENT_TYPE } from '@/lib/billing/enterprise-outbox-events'
 import {
   type EnterpriseProvisioningView,
   getLatestEnterpriseProvisionings,

@@ -69,6 +69,8 @@ type RecreateCheckInput = {
 /** System-managed fields that should not trigger recreation. */
 const SYSTEM_MANAGED_FIELDS = new Set([
   'externalId',
+  'previousSubscription',
+  'subscriptionActivationPending',
   'externalSubscriptionId',
   'eventTypes',
   'webhookTag',
@@ -219,6 +221,44 @@ export async function createExternalWebhookSubscription(
   }
 }
 
+/** Activates provider state after the authorized caller has durably stored its external ID and credentials. */
+export async function activateExternalWebhookSubscription(
+  request: NextRequest,
+  webhookData: Record<string, unknown>,
+  workflow: Record<string, unknown>,
+  userId: string,
+  requestId: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<void> {
+  const handler = getProviderHandler(String(webhookData.provider))
+  const activateSubscription = handler.activateSubscription
+  if (
+    !activateSubscription ||
+    toRecord(webhookData.providerConfig).subscriptionActivationPending === false
+  )
+    return
+  const workspaceId = typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
+  const secrets = new Map<string, string>()
+  const providerConfig = await resolveWebhookProviderConfig(
+    toRecord(webhookData.providerConfig),
+    userId,
+    workspaceId,
+    { onResolved: (name, value) => secrets.set(name, value) }
+  )
+  await withResourceOutboundScope({ workspaceId }, () => {
+    options.signal?.throwIfAborted()
+    return activateSubscription({
+      request,
+      webhook: { ...webhookData, providerConfig },
+      workflow,
+      userId,
+      requestId,
+    })
+  }).catch((error: unknown) => {
+    throw projectProviderFailure(error, secrets, providerConfig)
+  })
+}
+
 /**
  * Clean up external webhook subscriptions for a webhook.
  *
@@ -242,8 +282,9 @@ export async function cleanupExternalWebhook(
 ): Promise<void> {
   const provider = webhook.provider as string
   const handler = getProviderHandler(provider)
+  const previousSubscription = toRecord(toRecord(webhook.providerConfig).previousSubscription)
 
-  if (!handler.deleteSubscription) {
+  if (!handler.deleteSubscription && typeof previousSubscription.provider !== 'string') {
     return
   }
 
@@ -263,6 +304,20 @@ export async function cleanupExternalWebhook(
       { envVars, onResolved: (name, value) => secrets.set(name, value) }
     )
     resolvedProviderConfig = resolvedWebhook.providerConfig
+    if (typeof previousSubscription.provider === 'string') {
+      await cleanupExternalWebhook(
+        {
+          ...webhook,
+          provider: previousSubscription.provider,
+          providerConfig: previousSubscription.providerConfig,
+        },
+        workflow,
+        requestId,
+        options
+      )
+    }
+
+    if (!handler.deleteSubscription) return
 
     /** Workspace archival precedes provider cleanup; routing still uses its canonical owner. */
     await withResourceOutboundScope(

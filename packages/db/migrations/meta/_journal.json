@@ -2777,8 +2777,36 @@
     {
       "idx": 397,
       "version": "7",
-      "when": 1791257919410,
-      "tag": "0397_project_membership_enforcement",
+      "when": 1791260527198,
+      "tag": "0397_desktop_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1791260662287,
+      "tag": "0398_desktop_tool_pickup_deadline",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1791313130367,
+      "tag": "0399_tool_call_persist_seq",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1791447472721,
+      "tag": "0400_vanta_client_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1791447472722,
+      "tag": "0401_project_membership_enforcement",
       "breakpoints": true
     }
   ]

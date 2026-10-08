@@ -22,7 +22,6 @@ vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -3758,7 +3758,7 @@
       "slug": "buffer",
       "name": "Buffer",
       "description": "Schedule and publish social media posts across connected channels",
-      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.",
       "bgColor": "#FFFFFF",
       "iconName": "BufferIcon",
       "docsUrl": "https://docs.sim.ai/integrations/buffer",
@@ -3788,6 +3788,18 @@
           "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
         },
         {
+          "name": "Get Channel",
+          "description": "Get one connected channel, including its posting schedule, limits and network settings"
+        },
+        {
+          "name": "Get Aggregated Post Metrics",
+          "description": "Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days"
+        },
+        {
+          "name": "Get Daily Posting Limits",
+          "description": "Check sent and scheduled post counts against each channel’s daily limit for a date"
+        },
+        {
           "name": "Create Idea",
           "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
         },
@@ -3804,7 +3816,7 @@
           "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15691,6 +15703,82 @@
       "tags": ["spreadsheet", "microsoft-365"]
     },
     {
+      "type": "intune",
+      "slug": "microsoft-intune",
+      "name": "Microsoft Intune",
+      "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
+      "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
+      "bgColor": "#0078D4",
+      "iconName": "IntuneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/intune",
+      "operations": [
+        {
+          "name": "List Devices",
+          "description": "Read one page of devices from Microsoft Intune"
+        },
+        {
+          "name": "Get Device",
+          "description": "Read device details from Microsoft Intune"
+        },
+        {
+          "name": "List Detected Apps",
+          "description": "Read one page of detected apps from Microsoft Intune"
+        },
+        {
+          "name": "Get Detected App",
+          "description": "Read detected app details from Microsoft Intune"
+        },
+        {
+          "name": "List App Devices",
+          "description": "Read one page of managed devices that have a detected application installed"
+        },
+        {
+          "name": "List Compliance Policies",
+          "description": "Read one page of compliance policies from Microsoft Intune"
+        },
+        {
+          "name": "Get Compliance Policy",
+          "description": "Read common metadata for an Intune compliance policy"
+        },
+        {
+          "name": "List Compliance Policy Device Statuses",
+          "description": "Read one page of compliance policy device statuses from Microsoft Intune"
+        },
+        {
+          "name": "List Device Configurations",
+          "description": "Read one page of device configurations from Microsoft Intune"
+        },
+        {
+          "name": "Get Device Configuration",
+          "description": "Read common metadata for an Intune device configuration"
+        },
+        {
+          "name": "Sync Device",
+          "description": "Request a device check-in to receive pending Intune policies and actions"
+        },
+        {
+          "name": "Reboot Device",
+          "description": "Request a device restart after explicit confirmation; may interrupt the signed-in user"
+        },
+        {
+          "name": "Remote Lock Device",
+          "description": "Request a remote device lock after explicit confirmation on supported platforms"
+        },
+        {
+          "name": "Retire Device",
+          "description": "Retire a device after explicit confirmation, removing company data and management"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-intune",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["microsoft-365", "monitoring", "automation"]
+    },
+    {
       "type": "microsoft_planner",
       "slug": "microsoft-planner",
       "name": "Microsoft Planner",
@@ -16966,6 +17054,49 @@
       "tags": ["microsoft-365", "cloud", "document-processing"]
     },
     {
+      "type": "oracledb",
+      "slug": "oracle-database",
+      "name": "Oracle Database",
+      "description": "Connect directly to an Oracle Database",
+      "longDescription": "Query, modify, and inspect Oracle Database over Oracle Net using TCP or verified TCPS, with optional in-memory PEM wallet authentication.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracledb",
+      "operations": [
+        {
+          "name": "Query (SELECT)",
+          "description": "Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds"
+        },
+        {
+          "name": "Insert Data",
+          "description": "Insert one JSON object as a row in an Oracle Database table using bound values"
+        },
+        {
+          "name": "Update Data",
+          "description": "Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns"
+        },
+        {
+          "name": "Delete Data",
+          "description": "Delete Oracle Database rows selected by a required WHERE expression"
+        },
+        {
+          "name": "Execute SQL",
+          "description": "Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN"
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "netsuite",
       "slug": "oracle-netsuite",
       "name": "Oracle NetSuite",
@@ -18168,6 +18299,514 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "plane",
+      "slug": "plane",
+      "name": "Plane",
+      "description": "Manage projects and work items in Plane",
+      "longDescription": "Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choose API v1 for Community Edition or older instances. Actions with a current successor are consolidated. Unsupported version-specific inputs fail explicitly. Manage work items, projects, cycles, modules, states, labels, comments, links, attachments, pages, and webhooks. API v1 compatibility is available within supported current actions.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/plane",
+      "operations": [
+        {
+          "name": "Add or remove cycle work items",
+          "description": "Add or remove cycle work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Add or remove module work items",
+          "description": "Add or remove module work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Archive a project",
+          "description": "Archive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Archive a work item",
+          "description": "Archive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Confirm a work item attachment upload",
+          "description": "Confirm a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a comment",
+          "description": "Create a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a cycle",
+          "description": "Create a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a label",
+          "description": "Create a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a link",
+          "description": "Create a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a module",
+          "description": "Create a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project",
+          "description": "Create a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a project page",
+          "description": "Create a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a state",
+          "description": "Create a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a webhook",
+          "description": "Create a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Create a work item",
+          "description": "Create a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Create a work item attachment upload",
+          "description": "Create a work item attachment upload in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a comment",
+          "description": "Delete a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a cycle",
+          "description": "Delete a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a label",
+          "description": "Delete a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a link",
+          "description": "Delete a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a module",
+          "description": "Delete a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project",
+          "description": "Delete a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a project page",
+          "description": "Delete a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a state",
+          "description": "Delete a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete a webhook",
+          "description": "Delete a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Delete a work item",
+          "description": "Delete a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Delete an attachment",
+          "description": "Delete an attachment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a comment",
+          "description": "Get a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a cycle",
+          "description": "Get a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a label",
+          "description": "Get a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a link",
+          "description": "Get a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a module",
+          "description": "Get a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project",
+          "description": "Get a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project page",
+          "description": "Get a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a project summary",
+          "description": "Get a project summary in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a state",
+          "description": "Get a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a webhook",
+          "description": "Get a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Get a work item",
+          "description": "Get a work item in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Get a work item by identifier",
+          "description": "Get a work item by identifier in Plane. Requires API v2."
+        },
+        {
+          "name": "Get an attachment",
+          "description": "Get an attachment in Plane. Requires API v2."
+        },
+        {
+          "name": "Get current user",
+          "description": "Get current user in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List attachments",
+          "description": "List attachments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List comments",
+          "description": "List comments in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List cycles",
+          "description": "List cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List labels",
+          "description": "List labels in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List links",
+          "description": "List links in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List modules",
+          "description": "List modules in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List project pages",
+          "description": "List project pages in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List projects",
+          "description": "List projects in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List states",
+          "description": "List states in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List webhooks",
+          "description": "List webhooks in Plane. Requires API v2."
+        },
+        {
+          "name": "List work items",
+          "description": "List work items in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "List work items across a workspace",
+          "description": "List work items across a workspace in Plane. Requires API v2."
+        },
+        {
+          "name": "Regenerate a webhook secret",
+          "description": "Regenerate a webhook secret in Plane. Requires API v2."
+        },
+        {
+          "name": "Transfer work items between cycles",
+          "description": "Transfer work items between cycles in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a project",
+          "description": "Unarchive a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Unarchive a work item",
+          "description": "Unarchive a work item in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a comment",
+          "description": "Update a comment in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a cycle",
+          "description": "Update a cycle in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a label",
+          "description": "Update a label in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a link",
+          "description": "Update a link in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a module",
+          "description": "Update a module in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project",
+          "description": "Update a project in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a project page",
+          "description": "Update a project page in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a state",
+          "description": "Update a state in Plane. Supports API v1 compatibility."
+        },
+        {
+          "name": "Update a webhook",
+          "description": "Update a webhook in Plane. Requires API v2."
+        },
+        {
+          "name": "Update a work item",
+          "description": "Update a work item in Plane. Supports API v1 compatibility."
+        }
+      ],
+      "operationCount": 67,
+      "triggers": [
+        {
+          "id": "plane_webhook",
+          "name": "Plane All Events",
+          "description": "Trigger a workflow for any signed Plane event."
+        },
+        {
+          "id": "plane_project_created",
+          "name": "Plane Project Created",
+          "description": "Trigger a workflow for Plane project created events."
+        },
+        {
+          "id": "plane_project_updated",
+          "name": "Plane Project Updated",
+          "description": "Trigger a workflow for Plane project updated events."
+        },
+        {
+          "id": "plane_project_archived",
+          "name": "Plane Project Archived",
+          "description": "Trigger a workflow for Plane project archived events."
+        },
+        {
+          "id": "plane_project_deleted",
+          "name": "Plane Project Deleted",
+          "description": "Trigger a workflow for Plane project deleted events."
+        },
+        {
+          "id": "plane_cycle_created",
+          "name": "Plane Cycle Created",
+          "description": "Trigger a workflow for Plane cycle created events."
+        },
+        {
+          "id": "plane_cycle_updated",
+          "name": "Plane Cycle Updated",
+          "description": "Trigger a workflow for Plane cycle updated events."
+        },
+        {
+          "id": "plane_cycle_archived",
+          "name": "Plane Cycle Archived",
+          "description": "Trigger a workflow for Plane cycle archived events."
+        },
+        {
+          "id": "plane_cycle_deleted",
+          "name": "Plane Cycle Deleted",
+          "description": "Trigger a workflow for Plane cycle deleted events."
+        },
+        {
+          "id": "plane_module_created",
+          "name": "Plane Module Created",
+          "description": "Trigger a workflow for Plane module created events."
+        },
+        {
+          "id": "plane_module_updated",
+          "name": "Plane Module Updated",
+          "description": "Trigger a workflow for Plane module updated events."
+        },
+        {
+          "id": "plane_module_archived",
+          "name": "Plane Module Archived",
+          "description": "Trigger a workflow for Plane module archived events."
+        },
+        {
+          "id": "plane_module_deleted",
+          "name": "Plane Module Deleted",
+          "description": "Trigger a workflow for Plane module deleted events."
+        },
+        {
+          "id": "plane_milestone_created",
+          "name": "Plane Milestone Created",
+          "description": "Trigger a workflow for Plane milestone created events."
+        },
+        {
+          "id": "plane_milestone_updated",
+          "name": "Plane Milestone Updated",
+          "description": "Trigger a workflow for Plane milestone updated events."
+        },
+        {
+          "id": "plane_milestone_deleted",
+          "name": "Plane Milestone Deleted",
+          "description": "Trigger a workflow for Plane milestone deleted events."
+        },
+        {
+          "id": "plane_page_created",
+          "name": "Plane Page Created",
+          "description": "Trigger a workflow for Plane page created events."
+        },
+        {
+          "id": "plane_page_updated",
+          "name": "Plane Page Updated",
+          "description": "Trigger a workflow for Plane page updated events."
+        },
+        {
+          "id": "plane_page_archived",
+          "name": "Plane Page Archived",
+          "description": "Trigger a workflow for Plane page archived events."
+        },
+        {
+          "id": "plane_page_deleted",
+          "name": "Plane Page Deleted",
+          "description": "Trigger a workflow for Plane page deleted events."
+        },
+        {
+          "id": "plane_page_comment_created",
+          "name": "Plane Page Comment Created",
+          "description": "Trigger a workflow for Plane page comment created events."
+        },
+        {
+          "id": "plane_page_comment_updated",
+          "name": "Plane Page Comment Updated",
+          "description": "Trigger a workflow for Plane page comment updated events."
+        },
+        {
+          "id": "plane_page_comment_deleted",
+          "name": "Plane Page Comment Deleted",
+          "description": "Trigger a workflow for Plane page comment deleted events."
+        },
+        {
+          "id": "plane_workitem_created",
+          "name": "Plane Work Item Created",
+          "description": "Trigger a workflow for Plane work item created events."
+        },
+        {
+          "id": "plane_workitem_updated",
+          "name": "Plane Work Item Updated",
+          "description": "Trigger a workflow for Plane work item updated events."
+        },
+        {
+          "id": "plane_workitem_archived",
+          "name": "Plane Work Item Archived",
+          "description": "Trigger a workflow for Plane work item archived events."
+        },
+        {
+          "id": "plane_workitem_deleted",
+          "name": "Plane Work Item Deleted",
+          "description": "Trigger a workflow for Plane work item deleted events."
+        },
+        {
+          "id": "plane_workitem_comment_created",
+          "name": "Plane Work Item Comment Created",
+          "description": "Trigger a workflow for Plane work item comment created events."
+        },
+        {
+          "id": "plane_workitem_comment_updated",
+          "name": "Plane Work Item Comment Updated",
+          "description": "Trigger a workflow for Plane work item comment updated events."
+        },
+        {
+          "id": "plane_workitem_comment_deleted",
+          "name": "Plane Work Item Comment Deleted",
+          "description": "Trigger a workflow for Plane work item comment deleted events."
+        },
+        {
+          "id": "plane_workitem_link_created",
+          "name": "Plane Work Item Link Created",
+          "description": "Trigger a workflow for Plane work item link created events."
+        },
+        {
+          "id": "plane_workitem_link_updated",
+          "name": "Plane Work Item Link Updated",
+          "description": "Trigger a workflow for Plane work item link updated events."
+        },
+        {
+          "id": "plane_workitem_link_deleted",
+          "name": "Plane Work Item Link Deleted",
+          "description": "Trigger a workflow for Plane work item link deleted events."
+        },
+        {
+          "id": "plane_workitem_vote_created",
+          "name": "Plane Work Item Vote Created",
+          "description": "Trigger a workflow for Plane work item vote created events."
+        },
+        {
+          "id": "plane_workitem_vote_deleted",
+          "name": "Plane Work Item Vote Deleted",
+          "description": "Trigger a workflow for Plane work item vote deleted events."
+        },
+        {
+          "id": "plane_workitem_attachment_created",
+          "name": "Plane Work Item Attachment Created",
+          "description": "Trigger a workflow for Plane work item attachment created events."
+        },
+        {
+          "id": "plane_workitem_attachment_updated",
+          "name": "Plane Work Item Attachment Updated",
+          "description": "Trigger a workflow for Plane work item attachment updated events."
+        },
+        {
+          "id": "plane_workitem_attachment_deleted",
+          "name": "Plane Work Item Attachment Deleted",
+          "description": "Trigger a workflow for Plane work item attachment deleted events."
+        },
+        {
+          "id": "plane_workitem_relation_created",
+          "name": "Plane Work Item Relation Created",
+          "description": "Trigger a workflow for Plane work item relation created events."
+        },
+        {
+          "id": "plane_workitem_relation_deleted",
+          "name": "Plane Work Item Relation Deleted",
+          "description": "Trigger a workflow for Plane work item relation deleted events."
+        },
+        {
+          "id": "plane_workitem_dependency_created",
+          "name": "Plane Work Item Dependency Created",
+          "description": "Trigger a workflow for Plane work item dependency created events."
+        },
+        {
+          "id": "plane_workitem_dependency_deleted",
+          "name": "Plane Work Item Dependency Deleted",
+          "description": "Trigger a workflow for Plane work item dependency deleted events."
+        },
+        {
+          "id": "plane_workitem_page_link_created",
+          "name": "Plane Work Item Page Link Created",
+          "description": "Trigger a workflow for Plane work item page link created events."
+        },
+        {
+          "id": "plane_workitem_page_link_deleted",
+          "name": "Plane Work Item Page Link Deleted",
+          "description": "Trigger a workflow for Plane work item page link deleted events."
+        }
+      ],
+      "triggerCount": 44,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing"]
     },
     {
       "type": "planetscale",
@@ -19570,6 +20209,98 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"]
+    },
+    {
+      "type": "ramp",
+      "slug": "ramp",
+      "name": "Ramp",
+      "description": "Read spend, bills, cards, and reimbursements, and add transaction memos in Ramp",
+      "longDescription": "Connect Ramp to your agents to review company balances, employees, card transactions, physical and virtual cards, vendors, bills, and reimbursements. Add transaction memos and paginate through records with up to 100 results per request.",
+      "bgColor": "#E4F222",
+      "iconName": "RampIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ramp",
+      "operations": [
+        {
+          "name": "Get Business",
+          "description": "Fetch the company information in Ramp"
+        },
+        {
+          "name": "Get Balance",
+          "description": "Fetch the company balance information in Ramp"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in one page in Ramp"
+        },
+        {
+          "name": "Get User",
+          "description": "Fetch a user in Ramp"
+        },
+        {
+          "name": "List Transactions",
+          "description": "List transactions in one page in Ramp"
+        },
+        {
+          "name": "Get Transaction",
+          "description": "Fetch a transaction in Ramp"
+        },
+        {
+          "name": "List Physical Cards",
+          "description": "List physical cards in one page in Ramp"
+        },
+        {
+          "name": "Get Physical Card",
+          "description": "Fetch a physical card in Ramp"
+        },
+        {
+          "name": "List Virtual Cards",
+          "description": "List virtual cards in one page in Ramp"
+        },
+        {
+          "name": "Get Virtual Card",
+          "description": "Fetch a virtual card in Ramp"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List vendors in one page in Ramp"
+        },
+        {
+          "name": "Get Vendor",
+          "description": "Fetch a vendor in Ramp"
+        },
+        {
+          "name": "List Bills",
+          "description": "List bills in one page in Ramp"
+        },
+        {
+          "name": "Get Bill",
+          "description": "Fetch a bill in Ramp"
+        },
+        {
+          "name": "List Reimbursements",
+          "description": "List reimbursements in one page in Ramp"
+        },
+        {
+          "name": "Get Reimbursement",
+          "description": "Fetch a reimbursement in Ramp"
+        },
+        {
+          "name": "Get Memo",
+          "description": "Fetch a transaction memo in Ramp"
+        },
+        {
+          "name": "Create Memo",
+          "description": "Upload a new memo for a transaction in Ramp"
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "ramp",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "data-analytics", "automation"]
     },
     {
       "type": "rb2b",
@@ -26612,7 +27343,7 @@
       "slug": "vanta",
       "name": "Vanta",
       "description": "Query compliance status and manage evidence in Vanta",
-      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.",
+      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.",
       "bgColor": "#F8F4F3",
       "iconName": "VantaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/vanta",
@@ -26737,7 +27468,8 @@
       "operationCount": 29,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "vanta",
       "category": "tools",
       "integrationType": "security",
       "tags": ["monitoring", "automation", "document-processing"]

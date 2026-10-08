@@ -4,6 +4,7 @@ import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
@@ -151,6 +152,20 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
   throw new SimApiError('Workflow result stream ended without a final result', response.status)
 }
 
+/**
+ * Asks an embedded run for file references without inline bytes unless the caller
+ * passed `--include-file-base64`. The embedding host hands stdout to a model, which
+ * reads a produced file by id; inlined bytes only grew the result it had to skim and
+ * cost the server a storage read and encode per file. Only the synchronous and
+ * `--follow` paths set it: an `--async` run rejects the field outright.
+ */
+function withEmbeddedFileReferences(
+  body: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!embedStore.getStore() || body?.includeFileBase64 !== undefined) return body
+  return { ...body, includeFileBase64: false }
+}
+
 /** Runs synchronously while keeping idle-limited HTTP paths active. */
 async function runWithResultStream(workflowId: string, command: Command): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -163,7 +178,7 @@ async function runWithResultStream(workflowId: string, command: Command): Promis
     const response = await client.requestRaw(request.path, {
       method: operation.method,
       query: request.query,
-      body: request.body,
+      body: withEmbeddedFileReferences(request.body),
       headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
     })
     const payload = await readWorkflowResult(response)
@@ -362,7 +377,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
     method: 'POST',
     query: request.query,
     body: {
-      ...(request.body ?? {}),
+      ...withEmbeddedFileReferences(request.body),
       stream: true,
       ...(includeThinking ? { includeThinking: true } : {}),
       ...(includeToolCalls ? { includeToolCalls: true } : {}),

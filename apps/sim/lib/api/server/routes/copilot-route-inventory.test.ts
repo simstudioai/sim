@@ -1,4 +1,10 @@
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
+import { mothershipHeadlessLifecycleMock } from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { expect, it, vi } from 'vitest'
+
+vi.mock('@/triggers', () => triggersMock)
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 const inventory = vi.hoisted(
   () => [] as Array<{ method: string; path: string; operation: string; audience: string | null }>
@@ -19,16 +25,16 @@ const builder = vi.hoisted(
       return async () => new Response()
     }
 )
-vi.mock('@/lib/api/server/routes/v2-json-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
+  ...apiServerRoutesMock,
   defineV2JsonRoute: builder,
 }))
-vi.mock('@/lib/api/server/routes/v2-binary-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-binary-route', () => ({
+  ...apiServerRoutesMock,
   defineV2BinaryRoute: builder,
 }))
-vi.mock('@/lib/api/server/routes/v2-body-lifecycle-route', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('@/lib/api/server/routes/v2-body-lifecycle-route', () => ({
+  ...apiServerRoutesMock,
   defineV2BodyLifecycleRoute: builder,
 }))
 
@@ -40,6 +46,24 @@ it('inventories private operation admission without executing route requests', a
   /** Public organization and version-history operations require a direct caller. */
   expect(inventory.filter((route) => !route.audience)).toMatchInlineSnapshot(`
     [
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "credentials.members.list",
+        "path": "/api/v2/credentials/[credentialId]/members",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "credentials.members.upsert",
+        "path": "/api/v2/credentials/[credentialId]/members",
+      },
+      {
+        "audience": null,
+        "method": "DELETE",
+        "operation": "credentials.members.remove",
+        "path": "/api/v2/credentials/[credentialId]/members/[userId]",
+      },
       {
         "audience": null,
         "method": "GET",
@@ -267,6 +291,48 @@ it('inventories private operation admission without executing route requests', a
         "method": "POST",
         "operation": "permission_groups.members.bulk_add",
         "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.read_requirement",
+        "path": "/api/v2/organizations/[organizationId]/sso/policy",
+      },
+      {
+        "audience": null,
+        "method": "PATCH",
+        "operation": "organization.sso.set_requirement",
+        "path": "/api/v2/organizations/[organizationId]/sso/policy",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.providers.list",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "organization.sso.providers.save",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers",
+      },
+      {
+        "audience": null,
+        "method": "GET",
+        "operation": "organization.sso.providers.list",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+      },
+      {
+        "audience": null,
+        "method": "DELETE",
+        "operation": "organization.sso.providers.delete",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]",
+      },
+      {
+        "audience": null,
+        "method": "POST",
+        "operation": "organization.sso.set_primary_provider",
+        "path": "/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary",
       },
       {
         "audience": null,

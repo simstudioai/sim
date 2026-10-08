@@ -4,6 +4,7 @@ import type {
   ConversationProtocol,
 } from '@/lib/memory/conversation-types'
 import { getKieConversationProtocol, isKieClaudeModel } from '@/providers/kie/utils'
+import { extractChatCompletionText } from '@/providers/openai-compat/content'
 import type { ProviderId } from '@/providers/types'
 
 export interface ProviderHistoryAdapter {
@@ -36,7 +37,7 @@ function capture(
     })
   }
   if (protocol === 'chat-completions') {
-    if (typeof message.content === 'string') text.push(message.content)
+    text.push(extractChatCompletionText(message.content))
     for (const call of records(message.tool_calls)) {
       if (isRecordLike(call.function)) add(call.id, call.function.name, call.function.arguments)
     }
@@ -115,6 +116,7 @@ export const providerHistoryProtocols: Record<
   fireworks: 'chat-completions',
   together: 'chat-completions',
   baseten: 'chat-completions',
+  nebius: 'chat-completions',
   vllm: 'chat-completions',
   litellm: 'chat-completions',
 }

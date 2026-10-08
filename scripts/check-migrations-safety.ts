@@ -48,11 +48,88 @@ interface Statement {
   startLine: number
 }
 
-/** Strip quotes and any schema prefix so `"public"."user"` and `"user"` match. */
-function bareName(raw: string): string {
-  const unquoted = raw.replace(/"/g, '')
-  const parts = unquoted.split('.')
-  return (parts[parts.length - 1] ?? unquoted).toLowerCase()
+/** One SQL identifier, quoted or not. */
+const IDENTIFIER = String.raw`(?:"[^"]+"|[\w$]+)`
+/** A table reference: `table` or `schema.table`. */
+const TABLE_NAME = String.raw`(${IDENTIFIER}(?:\.${IDENTIFIER})?)`
+
+/**
+ * The identifiers of a dotted name as PostgreSQL resolves them: a quoted identifier keeps its
+ * case, an unquoted one folds to lower case.
+ */
+function identifiers(raw: string): string[] {
+  return (raw.match(/"[^"]+"|[\w$]+/g) ?? []).map((part) =>
+    part.startsWith('"') ? part.slice(1, -1) : part.toLowerCase()
+  )
+}
+
+/** `schema.table` for a table reference; an unqualified table is in `public`. */
+function qualifiedName(raw: string): string {
+  const parts = identifiers(raw)
+  return parts.length > 1 ? parts.slice(-2).join('.') : `public.${parts[0] ?? ''}`
+}
+
+/**
+ * The statement with string literals and comments blanked, so only executable SQL is matched.
+ * An escape string (`E'…'`) is read with its backslash escapes, so `\'` does not end it early.
+ * A dollar-quoted body stays only where it runs, after `DO` or a function's `AS`, and a literal
+ * stays where `EXECUTE` runs it as dynamic SQL, each with its own literals blanked in turn. Every
+ * other literal is data. Dynamic SQL assembled by concatenation or `format()` is not followed.
+ */
+function executableSql(sql: string): string {
+  return sql.replace(
+    /\$(\w*)\$([\s\S]*?)\$\1\$|(?<![\w$])[Ee]'((?:[^'\\]|\\[\s\S]|'')*)'|'((?:[^']|'')*)'|--[^\n]*|\/\*[\s\S]*?\*\//g,
+    (
+      _match: string,
+      tag: string | undefined,
+      body: string | undefined,
+      escaped: string | undefined,
+      plain: string | undefined,
+      offset: number
+    ) => {
+      const before = sql.slice(0, offset)
+      if (body !== undefined) {
+        const runs = /\b(?:DO|AS)\s*$|\bDO\s+LANGUAGE\s+\w+\s*$/i.test(before)
+        return runs ? `$${tag}$${executableSql(body)}$${tag}$` : ' '
+      }
+      if (!/\bEXECUTE\s*$/i.test(before)) return ' '
+      if (escaped !== undefined) return ` ${executableSql(escaped.replace(/\\(.)/g, '$1'))} `
+      if (plain !== undefined) return ` ${executableSql(plain.replace(/''/g, "'"))} `
+      return ' '
+    }
+  )
+}
+
+/**
+ * Statements that depend on who owns a table. Production keeps older tables owned by a
+ * different role than the one that runs migrations, while every table in CI and staging belongs
+ * to the migrator, so these pass everywhere but production. `newTables` holds the tables this
+ * migration certainly creates (`CREATE TABLE` without `IF NOT EXISTS`), which the migrator owns.
+ */
+function ownershipMatches(sql: string, newTables: Set<string>): RawMatch[] {
+  const s = executableSql(sql).replace(/\s+/g, ' ')
+  const matches: RawMatch[] = []
+  for (const ownedBy of s.matchAll(/\b(?:CREATE|ALTER) SEQUENCE\b[^;]*?\bOWNED BY ([^\s;]+)/gi)) {
+    if (/^NONE$/i.test(ownedBy[1])) continue
+    const table = identifiers(ownedBy[1]).slice(0, -1)
+    const owner = table.length > 1 ? table.slice(-2).join('.') : `public.${table[0] ?? ''}`
+    if (newTables.has(owner)) continue
+    matches.push({
+      kind: 'error',
+      rule: 'sequence-owned-by-existing-table',
+      message:
+        'OWNED BY needs the sequence and its table to share an owner, and an existing table may belong to a different role than the one that created the sequence. Leave the sequence unowned, or link it only to a table this migration creates.',
+    })
+  }
+  if (/\bOWNER TO\b/i.test(s)) {
+    matches.push({
+      kind: 'error',
+      rule: 'owner-to',
+      message:
+        'Owner roles differ between environments, so OWNER TO is not portable. Ownership changes belong to an operator, not a migration.',
+    })
+  }
+  return matches
 }
 
 /**
@@ -188,21 +265,26 @@ interface RawMatch {
 
 /**
  * Classify one statement. `createdTables` holds tables created in the same
- * migration — ops against a brand-new table have no old rows and no live
+ * migration, by schema-qualified name so a same-named table in another schema
+ * is not mistaken for one — ops against a brand-new table have no old rows and no live
  * traffic, so they are always safe and skipped. `sawCommit` tracks whether a
- * `COMMIT;` breakpoint preceded a CONCURRENTLY index (see migrate.ts).
+ * `COMMIT;` breakpoint preceded a CONCURRENTLY index (see migrate.ts). Only
+ * executable SQL is classified, so words in literals, comments and dollar-quoted
+ * data never count as operations.
  */
 function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): RawMatch[] {
-  const s = sql.replace(/\s+/g, ' ').trim()
+  const s = executableSql(sql).replace(/\s+/g, ' ').trim()
   const matches: RawMatch[] = []
 
-  const alterTable = s.match(/\bALTER TABLE (?:IF EXISTS )?(?:ONLY )?("?[.\w]+"?)/i)
-  const targetTable = alterTable ? bareName(alterTable[1]) : null
+  const alterTable = s.match(
+    new RegExp(String.raw`\bALTER TABLE (?:IF EXISTS )?(?:ONLY )?${TABLE_NAME}`, 'i')
+  )
+  const targetTable = alterTable ? qualifiedName(alterTable[1]) : null
   const onNewTable = targetTable !== null && createdTables.has(targetTable)
 
   if (/^CREATE (?:UNIQUE )?INDEX\b/i.test(s)) {
-    const on = s.match(/\bON ("?[.\w]+"?)/i)
-    const indexTable = on ? bareName(on[1]) : null
+    const on = s.match(new RegExp(String.raw`\bON (?:ONLY )?${TABLE_NAME}`, 'i'))
+    const indexTable = on ? qualifiedName(on[1]) : null
     const concurrent = /\bCONCURRENTLY\b/i.test(s)
     if (!(indexTable && createdTables.has(indexTable))) {
       if (!concurrent) {
@@ -334,15 +416,21 @@ function lintSql(content: string): Finding[] {
   const lines = content.split('\n')
   const statements = parseStatements(content)
   const createdTables = new Set<string>()
+  const newTables = new Set<string>()
   for (const { sql } of statements) {
-    const m = sql.match(/^CREATE TABLE (?:IF NOT EXISTS )?("?[.\w]+"?)/i)
-    if (m) createdTables.add(bareName(m[1]))
+    const m = sql.match(new RegExp(`^CREATE TABLE (IF NOT EXISTS )?${TABLE_NAME}`, 'i'))
+    if (!m) continue
+    createdTables.add(qualifiedName(m[2]))
+    if (!m[1]) newTables.add(qualifiedName(m[2]))
   }
 
   const findings: Finding[] = []
   let sawCommit = false
   for (const { sql, startLine } of statements) {
-    for (const match of classify(sql, createdTables, sawCommit)) {
+    for (const match of [
+      ...classify(sql, createdTables, sawCommit),
+      ...ownershipMatches(sql, newTables),
+    ]) {
       if (match.kind === 'error') {
         findings.push({
           line: startLine,

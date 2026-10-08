@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,10 +9,10 @@ import {
 } from '@sim/emcn'
 import { Brain, Check, Sparkles } from '@sim/emcn/icons'
 import {
+  MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
   type MothershipEffort,
-  mothershipEffortOptions,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -45,27 +44,17 @@ export function ModelSelector() {
     { effort: effortChoice ?? undefined, modelSelection: selection },
     advanced
   )
-  const options = advanced
-    ? mothershipEffortOptions(modelSelection.model)
-    : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
+  const options = modelSelection ? MOTHERSHIP_EFFORT_OPTIONS : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {
     if (chatId) saveChatEffort(choice)
     else setNewChatEffort(choice)
   }
 
-  useEffect(() => {
-    if (chatId) return
-    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
-  }, [chatId])
-
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
-  const modelLabel =
-    MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??
-    modelSelection.model
 
   return (
     <div className='flex items-center gap-[inherit]'>
-      {advanced && (
+      {modelSelection && (
         <>
           {modelSelection.model !== 'claude-opus-5-5' && (
             <FastModeToggle
@@ -77,7 +66,10 @@ export function ModelSelector() {
           <DropdownMenu modal={false}>
             <ModelSettingTrigger
               label='Model'
-              valueLabel={modelLabel}
+              valueLabel={
+                MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                  ?.label ?? modelSelection.model
+              }
               icon={Sparkles}
               showChevron
             />

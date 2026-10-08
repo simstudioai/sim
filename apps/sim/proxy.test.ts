@@ -1,7 +1,8 @@
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
 import { afterAll, describe, expect, it } from 'vitest'
-import { proxy, resolveApiCorsPolicy } from '@/proxy'
+import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
   NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
@@ -146,5 +147,22 @@ describe('proxy on the dedicated MCP host', () => {
 
   it('serves nothing else on the MCP host', () => {
     expect(proxy(mcpRequest('/login', 'GET')).status).toBe(404)
+  })
+})
+
+describe('proxy matcher', () => {
+  const matches = (path: string) =>
+    unstable_doesMiddlewareMatch({ config, url: `https://sim.test${path}` })
+
+  it('leaves the desktop raw upload routes unbuffered, so a whole file reaches the route', () => {
+    expect(matches('/api/desktop/tool/import')).toBe(false)
+    expect(matches('/api/desktop/tool/file')).toBe(false)
+  })
+
+  it('still runs for every other API route', () => {
+    expect(matches('/api/desktop/tool/claim')).toBe(true)
+    expect(matches('/api/desktop/tool/import/other')).toBe(true)
+    expect(matches('/api/workflows/wf-1/execute')).toBe(true)
+    expect(matches('/api/files/upload')).toBe(true)
   })
 })

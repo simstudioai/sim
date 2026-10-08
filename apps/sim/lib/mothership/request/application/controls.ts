@@ -6,6 +6,7 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
@@ -158,6 +159,8 @@ export const abortRun = defineAuthorizedChatUseCase({
       { ...input, workspaceId, organizationId },
       run
     )
+    /** Admission is closed: the device re-reads its inbox and cancels what it is running. */
+    if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'cancel')
     /** Push delivers promptly; the worker also reconciles Sim's durable intent after an outage. */
     const workerStop = requestExplicitStreamAbort({
       streamId,

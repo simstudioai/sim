@@ -1,7 +1,11 @@
+import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  MutationObserver,
+  mutationOptions,
+  type QueryClient,
   queryOptions,
   skipToken,
   useMutation,
@@ -278,7 +282,7 @@ export function useOrganizationMothershipChats(
   })
 }
 
-export async function fetchMothershipChatHistory(
+async function readMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
@@ -304,6 +308,22 @@ export async function fetchMothershipChatHistory(
   }
 
   return parseChatHistory(await copilotRes.json())
+}
+
+/**
+ * Reads a chat from the server. A chat this tab saw deleted that the server
+ * returns again was restored, so it takes queued sends again. Only a read that
+ * began after the delete counts: one already in flight can return the chat from
+ * before it.
+ */
+export async function fetchMothershipChatHistory(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<MothershipChatHistory> {
+  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
+  const history = await readMothershipChatHistory(chatId, signal)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
+  return history
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
@@ -362,6 +382,12 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
+    /** The delete this restore undoes; one that lands while it is in flight stays. */
+    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
+    onSuccess: (_data, chatId, context) => {
+      if (context?.deleteSeen === undefined) return
+      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
@@ -604,7 +630,28 @@ async function setChatEffort({
  */
 export function useSetMothershipChatEffort(chatId: string | undefined) {
   const queryClient = useQueryClient()
-  return useMutation({
+  return useMutation(chatEffortMutationOptions(queryClient, chatId))
+}
+
+/**
+ * Saves a pick for a chat learned outside render, such as the chat a send just opened. It
+ * shares the hook's per-chat scope, so it lands in order with picks made in the composer.
+ */
+export function saveMothershipChatEffort(
+  queryClient: QueryClient,
+  chatId: string,
+  effort: MothershipEffort
+): void {
+  const observer = new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  // Detaching once the save settles lets the mutation cache collect it.
+  observer
+    .mutate(effort)
+    .catch(() => undefined)
+    .finally(() => observer.reset())
+}
+
+function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | undefined) {
+  return mutationOptions({
     mutationFn: (effort: MothershipEffort) => {
       if (!chatId) throw new Error('A chat effort needs a chat')
       return setChatEffort({ chatId, effort })
@@ -617,8 +664,10 @@ export function useSetMothershipChatEffort(chatId: string | undefined) {
       return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
     },
     onError: (_error, _effort, context) => {
-      if (chatId && context)
-        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
+      if (!chatId || !context) return
+      if (useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)) {
+        toast.error("Couldn't change reasoning effort")
+      }
     },
     onSuccess: (_data, effort) => {
       queryClient.setQueryData<MothershipChatHistory>(

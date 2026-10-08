@@ -17,6 +17,7 @@ import {
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
+import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
 
 const mockIsIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
@@ -41,8 +42,13 @@ const agentBlockConfig = {
   name: 'Agent',
   outputs: {
     content: { type: 'string', description: 'Default content output' },
+    interactionId: {
+      type: 'string',
+      condition: { field: 'model', value: ['deep-research-pro-preview-12-2025'] },
+    },
   },
   subBlocks: [
+    { id: 'model', type: 'combobox', defaultValue: 'claude-sonnet-5-5' },
     { id: 'responseFormat', type: 'response-format' },
     { id: 'tools', type: 'tool-input' },
   ],
@@ -142,6 +148,68 @@ const blocksByType: Record<string, unknown> = {
 }
 
 describe('createBlockFromParams', () => {
+  it('exposes the output ports of the seeded Agent default', () => {
+    const block = createBlockFromParams(
+      'agent-research-default',
+      { type: 'agent', name: 'Agent' },
+      undefined,
+      undefined,
+      {
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        defaultAgentModel: 'deep-research-pro-preview-12-2025',
+      }
+    )
+    expect(block.outputs.interactionId).toEqual({ type: 'string' })
+  })
+  it('uses the group Agent default when creating an Agent without an explicit model', () => {
+    const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o' }
+    const block = createBlockFromParams(
+      'agent-default',
+      { type: 'agent', name: 'Agent' },
+      undefined,
+      undefined,
+      config
+    )
+    expect(block.subBlocks.model.value).toBe('gpt-4o')
+  })
+
+  it('preserves an explicitly selected model instead of applying the group Agent default', () => {
+    const block = createBlockFromParams(
+      'agent-explicit',
+      { type: 'agent', name: 'Agent', inputs: { model: 'claude-sonnet-5-5' } },
+      undefined,
+      undefined,
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o' }
+    )
+    expect(block.subBlocks.model.value).toBe('claude-sonnet-5-5')
+  })
+
+  it.each([{ deniedModels: ['gpt-4o'] }, { allowedModelProviders: ['anthropic'] }])(
+    'does not seed a group Agent default withheld by %j',
+    (restrictions) => {
+      const block = createBlockFromParams(
+        'agent-denied-default',
+        { type: 'agent', name: 'Agent' },
+        undefined,
+        undefined,
+        { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o', ...restrictions }
+      )
+      expect(block.subBlocks.model.value).not.toBe('gpt-4o')
+    }
+  )
+
+  it('uses the Agent default on canvas creation without changing other model-backed blocks', () => {
+    const options = {
+      id: 'canvas-default',
+      name: 'Agent',
+      position: { x: 0, y: 0 },
+      agentDefaultModel: 'gpt-4o',
+    }
+    expect(prepareBlockState({ ...options, type: 'agent' }).subBlocks.model.value).toBe('gpt-4o')
+    expect(prepareBlockState({ ...options, type: 'mothership' }).subBlocks.model.value).toBe(
+      'claude-sonnet-5-5'
+    )
+  })
   it('derives agent outputs from responseFormat when outputs are not provided', () => {
     const block = createBlockFromParams('b-agent', {
       type: 'agent',

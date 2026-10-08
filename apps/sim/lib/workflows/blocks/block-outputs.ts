@@ -6,11 +6,8 @@ import {
 import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import {
-  classifyStartBlockType,
-  StartBlockPath,
-  TRIGGER_TYPES,
-} from '@/lib/workflows/triggers/triggers'
+import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import {
   type InputFormatField,
   START_BLOCK_RESERVED_FIELDS,

@@ -32,6 +32,7 @@ import {
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
 import { accessRequestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/access-requests'
+import { credentialMemberOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/credential-members'
 import { organizationUsageOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organization-usage'
 import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
 import { permissionGroupOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/permission-groups'
@@ -51,6 +52,7 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { ssoOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/sso'
 import { workspaceInvitationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-invitations'
 import { workspacePermissionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-permissions'
 import {
@@ -2165,6 +2167,8 @@ const declaredRoutes = [
   ),
   ...permissionGroupOpenApiRoutes,
   ...organizationOpenApiRoutes,
+  ...ssoOpenApiRoutes,
+  ...credentialMemberOpenApiRoutes,
   ...workspacePermissionOpenApiRoutes,
   ...workspaceInvitationOpenApiRoutes,
   ...organizationUsageOpenApiRoutes,

@@ -16,8 +16,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const result = await enqueueWorkspaceFileSearchDispatch()
-    logger.info('Workspace file search dispatcher accepted', result)
-    return NextResponse.json({ success: true, triggered: true, ...result }, { status: 202 })
+    if (result.triggered) logger.info('Workspace file search dispatcher accepted', result)
+    return NextResponse.json({ success: true, ...result }, { status: result.triggered ? 202 : 200 })
   } catch (error) {
     logger.error('Workspace file search dispatcher enqueue failed', {
       error: toError(error).message,

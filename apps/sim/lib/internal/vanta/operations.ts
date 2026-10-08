@@ -8,13 +8,7 @@ import {
   createInternalToolFileResult,
   type InternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result'
-import {
-  fetchVantaWithAuth,
-  getVantaBaseUrl,
-  VANTA_DOCUMENT_UPLOAD_SCOPE,
-  VANTA_READ_SCOPE,
-  VANTA_WRITE_SCOPE,
-} from '@/lib/internal/vanta/client'
+import { fetchVantaWithAuth, getVantaBaseUrl } from '@/lib/internal/vanta/client'
 import { VantaOperationError } from '@/lib/internal/vanta/errors'
 import { resolveVantaUploadFile } from '@/lib/internal/vanta/file-input'
 import {
@@ -416,16 +410,10 @@ export async function executeVantaQuery(
   signal?: AbortSignal
 ): Promise<VantaQueryResult> {
   signal?.throwIfAborted()
-  const baseUrl = getVantaBaseUrl(params.region)
-  const scope = params.operation === 'vanta_submit_document' ? VANTA_WRITE_SCOPE : VANTA_READ_SCOPE
+  const baseUrl = getVantaBaseUrl(params.apiDomain)
   const apiRequest = buildVantaApiRequest(baseUrl, params)
   const response = await fetchVantaWithAuth(
-    {
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
-      scope,
-    },
+    params,
     (accessToken) =>
       fetch(apiRequest.url, {
         method: apiRequest.method,
@@ -434,6 +422,7 @@ export async function executeVantaQuery(
           Authorization: `Bearer ${accessToken}`,
         },
         cache: 'no-store',
+        redirect: 'error',
         signal,
       }),
     { signal }
@@ -468,33 +457,28 @@ export async function executeVantaUploadDocumentFile(
   const file = await resolveVantaUploadFile(input, context)
   context.signal?.throwIfAborted()
   const uploadUrl = buildVantaUrl(
-    getVantaBaseUrl(input.region),
+    getVantaBaseUrl(input.apiDomain),
     `/documents/${encodeURIComponent(input.documentId)}/uploads`
   )
+  const formData = new FormData()
+  formData.append(
+    'file',
+    new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }),
+    file.fileName
+  )
+  if (input.description) formData.append('description', input.description)
+  if (input.effectiveAtDate) formData.append('effectiveAtDate', input.effectiveAtDate)
   const response = await fetchVantaWithAuth(
-    {
-      clientId: input.clientId,
-      clientSecret: input.clientSecret,
-      region: input.region,
-      scope: VANTA_DOCUMENT_UPLOAD_SCOPE,
-    },
-    (accessToken) => {
-      const formData = new FormData()
-      formData.append(
-        'file',
-        new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }),
-        file.fileName
-      )
-      if (input.description) formData.append('description', input.description)
-      if (input.effectiveAtDate) formData.append('effectiveAtDate', input.effectiveAtDate)
-      return fetch(uploadUrl, {
+    input,
+    (accessToken) =>
+      fetch(uploadUrl, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,
         cache: 'no-store',
+        redirect: 'error',
         signal: context.signal,
-      })
-    },
+      }),
     { signal: context.signal }
   )
   context.signal?.throwIfAborted()
@@ -518,21 +502,17 @@ export async function executeVantaDownloadDocumentFile(
 ): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const mediaUrl = buildVantaUrl(
-    getVantaBaseUrl(input.region),
+    getVantaBaseUrl(input.apiDomain),
     `/documents/${encodeURIComponent(input.documentId)}/uploads/${encodeURIComponent(input.uploadedFileId)}/media`
   )
   const response = await fetchVantaWithAuth(
-    {
-      clientId: input.clientId,
-      clientSecret: input.clientSecret,
-      region: input.region,
-      scope: VANTA_READ_SCOPE,
-    },
+    input,
     (accessToken) =>
       fetch(mediaUrl, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
+        redirect: 'error',
         signal: context.signal,
       }),
     { signal: context.signal }

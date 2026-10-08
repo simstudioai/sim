@@ -9,6 +9,7 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
+  type DesktopExecutorDevice,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
   type DesktopServerConfiguration,
@@ -304,10 +305,11 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (typeof raw !== 'object' || raw === null) {
     return null
   }
-  const { title, body, route } = raw as {
+  const { title, body, route, background } = raw as {
     title?: unknown
     body?: unknown
     route?: unknown
+    background?: unknown
   }
   if (
     typeof title !== 'string' ||
@@ -322,7 +324,12 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (route !== undefined && (typeof route !== 'string' || !isSafeInternalPath(route))) {
     return null
   }
-  return { title, body, ...(route !== undefined ? { route } : {}) }
+  return {
+    title,
+    body,
+    ...(route !== undefined ? { route } : {}),
+    ...(background === true ? { background: true } : {}),
+  }
 }
 
 export interface IpcDeps {
@@ -374,6 +381,8 @@ export interface IpcDeps {
     getConfiguration: () => DesktopServerConfiguration
     setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
+  /** The device a new chat turn may bind to, or null while Sim has not enabled one. */
+  getExecutorDevice: () => DesktopExecutorDevice | null
 }
 
 /**
@@ -578,10 +587,13 @@ async function authorizeLocalFilesystemTool(
   request: unknown
 ): Promise<boolean> {
   if (typeof request !== 'object' || request === null) return false
+  // Claimed like an import: the server sees the read picked up, and refuses one it already
+  // failed as never started.
   const authorization = await fetchDesktopToolAuthorization(
     event,
     deps,
-    (request as { requestId?: unknown }).requestId
+    (request as { requestId?: unknown }).requestId,
+    true
   )
   return authorization
     ? deps.localFilesystem.isAuthorizedClientToolRequest(request, authorization)
@@ -768,6 +780,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       },
       handler: (request) => deps.localFilesystem.handle(request),
     },
+    'desktop-executor:get-device': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: () => deps.getExecutorDevice(),
+    },
     'desktop:settings:get': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -791,6 +809,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (enabled) =>
         typeof enabled === 'boolean'
           ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-prevent-sleep': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setPreventSleepWhileRunning(enabled)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {
@@ -2113,7 +2140,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             event,
             deps,
             request.toolCallId,
-            request.operation === 'manifest',
+            request.operation === 'manifest' || request.operation === 'read',
             (status) => {
               failureStatus = status
             }
