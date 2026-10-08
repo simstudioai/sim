@@ -1,4 +1,7 @@
 /** @vitest-environment node */
+
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { list, artifact } = vi.hoisted(() => ({ list: vi.fn(), artifact: vi.fn() }))
@@ -79,4 +82,47 @@ describe('Project grep corpus', () => {
     expect(result.stderr).toContain('listing stopped after 50 pages')
     expect(result.stdout).toBe('')
   })
+})
+
+it('reads five Project artifacts concurrently while preserving inventory result order', async () => {
+  const gates = Array.from({ length: 6 }, () => createDeferred<void>())
+  let active = 0
+  let peak = 0
+  list.mockResolvedValue({
+    files: Array.from({ length: 6 }, (_, index) => ({
+      id: `file-${index}`,
+      name: `notes-${index}.txt`,
+      folderPath: '/',
+    })),
+    nextKeys: null,
+  })
+  artifact.mockImplementation(async ({ fileId }: { fileId: string }) => {
+    active++
+    peak = Math.max(peak, active)
+    await gates[Number(fileId.slice(5))].promise
+    active--
+    return {
+      file: { id: fileId, name: `${fileId}.txt` },
+      contentType: 'text/plain',
+      buffer: Buffer.from('needle'),
+      secretProvenance: { status: 'exact', entries: [] },
+    }
+  })
+  const pending = grepProjectFiles(invocation, context(), 'project')
+  try {
+    await flushMacrotask()
+    expect(active).toBe(5)
+    for (const index of [4, 3, 2, 1, 0, 5]) {
+      gates[index].resolve()
+      await flushMacrotask()
+    }
+  } finally {
+    for (const gate of gates) gate.resolve()
+    await pending
+  }
+  const result = await pending
+  expect(peak).toBe(5)
+  expect(result.stdout.split('\n')).toEqual(
+    Array.from({ length: 6 }, (_, index) => `files/notes-${index}.txt (file-${index}):1: needle`)
+  )
 })

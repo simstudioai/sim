@@ -9,6 +9,7 @@
  */
 
 import { act, type ReactNode } from 'react'
+import { toast } from '@sim/emcn'
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
@@ -32,6 +33,7 @@ import {
   useAddressedWorkspaceFileRecord,
   useReloadWorkspaceFileContent,
   useUpdateWorkspaceFileContent,
+  useUploadWorkspaceFile,
   useWorkspaceFileContent,
   useWorkspaceFiles,
   type WorkspaceFileContentResult,
@@ -430,3 +432,51 @@ describe('addressed file metadata fallback', () => {
     }
   })
 })
+
+it.each(['abort-error', 'aborted-signal', 'failure'] as const)(
+  'suppresses only intentional upload cancellation notifications (%s)',
+  async (scenario) => {
+    const notifications: unknown[] = []
+    vi.spyOn(toast, 'error').mockImplementation((message) => {
+      notifications.push(message)
+      return 'toast'
+    })
+    const controller = new AbortController()
+    if (scenario === 'aborted-signal') controller.abort()
+    const failure =
+      scenario === 'abort-error'
+        ? new DOMException('Cancelled', 'AbortError')
+        : new Error('Provider failed')
+    mockRequestJson.mockRejectedValueOnce(failure)
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    let upload: ReturnType<typeof useUploadWorkspaceFile> | undefined
+    function Probe() {
+      upload = useUploadWorkspaceFile()
+      return null
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+      await act(async () => {
+        await expect(
+          upload?.mutateAsync({
+            workspaceId: 'workspace',
+            file: new File(['content'], 'upload.txt'),
+            signal: controller.signal,
+          })
+        ).rejects.toBe(failure)
+      })
+      expect(notifications.length).toBe(scenario === 'failure' ? 1 : 0)
+    } finally {
+      await act(async () => root.unmount())
+      client.clear()
+    }
+  }
+)

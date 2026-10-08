@@ -145,6 +145,11 @@ async function listAll(runtime: GrepRuntime, path: string): Promise<Record<strin
   return out
 }
 
+/** File adapters share bounded reads and wait for every provenance import before returning. */
+export function mapGrepFileReads<T, R>(items: T[], read: (item: T) => Promise<R>): Promise<R[]> {
+  return mapConcurrent(items, FILE_READ_CONCURRENCY, read)
+}
+
 async function mapConcurrent<T, R>(
   items: T[],
   limit: number,

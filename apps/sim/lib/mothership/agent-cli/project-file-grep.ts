@@ -5,6 +5,7 @@ import {
   type GrepMaterialized,
   MAX_GREP_BYTES_PER_FILE,
   MAX_GREP_FILES,
+  mapGrepFileReads,
   withGrepReadSlot,
 } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import { importProjectFileProvenance } from '@/lib/mothership/agent-cli/project-file-provenance'
@@ -24,7 +25,10 @@ export function grepProjectFiles(
     signal: context.signal,
     allowedScopes: ['files'],
     async materialize(_scopes, nameFilter, reportIncomplete) {
-      const candidates: GrepMaterialized[] = []
+      const selectedFiles: {
+        item: Awaited<ReturnType<typeof listProjectFiles.execute>>['files'][number]
+        label: string
+      }[] = []
       const files: Awaited<ReturnType<typeof listProjectFiles.execute>>['files'] = []
       let after: CursorKey[] | undefined
       for (let pageNumber = 0; pageNumber < 50; pageNumber++) {
@@ -64,6 +68,10 @@ export function grepProjectFiles(
           )
           break
         }
+        selectedFiles.push({ item, label })
+      }
+      return mapGrepFileReads(selectedFiles, async ({ item, label }): Promise<GrepMaterialized> => {
+        context.signal?.throwIfAborted()
         const target = { projectId, fileId: item.id }
         let artifact: Awaited<ReturnType<typeof readProjectFileArtifact.execute>>
         try {
@@ -82,8 +90,7 @@ export function grepProjectFiles(
           reportIncomplete(
             `files/${label} (${item.id}): could not read text; use files read to inspect the error.`
           )
-          candidates.push({ scope: 'files', id: item.id, label, text: null })
-          continue
+          return { scope: 'files', id: item.id, label, text: null }
         }
         await importProjectFileProvenance(
           context.resolvedSecretTraceRegistry,
@@ -111,9 +118,8 @@ export function grepProjectFiles(
             `files/${label} (${item.id}): could not decode text; use files read to inspect the error.`
           )
         }
-        candidates.push({ scope: 'files', id: item.id, label, text })
-      }
-      return candidates
+        return { scope: 'files', id: item.id, label, text }
+      })
     },
   })
 }

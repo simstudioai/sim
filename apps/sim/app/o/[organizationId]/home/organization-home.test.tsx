@@ -249,8 +249,13 @@ it.each([
     mocks.projects = projects
     mocks.projectFiles = projectFiles
     vi.spyOn(toast, 'error').mockReturnValue('lookup-error')
-    const fetch = vi.fn().mockRejectedValue(new Error('Project lookup is disabled'))
-    vi.stubGlobal('fetch', fetch)
+    const requests: unknown[] = []
+    const resources: unknown[] = []
+    vi.stubGlobal('fetch', async (input: unknown) => {
+      requests.push(input)
+      throw new Error('Project lookup is disabled')
+    })
+    mocks.addResource.mockImplementation((resource: unknown) => resources.push(resource))
     await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
     const selectResource = mocks.renderer.mock.lastCall?.[0].onWorkspaceResourceSelect
     if (!selectResource) throw new Error('Chat resource selection is unavailable')
@@ -262,7 +267,7 @@ it.each([
         owner: { entityType: 'project', entityId: 'project-a' },
       })
     )
-    expect(fetch).not.toHaveBeenCalled()
-    expect(mocks.addResource).not.toHaveBeenCalled()
+    expect(requests).toEqual([])
+    expect(resources).toEqual([])
   }
 )

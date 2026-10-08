@@ -32,6 +32,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getProjectFileQueryOptions } from '@/hooks/queries/project-files'
@@ -69,6 +70,8 @@ export function Home(props: HomeProps) {
 
 function HomeContent({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
+  const projectsEnabled = useFeatureFlag('projects')
+  const projectFilesEnabled = useFeatureFlag('project-files')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const queryClient = useQueryClient()
   const controller = useResourcePanelController()
@@ -382,6 +385,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
    */
   async function handleWorkspaceResourceSelect(ref: WorkspaceResourceRef) {
     if (ref.type === 'file' && ref.owner?.entityType === 'project') {
+      if (!projectsEnabled || !projectFilesEnabled) return
       if (!ref.id) {
         toast.error('This Project file reference is missing its ID')
         return

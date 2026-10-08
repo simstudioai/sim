@@ -3497,6 +3497,29 @@ describe('Project archive download and Markdown snapshot export', () => {
   )
 
   check(
+    'Project Markdown snapshot export accepts parameterized alias MIME without a Markdown extension',
+    async () => {
+      const { exportProjectFileSnapshot } = await import(
+        '@/lib/projects/files/application/downloads'
+      )
+      const f = await fixture()
+      const source = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(f.projectId, 'draft'),
+          name: 'notes.txt',
+          contentType: 'Text/X-Markdown; charset=utf-8',
+        },
+      })
+      const exported = await exportProjectFileSnapshot.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: source.file.id, content: '# Selected draft' },
+      })
+      expect(exported.buffer.toString('utf8')).toBe('# Selected draft')
+    }
+  )
+
+  check(
     'Project Markdown snapshot export never collapses admitted control-bearing names into ZIP traversal segments',
     async () => {
       const { exportProjectFileSnapshot } = await import(
