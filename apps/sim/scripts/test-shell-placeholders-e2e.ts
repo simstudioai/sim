@@ -70,6 +70,8 @@ async function compile(code: string, value: string): Promise<CompiledCodePlaceho
 
 try {
   const arithmetic = [
+    '[[ "{{KEY}}" \\\n  -eq 0 ]]',
+    '[[ \\\n  "{{KEY}}" -eq 0 ]]',
     'time -p [[ "{{KEY}}" -eq 0 ]]',
     'coproc [[ "{{KEY}}" -eq 0 ]]; wait',
     'coproc worker [[ "{{KEY}}" -eq 0 ]]; wait',
@@ -150,6 +152,7 @@ try {
   }
 
   const safePrograms = [
+    '[[ "{{KEY}}" < \\\n  -eq ]] || printf "%s\\n" ok',
     'time -p printf "%s\\n" "{{KEY}}" >/dev/null; printf "%s\\n" ok',
     'if (( BASH_VERSINFO[0] >= 4 )); then coproc printf "%s\\n" "{{KEY}}" [[ -eq 0 ]]; wait; fi; printf "%s\\n" ok',
     // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion

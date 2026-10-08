@@ -583,6 +583,10 @@ function collectShellOccurrenceContexts<T extends ShellSpan>(
       frame.kind !== 'parameter'
     ) {
       if (frame.conditional) {
+        if (character === '\\' && code[index + 1] === '\n') {
+          index += 2
+          continue
+        }
         if ((character === '&' || character === '|') && code[index + 1] === character) {
           endConditionalOperand(frame, index)
         }
