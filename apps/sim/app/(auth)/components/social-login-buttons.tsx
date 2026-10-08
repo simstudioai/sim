@@ -5,7 +5,7 @@ import { Chip, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
-import { client } from '@/lib/auth/auth-client'
+import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
@@ -15,107 +15,63 @@ interface SocialLoginButtonsProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
+  view: 'login' | 'signup'
   callbackURL?: string
   children?: ReactNode
 }
+
+/** Display order of the provider buttons. */
+const PROVIDERS = [
+  { provider: 'google', label: 'Google', icon: GoogleIcon },
+  { provider: 'microsoft', label: 'Microsoft', icon: MicrosoftIcon },
+  { provider: 'github', label: 'GitHub', icon: GithubIcon },
+] as const
 
 export function SocialLoginButtons({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
+  view,
   callbackURL = DEFAULT_POST_AUTH_ROUTE,
   children,
 }: SocialLoginButtonsProps) {
-  const [isGithubLoading, setIsGithubLoading] = useState(false)
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
-  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
+  const [loadingProvider, setLoadingProvider] = useState<SocialSignInProvider | null>(null)
 
-  async function signInWithGithub() {
-    if (!githubAvailable) return
+  const available: Record<SocialSignInProvider, boolean> = {
+    github: githubAvailable,
+    google: googleAvailable,
+    microsoft: microsoftAvailable,
+  }
 
-    setIsGithubLoading(true)
+  async function signIn(provider: SocialSignInProvider, label: string) {
+    setLoadingProvider(provider)
     try {
-      await client.signIn.social({ provider: 'github', callbackURL })
+      await startSocialSignIn({ provider, view, surface: 'auth_page', callbackURL })
     } catch (err) {
-      logger.error('GitHub sign-in failed', { error: getErrorMessage(err) })
+      logger.error(`${label} sign-in failed`, { error: getErrorMessage(err) })
     } finally {
-      setIsGithubLoading(false)
+      setLoadingProvider(null)
     }
   }
 
-  async function signInWithGoogle() {
-    if (!googleAvailable) return
-
-    setIsGoogleLoading(true)
-    try {
-      await client.signIn.social({ provider: 'google', callbackURL })
-    } catch (err) {
-      logger.error('Google sign-in failed', { error: getErrorMessage(err) })
-    } finally {
-      setIsGoogleLoading(false)
-    }
-  }
-
-  async function signInWithMicrosoft() {
-    if (!microsoftAvailable) return
-
-    setIsMicrosoftLoading(true)
-    try {
-      await client.signIn.social({ provider: 'microsoft', callbackURL })
-    } catch (err) {
-      logger.error('Microsoft sign-in failed', { error: getErrorMessage(err) })
-    } finally {
-      setIsMicrosoftLoading(false)
-    }
-  }
-
-  const githubButton = (
-    <Chip
-      fullWidth
-      leftIcon={GithubIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
-      disabled={!githubAvailable || isGithubLoading}
-      onClick={signInWithGithub}
-    >
-      {isGithubLoading ? 'Connecting…' : 'GitHub'}
-    </Chip>
-  )
-
-  const googleButton = (
-    <Chip
-      fullWidth
-      leftIcon={GoogleIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
-      disabled={!googleAvailable || isGoogleLoading}
-      onClick={signInWithGoogle}
-    >
-      {isGoogleLoading ? 'Connecting…' : 'Google'}
-    </Chip>
-  )
-
-  const microsoftButton = (
-    <Chip
-      fullWidth
-      leftIcon={MicrosoftIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
-      disabled={!microsoftAvailable || isMicrosoftLoading}
-      onClick={signInWithMicrosoft}
-    >
-      {isMicrosoftLoading ? 'Connecting…' : 'Microsoft'}
-    </Chip>
-  )
-
-  const hasAnyOAuthProvider = githubAvailable || googleAvailable || microsoftAvailable
-
-  if (!hasAnyOAuthProvider && !children) {
+  if (!githubAvailable && !googleAvailable && !microsoftAvailable && !children) {
     return null
   }
 
   return (
     <div className='grid gap-3'>
-      {googleAvailable && googleButton}
-      {microsoftAvailable && microsoftButton}
-      {githubAvailable && githubButton}
+      {PROVIDERS.filter(({ provider }) => available[provider]).map(({ provider, label, icon }) => (
+        <Chip
+          key={provider}
+          fullWidth
+          leftIcon={icon}
+          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
+          disabled={loadingProvider === provider}
+          onClick={() => signIn(provider, label)}
+        >
+          {loadingProvider === provider ? 'Connecting…' : label}
+        </Chip>
+      ))}
       {children}
     </div>
   )

@@ -44,7 +44,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'September 17, 2026',
+  lastUpdated: 'October 8, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -194,6 +194,12 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             'PostHog',
             'Coordinates analytics state for the current browser tab.',
             'Session',
+          ],
+          [
+            'sim_attribution_first / sim_attribution_last',
+            'Sim',
+            'Records the campaign or website that first and most recently brought you to sim.ai, so a sign-up or demo request can be credited to it. Holds campaign parameters, the referring site’s domain, and the landing page path only.',
+            '90 days',
           ],
         ]),
         cookieTable('Marketing', [
