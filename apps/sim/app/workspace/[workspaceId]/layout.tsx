@@ -8,6 +8,7 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -67,6 +68,7 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    workflowTestsEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -84,6 +86,7 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -94,6 +97,7 @@ export default async function WorkspaceLayout({
       <FeatureFlagsProvider
         flags={{
           dashboards: dashboardsEnabled,
+          'workflow-tests': workflowTestsEnabled,
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,

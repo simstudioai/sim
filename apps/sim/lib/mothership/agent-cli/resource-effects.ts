@@ -15,6 +15,7 @@ import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
 import type { ResourceAddress, ResourceChange } from '@/lib/mothership/generated/resources'
+import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
 
 interface EffectContext {
@@ -339,6 +340,16 @@ function matchParams(pattern: string, pathname: string): Record<string, string> 
   return params
 }
 
+/** Only workspace files and chat uploads open as file tabs; other rows open as their owner. */
+async function onlyFileTabs(changes: ResourceChange[]): Promise<ResourceChange[]> {
+  const isFileUpsert = (change: ResourceChange) =>
+    change.op === 'upsert' && change.resource.type === 'file'
+  const nonTabIds = await findNonTabFileIds(
+    changes.flatMap((change) => (isFileUpsert(change) ? [change.resource.id] : []))
+  )
+  return changes.filter((change) => !isFileUpsert(change) || !nonTabIds.has(change.resource.id))
+}
+
 /** The observer adds no request and never reads provider responses or download bodies. */
 export function createResourceEffectTransport(
   endpoint: string,
@@ -366,7 +377,8 @@ export function createResourceEffectTransport(
     const response = await transport(input, init)
     if (route && response.ok && (!route.readOnly || observeReads)) {
       const params = matchParams(route.path, url.pathname)
-      if (params) effects.push(...(await route.project(response, { params, body })))
+      if (params)
+        effects.push(...(await onlyFileTabs(await route.project(response, { params, body }))))
     }
     return response
   }

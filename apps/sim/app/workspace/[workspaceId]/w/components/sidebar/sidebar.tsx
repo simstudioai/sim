@@ -34,6 +34,7 @@ import {
   Pin,
   Plus,
   Search,
+  ShieldCheck,
   Table,
   Task,
   Workflow,
@@ -705,6 +706,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   )
 
   const dashboardsEnabled = useFeatureFlag('dashboards')
+  const testsEnabled = useFeatureFlag('workflow-tests')
   const topNavItems = useMemo(
     () =>
       [
@@ -781,6 +783,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
           restricted: permissionConfig.hideKnowledgeBaseTab,
         },
         {
+          id: 'tests',
+          label: 'Tests',
+          icon: ShieldCheck,
+          href: `/workspace/${workspaceId}/tests`,
+          hidden: !testsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'logs',
           label: 'Logs',
           icon: Library,
@@ -794,6 +804,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
       accessRequestsEnabled,
+      testsEnabled,
     ]
   )
 

@@ -119,6 +119,31 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
   return keysetPage(keys, rows, input.limit)
 }
 
+/** Active workflows in a workspace with exactly this name; names are not unique, so callers decide. */
+export async function listActiveWorkflowsNamed(workspaceId: string, name: string) {
+  return db
+    .select({ id: workflow.id, name: workflow.name })
+    .from(workflow)
+    .where(
+      and(
+        eq(workflow.workspaceId, workspaceId),
+        isNull(workflow.archivedAt),
+        eq(workflow.name, name)
+      )
+    )
+    .limit(2)
+}
+
+/** An active workflow's name by id, or null when it is archived or gone. */
+export async function getActiveWorkflowName(workflowId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ name: workflow.name })
+    .from(workflow)
+    .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
+    .limit(1)
+  return row?.name ?? null
+}
+
 /**
  * Loads one consistent workflow record + normalized definition snapshot. Both
  * the editor route and public metadata route derive their own response from

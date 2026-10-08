@@ -69,6 +69,7 @@ export type StorageContext =
   | 'mothership'
   | 'execution'
   | 'workspace'
+  | 'test'
   | 'table-import'
   | 'profile-pictures'
   | 'og-images'

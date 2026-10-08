@@ -9,6 +9,7 @@ import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workfl
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { workflowTestKeys } from '@/hooks/queries/workflow-tests'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
@@ -28,6 +29,10 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, id ? tableKeys.views(id) : tableKeys.viewsRoot())
   },
   dashboard: (qc, wId) => invalidate(qc, dashboardKeys.workspace(wId)),
+  test: (qc) => {
+    invalidate(qc, workflowTestKeys.lists())
+    invalidate(qc, workflowTestKeys.details())
+  },
   file: (qc, wId, id) => {
     invalidate(qc, workspaceFilesKeys.lists())
     invalidate(qc, id ? workspaceFilesKeys.record(wId, id) : workspaceFilesKeys.records())

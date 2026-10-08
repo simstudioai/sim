@@ -4,6 +4,7 @@ import {
   memo,
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -405,6 +406,9 @@ interface TextEditorProps {
     status: 'idle' | 'saving' | 'saved' | 'error',
     retry?: () => Promise<void>
   ) => void
+  onSaveError?: (error: unknown) => void
+  preview?: ReactNode
+  sourceSide?: 'start' | 'end'
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
@@ -422,6 +426,9 @@ export const TextEditor = memo(function TextEditor({
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
+  preview,
+  sourceSide = 'start',
   saveRef,
   downloadSourceRef,
   discardRef,
@@ -502,6 +509,7 @@ export const TextEditor = memo(function TextEditor({
     isAgentEditing,
     onDirtyChange,
     onSaveStatusChange,
+    onSaveError,
     saveRef,
     discardRef,
   })
@@ -607,7 +615,8 @@ export const TextEditor = memo(function TextEditor({
       if (!container) return
       const rect = container.getBoundingClientRect()
       const isRtl = getComputedStyle(container).direction === 'rtl'
-      const sourceWidth = isRtl ? rect.right - e.clientX : e.clientX - rect.left
+      const fromRight = isRtl !== (sourceSide === 'end')
+      const sourceWidth = fromRight ? rect.right - e.clientX : e.clientX - rect.left
       const pct = (sourceWidth / rect.width) * 100
       setSplitPct(Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, pct)))
     }
@@ -625,7 +634,7 @@ export const TextEditor = memo(function TextEditor({
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing])
+  }, [isResizing, sourceSide])
 
   const handleSplitKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const key = readSeparatorKey(event)
@@ -638,7 +647,8 @@ export const TextEditor = memo(function TextEditor({
     }
     const container = containerRef.current
     const isRtl = container !== null && getComputedStyle(container).direction === 'rtl'
-    const delta = (key === 'left' ? -1 : 1) * (isRtl ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
+    const fromRight = isRtl !== (sourceSide === 'end')
+    const delta = (key === 'left' ? -1 : 1) * (fromRight ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
     setSplitPct((current) => Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, current + delta)))
   }
 
@@ -786,7 +796,10 @@ export const TextEditor = memo(function TextEditor({
       <div
         ref={containerRef}
         data-find-tooltip-fix
-        className='relative flex flex-1 overflow-hidden'
+        className={cn(
+          'relative flex flex-1 overflow-hidden',
+          sourceSide === 'end' && 'flex-row-reverse'
+        )}
       >
         <style>{FIND_TOOLTIP_FIX_CSS}</style>
         {showEditor && (
@@ -844,16 +857,18 @@ export const TextEditor = memo(function TextEditor({
                 isResizing && 'pointer-events-none'
               )}
             >
-              <PreviewPanel
-                key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
-                content={content}
-                mimeType={file.type}
-                filename={file.name}
-                workspaceId={workspaceId}
-                fileId={file.id}
-                fileKey={file.key}
-                isStreaming={isStreaming}
-              />
+              {preview ?? (
+                <PreviewPanel
+                  key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+                  content={content}
+                  mimeType={file.type}
+                  filename={file.name}
+                  workspaceId={workspaceId}
+                  fileId={file.id}
+                  fileKey={file.key}
+                  isStreaming={isStreaming}
+                />
+              )}
             </div>
           </>
         )}

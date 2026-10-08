@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
@@ -5,6 +6,8 @@ import {
   loadWorkspaceFileLifecycleContext,
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { requireWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { getLiveWorkflowTestByBodyFileId } from '@/lib/workflow-tests/repository'
 
 export interface WorkspaceFileContextInput {
   fileId: string
@@ -15,6 +18,37 @@ export interface WorkspaceFileContextInput {
    * use cases set this: chat uploads stay out of listings and closed to writes.
    */
   includeChatUploads?: boolean
+  /**
+   * Admit a file another resource owns — a test file (`context = 'test'`) — for this principal under its owner's policy. Only content reads and
+   * writes pass it; every other file operation never reaches an owned file.
+   */
+  ownedFilePrincipal?: Principal
+}
+
+/** Principals the test operations admit; workspace API keys and system callers never reach one. */
+const OWNED_FILE_PRINCIPAL_KINDS = new Set<Principal['kind']>([
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'delegated',
+])
+
+/**
+ * A test file follows its test: it needs a live test and admits only the test operations'
+ * principal kinds.
+ */
+export async function assertOwnedFileAccess(
+  principal: Principal,
+  context: ActiveWorkspaceFileContext
+): Promise<void> {
+  if (context.fileContext !== 'test') return
+  if (!OWNED_FILE_PRINCIPAL_KINDS.has(principal.kind)) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  if (!(await getLiveWorkflowTestByBodyFileId(context.fileId))) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  await requireWorkflowTestsEnabled(context.workspaceOrganizationId)
 }
 
 export async function resolveActiveWorkspaceFileContext(
@@ -23,6 +57,7 @@ export async function resolveActiveWorkspaceFileContext(
   const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
     includeDeleted: input.includeDeleted,
     includeChatUploads: input.includeChatUploads,
+    ...(input.ownedFilePrincipal ? { includeTestFiles: true } : {}),
   })
   if (
     !canonical ||
@@ -30,6 +65,7 @@ export async function resolveActiveWorkspaceFileContext(
   ) {
     throw new OrchestrationError('not_found', 'File not found')
   }
+  if (input.ownedFilePrincipal) await assertOwnedFileAccess(input.ownedFilePrincipal, canonical)
   return canonical
 }
 

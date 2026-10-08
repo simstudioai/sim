@@ -35,6 +35,7 @@ import { isRetryableBlockError, resolveBlockRetryPolicy } from '@/executor/execu
 import type {
   BlockStateWriter,
   ContextExtensions,
+  ExecutionTestHooks,
   WorkflowNodeMetadata,
 } from '@/executor/execution/types'
 import {
@@ -272,6 +273,9 @@ export class BlockExecutor {
      * for the same reason `streamingPartialOutput` above is.
      */
     let completedHandlerCost: TrustedExecutionCost | undefined
+    const testHooks = this.contextExtensions.testHooks
+    const mockedBlockId = node.metadata.originalBlockId ?? block.id
+    const isMocked = !isSentinel && testHooks?.mocksBlock(mockedBlockId) === true
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -279,6 +283,17 @@ export class BlockExecutor {
        * already seen.
        */
       const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, (retry) => {
+        if (isMocked && testHooks) {
+          return this.resolveMockedBlock(
+            blockCtx,
+            node,
+            block,
+            mockedBlockId,
+            testHooks,
+            inputsForLog,
+            inputDisplayRegistry
+          )
+        }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode
           ? handler.executeWithNode(blockCtx, block, resolvedInputs, invocationMetadata)
@@ -433,6 +448,13 @@ export class BlockExecutor {
           output: displayOutput,
         })
         this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
+        if (!isMocked && testHooks?.spiesBlock(mockedBlockId)) {
+          testHooks.recordSpy({
+            blockId: mockedBlockId,
+            input: displayInput,
+            output: displayOutput,
+          })
+        }
         this.fireBlockCompleteCallback(
           blockStartPromise,
           blockCtx,
@@ -927,6 +949,35 @@ export class BlockExecutor {
     }
 
     return { result: output }
+  }
+
+  /** A test mock sees exactly what the block's execution log shows, never raw resolved secrets. */
+  private resolveMockedBlock(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    blockId: string,
+    testHooks: ExecutionTestHooks,
+    inputs: Record<string, unknown>,
+    registry: ResolvedSecretTraceRegistry | undefined
+  ): Promise<NormalizedBlockOutput> {
+    const blockName = block.metadata?.name ?? blockId
+    const projection = registry?.projectResolvedInputSelection(inputs)
+    if (projection && !projection.complete) {
+      throw new Error(`Mocked block "${blockName}" has inputs whose secrets cannot be redacted`)
+    }
+    return testHooks.resolveMock(
+      {
+        blockId,
+        blockName,
+        blockType: block.metadata?.id ?? '',
+        input: this.sanitizeInputsForLog(projection?.value ?? inputs, block),
+        ...(node.metadata.branchIndex !== undefined
+          ? { branchIndex: node.metadata.branchIndex }
+          : {}),
+      },
+      ctx.abortSignal
+    )
   }
 
   /** Builds the log-facing input copy from resolver-recorded projections only. */

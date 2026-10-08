@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -17,13 +18,21 @@ export interface ReadWorkspaceFileSecretProvenanceInput {
 
 export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }: { input: ReadWorkspaceFileSecretProvenanceInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkspaceFileSecretProvenanceInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ input, context }): Promise<{
     provenance: WorkspaceFileSecretProvenance
     ownerUserId: string
   }> {
-    const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+    const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+      throwOnError: true,
+      includeTestFiles: true,
+    })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     return {
       provenance: await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {

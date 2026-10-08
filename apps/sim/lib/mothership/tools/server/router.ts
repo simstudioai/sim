@@ -31,6 +31,7 @@ import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/gen
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/server/search-sources'
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
+import { testsServerTool } from '@/lib/mothership/tools/server/tests'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
 import { listWorkspacesServerTool } from '@/lib/mothership/tools/server/workspace-list'
 import { workspacesServerTool } from '@/lib/mothership/tools/server/workspaces'
@@ -62,6 +63,7 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [dashboardsServerTool.name]: dashboardsServerTool,
+  [testsServerTool.name]: testsServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,

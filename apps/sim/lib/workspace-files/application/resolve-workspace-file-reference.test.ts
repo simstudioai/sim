@@ -58,14 +58,30 @@ describe('workspace file reference application service', () => {
     expect(mocks.resolveStoredReference).toHaveBeenCalledWith(
       file.workspaceId,
       'uploads/source.txt',
-      { includeChatUploads: true, chatId: 'current-chat' }
+      {
+        includeChatUploads: true,
+        includeTestFiles: true,
+        chatId: 'current-chat',
+      }
     )
     expect(mocks.resolvePermission).toHaveBeenCalled()
   })
 
+  it('admits a test file but never a chat upload for files.update_content', async () => {
+    await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.updateContent,
+      workspaceId: 'workspace-1',
+      reference: 'uploads/photo.png',
+    })
+
+    expect(mocks.resolveStoredReference).toHaveBeenCalledWith('workspace-1', 'uploads/photo.png', {
+      includeTestFiles: true,
+    })
+  })
+
   it.each([
     fileOperations.rename,
-    fileOperations.updateContent,
     fileOperations.move,
     fileOperations.delete,
     fileOperations.updateShare,

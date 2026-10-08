@@ -17,11 +17,14 @@ import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
 } from '@/executor/constants'
+import type { ExecutionTestHooks, MockedToolCall } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
+import { getToolParams } from '@/tools/metadata'
 import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
@@ -124,6 +127,35 @@ function accumulateFailedFunctionToolCost(
   }
 }
 
+/** The arguments a model sent a tool: no internal context, credentials, or fixed configuration. */
+function modelSuppliedToolInput(
+  toolId: string,
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const declared = getToolParams(toolId)
+  const input: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params)) {
+    const visibility = declared?.[key]?.visibility
+    if (key !== '_context' && visibility !== 'user-only' && visibility !== 'hidden') {
+      input[key] = value
+    }
+  }
+  return input
+}
+
+/** A test's answer to a tool call; a rejected mock becomes the tool's failure. */
+async function resolveMockedTool(
+  testHooks: ExecutionTestHooks,
+  call: MockedToolCall,
+  abortSignal: AbortSignal | undefined
+): Promise<ToolResponse> {
+  try {
+    return { success: true, output: await testHooks.resolveToolMock(call, abortSignal) }
+  } catch (error) {
+    return { success: false, output: {}, error: getErrorMessage(error) }
+  }
+}
+
 export async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeTool>[1],
@@ -223,6 +255,30 @@ export async function executeProviderTool(
         ? registry.forkForInputPaths([])
         : registry.forkForToolCall()
     : undefined
+
+  const callerContext = options.executionContext ?? runtimeContext?.executionContext
+  const testHooks = callerContext?.testHooks
+  const callerBlockId =
+    isRecordLike(params._context) && typeof params._context.blockId === 'string'
+      ? stripCloneSuffixes(params._context.blockId)
+      : undefined
+  if (
+    testHooks &&
+    callerBlockId &&
+    !memoryRetrieval &&
+    testHooks.mocksTool(callerBlockId, executionToolId)
+  ) {
+    const response = await resolveMockedTool(
+      testHooks,
+      {
+        blockId: callerBlockId,
+        toolId: executionToolId,
+        input: modelSuppliedToolInput(executionToolId, params),
+      },
+      callerContext?.abortSignal
+    )
+    return { rawResponse: response, modelResponse: response }
+  }
 
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext

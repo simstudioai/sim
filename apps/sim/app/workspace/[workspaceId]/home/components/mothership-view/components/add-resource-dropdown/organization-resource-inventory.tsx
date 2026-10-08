@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import {
   type AvailableResources,
+  COMPOSER_EXCLUDED_TYPES,
   useAvailableResources,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 
@@ -12,7 +13,10 @@ export function OrganizationResourceInventory({
   workspaceId: string
   onChange: (workspaceId: string, inventory: AvailableResources) => void
 }) {
-  const inventory = useAvailableResources(workspaceId, { includeFolderMentions: true })
+  const inventory = useAvailableResources(workspaceId, {
+    includeFolderMentions: true,
+    excludeTypes: COMPOSER_EXCLUDED_TYPES,
+  })
   useEffect(() => {
     onChange(workspaceId, inventory)
   }, [workspaceId, inventory, onChange])
