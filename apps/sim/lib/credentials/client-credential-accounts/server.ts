@@ -5,6 +5,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
+import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
@@ -21,7 +23,7 @@ import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-creden
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 
-/** Raw fields a client-credential minter receives (already trimmed). */
+/** Credential fields normalized according to the provider descriptor; passwords retain exact bytes. */
 export interface ClientCredentialAccountFields {
   clientId: string
   /** Certificate mapping identifier used as the JWT `kid` by NetSuite. */
@@ -139,6 +141,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: mintNetSuiteServiceAccountToken,
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: mintRampServiceAccountToken,
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: mintVantaServiceAccountToken,
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleFusionServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

@@ -192,7 +192,7 @@ function ClientCredentialAccountModalForm({
       // stored on a credential whose grant never reads it.
       const secretFields: FieldValues = {}
       for (const field of visibleFields) {
-        const value = values[field.id]?.trim()
+        const value = field.preserveWhitespace ? values[field.id] : values[field.id]?.trim()
         if (value) secretFields[field.id] = value
       }
       if (credentialId) {

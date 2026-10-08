@@ -41,6 +41,7 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export type OAuthProvider =
+  | 'oracle-fusion'
   | 'github-repositories'
   | 'github-app-installation'
   | 'google'
@@ -110,6 +111,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oracle-fusion'
   | 'oci'
   | 'github-repositories'
   | 'google'

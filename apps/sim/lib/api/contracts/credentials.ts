@@ -156,7 +156,7 @@ export const createCredentialFieldsSchema = z.object({
   signingSecret: z.string().trim().min(1).optional(),
   botToken: z.string().trim().min(1).optional(),
   clientId: z.string().trim().min(1).max(512).optional(),
-  clientSecret: z.string().trim().min(1).max(1024).optional(),
+  clientSecret: z.string().min(1).max(1024).optional(),
   certificateId: z.string().trim().min(1).max(512).optional(),
   orgId: z.string().trim().min(1).max(255).optional(),
   /** Optional provider region selector (Zoho Desk data center). */
@@ -282,7 +282,7 @@ export const updateCredentialByIdBodySchema = z
     atlassianProduct: atlassianProductSchema.optional(),
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
-    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    clientSecret: z.string().min(1).max(1024).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
