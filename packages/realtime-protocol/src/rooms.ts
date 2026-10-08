@@ -62,18 +62,6 @@ export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]
 /** Every known room type, for exhaustive iteration/validation. */
 const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
 
-/**
- * The presence-free, workspace-scoped live-list rooms. They share one contract derived entirely
- * from the room-type token: clients join via `join-${type}`, the app server fans a mutation out via
- * `POST /api/${type}-changed`, and members receive a lossy `${type}-changed` invalidation signal.
- * Adding a room type here wires it into the shared socket handler and HTTP relay branch.
- */
-export const WORKSPACE_LIST_ROOM_TYPES = [
-  ROOM_TYPES.WORKSPACE_FILES,
-  ROOM_TYPES.WORKSPACE_TABLES,
-  ROOM_TYPES.WORKSPACE_WORKFLOWS,
-] as const
-
 /** Owner-specific wire addresses share the same presence-free invalidation lifecycle. */
 const INVALIDATION_ROOM_ID_KEYS = {
   [ROOM_TYPES.WORKSPACE_FILES]: 'workspaceId',

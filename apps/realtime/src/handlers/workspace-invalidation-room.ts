@@ -25,7 +25,7 @@ const logger = createLogger('WorkspaceInvalidationRoom')
  *
  * These rooms carry NO presence — "who's in a resource" comes from the per-resource room (file-doc /
  * table), and mutations go over HTTP. Membership is tracked natively by Socket.IO (`socket.rooms`),
- * so a workspace switch just leaves the prior room — no room-manager presence bookkeeping to sync.
+ * so multiple owners can subscribe independently without room-manager presence bookkeeping.
  */
 export function setupWorkspaceInvalidationRoom(
   socket: AuthenticatedSocket,
@@ -40,22 +40,12 @@ export function setupWorkspaceInvalidationRoom(
   const roomPrefix = `${roomType}:`
   const room = (ownerId: string): RoomRef => ({ type: roomType, id: ownerId })
 
-  // Monotonic per-socket join counter: each join captures its number and, after the async
-  // authorize, aborts if a newer intent has superseded it — a fast workspace switch A→B can
-  // otherwise let A's late completion leave B and strand the socket in A, missing B's
-  // `${roomType}-changed` invalidations.
-  let joinGeneration = 0
-  // The workspace the socket currently intends to be in (set when a join starts). A leave that
-  // targets this workspace — or an unscoped "leave all" — advances joinGeneration so an in-flight
-  // join is cancelled instead of completing after the view has closed. A stale/deferred leave for
-  // a DIFFERENT workspace must NOT advance it, or it would abort the join the client has since
-  // switched to (the bug that bit the file-doc room in #5941).
-  let currentOwnerId: string | null = null
+  /** Unique tokens prevent an older attempt from surviving an owner leave/rejoin cycle. */
+  const joinAttempts = new Map<string, symbol>()
 
   socket.on(joinEvent, async (payload: unknown) => {
     const ownerId = toRecord(payload)[idKey]
-    // Validate synchronously BEFORE claiming a generation, so a rejected/malformed join can't
-    // advance joinGeneration and cancel a legitimate in-flight join for another workspace.
+    /** Reject invalid requests before superseding an existing attempt for this owner. */
     if (!socket.userId || !socket.userName) {
       socket.emit(errorEvent, {
         [idKey]: ownerId,
@@ -76,8 +66,7 @@ export function setupWorkspaceInvalidationRoom(
       return
     }
 
-    // Validate the client-supplied id before it reaches the DB query (join payloads are
-    // otherwise raw client input) and before advancing the generation.
+    /** Validate owner identifiers before authorization. */
     if (
       typeof ownerId !== 'string' ||
       ownerId.length === 0 ||
@@ -93,8 +82,9 @@ export function setupWorkspaceInvalidationRoom(
       return
     }
 
-    const joinAttempt = (joinGeneration += 1)
-    currentOwnerId = ownerId
+    const joinAttempt = Symbol()
+    joinAttempts.set(ownerId, joinAttempt)
+    const isCurrentAttempt = () => joinAttempts.get(ownerId) === joinAttempt && !socket.disconnected
     try {
       const ref = room(ownerId)
 
@@ -114,24 +104,22 @@ export function setupWorkspaceInvalidationRoom(
           accessDenied:
             idKey === 'projectId' ? 'Access denied to Project' : 'Access denied to workspace',
         },
-        emitError: ({ error, code, retryable }) =>
-          socket.emit(errorEvent, { [idKey]: ownerId, error, code, retryable }),
+        emitError: ({ error, code, retryable }) => {
+          if (isCurrentAttempt()) {
+            socket.emit(errorEvent, { [idKey]: ownerId, error, code, retryable })
+          }
+        },
       })
-      if (!authorized) return
+      if (!authorized || !isCurrentAttempt()) return
 
-      // Re-check access before committing: the access re-validation sweep records a
-      // revocation BEFORE it evicts, so a join that authorized just before the
-      // revocation must not complete afterwards and put the socket back in the room.
-      // RE-RESOLVES rather than peeking — a peek treats an expired entry as unknown and
-      // fails open, which a join stalled longer than the cache TTL would slip through.
-      // Normally a cache hit (this join's own authorize just warmed it). Mirrors the
-      // file-doc and table joins.
+      /** Re-resolve access so revocation or an expired permission cache cannot admit a stale join. */
       const currentPermission = await resolveCurrentRoomPermission(
         socket.userId,
         ref,
         ROOM_MEMBERSHIP_ACTIONS[roomType],
         socket.id
       )
+      if (!isCurrentAttempt()) return
       if (!satisfiesRoomMembership(currentPermission, roomType)) {
         socket.emit(errorEvent, {
           [idKey]: ownerId,
@@ -142,52 +130,32 @@ export function setupWorkspaceInvalidationRoom(
         return
       }
 
-      // A newer join started on this socket during the awaits above — including the access
-      // re-resolve — or it dropped: abort so a stale join can't leave the room the client has
-      // since switched to. Last await before the commit, so nothing interleaves after it.
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
-
-      // Leave any previously-joined room of this type (workspace switch), read straight from the
-      // socket's native room membership so there's no presence store to keep in sync.
-      const target = roomName(ref)
-      for (const joined of socket.rooms) {
-        if (joined !== target && joined.startsWith(roomPrefix)) socket.leave(joined)
-      }
-
-      socket.join(target)
+      socket.join(roomName(ref))
       socket.emit(successEvent, { [idKey]: ownerId })
     } catch (error) {
+      if (!isCurrentAttempt()) return
       logger.error(`Error joining ${roomType} room:`, error)
       try {
         socket.leave(roomName(room(ownerId)))
       } catch {}
-      // Suppress the client-facing error when this join was already superseded: the client has
-      // switched to a newer workspace, and a retryable error naming the abandoned one could make it
-      // re-join and cancel the newer join. The leave above still runs.
-      if (joinGeneration !== joinAttempt || socket.disconnected) return
       socket.emit(errorEvent, {
         [idKey]: ownerId,
         error: `Failed to join ${roomType}`,
         code: 'JOIN_FAILED',
         retryable: true,
       })
+    } finally {
+      if (joinAttempts.get(ownerId) === joinAttempt) joinAttempts.delete(ownerId)
     }
   })
+
+  socket.on('disconnect', () => joinAttempts.clear())
 
   socket.on(leaveEvent, (payload?: unknown) => {
     const ownerId = toRecord(payload)[idKey]
     if (ownerId !== undefined && (typeof ownerId !== 'string' || !ownerId)) return
-    // Cancel an in-flight join whose target the client is now leaving: a join awaiting
-    // authorization when the view unmounts would otherwise complete afterwards and strand the
-    // socket in a room it has left. Only when the leave targets the current join intent (or is
-    // unscoped) — a deferred leave for a different workspace must not abort the join the client
-    // has since switched to.
-    if (!ownerId || ownerId === currentOwnerId) {
-      joinGeneration += 1
-      currentOwnerId = null
-    }
-    // Scope the leave to a specific workspace when the client provides one: a deferred leave
-    // from a prior page must not evict a room the socket has since switched into.
+    if (ownerId) joinAttempts.delete(ownerId)
+    else joinAttempts.clear()
     const target = ownerId ? roomName(room(ownerId)) : null
     for (const joined of socket.rooms) {
       if (!joined.startsWith(roomPrefix)) continue
