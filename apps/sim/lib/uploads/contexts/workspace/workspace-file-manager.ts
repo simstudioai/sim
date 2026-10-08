@@ -2694,9 +2694,19 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   if (!ws || ws.archivedAt) {
     throw new OrchestrationError('validation', 'Cannot restore file into an archived workspace')
   }
-  await db.transaction((tx) =>
-    restoreFileInTx(tx, { entityType: 'workspace', entityId: workspaceId }, fileId)
-  )
+  const maxUniqueViolationRetries = 8
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    try {
+      await db.transaction((tx) =>
+        restoreFileInTx(tx, { entityType: 'workspace', entityId: workspaceId }, fileId)
+      )
+      return
+    } catch (error) {
+      if (!(error instanceof FileConflictError) || attempt === maxUniqueViolationRetries - 1) {
+        throw error
+      }
+    }
+  }
 }
 
 /** Restores a retained head, re-rooting and deduplicating within its canonical owner. */
@@ -2756,6 +2766,19 @@ async function restoreFileInTx(
       )
     )
     .returning()
+    .catch((error: unknown) => {
+      const nameConstraint =
+        owner.entityType === 'project'
+          ? 'workspace_files_project_folder_name_active_unique'
+          : 'workspace_files_workspace_folder_name_active_unique'
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === nameConstraint
+      ) {
+        throw new FileConflictError(originalName)
+      }
+      throw error
+    })
   if (!restored) throw new OrchestrationError('conflict', 'File changed during restoration')
   return restored
 }
