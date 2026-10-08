@@ -120,22 +120,19 @@ export function projectBufferObject(type: string, value: unknown): unknown {
     const nested = BUFFER_SCHEMA[nestedType]
     const object = Boolean(nested?.fields || nested?.members)
     if (candidate == null) {
-      result[field] = wireType.endsWith('!')
-        ? wireType.startsWith('[')
-          ? []
-          : object
-            ? null
-            : scalarType(nestedType) === 'boolean'
-              ? false
-              : scalarType(nestedType) === 'number'
-                ? 0
-                : ''
-        : null
+      if (wireType.endsWith('!')) throw new Error(`Buffer returned null for ${type}.${field}`)
+      result[field] = null
     } else if (wireType.startsWith('[')) {
       if (!Array.isArray(candidate)) throw new Error(`Buffer returned an invalid ${type}.${field}`)
-      result[field] = object
-        ? candidate.map((entry) => (entry == null ? null : projectBufferObject(nestedType, entry)))
-        : candidate
+      const listType = wireType.endsWith('!') ? wireType.slice(0, -1) : wireType
+      const itemRequired = listType.slice(1, -1).endsWith('!')
+      result[field] = candidate.map((entry) => {
+        if (entry == null) {
+          if (itemRequired) throw new Error(`Buffer returned null for ${type}.${field}[]`)
+          return null
+        }
+        return object ? projectBufferObject(nestedType, entry) : entry
+      })
     } else {
       result[field] = object ? projectBufferObject(nestedType, candidate) : candidate
     }

@@ -666,8 +666,7 @@ export const BufferBlock: BlockConfig = {
             key === 'operation'
           )
             continue
-          if (value === undefined || value === null) continue
-          if (value === '') {
+          if (value === undefined || value === null || value === '') {
             result[key] = undefined
             continue
           }

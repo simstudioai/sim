@@ -10,6 +10,7 @@ const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 
 import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { createBufferPost } from '@/lib/internal/buffer/operations'
+import bufferPostFixture from '@/tools/buffer/__fixtures__/post.json'
 
 describe('Buffer operations', () => {
   it('creates a text post when optional assets are null', async () => {
@@ -18,7 +19,7 @@ describe('Buffer operations', () => {
       const body: { variables: { input: Record<string, unknown> } } = JSON.parse(String(init?.body))
       providerInputs.push(body.variables.input)
       return Response.json({
-        data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+        data: { createPost: { __typename: 'PostActionSuccess', post: bufferPostFixture } },
       })
     })
 
@@ -66,7 +67,7 @@ describe('Buffer operations', () => {
       const body: { variables: { input: Record<string, unknown> } } = JSON.parse(String(init?.body))
       providerInputs.push(body.variables.input)
       return Response.json({
-        data: { editPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+        data: { editPost: { __typename: 'PostActionSuccess', post: bufferPostFixture } },
       })
     })
 
@@ -98,7 +99,7 @@ describe('Buffer operations', () => {
         )
         providerInputs.push(body.variables.input)
         return Response.json({
-          data: { editPost: { __typename: 'PostActionSuccess', post: { id: 'post-1' } } },
+          data: { editPost: { __typename: 'PostActionSuccess', post: bufferPostFixture } },
         })
       })
 
@@ -124,6 +125,39 @@ describe('Buffer operations', () => {
     }
   )
 
+  it.each([
+    { field: 'channel', value: null, path: 'Post.channel' },
+    { field: 'text', value: null, path: 'Post.text' },
+    { field: 'assets', value: null, path: 'Post.assets' },
+    { field: 'tags', value: [null], path: 'Post.tags[]' },
+  ])(
+    'rejects null in required provider response positions: $path',
+    async ({ field, value, path }) => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        Response.json({
+          data: {
+            editPost: {
+              __typename: 'PostActionSuccess',
+              post: { ...bufferPostFixture, [field]: value },
+            },
+          },
+        })
+      )
+      const response = await executeBufferTool({
+        toolId: 'buffer_edit_post',
+        input: { apiKey: 'buffer-key', postId: 'post-1', text: 'Updated caption' },
+        headers: new Headers(),
+        context: { workflowId: 'workflow-1', userId: 'user-1' },
+        requestId: 'request-1',
+      })
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({
+        success: false,
+        error: `Buffer returned null for ${path}`,
+      })
+    }
+  )
+
   it('resolves stored media with trusted user context before the provider call', async () => {
     mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example/image.png' })
     const fetchMock = vi.fn().mockResolvedValue(
@@ -131,7 +165,7 @@ describe('Buffer operations', () => {
         data: {
           createPost: {
             __typename: 'PostActionSuccess',
-            post: { id: 'post-1' },
+            post: bufferPostFixture,
           },
         },
       })
