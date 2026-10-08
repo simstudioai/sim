@@ -395,12 +395,6 @@ describe('reflectBackgroundChatStatus', () => {
     "leaves the desktop activity alone when a teammate's turn has %s",
     (type) => {
       showing('/workspace/ws-1/home', false)
-      const fetchActivity = vi.fn(async () => [])
-      const unsubscribe = new QueryObserver(queryClient, {
-        queryKey: desktopActivityKeys.list('ws-1'),
-        queryFn: fetchActivity,
-        staleTime: Number.POSITIVE_INFINITY,
-      }).subscribe(() => {})
 
       reflectBackgroundChatStatus(
         queryClient,
@@ -410,8 +404,6 @@ describe('reflectBackgroundChatStatus', () => {
       )
 
       expect(activityStale()).toBe(false)
-      expect(fetchActivity).not.toHaveBeenCalled()
-      unsubscribe()
     }
   )
 

@@ -1,17 +1,20 @@
 /** @vitest-environment jsdom */
 
 import { act } from 'react'
-import {
-  apiClientRequestMock,
-  apiClientRequestMockFns,
-} from '@sim/testing/mocks/api-client-request.mock'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+/** The page's real requests land on this fetch, installed fresh for each test. */
+let fetchMock = setupGlobalFetchMock()
 
-const requestJson = apiClientRequestMockFns.mockRequestJson
+/** Requests the page sent for desktop activity. */
+function activityRequests(): number {
+  return fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/desktop/activity'))
+    .length
+}
 
 import { useDesktopActivity, watchesDesktopActivity } from '@/hooks/queries/desktop-activity'
 
@@ -53,8 +56,8 @@ describe('desktop activity polling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    requestJson.mockReset()
-    requestJson.mockResolvedValue({ chats: [] })
+    fetchMock = setupGlobalFetchMock()
+    fetchMock.mockImplementation(async () => jsonResponse({ chats: [] }))
   })
 
   afterEach(() => {
@@ -66,8 +69,10 @@ describe('desktop activity polling', () => {
   })
 
   it('shows nothing once the page stops watching, though the query kept its last result', async () => {
-    const activity = [{ chatId: 'chat-1' }]
-    requestJson.mockResolvedValueOnce({ chats: activity })
+    const activity = [
+      { chatId: 'chat-1', streamId: 'stream-1', state: 'running', deviceName: 'Work laptop' },
+    ]
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ chats: activity }))
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -95,14 +100,14 @@ describe('desktop activity polling', () => {
     await mount(false)
     await waitTwoMinutes()
 
-    expect(requestJson).not.toHaveBeenCalled()
+    expect(activityRequests()).toBe(0)
   })
 
   it('polls for a user with a registered desktop', async () => {
     await mount(true)
     await waitTwoMinutes()
 
-    expect(requestJson.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(activityRequests()).toBeGreaterThanOrEqual(4)
   })
 
   it('polls in the desktop app before its first registration reaches the page', async () => {
@@ -110,6 +115,6 @@ describe('desktop activity polling', () => {
     await mount(false)
     await waitTwoMinutes()
 
-    expect(requestJson.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(activityRequests()).toBeGreaterThanOrEqual(4)
   })
 })
