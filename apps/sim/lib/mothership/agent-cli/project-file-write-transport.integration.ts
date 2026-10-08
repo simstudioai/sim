@@ -689,6 +689,7 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
 afterAll(async () => {
   if (callbackRedisKeys.length) await getRedisClient()?.del(...callbackRedisKeys)
   for (const f of fixtures) {
+    await db.delete(uploadSession).where(eq(uploadSession.userId, f.userId))
     await db
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/%`}`)

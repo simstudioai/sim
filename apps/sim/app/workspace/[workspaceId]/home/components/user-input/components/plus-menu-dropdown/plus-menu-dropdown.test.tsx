@@ -23,7 +23,10 @@ let client: QueryClient
 let root: Root
 let container: HTMLDivElement
 const handle = createRef<PlusMenuHandle>()
-const selected = vi.fn()
+let selected: { id: string; name: string } | null = null
+const selectProject = (project: { id: string; name: string }) => {
+  selected = { id: project.id, name: project.name }
+}
 const project = {
   id: 'project',
   name: 'Gate fixture',
@@ -39,7 +42,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.useFakeTimers()
   Element.prototype.scrollIntoView = vi.fn()
-  selected.mockClear()
+  selected = null
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(workspaceKeys.list(), { workspaces: [] })
   vi.stubGlobal('fetch', async (input: string) =>
@@ -77,7 +80,7 @@ async function render(projectFiles: boolean) {
             warm
             onResourceSelect={() => {}}
             onWorkspaceSelect={() => {}}
-            onProjectSelect={selected}
+            onProjectSelect={selectProject}
             onClose={() => {}}
             textareaRef={{ current: null }}
             pendingCursorRef={{ current: null }}
@@ -93,14 +96,12 @@ it('stops cached Project mention selection when Project files are disabled', asy
   await render(true)
   await act(async () => handle.current?.open({ left: 0, top: 0 }, { mention: true }))
   await act(async () => handle.current?.selectActive())
-  expect(selected).toHaveBeenCalledWith(
-    expect.objectContaining({ id: project.id, name: project.name })
-  )
-  selected.mockClear()
+  expect(selected).toEqual(expect.objectContaining({ id: project.id, name: project.name }))
+  selected = null
   await render(false)
   await act(async () => handle.current?.open({ left: 0, top: 0 }, { mention: true }))
   await act(async () => handle.current?.selectActive())
-  expect(selected).not.toHaveBeenCalled()
+  expect(selected).toBeNull()
 })
 it('stops Project tagging through the browse submenu when Project files are disabled', async () => {
   await render(true)
@@ -113,10 +114,10 @@ it('stops Project tagging through the browse submenu when Project files are disa
     await act(async () => trigger.click())
   }
   await selectProject()
-  expect(selected).toHaveBeenCalledWith(expect.objectContaining({ id: project.id }))
-  selected.mockClear()
+  expect(selected).toEqual(expect.objectContaining({ id: project.id }))
+  selected = null
   await render(false)
   await act(async () => handle.current?.open({ left: 0, top: 0 }))
   await selectProject()
-  expect(selected).not.toHaveBeenCalled()
+  expect(selected).toBeNull()
 })
