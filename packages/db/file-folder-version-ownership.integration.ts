@@ -24,11 +24,11 @@ describe('file folder and version ownership in PostgreSQL', () => {
     }
   }
 
-  async function waitForDatabaseLock(pid: number) {
+  async function waitForDatabaseLock(pid: number, writerPid: number) {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const [state] = await sql<{ waiting: boolean }[]>`
         SELECT EXISTS (
-          SELECT 1 FROM pg_stat_activity WHERE pid = ${pid} AND wait_event_type = 'Lock'
+          SELECT 1 FROM unnest(pg_blocking_pids(${pid})) blocker WHERE blocker = ${writerPid}
         ) AS waiting
       `
       if (state.waiting) return
@@ -338,12 +338,13 @@ describe('file folder and version ownership in PostgreSQL', () => {
       await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, project_id)
       VALUES ('folder-a', 'A', 'user-a', ${workspaceId}, 'file', ${projectId}),
         ('folder-b', 'B', 'user-a', ${workspaceId}, 'file', ${projectId})`
-      const moved = createDeferred<void>()
+      const moved = createDeferred<number>()
       const release = createDeferred<void>()
       const firstMove = sql.begin(async (tx) => {
         await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
         await tx`UPDATE folder SET parent_id = 'folder-b' WHERE id = 'folder-a'`
-        moved.resolve()
+        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        moved.resolve(writer.pid)
         await release.promise
       })
       const waiting = createDeferred<number>()
@@ -360,12 +361,12 @@ describe('file folder and version ownership in PostgreSQL', () => {
         rejection = expect(secondMove).rejects.toMatchObject({
           code: isolation === 'repeatable read' ? '40001' : '23514',
         })
-        await waitForDatabaseLock(await waiting.promise)
+        await waitForDatabaseLock(await waiting.promise, await moved.promise)
       } finally {
         release.resolve()
         await firstMove
+        await rejection
       }
-      await rejection
       expect(await sql`SELECT id, parent_id FROM folder ORDER BY id`).toEqual([
         { id: 'folder-a', parent_id: 'folder-b' },
         { id: 'folder-b', parent_id: null },
@@ -378,12 +379,13 @@ describe('file folder and version ownership in PostgreSQL', () => {
     async (isolation) => {
       await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
         VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-      const inserted = createDeferred<void>()
+      const inserted = createDeferred<number>()
       const release = createDeferred<void>()
       const creation = sql.begin(async (tx) => {
         await tx`INSERT INTO workspace_file_version (id, file_id, workspace_id)
           VALUES ('version', 'file', 'workspace-a')`
-        inserted.resolve()
+        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        inserted.resolve(writer.pid)
         await release.promise
       })
       const waiting = createDeferred<number>()
@@ -399,12 +401,12 @@ describe('file folder and version ownership in PostgreSQL', () => {
         rejection = expect(transfer).rejects.toMatchObject({
           code: isolation === 'repeatable read' ? '40001' : '23514',
         })
-        await waitForDatabaseLock(await waiting.promise)
+        await waitForDatabaseLock(await waiting.promise, await inserted.promise)
       } finally {
         release.resolve()
         await creation
+        await rejection
       }
-      await rejection
       const [file] = await sql`SELECT workspace_id FROM workspace_files WHERE id = 'file'`
       expect(file.workspace_id).toBe('workspace-a')
     }
@@ -415,11 +417,12 @@ describe('file folder and version ownership in PostgreSQL', () => {
     async (isolation) => {
       await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
         VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-      const moved = createDeferred<void>()
+      const moved = createDeferred<number>()
       const release = createDeferred<void>()
       const transfer = sql.begin(async (tx) => {
         await tx`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'file'`
-        moved.resolve()
+        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        moved.resolve(writer.pid)
         await release.promise
       })
       const waiting = createDeferred<number>()
@@ -436,12 +439,12 @@ describe('file folder and version ownership in PostgreSQL', () => {
         rejection = expect(creation).rejects.toMatchObject({
           code: isolation === 'repeatable read' ? '40001' : '23514',
         })
-        await waitForDatabaseLock(await waiting.promise)
+        await waitForDatabaseLock(await waiting.promise, await moved.promise)
       } finally {
         release.resolve()
         await transfer
+        await rejection
       }
-      await rejection
       expect(await sql`SELECT id FROM workspace_file_version`).toHaveLength(0)
     }
   )
@@ -449,12 +452,13 @@ describe('file folder and version ownership in PostgreSQL', () => {
   it.each(['read committed', 'repeatable read'])(
     'protects a Project from concurrent folder creation and deletion at %s isolation',
     async (isolation) => {
-      const inserted = createDeferred<void>()
+      const inserted = createDeferred<number>()
       const release = createDeferred<void>()
       const creation = sql.begin(async (tx) => {
         await tx`INSERT INTO folder (id, name, user_id, resource_type, project_id)
           VALUES ('folder', 'Docs', 'user-a', 'file', 'project-a')`
-        inserted.resolve()
+        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        inserted.resolve(writer.pid)
         await release.promise
       })
       const waiting = createDeferred<number>()
@@ -470,12 +474,12 @@ describe('file folder and version ownership in PostgreSQL', () => {
         rejection = expect(deletion).rejects.toMatchObject({
           code: '23503',
         })
-        await waitForDatabaseLock(await waiting.promise)
+        await waitForDatabaseLock(await waiting.promise, await inserted.promise)
       } finally {
         release.resolve()
         await creation
+        await rejection
       }
-      await rejection
       expect(await sql`SELECT id FROM folder WHERE id = 'folder'`).toHaveLength(1)
     }
   )

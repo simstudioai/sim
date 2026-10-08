@@ -175,6 +175,32 @@ function assertBulkAffectedItemsWithinLimit(count: number): void {
   }
 }
 
+/** Loads only the affected active subtrees, with one extra row to detect the bulk limit. */
+async function selectAffectedFileFolders(
+  owner: EditableFileOwner,
+  folderIds: string[],
+  tx: DbTransaction
+): Promise<Array<{ id: string; parentId: string | null }>> {
+  if (folderIds.length === 0) return []
+  const ownerCondition = fileFolderOwnerCondition(owner)
+  const rows = await tx.execute<{ id: string; parentId: string | null }>(sql`
+    WITH RECURSIVE affected AS (
+      SELECT ${folderTable.id}, ${folderTable.parentId}
+      FROM ${folderTable}
+      WHERE ${ownerCondition} AND ${inArray(folderTable.id, folderIds)}
+        AND ${folderTable.deletedAt} IS NULL
+      UNION
+      SELECT ${folderTable.id}, ${folderTable.parentId}
+      FROM ${folderTable} JOIN affected ON ${folderTable.parentId} = affected.id
+      WHERE ${ownerCondition} AND ${folderTable.deletedAt} IS NULL
+    )
+    SELECT id, parent_id AS "parentId" FROM affected
+    LIMIT ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1}
+  `)
+  assertBulkAffectedItemsWithinLimit(rows.length)
+  return [...rows]
+}
+
 /**
  * Verifies every requested active file/folder belongs to this workspace before a bulk mutation.
  * This prevents the bulk archive primitive's workspace predicate from silently turning an
@@ -906,12 +932,7 @@ async function updateFileFolder<O extends EditableFileOwner>(
     throw new OrchestrationError('validation', 'Folder cannot be its own parent')
   await assertFileFolderTarget(params.owner, finalParentId, tx)
   if (params.parentId !== undefined) {
-    const activeFolders = await tx
-      .select({ id: folderTable.id, parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(and(ownerCondition, isNull(folderTable.deletedAt)))
-      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
-    assertBulkAffectedItemsWithinLimit(activeFolders.length)
+    const activeFolders = await selectAffectedFileFolders(params.owner, [params.folderId], tx)
     if (
       finalParentId &&
       collectDescendantFolderIds(activeFolders, params.folderId).includes(finalParentId)
@@ -1060,15 +1081,7 @@ async function moveFileItems(
   }
 
   if (folderIds.length > 0) {
-    const activeFolders = await tx
-      .select({ id: folderTable.id, parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(
-        and(fileFolderOwnerCondition(params.owner), isFileFolder, isNull(folderTable.deletedAt))
-      )
-      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
-
-    assertBulkAffectedItemsWithinLimit(activeFolders.length)
+    const activeFolders = await selectAffectedFileFolders(params.owner, folderIds, tx)
 
     const affectedFolderIds = new Set<string>()
 
@@ -1423,17 +1436,7 @@ async function archiveFileItems(
   await acquireFileFolderMutationLock(tx, params.owner)
   await assertFileItemsBelongToOwner(params, tx)
 
-  const activeFolders =
-    explicitFolderIds.length > 0
-      ? await tx
-          .select({ id: folderTable.id, parentId: folderTable.parentId })
-          .from(folderTable)
-          .where(
-            and(fileFolderOwnerCondition(params.owner), isFileFolder, isNull(folderTable.deletedAt))
-          )
-          .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
-      : []
-  assertBulkAffectedItemsWithinLimit(activeFolders.length)
+  const activeFolders = await selectAffectedFileFolders(params.owner, explicitFolderIds, tx)
   const descendantFolderIds = explicitFolderIds.flatMap((folderId) =>
     collectDescendantFolderIds(activeFolders, folderId)
   )
