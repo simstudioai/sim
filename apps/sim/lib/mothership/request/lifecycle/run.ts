@@ -1178,7 +1178,11 @@ async function runCheckpointLoop(
     ? getBenchmarkMothershipUrl()
     : await getMothershipBaseURL({ userId: options.userId })
   execContext.mothershipBaseURL = mothershipBaseURL
-  if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
+  if (
+    initialRoute === '/api/mothership' ||
+    initialRoute === '/api/copilot' ||
+    (initialRoute === '/api/mothership/execute' && options.benchmark)
+  ) {
     const simConnection = getSimConnection(options.benchmark ? 'checkpoint' : undefined)
     payload = { ...payload, simConnection }
   }

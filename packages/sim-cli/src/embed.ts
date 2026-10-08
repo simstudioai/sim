@@ -132,7 +132,11 @@ export async function runEmbeddedCli(
     let exitCode = 0
     try {
       identity.signal?.throwIfAborted()
-      const program = buildProgram()
+      const program = buildProgram({
+        hostCommands: false,
+        helpText:
+          'The embedding application supplies authentication, endpoint and workspace scope.',
+      })
       configureEmbeddedOutput(program)
       await program.parseAsync(argv, { from: 'user' })
       // Commands that soft-fail (a failed run outcome, wait timeout) report through the
