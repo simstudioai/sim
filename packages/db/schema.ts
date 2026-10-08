@@ -6941,13 +6941,13 @@ export const userTableDefinitions = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     /**
      * @remarks
-     * Monotonic counter bumped by triggers on `user_table_rows`: statement-level
-     * on INSERT/DELETE, and a deferred constraint trigger that bumps once per
-     * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
-     * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
-     * reused until the table mutates. Never written from application code — the
-     * triggers and the `user_table_row_changes` fold are the only writers. Read the
-     * live value through `lib/table/row-changes.ts`, never this column alone.
+     * Folded part of a monotonic counter: the triggers on `user_table_rows` log one
+     * `user_table_row_changes` row per INSERT/DELETE statement, and one per
+     * transaction when an UPDATE changes `data` or `order_key`; the fold adds their
+     * count here. Keys the versioned table-snapshot cache so a stored CSV under
+     * `v{rows_version}` is reused until the table mutates. Never written from
+     * application code — the fold is the only writer. Read the live value through
+     * `lib/table/row-changes.ts`, never this column alone.
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**

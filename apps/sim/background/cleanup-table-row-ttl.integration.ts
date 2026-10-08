@@ -65,9 +65,10 @@ async function seedRows(tableId: string, count: number, value: string | null = e
 async function rowCount(tableId: string): Promise<number> {
   const [result] =
     await control`SELECT count(*)::int AS count FROM user_table_rows WHERE table_id = ${tableId}`
-  const [definition] =
-    await control`SELECT row_count FROM user_table_definitions WHERE id = ${tableId}`
-  expect(definition.row_count).toBe(result.count)
+  const [definition] = await control`SELECT d.row_count + coalesce(sum(c.row_delta), 0)::int AS live
+    FROM user_table_definitions d LEFT JOIN user_table_row_changes c ON c.table_id = d.id
+    WHERE d.id = ${tableId} GROUP BY d.id`
+  expect(definition.live).toBe(result.count)
   return result.count
 }
 
