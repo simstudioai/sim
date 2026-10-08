@@ -78,6 +78,7 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
       token_endpoint_auth_method:
         this.preregistered.tokenEndpointAuthMethod ??
         (this.preregistered.clientSecret ? 'client_secret_post' : 'none'),
+      issuer: this.preregistered.issuer ?? this.currentTokens?.issuer,
     }
   }
 

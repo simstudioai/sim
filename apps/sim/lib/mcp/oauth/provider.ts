@@ -43,6 +43,11 @@ export interface PreregisteredClient {
   configurationFingerprint?: string
   scope?: string
   tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post'
+  /**
+   * Authorization server the credentials are registered with. When unset, they are bound to
+   * the issuer of the current grant, so the SDK never presents the secret to another server.
+   */
+  issuer?: string
 }
 
 interface SimMcpOauthProviderInit {
@@ -107,6 +112,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
         token_endpoint_auth_method:
           this.preregistered.tokenEndpointAuthMethod ??
           (this.preregistered.clientSecret ? 'client_secret_post' : 'none'),
+        issuer: this.preregistered.issuer ?? this.row.tokens?.issuer,
       }
     }
     return undefined
@@ -226,6 +232,8 @@ export async function loadPreregisteredClient(
     if (!row.clientId || !row.clientSecret)
       throw new Error('HubSpot OAuth registration is incomplete')
   }
+  const issuer =
+    row.connectorId === 'hubspot' ? MANAGED_MCP_CONNECTORS.hubspot.authorizationServer : undefined
   if (!row.clientId) return undefined
   let clientSecret: string | undefined
   if (row.clientSecret) {
@@ -240,5 +248,5 @@ export async function loadPreregisteredClient(
       throw new Error('Failed to decrypt preregistered MCP OAuth client secret')
     }
   }
-  return { clientId: row.clientId, clientSecret }
+  return { clientId: row.clientId, clientSecret, issuer }
 }

@@ -41,7 +41,14 @@ export async function revokeMcpOauthTokens(
     const info = await discoverOAuthServerInfo(server.url, { fetchFn: ssrfGuardedFetch }).catch(
       () => undefined
     )
-    const metadata = info?.authorizationServerMetadata as
+    if (
+      !info ||
+      (row.tokens.issuer &&
+        !isSameAuthorizationServer(row.tokens.issuer, info.authorizationServerUrl))
+    ) {
+      return
+    }
+    const metadata = info.authorizationServerMetadata as
       | (Record<string, unknown> & { revocation_endpoint?: string })
       | undefined
     const revocationEndpoint = metadata?.revocation_endpoint
@@ -77,6 +84,21 @@ export async function revokeMcpOauthTokens(
       error: toError(error).message,
     })
   }
+}
+
+/**
+ * Mirrors the SDK's issuer binding: tokens stamped for one authorization server are never
+ * posted, with the client secret, to a different one the MCP server now advertises.
+ */
+function isSameAuthorizationServer(issuer: string, authorizationServerUrl: string): boolean {
+  const normalize = (value: string) => {
+    try {
+      return new URL(value).href.replace(/\/$/, '')
+    } catch {
+      return value.replace(/\/$/, '')
+    }
+  }
+  return normalize(issuer) === normalize(authorizationServerUrl)
 }
 
 async function postRevoke(
