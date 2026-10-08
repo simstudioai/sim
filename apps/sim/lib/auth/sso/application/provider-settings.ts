@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db, ssoDomain, ssoProvider } from '@sim/db'
 import {
@@ -21,11 +22,13 @@ import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
 import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 interface ProviderScope {
@@ -155,7 +158,8 @@ export const listSsoProviders: OperationUseCase<
 
 async function executeDeleteProvider(
   principal: Principal,
-  input: { organizationId?: string; providerId: string }
+  input: { organizationId?: string; providerId: string },
+  request?: OrchestrationRequestContext
 ) {
   requireProviderPrincipal(principal, ssoProviderOperations.delete)
   const [provider] = await db
@@ -193,14 +197,38 @@ async function executeDeleteProvider(
     const deleted = await tx
       .delete(ssoProvider)
       .where(and(eq(ssoProvider.id, provider.id), ownerClause))
-      .returning({ id: ssoProvider.id })
+      .returning({
+        id: ssoProvider.id,
+        providerId: ssoProvider.providerId,
+        organizationId: ssoProvider.organizationId,
+        domain: ssoProvider.domain,
+      })
     if (deleted.length && provider.organizationId)
       await forgetPrimaryProvider(tx, provider.organizationId, provider.providerId)
     return deleted
   })
-  if (!removed.length) throw new OrchestrationError('not_found', 'Provider not found')
-  if (provider.organizationId) invalidateSsoPolicyCache(provider.organizationId)
-  return { providerId: provider.providerId }
+  const deleted = removed[0]
+  if (!deleted) throw new OrchestrationError('not_found', 'Provider not found')
+  if (deleted.organizationId) {
+    invalidateSsoPolicyCache(deleted.organizationId)
+    recordProjectedUseCaseAuditEntries(
+      ssoProviderOperations.delete,
+      null,
+      principal,
+      request,
+      [
+        {
+          action: AuditAction.ORGANIZATION_SSO_PROVIDER_DELETED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: deleted.organizationId,
+          description: 'Deleted organization SSO provider',
+          metadata: { providerId: deleted.providerId, domain: deleted.domain },
+        },
+      ],
+      deleted.organizationId
+    )
+  }
+  return { providerId: deleted.providerId }
 }
 
 export const deleteSsoProvider: OperationUseCase<
@@ -209,7 +237,7 @@ export const deleteSsoProvider: OperationUseCase<
   { providerId: string }
 > = {
   operation: ssoProviderOperations.delete,
-  execute: ({ principal, input }) => executeDeleteProvider(principal, input),
+  execute: ({ principal, input, request }) => executeDeleteProvider(principal, input, request),
 }
 
 export const getSsoProvider: OperationUseCase<

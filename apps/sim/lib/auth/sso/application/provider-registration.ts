@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db, ssoDomain, ssoProvider } from '@sim/db'
 import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
@@ -685,4 +686,20 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
     invalidateSsoPolicyCache(orgId)
     return result
   },
+  projectAudit: ({ input, context, result }) => ({
+    action: result.created
+      ? AuditAction.ORGANIZATION_SSO_PROVIDER_CREATED
+      : AuditAction.ORGANIZATION_SSO_PROVIDER_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: context.organizationId,
+    description: result.created
+      ? 'Created organization SSO provider'
+      : 'Updated organization SSO provider',
+    metadata: {
+      providerId: result.providerId,
+      providerType: result.providerType,
+      domain: normalizeSSODomain(input.domain),
+      jitProvisioningEnabled: input.jitProvisioningEnabled,
+    },
+  }),
 })

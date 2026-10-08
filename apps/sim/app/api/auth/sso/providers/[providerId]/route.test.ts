@@ -28,7 +28,9 @@ describe('DELETE /api/auth/sso/providers/[providerId]', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 'session-1' } })
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'row-1' }])
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: 'row-1', providerId: 'acme-okta', organizationId: null, domain: 'acme.com' },
+    ])
   })
 
   it('leaves domains alone when deleting a personal provider', async () => {
@@ -76,7 +78,9 @@ describe('DELETE /api/auth/sso/providers/[providerId]', () => {
     expect(refused.status).toBe(403)
 
     resetDbChainMock()
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'row-1' }])
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: 'row-1', providerId: 'acme-okta', organizationId: null, domain: 'acme.com' },
+    ])
     queueTableRows(schemaMock.ssoProvider, [
       {
         id: 'row-1',

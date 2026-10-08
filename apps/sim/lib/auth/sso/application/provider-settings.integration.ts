@@ -138,6 +138,7 @@ describe('Organization SSO administration through API credentials', () => {
   afterAll(async () => {
     if (!runtime) return
     const { db, schema, eq, inArray } = runtime
+    await db.delete(schema.auditLog).where(eq(schema.auditLog.resourceId, organizationId))
     await db.delete(schema.organization).where(eq(schema.organization.id, organizationId))
     await db.delete(schema.user).where(inArray(schema.user.id, [userId, outsiderId]))
   })
@@ -175,14 +176,17 @@ describe('Organization SSO administration through API credentials', () => {
 
   it('creates and edits a provider without minting a browser session, then deletes it', async () => {
     const { db, schema, eq } = runtime
+    const request = { headers: new Headers({ 'user-agent': 'SSO administration audit fixture' }) }
     const created = await runtime.saveSsoProvider.execute({
       principal,
       input: { ...config(), domain: domain.toUpperCase() },
+      request,
     })
     expect(created).toMatchObject({ providerId, created: true })
     const edited = await runtime.saveSsoProvider.execute({
       principal,
       input: { ...config(), domain: domain.toUpperCase(), cert: 'rotated signing certificate' },
+      request,
     })
     expect(edited.created).toBe(false)
     const [row] = await db
@@ -194,13 +198,37 @@ describe('Organization SSO administration through API credentials', () => {
     expect(
       await db.select().from(schema.session).where(eq(schema.session.userId, userId))
     ).toHaveLength(0)
-    await runtime.deleteSsoProvider.execute({ principal, input: { organizationId, providerId } })
+    await runtime.deleteSsoProvider.execute({
+      principal,
+      input: { organizationId, providerId },
+      request,
+    })
     expect(
       await db
         .select()
         .from(schema.ssoProvider)
         .where(eq(schema.ssoProvider.providerId, providerId))
     ).toHaveLength(0)
+    const history = () =>
+      db.select().from(schema.auditLog).where(eq(schema.auditLog.resourceId, organizationId))
+    await expect
+      .poll(async () => (await history()).map((entry) => entry.action).sort())
+      .toEqual([
+        'organization.sso_provider.created',
+        'organization.sso_provider.deleted',
+        'organization.sso_provider.updated',
+      ])
+    for (const entry of await history()) {
+      expect(entry).toMatchObject({
+        actorId: userId,
+        resourceType: 'organization',
+        resourceId: organizationId,
+        userAgent: 'SSO administration audit fixture',
+        metadata: { organizationId, providerId, domain, actor: { kind: principal.kind } },
+      })
+      expect(JSON.stringify(entry)).not.toContain(config().cert)
+      expect(JSON.stringify(entry)).not.toContain('rotated signing certificate')
+    }
   })
 
   it('refuses unverified domains and conceals organizations from outsiders', async () => {
