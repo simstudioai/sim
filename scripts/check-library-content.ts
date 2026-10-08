@@ -270,11 +270,11 @@ function checkChangelogBody(
       )
     const asset = (field: string, localOnly: boolean) => {
       const value = literal(field)
-      if (!localOnly && value && !value.startsWith('/') && isChangelogMediaSource(value)) return
-      if (!value?.startsWith('/') || value.startsWith('//')) {
+      if (!value || !isChangelogMediaSource(value) || (localOnly && !value.startsWith('/'))) {
         fail(field, 'must be a literal same-origin path or approved media CDN URL')
         return
       }
+      if (!value.startsWith('/')) return
       const target = path.resolve(config.publicDir, `.${value}`)
       const relative = path.relative(config.publicDir, target)
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
