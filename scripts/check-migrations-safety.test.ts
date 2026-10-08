@@ -146,6 +146,80 @@ describe('migration safety audit', () => {
     expect(code).toBe(0)
   }, 30_000)
 
+  it('ignores ownership words inside dollar-quoted data', async () => {
+    const dir = migrationsDir(
+      'COMMENT ON TABLE "jobs" IS $note$Transfer owner to the support team, OWNED BY ops.jobs.id$note$;'
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(`${stdout}${stderr}`).not.toContain('owner-to')
+    expect(`${stdout}${stderr}`).not.toContain('sequence-owned-by-existing-table')
+    expect(code).toBe(0)
+  }, 30_000)
+
+  it.each([
+    [
+      'a DO block naming its language',
+      'DO LANGUAGE plpgsql $$ BEGIN ALTER TABLE calls OWNER TO postgres; END $$;',
+    ],
+    [
+      'a function body',
+      'CREATE FUNCTION hand_over() RETURNS void AS $fn$ BEGIN ALTER TABLE calls OWNER TO postgres; END $fn$ LANGUAGE plpgsql;',
+    ],
+  ])(
+    'refuses OWNER TO inside %s',
+    async (_case, sql) => {
+      const { code, stdout, stderr } = await runAudit('--dir', migrationsDir(sql))
+
+      expect(code).toBe(1)
+      expect(`${stdout}${stderr}`).toContain('owner-to')
+    },
+    30_000
+  )
+
+  it('refuses OWNED BY an existing table whose name differs only in case from a new quoted one', async () => {
+    const dir = migrationsDir(
+      [
+        'CREATE TABLE "Jobs" ("id" text PRIMARY KEY, "position" bigint);--> statement-breakpoint',
+        'ALTER SEQUENCE "jobs_seq" OWNED BY jobs.position;',
+      ].join('\n')
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(code).toBe(1)
+    expect(`${stdout}${stderr}`).toContain('sequence-owned-by-existing-table')
+  }, 30_000)
+
+  /**
+   * A table created in another schema must not exempt the same-named existing table in `public`
+   * from the downtime checks: its old rows still need a default for a NOT NULL column.
+   */
+  it('keeps checking an existing table when a same-named table is created in another schema', async () => {
+    const dir = migrationsDir(
+      [
+        'CREATE TABLE "archive"."jobs" ("id" text PRIMARY KEY);--> statement-breakpoint',
+        'ALTER TABLE "jobs" ADD COLUMN "required" text NOT NULL;',
+      ].join('\n')
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(code).toBe(1)
+    expect(`${stdout}${stderr}`).toContain('add-not-null-no-default')
+  }, 30_000)
+
+  it('still skips the downtime checks for a table the migration creates', async () => {
+    const dir = migrationsDir(
+      [
+        'CREATE TABLE "public"."jobs" ("id" text PRIMARY KEY);--> statement-breakpoint',
+        'ALTER TABLE "jobs" ADD COLUMN "required" text NOT NULL;',
+      ].join('\n')
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(`${stdout}${stderr}`).not.toContain('add-not-null-no-default')
+    expect(code).toBe(0)
+  }, 30_000)
+
   it('ignores ownership words inside string literals and comments', async () => {
     const dir = migrationsDir(
       [
