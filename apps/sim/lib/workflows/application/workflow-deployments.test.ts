@@ -26,6 +26,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   listMcpTools: vi.fn(),
+  buildWorkflowLintReport: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -45,6 +46,10 @@ vi.mock('@/lib/mcp/queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+
+vi.mock('@/lib/workflows/editing/lint-report', () => ({
+  buildWorkflowLintReport: mocks.buildWorkflowLintReport,
+}))
 
 import {
   activateWorkflowVersion,
@@ -76,6 +81,19 @@ const context = {
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
+}
+
+const cleanLint = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+  fieldIssues: [],
+  unresolvedReferences: [],
+  tableFieldIssues: [],
+  notes: [],
 }
 
 const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
@@ -110,6 +128,7 @@ describe('workflow deployment application use cases', () => {
       success: true,
       deployedAt: new Date('2026-08-08T00:00:00Z'),
       version: 4,
+      deploymentVersionId: 'version-4',
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
@@ -128,6 +147,11 @@ describe('workflow deployment application use cases', () => {
       version: 3,
     })
     mockRevert.mockResolvedValue({ success: true, lastSaved: 12345 })
+    workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState.mockResolvedValue({
+      blocks: {},
+      edges: [],
+    })
+    mocks.buildWorkflowLintReport.mockResolvedValue(cleanLint)
   })
 
   it.each(adminPrincipals)(
@@ -296,5 +320,71 @@ describe('workflow deployment application use cases', () => {
         input: { workflowId: 'workflow-1', requestId: 'request-9' },
       })
     ).rejects.toThrow('Failed to deploy workflow')
+  })
+
+  /**
+   * A draft whose Table block could never parse its row JSON deployed with an
+   * empty `warnings`, so the caller first learned of it from a failed live run.
+   */
+  describe('lint findings on the deployed graph', () => {
+    const unquotedRowJson = {
+      ...cleanLint,
+      unresolvedReferences: [
+        {
+          blockId: 'insert',
+          blockName: 'Insert Order',
+          field: 'data',
+          value: ['<start.order_id>'],
+          kind: 'block-output' as const,
+          reason: 'unquoted-json-string: quote it',
+        },
+      ],
+    }
+
+    it('reports them as a deploy warning, linted as the deploying user', async () => {
+      mockDeploy.mockResolvedValueOnce({
+        success: true,
+        version: 4,
+        deploymentVersionId: 'version-4',
+        warnings: [
+          'Deployment activation completed, and post-activation notifications are queued.',
+        ],
+      })
+      mocks.buildWorkflowLintReport.mockResolvedValueOnce(unquotedRowJson)
+
+      const result = await deployWorkflow.execute({
+        principal: createSessionPrincipal({ userId: 'session-user' }),
+        input: { workflowId: 'workflow-1', requestId: 'request-10' },
+      })
+
+      expect(mocks.buildWorkflowLintReport).toHaveBeenCalledWith(
+        { blocks: {}, edges: [] },
+        expect.objectContaining({ workflowId: 'workflow-1', subjectUserId: 'session-user' })
+      )
+      expect(result.warnings).toHaveLength(2)
+      expect(result.warnings?.[1]).toContain('"Insert Order".data <start.order_id>')
+    })
+
+    it('adds nothing for a clean graph', async () => {
+      const result = await deployWorkflow.execute({
+        principal: createSessionPrincipal(),
+        input: { workflowId: 'workflow-1', requestId: 'request-11' },
+      })
+
+      expect(result.warnings).toEqual([])
+    })
+
+    it('never fails or blocks a deploy when lint cannot run', async () => {
+      workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState.mockRejectedValueOnce(
+        new Error('version read failed')
+      )
+
+      const result = await deployWorkflow.execute({
+        principal: createSessionPrincipal(),
+        input: { workflowId: 'workflow-1', requestId: 'request-12' },
+      })
+
+      expect(result).toMatchObject({ success: true, version: 4, warnings: [] })
+    })
   })
 })
