@@ -5,6 +5,7 @@ import { type ElectronApplication, expect, test } from '@playwright/test'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { recordCheck } from './check-report'
 import {
   type FixtureCall,
   FixtureSim,
@@ -24,37 +25,32 @@ import {
  * device protocol (register, inbox, doorbell, claim, lease, complete, import) the way Sim's
  * routes do.
  * The window navigates, reloads and leaves the chats while their calls run: nothing in this
- * suite depends on a chat view, which is the point. Each scenario's checks land in a JSON
- * report at BACKGROUND_EXECUTOR_REPORT_PATH.
+ * suite depends on a chat view, which is the point. Each check lands in a JSON report at
+ * BACKGROUND_EXECUTOR_REPORT_PATH as it finishes.
  */
 
 const CHAT_A = 'chat-browser-a'
 const CHAT_B = 'chat-terminal-b'
 const CHAT_C = 'chat-idle-c'
 
-interface ReportCheck {
-  name: string
-  status: 'passed' | 'failed'
-  durationMs: number
-  error?: string
-}
-
-const report: ReportCheck[] = []
-
 const sim = new FixtureSim()
 
+/** Runs one check and adds its outcome to the report as soon as it is known. */
 async function check(name: string, body: () => Promise<void>): Promise<void> {
   const startedAt = Date.now()
+  const record = (status: 'passed' | 'failed', error?: unknown) =>
+    recordCheck(process.env.BACKGROUND_EXECUTOR_REPORT_PATH, 'background-executor', {
+      name,
+      status,
+      durationMs: Date.now() - startedAt,
+      retry: test.info().retry,
+      ...(error === undefined ? {} : { error: getErrorMessage(error) }),
+    })
   try {
     await body()
-    report.push({ name, status: 'passed', durationMs: Date.now() - startedAt })
+    record('passed')
   } catch (error) {
-    report.push({
-      name,
-      status: 'failed',
-      durationMs: Date.now() - startedAt,
-      error: getErrorMessage(error),
-    })
+    record('failed', error)
     throw error
   }
 }
@@ -74,13 +70,6 @@ test.describe('background executor', () => {
 
   test.afterAll(async () => {
     await sim.stop()
-    const reportPath = process.env.BACKGROUND_EXECUTOR_REPORT_PATH
-    if (reportPath) {
-      writeFileSync(
-        reportPath,
-        JSON.stringify({ suite: 'background-executor', checks: report }, null, 2)
-      )
-    }
   })
 
   test('A: two chats run browser and terminal work while the user is elsewhere and reloads', async () => {
@@ -168,7 +157,7 @@ test.describe('background executor', () => {
     })
   })
 
-  test('B: a result produced while offline is delivered once after reconnecting', async () => {
+  test('B: a result produced while the network is cut is delivered once after reconnecting', async () => {
     const userData = mkdtempSync(join(tmpdir(), 'sim-executor-b-'))
     app = (await launch(sim, userData)).app
     const deviceId = await registeredDevice(sim)
@@ -178,21 +167,33 @@ test.describe('background executor', () => {
       args: { command: 'sleep 2; echo offline-done', waitSeconds: 30 },
     })
     await expect.poll(() => sim.requireCall(run).claims).toBe(1)
-    sim.offline = true
-    await sleep(6_000)
+    sim.disconnect()
 
-    await check('B: nothing reached Sim while offline', async () => {
-      expect(sim.requireCall(run).completions).toHaveLength(0)
-      expect(sim.droppedWhileOffline).toBeGreaterThan(0)
-    })
-    sim.offline = false
+    await check(
+      'B: the cut drops the doorbell and nothing reaches Sim while it lasts',
+      async () => {
+        await expect.poll(() => sim.streams.get(deviceId)?.size ?? 0).toBe(0)
+        await expect.poll(() => sim.droppedWhileOffline, { timeout: 15_000 }).toBeGreaterThan(0)
+        await sleep(4_000)
+        expect(sim.requireCall(run).completions).toHaveLength(0)
+      }
+    )
+    sim.reconnect()
 
     await check('B: the result arrives once after reconnecting', async () => {
       const completion = await settled(sim, run, 60_000)
-      expect(completion.status).toBe('success')
+      expect(completion.status, completion.message).toBe('success')
       expect(JSON.stringify(completion.data)).toContain('offline-done')
       await sleep(3_000)
       expect(sim.requireCall(run).completions).toHaveLength(1)
+      expect(sim.requireCall(run).claims).toBe(1)
+    })
+
+    await check('B: the device reopens its doorbell and picks up new work', async () => {
+      await expect.poll(() => sim.streams.get(deviceId)?.size ?? 0, { timeout: 45_000 }).toBe(1)
+      const after = sim.issue(deviceId, CHAT_B, 'browser_list_tabs', {})
+      const completion = await settled(sim, after)
+      expect(completion.status, completion.message).toBe('success')
     })
   })
 
