@@ -77,9 +77,9 @@ When the user runs `/ship`:
   }
   # Runs every audit CI runs, concurrently, and replays the output of any that fail.
   # The audit list is derived in scripts/run-audits.ts — do not hand-list audits here.
-  # Run the current "Lint workflows" block from .github/workflows/checks.yml locally too,
-  # using its pinned actionlint version and checksum in a temporary directory. Preserve
-  # its -shellcheck= -pyflakes= flags; lint all workflows and abort ship if it fails.
+  # Install CI's pinned actionlint version for the host OS/architecture and verify its
+  # artifact against the official release checksums in a local mktemp directory.
+  # Preserve CI's -shellcheck= -pyflakes= flags; lint all workflows and abort ship if it fails.
   bun run check:audits || { echo "❌ audit(s) failed — do not ship"; exit 1; }
   bun run type-check || { echo "❌ type-check failed — do not ship"; exit 1; }
   # CI's "Verify docs manifest is in sync" step is not a `check:*` script, so the runner above

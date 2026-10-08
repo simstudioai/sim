@@ -4,6 +4,8 @@ import { member, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns } from '@sim/testing/mocks/env-flags.mock'
 import {
   permissionGroupLocksMock,
   permissionGroupLocksMockFns,
@@ -89,6 +91,43 @@ beforeEach(() => {
   mocks.allConflict.mockResolvedValue(null)
 })
 describe('permission group current organization authority', () => {
+  it.each([{ BLACKLISTED_PROVIDERS: 'openai' }, { BLACKLISTED_MODELS: 'gpt-4*' }])(
+    'refuses a deployment-blocked Agent default: %j',
+    async (env) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...group, config: { defaultAgentModel: 'gpt-4o' } },
+      ])
+      setEnv(env)
+      envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(
+        env.BLACKLISTED_PROVIDERS ? [env.BLACKLISTED_PROVIDERS] : []
+      )
+      try {
+        await expect(
+          updatePermissionGroup.execute({
+            principal,
+            input: { ...scope, changes: { config: { defaultAgentModel: 'gpt-4o' } } },
+          })
+        ).rejects.toMatchObject({ code: 'validation' })
+      } finally {
+        resetEnvMock()
+        envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset()
+      }
+    }
+  )
+  it.each(['gpt-5-chat-latest', 'unsupported-agent-model'])(
+    'refuses an unavailable Agent default: %s',
+    async (defaultAgentModel) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, config: { defaultAgentModel } }])
+      await expect(
+        updatePermissionGroup.execute({
+          principal,
+          input: { ...scope, changes: { config: { defaultAgentModel } } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
   it.each([{ allowedModelProviders: ['anthropic'] }, { deniedModels: ['GPT-4O'] }])(
     'refuses a partial update that blocks the stored Agent default: %j',
     async (config) => {

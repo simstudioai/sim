@@ -898,7 +898,7 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { resolveSeedGate, agentDefaultModel } = useOperationAccess()
+    const { resolveSeedGate, agentDefaultModel, isAgentDefaultReady } = useOperationAccess()
 
     const addBlock = useCallback(
       (
@@ -913,6 +913,10 @@ const WorkflowContent = React.memo(
         triggerMode?: boolean,
         presetSubBlockValues?: Record<string, unknown>
       ) => {
+        if (type === 'agent' && !isAgentDefaultReady) {
+          toast({ message: 'Model settings are not ready. Try again.' })
+          return
+        }
         setPendingSelection([id])
         setSelectedEdges(new Map())
         pendingFocusBlockIdRef.current = id
@@ -983,6 +987,7 @@ const WorkflowContent = React.memo(
         setPendingSelection,
         resolveSeedGate,
         agentDefaultModel,
+        isAgentDefaultReady,
       ]
     )
 

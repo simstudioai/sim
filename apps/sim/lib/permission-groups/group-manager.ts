@@ -22,7 +22,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
-import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
+import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import {
   findWorkspacesNotInOrganization,
@@ -102,8 +102,8 @@ async function demoteDefault(organizationId: string, now: Date, tx: DbOrTx) {
 }
 
 function validateAgentDefault(config: PermissionGroupConfig) {
-  if (config.defaultAgentModel && !resolveAgentDefaultModel(config)) {
-    throw new OrchestrationError('validation', 'Agent default must be an allowed model')
+  if (config.defaultAgentModel && !resolveAvailableAgentDefaultModel(config)) {
+    throw new OrchestrationError('validation', 'Agent default must be an available, allowed model')
   }
 }
 

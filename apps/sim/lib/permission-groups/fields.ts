@@ -214,7 +214,6 @@ const agentDefaultModelSchema = z
   .string()
   .trim()
   .min(1)
-  .max(255)
   .nullable()
   .describe('Default model for new Agent blocks. Null uses the platform default.')
 

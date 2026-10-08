@@ -42,6 +42,10 @@ const agentBlockConfig = {
   name: 'Agent',
   outputs: {
     content: { type: 'string', description: 'Default content output' },
+    interactionId: {
+      type: 'string',
+      condition: { field: 'model', value: ['deep-research-pro-preview-12-2025'] },
+    },
   },
   subBlocks: [
     { id: 'model', type: 'combobox', defaultValue: 'claude-sonnet-5-5' },
@@ -144,6 +148,19 @@ const blocksByType: Record<string, unknown> = {
 }
 
 describe('createBlockFromParams', () => {
+  it('exposes the output ports of the seeded Agent default', () => {
+    const block = createBlockFromParams(
+      'agent-research-default',
+      { type: 'agent', name: 'Agent' },
+      undefined,
+      undefined,
+      {
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        defaultAgentModel: 'deep-research-pro-preview-12-2025',
+      }
+    )
+    expect(block.outputs.interactionId).toEqual({ type: 'string' })
+  })
   it('uses the group Agent default when creating an Agent without an explicit model', () => {
     const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o' }
     const block = createBlockFromParams(

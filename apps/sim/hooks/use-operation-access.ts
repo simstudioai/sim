@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
   collectDeniedOperationIds,
@@ -12,10 +13,13 @@ import {
   pickDefaultOperation,
   type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
+import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 export interface OperationAccess {
   agentDefaultModel: string | null
+  isAgentDefaultReady: boolean
   /**
    * Whether the permission config is still loading. Every list this module
    * filters reads as unrestricted until it resolves, so a surface that
@@ -73,12 +77,24 @@ export interface OperationAccess {
  * canvas search, block creation — agrees.
  */
 export function useOperationAccess(): OperationAccess {
-  const { config, isToolAllowed, isModelUsable, isLoading } = usePermissionConfig()
+  const { hosted } = useDeploymentShape()
+  const { config, isToolAllowed, isModelUsable, isLoading, isPermissionFetching } =
+    usePermissionConfig()
+  const blacklistedProviders = useBlacklistedProviders()
 
   return useMemo(() => {
     const isReady = !isLoading
+    const isAgentDefaultReady = isReady && !isPermissionFetching && blacklistedProviders.isSuccess
     return {
-      agentDefaultModel: isReady ? resolveAgentDefaultModel(config) : null,
+      isAgentDefaultReady,
+      agentDefaultModel: isAgentDefaultReady
+        ? resolveAgentDefaultModel(config, {
+            allowAuto: hosted,
+            availableProviderIds: Object.keys(PROVIDER_DEFINITIONS).filter(
+              (provider) => !blacklistedProviders.data.blacklistedProviders.includes(provider)
+            ),
+          })
+        : null,
       isPermissionLoading: isLoading,
       getDeniedOperations: (block, operationIds) =>
         isReady
@@ -98,5 +114,14 @@ export function useOperationAccess(): OperationAccess {
           : isModelUsable(value)
       },
     }
-  }, [config, isToolAllowed, isModelUsable, isLoading])
+  }, [
+    config,
+    isToolAllowed,
+    isModelUsable,
+    isLoading,
+    isPermissionFetching,
+    hosted,
+    blacklistedProviders.isSuccess,
+    blacklistedProviders.data,
+  ])
 }

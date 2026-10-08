@@ -28,6 +28,7 @@ import { useIntegrationAvailability } from '@/hooks/queries/integration-availabi
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
   isLoading: boolean
+  isPermissionFetching: boolean
   isInPermissionGroup: boolean
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
@@ -58,8 +59,11 @@ export function usePermissionConfig(): PermissionConfigResult {
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const hostContext = useOptionalWorkspaceHostContext()
 
-  const { data: permissionData, isLoading: isPermissionLoading } =
-    useUserPermissionConfig(workspaceId)
+  const {
+    data: permissionData,
+    isLoading: isPermissionLoading,
+    isFetching: isPermissionFetching,
+  } = useUserPermissionConfig(workspaceId)
   const {
     data: envAllowlistData,
     isLoading: isEnvAllowlistLoading,
@@ -226,6 +230,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     () => ({
       config: mergedConfig,
       isLoading,
+      isPermissionFetching,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,
@@ -246,6 +251,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     [
       mergedConfig,
       isLoading,
+      isPermissionFetching,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,

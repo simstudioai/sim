@@ -1,9 +1,13 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import {
+  createModelAccessGate,
+  resolveAgentDefaultModel,
+} from '@/lib/permission-groups/model-access'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useProviderModelLists } from '@/hooks/queries/providers'
 import {
@@ -11,6 +15,7 @@ import {
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 
@@ -25,7 +30,7 @@ interface AgentDefaultProps {
 
 /** Selects an allowed default for new Agent blocks governed by this group. */
 export function AgentDefault({ config, providerIds, workspaceId, onChange }: AgentDefaultProps) {
-  const id = useId()
+  const { hosted } = useDeploymentShape()
   const [open, setOpen] = useState(false)
   const dynamicModels = useProviderModelLists(
     DYNAMIC_MODEL_PROVIDERS.filter((provider) => providerIds.includes(provider)),
@@ -38,8 +43,11 @@ export function AgentDefault({ config, providerIds, workspaceId, onChange }: Age
       ...providerIds.flatMap((provider) => getProviderModels(provider)),
       ...dynamicModels,
     ])
-    return [
+    const modelOptions: ComboboxOption[] = [
       { label: 'Platform default', value: PLATFORM_DEFAULT },
+      ...(hosted && isAllowed(SIM_AUTO_MODEL_ID)
+        ? [{ label: 'Auto', value: SIM_AUTO_MODEL_ID }]
+        : []),
       ...[...models]
         .filter((model) => isAllowed(model) && getModelSunsetStatus(model) !== 'deprecated')
         .map((model) => ({
@@ -48,17 +56,28 @@ export function AgentDefault({ config, providerIds, workspaceId, onChange }: Age
           icon: getProviderIcon(model) ?? undefined,
         })),
     ]
-  }, [config, providerIds, dynamicModels])
+    const savedModel = config.defaultAgentModel
+    if (savedModel && !modelOptions.some((option) => option.value === savedModel)) {
+      modelOptions.push({
+        label: savedModel,
+        value: savedModel,
+        icon: getProviderIcon(savedModel) ?? undefined,
+        hidden: true,
+      })
+    }
+    return modelOptions
+  }, [config, providerIds, dynamicModels, hosted])
 
   const error =
-    config.defaultAgentModel && !createModelAccessGate(config)(config.defaultAgentModel)
-      ? 'Agent default must be an allowed model'
+    config.defaultAgentModel &&
+    !resolveAgentDefaultModel(config, { allowAuto: hosted, availableProviderIds: providerIds })
+      ? 'Agent default must be an available, allowed model'
       : undefined
 
   return (
-    <SettingRow label='Agent default' htmlFor={id} error={error}>
+    <SettingRow label='Agent default' error={error}>
       <ChipCombobox
-        id={id}
+        aria-label='Agent default'
         options={options}
         value={config.defaultAgentModel ?? PLATFORM_DEFAULT}
         onChange={(model) => onChange(model === PLATFORM_DEFAULT ? null : model)}

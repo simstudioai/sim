@@ -32,6 +32,7 @@ import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import {
   isFeatureInertForGroup,
@@ -720,6 +721,7 @@ export function GroupDetail({
   onBack,
   onDeleted,
 }: GroupDetailProps) {
+  const { hosted } = useDeploymentShape()
   const updatePermissionGroup = useUpdatePermissionGroup()
   const deletePermissionGroup = useDeletePermissionGroup()
   const removeMember = useRemovePermissionGroupMember()
@@ -824,6 +826,12 @@ export function GroupDetail({
     const blacklist = blacklistedProviders.data.blacklistedProviders
     return getAllProviderIds().filter((id) => !blacklist.includes(id.toLowerCase()))
   }, [blacklistedProviders.data, blacklistedProviders.isSuccess])
+  const isAgentDefaultValid =
+    !editingConfig.defaultAgentModel ||
+    !!resolveAgentDefaultModel(editingConfig, {
+      allowAuto: hosted,
+      availableProviderIds: allProviderIds,
+    })
 
   /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
   const toolBlockTypes = useMemo(() => {
@@ -1281,11 +1289,7 @@ export function GroupDetail({
 
   /** Persists the editing buffer — name/description are only sent when they changed. */
   const handleSaveConfig = async () => {
-    if (
-      !trimmedName ||
-      (editingConfig.defaultAgentModel && !resolveAgentDefaultModel(editingConfig))
-    )
-      return
+    if (!trimmedName || !isAgentDefaultValid) return
     try {
       const result = await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
@@ -1483,9 +1487,7 @@ export function GroupDetail({
             saving: updatePermissionGroup.isPending,
             onSave: handleSaveConfig,
             onDiscard: handleDiscardConfig,
-            saveDisabled:
-              !trimmedName ||
-              !!(editingConfig.defaultAgentModel && !resolveAgentDefaultModel(editingConfig)),
+            saveDisabled: !trimmedName || !isAgentDefaultValid,
           }),
           {
             id: 'delete',
