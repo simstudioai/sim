@@ -6,6 +6,7 @@ import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/post
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockActivatePendingWebhookSubscriptions,
   mockPrepareWebhooks,
   mockGetDeploymentOperation,
   mockMarkDeploymentComponentReadiness,
@@ -28,6 +29,7 @@ const {
   mockGetProtectedDeploymentVersionId,
   mockIsDeploymentVersionActive,
 } = vi.hoisted(() => ({
+  mockActivatePendingWebhookSubscriptions: vi.fn(),
   mockPrepareWebhooks: vi.fn(),
   mockGetDeploymentOperation: vi.fn(),
   mockMarkDeploymentComponentReadiness: vi.fn(),
@@ -75,6 +77,7 @@ vi.mock('@/lib/webhooks/deploy', () => ({
 }))
 
 vi.mock('@/lib/webhooks/registration-service', () => ({
+  activatePendingWebhookSubscriptionsAfterActivation: mockActivatePendingWebhookSubscriptions,
   cleanupRetiredWebhookRegistrationsAfterActivation: mockCleanupRetiredWebhookRegistrations,
 }))
 
@@ -112,12 +115,12 @@ import { NonRetryableDeploymentError } from '@/lib/workflows/deployment-lifecycl
 import {
   createWorkflowDeploymentOutboxHandlers,
   type PrepareDeploymentV2Payload,
-  WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS,
 } from '@/lib/workflows/deployment-outbox'
+import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 
 const mockTx = dbChainMock.db
 
-const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockRecordAudit = auditMockFns.mockRecordAuditOnce
 
 const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
@@ -200,6 +203,7 @@ describe('versioned deployment preparation outbox', () => {
     mockPrepareWebhooks.mockResolvedValue(undefined)
     mockActivateWebhookRegistrations.mockResolvedValue(undefined)
     mockCleanupRetiredWebhookRegistrations.mockResolvedValue(undefined)
+    mockActivatePendingWebhookSubscriptions.mockResolvedValue(false)
     mockCreateSchedulesForDeploy.mockResolvedValue({ success: true })
     mockSyncMcpToolsForWorkflow.mockResolvedValue([{ serverId: 'mcp-server-1' }])
     mockSetWorkflowMcpTransactionLockTimeout.mockResolvedValue(undefined)
@@ -263,13 +267,21 @@ describe('versioned deployment preparation outbox', () => {
       success: true,
       operation: activating,
     })
+    let committed = false
+    let activatedAfterCommit: boolean | undefined
+    mockActivatePendingWebhookSubscriptions.mockImplementation(async () => {
+      activatedAfterCommit = committed
+      return false
+    })
     mockActivateDeploymentOperation.mockImplementation(async (input) => {
       await input.onActivateTransaction?.(mockTx, active)
+      committed = true
       return { success: true, operation: active }
     })
 
     await handler()(payload(), context())
 
+    expect(activatedAfterCommit).toBe(true)
     expect(mockPrepareWebhooks).toHaveBeenCalledTimes(1)
     expect(mockCreateSchedulesForDeploy).toHaveBeenCalledWith(
       'workflow-1',
@@ -349,6 +361,27 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockCreateSchedulesForDeploy).not.toHaveBeenCalled()
     expect(mockMarkDeploymentComponentReadiness).not.toHaveBeenCalled()
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
+  })
+
+  it('keeps activation audit retryable when its durable insert fails', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    auditMockFns.mockRecordAuditOnce.mockRejectedValueOnce(new Error('Audit database unavailable'))
+    const outboxContext = context()
+    const checkpoints: Record<string, unknown> = { inactiveCleanupCompleted: true }
+    vi.mocked(outboxContext.checkpointPayload).mockImplementation(async (value) => {
+      if (value && typeof value === 'object' && 'checkpoints' in value) {
+        Object.assign(checkpoints, value.checkpoints)
+      }
+    })
+
+    await expect(
+      handler()({ ...payload(), checkpoints: { inactiveCleanupCompleted: true } }, outboxContext)
+    ).rejects.toThrow('Audit database unavailable')
+    expect(checkpoints.auditEmitted).toBeUndefined()
   })
 
   /**
@@ -619,6 +652,21 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockRecordAudit.mock.invocationCallOrder[0]).toBeLessThan(
       mockCleanupRetiredWebhookRegistrations.mock.invocationCallOrder[0]
     )
+  })
+
+  it('retires obsolete subscriptions even when new activation fails', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    const external = new Set(['retired-subscription'])
+    mockActivatePendingWebhookSubscriptions.mockRejectedValue(new Error('activation unavailable'))
+    mockCleanupRetiredWebhookRegistrations.mockImplementation(async () => {
+      external.delete('retired-subscription')
+    })
+    await expect(handler()(payload(), context())).rejects.toThrow('activation unavailable')
+    expect(external.size).toBe(0)
   })
 
   it('continues through the outbox while stale webhooks remain, then checkpoints the cleanup', async () => {

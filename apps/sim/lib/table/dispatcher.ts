@@ -52,9 +52,8 @@ const STALE_DISPATCH_EVENT_CONCURRENCY = 10
  * How long past its stale threshold a dispatch may be spared by cell activity
  * before it is reclaimed anyway. Bounds the one masking case the probe cannot
  * resolve — two table-wide dispatches sharing a group — which continuous
- * activity would otherwise hide forever. Far beyond any single window: the
- * Trigger.dev run ceiling is ninety minutes, and a live dispatch heartbeats
- * between windows no matter what its cells are doing.
+ * activity would otherwise hide forever. Far beyond any single window: a live
+ * dispatch heartbeats between windows no matter what its cells are doing.
  */
 const DISPATCH_ABSOLUTE_STALE_MS = 24 * 60 * 60 * 1000
 

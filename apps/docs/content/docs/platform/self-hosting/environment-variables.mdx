@@ -248,6 +248,7 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
 | `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `SSO_SKIP_DOMAIN_VERIFICATION` | Skip the DNS challenge when an administrator clicks Verify on a domain. Off by default; self-hosted only. Trusts administrator claims for SSO and SCIM across the instance. See [Verified Domains](/platform/enterprise/verified-domains#skip-dns-verification) |
 | `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |

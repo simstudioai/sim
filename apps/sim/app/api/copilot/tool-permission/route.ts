@@ -5,6 +5,7 @@ import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import {
   getAsyncToolCall,
   getRunSegment,
@@ -136,6 +137,8 @@ async function applyDecision(
     toolName: claimed.toolName,
     decidedAt: claimed.permissionDecidedAt?.toISOString(),
   })
+  // A bound device lists the call for approval; the answer turns it into a call or drops it.
+  if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'approval')
 
   return { toolCallId, decision, applied: true }
 }

@@ -4,15 +4,13 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { z } from 'zod'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
+import {
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  ENTERPRISE_PROVISION_EVENT_TYPE,
+} from '@/lib/billing/enterprise-outbox-events'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_INVITE_EMAILS } from '@/lib/invitations/limits'
-
-export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
-export const ENTERPRISE_METADATA_SYNC_EVENT_TYPE = 'stripe.sync-enterprise-metadata'
-export const ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE = 'enterprise.move-workspace'
-export const ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE = 'enterprise.reconcile-members'
-export const ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE = 'enterprise.invite-people'
 
 const nonnegativeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 

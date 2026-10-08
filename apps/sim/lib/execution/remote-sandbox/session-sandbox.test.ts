@@ -772,26 +772,36 @@ describe('session sandbox lease', () => {
   })
 
   it('trusts a lease granted by a slow reconnect for the whole call, then refreshes nothing', async () => {
+    // The provider grants the lease in the same millisecond the call asked for it, then the
+    // clock advances on every read: coverage judged from two separate readings falls short.
+    let nowMs = Date.now()
+    let advancing = false
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => (advancing ? ++nowMs : nowMs))
     const { handle, calls } = fakeSandbox('sb-covered')
     let grantedUntilMs = 0
-    handle.outlives = (lifetimeMs) => grantedUntilMs >= Date.now() + lifetimeMs
+    handle.outlives = (lifetimeMs, fromMs) => grantedUntilMs >= fromMs + lifetimeMs
     mockFindSessionSandbox.mockImplementation(
       async (_key: string, options: { lifetimeMs?: number }) => {
         grantedUntilMs = Date.now() + (options.lifetimeMs ?? 0)
-        await sleep(20)
+        nowMs += 20
+        advancing = true
         return handle
       }
     )
 
-    const result = await executeInSandbox({
-      ...CODE_REQUEST,
-      sandboxKind: 'mothership',
-      session: { key: 'mothership-chat:c3' },
-    })
+    try {
+      const result = await executeInSandbox({
+        ...CODE_REQUEST,
+        sandboxKind: 'mothership',
+        session: { key: 'mothership-chat:c3' },
+      })
 
-    expect(result.sandboxSession).toBe('reused')
-    expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
-    expect(calls.extendLifetime).toHaveLength(0)
+      expect(result.sandboxSession).toBe('reused')
+      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
+      expect(calls.extendLifetime).toHaveLength(0)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('does not rewrite an unchanged executable while earlier code can still use it', async () => {

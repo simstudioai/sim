@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
 import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
+import { extractChatCompletionText } from '@/providers/openai-compat/content'
 import {
   getOpenRouterReasoningDetailText,
   type OpenRouterReasoningDetail,
@@ -16,7 +17,7 @@ import {
 interface ChatCompletionLike {
   choices: Array<{
     message?: {
-      content?: string | null
+      content?: unknown
       /** Loose on purpose — the raw SDK response is passed here; only the separate
        * `toolCallsInResponse` argument is required to be narrowed. */
       tool_calls?: Array<{ id: string; function?: { name: string; arguments: string } }> | null
@@ -191,7 +192,7 @@ export function enrichLastModelSegmentFromChatCompletions(
   }
 ): void {
   const choice = response.choices[0]
-  const assistantText = choice?.message?.content ?? ''
+  const assistantText = extractChatCompletionText(choice?.message?.content)
   const thinkingText = extractChatCompletionsReasoning(choice?.message)
 
   const toolCalls: IterationToolCall[] = (toolCallsInResponse ?? []).map((tc) => ({

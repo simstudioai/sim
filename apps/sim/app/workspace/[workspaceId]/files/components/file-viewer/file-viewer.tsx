@@ -4,6 +4,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
+import {
+  MAX_TEXT_PREVIEW_BYTES,
+  TEXT_PREVIEW_SIZE_MESSAGE,
+} from '@/lib/uploads/client/text-content'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -51,12 +55,19 @@ const RichMarkdownEditor = dynamic(
  */
 const CSV_INLINE_EDIT_MAX_BYTES = 5 * 1024 * 1024
 
-export function isTextEditable(file: { type: string; name: string }): boolean {
-  return resolveFileCategory(file.type, file.name) === 'text-editable'
+export function isTextEditable(file: {
+  type: string
+  name: string
+  size?: number | null
+}): boolean {
+  return (
+    resolveFileCategory(file.type, file.name) === 'text-editable' &&
+    (file.size ?? 0) <= MAX_TEXT_PREVIEW_BYTES
+  )
 }
 
-export function isPreviewable(file: { type: string; name: string }): boolean {
-  return resolvePreviewType(file.type, file.name) !== null
+export function isPreviewable(file: { type: string; name: string; size?: number | null }): boolean {
+  return resolvePreviewType(file.type, file.name) !== null && isTextEditable(file)
 }
 
 /**
@@ -180,13 +191,17 @@ function FileViewerContent({
   const category = resolveFileCategory(file.type, file.name)
 
   if (category === 'text-editable') {
+    if (isCsvStreamOnly(file)) {
+      return readOnly ? (
+        <UnsupportedPreview name={file.name} />
+      ) : (
+        <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
+      )
+    }
+    if (!isTextEditable(file)) {
+      return <UnsupportedPreview name={file.name} reason={TEXT_PREVIEW_SIZE_MESSAGE} />
+    }
     if (readOnly) {
-      // ReadOnlyTextPreview loads the whole file as text; a large CSV would OOM the
-      // browser. CsvTablePreview's streamed fallback is workspace-only, so on the
-      // read-only public path a large CSV is download-only.
-      if (isCsvStreamOnly(file)) {
-        return <UnsupportedPreview name={file.name} />
-      }
       // Markdown renders through the inline rich editor (non-editable) so the public share
       // surface matches the in-app reading experience; canEdit={false} disables autosave,
       // the bubble menu, and every other editing affordance.
@@ -203,12 +218,6 @@ function FileViewerContent({
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
     }
-    // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).
-    // Render a streamed, read-only preview of the first rows + an "Import as a table" path instead.
-    if (isCsvStreamOnly(file)) {
-      return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
-    }
-
     if (isMarkdownFile(file)) {
       return (
         <RichMarkdownEditor

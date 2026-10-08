@@ -33,6 +33,7 @@ import {
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, updateDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import * as cleanup from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import {
   claimKnowledgeUploadForAttachment,
   uploadKnowledgeArtifact,
@@ -77,7 +78,7 @@ describe('connector upload crash recovery', () => {
       .select()
       .from(outboxEvent)
       .where(
-        sql`${outboxEvent.eventType} = ${cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT} AND ${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`
+        sql`${outboxEvent.eventType} = ${KNOWLEDGE_STORAGE_CLEANUP_EVENT} AND ${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`
       )
       .limit(1)
     expect(event).toBeDefined()
@@ -88,7 +89,7 @@ describe('connector upload crash recovery', () => {
       .where(eq(outboxEvent.id, event.id))
     expect(
       await processOutboxEventById(event.id, {
-        [cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
+        [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
       })
     ).toBe('completed')
   }
@@ -218,7 +219,7 @@ describe('connector upload crash recovery', () => {
 
     expect(
       await processOutboxEventById(pending[0].id, {
-        [cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
+        [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
       })
     ).toBe('completed')
     expect(await getFileMetadataByKeys([oldKey!], 'knowledge-base')).toEqual([])
@@ -309,7 +310,7 @@ describe('connector upload crash recovery', () => {
           .select()
           .from(outboxEvent)
           .where(
-            sql`${outboxEvent.eventType} = ${cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT} AND ${outboxEvent.payload}->>'key' = ${file.key}`
+            sql`${outboxEvent.eventType} = ${KNOWLEDGE_STORAGE_CLEANUP_EVENT} AND ${outboxEvent.payload}->>'key' = ${file.key}`
           )
           .limit(1)
         events.push(event.id)
@@ -331,7 +332,7 @@ describe('connector upload crash recovery', () => {
           .toBe(true)
 
         const handlers = {
-          [cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
+          [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
         }
         expect(await processOutboxEventById(event.id, handlers)).toBe('pending')
         expect(await readFile(path.join(fixtureStorage.root, file.key), 'utf8')).toBe(

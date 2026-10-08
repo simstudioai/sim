@@ -33,8 +33,7 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { enqueueCancelAtPeriodEndSync } from '@/lib/billing/webhooks/subscription-sync'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -113,15 +112,17 @@ export const DELETE = withRouteHandler(
       }
 
       if (atPeriodEnd) {
+        const stripeSubscriptionId = existing.stripeSubscriptionId
         await db.transaction(async (tx) => {
           await tx
             .update(subscription)
             .set({ cancelAtPeriodEnd: true })
             .where(eq(subscription.id, subscriptionId))
 
-          await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
-            stripeSubscriptionId: existing.stripeSubscriptionId,
+          await enqueueCancelAtPeriodEndSync(tx, {
+            stripeSubscriptionId,
             subscriptionId: existing.id,
+            cancelAtPeriodEnd: true,
             reason: reason ?? 'admin-cancel-at-period-end',
           })
         })

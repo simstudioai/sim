@@ -38,6 +38,9 @@ import { listContractFiles, MAX_SCHEMA_DEPTH } from '@/lib/api/contracts/v2/test
 
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
+  'GET /api/v2/organizations/[organizationId]/domains',
+  'GET /api/v2/credentials/[credentialId]/members',
+  'GET /api/v2/organizations/[organizationId]/sso/providers',
   'GET /api/v2/organizations/[organizationId]/usage/events',
   'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
   'GET /api/v2/organizations/[organizationId]/access-requests',
@@ -158,6 +161,9 @@ const FULL_SET_LISTS = [
  * therefore fails here until someone decides whether the cursor is bound to it.
  */
 const CURSOR_BINDINGS: Record<string, readonly string[]> = {
+  'GET /api/v2/credentials/[credentialId]/members': ['workspaceId', 'sortBy', 'sortOrder'],
+  'GET /api/v2/organizations/[organizationId]/sso/providers': ['sortBy', 'sortOrder'],
+  'GET /api/v2/organizations/[organizationId]/domains': ['sortBy', 'sortOrder'],
   'GET /api/v2/organizations/[organizationId]/usage/events': [
     'preset',
     'startDate',
@@ -372,6 +378,9 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
 const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
   'GET /api/v2/projects/[projectId]/files': ['projectId'],
   'GET /api/v2/projects/[projectId]/files/[fileId]/versions': ['projectId', 'fileId'],
+  'GET /api/v2/credentials/[credentialId]/members': ['credentialId'],
+  'GET /api/v2/organizations/[organizationId]/sso/providers': ['organizationId'],
+  'GET /api/v2/organizations/[organizationId]/domains': ['organizationId'],
   'GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces': [
     'organizationId',
     'invitationId',

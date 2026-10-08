@@ -7,6 +7,7 @@ import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { EMBEDDING_RETRY_BUDGET_MS } from '@/lib/embeddings/client'
 import type { EmbeddingBatchCheckpoints, EmbeddingBatchIdentity } from '@/lib/embeddings/types'
+import { EMBEDDING_CHECKPOINT_CLEANUP_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import {
   checkpointIo,
   isMissingCheckpointObject,
@@ -23,7 +24,6 @@ const MAX_HEADER_BYTES = 1024
 const MAX_VECTOR_BYTES = 16 * 1024 * 1024
 const CLEANUP_WRITE_MARGIN_MS = 15 * 60 * 1000
 const KEY_PATTERN = /^knowledge-embedding-checkpoints\/v1\/[a-f0-9]{64}\/[a-f0-9]{64}\.bin$/
-export const EMBEDDING_CHECKPOINT_CLEANUP_EVENT = 'knowledge.document.embedding-checkpoint.expire'
 
 interface CheckpointHeader {
   version: 1

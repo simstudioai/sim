@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   MAX_SESSION_POLICY_HOURS,
   MIN_IDLE_TIMEOUT_HOURS,
@@ -12,7 +13,6 @@ import {
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   type SessionPolicyResponse,
   useOrganizationSessionPolicy,
@@ -77,9 +77,14 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
   const hasChanges =
     maxSessionHours !== savedMaxSessionHours || idleTimeoutHours !== savedIdleTimeoutHours
 
-  useSettingsUnsavedGuard({ isDirty: hasChanges })
+  useSettingsUnsavedGuard({
+    isDirty: hasChanges,
+    navigationBlocked: updatePolicy.isPending,
+    onDiscard: handleDiscard,
+  })
 
   async function handleSave() {
+    if (updatePolicy.isPending) return
     const max = parseHours(maxSessionHours)
     const idle = parseHours(idleTimeoutHours)
 
@@ -109,8 +114,8 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
       })
       const savedMax = result.data.configured.maxSessionHours?.toString() ?? ''
       const savedIdle = result.data.configured.idleTimeoutHours?.toString() ?? ''
-      setMaxSessionHours(savedMax)
-      setIdleTimeoutHours(savedIdle)
+      setMaxSessionHours((current) => (current === maxSessionHours ? savedMax : current))
+      setIdleTimeoutHours((current) => (current === idleTimeoutHours ? savedIdle : current))
       setSavedMaxSessionHours(savedMax)
       setSavedIdleTimeoutHours(savedIdle)
       toast.success('Session policy updated')

@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAuditOnce } from '@sim/audit'
 import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { outboxEvent, workspaceOperationReceipt } from '@sim/db/schema'
@@ -33,7 +33,10 @@ import {
   prepareStableTriggerWebhooksForDeploy,
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
-import { cleanupRetiredWebhookRegistrationsAfterActivation } from '@/lib/webhooks/registration-service'
+import {
+  activatePendingWebhookSubscriptionsAfterActivation,
+  cleanupRetiredWebhookRegistrationsAfterActivation,
+} from '@/lib/webhooks/registration-service'
 import { activateWebhookRegistrations } from '@/lib/webhooks/registration-store'
 import {
   DEPLOYMENT_ERROR_CODES,
@@ -44,6 +47,7 @@ import {
   NonRetryableDeploymentError,
   parseDeploymentReadiness,
 } from '@/lib/workflows/deployment-lifecycle'
+import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 import {
   activateDeploymentOperation,
   beginDeploymentOperationActivation,
@@ -70,15 +74,6 @@ import { activateForkSyncProvenance } from '@/ee/workspace-forking/lib/promote/s
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
-
-export const WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS = {
-  PREPARE_V2: 'workflow.deployment.prepare.v2',
-  /** One-release rolling compatibility for events admitted by pre-v2 pods. */
-  SYNC_ACTIVE_SIDE_EFFECTS: 'workflow.deployment.sync-active-side-effects',
-  /** One-release rolling compatibility for cleanup admitted by pre-v2 pods. */
-  CLEANUP_INACTIVE_SIDE_EFFECTS: 'workflow.deployment.cleanup-inactive-side-effects',
-  CLEANUP_UNDEPLOYED_SIDE_EFFECTS: 'workflow.deployment.cleanup-undeployed-side-effects',
-} as const
 
 export const DEPLOYMENT_READINESS_COMPONENTS = ['webhooks', 'schedules', 'mcp'] as const
 
@@ -593,6 +588,23 @@ async function runPostActivationWork(params: {
   context: OutboxEventContext
 }): Promise<DeferredOutboxHandlerResult | undefined> {
   await emitPostActivationSideEffects(params)
+  let activationFailure: Error | undefined
+  const activationHasMore = await activatePendingWebhookSubscriptionsAfterActivation({
+    request: new NextRequest(new URL('/api/webhooks', getBaseUrl())),
+    fence: {
+      workflowId: params.payload.workflowId,
+      deploymentVersionId: params.payload.deploymentVersionId,
+      operationId: params.payload.operationId,
+      generation: params.payload.generation,
+    },
+    workflow: params.workflow,
+    userId: params.payload.userId,
+    requestId: params.payload.requestId,
+    signal: params.context.signal,
+  }).catch((error: unknown) => {
+    activationFailure = toError(error)
+    return false
+  })
   await cleanupRetiredWebhooksForOperation({
     payload: params.payload,
     workflow: params.workflow,
@@ -605,7 +617,9 @@ async function runPostActivationWork(params: {
     checkpoint: params.checkpoint,
     context: params.context,
   })
-  return cleanupComplete ? undefined : continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
+  if (!cleanupComplete) return continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
+  if (activationFailure) throw activationFailure
+  return activationHasMore ? continueOutboxHandler('webhook_activation_pending') : undefined
 }
 
 async function prepareReadinessComponent(params: {
@@ -741,7 +755,7 @@ async function emitPostActivationSideEffects(params: {
   if (!params.checkpoints.auditEmitted) {
     params.context.signal.throwIfAborted()
     const isVersionActivation = params.operation.action === 'activate'
-    recordAudit({
+    await recordAuditOnce(`${params.operation.id}:deployment-audit`, {
       workspaceId: (params.workflow.workspaceId as string) || null,
       actorId: params.operation.actorId,
       action: isVersionActivation

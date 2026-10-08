@@ -24,10 +24,13 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
 import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -58,6 +61,8 @@ interface HomeProps {
 }
 
 export function Home(props: HomeProps) {
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
+  if (isRestoredChatEntry) return <HomeFallback />
   return (
     <PermissionAccessBoundary configKey='hideCopilot'>
       <HomeContent {...props} />
@@ -238,13 +243,13 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       if (!detail?.message) return
       e.preventDefault()
       prepareResourceViewForAgentTurn()
-      sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+      const { content, fileAttachments, contexts, ...sendOptions } = sendPayload({
+        ...detail,
+        content: detail.message,
+      })
+      sendMessage(content, fileAttachments, contexts, {
+        ...sendOptions,
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
-        ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
-        ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
-        ...(detail.assistantSearchLevel !== undefined
-          ? { assistantSearchLevel: detail.assistantSearchLevel }
-          : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -275,14 +280,14 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     if (!handoff) return
     if (handoff.message) {
       prepareResourceViewForAgentTurn()
-      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+      const { content, fileAttachments, contexts, ...sendOptions } = sendPayload({
+        ...handoff,
+        content: handoff.message,
+      })
+      sendMessage(content, fileAttachments, contexts, {
+        ...sendOptions,
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
-          : {}),
-        ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
-        ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-        ...(handoff.assistantSearchLevel !== undefined
-          ? { assistantSearchLevel: handoff.assistantSearchLevel }
           : {}),
       })
       return

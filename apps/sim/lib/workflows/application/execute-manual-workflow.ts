@@ -10,7 +10,10 @@ import {
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
 import { getExecutionStateForWorkflow } from '@/lib/workflows/executor/execution-state'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  type NormalizedWorkflowData,
+} from '@/lib/workflows/persistence/utils'
 import {
   resolveTriggerRunOptions,
   validateTriggerInput,
@@ -119,6 +122,7 @@ function executionServiceInput(params: {
   principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
+  draftState: NormalizedWorkflowData
 }) {
   return {
     workflowId: params.context.workflowId,
@@ -141,6 +145,7 @@ function executionServiceInput(params: {
     includeToolCalls: params.input.includeToolCalls,
     triggerType: 'manual' as const,
     useDraftState: true,
+    draftState: params.draftState,
   }
 }
 
@@ -189,7 +194,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
     }
 
     return executeWorkflowService({
-      ...executionServiceInput({ principal, context, input }),
+      ...executionServiceInput({ principal, context, input, draftState: state }),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
@@ -218,7 +223,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     }
 
     return executeWorkflowService({
-      ...executionServiceInput({ principal, context, input }),
+      ...executionServiceInput({ principal, context, input, draftState: state }),
       input: input.input,
       runFromBlock: {
         startBlockId: input.blockId,

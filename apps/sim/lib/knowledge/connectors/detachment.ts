@@ -25,8 +25,8 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { removeDrainedConnector } from '@/lib/knowledge/connectors/deletion'
 import { revokeKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 
-export const KNOWLEDGE_CONNECTOR_DETACH_EVENT = 'knowledge.connector.detach'
 const DOCUMENT_BATCH_SIZE = 100
 const MAX_BATCHES_PER_RUN = 4
 const RUN_BUDGET_MS = 30_000

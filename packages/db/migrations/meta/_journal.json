@@ -2777,50 +2777,78 @@
     {
       "idx": 397,
       "version": "7",
-      "when": 1791257919410,
-      "tag": "0397_project_membership_enforcement",
+      "when": 1791260527198,
+      "tag": "0397_desktop_devices",
       "breakpoints": true
     },
     {
       "idx": 398,
       "version": "7",
-      "when": 1791257919411,
-      "tag": "0398_file_entity_ownership",
+      "when": 1791260662287,
+      "tag": "0398_desktop_tool_pickup_deadline",
       "breakpoints": true
     },
     {
       "idx": 399,
       "version": "7",
-      "when": 1791257919412,
-      "tag": "0399_file_folder_version_ownership",
+      "when": 1791313130367,
+      "tag": "0399_tool_call_persist_seq",
       "breakpoints": true
     },
     {
       "idx": 400,
       "version": "7",
-      "when": 1791257919413,
-      "tag": "0400_file_creator_lifetime",
+      "when": 1791447472721,
+      "tag": "0400_vanta_client_token",
       "breakpoints": true
     },
     {
       "idx": 401,
       "version": "7",
-      "when": 1791257919414,
-      "tag": "0401_project_file_upload_sessions",
+      "when": 1791447472722,
+      "tag": "0401_project_membership_enforcement",
       "breakpoints": true
     },
     {
       "idx": 402,
       "version": "7",
-      "when": 1791257919415,
-      "tag": "0402_public_share_entity_ownership",
+      "when": 1791447472723,
+      "tag": "0402_file_entity_ownership",
       "breakpoints": true
     },
     {
       "idx": 403,
       "version": "7",
-      "when": 1791257919416,
-      "tag": "0403_file_search_owner_scope",
+      "when": 1791447472724,
+      "tag": "0403_file_folder_version_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1791447472725,
+      "tag": "0404_file_creator_lifetime",
+      "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1791447472726,
+      "tag": "0405_project_file_upload_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1791447472727,
+      "tag": "0406_public_share_entity_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1791447472728,
+      "tag": "0407_file_search_owner_scope",
       "breakpoints": true
     }
   ]

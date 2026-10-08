@@ -26,7 +26,6 @@ vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLim
 vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/workspaces/admin-move', () => ({
-  MIGRATED_INVITATION_EMAIL_EVENT_TYPE: 'invitation.send-migrated-link',
   moveWorkspaceToOrganization: hoisted.moveWorkspace,
 }))
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({

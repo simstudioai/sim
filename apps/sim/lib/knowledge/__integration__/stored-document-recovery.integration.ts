@@ -82,17 +82,15 @@ import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
 import { DEFERRED_RETRY_LOST_ERROR } from '@/lib/knowledge/documents/deferred-retry-check'
-import {
-  enqueueKnowledgeDocumentProcessing,
-  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-events'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
-  KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   recoverKnowledgeDocumentProcessing,
   recoveryCandidatesQuery,
 } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import {
   processDocumentAsync,
   processDocumentsWithQueue,

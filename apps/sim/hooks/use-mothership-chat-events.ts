@@ -1,15 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
+import type { DesktopChatActivity } from '@/lib/api/contracts/desktop-executor'
+import { getDesktopBridge } from '@/lib/desktop'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import {
   type MothershipChatHistory,
+  type MothershipChatMetadata,
   type MothershipChatOwner,
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
+import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys'
+import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 const logger = createLogger('MothershipChatEvents')
 
@@ -31,6 +37,8 @@ interface ChatStatusEventPayload {
   chatId?: string
   type?: ChatStatusEventType
   streamId?: string
+  /** Whether the chat is the viewer's own; absent when the server could not tell. */
+  ownChat?: boolean
 }
 
 function isChatStatusEventType(value: unknown): value is ChatStatusEventType {
@@ -96,6 +104,7 @@ function parseChatStatusEventPayload(data: unknown): ChatStatusEventPayload | nu
     ...(typeof record.chatId === 'string' ? { chatId: record.chatId } : {}),
     ...(isChatStatusEventType(record.type) ? { type: record.type } : {}),
     ...(typeof record.streamId === 'string' ? { streamId: record.streamId } : {}),
+    ...(typeof record.ownChat === 'boolean' ? { ownChat: record.ownChat } : {}),
   }
 }
 
@@ -119,8 +128,13 @@ export function handleMothershipChatStatusEvent(
     // mutation would leave pages and PTYs running indefinitely.
     void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
+    /** This tab's queue for the chat goes too, and no later send may bring it back. */
+    useMothershipQueueStore.getState().clearChat(payload.chatId)
     return
   }
+  /** A restore is published as `created`; the chat takes queued sends again. */
+  if (payload.type === 'created')
+    useMothershipQueueStore.getState().reopenRestoredChat(payload.chatId)
   if (payload.type === 'renamed') {
     /**
      * The lists invalidated above carry the title every surface renders; the
@@ -176,6 +190,68 @@ export function resyncMothershipChatCaches(
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
 }
 
+/** The chat route a page shows, so a notification never repeats what is on screen. */
+function chatRoute(owner: MothershipChatOwner, chatId: string): string {
+  return typeof owner === 'string'
+    ? `/workspace/${owner}/chat/${chatId}`
+    : `/o/${owner.organizationId}/chat/${chatId}`
+}
+
+/**
+ * Reflects a turn starting or ending in the chats that run in the background: the desktop
+ * activity list changes and, with `announceCompletions`, a chat of the user's own that their
+ * desktop was running and that they are not looking at is announced when its turn finishes. The desktop app decides whether to show that notification
+ * (notifications on, the chat not on screen in the focused window); the chat on screen announces
+ * its own completion.
+ */
+export function reflectBackgroundChatStatus(
+  queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries'>,
+  owner: MothershipChatOwner,
+  data: unknown,
+  announceCompletions: boolean
+): void {
+  const payload = parseChatStatusEventPayload(data)
+  if (payload?.type !== 'started' && payload?.type !== 'completed') return
+  // A teammate's turn never runs on this user's desktop, so it changes nothing here.
+  if (payload.ownChat === false) return
+  // Read before the refresh below drops it. The events carry every member's chats in the
+  // workspace; only this very turn, seen running on this user's own desktop, is theirs to be told
+  // about. Matching the turn, not just the chat, keeps an earlier desktop turn from vouching for a
+  // later one the chat view ran.
+  const ranOnDesktop =
+    typeof owner === 'string' &&
+    Boolean(
+      queryClient
+        .getQueryData<DesktopChatActivity[]>(desktopActivityKeys.list(owner))
+        ?.some(
+          (activity) => activity.chatId === payload.chatId && activity.streamId === payload.streamId
+        )
+    )
+  queryClient.invalidateQueries({ queryKey: desktopActivityKeys.lists() })
+  if (!announceCompletions || payload.type !== 'completed' || !payload.chatId) return
+  if (!ranOnDesktop) return
+  const settings = getDesktopBridge()?.settings
+  if (!settings) return
+  const route = chatRoute(owner, payload.chatId)
+  if (typeof window !== 'undefined' && window.location.pathname === route) return
+  const chats = queryClient.getQueryData<MothershipChatMetadata[]>(
+    mothershipChatKeys.ownerList(owner)
+  )
+  const name = chats?.find((chat) => chat.id === payload.chatId)?.name
+  void settings
+    .notify({
+      title: name ?? 'Task complete',
+      body: 'Sim finished responding.',
+      route,
+      background: true,
+    })
+    .catch((error) =>
+      logger.warn('Could not show a chat completion notification', {
+        error: getErrorMessage(error),
+      })
+    )
+}
+
 /**
  * Subscribes to chat status SSE events and invalidates chat caches on changes.
  * The SSE event name remains `task_status` for wire compatibility.
@@ -186,9 +262,13 @@ export function resyncMothershipChatCaches(
  */
 export function useMothershipChatEvents(
   owner: MothershipChatOwner | undefined,
-  chatEnabled: boolean
+  chatEnabled: boolean,
+  /** Announce chats that finish in the background; only where the background executor runs. */
+  announceBackgroundCompletions = false
 ) {
   const queryClient = useQueryClient()
+  const announceRef = useRef(announceBackgroundCompletions)
+  announceRef.current = announceBackgroundCompletions
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'object' ? owner.organizationId : undefined
 
@@ -205,11 +285,9 @@ export function useMothershipChatEvents(
       url: `/api/mothership/events?${ownerParam}`,
       events: {
         task_status: (event) => {
-          handleMothershipChatStatusEvent(
-            queryClient,
-            eventOwner,
-            event instanceof MessageEvent ? event.data : undefined
-          )
+          const data = event instanceof MessageEvent ? event.data : undefined
+          handleMothershipChatStatusEvent(queryClient, eventOwner, data)
+          reflectBackgroundChatStatus(queryClient, eventOwner, data, announceRef.current)
         },
       },
       onOpen: (reason) => {

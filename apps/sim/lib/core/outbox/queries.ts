@@ -1,7 +1,18 @@
+import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
-import { sql } from 'drizzle-orm'
+import { and, eq, exists, lte, or, type SQL, sql } from 'drizzle-orm'
 
 const MAX_READY_EVENT_TYPES = 128
+/** How long a `processing` lease may go without a terminal write before the reaper reclaims it. */
+export const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000
+
+/** A `processing` row whose lease the reaper may reclaim at `now`. */
+export function isStuckProcessing(now: Date): SQL | undefined {
+  return and(
+    eq(outboxEvent.status, 'processing'),
+    lte(outboxEvent.lockedAt, new Date(now.getTime() - STUCK_PROCESSING_THRESHOLD_MS))
+  )
+}
 
 /**
  * Walks the pending index one type at a time, reading only its earliest availability.
@@ -41,4 +52,19 @@ export function readyEventTypesQuery(now: Date) {
     ORDER BY available_at, event_type
     LIMIT ${MAX_READY_EVENT_TYPES}
   `
+}
+
+/**
+ * One row, `due`: whether `processOutboxEvents` would act at `now`. The pending leg is the
+ * claim phase's own discovery walk, so it reads only each type's head and cannot be planned as a
+ * scan of future or completed rows; the lease leg is the reaper's predicate, over the few rows in
+ * `processing`.
+ */
+export function dueOutboxWorkQuery(now: Date) {
+  const staleLease = db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(isStuckProcessing(now))
+    .limit(1)
+  return sql`SELECT ${or(sql`EXISTS (${readyEventTypesQuery(now)})`, exists(staleLease))} AS due`
 }

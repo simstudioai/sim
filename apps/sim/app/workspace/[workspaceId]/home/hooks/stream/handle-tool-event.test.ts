@@ -108,6 +108,73 @@ describe('tool events (dispatch → model + side effects)', () => {
     )
   })
 
+  /** Starters that record which calls this view started, by tool call id. */
+  function recordingStarters() {
+    const started: string[] = []
+    const record = (toolCallId: string) => {
+      started.push(toolCallId)
+    }
+    return {
+      started,
+      starters: {
+        startClientBrowserTool: record,
+        startClientTerminalTool: record,
+        startClientLocalFilesystemTool: record,
+        startClientWorkflowTool: record,
+      },
+    }
+  }
+
+  function dispatchCall(
+    ctx: StreamLoopContext,
+    toolCallId: string,
+    toolName: string,
+    args: Record<string, unknown>
+  ) {
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId,
+        toolName,
+        arguments: args,
+        status: 'executing',
+      })
+    )
+  }
+
+  it("only shows desktop calls when the desktop's background executor runs the turn", () => {
+    const { started, starters } = recordingStarters()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({
+        ...starters,
+        chatIdRef: ref('chat-1'),
+        options: { desktopToolsOnDevice: true },
+      })
+    )
+
+    dispatchCall(ctx, 'click-1', 'browser_click', { ref: 'e1' })
+    dispatchCall(ctx, 'run-1', 'terminal', { operation: 'run', args: { command: 'ls' } })
+    dispatchCall(ctx, 'read-1', 'read_local_file', { path: '~/notes.txt' })
+    dispatchCall(ctx, 'workflow-1', 'run_workflow', { workflowId: 'wf-1' })
+
+    expect(toolNode(ctx, 'click-1').status).toBe('running')
+    expect(started).toEqual(['workflow-1'])
+  })
+
+  it('runs a desktop call in the view when no desktop runs the chat in the background', () => {
+    const { started, starters } = recordingStarters()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({ ...starters, chatIdRef: ref('chat-1') })
+    )
+
+    dispatchCall(ctx, 'click-2', 'browser_click', { ref: 'e1' })
+
+    expect(started).toEqual(['click-2'])
+  })
+
   it('never starts a skipped terminal command', () => {
     const startClientTerminalTool = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientTerminalTool }))

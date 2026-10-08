@@ -138,16 +138,18 @@ export async function foldPendingTableRowChanges(budgetMs: number): Promise<Fold
   let afterTableId = ''
   let folded = 0
   let skipped = 0
+  const outOfBudget = (): FoldSweepResult => {
+    logger.warn('Table row-change fold sweep ran out of budget', { folded, skipped, budgetMs })
+    return { folded, skipped, budgetExhausted: true }
+  }
 
   for (;;) {
+    if (Date.now() >= deadline) return outOfBudget()
     const tableIds = await nextPendingTableIds(afterTableId)
     if (tableIds.length === 0) return { folded, skipped, budgetExhausted: false }
 
     for (const tableId of tableIds) {
-      if (Date.now() >= deadline) {
-        logger.warn('Table row-change fold sweep ran out of budget', { folded, skipped, budgetMs })
-        return { folded, skipped, budgetExhausted: true }
-      }
+      if (Date.now() >= deadline) return outOfBudget()
       afterTableId = tableId
       if (await foldTableRowChanges(tableId)) folded++
       else skipped++

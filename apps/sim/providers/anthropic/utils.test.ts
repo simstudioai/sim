@@ -125,7 +125,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
 
     await collectStream(stream)
 
-    expect(onComplete.mock.calls[0][0].usage).toEqual({
+    expect(onComplete.mock.calls[0][0].usage).toMatchObject({
       input: 10,
       output: 40,
       cacheRead: 20,

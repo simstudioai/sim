@@ -3,16 +3,25 @@ import type {
   DesktopLocalFileRequest,
   DesktopLocalFileResponse,
 } from '@sim/desktop-bridge'
-import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
+import {
+  assertImportableManifest,
+  type DesktopLocalFileImportResult,
+  localFileImportCompletion,
+  localFileImportFailure,
+  localFileReadCompletion,
+  readImportEntry,
+} from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { renewDesktopToolLeaseContract } from '@/lib/api/contracts/desktop-executor'
 import {
   createWorkspaceFileFolderContract,
   listWorkspaceFileFoldersContract,
 } from '@/lib/api/contracts/workspace-file-folders'
 import { getDesktopBridge } from '@/lib/desktop'
+import { SIM_TOOL_EXECUTION_HEARTBEAT_MS } from '@/lib/mothership/async-runs/execution-lease'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import {
   reportClientToolCompletion,
@@ -34,34 +43,17 @@ async function invoke(
   return response
 }
 
-interface ImportedFile {
-  id: string
-  name: string
-  relativePath: string
-}
-interface ImportedFolder {
-  id: string
-  relativePath: string
-}
-
 /** The manifest is produced from canonical pending-tool arguments in Electron, never renderer paths. */
 export async function importNativeFiles(
   toolCallId: string,
   manifest: DesktopLocalFileManifest,
   signal?: AbortSignal
-) {
-  const files: ImportedFile[] = []
-  const folders: ImportedFolder[] = []
+): Promise<DesktopLocalFileImportResult> {
+  const files: DesktopLocalFileImportResult['files'] = []
+  const folders: DesktopLocalFileImportResult['folders'] = []
   const parents = new Map<string, string | undefined>([['', manifest.folderId]])
   try {
-    if (
-      manifest.entries.some(
-        (entry) => entry.kind === 'file' && entry.size > MAX_DESKTOP_IMPORT_FILE_BYTES
-      )
-    )
-      throw new Error(
-        'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
-      )
+    assertImportableManifest(manifest)
     for (const entry of manifest.entries) {
       signal?.throwIfAborted()
       const segments = entry.relativePath.split('/').filter(Boolean)
@@ -96,32 +88,12 @@ export async function importNativeFiles(
         folders.push({ id: folderId, relativePath: entry.relativePath })
         continue
       }
-      const parts: Uint8Array<ArrayBuffer>[] = []
-      let offset = 0
-      do {
-        const response = await invoke(
-          {
-            operation: 'chunk',
-            toolCallId,
-            relativePath: entry.relativePath,
-            offset,
-            revision: entry.revision,
-          },
-          signal
-        )
-        if (!response.ok) throw new Error(response.error)
-        if (response.data.kind !== 'chunk') throw new Error('Unexpected file chunk response.')
-        const bytes = new Uint8Array(response.data.bytes)
-        parts.push(bytes)
-        offset += bytes.length
-        if (
-          offset > entry.size ||
-          (response.data.eof && offset !== entry.size) ||
-          (!response.data.eof && bytes.length === 0)
-        )
-          throw new Error('The local file changed or its transfer was incomplete.')
-        if (response.data.eof) break
-      } while (offset < entry.size)
+      const parts = await readImportEntry(
+        toolCallId,
+        entry,
+        (request) => invoke(request, signal),
+        signal
+      )
       const saved = await uploadWorkspaceFileSession({
         workspaceId: manifest.targetWorkspaceId,
         folderId: parentId,
@@ -132,17 +104,37 @@ export async function importNativeFiles(
     }
     return { success: true, workspaceId: manifest.targetWorkspaceId, files, folders }
   } catch (error) {
-    return {
-      success: false,
-      workspaceId: manifest.targetWorkspaceId,
-      files,
-      folders,
-      error: getErrorMessage(error),
-      partial: files.length > 0 || folders.length > 0,
-      doNotRetry: true,
-      outcomeUnknown: true,
-    }
+    return localFileImportFailure(
+      { workspaceId: manifest.targetWorkspaceId, files, folders },
+      getErrorMessage(error)
+    )
   }
+}
+
+/**
+ * Renews an import's lease every heartbeat from the moment its manifest is requested, the way a
+ * desktop renews a bound call, so a slow directory scan cannot outlast the lease the claim took.
+ * The desktop claims the call before it scans, within its authorization timeout, which is well
+ * inside one heartbeat: every renewal follows the claim, and the claim's own lease covers the
+ * first beat. A refusal (410) means the call was stopped, settled, or its lease lapsed, and
+ * renewing stops. Any other failure may pass, and the next beat tries again.
+ */
+function keepImportLeased(toolCallId: string): { stop(): void } {
+  const timer = setInterval(() => {
+    requestJson(renewDesktopToolLeaseContract, { body: { toolCallId, chatView: true } }).catch(
+      (error) => {
+        if (error instanceof ApiClientError && error.status === 410) {
+          clearInterval(timer)
+          return
+        }
+        logger.warn('Could not renew the import lease; trying again next beat', {
+          toolCallId,
+          error: getErrorMessage(error),
+        })
+      }
+    )
+  }, SIM_TOOL_EXECUTION_HEARTBEAT_MS)
+  return { stop: () => clearInterval(timer) }
 }
 
 /** The server claims imports before reading their manifest, preventing replayed uploads. */
@@ -167,6 +159,10 @@ export async function executeNativeFileTool(
       )
   }
   window.addEventListener('pagehide', onPageHide)
+  // An import's claim takes a lease under this session: keep it renewed while the import runs, so
+  // the turn waits for it however long it takes, and no longer than a lease once this page stops
+  // renewing (closed, crashed, or signed out).
+  const lease = toolName === 'import_local_files' ? keepImportLeased(toolCallId) : null
   try {
     const response = await invoke(
       { operation: toolName === 'read_local_file' ? 'read' : 'manifest', toolCallId },
@@ -176,23 +172,26 @@ export async function executeNativeFileTool(
       if (response.code === 'ALREADY_STARTED') return
       throw new Error(response.error)
     }
-    const result =
-      response.data.kind === 'manifest'
-        ? await importNativeFiles(toolCallId, response.data, signal)
-        : response.data
-    if ('kind' in result && result.kind === 'chunk')
-      throw new Error('Unexpected chunk outside an import.')
-    const failed = 'success' in result && result.success === false
+    if (response.data.kind === 'chunk') throw new Error('Unexpected chunk outside an import.')
+    let completion
+    if (response.data.kind === 'manifest') {
+      completion = localFileImportCompletion(
+        await importNativeFiles(toolCallId, response.data, signal)
+      )
+    } else completion = localFileReadCompletion(response)
+    // Cancelled by the user's Stop: Stop settles the call. Cancelled by signing out: nobody reports
+    // it, and the server's resume watchdog settles it once its budget or lease runs out. Either way
+    // a failure reported here would race the settlement that decides the call.
+    if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
-      failed ? ASYNC_TOOL_CONFIRMATION_STATUS.error : ASYNC_TOOL_CONFIRMATION_STATUS.success,
-      failed
-        ? 'Some files could not be imported; inspect the partial result.'
-        : 'Local file operation completed.',
-      result
+      completion.status,
+      completion.message,
+      completion.data
     )
     settled = true
   } catch (error) {
+    if (signal?.aborted) return
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.error,
@@ -210,6 +209,7 @@ export async function executeNativeFileTool(
     )
     settled = true
   } finally {
+    lease?.stop()
     window.removeEventListener('pagehide', onPageHide)
   }
 }

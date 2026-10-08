@@ -12,7 +12,7 @@ import {
   credentialGroupsProvidersMockFns,
 } from '@sim/testing/mocks/credential-groups-providers.mock'
 import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +30,6 @@ vi.mock('@/components/emails/credential-groups/render', () => ({
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
@@ -41,7 +40,6 @@ vi.mock('@/lib/credential-groups/availability', () => ({
 vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   bindCredentialGroupEnrollmentUser,
   completeCredentialGroupEnrollment,
@@ -61,7 +59,7 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 const mockGetOrganizationSubscriptionUsable =
   billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable
 mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
-featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+setEnvFlags({ isCredentialGroupsEnabled: true })
 billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue({})
 credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue(adapter)
 
@@ -736,7 +734,6 @@ describe('organization enrollment bound identity', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
-    vi.mocked(isFeatureEnabled).mockResolvedValue(true)
     queueTableRows(schemaMock.credentialGroupEnrollment, [row])
   })
   it('accepts a verified organization member without any workspace', async () => {

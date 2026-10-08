@@ -289,6 +289,7 @@ describe('registerIpcHandlers', () => {
     mockCoordinator.fillCredential.mockClear()
     deps = {
       appOrigin: () => APP,
+      getExecutorDevice: () => null,
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
@@ -310,6 +311,7 @@ describe('registerIpcHandlers', () => {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
         setBrowserSearchSuggestionsEnabled: vi.fn(),
+        setPreventSleepWhileRunning: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
@@ -485,7 +487,7 @@ describe('registerIpcHandlers', () => {
     expect(mounts).not.toHaveBeenCalled()
     expect(fetchAuthorization).toHaveBeenCalledWith(
       `${APP}/api/desktop/tool/authorize`,
-      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-native' }) })
+      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-native', claim: true }) })
     )
     expect(
       await handler?.(evilEvent, { operation: 'read', toolCallId: 'tool-native' })
@@ -569,7 +571,7 @@ describe('registerIpcHandlers', () => {
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-        body: JSON.stringify({ toolCallId: 'tool-1' }),
+        body: JSON.stringify({ toolCallId: 'tool-1', claim: true }),
       })
     )
   })

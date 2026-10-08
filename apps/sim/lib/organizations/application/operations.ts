@@ -126,3 +126,53 @@ export const organizationSettingsOperations = {
     capability: 'none',
   }),
 } as const
+
+const securityPolicy = {
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+  delegationAudience: 'sim:settings',
+  delegatedServices: ['copilot'],
+  /** permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement. */
+  capability: 'none',
+} as const
+export const organizationSecurityOperations = {
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  listDomains: defineOrganizationOperation({
+    oauthScope: 'api:read',
+    id: 'organizations.domains.list',
+    minimumRole: 'member',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  addDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.add',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  verifyDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.verify',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  removeDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.remove',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  revokeSessions: defineOrganizationOperation({
+    id: 'organizations.sessions.revoke',
+    minimumRole: 'admin',
+    principalKinds: ['session'],
+    /** permission-group-exempt: session revocation requires current administrator session and Enterprise entitlement. */
+    capability: 'none',
+  }),
+} as const

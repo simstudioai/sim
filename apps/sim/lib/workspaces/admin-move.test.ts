@@ -39,10 +39,10 @@ import {
   getWorkspaceMoveOperation,
   getWorkspaceMovePreflight,
   invitationMigrationOutboxHandlers,
-  MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
   moveWorkspaceToOrganization,
   projectDestinationPendingSeatCount,
 } from '@/lib/workspaces/admin-move'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 vi.unmock('drizzle-orm')

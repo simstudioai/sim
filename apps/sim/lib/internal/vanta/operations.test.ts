@@ -5,23 +5,18 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
-  fetchAuth: vi.fn(),
+  fetch: vi.fn<typeof fetch>(),
   resolveFile: vi.fn(),
-}))
-
-vi.mock('@/lib/internal/vanta/client', () => ({
-  fetchVantaWithAuth: mocks.fetchAuth,
-  getVantaBaseUrl: (region?: string) =>
-    region === 'gov' ? 'https://api.vanta-gov.com' : 'https://api.vanta.com',
-  VANTA_DOCUMENT_UPLOAD_SCOPE: 'vanta-api.all:read vanta-api.all:write vanta-api.documents:upload',
-  VANTA_READ_SCOPE: 'vanta-api.all:read',
 }))
 
 vi.mock('@/lib/internal/vanta/file-input', () => ({
   resolveVantaUploadFile: mocks.resolveFile,
 }))
 
-import { executeVantaDownloadDocumentFile } from '@/lib/internal/vanta/operations'
+import {
+  executeVantaDownloadDocumentFile,
+  executeVantaQuery,
+} from '@/lib/internal/vanta/operations'
 
 const context = {
   requestId: 'request-1',
@@ -31,6 +26,7 @@ const context = {
 
 describe('Vanta operations', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', mocks.fetch)
     mocks.resolveFile.mockResolvedValue({
       buffer: Buffer.from('file'),
       fileName: 'evidence.txt',
@@ -39,7 +35,7 @@ describe('Vanta operations', () => {
   })
 
   it('downloads files with exact binary projection and filename parsing', async () => {
-    mocks.fetchAuth.mockResolvedValue(
+    mocks.fetch.mockResolvedValue(
       new Response('hello', {
         headers: {
           'Content-Disposition': "attachment; filename*=UTF-8''report%20final.pdf",
@@ -50,15 +46,14 @@ describe('Vanta operations', () => {
 
     const result = await executeVantaDownloadDocumentFile(
       {
-        clientId: 'client',
-        clientSecret: 'secret',
+        accessToken: 'saved-credential-token',
+        apiDomain: 'https://api.vanta.com',
         documentId: 'document-1',
         uploadedFileId: 'upload-1',
       },
       context
     )
 
-    expect(mocks.fetchAuth.mock.calls[0]?.[2]).toEqual({ signal: context.signal })
     assert(isInternalToolFileResult(result))
     expect(result.files).toEqual([
       { name: 'report final.pdf', mimeType: 'application/pdf', buffer: Buffer.from('hello') },
@@ -78,4 +73,52 @@ describe('Vanta operations', () => {
       output: { file: storedFile, name: 'report final.pdf', mimeType: 'application/pdf', size: 5 },
     })
   })
+
+  it.each([
+    'https://attacker.example',
+    'https://api.vanta.com.attacker.example',
+    'https://api.vanta.com@attacker.example',
+    'https://api.vanta.com/path',
+    'http://api.vanta.com',
+    'http://127.0.0.1',
+  ])('rejects a credential destination outside Vanta before egress: %s', async (apiDomain) => {
+    await expect(
+      executeVantaQuery({
+        operation: 'vanta_list_frameworks',
+        accessToken: 'saved-credential-token',
+        apiDomain,
+      })
+    ).rejects.toThrow('Invalid Vanta API domain')
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['https://api.vanta.com', 'https://api.vanta-gov.com'])(
+    'keeps the credential token bound to its API deployment: %s',
+    async (apiDomain) => {
+      mocks.fetch.mockImplementation(async (url, init) => {
+        expect(String(url)).toBe(`${apiDomain}/v1/frameworks`)
+        expect(new Headers(init?.headers).get('authorization')).toBe(
+          'Bearer saved-credential-token'
+        )
+        expect(init?.redirect).toBe('error')
+        return Response.json({
+          results: {
+            data: [],
+            pageInfo: {
+              endCursor: null,
+              startCursor: null,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        })
+      })
+      const result = await executeVantaQuery({
+        operation: 'vanta_list_frameworks',
+        accessToken: 'saved-credential-token',
+        apiDomain,
+      })
+      expect(result).toMatchObject({ success: true, output: { frameworks: [] } })
+    }
+  )
 })

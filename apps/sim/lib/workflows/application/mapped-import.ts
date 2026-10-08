@@ -48,6 +48,7 @@ import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
+import { WORKSPACE_WORKFLOWS_CHANGED_EVENT } from '@/lib/workspaces/operations/outbox-events'
 import {
   findWorkspaceOperationReceipt,
   insertWorkspaceOperationReceipt,
@@ -342,7 +343,7 @@ export async function applyMappedWorkflowImport(
           },
         }
         await insertWorkspaceOperationReceipt(tx, requestHash, report)
-        await enqueueOutboxEvent(tx, 'workspace.workflows.changed', {
+        await enqueueOutboxEvent(tx, WORKSPACE_WORKFLOWS_CHANGED_EVENT, {
           workspaceId: context.workspaceId,
         })
         return receiptResult(report, false)

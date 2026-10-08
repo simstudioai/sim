@@ -20,6 +20,7 @@ import {
 } from '@sim/emcn'
 import { Key, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type {
   ScimActivityEntry,
   ScimConnectionView,
@@ -63,6 +64,7 @@ import {
   useScimGroupMappings,
   useUpsertScimGroupMapping,
 } from '@/ee/scim/hooks/scim'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface ScimSectionProps {
   organizationId: string
@@ -135,6 +137,16 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
   const [targetKind, setTargetKind] = useState<MappingTargetKind>('permission_group')
   const [targetId, setTargetId] = useState('')
   const [permission, setPermission] = useState<WorkspacePermission>('read')
+  const discardMapping = () => {
+    setTargetKind('permission_group')
+    setTargetId('')
+    setPermission('read')
+  }
+  useSettingsUnsavedGuard({
+    isDirty: targetKind !== 'permission_group' || Boolean(targetId) || permission !== 'read',
+    navigationBlocked: upsertMapping.isPending,
+    onDiscard: discardMapping,
+  })
 
   function buildBody(): ScimGroupMappingBody | null {
     switch (targetKind) {
@@ -152,10 +164,10 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
   const body = buildBody()
 
   async function handleAdd() {
-    if (!body) return
+    if (!body || upsertMapping.isPending) return
     try {
       const result = await upsertMapping.mutateAsync({ organizationId, body })
-      setTargetId('')
+      discardMapping()
       toast.success(
         result.reconciledUsers === 0
           ? 'Mapping added'
@@ -171,17 +183,20 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <ChipSelect
+        disabled={upsertMapping.isPending}
         aria-label='Mapping target type'
         align='start'
         value={targetKind}
         onChange={(next) => {
           setTargetKind(next as MappingTargetKind)
           setTargetId('')
+          setPermission('read')
         }}
         options={[...TARGET_KIND_OPTIONS]}
       />
       {targetKind !== 'org_role' && (
         <ChipSelect
+          disabled={upsertMapping.isPending}
           aria-label={targetKind === 'workspace' ? 'Workspace' : 'Permission group'}
           align='start'
           searchable
@@ -193,6 +208,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
       )}
       {targetKind === 'workspace' && (
         <ChipSelect
+          disabled={upsertMapping.isPending}
           aria-label='Workspace permission'
           align='start'
           value={permission}
@@ -379,6 +395,14 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
   const [showRules, setShowRules] = useState(false)
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
   const [credentialExpiry, setCredentialExpiry] = useState<CredentialExpiry>('never')
+  useSettingsUnsavedGuard({
+    isDirty: credentialExpiry !== 'never' || issuedSecret !== null,
+    navigationBlocked: issueCredential.isPending,
+    onDiscard: () => {
+      setCredentialExpiry('never')
+      setIssuedSecret(null)
+    },
+  })
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
   const pendingRevoke =
     connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
@@ -393,12 +417,14 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
   }
 
   async function handleIssue() {
+    if (issueCredential.isPending) return
     try {
       const result = await issueCredential.mutateAsync({
         organizationId,
         ...(credentialExpiry === 'never' ? {} : { expiresInDays: Number(credentialExpiry) }),
       })
       setIssuedSecret(result.secret)
+      setCredentialExpiry('never')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to issue token'))
     }
@@ -477,6 +503,7 @@ function ConnectionDetails({ organizationId, connection, active }: ConnectionDet
             )}
             <div className='flex flex-wrap items-center gap-2'>
               <ChipSelect
+                disabled={issueCredential.isPending}
                 aria-label='Token expiry'
                 align='start'
                 value={credentialExpiry}
@@ -611,6 +638,7 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
     available && active
   )
   const configure = useConfigureScimConnection()
+  const navigationBlocked = useSettingsDirtyStore((state) => state.navigationBlocked)
 
   if (!available) return null
 
@@ -631,7 +659,7 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
   const connection = data?.connection ?? null
   const enabled = connection?.status === 'active'
 
-  async function handleToggleEnabled(next: boolean) {
+  async function updateEnabled(next: boolean) {
     try {
       await configure.mutateAsync({ organizationId, status: next ? 'active' : 'disabled' })
       toast.success(next ? 'Directory provisioning enabled' : 'Directory provisioning disabled')
@@ -654,8 +682,10 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
             <Switch
               id='scim-enabled'
               checked={enabled}
-              onCheckedChange={(checked) => void handleToggleEnabled(checked)}
-              disabled={isLoading || configure.isPending}
+              onCheckedChange={(checked) => {
+                void updateEnabled(checked)
+              }}
+              disabled={isLoading || configure.isPending || navigationBlocked}
             />
           </div>
 
@@ -669,12 +699,14 @@ export function ScimSection({ organizationId, onOpenDomains, active }: ScimSecti
           )}
         </div>
       </SettingsSection>
-      {connection && enabled && (
-        <ConnectionDetails
-          organizationId={organizationId}
-          connection={connection}
-          active={active}
-        />
+      {connection && (
+        <div hidden={!enabled} className='flex flex-col gap-7'>
+          <ConnectionDetails
+            organizationId={organizationId}
+            connection={connection}
+            active={active && enabled}
+          />
+        </div>
       )}
     </div>
   )

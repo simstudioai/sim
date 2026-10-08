@@ -4,7 +4,7 @@ import { vi } from 'vitest'
  * Controllable mock functions for `@/lib/mothership/chat-status`.
  *
  * Every function is a bare `vi.fn()` except `mockOnStatusChanged`, which returns a no-op
- * unsubscribe (the real `channel.subscribe` contract).
+ * unsubscribe (the real `channel.subscribe` contract), and `mockReady`, which settles at once.
  *
  * @example
  * ```ts
@@ -20,6 +20,7 @@ export const mothershipChatStatusMockFns = {
   mockPublishChatStatusChanged: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   mockOnStatusChanged: vi.fn((_handler: (event: unknown) => void): (() => void) => () => {}),
+  mockReady: vi.fn(async (): Promise<void> => {}),
   mockDispose: vi.fn(),
 }
 
@@ -36,6 +37,7 @@ export const mothershipChatStatusMock = {
   chatPubSub: {
     publishStatusChanged: mothershipChatStatusMockFns.mockPublishStatusChanged,
     onStatusChanged: mothershipChatStatusMockFns.mockOnStatusChanged,
+    ready: mothershipChatStatusMockFns.mockReady,
     dispose: mothershipChatStatusMockFns.mockDispose,
   },
   publishChatStatusChanged: mothershipChatStatusMockFns.mockPublishChatStatusChanged,

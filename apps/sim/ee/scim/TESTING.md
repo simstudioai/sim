@@ -76,7 +76,7 @@ timeout.
 
 ## Continuous integration and PostgreSQL regressions
 
-The `End-to-end over real HTTP` job in `.github/workflows/test-build.yml`
+The `e2e (scim)` job in `.github/workflows/checks.yml`
 provisions its own database through `db:migrate`, starts a local Next.js app
 with hosted Enterprise configuration, and runs the HTTP suite above. It has its
 own database because the hosted app runs background usage replay against it.
@@ -102,8 +102,8 @@ transaction. Hosted billing flags are configured for the test; subscription
 and entitlement reads use real PostgreSQL with the transaction tripwire enabled.
 The suite checks an active Enterprise subscription, an ended one, and a real
 billing query failure that must propagate instead of releasing directory locks.
-The `PostgreSQL integration` job, which runs every `*.integration.ts` against
-both `db:push` and `db:migrate`, also runs `lib/auth/sso/application/admit-sso-user.integration.ts`,
+The `integration` jobs, which run every `*.integration.ts` against
+both `db:push` and `db:migrate`, also run `lib/auth/sso/application/admit-sso-user.integration.ts`,
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.

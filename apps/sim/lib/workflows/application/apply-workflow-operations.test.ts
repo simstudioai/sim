@@ -80,6 +80,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
+  collectUnquotedJsonStringReferences: () => [],
   lintEditedWorkflowState: hoisted.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)

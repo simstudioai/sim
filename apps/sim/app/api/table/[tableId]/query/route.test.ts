@@ -1,6 +1,5 @@
 import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
 import {
-  MockTableV2FeatureDisabledError,
   tableApplicationRowsMock,
   tableApplicationRowsMockFns,
 } from '@sim/testing/mocks/table-application-rows.mock'
@@ -10,15 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/api/row-route-policies', () => ({
-  internalTableV2QueryErrorPolicy: {
-    project: (error: unknown) =>
-      error instanceof MockTableV2FeatureDisabledError
-        ? {
-            status: 403,
-            body: { error: error.message, code: 'tables_v2_disabled' },
-          }
-        : null,
-  },
+  internalTableV2QueryErrorPolicy: { project: () => null },
 }))
 
 vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)

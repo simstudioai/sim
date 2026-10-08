@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Chip,
-  ChipConfirmModal,
   ChipTag,
   chipContentIconClass,
   chipVariants,
@@ -73,10 +72,6 @@ export function SettingsSidebar({
   const router = useRouter()
 
   const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
-  const confirmLeave = useSettingsDirtyStore((s) => s.confirmLeave)
-  const cancelLeave = useSettingsDirtyStore((s) => s.cancelLeave)
-  const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
-  const showDiscardDialog = pendingLeave !== null
 
   const scrollEdges = useScrollEdges(scrollContainerRef, {
     contentRef: scrollContentRef,
@@ -288,14 +283,6 @@ export function SettingsSidebar({
     })
   }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 
-  const handleConfirmDiscard = useCallback(() => {
-    confirmLeave()
-  }, [confirmLeave])
-
-  const handleCancelDiscard = useCallback(() => {
-    cancelLeave()
-  }, [cancelLeave])
-
   useEffect(() => {
     setDesktopSurfaces({
       settings: hasDesktopSettings(),
@@ -364,10 +351,12 @@ export function SettingsSidebar({
                   {key === 'organization' && organizationSettingsId && (
                     <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
                       <SettingsIntentLink
+                        data-settings-navigation='managed'
                         href={getOrganizationSettingsHref(organizationSettingsId, 'members')}
                         className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
                         onNavigate={(event) => {
-                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+                          if (!isDirty && !navigationBlocked) return
                           event.preventDefault()
                           requestLeave(() =>
                             router.push(
@@ -446,6 +435,7 @@ export function SettingsSidebar({
                       </a>
                     ) : (
                       <SettingsIntentLink
+                        data-settings-navigation='managed'
                         href={href}
                         replace
                         scroll={false}
@@ -461,10 +451,6 @@ export function SettingsSidebar({
                             return
                           }
                           event.preventDefault()
-                          if (!useSettingsDirtyStore.getState().isDirty) {
-                            navigateToSection(section, href)
-                            return
-                          }
                           requestLeave(() => navigateToSection(section, href))
                         }}
                       >
@@ -487,19 +473,6 @@ export function SettingsSidebar({
             ))}
         </div>
       </div>
-
-      <ChipConfirmModal
-        open={showDiscardDialog}
-        onOpenChange={(open) => !open && handleCancelDiscard()}
-        srTitle='Unsaved changes'
-        title='Unsaved changes'
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
-        confirm={{
-          label: 'Discard changes',
-          onClick: handleConfirmDiscard,
-        }}
-      />
     </>
   )
 }

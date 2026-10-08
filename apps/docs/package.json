@@ -4,10 +4,10 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "bun run dev:cache:cap && next dev --port 3001",
+    "dev": "bun run dev:cache:cap && bun run llms-full:generate && bunx concurrently --kill-others --names Next,LLMs \"next dev --port 3001\" \"bun scripts/watch-llms-full.ts\"",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
     "dev:clean": "rm -rf .next/dev/cache",
-    "build": "fumadocs-mdx && NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "build": "bun run llms-full:generate && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "test": "vitest run",
@@ -15,7 +15,8 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "llms-full:generate": "fumadocs-mdx && bun scripts/generate-llms-full.ts"
   },
   "dependencies": {
     "@sim/db": "workspace:*",
@@ -30,7 +31,7 @@
     "fumadocs-mdx": "14.3.2",
     "fumadocs-openapi": "10.8.1",
     "fumadocs-ui": "16.8.5",
-    "next": "16.3.6",
+    "next": "16.4.0",
     "next-themes": "^0.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",

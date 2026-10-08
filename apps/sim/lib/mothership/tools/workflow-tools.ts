@@ -171,14 +171,6 @@ export function getWorkflowToolCompletionMessage(status: AsyncConfirmationStatus
   return 'Workflow execution failed.'
 }
 
-export function getWorkflowToolConfirmationStatus(
-  status: 'completed' | 'failed' | 'cancelled'
-): AsyncConfirmationStatus {
-  if (status === 'completed') return ASYNC_TOOL_CONFIRMATION_STATUS.success
-  if (status === 'cancelled') return ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
-  return ASYNC_TOOL_CONFIRMATION_STATUS.error
-}
-
 export function createStructuralWorkflowToolCompletionData(
   status: AsyncConfirmationStatus,
   workflowId?: string,

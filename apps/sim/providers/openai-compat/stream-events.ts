@@ -47,6 +47,10 @@ export interface OpenAICompatStreamComplete {
 export interface CreateOpenAICompatibleAgentEventStreamOptions {
   providerName: string
   request?: ProviderRequest
+  /** Normalizes vendor content blocks into answer text; string deltas are the default. */
+  extractContent?: (content: unknown) => string
+  /** Converts vendor usage counters into cache-inclusive OpenAI usage before recording them. */
+  normalizeUsage?: (usage: CompletionUsage) => CompletionUsage
   /** Tag for answer text (default `final`). */
   turn?: TextDeltaTurn
   /** Emit tool_call_start from delta.tool_calls when id+name known. Default false for no-tools path. */
@@ -161,7 +165,9 @@ export function createOpenAICompatibleAgentEventStream(
            * Groq puts stream usage under `x_groq.usage` on the final chunk
            * instead of the OpenAI `usage` field; accept either shape.
            */
-          const usage = chunk.usage ?? extension.x_groq?.usage
+          const rawUsage = chunk.usage ?? extension.x_groq?.usage
+          const usage =
+            rawUsage && options.normalizeUsage ? options.normalizeUsage(rawUsage) : rawUsage
           if (usage) {
             nativeUsage = usage
             promptTokens = usage.prompt_tokens ?? 0
@@ -199,7 +205,11 @@ export function createOpenAICompatibleAgentEventStream(
             }
           }
 
-          const content = typeof delta?.content === 'string' ? delta.content : ''
+          const content = options.extractContent
+            ? options.extractContent(delta?.content)
+            : typeof delta?.content === 'string'
+              ? delta.content
+              : ''
           if (content) {
             fullContent += content
             controller.enqueue({ type: 'text_delta', text: content, turn })

@@ -4,6 +4,8 @@ import { member, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns } from '@sim/testing/mocks/env-flags.mock'
 import {
   permissionGroupLocksMock,
   permissionGroupLocksMockFns,
@@ -89,6 +91,56 @@ beforeEach(() => {
   mocks.allConflict.mockResolvedValue(null)
 })
 describe('permission group current organization authority', () => {
+  it.each([
+    { env: { BLACKLISTED_PROVIDERS: 'openai' }, defaultAgentModel: 'gpt-4o' },
+    { env: { BLACKLISTED_MODELS: 'gpt-4*' }, defaultAgentModel: 'gpt-4o' },
+    { env: { BLACKLISTED_MODELS: 'llama*' }, defaultAgentModel: 'ollama/llama3' },
+    { env: { BLACKLISTED_MODELS: 'ollama/llama*' }, defaultAgentModel: 'ollama/llama3' },
+  ])('refuses a deployment-blocked Agent default: %j', async ({ env, defaultAgentModel }) => {
+    queueTableRows(member, [{ role: 'admin' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, config: { defaultAgentModel } }])
+    setEnv(env)
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(
+      env.BLACKLISTED_PROVIDERS ? [env.BLACKLISTED_PROVIDERS] : []
+    )
+    try {
+      await expect(
+        updatePermissionGroup.execute({
+          principal,
+          input: { ...scope, changes: { config: { defaultAgentModel } } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    } finally {
+      resetEnvMock()
+      envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset()
+    }
+  })
+  it.each(['gpt-5-chat-latest', 'unsupported-agent-model'])(
+    'refuses an unavailable Agent default: %s',
+    async (defaultAgentModel) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, config: { defaultAgentModel } }])
+      await expect(
+        updatePermissionGroup.execute({
+          principal,
+          input: { ...scope, changes: { config: { defaultAgentModel } } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
+  it.each([{ allowedModelProviders: ['anthropic'] }, { deniedModels: ['GPT-4O'] }])(
+    'refuses a partial update that blocks the stored Agent default: %j',
+    async (config) => {
+      queueTableRows(member, [{ role: 'admin' }])
+      mocks.load.mockResolvedValue({ ...group, config: { defaultAgentModel: 'gpt-4o' } })
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...group, config: { defaultAgentModel: 'gpt-4o', ...config } },
+      ])
+      await expect(
+        updatePermissionGroup.execute({ principal, input: { ...scope, changes: { config } } })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
   it.each(['member', null])('refuses role %s before entitlement and group lookup', async (role) => {
     queueTableRows(member, role ? [{ role }] : [])
     await expect(getPermissionGroup.execute({ principal, input: scope })).rejects.toThrow()

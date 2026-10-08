@@ -46,6 +46,7 @@ import {
   ZaiIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
+import { NebiusIcon } from '@/components/icons/nebius'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -159,6 +160,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: BasetenIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Baseten API key',
+  },
+  {
+    id: 'nebius',
+    name: 'Nebius',
+    icon: NebiusIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Nebius Token Factory API key',
   },
   {
     id: 'ollama-cloud',
@@ -372,6 +380,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'fireworks',
       'together',
       'baseten',
+      'nebius',
       'ollama-cloud',
       'kie',
       'falai',

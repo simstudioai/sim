@@ -11,9 +11,8 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
+import { PROJECT_FILE_DOCUMENT_RETIRE_EVENT } from '@/lib/projects/files/outbox-events'
 import { retireLiveFileDoc } from '@/lib/realtime/notify'
-
-const RETIRE_DOCUMENT_EVENT = 'project-file.document.retire'
 
 interface ProjectDocumentRetirement {
   projectId: string
@@ -75,11 +74,13 @@ export async function rotateProjectFileDocInTx(
     replacement.destroy()
   }
   const payload: ProjectDocumentRetirement = { ...target, retiredDocId, replacementDocId }
-  return { outboxEventId: await enqueueOutboxEvent(tx, RETIRE_DOCUMENT_EVENT, payload) }
+  return {
+    outboxEventId: await enqueueOutboxEvent(tx, PROJECT_FILE_DOCUMENT_RETIRE_EVENT, payload),
+  }
 }
 
 export const projectFileDocumentOutboxHandlers = {
-  [RETIRE_DOCUMENT_EVENT]: async (payload, context) => {
+  [PROJECT_FILE_DOCUMENT_RETIRE_EVENT]: async (payload, context) => {
     if (
       !isRecordLike(payload) ||
       typeof payload.projectId !== 'string' ||

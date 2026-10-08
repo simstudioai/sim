@@ -6,6 +6,7 @@ import {
   projectEscapedMarkdownForSearch,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
+  stripTrailingSlashes,
   truncateAtCodePoint,
 } from './string.js'
 
@@ -82,6 +83,14 @@ describe('forEachSearchOccurrence', () => {
 describe('escapeRegExp', () => {
   it('escapes every occurrence, not just the first', () => {
     expect(escapeRegExp('a.b.c')).toBe('a\\.b\\.c')
+  })
+})
+
+describe('stripTrailingSlashes', () => {
+  it('removes only the trailing run', () => {
+    expect(stripTrailingSlashes('/a//b///')).toBe('/a//b')
+    expect(stripTrailingSlashes('///')).toBe('')
+    expect(stripTrailingSlashes('a')).toBe('a')
   })
 })
 

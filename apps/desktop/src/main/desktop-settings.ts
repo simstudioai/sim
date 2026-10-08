@@ -37,6 +37,7 @@ export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
   setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
   setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
+  setPreventSleepWhileRunning(enabled: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
     value: DesktopAppearanceTheme
@@ -60,6 +61,8 @@ interface DesktopSettingsServiceDeps {
   setBrowserEnabled: (enabled: boolean) => void
   /** Ends every open agent shell when the surface is turned off. */
   setTerminalEnabled: (enabled: boolean) => void
+  /** Starts or stops keeping the machine awake for background work already running. */
+  setPreventSleepWhileRunning: (enabled: boolean) => void
   /** Repaints current browser tabs when their persisted appearance changes. */
   setBrowserTheme: (theme: DesktopAppearanceTheme) => void
   /** Applies a new default zoom to current and future browser tabs. */
@@ -93,6 +96,7 @@ function readPreferences(
     browserEnabled: config.get('browserEnabled') ?? true,
     browserSearchSuggestionsEnabled: config.get('browserSearchSuggestionsEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
+    preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
     browserDownloadDirectory:
@@ -102,6 +106,21 @@ function readPreferences(
         : defaultBrowserDownloadDirectory,
     terminalTheme: isTerminalAppearanceTheme(storedTerminalTheme) ? storedTerminalTheme : 'app',
     terminalDefaultZoom: isDesktopZoomPercent(terminalDefaultZoom) ? terminalDefaultZoom : 100,
+  }
+}
+
+/**
+ * Whether a focused window already shows what a notification is about. One without a route is
+ * about the app as a whole, which a focused window always shows; one about a chat is news only
+ * while that chat is in the background.
+ */
+function showsRoute(window: BrowserWindow, route: string | undefined): boolean {
+  if (!route) return true
+  try {
+    const shown = new URL(window.webContents.getURL()).pathname
+    return shown === new URL(route, 'https://sim.invalid').pathname
+  } catch {
+    return false
   }
 }
 
@@ -160,6 +179,12 @@ export function createDesktopSettingsService(
       deps.config.flush()
       return read()
     },
+    setPreventSleepWhileRunning(enabled) {
+      deps.config.set('preventSleepWhileRunning', enabled)
+      deps.config.flush()
+      deps.setPreventSleepWhileRunning(enabled)
+      return read()
+    },
     setAppearancePreference(key, value) {
       const previousBrowserTheme = key === 'browserTheme' ? read().browserTheme : undefined
       deps.config.set(key, value)
@@ -203,7 +228,13 @@ export function createDesktopSettingsService(
         return false
       }
       const window = deps.getMainWindow()
-      if (preferences.notificationsOnlyWhenUnfocused && window?.isFocused()) {
+      // A focused window holds back every notification, as it always has. Only a background
+      // chat's completion is shown anyway when the focused window is somewhere else.
+      if (
+        preferences.notificationsOnlyWhenUnfocused &&
+        window?.isFocused() &&
+        (!payload.background || showsRoute(window, payload.route))
+      ) {
         return false
       }
 

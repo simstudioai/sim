@@ -17,6 +17,7 @@ import {
   and,
   asc,
   eq,
+  exists,
   inArray,
   isNotNull,
   isNull,
@@ -49,7 +50,10 @@ import {
   FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING,
   FILE_SEARCH_RECONCILE_INTERVAL_MS,
 } from '@/lib/workspace-files/search/constants'
-import { cleanupFileSearchBuilds } from '@/lib/workspace-files/search/index-state'
+import {
+  cleanupFileSearchBuilds,
+  fileSearchBuildExpired,
+} from '@/lib/workspace-files/search/index-state'
 import {
   indexWorkspaceFileForSearch,
   markWorkspaceFileSearchIndexFailed,
@@ -186,6 +190,32 @@ async function enqueueOwners(
 }
 
 /**
+ * Whether the backfill walk owes a page: the cursor has never completed a pass, or its last
+ * complete pass is at least {@link FILE_SEARCH_RECONCILE_INTERVAL_MS} old.
+ */
+function isBackfillPageDue(completedAt: Date | null, now: Date): boolean {
+  return !completedAt || now.getTime() - completedAt.getTime() >= FILE_SEARCH_RECONCILE_INTERVAL_MS
+}
+
+/**
+ * A claim {@link reapStaleClaims} releases: its handoff deadline has passed (in PostgreSQL time), or
+ * it has outlasted the stale-dispatch window. Served by `workspace_file_search_revision_active_idx`.
+ */
+function staleClaim(now: Date): SQL | undefined {
+  return and(
+    eq(workspaceFileSearchRevision.status, 'pending'),
+    isNotNull(workspaceFileSearchRevision.dispatchedAt),
+    or(
+      lt(
+        workspaceFileSearchRevision.dispatchedAt,
+        new Date(now.getTime() - FILE_SEARCH_INDEX_STALE_DISPATCH_MS)
+      ),
+      lte(workspaceFileSearchRevision.handoffExpiresAt, sql`clock_timestamp()`)
+    )
+  )
+}
+
+/**
  * Seeds one page of the backfill that walks every live workspace file into the revision table.
  *
  * Two things keep this page cheap, and losing either one reintroduces a dispatch that times out.
@@ -211,12 +241,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
     .where(eq(workspaceFileSearchBackfill.id, BACKFILL_CURSOR_ID))
     .for('update')
     .limit(1)
-  if (
-    !cursor ||
-    (cursor.completedAt &&
-      now.getTime() - cursor.completedAt.getTime() < FILE_SEARCH_RECONCILE_INTERVAL_MS)
-  )
-    return 0
+  if (!cursor || !isBackfillPageDue(cursor.completedAt, now)) return 0
   const afterEntityType = cursor.completedAt ? null : cursor.afterEntityType
   const afterEntityId = cursor.completedAt ? null : cursor.afterEntityId
   const afterFileId = cursor.completedAt ? null : cursor.afterFileId
@@ -294,7 +319,6 @@ async function reapStaleClaims(
   tx: DbTransaction,
   now: Date
 ): Promise<{ reaped: number; abandoned: number }> {
-  const staleBefore = new Date(now.getTime() - FILE_SEARCH_INDEX_STALE_DISPATCH_MS)
   const rows = await tx
     .select({
       entityType: sql<string>`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace')`,
@@ -316,16 +340,7 @@ async function reapStaleClaims(
         eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )
     )
-    .where(
-      and(
-        eq(workspaceFileSearchRevision.status, 'pending'),
-        isNotNull(workspaceFileSearchRevision.dispatchedAt),
-        or(
-          lt(workspaceFileSearchRevision.dispatchedAt, staleBefore),
-          lte(workspaceFileSearchRevision.handoffExpiresAt, sql`clock_timestamp()`)
-        )
-      )
-    )
+    .where(staleClaim(now))
     .orderBy(asc(workspaceFileSearchRevision.dispatchedAt), asc(workspaceFileSearchRevision.fileId))
     .limit(FILE_SEARCH_INDEX_STALE_REAP_LIMIT)
     .for('update', { of: workspaceFileSearchRevision, skipLocked: true })
@@ -502,6 +517,42 @@ async function claimQueuedOwnerJobs(
     sourceContentUpdatedAt: new Date(row.sourceContentUpdatedAt).toISOString(),
     dispatchToken: now.toISOString(),
   }))
+}
+
+/**
+ * Whether a dispatch pass at `now` has anything to do, so the per-minute cron can skip starting one
+ * on an idle deployment. Mirrors each phase of {@link dispatchWorkspaceFileSearchIndexJobs} with the
+ * same predicates: a backfill page is due, a build has expired for cleanup, a claim is stale for the
+ * reaper, or an owner is queued for claiming. File writes, file deletes, and released claims
+ * all land in one of these through the `workspace_file_search_mark_pending` trigger or the
+ * dispatcher's own writes.
+ */
+export async function hasWorkspaceFileSearchDispatchWork(now: Date): Promise<boolean> {
+  const [cursor] = await db
+    .select({ completedAt: workspaceFileSearchBackfill.completedAt })
+    .from(workspaceFileSearchBackfill)
+    .where(eq(workspaceFileSearchBackfill.id, BACKFILL_CURSOR_ID))
+    .limit(1)
+  if (!cursor || isBackfillPageDue(cursor.completedAt, now)) return true
+
+  const queuedOwner = db
+    .select({ entityId: fileSearchDispatchQueue.entityId })
+    .from(fileSearchDispatchQueue)
+    .limit(1)
+  const expiredBuild = db
+    .select({ id: workspaceFileSearchBuild.id })
+    .from(workspaceFileSearchBuild)
+    .where(fileSearchBuildExpired)
+    .limit(1)
+  const staleClaimRow = db
+    .select({ fileId: workspaceFileSearchRevision.fileId })
+    .from(workspaceFileSearchRevision)
+    .where(staleClaim(now))
+    .limit(1)
+  const [probe] = await db.execute<{ hasWork: boolean }>(
+    sql`SELECT ${or(exists(queuedOwner), exists(expiredBuild), exists(staleClaimRow))} AS "hasWork"`
+  )
+  return probe?.hasWork === true
 }
 
 export async function prepareWorkspaceFileSearchDispatch(

@@ -52,7 +52,7 @@ import {
 } from '@/lib/knowledge/connectors/member-observations'
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
-import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { assertDocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import * as providerContinuation from '@/lib/knowledge/documents/processing-provider-continuation'

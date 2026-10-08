@@ -24,10 +24,8 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import {
-  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
-  settleDetachedConnectorReservations,
-} from '@/lib/knowledge/connectors/detachment'
+import { settleDetachedConnectorReservations } from '@/lib/knowledge/connectors/detachment'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { createSingleDocument, hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { performDeleteKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'

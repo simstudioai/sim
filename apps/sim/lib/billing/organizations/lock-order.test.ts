@@ -21,6 +21,7 @@ import {
   billingPayerTransferMock,
   billingPayerTransferMockFns,
 } from '@sim/testing/mocks/billing-payer-transfer.mock'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,6 +42,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
 
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 /**
  * A superset row that satisfies every read in the join path: a paid org sub, a

@@ -450,6 +450,7 @@ describe('destructive operations are gated', () => {
     'updatePermissionGroup',
     'addPermissionGroupMember',
     'bulkAddPermissionGroupMembers',
+    'addOrganizationDomain',
     'forkWorkspace',
     'getSelector',
     'listSelector',
@@ -535,8 +536,11 @@ describe('destructive operations are gated', () => {
     'bulkSaveKnowledgeTagDefinitions',
     'searchKnowledge',
     'setSecret',
+    'saveSsoProvider',
+    'setPrimarySsoProvider',
     'syncKnowledgeConnector',
     'updateCredential',
+    'updateSsoPolicy',
     'updateCustomTool',
     'updateFileContent',
     'updateKnowledgeBase',
@@ -559,7 +563,9 @@ describe('destructive operations are gated', () => {
     'updateWorkflowVersion',
     'uploadKnowledgeDocument',
     'upsertFileShare',
+    'upsertCredentialMember',
     'upsertTableRow',
+    'verifyOrganizationDomain',
   ])
 
   it('forces every non-GET operation into a destructiveness classification', () => {

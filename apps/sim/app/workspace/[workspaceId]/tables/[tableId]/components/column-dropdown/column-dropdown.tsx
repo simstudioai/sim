@@ -25,7 +25,6 @@ const CELL_HEADER =
 
 interface ColumnDropdownProps {
   columns: readonly ColumnDefinition[]
-  tableRowTtlEnabled: boolean
   /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
    *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
   trigger: 'header' | 'inline-header'
@@ -78,7 +77,6 @@ function ColumnTypeMenuItem({ option, onSelect }: ColumnTypeMenuItemProps) {
  */
 export function ColumnDropdown({
   columns,
-  tableRowTtlEnabled,
   trigger,
   disabled,
   onPickType,
@@ -132,7 +130,7 @@ export function ColumnDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {columnTypeOptionsForTable(columns, undefined, { tableRowTtlEnabled }).map((option) => {
+        {columnTypeOptionsForTable(columns, undefined).map((option) => {
           const onSelect =
             option.type === 'workflow'
               ? onPickWorkflow

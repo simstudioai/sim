@@ -13,7 +13,9 @@ vi.mock('@/stores/reset-all-stores', () => {
   return { resetAllStores: mockResetAllStores }
 })
 
+import { desktopToolSession } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
 import { clearUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 expect(mockModuleLoaded).not.toHaveBeenCalled()
 
@@ -53,6 +55,10 @@ describe('clearUserData', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new EnumerableStorage())
     vi.stubGlobal('sessionStorage', new EnumerableStorage())
+    useSettingsDirtyStore.getState().reset()
+    useSettingsDirtyStore
+      .getState()
+      .setGuard('old-identity', { isDirty: true, navigationBlocked: true })
   })
 
   it('clears identity data while preserving device preferences', async () => {
@@ -73,6 +79,11 @@ describe('clearUserData', () => {
     expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBeNull()
     expect(localStorage.getItem('private-cache')).toBeNull()
     expect(sessionStorage.getItem('mothership-queue')).toBeNull()
+    let left = false
+    useSettingsDirtyStore.getState().requestLeave(() => {
+      left = true
+    })
+    expect(left).toBe(true)
   })
 
   it('preserves recent impersonations only across an explicit impersonation transition', async () => {
@@ -94,5 +105,25 @@ describe('clearUserData', () => {
     expect(mockResetAllStores).toHaveBeenCalledOnce()
     expect(inMemoryResetSucceeded).toBe(false)
     expect(localStorage.getItem('private-cache')).toBeNull()
+    let left = false
+    useSettingsDirtyStore.getState().requestLeave(() => {
+      left = true
+    })
+    expect(left).toBe(true)
+  })
+
+  it('cancels desktop tools still running for the signed-out identity', async () => {
+    const localRead = desktopToolSession().turn('turn-before-sign-out').lease()
+    const browserAction = desktopToolSession().turn('other-turn-before-sign-out').lease()
+    mockResetAllStores.mockImplementationOnce(() => {
+      throw new Error('Chunk unavailable')
+    })
+
+    await clearUserData()
+
+    expect(localRead.signal.aborted).toBe(true)
+    expect(browserAction.signal.aborted).toBe(true)
+    localRead.release()
+    browserAction.release()
   })
 })

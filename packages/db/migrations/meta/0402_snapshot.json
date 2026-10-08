@@ -1,6 +1,6 @@
 {
-  "id": "6127dc99-6e8f-4842-9a28-7805522e406d",
-  "prevId": "9df5563b-fff7-4d4c-8774-aec5cbd2ebfe",
+  "id": "d54d271f-dbfb-4b1e-b3f7-2717fbb8d078",
+  "prevId": "4120041c-55f9-462f-b56c-7dfbd9eb7112",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1468,6 +1468,83 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.client_credential_token": {
+      "name": "client_credential_token",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "encrypted_value": {
+          "name": "encrypted_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token_digest": {
+          "name": "access_token_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_credential_token_expires_at_idx": {
+          "name": "client_credential_token_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"client_credential_token\".\"access_token_digest\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "client_credential_token_access_token_digest_idx": {
+          "name": "client_credential_token_access_token_digest_idx",
+          "columns": [
+            {
+              "expression": "access_token_digest",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"client_credential_token\".\"access_token_digest\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.copilot_async_tool_calls": {
       "name": "copilot_async_tool_calls",
       "schema": "",
@@ -1542,6 +1619,25 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "permission_requested_at": {
+          "name": "permission_requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_deadline_at": {
+          "name": "pickup_deadline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "persist_seq": {
+          "name": "persist_seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "nextval('copilot_async_tool_calls_persist_seq')"
         },
         "claimed_at": {
           "name": "claimed_at",
@@ -1623,12 +1719,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "permission_requested_at": {
-          "name": "permission_requested_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -2917,6 +3007,12 @@
           "notNull": true,
           "default": "'{}'"
         },
+        "desktop_device_id": {
+          "name": "desktop_device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "started_at": {
           "name": "started_at",
           "type": "timestamp",
@@ -3146,6 +3242,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "copilot_runs_desktop_device_started_at_idx": {
+          "name": "copilot_runs_desktop_device_started_at_idx",
+          "columns": [
+            {
+              "expression": "desktop_device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"copilot_runs\".\"desktop_device_id\" IS NOT NULL",
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -3192,6 +3310,15 @@
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "copilot_runs_desktop_device_id_desktop_devices_id_fk": {
+          "name": "copilot_runs_desktop_device_id_desktop_devices_id_fk",
+          "tableFrom": "copilot_runs",
+          "tableTo": "desktop_devices",
+          "columnsFrom": ["desktop_device_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -5564,6 +5691,138 @@
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.desktop_devices": {
+      "name": "desktop_devices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_version": {
+          "name": "app_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capabilities": {
+          "name": "capabilities",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "desktop_devices_user_id_idx": {
+          "name": "desktop_devices_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "desktop_devices_session_id_idx": {
+          "name": "desktop_devices_session_id_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "desktop_devices_user_id_user_id_fk": {
+          "name": "desktop_devices_user_id_user_id_fk",
+          "tableFrom": "desktop_devices",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "desktop_devices_session_id_session_id_fk": {
+          "name": "desktop_devices_session_id_session_id_fk",
+          "tableFrom": "desktop_devices",
+          "tableTo": "session",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -8557,7 +8816,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "parent_id": {
           "name": "parent_id",
@@ -8596,12 +8855,6 @@
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
@@ -8740,61 +8993,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "folder_project_id_idx": {
-          "name": "folder_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "folder_project_resource_parent_name_active_unique": {
-          "name": "folder_project_resource_parent_name_active_unique",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"parent_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"folder\".\"deleted_at\" IS NULL AND \"folder\".\"project_id\" IS NOT NULL",
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -8824,26 +9022,12 @@
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
-        },
-        "folder_project_id_project_id_fk": {
-          "name": "folder_project_id_project_id_fk",
-          "tableFrom": "folder",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "folder_owner_check": {
-          "name": "folder_owner_check",
-          "value": "num_nonnulls(\"folder\".\"workspace_id\", \"folder\".\"project_id\") = 1 AND (\"folder\".\"project_id\" IS NULL OR \"folder\".\"resource_type\" = 'file')"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.idempotency_key": {
@@ -17164,23 +17348,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_by": {
           "name": "created_by",
@@ -17237,33 +17409,6 @@
         }
       },
       "indexes": {
-        "public_share_entity_id_idx": {
-          "name": "public_share_entity_id_idx",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "public_share_token_unique": {
           "name": "public_share_token_unique",
           "columns": [
@@ -17354,12 +17499,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "public_share_entity_binding_check": {
-          "name": "public_share_entity_binding_check",
-          "value": "\n      (\"public_share\".\"entity_type\" IS NULL AND \"public_share\".\"entity_id\" IS NULL AND \"public_share\".\"workspace_id\" IS NOT NULL)\n      OR (\"public_share\".\"entity_type\" IS NOT NULL AND \"public_share\".\"entity_id\" IS NOT NULL AND char_length(\"public_share\".\"entity_id\") > 0\n        AND ((\"public_share\".\"entity_type\" = 'workspace' AND \"public_share\".\"workspace_id\" IS NOT NULL AND \"public_share\".\"entity_id\" = \"public_share\".\"workspace_id\")\n          OR (\"public_share\".\"entity_type\" = 'project' AND \"public_share\".\"workspace_id\" IS NULL AND \"public_share\".\"resource_type\" = 'file')))\n    "
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.rate_limit_bucket": {
@@ -22739,6 +22879,74 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.user_table_row_changes": {
+      "name": "user_table_row_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "user_table_row_changes_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "table_id": {
+          "name": "table_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_delta": {
+          "name": "row_delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_table_row_changes_table_id_idx": {
+          "name": "user_table_row_changes_table_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_table_row_changes_table_id_user_table_definitions_id_fk": {
+          "name": "user_table_row_changes_table_id_user_table_definitions_id_fk",
+          "tableFrom": "user_table_row_changes",
+          "tableTo": "user_table_definitions",
+          "columnsFrom": ["table_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.user_table_row_secret_provenance": {
       "name": "user_table_row_secret_provenance",
       "schema": "",
@@ -28047,7 +28255,7 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "version": {
           "name": "version",
@@ -28627,34 +28835,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_files_project_folder_name_active_unique": {
-          "name": "workspace_files_project_folder_name_active_unique",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"folder_id\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "original_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"project_id\" IS NOT NULL",
           "concurrently": true,
           "method": "btree",
           "with": {}
@@ -29865,74 +30045,6 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.user_table_row_changes": {
-      "name": "user_table_row_changes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigint",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "user_table_row_changes_id_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "9223372036854775807",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "table_id": {
-          "name": "table_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "row_delta": {
-          "name": "row_delta",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "user_table_row_changes_table_id_idx": {
-          "name": "user_table_row_changes_table_id_idx",
-          "columns": [
-            {
-              "expression": "table_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "user_table_row_changes_table_id_user_table_definitions_id_fk": {
-          "name": "user_table_row_changes_table_id_user_table_definitions_id_fk",
-          "tableFrom": "user_table_row_changes",
-          "tableTo": "user_table_definitions",
-          "columnsFrom": ["table_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -30109,7 +30221,6 @@
       "schema": "public",
       "values": [
         "workspace_file",
-        "project_file",
         "table_import",
         "knowledge_document",
         "profile_picture",
@@ -30198,7 +30309,18 @@
     }
   },
   "schemas": {},
-  "sequences": {},
+  "sequences": {
+    "public.copilot_async_tool_calls_persist_seq": {
+      "name": "copilot_async_tool_calls_persist_seq",
+      "schema": "public",
+      "increment": "1",
+      "startWith": "1",
+      "minValue": "1",
+      "maxValue": "9223372036854775807",
+      "cache": "1",
+      "cycle": false
+    }
+  },
   "roles": {},
   "policies": {},
   "views": {},

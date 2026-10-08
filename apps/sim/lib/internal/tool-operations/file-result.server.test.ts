@@ -53,6 +53,7 @@ const runContext: InternalToolOperationContext = {
 const copilotContext: InternalToolOperationContext = {
   workspaceId: 'workspace-1',
   workflowId: '',
+  executionId: 'copilot-run-1',
   userId: 'user-1',
   copilotToolExecution: true,
 }
@@ -156,6 +157,20 @@ describe('presentInternalToolOperationResult', () => {
       userId: 'user-1',
     })
     expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
+  it("keeps a Mothership block's files in its parent workflow run", async () => {
+    await presentInternalToolOperationResult(
+      createInternalToolFileResult(file(), (stored) => ({ file: stored })),
+      { ...runContext, copilotToolExecution: true }
+    )
+
+    expect(mockUploadExecutionFile.mock.calls[0]?.[0]).toEqual({
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
   it('replaces binary representation headers before the JSON transport size check', async () => {
