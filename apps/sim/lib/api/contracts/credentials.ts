@@ -143,7 +143,10 @@ export const createCredentialFieldsSchema = z.object({
   accountId: z.string().trim().min(1).optional(),
   envKey: z.string().trim().min(1).optional(),
   envOwnerUserId: z.string().trim().min(1).optional(),
-  serviceAccountJson: z.string().optional(),
+  serviceAccountJson: z
+    .string()
+    .max(2 * 1024 * 1024)
+    .optional(),
   apiToken: z.string().trim().min(1).optional(),
   domain: z.string().trim().min(1).optional(),
   atlassianProduct: atlassianProductSchema.optional(),
@@ -272,7 +275,11 @@ export const updateCredentialByIdBodySchema = z
     description: z.string().trim().max(500).nullish(),
     /** Workspace-secret redaction opt-out; rejected for every type but env_workspace. */
     unredacted: z.boolean().optional(),
-    serviceAccountJson: z.string().min(1).optional(),
+    serviceAccountJson: z
+      .string()
+      .min(1)
+      .max(2 * 1024 * 1024)
+      .optional(),
     /** Slack custom-bot secret rotation (reconnect). */
     signingSecret: z.string().trim().min(1).optional(),
     botToken: z.string().trim().min(1).optional(),

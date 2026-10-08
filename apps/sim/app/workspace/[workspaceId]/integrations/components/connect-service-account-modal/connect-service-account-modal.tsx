@@ -34,9 +34,11 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
+import { OracleDatabaseAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/oracle-database-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -52,6 +54,7 @@ export type ServiceAccountProviderId =
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
   | typeof OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -167,6 +170,21 @@ export function ConnectServiceAccountModal({
   credentialDescription,
   onCreated,
 }: ConnectServiceAccountModalProps) {
+  if (serviceAccountProviderId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <OracleDatabaseAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
   const clientCredentialDescriptor = getClientCredentialAccountDescriptor(serviceAccountProviderId)
   if (clientCredentialDescriptor) {
     return (

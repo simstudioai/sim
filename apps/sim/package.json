@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "engines": {
     "bun": ">=1.4.2",
-    "node": ">=22.19.0"
+    "node": ">=24.0.0 <25.0.0"
   },
   "scripts": {
     "dev": "bun run build:cli-runtime && bun run dev:cache:cap && next dev --port 3000",
@@ -37,6 +37,7 @@
     "generate:pi-model-catalog": "bun run scripts/generate-pi-model-catalog.ts",
     "generate-docs": "bun run ../../scripts/generate-docs.ts",
     "org:consolidate-users": "bun run scripts/consolidate-users-into-organization.ts",
+    "verify:oracledb": "node scripts/oracledb-patch-self-test.cjs --worker lib/internal/oracledb/oracle-worker.cjs",
     "build:cli-runtime": "bun build ../../packages/sim-cli/src/runtime.ts --target=node --format=esm --packages=bundle --outfile=../../packages/sim-cli/dist/runtime.js"
   },
   "dependencies": {
@@ -225,6 +226,7 @@
     "nuqs": "2.8.9",
     "officeparser": "5.2.2",
     "openai": "7.0.0",
+    "oracledb": "7.0.1",
     "opentype.js": "1.3.4",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "5.4.296",

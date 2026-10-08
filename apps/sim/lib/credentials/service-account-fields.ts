@@ -4,6 +4,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -44,6 +45,7 @@ export type ServiceAccountFieldId =
  * declared here.
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
+  [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],

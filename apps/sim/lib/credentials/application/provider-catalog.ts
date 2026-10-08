@@ -21,6 +21,7 @@ import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { getAllOAuthServices, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -125,6 +126,26 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       helpText:
         'Connect an installation through your organization’s Search integrations. Each person connects their own GitHub account to establish access.',
       fields: [],
+    }
+  }
+  if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Oracle Database connection',
+      description:
+        'Connect to Oracle Database with a saved username, password, and optional TCPS wallet.',
+      docsUrl: 'https://docs.sim.ai/integrations/oracledb',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"host":"db.example.com","protocol":"tcps","serviceName":"APP","username":"app_user","password":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: 'JSON object with host, port, protocol (tcp or tcps), connectionType (serviceName or sid), the selected identifier, username, password, and optional walletContent and walletPassword.',
+        },
+      ],
     }
   }
   if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {

@@ -407,9 +407,11 @@ const v2ServiceAccountCredentialFieldsSchema = z
     serviceAccountJson: z
       .string()
       .min(1)
-      .max(65_536)
+      .max(2 * 1024 * 1024)
       .optional()
-      .describe('Write-only Google service-account JSON key.')
+      .describe(
+        'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+      )
       .meta({ writeOnly: true }),
     apiToken: z
       .string()
@@ -672,9 +674,11 @@ const v2ServiceAccountSecretFieldsShape = {
   serviceAccountJson: z
     .string()
     .min(1)
-    .max(65_536)
+    .max(2 * 1024 * 1024)
     .optional()
-    .describe('Write-only Google service-account JSON key.')
+    .describe(
+      'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+    )
     .meta({ writeOnly: true }),
   apiToken: z
     .string()
