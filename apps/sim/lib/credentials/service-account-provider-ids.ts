@@ -10,6 +10,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
@@ -31,6 +32,7 @@ export function asServiceAccountProviderId(
     value === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
     value === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID ||
+    value === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {
@@ -73,6 +75,7 @@ export function getServiceAccountGatingBlockType(providerId: string): string | n
 export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
   if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) return 'API key'
+  if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) return 'database connection'
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'

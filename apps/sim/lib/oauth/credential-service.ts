@@ -60,6 +60,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import {
@@ -706,6 +707,9 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
+    accessToken: credentialId,
+  }),
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),

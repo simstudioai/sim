@@ -21965,7 +21965,8 @@ export const V2_OPERATIONS = {
       },
       serviceAccountJson: {
         kind: 'string',
-        describe: 'Write-only Google service-account JSON key.',
+        describe:
+          'Write-only provider service-account JSON configuration, including Oracle Database connection fields.',
       },
       apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
       domain: { kind: 'string', describe: 'Provider account domain.' },

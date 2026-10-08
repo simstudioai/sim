@@ -21,6 +21,7 @@ import {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
+import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
 import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
@@ -41,6 +42,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -230,6 +232,29 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
+async function buildOracleDatabaseServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Oracle Database connection configuration is required')
+  let result
+  try {
+    result = await verifyAndEncryptOracleDatabaseCredential(fields.serviceAccountJson)
+  } catch {
+    throw new ServiceAccountSecretError(
+      'Could not verify the Oracle Database connection. Check the connection details and database permissions.'
+    )
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.username }
+  return {
+    providerId: ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.username,
+    auditMetadata: serviceAccountPrincipalMetadata(principal),
+    principal,
+  }
+}
+
 async function buildOciApiKeyServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
@@ -397,6 +422,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: buildSlackCustomBotSecret,
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciApiKeyServiceAccountSecret,
+  [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
 }
 
 /**
