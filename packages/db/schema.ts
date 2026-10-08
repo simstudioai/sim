@@ -2110,7 +2110,7 @@ export const project = pgTable(
   })
 )
 
-/** Deferred membership and lifecycle triggers are installed by 0401 after the Project backfill. */
+/** Deferred membership and lifecycle triggers are installed by 0402 after the Project backfill. */
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
@@ -3860,39 +3860,8 @@ export const embedding = pgTable(
   })
 )
 
-/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_search — regular KB keyword queries read embedding.content_tsv.
-export const embeddingKeywordSearch = pgTable(
-  'embedding_keyword_search',
-  {
-    id: text('id')
-      .primaryKey()
-      .references(() => embedding.id, { onDelete: 'cascade' }),
-    knowledgeBaseId: text('knowledge_base_id').notNull(),
-    documentId: text('document_id').notNull(),
-    enabled: boolean('enabled').notNull(),
-    contentTsv: tsvector('content_tsv').notNull(),
-  },
-  (table) => ({
-    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
-    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
-    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
-  })
-)
-
-/** The Tin index over {@link embeddingKeywordTin}; valid only once the projection is backfilled. */
-export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
-
-/**
- * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
- * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
- * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. The row mirrors its document's source
- * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
- * the index, and the embedding and knowledge base triggers that own these rows, and only where
- * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
- */
-// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_tin — only retired indexed Search ranks this projection.
+/** Compatibility storage for connector-detachment workers from before keyword retirement. */
+// contract-pending(after the keyword-projection retirement release and old connector-detachment workers have drained): drop embedding_keyword_tin — no new projection writer uses it.
 export const embeddingKeywordTin = pgTable(
   'embedding_keyword_tin',
   {

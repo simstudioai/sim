@@ -153,7 +153,7 @@ describe('completed listing reconciliation in PostgreSQL', () => {
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
       acl_verified_at timestamp
     )`
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       await sql`CREATE TABLE ${sql(projection)} (
         id text PRIMARY KEY, document_id text NOT NULL, enabled boolean NOT NULL DEFAULT true,
         connector_id text, acl text[]
@@ -170,7 +170,6 @@ describe('completed listing reconciliation in PostgreSQL', () => {
     await sql`CREATE TRIGGER count_fan_out AFTER UPDATE OF connector_id, acl ON document
       FOR EACH ROW EXECUTE FUNCTION count_fan_out()`
     await sql`ALTER TABLE embedding_search DISABLE TRIGGER embedding_search_source_acl_set`
-    await sql`ALTER TABLE embedding_keyword_tin DISABLE TRIGGER embedding_keyword_tin_source_acl_set`
   }, 60_000)
 
   afterAll(async () => {
@@ -181,7 +180,7 @@ describe('completed listing reconciliation in PostgreSQL', () => {
 
   beforeEach(async () => {
     hardDelete.mockClear()
-    await sql`TRUNCATE embedding_search, embedding_keyword_tin, document, fan_out, knowledge_connector`
+    await sql`TRUNCATE embedding_search, document, fan_out, knowledge_connector`
     await sql`INSERT INTO knowledge_connector (id) VALUES (${CONNECTOR})`
   })
 
@@ -191,7 +190,7 @@ describe('completed listing reconciliation in PostgreSQL', () => {
       { id: 'absent-empty', acl: [], seenAt: ABSENT_SINCE },
       { id: 'absent-granted', acl: [ALICE], seenAt: ABSENT_SINCE, verified: true },
     ])
-    for (const projection of ['embedding_search', 'embedding_keyword_tin']) {
+    for (const projection of ['embedding_search']) {
       const prefix = projection === 'embedding_search' ? 'vec' : 'kw'
       await sql`INSERT INTO ${sql(projection)} (id, document_id, connector_id, acl) VALUES
         (${`${prefix}-empty-filled`}, 'absent-empty', ${CONNECTOR}, '{}'),
@@ -210,13 +209,7 @@ describe('completed listing reconciliation in PostgreSQL', () => {
       { id: 'absent-empty', acl: [], verified: false, deleted: true },
       { id: 'absent-granted', acl: [], verified: false, deleted: true },
     ])
-    expect(
-      await sql`SELECT id, acl FROM embedding_search
-        UNION ALL SELECT id, acl FROM embedding_keyword_tin ORDER BY id`
-    ).toEqual([
-      { id: 'kw-empty-filled', acl: [] },
-      { id: 'kw-granted-filled', acl: [] },
-      { id: 'kw-granted-unfilled', acl: null },
+    expect(await sql`SELECT id, acl FROM embedding_search ORDER BY id`).toEqual([
       { id: 'vec-empty-filled', acl: [] },
       { id: 'vec-granted-filled', acl: [] },
       { id: 'vec-granted-unfilled', acl: null },

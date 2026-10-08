@@ -2805,8 +2805,15 @@
     {
       "idx": 401,
       "version": "7",
-      "when": 1791447472722,
-      "tag": "0401_project_membership_enforcement",
+      "when": 1791487459599,
+      "tag": "0401_retire_keyword_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 402,
+      "version": "7",
+      "when": 1791487459600,
+      "tag": "0402_project_membership_enforcement",
       "breakpoints": true
     }
   ]

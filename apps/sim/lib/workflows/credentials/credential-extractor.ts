@@ -1,5 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { isWholeEnvVarReference } from '@/lib/workflows/blocks/fallback-models'
+import { isRemovedSubblockId } from '@/lib/workflows/migrations/subblock-migrations'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
@@ -355,6 +356,10 @@ export function sanitizeWorkflowForSharing(
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
+        if (isRemovedSubblockId(block.type, key)) {
+          delete block.subBlocks[key]
+          return
+        }
         if (options.redactOpaqueCredentialInputs && subBlock) {
           if (subBlock.type === 'tool-input') {
             subBlock.value = sanitizeToolInputValue(subBlock.value, options)
