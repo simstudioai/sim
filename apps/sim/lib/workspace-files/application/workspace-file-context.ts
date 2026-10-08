@@ -6,8 +6,7 @@ import {
   loadWorkspaceFileLifecycleContext,
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { requireWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
-import { getLiveWorkflowTestByBodyFileId } from '@/lib/workflow-tests/repository'
+import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 
 export interface WorkspaceFileContextInput {
   fileId: string
@@ -19,15 +18,16 @@ export interface WorkspaceFileContextInput {
    */
   includeChatUploads?: boolean
   /**
-   * Admit a file another resource owns — a test file (`context = 'test'`) — for this principal under its owner's policy. Only content reads and
-   * writes pass it; every other file operation never reaches an owned file.
+   * Admit a file another resource owns (a test file or a release body) for this principal under
+   * its owner's policy. Only content reads and writes pass it; every other file operation never
+   * reaches an owned file.
    */
   ownedFilePrincipal?: Principal
 }
 
 /**
- * The principals the test operations admit: people and Copilot acting for one. Workspace API
- * keys, system callers, and the executor's delegation never reach a test file.
+ * The principals the owners' operations admit: people and Copilot acting for one. Workspace API
+ * keys, system callers, and the executor's delegation never reach an owned file.
  */
 function isOwnedFilePrincipal(principal: Principal): boolean {
   if (principal.kind === 'delegated') return principal.serviceId === 'copilot'
@@ -39,21 +39,19 @@ function isOwnedFilePrincipal(principal: Principal): boolean {
 }
 
 /**
- * A test file follows its test: it needs a live test and admits only the test operations'
- * principal kinds.
+ * A file another resource owns follows its owner: it needs a live owner with its feature
+ * enabled, and admits only the owners' principal kinds.
  */
 export async function assertOwnedFileAccess(
   principal: Principal,
   context: ActiveWorkspaceFileContext
 ): Promise<void> {
-  if (context.fileContext !== 'test') return
+  const kind = ownedFileKind(context.fileContext)
+  if (!kind) return
   if (!isOwnedFilePrincipal(principal)) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  if (!(await getLiveWorkflowTestByBodyFileId(context.fileId))) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-  await requireWorkflowTestsEnabled(context.workspaceOrganizationId)
+  await kind.assertOwnerAccess(context.fileId, context.workspaceOrganizationId)
 }
 
 export async function resolveActiveWorkspaceFileContext(
@@ -62,7 +60,7 @@ export async function resolveActiveWorkspaceFileContext(
   const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
     includeDeleted: input.includeDeleted,
     includeChatUploads: input.includeChatUploads,
-    ...(input.ownedFilePrincipal ? { includeTestFiles: true } : {}),
+    ...(input.ownedFilePrincipal ? { includeOwnedFiles: true } : {}),
   })
   if (
     !canonical ||

@@ -32,7 +32,7 @@ export const exportWorkspaceFileSnapshot = defineAuthorizedWorkspaceFileUseCase(
   async execute({ principal, input, context }) {
     const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
       throwOnError: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     if (!isMarkdownFile(file) && file.type !== 'text/x-markdown') {

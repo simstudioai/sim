@@ -48,7 +48,7 @@ async function executeReadWorkspaceFileMetadata({
     getWorkspaceFile(context.workspaceId, context.fileId, {
       includeDeleted: input.includeDeleted,
       throwOnError: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     }),
     getShareForResource('file', context.fileId),
   ])
@@ -80,7 +80,7 @@ export const readWorkspaceFileMetadataWithVersion = defineAuthorizedWorkspaceFil
     const [file, share] = await Promise.all([
       getWorkspaceFileWithCurrentVersion(context.workspaceId, context.fileId, {
         includeDeleted: input.includeDeleted,
-        includeTestFiles: true,
+        includeOwnedFiles: true,
       }),
       getShareForResource('file', context.fileId),
     ])

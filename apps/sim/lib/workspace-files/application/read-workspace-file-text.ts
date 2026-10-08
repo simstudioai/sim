@@ -257,7 +257,7 @@ export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ principal, input }) =>
     resolveReferencedWorkspaceFileContext(principal, input, {
       includeChatUploads: true,
-      includeTestFiles: true,
+      includeOwnedFiles: true,
     }),
   execute: executeReadWorkspaceFileText,
 })

@@ -1,0 +1,151 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import {
+  Chip,
+  ChipTag,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@sim/emcn'
+import { MoreHorizontal } from '@sim/emcn/icons'
+import Link from 'next/link'
+import type { ChangelogChange, ChangelogRelease } from '@/lib/api/contracts/changelog'
+import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useAddressedWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+
+interface ReleaseEntryProps {
+  workspaceId: string
+  release: ChangelogRelease
+  canEdit: boolean
+  onEditDetails: (release: ChangelogRelease) => void
+}
+
+const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+/** Each workflow the release changed, with the newest deployment it shipped in. */
+function shippedWorkflows(
+  changes: ChangelogChange[]
+): { id: string; name: string; version: number | null }[] {
+  const byWorkflow = new Map<string, { name: string; version: number | null }>()
+  for (const change of changes) {
+    if (!change.workflowId || !change.workflowName) continue
+    const previous = byWorkflow.get(change.workflowId)?.version ?? null
+    const shipped = change.deploymentVersion
+    const version =
+      previous === null ? shipped : shipped === null ? previous : Math.max(previous, shipped)
+    byWorkflow.set(change.workflowId, { name: change.workflowName, version })
+  }
+  return [...byWorkflow.entries()].map(([id, shipped]) => ({ id, ...shipped }))
+}
+
+/** One shipped release: the date and version rail, then its title, body, and change lines. */
+export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: ReleaseEntryProps) {
+  const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const [editingBody, setEditingBody] = useState(false)
+  const file = useAddressedWorkspaceFileRecord(workspaceId, release.fileId)
+  const workflows = shippedWorkflows(release.changes)
+
+  return (
+    <article className='grid @min-[760px]/changelog:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-12'>
+      <aside className='@min-[760px]/changelog:sticky top-8 flex h-fit flex-col gap-2'>
+        <span className='text-[var(--text-primary)] text-md'>
+          {DATE_FORMAT.format(new Date(release.publishedAt))}
+        </span>
+        <div>
+          <ChipTag variant='gray'>{`v${release.version}`}</ChipTag>
+        </div>
+        {workflows.map((workflow) => (
+          <div key={workflow.id} className='flex flex-col text-small'>
+            <span className='break-words text-[var(--text-body)]'>{workflow.name}</span>
+            {workflow.version !== null && (
+              <span className='text-[var(--text-muted)]'>{`Deploy ${workflow.version}`}</span>
+            )}
+          </div>
+        ))}
+      </aside>
+
+      <div className='flex min-w-0 flex-col gap-6'>
+        <div className='flex items-start gap-3'>
+          <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+            <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.02em]'>
+              {release.title}
+            </h2>
+            <p className='text-[var(--text-muted)] text-small'>{release.bumpReason}</p>
+          </div>
+          {canEdit &&
+            (editingBody ? (
+              <Chip
+                variant='primary'
+                onClick={async () => {
+                  await saveRef.current?.()
+                  setEditingBody(false)
+                }}
+              >
+                Done
+              </Chip>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Chip aria-label={`Actions for ${release.title}`}>
+                    <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
+                  </Chip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem onSelect={() => setEditingBody(true)}>
+                    Edit notes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onEditDetails(release)}>
+                    Edit title and version
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ))}
+        </div>
+
+        {file.error ? (
+          <p role='alert' className='text-[var(--text-error)] text-small'>
+            {file.error.message}
+          </p>
+        ) : file.data ? (
+          <div
+            className={cn(editingBody ? 'rounded-lg border border-[var(--border)]' : '-mx-8 -my-6')}
+          >
+            <FileViewer
+              key={`${file.data.id}:${editingBody}`}
+              file={file.data}
+              workspaceId={workspaceId}
+              canEdit={editingBody}
+              readOnly={!editingBody}
+              saveRef={saveRef}
+            />
+          </div>
+        ) : null}
+
+        {release.changes.length > 0 && (
+          <ul className='flex flex-col gap-2.5'>
+            {release.changes.map((change) => (
+              <li key={change.id} className='flex gap-3'>
+                <span className='mt-[9px] size-[5px] shrink-0 rounded-full bg-[var(--text-icon)]' />
+                {change.chatId ? (
+                  <Link
+                    href={`/workspace/${workspaceId}/chat/${change.chatId}`}
+                    className='min-w-0 flex-1 text-[var(--text-body)] text-md underline-offset-4 hover:underline'
+                  >
+                    {change.text}
+                  </Link>
+                ) : (
+                  <span className='min-w-0 flex-1 text-[var(--text-body)] text-md'>
+                    {change.text}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </article>
+  )
+}

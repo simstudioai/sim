@@ -16,6 +16,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { changelogServerTool } from '@/lib/mothership/tools/server/changelog'
 import { dashboardsServerTool } from '@/lib/mothership/tools/server/dashboards'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
 import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
@@ -64,6 +65,7 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [dashboardsServerTool.name]: dashboardsServerTool,
+  [changelogServerTool.name]: changelogServerTool,
   [testsServerTool.name]: testsServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
