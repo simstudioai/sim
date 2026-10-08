@@ -15,6 +15,7 @@ import {
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
@@ -25,6 +26,10 @@ import type {
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  getProjectAccountDeletionBlockers,
+  prepareProjectsForAccountDeletion,
+} from '@/lib/projects/account-deletion'
 import { appendTableEvent, type TableEvent } from '@/lib/table/events'
 import {
   type CancelledCellMarker,
@@ -322,7 +327,7 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
         .limit(1),
     ])
 
-  return classifyAccountDeletion({
+  const plan = classifyAccountDeletion({
     workspaces,
     company: await loadWorkspaceCompany(userId, workspaces),
     organizationNames,
@@ -332,6 +337,14 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
     personalPlan: personalSubscription?.plan ?? null,
     hasDataDrains: drains.length > 0,
   })
+  const projectBlockers = await getProjectAccountDeletionBlockers(
+    userId,
+    plan.workspacesToDelete.map((row) => row.id)
+  )
+  plan.blockers.push(
+    ...projectBlockers.map((message) => ({ code: 'project_lifecycle' as const, message }))
+  )
+  return plan
 }
 
 interface StorageKeyRow {
@@ -681,6 +694,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
+    await prepareProjectsForAccountDeletion(tx, userId, doomedWorkspaceIds)
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -804,7 +818,23 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
 
-    await tx.delete(user).where(eq(user.id, userId))
+    try {
+      await tx.delete(user).where(eq(user.id, userId))
+    } catch (error) {
+      if (
+        getPostgresErrorCode(error) === '23503' &&
+        getPostgresConstraintName(error) === 'project_owner_id_user_id_fk'
+      ) {
+        throw new AccountDeletionBlockedError([
+          {
+            code: 'project_lifecycle',
+            message:
+              'A Project changed while your account was being deleted. Nothing was changed — try again.',
+          },
+        ])
+      }
+      throw error
+    }
   })
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)

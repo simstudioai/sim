@@ -30,6 +30,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
+  type NormalizedWorkflowData,
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
@@ -110,6 +111,12 @@ export interface ExecuteWorkflowServiceParams {
   includeToolCalls?: boolean
   /** Execute the current saved state manually instead of the active deployment. */
   useDraftState?: boolean
+  /**
+   * The saved state the application use case loaded to choose and validate the entry
+   * point. Requires `useDraftState`; the run executes this same snapshot instead of
+   * reading the draft tables again.
+   */
+  draftState?: NormalizedWorkflowData
   /** Explicit trigger entry point selected and validated by the application use case. */
   triggerBlockId?: string
   /** Trusted prior-run snapshot resolved by the application use case. */
@@ -120,6 +127,8 @@ export interface ExecuteWorkflowServiceParams {
     /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
     variableInputs?: Record<string, unknown>
   }
+  /** Saved block after which execution stops, validated by the application use case. */
+  stopAfterBlockId?: string
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -270,8 +279,10 @@ export async function executeWorkflowService(
     includeThinking = false,
     includeToolCalls = false,
     useDraftState = false,
+    draftState,
     triggerBlockId,
     runFromBlock,
+    stopAfterBlockId,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -288,6 +299,12 @@ export async function executeWorkflowService(
   }
   if (runFromBlock && !useDraftState) {
     throw new Error('Run-from-block requires manual execution state')
+  }
+  if (stopAfterBlockId && !useDraftState) {
+    throw new Error('Stop-after-block requires manual execution state')
+  }
+  if (draftState && !useDraftState) {
+    throw new Error('A preloaded draft state requires manual execution state')
   }
 
   if (callChain) {
@@ -461,7 +478,7 @@ export async function executeWorkflowService(
     let workflowBlocks: Record<string, unknown> = {}
     try {
       const workflowData = useDraftState
-        ? await loadWorkflowFromNormalizedTables(workflowId)
+        ? (draftState ?? (await loadWorkflowFromNormalizedTables(workflowId)))
         : deploymentVersionId
           ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
           : await loadDeployedWorkflowState(workflowId, workspaceId)
@@ -588,7 +605,9 @@ export async function executeWorkflowService(
               workflowTriggerType: triggerType,
               triggerBlockId,
               useDraftState,
+              draftState,
               runFromBlock,
+              stopAfterBlockId,
               onStream,
               onBlockComplete: (blockId, data) =>
                 onBlockComplete(blockId, data.output, data.outputBlockId),
@@ -689,6 +708,8 @@ export async function executeWorkflowService(
           base64MaxBytes,
           abortSignal: timeoutController.signal,
           runFromBlock,
+          stopAfterBlockId,
+          draftState,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })

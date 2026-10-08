@@ -40,6 +40,36 @@ describe('client tool completion reporting', () => {
     expect(signals.every((signal) => signal.aborted)).toBe(true)
   })
 
+  it('stops at once when another client holds the call, instead of retrying a final answer', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockResolvedValue(new Response(null, { status: 409 }))
+    let settled = false
+
+    void reportClientToolCompletion('tool-1', 'error', 'Not run: delivered too late').then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).toBe(true)
+  })
+
+  it('stops at once when the trimmed retry of an oversized report learns the call is held', async () => {
+    vi.useFakeTimers()
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 413 }))
+      .mockResolvedValueOnce(new Response(null, { status: 409 }))
+    let settled = false
+
+    void reportClientToolCompletion('tool-1', 'error', 'Failed', {
+      logs: 'x'.repeat(11 * 1024 * 1024),
+    }).then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).toBe(true)
+  })
+
   it('uses a keepalive request with the exact terminal payload', async () => {
     await reportClientToolCompletionOnPageExit('tool-1', 'success', 'Browser action completed', {
       url: 'https://example.com',
@@ -83,6 +113,14 @@ describe('client tool completion reporting', () => {
 
     expect(signal).not.toBeNull()
     expect(signal?.aborted).toBe(true)
+  })
+
+  it('treats a 409 as final: the desktop app holds the call', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 409 }))
+
+    await expect(
+      reportClientToolCompletionOnPageExit('tool-1', 'error', 'Browser failed')
+    ).resolves.toBeUndefined()
   })
 
   it('rejects a non-success response', async () => {

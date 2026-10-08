@@ -1,6 +1,5 @@
 import { createHmac } from 'node:crypto'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
@@ -205,9 +204,8 @@ export const webhookDestination: DrainDestination<
           } catch (error) {
             lastError = error
             logger.debug('Webhook delivery attempt failed', {
-              url: config.url,
+              host: new URL(config.url).hostname,
               attempt,
-              error: toError(error).message,
             })
           }
           if (response) {
@@ -217,7 +215,7 @@ export const webhookDestination: DrainDestination<
                 response.headers.get('x-amzn-trace-id') ??
                 null
               logger.debug('Webhook chunk delivered', {
-                url: config.url,
+                host: new URL(config.url).hostname,
                 attempt,
                 status: response.status,
                 bytes: body.byteLength,

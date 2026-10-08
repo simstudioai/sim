@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
+import { createProjectForWorkspace } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   getWorkspaceInvitePolicy,
@@ -18,7 +19,7 @@ import {
 } from '@/lib/workspaces/policy'
 
 /** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
-const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+export const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
   'workspace_owner_id_user_id_fk',
   'workspace_billed_account_user_id_user_id_fk',
 ])
@@ -86,11 +87,14 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * The caller supplies the creation-policy snapshot. This function revalidates
  * that snapshot — including the `workspace.create` capability under the
  * permission-group advisory lock — before inserting the workspace, owner
- * permission and optional starter workflow atomically.
+ * permission, its Project and optional starter workflow atomically. A caller
+ * creating an explicit Project names it; otherwise the name derives from the
+ * workspace.
  */
-export async function createWorkspaceInTransaction(
+export async function createWorkspaceWithProjectInTransaction(
   tx: DbTransaction,
   {
+    projectName,
     userId,
     observedOrganizationId,
     name,
@@ -99,8 +103,8 @@ export async function createWorkspaceInTransaction(
     workspaceMode,
     billedAccountUserId,
     governingPermissionGroupOrganizationId,
-  }: TransactionalCreateWorkspaceParams
-): Promise<CreatedWorkspace> {
+  }: TransactionalCreateWorkspaceParams & { projectName?: string }
+): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
@@ -129,6 +133,14 @@ export async function createWorkspaceInTransaction(
     updatedAt: now,
   })
 
+  const projectId = await createProjectForWorkspace(tx, {
+    projectName,
+    workspaceId,
+    name,
+    organizationId: organizationId ?? null,
+    ownerId: userId,
+  })
+
   const permissionRows = [
     {
       id: generateId(),
@@ -154,17 +166,15 @@ export async function createWorkspaceInTransaction(
   await tx.insert(permissions).values(permissionRows)
 
   if (defaultWorkflowArtifacts) {
-    await tx.insert(workflow).values(
-      await buildNewWorkflowRow(tx, {
-        id: workflowId,
-        userId,
-        workspaceId,
-        folderId: null,
-        name: 'default-agent',
-        description: 'Your first workflow - start building here!',
-        now,
-      })
-    )
+    await insertNewWorkflowRow(tx, {
+      id: workflowId,
+      userId,
+      workspaceId,
+      folderId: null,
+      name: 'default-agent',
+      description: 'Your first workflow - start building here!',
+      now,
+    })
     await saveWorkflowToNormalizedTables(
       workflowId,
       defaultWorkflowArtifacts.workflowState,
@@ -178,16 +188,26 @@ export async function createWorkspaceInTransaction(
   }
 
   return {
-    id: workspaceId,
-    name,
-    ownerId: userId,
-    organizationId,
-    workspaceMode,
-    billedAccountUserId: committedBilledAccountUserId,
-    allowPersonalApiKeys: true,
-    createdAt: now,
-    updatedAt: now,
+    projectId,
+    workspace: {
+      id: workspaceId,
+      name,
+      ownerId: userId,
+      organizationId,
+      workspaceMode,
+      billedAccountUserId: committedBilledAccountUserId,
+      allowPersonalApiKeys: true,
+      createdAt: now,
+      updatedAt: now,
+    },
   }
+}
+
+export async function createWorkspaceInTransaction(
+  tx: DbTransaction,
+  params: TransactionalCreateWorkspaceParams
+): Promise<CreatedWorkspace> {
+  return (await createWorkspaceWithProjectInTransaction(tx, params)).workspace
 }
 
 /** Creates a workspace through the canonical lock-and-insert transaction. */

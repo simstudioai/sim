@@ -167,6 +167,7 @@ import {
   IntercomV2Block,
   IntercomV2BlockMeta,
 } from '@/blocks/blocks/intercom'
+import { IntuneBlock, IntuneBlockMeta } from '@/blocks/blocks/intune'
 import { JinaBlock, JinaBlockMeta } from '@/blocks/blocks/jina'
 import { JiraBlock, JiraBlockMeta } from '@/blocks/blocks/jira'
 import {
@@ -266,6 +267,7 @@ import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
+import { PlaneBlock, PlaneBlockMeta } from '@/blocks/blocks/plane'
 import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
@@ -280,6 +282,7 @@ import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks
 import { QuiverBlock, QuiverBlockMeta, QuiverV2Block } from '@/blocks/blocks/quiver'
 import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
+import { RampBlock, RampBlockMeta } from '@/blocks/blocks/ramp'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
 import { RedditBlock, RedditBlockMeta } from '@/blocks/blocks/reddit'
@@ -546,6 +549,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   instantly: InstantlyBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
+  intune: IntuneBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
@@ -622,6 +626,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
+  plane: PlaneBlock,
   planetscale: PlanetScaleBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
@@ -638,6 +643,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   quiver_v2: QuiverV2Block,
   rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
+  ramp: RampBlock,
   rb2b: RB2BBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
@@ -891,6 +897,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   instantly: InstantlyBlockMeta,
   intercom: IntercomBlockMeta,
   intercom_v2: IntercomV2BlockMeta,
+  intune: IntuneBlockMeta,
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
@@ -956,6 +963,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,
+  plane: PlaneBlockMeta,
   planetscale: PlanetScaleBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
@@ -970,6 +978,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   quiver: QuiverBlockMeta,
   rabbitmq: RabbitmqBlockMeta,
   railway: RailwayBlockMeta,
+  ramp: RampBlockMeta,
   rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,
   reddit: RedditBlockMeta,

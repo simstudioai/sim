@@ -3,7 +3,6 @@
 import { type ComponentType, useRef } from 'react'
 import {
   Chip,
-  ChipConfirmModal,
   ChipTag,
   chipContentIconClass,
   chipVariants,
@@ -97,9 +96,6 @@ export function SettingsSidebar<Section extends SettingsSection>({
     usePendingSettingsSelection(activeSection)
 
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
-  const confirmLeave = useSettingsDirtyStore((state) => state.confirmLeave)
-  const cancelLeave = useSettingsDirtyStore((state) => state.cancelLeave)
-  const pendingLeave = useSettingsDirtyStore((state) => state.pendingLeave)
   const scrollEdges = useScrollEdges(scrollContainerRef, {
     contentRef: scrollContentRef,
     enabled: !isCollapsed,
@@ -180,6 +176,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
                         enabled={showCollapsedTooltips}
                       >
                         <SettingsIntentLink
+                          data-settings-navigation='managed'
                           href={href}
                           replace
                           scroll={false}
@@ -253,16 +250,6 @@ export function SettingsSidebar<Section extends SettingsSection>({
             ))}
         </div>
       </div>
-
-      <ChipConfirmModal
-        open={pendingLeave !== null}
-        onOpenChange={(open) => !open && cancelLeave()}
-        srTitle='Unsaved changes'
-        title='Unsaved changes'
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
-        confirm={{ label: 'Discard changes', onClick: confirmLeave }}
-      />
     </>
   )
 }

@@ -102,10 +102,7 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
-  useMothershipEffortStore.setState({
-    effort: 'high',
-    modelSelection: { model: 'gpt-6-astra', fastMode: false },
-  })
+  useMothershipEffortStore.getState().reset()
   mocks.plan = false
   vi.clearAllMocks()
   mocks.workspaces = [

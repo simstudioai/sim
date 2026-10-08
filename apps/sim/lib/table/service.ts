@@ -54,6 +54,7 @@ import {
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { currentRowCountSql } from '@/lib/table/row-changes'
 import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
@@ -208,7 +209,7 @@ export async function getTableById(
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
-      rowCount: userTableDefinitions.rowCount,
+      rowCount: currentRowCountSql,
       latestJob: latestNonExportJobJson(userTableDefinitions.id),
       ...LOCK_SELECT,
     })
@@ -295,7 +296,7 @@ const TABLE_ROW_SELECT = {
   archivedAt: userTableDefinitions.archivedAt,
   createdAt: userTableDefinitions.createdAt,
   updatedAt: userTableDefinitions.updatedAt,
-  rowCount: userTableDefinitions.rowCount,
+  rowCount: currentRowCountSql,
   ...LOCK_SELECT,
 } as const
 

@@ -125,7 +125,10 @@ async function withAzureErrorContext<T>(action: string, fn: () => Promise<T>): P
     if (isAzureRestError(error)) {
       const status = error.statusCode
       const code = error.code
-      logger.warn('Azure Blob operation failed', { action, code, status })
+      logger.warn('Azure Blob operation failed', {
+        action,
+        ...(typeof status === 'number' ? { status } : {}),
+      })
       throw new Error(
         `Azure Blob ${action} failed (${code ?? 'Error'}${status ? ` ${status}` : ''}): ${error.message ?? ''}`,
         { cause: error }
@@ -156,12 +159,11 @@ export const azureBlobDestination: DrainDestination<
     )
     try {
       await blockBlobClient.deleteIfExists({ abortSignal: signal })
-    } catch (cleanupError) {
+    } catch {
       logger.debug('Azure Blob test write probe cleanup failed (non-fatal)', {
         accountName: config.accountName,
         containerName: config.containerName,
         blobName: probeName,
-        error: cleanupError,
       })
     }
   },

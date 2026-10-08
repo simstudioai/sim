@@ -38,6 +38,7 @@ import {
 } from '@/lib/billing/enterprise-outbox'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
+import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { changeOrganizationWorkspaceBilledAccountsInTx } from '@/lib/billing/storage/payer-transfer'
 import {
@@ -46,7 +47,11 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  enqueueCancelAtPeriodEndSync,
+  isCancelAtPeriodEndSettled,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -60,6 +65,7 @@ import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import { reassignOrganizationProjects } from '@/lib/projects/membership'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -73,8 +79,6 @@ export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
 const logger = createLogger('OrganizationMembership')
 
 const ORG_MEMBERSHIP_LOCK_TIMEOUT_MS = 5_000
-
-export const MEMBER_BILLING_RECONCILIATION_EVENT_TYPE = 'billing.reconcile-member-after-org-leave'
 
 /** Serializes organization-wide owner, seat, move, and membership decisions. */
 export async function acquireOrganizationMutationLock(
@@ -258,7 +262,17 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .for('update')
       .limit(1)
 
-    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) return
+    if (!personalPro?.stripeSubscriptionId) return
+    if (
+      await isCancelAtPeriodEndSettled(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd),
+        false
+      )
+    ) {
+      return
+    }
     result.subscriptionId = personalPro.id
 
     const organizationMemberships = await tx
@@ -288,9 +302,10 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .set({ cancelAtPeriodEnd: false })
       .where(eq(subscriptionTable.id, personalPro.id))
 
-    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+    await enqueueCancelAtPeriodEndSync(tx, {
       stripeSubscriptionId: personalPro.stripeSubscriptionId,
       subscriptionId: personalPro.id,
+      cancelAtPeriodEnd: false,
       reason: 'member-left-paid-org',
     })
 
@@ -403,7 +418,16 @@ export async function pauseProSubscriptionForOrgCoverage(
 
     result.subscriptionId = personalPro.id
 
-    if (personalPro.cancelAtPeriodEnd) return
+    if (
+      await isCancelAtPeriodEndSettled(
+        tx,
+        personalPro.id,
+        Boolean(personalPro.cancelAtPeriodEnd),
+        true
+      )
+    ) {
+      return
+    }
 
     await tx
       .update(subscriptionTable)
@@ -411,9 +435,10 @@ export async function pauseProSubscriptionForOrgCoverage(
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'covered-by-organization',
       })
     }
@@ -541,7 +566,7 @@ async function reassignOwnedOrganizationResourcesTx({
   organizationId,
   workspaceIds,
 }: {
-  tx: DbOrTx
+  tx: DbTransaction
   userId: string
   organizationId: string
   workspaceIds: string[]
@@ -554,6 +579,13 @@ async function reassignOwnedOrganizationResourcesTx({
 
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
+
+  await reassignOrganizationProjects(tx, {
+    organizationId,
+    fromUserId: userId,
+    toUserId: ownerId,
+    workspaceIds,
+  })
 
   /** Creator attribution must survive account deletion without changing document ACLs. */
   await tx
@@ -845,16 +877,25 @@ async function applyPaidOrgJoinBillingTx(
     .for('update')
     .limit(1)
 
-  if (personalPro && !personalPro.cancelAtPeriodEnd) {
+  const alreadyPausing =
+    personalPro &&
+    (await isCancelAtPeriodEndSettled(
+      tx,
+      personalPro.id,
+      Boolean(personalPro.cancelAtPeriodEnd),
+      true
+    ))
+  if (personalPro && !alreadyPausing) {
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: true })
       .where(eq(subscriptionTable.id, personalPro.id))
 
     if (personalPro.stripeSubscriptionId) {
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      await enqueueCancelAtPeriodEndSync(tx, {
         stripeSubscriptionId: personalPro.stripeSubscriptionId,
         subscriptionId: personalPro.id,
+        cancelAtPeriodEnd: true,
         reason: 'joined-paid-org',
         ...(options.sourceOperationId ? { sourceOperationId: options.sourceOperationId } : {}),
       })
@@ -1828,6 +1869,12 @@ export async function transferOrganizationOwnership(
         .returning({ id: workspace.id })
 
       result.workspacesReassigned = ownerUpdate.length
+      await reassignOrganizationProjects(tx, {
+        organizationId,
+        fromUserId: currentOwnerUserId,
+        toUserId: newOwnerUserId,
+        workspaceIds: ownerUpdate.map((workspaceRow) => workspaceRow.id),
+      })
 
       const reassignedWorkspaceIds = Array.from(
         new Set([...billedWorkspaceIds, ...ownerUpdate.map((workspaceRow) => workspaceRow.id)])

@@ -50,7 +50,10 @@ export function defineOrganizationConfigurationUseCase<
         )
       } catch (error) {
         const classified = asOrchestrationError(error)
-        if (classified?.code === 'not_found') {
+        if (
+          classified?.code === 'not_found' &&
+          (args.principal.kind === 'session' || args.principal.kind === 'organization_delegated')
+        ) {
           throw new OrchestrationError('forbidden', 'Forbidden - Not a member of this organization')
         }
         if (

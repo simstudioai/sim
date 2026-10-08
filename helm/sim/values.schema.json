@@ -167,6 +167,10 @@
               "type": "string",
               "description": "Comma-separated CIDRs or IPs on a private network that outbound requests may reach (e.g. '10.0.0.0/8'). Cloud metadata endpoints stay blocked regardless. Ignored on the hosted platform."
             },
+            "SSO_SKIP_DOMAIN_VERIFICATION": {
+              "type": "string",
+              "description": "Set to 'true' to trust organization administrator domain claims without DNS proof on self-hosted deployments. Off by default and ignored on Sim Cloud."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."

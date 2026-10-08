@@ -60,6 +60,7 @@
     "jsdom": "^26.0.0",
     "postcss": "^8",
     "postcss-load-config": "6.0.1",
+    "postgres": "^3.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",

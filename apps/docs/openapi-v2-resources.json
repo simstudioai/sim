@@ -5017,7 +5017,7 @@
       "get": {
         "operationId": "getPermissionGroup",
         "summary": "Get Permission Group",
-        "description": "Get a permission group and its resolved restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Get a permission group and its resolved settings. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "permission_groups.read",
         "x-oauth-scope": "api:read",
         "tags": ["Permission Groups"],
@@ -6892,6 +6892,1387 @@
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/sso/providers": {
+      "get": {
+        "operationId": "listSsoProviders",
+        "summary": "List SSO Providers",
+        "description": "List identity providers owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organization.sso.providers.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum identity providers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum identity providers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "providerId",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["providerId", "domain"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List SSO Providers result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSsoProvidersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveSsoProvider",
+        "summary": "Save SSO Provider",
+        "description": "Create or update an organization identity provider’s configuration on a verified domain. Requires organization administrator access and SSO entitlement. Existing providers return 200; creation returns 201. Omission behavior is field-specific; OIDC’s redacted secret marker preserves the saved secret. Identity changes with linked accounts conflict. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organization.sso.providers.save",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Configuration accepted by Save SSO Provider.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSsoProviderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Save SSO Provider result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveSsoProviderResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Save SSO Provider result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveSsoProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/sso/providers/{providerId}": {
+      "get": {
+        "operationId": "getSsoProvider",
+        "summary": "Get SSO Provider",
+        "description": "Get an identity provider owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organization.sso.providers.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Identity provider identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identity provider identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get SSO Provider result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSsoProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSsoProvider",
+        "summary": "Delete SSO Provider",
+        "description": "Remove an identity provider and clear its primary selection. Requires organization administrator access. Existing accounts, memberships, and sessions remain; sign-in falls back to another verified provider on the domain. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organization.sso.providers.delete",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Identity provider identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identity provider identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delete SSO Provider result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSsoProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/sso/providers/{providerId}/primary": {
+      "post": {
+        "operationId": "setPrimarySsoProvider",
+        "summary": "Set Primary SSO Provider",
+        "description": "Make a verified organization provider handle sign-in for its domain. Requires organization administrator access. Other providers remain available for testing and later switching. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organization.sso.set_primary_provider",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Identity provider identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identity provider identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Configuration accepted by Set Primary SSO Provider.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrimarySsoProviderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set Primary SSO Provider result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetPrimarySsoProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/sso/policy": {
+      "get": {
+        "operationId": "getSsoPolicy",
+        "summary": "Get SSO Policy",
+        "description": "Get the stored organization SSO requirement and whether it is currently enforced. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organization.sso.read_requirement",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get SSO Policy result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSsoPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSsoPolicy",
+        "summary": "Update SSO Policy",
+        "description": "Require or stop requiring SSO on future sign-ins. Requires organization administrator access. Enabling requires SSO entitlement and a verified provider; disabling remains available after entitlement is lost. Existing sessions remain active. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organization.sso.set_requirement",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Configuration accepted by Update SSO Policy.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSsoPolicyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update SSO Policy result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSsoPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/domains": {
+      "get": {
+        "operationId": "listOrganizationDomains",
+        "summary": "List Organization Domains",
+        "description": "List the organization’s domain claims with cursor pagination. Requires organization membership. Pending DNS challenge values are returned only to administrators using their own credentials. Organizations without Enterprise domain entitlement return an empty list. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "organizations.domains.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum domain claims to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum domain claims to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "domain",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["domain"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Organization Domains result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOrganizationDomainsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addOrganizationDomain",
+        "summary": "Add Organization Domain",
+        "description": "Claim a domain and receive its DNS TXT challenge. Requires organization administrator access and Enterprise domain entitlement. An existing claim returns 200; a new claim returns 201. A domain verified by another organization conflicts. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.domains.add",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Configuration accepted by Add Organization Domain.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOrganizationDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Add Organization Domain result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddOrganizationDomainResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Add Organization Domain result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddOrganizationDomainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/domains/{domainId}/verify": {
+      "post": {
+        "operationId": "verifyOrganizationDomain",
+        "summary": "Verify Organization Domain",
+        "description": "Verify domain ownership through the published DNS TXT challenge and grant domain trust to matching organization providers. Requires organization administrator access and Enterprise domain entitlement. An already-verified domain is returned unchanged. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.domains.verify",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "description": "Domain claim owned by this organization.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Domain claim owned by this organization."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Configuration accepted by Verify Organization Domain.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOrganizationDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verify Organization Domain result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyOrganizationDomainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/domains/{domainId}": {
+      "delete": {
+        "operationId": "removeOrganizationDomain",
+        "summary": "Remove Organization Domain",
+        "description": "Remove a domain claim and revoke verified sign-in authority from matching organization providers. Requires organization administrator access and Enterprise domain entitlement. Existing accounts and memberships remain. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "organizations.domains.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization whose single sign-on settings and verified domains are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization whose single sign-on settings and verified domains are managed."
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "description": "Domain claim owned by this organization.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Domain claim owned by this organization."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove Organization Domain result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveOrganizationDomainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/{credentialId}/members": {
+      "get": {
+        "operationId": "listCredentialMembers",
+        "summary": "List Credential Members",
+        "description": "List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access and the integrations.manage capability. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "credentials.members.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential whose sharing grants are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential whose sharing grants are managed."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace expected to own the credential."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum credential members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum credential members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "email",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["email", "name"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List Credential Members result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCredentialMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "upsertCredentialMember",
+        "summary": "Upsert Credential Member",
+        "description": "Grant or change an existing workspace member’s credential role. Requires credential administrator access and the integrations.manage capability. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.members.upsert",
+        "x-oauth-scope": "api:write",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential whose sharing grants are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential whose sharing grants are managed."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace expected to own the credential."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Configuration accepted by Upsert Credential Member.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertCredentialMemberBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upsert Credential Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertCredentialMemberResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Upsert Credential Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertCredentialMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/{credentialId}/members/{userId}": {
+      "delete": {
+        "operationId": "removeCredentialMember",
+        "summary": "Remove Credential Member",
+        "description": "Revoke an active explicit credential grant. Requires credential administrator access and the integrations.manage capability. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.members.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential whose sharing grants are managed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential whose sharing grants are managed."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User whose explicit grant will be revoked.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "User whose explicit grant will be revoked."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace expected to own the credential."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove Credential Member result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveCredentialMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -9381,6 +10762,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -12607,6 +13991,7 @@
                       "microsoft-ad",
                       "microsoft-dataverse",
                       "microsoft-excel",
+                      "microsoft-intune",
                       "microsoft-planner",
                       "microsoft-powerbi",
                       "microsoft-teams",
@@ -12638,6 +14023,7 @@
                       "calcom",
                       "docusign",
                       "pipedrive",
+                      "ramp",
                       "hubspot",
                       "linkedin",
                       "instagram",
@@ -16016,6 +17402,29 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "required": [
@@ -16060,10 +17469,12 @@
               "disableToolAutoApproval",
               "hideSandboxesTab",
               "disableOAuthAppAccess",
-              "disableKnowledgeBaseExport"
+              "disableKnowledgeBaseExport",
+              "deniedPartialAccessProjectIssues",
+              "defaultAgentModel"
             ],
             "additionalProperties": false,
-            "description": "Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none."
+            "description": "Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection."
           },
           "isDefault": {
             "type": "boolean",
@@ -16112,7 +17523,7 @@
         ],
         "additionalProperties": false,
         "title": "Permission group",
-        "description": "An organization permission group and its resolved restrictions."
+        "description": "An organization permission group and its resolved settings."
       },
       "ListPermissionGroupsResponse": {
         "type": "object",
@@ -16190,7 +17601,9 @@
                   "disableToolAutoApproval": false,
                   "hideSandboxesTab": false,
                   "disableOAuthAppAccess": false,
-                  "disableKnowledgeBaseExport": false
+                  "disableKnowledgeBaseExport": false,
+                  "deniedPartialAccessProjectIssues": [],
+                  "defaultAgentModel": null
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -16265,7 +17678,9 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16519,10 +17934,31 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "additionalProperties": false,
-            "description": "Permission restrictions to set. Omitted keys use the default permission configuration."
+            "description": "Group settings to set. Omitted keys use the default permission configuration."
           },
           "isDefault": {
             "description": "Whether the group is the organization default. Only one group can be the default.",
@@ -16610,7 +18046,9 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16683,7 +18121,9 @@
                 "disableToolAutoApproval": false,
                 "hideSandboxesTab": false,
                 "disableOAuthAppAccess": false,
-                "disableKnowledgeBaseExport": false
+                "disableKnowledgeBaseExport": false,
+                "deniedPartialAccessProjectIssues": [],
+                "defaultAgentModel": null
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -16944,10 +18384,31 @@
               "disableKnowledgeBaseExport": {
                 "type": "boolean",
                 "description": "Prevent downloading a whole knowledge base as an archive."
+              },
+              "deniedPartialAccessProjectIssues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+              },
+              "defaultAgentModel": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Default model for new Agent blocks. Null uses the platform default."
               }
             },
             "additionalProperties": false,
-            "description": "Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list."
+            "description": "Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list."
           },
           "isDefault": {
             "description": "Whether the group is the organization default. Only one group can be the default.",
@@ -17963,6 +19424,1071 @@
           }
         ]
       },
+      "ListSsoProvidersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Provider record identifier."
+                },
+                "providerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Globally unique identity provider identifier."
+                },
+                "providerType": {
+                  "type": "string",
+                  "enum": ["oidc", "saml"],
+                  "description": "Identity provider protocol."
+                },
+                "domain": {
+                  "type": "string",
+                  "description": "Email domain served by the provider."
+                },
+                "domainKey": {
+                  "type": "string",
+                  "description": "Normalized email domain used for sign-in."
+                },
+                "issuer": {
+                  "type": "string",
+                  "description": "Identity provider issuer URL."
+                },
+                "oidcConfig": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "JSON configuration with the client secret redacted; null for SAML."
+                },
+                "samlConfig": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "JSON configuration without private keys; null for OIDC."
+                },
+                "jitProvisioningEnabled": {
+                  "type": "boolean",
+                  "description": "Whether successful SSO sign-in may add organization members, subject to membership and seat policies."
+                },
+                "domainVerified": {
+                  "type": "boolean",
+                  "description": "Whether the provider has a verified domain grant."
+                },
+                "isPrimary": {
+                  "type": "boolean",
+                  "description": "Whether this provider currently handles sign-in for its domain."
+                }
+              },
+              "required": [
+                "id",
+                "providerId",
+                "providerType",
+                "domain",
+                "domainKey",
+                "issuer",
+                "oidcConfig",
+                "samlConfig",
+                "jitProvisioningEnabled",
+                "domainVerified",
+                "isPrimary"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List SSO Providers response",
+        "description": "List SSO Providers result."
+      },
+      "GetSsoProviderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Provider record identifier."
+              },
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Globally unique identity provider identifier."
+              },
+              "providerType": {
+                "type": "string",
+                "enum": ["oidc", "saml"],
+                "description": "Identity provider protocol."
+              },
+              "domain": {
+                "type": "string",
+                "description": "Email domain served by the provider."
+              },
+              "domainKey": {
+                "type": "string",
+                "description": "Normalized email domain used for sign-in."
+              },
+              "issuer": {
+                "type": "string",
+                "description": "Identity provider issuer URL."
+              },
+              "oidcConfig": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "JSON configuration with the client secret redacted; null for SAML."
+              },
+              "samlConfig": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "JSON configuration without private keys; null for OIDC."
+              },
+              "jitProvisioningEnabled": {
+                "type": "boolean",
+                "description": "Whether successful SSO sign-in may add organization members, subject to membership and seat policies."
+              },
+              "domainVerified": {
+                "type": "boolean",
+                "description": "Whether the provider has a verified domain grant."
+              },
+              "isPrimary": {
+                "type": "boolean",
+                "description": "Whether this provider currently handles sign-in for its domain."
+              }
+            },
+            "required": [
+              "id",
+              "providerId",
+              "providerType",
+              "domain",
+              "domainKey",
+              "issuer",
+              "oidcConfig",
+              "samlConfig",
+              "jitProvisioningEnabled",
+              "domainVerified",
+              "isPrimary"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get SSO Provider response",
+        "description": "Get SSO Provider result."
+      },
+      "SaveSsoProviderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Saved provider identifier."
+              },
+              "providerType": {
+                "type": "string",
+                "enum": ["oidc", "saml"],
+                "description": "Saved identity provider protocol."
+              },
+              "created": {
+                "type": "boolean",
+                "description": "Whether a new provider was created."
+              }
+            },
+            "required": ["providerId", "providerType", "created"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Save SSO Provider response",
+        "description": "Save SSO Provider result."
+      },
+      "SaveSsoProviderBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "providerType": {
+                "type": "string",
+                "const": "oidc",
+                "description": "Configure an OpenID Connect identity provider."
+              },
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Globally unique provider ID; saving an existing provider replaces its supplied configuration."
+              },
+              "issuer": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "Identity provider issuer URL."
+              },
+              "domain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Email domain already verified by this organization."
+              },
+              "jitProvisioningEnabled": {
+                "default": true,
+                "description": "Allow SSO sign-in to provision organization membership, subject to eligibility and available seats.",
+                "type": "boolean"
+              },
+              "mapping": {
+                "default": {
+                  "id": "sub",
+                  "email": "email",
+                  "name": "name",
+                  "image": "picture"
+                },
+                "description": "Identity-provider claims mapped to user fields.",
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "default": "sub",
+                    "description": "Claim holding the stable identity identifier.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "email": {
+                    "default": "email",
+                    "description": "Claim holding the email address.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "name": {
+                    "default": "name",
+                    "description": "Claim holding the display name.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "image": {
+                    "default": "picture",
+                    "description": "Claim holding the avatar URL.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "additionalProperties": false
+              },
+              "clientId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "Identity provider client identifier."
+              },
+              "clientSecret": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192,
+                "description": "Write-only client secret; the redacted marker from Get SSO Provider preserves an existing secret.",
+                "writeOnly": true
+              },
+              "scopes": {
+                "default": ["openid", "profile", "email"],
+                "description": "OIDC scopes; offline_access is omitted.",
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                }
+              },
+              "pkce": {
+                "default": true,
+                "description": "Use PKCE for the authorization flow.",
+                "type": "boolean"
+              },
+              "authorizationEndpoint": {
+                "description": "Optional authorization endpoint; otherwise resolved through issuer discovery.",
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              "tokenEndpoint": {
+                "description": "Optional token endpoint; otherwise resolved through issuer discovery.",
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              "userInfoEndpoint": {
+                "description": "Optional UserInfo endpoint.",
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              "skipUserInfoEndpoint": {
+                "default": false,
+                "description": "Read identity claims from the ID token instead of calling UserInfo.",
+                "type": "boolean"
+              },
+              "jwksEndpoint": {
+                "description": "Optional signing-key endpoint; otherwise resolved through issuer discovery.",
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              }
+            },
+            "required": [
+              "providerType",
+              "providerId",
+              "issuer",
+              "domain",
+              "clientId",
+              "clientSecret"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "providerType": {
+                "type": "string",
+                "const": "saml",
+                "description": "Configure a SAML identity provider."
+              },
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Globally unique provider ID; saving an existing provider replaces its supplied configuration."
+              },
+              "issuer": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "Identity provider issuer URL."
+              },
+              "domain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Email domain already verified by this organization."
+              },
+              "jitProvisioningEnabled": {
+                "default": true,
+                "description": "Allow SSO sign-in to provision organization membership, subject to eligibility and available seats.",
+                "type": "boolean"
+              },
+              "mapping": {
+                "default": {
+                  "id": "sub",
+                  "email": "email",
+                  "name": "name",
+                  "image": "picture"
+                },
+                "description": "Identity-provider claims mapped to user fields.",
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "default": "sub",
+                    "description": "Claim holding the stable identity identifier.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "email": {
+                    "default": "email",
+                    "description": "Claim holding the email address.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "name": {
+                    "default": "name",
+                    "description": "Claim holding the display name.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "image": {
+                    "default": "picture",
+                    "description": "Claim holding the avatar URL.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "additionalProperties": false
+              },
+              "entryPoint": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "Identity provider SAML sign-in endpoint."
+              },
+              "cert": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "description": "Identity provider signing certificate."
+              },
+              "callbackUrl": {
+                "description": "SAML callback URL; defaults to this provider’s Sim callback.",
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              },
+              "audience": {
+                "description": "SAML audience; omission preserves the saved value.",
+                "type": "string",
+                "maxLength": 2048
+              },
+              "wantAssertionsSigned": {
+                "description": "Require signed assertions; omission preserves the saved value.",
+                "type": "boolean"
+              },
+              "signatureAlgorithm": {
+                "description": "Signature algorithm accepted by the SAML configuration validator; omission preserves the saved value.",
+                "type": "string",
+                "maxLength": 255
+              },
+              "digestAlgorithm": {
+                "description": "Digest algorithm accepted by the SAML configuration validator; omission preserves the saved value.",
+                "type": "string",
+                "maxLength": 255
+              },
+              "identifierFormat": {
+                "description": "SAML NameID format; omission clears the saved value.",
+                "type": "string",
+                "maxLength": 2048
+              },
+              "idpMetadata": {
+                "description": "Identity provider metadata XML; omission clears the saved document.",
+                "type": "string",
+                "maxLength": 102400
+              }
+            },
+            "required": ["providerType", "providerId", "issuer", "domain", "entryPoint", "cert"],
+            "additionalProperties": false
+          }
+        ],
+        "title": "Save SSO Provider body",
+        "description": "Configuration accepted by Save SSO Provider."
+      },
+      "DeleteSsoProviderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Removed provider identifier."
+              },
+              "deleted": {
+                "type": "boolean",
+                "const": true,
+                "description": "The provider was removed; existing accounts and memberships remain."
+              }
+            },
+            "required": ["providerId", "deleted"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete SSO Provider response",
+        "description": "Delete SSO Provider result."
+      },
+      "SetPrimarySsoProviderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Provider selected for domain sign-in."
+              },
+              "domain": {
+                "type": "string",
+                "description": "Verified domain whose primary provider changed."
+              }
+            },
+            "required": ["providerId", "domain"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Set Primary SSO Provider response",
+        "description": "Set Primary SSO Provider result."
+      },
+      "SetPrimarySsoProviderBody": {
+        "default": {},
+        "title": "Set Primary SSO Provider body",
+        "description": "Configuration accepted by Set Primary SSO Provider.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "GetSsoPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "requireSso": {
+                "type": "boolean",
+                "description": "Stored single sign-on requirement."
+              },
+              "hasVerifiedProvider": {
+                "type": "boolean",
+                "description": "Whether a verified provider can satisfy the requirement."
+              },
+              "isEnforced": {
+                "type": "boolean",
+                "description": "Whether sign-in currently enforces the requirement."
+              }
+            },
+            "required": ["requireSso", "hasVerifiedProvider", "isEnforced"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get SSO Policy response",
+        "description": "Get SSO Policy result."
+      },
+      "UpdateSsoPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "requireSso": {
+                "type": "boolean",
+                "description": "Stored single sign-on requirement."
+              },
+              "hasVerifiedProvider": {
+                "type": "boolean",
+                "description": "Whether a verified provider can satisfy the requirement."
+              },
+              "isEnforced": {
+                "type": "boolean",
+                "description": "Whether sign-in currently enforces the requirement."
+              }
+            },
+            "required": ["requireSso", "hasVerifiedProvider", "isEnforced"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update SSO Policy response",
+        "description": "Update SSO Policy result."
+      },
+      "UpdateSsoPolicyBody": {
+        "type": "object",
+        "properties": {
+          "requireSso": {
+            "type": "boolean",
+            "description": "Require organization SSO on future sign-ins; existing sessions remain active."
+          }
+        },
+        "required": ["requireSso"],
+        "additionalProperties": false,
+        "title": "Update SSO Policy body",
+        "description": "Configuration accepted by Update SSO Policy."
+      },
+      "ListOrganizationDomainsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Domain claim identifier."
+                },
+                "domain": {
+                  "type": "string",
+                  "description": "Normalized email domain."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "verified"],
+                  "description": "DNS ownership verification state."
+                },
+                "verifiedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When domain ownership was verified."
+                },
+                "challengeHost": {
+                  "type": "string",
+                  "description": "DNS host where the verification TXT record must be published."
+                },
+                "txtRecordValue": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "TXT record value for a pending domain; only administrators receive it."
+                }
+              },
+              "required": [
+                "id",
+                "domain",
+                "status",
+                "verifiedAt",
+                "challengeHost",
+                "txtRecordValue"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Organization Domains response",
+        "description": "List Organization Domains result."
+      },
+      "AddOrganizationDomainResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Domain claim identifier."
+              },
+              "domain": {
+                "type": "string",
+                "description": "Normalized email domain."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "verified"],
+                "description": "DNS ownership verification state."
+              },
+              "verifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When domain ownership was verified."
+              },
+              "challengeHost": {
+                "type": "string",
+                "description": "DNS host where the verification TXT record must be published."
+              },
+              "txtRecordValue": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "TXT record value for a pending domain; only administrators receive it."
+              }
+            },
+            "required": ["id", "domain", "status", "verifiedAt", "challengeHost", "txtRecordValue"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Add Organization Domain response",
+        "description": "Add Organization Domain result."
+      },
+      "AddOrganizationDomainBody": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "description": "Domain to claim and verify through a DNS TXT record."
+          }
+        },
+        "required": ["domain"],
+        "additionalProperties": false,
+        "title": "Add Organization Domain body",
+        "description": "Configuration accepted by Add Organization Domain."
+      },
+      "VerifyOrganizationDomainResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Domain claim identifier."
+              },
+              "domain": {
+                "type": "string",
+                "description": "Normalized email domain."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "verified"],
+                "description": "DNS ownership verification state."
+              },
+              "verifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When domain ownership was verified."
+              },
+              "challengeHost": {
+                "type": "string",
+                "description": "DNS host where the verification TXT record must be published."
+              },
+              "txtRecordValue": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "TXT record value for a pending domain; only administrators receive it."
+              }
+            },
+            "required": ["id", "domain", "status", "verifiedAt", "challengeHost", "txtRecordValue"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Verify Organization Domain response",
+        "description": "Verify Organization Domain result."
+      },
+      "VerifyOrganizationDomainBody": {
+        "default": {},
+        "title": "Verify Organization Domain body",
+        "description": "Configuration accepted by Verify Organization Domain.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "RemoveOrganizationDomainResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Removed domain claim identifier."
+              },
+              "deleted": {
+                "type": "boolean",
+                "const": true,
+                "description": "The claim was removed; providers on this domain lose verified sign-in authority."
+              }
+            },
+            "required": ["id", "deleted"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove Organization Domain response",
+        "description": "Remove Organization Domain result."
+      },
+      "ListCredentialMembersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Membership identifier; inherited grants have a derived identifier."
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "User holding the credential grant."
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["admin", "member"],
+                  "description": "Effective credential role."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["active", "pending", "revoked"],
+                  "description": "Explicit grant status, or active for inherited administrators."
+                },
+                "joinedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When the explicit grant started; null for an inherited-only grant."
+                },
+                "userName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Member display name."
+                },
+                "userEmail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Member email."
+                },
+                "userImage": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Member avatar URL."
+                },
+                "roleSource": {
+                  "type": "string",
+                  "enum": ["explicit", "workspace-admin"],
+                  "description": "Whether workspace administrator access supplies the grant."
+                }
+              },
+              "required": [
+                "id",
+                "userId",
+                "role",
+                "status",
+                "joinedAt",
+                "userName",
+                "userEmail",
+                "userImage",
+                "roleSource"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Credential Members response",
+        "description": "List Credential Members result."
+      },
+      "UpsertCredentialMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "User whose explicit grant was saved."
+              },
+              "role": {
+                "type": "string",
+                "enum": ["admin", "member"],
+                "description": "Saved explicit credential role."
+              },
+              "created": {
+                "type": "boolean",
+                "description": "Whether a new explicit grant was created."
+              }
+            },
+            "required": ["userId", "role", "created"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Upsert Credential Member response",
+        "description": "Upsert Credential Member result."
+      },
+      "UpsertCredentialMemberBody": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Existing workspace member to grant or change access for."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Credential role to grant; workspace administrators cannot be demoted."
+          }
+        },
+        "required": ["userId", "role"],
+        "additionalProperties": false,
+        "title": "Upsert Credential Member body",
+        "description": "Configuration accepted by Upsert Credential Member."
+      },
+      "RemoveCredentialMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "User whose explicit grant was revoked."
+              },
+              "revoked": {
+                "type": "boolean",
+                "const": true,
+                "description": "The grant is revoked; inherited workspace administrator access is preserved."
+              }
+            },
+            "required": ["userId", "revoked"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove Credential Member response",
+        "description": "Remove Credential Member result."
+      },
       "V2WorkspacePermissionConfig": {
         "type": "object",
         "properties": {
@@ -18220,6 +20746,29 @@
                   "disableKnowledgeBaseExport": {
                     "type": "boolean",
                     "description": "Prevent downloading a whole knowledge base as an archive."
+                  },
+                  "deniedPartialAccessProjectIssues": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "description": "Issues in the listed Projects are unavailable to teammates without access to every active environment."
+                  },
+                  "defaultAgentModel": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Default model for new Agent blocks. Null uses the platform default."
                   }
                 },
                 "required": [
@@ -18264,7 +20813,9 @@
                   "disableToolAutoApproval",
                   "hideSandboxesTab",
                   "disableOAuthAppAccess",
-                  "disableKnowledgeBaseExport"
+                  "disableKnowledgeBaseExport",
+                  "deniedPartialAccessProjectIssues",
+                  "defaultAgentModel"
                 ],
                 "additionalProperties": false
               },
@@ -18272,7 +20823,7 @@
                 "type": "null"
               }
             ],
-            "description": "Effective group restrictions. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies."
+            "description": "Effective group settings. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies."
           },
           "entitled": {
             "type": "boolean",
@@ -20749,7 +23300,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 42,
+            "maxItems": 43,
             "type": "array",
             "items": {
               "type": "object",
@@ -20798,7 +23349,8 @@
                     "disableToolAutoApproval",
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
-                    "disableKnowledgeBaseExport"
+                    "disableKnowledgeBaseExport",
+                    "deniedPartialAccessProjectIssues"
                   ],
                   "description": "Permission restriction changed by approval."
                 },
@@ -21310,7 +23862,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 42,
+            "maxItems": 43,
             "type": "array",
             "items": {
               "type": "object",
@@ -21359,7 +23911,8 @@
                     "disableToolAutoApproval",
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
-                    "disableKnowledgeBaseExport"
+                    "disableKnowledgeBaseExport",
+                    "deniedPartialAccessProjectIssues"
                   ],
                   "description": "Permission restriction changed by approval."
                 },

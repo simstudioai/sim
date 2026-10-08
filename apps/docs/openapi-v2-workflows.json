@@ -5722,6 +5722,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -12615,6 +12618,11 @@
                         "additionalProperties": false
                       }
                     ]
+                  },
+                  "stopAfterBlockId": {
+                    "description": "Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.",
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": ["source"],
@@ -12702,6 +12710,17 @@
                 "blockId": "block_123",
                 "sourceRunId": "run_123"
               }
+            }
+          },
+          {
+            "run": {
+              "source": "manual",
+              "entry": {
+                "type": "block",
+                "blockId": "block_123",
+                "sourceRunId": "run_123"
+              },
+              "stopAfterBlockId": "block_123"
             }
           }
         ]

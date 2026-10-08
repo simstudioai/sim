@@ -1,7 +1,11 @@
+import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  MutationObserver,
+  mutationOptions,
+  type QueryClient,
   queryOptions,
   skipToken,
   useMutation,
@@ -20,18 +24,22 @@ import {
   type MothershipChatScope,
   markMothershipChatReadContract,
   restoreMothershipChatContract,
+  type SetMothershipChatEffortBody,
+  setMothershipChatEffortContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -53,6 +61,8 @@ export interface MothershipChatHistory {
   messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
+  /** The effort the user picked for this chat; null or absent while it follows the default. */
+  effort?: MothershipEffort | null
   streamSnapshot?: {
     events: StreamBatchEvent[]
     previewSessions: FilePreviewSession[]
@@ -200,6 +210,7 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
+    effort: getMothershipChatResponseSchema.shape.chat.shape.effort.parse(chat.effort ?? null),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
   }
 }
@@ -271,7 +282,7 @@ export function useOrganizationMothershipChats(
   })
 }
 
-export async function fetchMothershipChatHistory(
+async function readMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
@@ -297,6 +308,22 @@ export async function fetchMothershipChatHistory(
   }
 
   return parseChatHistory(await copilotRes.json())
+}
+
+/**
+ * Reads a chat from the server. A chat this tab saw deleted that the server
+ * returns again was restored, so it takes queued sends again. Only a read that
+ * began after the delete counts: one already in flight can return the chat from
+ * before it.
+ */
+export async function fetchMothershipChatHistory(
+  chatId: string,
+  signal?: AbortSignal
+): Promise<MothershipChatHistory> {
+  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
+  const history = await readMothershipChatHistory(chatId, signal)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
+  return history
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
@@ -355,6 +382,12 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
+    /** The delete this restore undoes; one that lands while it is in flight stays. */
+    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
+    onSuccess: (_data, chatId, context) => {
+      if (context?.deleteSeen === undefined) return
+      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
     },
@@ -577,6 +610,70 @@ export function useSetMothershipChatPinned(owner?: MothershipChatOwner) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
+    },
+  })
+}
+
+async function setChatEffort({
+  chatId,
+  effort,
+}: SetMothershipChatEffortBody & { chatId: string }): Promise<void> {
+  await requestJson(setMothershipChatEffortContract, {
+    params: { chatId },
+    body: { effort },
+  })
+}
+
+/**
+ * Records the effort the user picked for a chat. The pick shows and sends at once from the
+ * session's pick map; saves for one chat run one at a time so the last pick is the one stored.
+ */
+export function useSetMothershipChatEffort(chatId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation(chatEffortMutationOptions(queryClient, chatId))
+}
+
+/**
+ * Saves a pick for a chat learned outside render, such as the chat a send just opened. It
+ * shares the hook's per-chat scope, so it lands in order with picks made in the composer.
+ */
+export function saveMothershipChatEffort(
+  queryClient: QueryClient,
+  chatId: string,
+  effort: MothershipEffort
+): void {
+  const observer = new MutationObserver(queryClient, chatEffortMutationOptions(queryClient, chatId))
+  // Detaching once the save settles lets the mutation cache collect it.
+  observer
+    .mutate(effort)
+    .catch(() => undefined)
+    .finally(() => observer.reset())
+}
+
+function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | undefined) {
+  return mutationOptions({
+    mutationFn: (effort: MothershipEffort) => {
+      if (!chatId) throw new Error('A chat effort needs a chat')
+      return setChatEffort({ chatId, effort })
+    },
+    scope: { id: `mothership-chat-effort:${chatId ?? ''}` },
+    // Runs at once even while an earlier save for this chat holds the scope, so a failed
+    // save rolls back its own pick by token, never a later pick of the same value.
+    onMutate: (effort) => {
+      if (!chatId) return undefined
+      return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
+    },
+    onError: (_error, _effort, context) => {
+      if (!chatId || !context) return
+      if (useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)) {
+        toast.error("Couldn't change reasoning effort")
+      }
+    },
+    onSuccess: (_data, effort) => {
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) => current && { ...current, effort }
+      )
     },
   })
 }

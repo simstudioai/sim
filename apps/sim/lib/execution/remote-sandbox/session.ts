@@ -35,8 +35,10 @@ export async function ensureSessionSandbox(args: {
   signal.throwIfAborted()
   if (!provider.findSessionSandbox) throw new Error('This deployment has no persistent workbench')
   const lifetimeMs = SESSION_SANDBOX_IDLE_MS + (options.lifetimeMs ?? 0)
+  const requestedAtMs = Date.now()
   const existing = await provider.findSessionSandbox(session.key, {
     ...(options.language ? { language: options.language } : {}),
+    lifetimeMs,
   })
   signal.throwIfAborted()
   const created: CreatedSandbox = existing
@@ -61,7 +63,9 @@ export async function ensureSessionSandbox(args: {
       providerId: provider.id,
       sandboxId: created.sandbox.sandboxId,
     })
-  await created.sandbox.extendLifetime?.(lifetimeMs)
+  // Measured from before acquisition: any lease the lookup or create granted starts no earlier.
+  if (!created.sandbox.outlives?.(lifetimeMs, requestedAtMs))
+    await created.sandbox.extendLifetime?.(lifetimeMs)
   signal.throwIfAborted()
   if (session.cli) {
     await ensureSessionCli(created.sandbox, session.cli, signal, args.bootstrapTimeoutMs)

@@ -882,6 +882,11 @@ export interface DesktopPreferences {
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
+   * Keep the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  preventSleepWhileRunning?: boolean
+  /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
    */
@@ -954,6 +959,12 @@ export interface DesktopNotificationPayload {
   body: string
   /** Optional in-app route opened when the notification is clicked. */
   route?: string
+  /**
+   * A chat that finished in the background. In "only when unfocused" mode such a notification is
+   * held back only while the focused window shows its `route`; every other notification is held
+   * back whenever the window is focused.
+   */
+  background?: boolean
 }
 
 /** Device-level settings owned by the desktop shell. */
@@ -968,6 +979,11 @@ interface SimDesktopSettingsApi {
    * for compatibility with installed shells that predate live suggestions.
    */
   setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Keeps the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
@@ -1072,6 +1088,20 @@ interface SimDesktopServerApi {
   setOrigin(origin: string): Promise<DesktopServerChangeResult>
 }
 
+/** The device the desktop app registered for its background executor. */
+export interface DesktopExecutorDevice {
+  /** The install id Sim binds a turn to. */
+  deviceId: string
+  /** The executor protocol version Sim accepted at registration. */
+  protocolVersion: number
+}
+
+/** The background executor in the desktop main process. */
+interface SimDesktopExecutorApi {
+  /** Null until the device registers, and whenever Sim reports the executor off. */
+  getDevice(): Promise<DesktopExecutorDevice | null>
+}
+
 export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
@@ -1103,6 +1133,12 @@ export interface SimDesktopApi {
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Optional so older installed shells do not advertise the new native tools. */
   localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
+  /**
+   * Present on shells that claim each local read (`read_local_file`, user-local VFS reads) through
+   * the server's tool authorization before reading, as they already do for imports. A turn started
+   * from such a shell persists those calls pending, so a read nobody picks up fails fast.
+   */
+  localReadClaims?: true
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void
   windowState: SimDesktopWindowStateApi
@@ -1117,10 +1153,19 @@ export interface SimDesktopApi {
   /** Saved passwords and user-driven fill for the built-in browser. */
   browserCredentials: SimDesktopBrowserCredentialsApi
   terminal: SimDesktopTerminalApi
+  /**
+   * Runs desktop tools for chats the user is not viewing. Optional: shells without one leave
+   * desktop tools to the chat view.
+   */
+  desktopExecutor?: SimDesktopExecutorApi
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
-export { MAX_DESKTOP_IMPORT_FILE_BYTES } from './local-files'
+export {
+  DESKTOP_IMPORT_TOKEN_HEADER,
+  isStorableImportName,
+  MAX_DESKTOP_IMPORT_FILE_BYTES,
+} from './local-files'
 export {
   applyDesktopTitleBarMode,
   DESKTOP_TITLE_BAR_ATTRIBUTE,

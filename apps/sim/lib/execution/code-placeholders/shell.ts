@@ -28,15 +28,74 @@ interface HeredocDeclaration {
 type ShellQuote = 'none' | 'single' | 'double' | 'ansi'
 
 interface ShellScanFrame {
-  kind: 'root' | 'command' | 'arithmetic' | 'backtick'
+  kind: 'root' | 'command' | 'arithmetic' | 'backtick' | 'parameter'
   quote: ShellQuote
   parenthesisDepth: number
+  bracketDepth?: number
   literalRoot: boolean
+  inDoubleQuotes?: boolean
+  commandStarted?: boolean
+  commandPrefix?: 'time' | 'coproc'
+  wordEnd?: number
+  conditional?: {
+    start: number
+    arithmetic: boolean
+    words: number
+    wordOpen: boolean
+    unary: boolean
+  }
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
+  /** Includes nested command substitutions whose output can become an arithmetic operand. */
+  arithmetic?: boolean
   unsupported?: 'escaped sequence'
+}
+
+interface ShellSpan {
+  start: number
+  end: number
+}
+
+const ARITHMETIC_COMPARISON = /^-(?:eq|ne|lt|le|gt|ge)$/
+const SHELL_WORD = /(?:\\[\s\S]|[^\s;&|()<>\\])+/y
+const COMMAND_INTRODUCERS = new Set([
+  'if',
+  'then',
+  'elif',
+  'else',
+  'while',
+  'until',
+  'do',
+  '!',
+  'time',
+  'coproc',
+])
+
+function shellWordStarts(code: string, index: number): boolean {
+  return index === 0 || /[\s;&|()<>]/.test(code[index - 1])
+}
+
+function followsRedirect(code: string, index: number): boolean {
+  let previous = index - 1
+  while (code[previous] === ' ' || code[previous] === '\t') previous -= 1
+  return code[previous] === '<' || code[previous] === '>'
+}
+
+function effectiveQuote(frame: ShellScanFrame): ShellQuote {
+  return frame.kind === 'parameter' && frame.quote === 'none' && frame.inDoubleQuotes
+    ? 'double'
+    : frame.quote
+}
+
+function readShellWord(code: string, index: number): { word: string; end: number } {
+  SHELL_WORD.lastIndex = index
+  const raw = SHELL_WORD.exec(code)?.[0] ?? ''
+  return {
+    word: raw.replace(/\\([\s\S])/g, (escaped, character) => (character === '\n' ? '' : escaped)),
+    end: index + raw.length,
+  }
 }
 
 function lineEndAfterNewline(code: string, start: number): number {
@@ -445,10 +504,11 @@ function isShellAssignmentName(code: string, occurrence: CodePlaceholderOccurren
 function getUnsupportedShellPosition(
   code: string,
   occurrence: CodePlaceholderOccurrence,
-  quote: ShellQuote
+  context: ShellOccurrenceContext
 ): string | undefined {
+  if (context.arithmetic) return 'in shell arithmetic'
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
-  if (quote !== 'none') return undefined
+  if (context.quote !== 'none') return undefined
 
   const lineStart = Math.max(
     code.lastIndexOf('\n', occurrence.start - 1),
@@ -470,24 +530,34 @@ function heredocBodyRanges(heredocs: HeredocDeclaration[]): Array<[number, numbe
  * Jumps over `skippedRanges` (sorted heredoc bodies, which bash reads as data) so body prose
  * cannot shift quote context; bodies that need contexts are scanned on their own with `literalRoot`.
  */
-function collectShellOccurrenceContexts(
+function collectShellOccurrenceContexts<T extends ShellSpan>(
   code: string,
-  occurrences: CodePlaceholderOccurrence[],
+  occurrences: readonly T[],
   start: number,
   end: number,
   literalRoot: boolean,
   skippedRanges: Array<[number, number]> = []
-): Map<CodePlaceholderOccurrence, ShellOccurrenceContext> {
+): Map<T, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
     occurrencesWithin(occurrences, start, end).map(
       (occurrence) => [occurrence.start, occurrence] as const
     )
   )
-  const contexts = new Map<CodePlaceholderOccurrence, ShellOccurrenceContext>()
+  const contexts = new Map<T, ShellOccurrenceContext>()
   const frames: ShellScanFrame[] = [
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot },
   ]
   let skippedRangeIndex = 0
+  let arithmeticDepth = 0
+  const conditionalArithmeticRanges: Array<[number, number]> = []
+  const endConditionalOperand = (frame: ShellScanFrame, end: number) => {
+    if (frame.conditional?.arithmetic) {
+      conditionalArithmeticRanges.push([frame.conditional.start, end])
+    }
+    if (frame.conditional) {
+      frame.conditional = { start: end, arithmetic: false, words: 0, wordOpen: false, unary: false }
+    }
+  }
 
   for (let index = start; index < end; ) {
     const frame = frames.at(-1)
@@ -505,14 +575,111 @@ function collectShellOccurrenceContexts(
       continue
     }
 
+    const character = code[index]
+    if (
+      frame.quote === 'none' &&
+      !frame.literalRoot &&
+      frame.kind !== 'arithmetic' &&
+      frame.kind !== 'parameter'
+    ) {
+      if (frame.conditional) {
+        if (character === '\\' && code[index + 1] === '\n') {
+          index += 2
+          continue
+        }
+        if ((character === '&' || character === '|') && code[index + 1] === character) {
+          endConditionalOperand(frame, index)
+        }
+        if (/\s|[()]/.test(character)) {
+          frame.conditional.wordOpen = false
+        } else if (!frame.conditional.wordOpen && character !== '&' && character !== '|') {
+          const { word } = readShellWord(code, index)
+          if (word === ']]') {
+            endConditionalOperand(frame, index)
+            frame.conditional = undefined
+          } else {
+            const conditional = frame.conditional
+            conditional.wordOpen = true
+            if (word !== '!' || conditional.words > 0) {
+              if (
+                conditional.words === 1 &&
+                !conditional.unary &&
+                word &&
+                ARITHMETIC_COMPARISON.test(word)
+              ) {
+                conditional.arithmetic = true
+              }
+              if (conditional.words === 0) conditional.unary = /^-[a-zA-Z]$/.test(word ?? '')
+              conditional.words += 1
+            }
+          }
+        }
+      } else if (
+        /[\n;()]/.test(character) ||
+        ((character === '&' || character === '|') &&
+          !/[<>]/.test(code[index - 1] ?? '') &&
+          !(character === '&' && code[index + 1] === '>')) ||
+        (character === '{' &&
+          shellWordStarts(code, index) &&
+          readShellWord(code, index).word === '{')
+      ) {
+        frame.commandStarted = false
+        frame.commandPrefix = undefined
+      } else if (
+        !frame.commandStarted &&
+        index >= (frame.wordEnd ?? start) &&
+        shellWordStarts(code, index)
+      ) {
+        const { word, end: wordEnd } = readShellWord(code, index)
+        frame.wordEnd = wordEnd
+        if (
+          word &&
+          !followsRedirect(code, index) &&
+          !/^\d+(?=[<>])/.test(code.slice(index)) &&
+          !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)
+        ) {
+          const prefixArgument =
+            (frame.commandPrefix === 'time' && word === '-p') ||
+            (frame.commandPrefix === 'coproc' && word !== '[[' && !COMMAND_INTRODUCERS.has(word))
+          frame.commandPrefix = word === 'time' || word === 'coproc' ? word : undefined
+          if (!COMMAND_INTRODUCERS.has(word) && !prefixArgument) {
+            frame.commandStarted = true
+            if (word === '[[') {
+              frame.conditional = {
+                start: index,
+                arithmetic: false,
+                words: 0,
+                wordOpen: true,
+                unary: false,
+              }
+            }
+          }
+        }
+      }
+    }
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
-      contexts.set(occurrence, { quote: frame.quote })
+      contexts.set(occurrence, { quote: effectiveQuote(frame), arithmetic: arithmeticDepth > 0 })
       index = occurrence.end
       continue
     }
-
-    const character = code[index]
+    if (
+      character === '$' &&
+      code[index + 1] === '{' &&
+      !occurrenceByStart.has(index + 1) &&
+      frame.kind !== 'arithmetic' &&
+      (frame.quote === 'none' || frame.quote === 'double')
+    ) {
+      frames.push({
+        kind: 'parameter',
+        quote: 'none',
+        parenthesisDepth: 0,
+        literalRoot: false,
+        inDoubleQuotes: effectiveQuote(frame) === 'double' || frame.literalRoot,
+      })
+      index += 2
+      continue
+    }
     if (frame.quote === 'single') {
       if (character === "'") frame.quote = 'none'
       index += 1
@@ -531,6 +698,27 @@ function collectShellOccurrenceContexts(
         if (character === "'") frame.quote = 'none'
         index += 1
       }
+      continue
+    }
+    const arithmeticExpansion =
+      character === '$' &&
+      ((code[index + 1] === '(' && code[index + 2] === '(') || code[index + 1] === '[')
+    const arithmeticCommand =
+      frame.quote === 'none' &&
+      !frame.literalRoot &&
+      frame.kind !== 'parameter' &&
+      shellArithmeticCommandStarts(code, index)
+    if (arithmeticExpansion || arithmeticCommand) {
+      const brackets = arithmeticExpansion && code[index + 1] === '['
+      frames.push({
+        kind: 'arithmetic',
+        quote: 'none',
+        parenthesisDepth: brackets ? 0 : 2,
+        ...(brackets ? { bracketDepth: 1 } : {}),
+        literalRoot: false,
+      })
+      arithmeticDepth += 1
+      index += arithmeticExpansion && !brackets ? 3 : 2
       continue
     }
     if (frame.quote === 'double') {
@@ -572,7 +760,13 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (!frame.literalRoot && shellCommentStarts(code, index)) {
+    if (
+      frame.kind !== 'arithmetic' &&
+      frame.kind !== 'parameter' &&
+      !frame.literalRoot &&
+      shellCommentStarts(code, index)
+    ) {
+      if (!frame.conditional) frame.commandStarted = false
       const newline = code.indexOf('\n', index)
       index = newline === -1 || newline >= end ? end : newline + 1
       continue
@@ -587,12 +781,18 @@ function collectShellOccurrenceContexts(
       }
       continue
     }
-    if (!frame.literalRoot && character === '$' && code[index + 1] === "'") {
+    const singleQuotesLiteral = frame.kind === 'parameter' && frame.inDoubleQuotes
+    if (
+      !frame.literalRoot &&
+      !singleQuotesLiteral &&
+      character === '$' &&
+      code[index + 1] === "'"
+    ) {
       frame.quote = 'ansi'
       index += 2
       continue
     }
-    if (!frame.literalRoot && character === "'") {
+    if (!frame.literalRoot && !singleQuotesLiteral && character === "'") {
       frame.quote = 'single'
       index += 1
       continue
@@ -602,7 +802,14 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (character === '$' && code[index + 1] === '(') {
+    if (
+      code[index + 1] === '(' &&
+      (character === '$' ||
+        ((character === '<' || character === '>') &&
+          !frame.literalRoot &&
+          frame.kind !== 'arithmetic' &&
+          effectiveQuote(frame) === 'none'))
+    ) {
       frames.push({
         kind: 'command',
         quote: 'none',
@@ -622,20 +829,45 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === '(') {
+    if (frame.kind === 'parameter' && character === '}') {
+      frames.pop()
+      index += 1
+      continue
+    }
+    if (frame.kind === 'arithmetic' && frame.bracketDepth !== undefined) {
+      if (character === '[') frame.bracketDepth += 1
+      if (character === ']') {
+        frame.bracketDepth -= 1
+        if (frame.bracketDepth === 0) {
+          frames.pop()
+          arithmeticDepth -= 1
+        }
+      }
+      index += 1
+      continue
+    }
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === ')') {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
       frame.parenthesisDepth -= 1
-      if (frame.parenthesisDepth === 0) frames.pop()
+      if (frame.parenthesisDepth === 0) {
+        frames.pop()
+        if (frame.kind === 'arithmetic') arithmeticDepth -= 1
+      }
       index += 1
       continue
     }
     index += 1
   }
 
+  for (const frame of frames) endConditionalOperand(frame, end)
+  const inConditionalArithmetic = createOffsetRangeLookup(conditionalArithmeticRanges)
+  for (const [occurrence, context] of contexts) {
+    if (inConditionalArithmetic(occurrence.start)) context.arithmetic = true
+  }
   return contexts
 }
 
@@ -726,6 +958,11 @@ function recordShellDirectEnvironmentReads(
   }
 }
 
+/**
+ * Binds values without inserting them into shell source, rejecting placeholders in explicit
+ * arithmetic delimiters and arithmetic comparisons. This lexical guard does not follow later
+ * evaluation through variable attributes, indirect command names, or commands such as `eval`.
+ */
 export async function compileShellPlaceholders(
   input: InternalCompileCodePlaceholdersInput
 ): Promise<CompiledCodePlaceholders> {
@@ -750,36 +987,87 @@ export async function compileShellPlaceholders(
     validateShellValue(occurrence, context.resolve(occurrence))
   const resolveShellValue = (occurrence: CodePlaceholderOccurrence) =>
     validateShellValue(occurrence, context.resolveValue(occurrence))
+  /** A placeholder with no value stays as written; analysis still discovers one with a value. */
+  const rejectUnsupported = (occurrence: CodePlaceholderOccurrence, position: string) => {
+    if (!context.hasValue(occurrence.name)) return
+    if (input.analysisOnly) {
+      context.resolveValue(occurrence)
+      return
+    }
+    throw new CodePlaceholderCompileError(
+      `Variable placeholder "${occurrence.name}" is not supported ${position}`,
+      input.code,
+      occurrence.start
+    )
+  }
+  /** Heredoc bodies are data, so only code outside them can name an assignment target. */
+  const resolveInContext = (
+    occurrence: CodePlaceholderOccurrence,
+    occurrenceContext: ShellOccurrenceContext | undefined,
+    inCode: boolean
+  ): SourceEdit | undefined => {
+    if (!occurrenceContext) return undefined
+    if (occurrenceContext.unsupported) {
+      rejectUnsupported(occurrence, 'in an escaped shell sequence')
+      return undefined
+    }
+    const unsupportedPosition =
+      getUnsupportedShellPosition(input.code, occurrence, occurrenceContext) ??
+      (inCode && occurrenceContext.quote === 'none' && isShellAssignmentName(input.code, occurrence)
+        ? 'as a shell assignment name'
+        : undefined)
+    if (unsupportedPosition) {
+      rejectUnsupported(occurrence, unsupportedPosition)
+      return undefined
+    }
+    const resolved = resolveShellOccurrence(occurrence)
+    return {
+      start: occurrence.start,
+      end: occurrence.end,
+      text: resolved ? shellExpansion(resolved.bindingName, occurrenceContext.quote) : '',
+    }
+  }
 
   const heredocs = collectHeredocs(input.code)
   const shellOccurrences = context.occurrences.filter(isLegacyShellPlaceholder)
+  const isExcluded = createOffsetRangeLookup(
+    heredocs.flatMap(
+      (heredoc): Array<[number, number]> => [
+        [heredoc.operatorStart, heredoc.operatorEnd],
+        [heredoc.bodyStart, heredoc.removalEnd],
+      ]
+    )
+  )
+  const rootOccurrences = shellOccurrences.filter((occurrence) => !isExcluded(occurrence.start))
+  /** A heredoc operator's context is where its body lands, so it is scanned like a placeholder. */
+  const heredocOperators = heredocs.map(
+    (heredoc): ShellSpan => ({ start: heredoc.operatorStart, end: heredoc.operatorEnd })
+  )
+  const rootContexts = collectShellOccurrenceContexts<ShellSpan>(
+    input.code,
+    [...rootOccurrences, ...heredocOperators].sort((left, right) => left.start - right.start),
+    0,
+    input.code.length,
+    false,
+    heredocBodyRanges(heredocs)
+  )
   const edits: SourceEdit[] = []
-  const excludedRanges: Array<[number, number]> = []
 
-  for (const heredoc of heredocs) {
-    excludedRanges.push([heredoc.operatorStart, heredoc.operatorEnd])
-    excludedRanges.push([heredoc.bodyStart, heredoc.removalEnd])
-
+  for (const [heredocIndex, heredoc] of heredocs.entries()) {
     const delimiterOccurrences = occurrencesWithin(
       shellOccurrences,
       heredoc.operatorStart,
       heredoc.operatorEnd
     )
     for (const occurrence of delimiterOccurrences) {
-      if (context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
-        }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported in a shell heredoc delimiter`,
-          input.code,
-          occurrence.start
-        )
-      }
+      rejectUnsupported(occurrence, 'in a shell heredoc delimiter')
     }
 
     const bodyOccurrences = occurrencesWithin(shellOccurrences, heredoc.bodyStart, heredoc.bodyEnd)
+    if (rootContexts.get(heredocOperators[heredocIndex])?.arithmetic) {
+      for (const occurrence of bodyOccurrences) rejectUnsupported(occurrence, 'in shell arithmetic')
+      continue
+    }
     if (heredoc.quoted) {
       const bodyEdits: SourceEdit[] = []
       let hasResolvedPlaceholder = false
@@ -830,116 +1118,14 @@ export async function compileShellPlaceholders(
       true
     )
     for (const occurrence of bodyOccurrences) {
-      const occurrenceContext = bodyContexts.get(occurrence)
-      if (!occurrenceContext) continue
-      if (occurrenceContext.unsupported) {
-        if (context.hasValue(occurrence.name)) {
-          if (input.analysisOnly) {
-            context.resolveValue(occurrence)
-            continue
-          }
-          throw new CodePlaceholderCompileError(
-            `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
-            input.code,
-            occurrence.start
-          )
-        }
-        continue
-      }
-      const unsupportedPosition = getUnsupportedShellPosition(
-        input.code,
-        occurrence,
-        occurrenceContext.quote
-      )
-      if (unsupportedPosition) {
-        if (context.hasValue(occurrence.name)) {
-          if (input.analysisOnly) {
-            context.resolveValue(occurrence)
-            continue
-          }
-          throw new CodePlaceholderCompileError(
-            `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
-            input.code,
-            occurrence.start
-          )
-        }
-        continue
-      }
-      const resolved = resolveShellOccurrence(occurrence)
-      edits.push({
-        start: occurrence.start,
-        end: occurrence.end,
-        text: resolved ? shellExpansion(resolved.bindingName, occurrenceContext.quote) : '',
-      })
+      const edit = resolveInContext(occurrence, bodyContexts.get(occurrence), false)
+      if (edit) edits.push(edit)
     }
   }
 
-  const isExcluded = createOffsetRangeLookup(excludedRanges)
-  const rootOccurrences = shellOccurrences.filter((occurrence) => !isExcluded(occurrence.start))
-  const rootContexts = collectShellOccurrenceContexts(
-    input.code,
-    rootOccurrences,
-    0,
-    input.code.length,
-    false,
-    heredocBodyRanges(heredocs)
-  )
   for (const occurrence of rootOccurrences) {
-    const occurrenceContext = rootContexts.get(occurrence)
-    if (!occurrenceContext) continue
-    if (occurrenceContext.unsupported) {
-      if (context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
-        }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
-          input.code,
-          occurrence.start
-        )
-      }
-      continue
-    }
-    const unsupportedPosition = getUnsupportedShellPosition(
-      input.code,
-      occurrence,
-      occurrenceContext.quote
-    )
-    if (unsupportedPosition) {
-      if (context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
-        }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
-          input.code,
-          occurrence.start
-        )
-      }
-      continue
-    }
-    if (occurrenceContext.quote === 'none' && isShellAssignmentName(input.code, occurrence)) {
-      if (context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
-        }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported as a shell assignment name`,
-          input.code,
-          occurrence.start
-        )
-      }
-      continue
-    }
-    const resolved = resolveShellOccurrence(occurrence)
-    edits.push({
-      start: occurrence.start,
-      end: occurrence.end,
-      text: resolved ? shellExpansion(resolved.bindingName, occurrenceContext.quote) : '',
-    })
+    const edit = resolveInContext(occurrence, rootContexts.get(occurrence), true)
+    if (edit) edits.push(edit)
   }
 
   return context.finish(applySourceEdits(input.code, edits))

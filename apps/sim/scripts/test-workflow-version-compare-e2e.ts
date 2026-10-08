@@ -36,6 +36,9 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('WorkflowVersionCompareE2E')
 const execFileAsync = promisify(execFile)
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+/** The first request to each route cold-compiles it under `next dev`. */
+const ROUTE_COMPILE_TIMEOUT_MS = 300_000
+/** Every later request hits a compiled route. */
 const REQUEST_TIMEOUT_MS = 60_000
 const startedAt = new Date().toISOString()
 
@@ -309,30 +312,39 @@ async function seedBrowserWorkflows() {
   }
 }
 
-async function observedFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+async function observedFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<Response> {
   const url = new URL(input instanceof Request ? input.url : input)
   assert.equal(
     url.origin,
     baseUrl.origin,
     'E2E requests must remain on the configured loopback app'
   )
+  const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
   const started = performance.now()
   const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
-  // boundary-raw-fetch: protocol E2E exercises a separately running local app over real HTTP
-  const response = await fetch(input, {
-    ...init,
-    redirect: 'error',
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
-      : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
-  requests.push({
-    method: init?.method ?? (input instanceof Request ? input.method : 'GET'),
-    path: url.pathname,
-    status: response.status,
-    durationMs: Math.round(performance.now() - started),
-  })
-  return response
+  const timeout = AbortSignal.timeout(timeoutMs)
+  try {
+    // boundary-raw-fetch: protocol E2E exercises a separately running local app over real HTTP
+    const response = await fetch(input, {
+      ...init,
+      redirect: 'error',
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    })
+    requests.push({
+      method,
+      path: url.pathname,
+      status: response.status,
+      durationMs: Math.round(performance.now() - started),
+    })
+    return response
+  } catch (error) {
+    if (!timeout.aborted) throw error
+    throw new Error(`${method} ${url.pathname}: no response within ${timeoutMs / 1000}s`)
+  }
 }
 
 async function get(path: string, auth: { key?: string; session?: string } = {}, expected = 200) {
@@ -344,10 +356,18 @@ async function get(path: string, auth: { key?: string; session?: string } = {}, 
   assert.match(response.headers.get('content-type') ?? '', /application\/json/)
   if (path.startsWith('/api/v2/'))
     assert.equal(response.headers.get('cache-control'), 'private, no-store')
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_RESPONSE_BYTES,
-    label: 'Version comparison E2E response',
-  })
+  let text: string
+  try {
+    text = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_RESPONSE_BYTES,
+      label: 'Version comparison E2E response',
+    })
+  } catch (error) {
+    /** `get` passes no signal of its own, so an abort here is the request timeout. */
+    if (!(error instanceof DOMException && ['TimeoutError', 'AbortError'].includes(error.name)))
+      throw error
+    throw new Error(`GET ${path}: response body not complete within ${REQUEST_TIMEOUT_MS / 1000}s`)
+  }
   return record(JSON.parse(text))
 }
 
@@ -432,6 +452,22 @@ async function runMcp() {
 try {
   await check('seed disposable workspace, versions and credentials', seed)
   if (browserFixturesPath) await check('seed browser scenarios', seedBrowserWorkflows)
+  await check('every route under test compiles and refuses an anonymous request', async () => {
+    for (const [method, path] of [
+      ['GET', `/api/workflows/${workflowId}/deployments/1`],
+      ['GET', `/api/v2/workflows/${workflowId}/versions/1`],
+      ['GET', comparisonPath(1, 2)],
+      ['POST', '/api/mcp'],
+    ] as const) {
+      const response = await observedFetch(
+        new URL(path, baseUrl),
+        { method, headers: { 'x-forwarded-for': '127.0.0.1' } },
+        ROUTE_COMPILE_TIMEOUT_MS
+      )
+      await response.body?.cancel()
+      assert.equal(response.status, 401, `${method} ${path}: unexpected HTTP status`)
+    }
+  })
   await check(
     'session preview migrates both versions while the public archive stays pinned',
     async () => {

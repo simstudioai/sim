@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
+import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import { parseNdjsonObjects } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
@@ -25,9 +26,9 @@ const SITE_HOSTS: Record<DatadogSite, string> = {
 
 const MAX_ATTEMPTS = 4
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
-const MAX_UNCOMPRESSED_BYTES = 5 * 1024 * 1024
+const MAX_UNCOMPRESSED_BYTES = 5_000_000
 const MAX_WIRE_BYTES = 6 * 1024 * 1024
-const MAX_ENTRY_BYTES = 1024 * 1024
+const MAX_ENTRY_BYTES = 1_000_000
 const MAX_ENTRIES_PER_REQUEST = 1000
 const GZIP_THRESHOLD_BYTES = 1024
 
@@ -151,6 +152,7 @@ function buildRequestBody(payload: string, apiKey: string): PreparedBody {
 
 async function postWithRetries(input: PostInput): Promise<Response> {
   const { body, headers } = input.prepared
+  const apiKey = headers['DD-API-KEY']
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
@@ -166,8 +168,9 @@ async function postWithRetries(input: PostInput): Promise<Response> {
         signal: perAttempt,
       })
     } catch (error) {
-      lastError = error
-      logger.debug('Datadog request failed', { attempt, error: toError(error).message })
+      const message = redactExactSensitiveValues(toError(error).message, [apiKey])
+      lastError = new Error(message)
+      logger.debug('Datadog request failed', { attempt })
     }
     if (response) {
       if (response.ok) {
@@ -177,7 +180,9 @@ async function postWithRetries(input: PostInput): Promise<Response> {
       }
       if (!isRetryableStatus(response.status)) {
         const text = await response.text().catch(() => '')
-        throw new Error(`Datadog responded with HTTP ${response.status}: ${text}`)
+        throw new Error(
+          `Datadog responded with HTTP ${response.status}: ${redactExactSensitiveValues(text, [apiKey])}`
+        )
       }
       lastError = new Error(`Datadog responded with HTTP ${response.status}`)
       retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
@@ -219,51 +224,66 @@ export const datadogDestination: DrainDestination<
   openSession({ config, credentials }) {
     const url = buildEndpoint(config.site)
     return {
-      async deliver({ body, metadata, signal }) {
+      async deliver({ body, metadata, signal, acknowledge }) {
         const rows = parseNdjsonObjects(body)
         const entries = buildEntries(rows, config, metadata)
-        if (entries.length > MAX_ENTRIES_PER_REQUEST) {
-          throw new Error(
-            `Datadog chunk has ${entries.length} entries, exceeds the ${MAX_ENTRIES_PER_REQUEST} per-request limit`
-          )
-        }
-        for (let i = 0; i < entries.length; i++) {
-          const entryBytes = Buffer.byteLength(JSON.stringify(entries[i]), 'utf8')
+        const serializedEntries = entries.map((entry, index) => {
+          const json = JSON.stringify(entry)
+          const entryBytes = Buffer.byteLength(json, 'utf8')
           if (entryBytes > MAX_ENTRY_BYTES) {
             throw new Error(
-              `Datadog entry at index ${i} is ${entryBytes} bytes, exceeds the ${MAX_ENTRY_BYTES}-byte per-entry limit`
+              `Datadog entry at index ${index} is ${entryBytes} bytes, exceeds the ${MAX_ENTRY_BYTES}-byte per-entry limit`
             )
           }
-        }
-        const payload = JSON.stringify(entries)
-        const prepared = buildRequestBody(payload, credentials.apiKey)
-        if (prepared.rawBytes > MAX_UNCOMPRESSED_BYTES) {
-          throw new Error(
-            `Datadog payload is ${prepared.rawBytes} bytes uncompressed, exceeds the ${MAX_UNCOMPRESSED_BYTES}-byte per-request limit`
-          )
-        }
-        if (prepared.wireBytes > MAX_WIRE_BYTES) {
-          throw new Error(
-            `Datadog payload is ${prepared.wireBytes} bytes on the wire, exceeds the ${MAX_WIRE_BYTES}-byte defensive wire-size cap`
-          )
-        }
-        const response = await postWithRetries({
-          url,
-          prepared,
-          signal,
+          return { json, bytes: entryBytes }
         })
-        const requestId = response.headers.get('dd-request-id') ?? null
+        let batch: string[] = []
+        let batchBytes = 2
+        let rawBytes = 0
+        let wireBytes = 0
+        const locatorPrefix = `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`
+        let locator = locatorPrefix
+        let requests = 0
+        const sendBatch = async () => {
+          const prepared = buildRequestBody(`[${batch.join(',')}]`, credentials.apiKey)
+          if (prepared.wireBytes > MAX_WIRE_BYTES) {
+            throw new Error(
+              `Datadog payload is ${prepared.wireBytes} bytes on the wire, exceeds the ${MAX_WIRE_BYTES}-byte defensive wire-size cap`
+            )
+          }
+          const response = await postWithRetries({ url, prepared, signal })
+          const requestId = response.headers.get('dd-request-id')
+          locator = requestId ? `${locatorPrefix}@${requestId}` : `${locatorPrefix}-${requests}`
+          await acknowledge?.({
+            rowCount: batch.length,
+            locator,
+          })
+          rawBytes += prepared.rawBytes
+          wireBytes += prepared.wireBytes
+          requests++
+          batch = []
+          batchBytes = 2
+        }
+        for (const entry of serializedEntries) {
+          const addedBytes = entry.bytes + (batch.length > 0 ? 1 : 0)
+          if (
+            batch.length >= MAX_ENTRIES_PER_REQUEST ||
+            batchBytes + addedBytes > MAX_UNCOMPRESSED_BYTES
+          ) {
+            await sendBatch()
+          }
+          batchBytes += entry.bytes + (batch.length > 0 ? 1 : 0)
+          batch.push(entry.json)
+        }
+        if (batch.length > 0 || serializedEntries.length === 0) await sendBatch()
         logger.debug('Datadog chunk delivered', {
           site: config.site,
           rows: entries.length,
-          rawBytes: prepared.rawBytes,
-          wireBytes: prepared.wireBytes,
+          requests,
+          rawBytes,
+          wireBytes,
         })
-        return {
-          locator: requestId
-            ? `datadog://${config.site}#${metadata.runId}-${metadata.sequence}@${requestId}`
-            : `datadog://${config.site}#${metadata.runId}-${metadata.sequence}`,
-        }
+        return { locator }
       },
       async close() {},
     }

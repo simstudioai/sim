@@ -2,6 +2,10 @@ import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
 } from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipClientToolWaiterMock,
+  mothershipClientToolWaiterMockFns,
+} from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
@@ -17,12 +21,11 @@ const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApprov
   })
 )
 
-const { waitForClientToolCompletion, waitForToolCompletion, waitForWorkflowToolCompletion } =
-  vi.hoisted(() => ({
-    waitForClientToolCompletion: vi.fn(),
-    waitForToolCompletion: vi.fn(),
-    waitForWorkflowToolCompletion: vi.fn(),
-  }))
+const {
+  mockWaitForClientToolCompletion: waitForClientToolCompletion,
+  mockWaitForToolCompletion: waitForToolCompletion,
+  mockWaitForWorkflowToolCompletion: waitForWorkflowToolCompletion,
+} = mothershipClientToolWaiterMockFns
 
 const { sealClientToolContext } = vi.hoisted(() => ({
   sealClientToolContext: vi.fn(),
@@ -44,11 +47,7 @@ vi.mock('@/lib/mothership/request/tools/tables', () => ({
   maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
 }))
 
-vi.mock('@/lib/mothership/request/tools/client', () => ({
-  waitForClientToolCompletion,
-  waitForToolCompletion,
-  waitForWorkflowToolCompletion,
-}))
+vi.mock('@/lib/mothership/request/tools/client', () => mothershipClientToolWaiterMock)
 
 vi.mock('@/lib/mothership/request/tools/client-completion-seal.server', () => ({
   sealClientToolContext,
@@ -355,6 +354,7 @@ describe('sse-handlers tool lifecycle', () => {
       args: {},
       sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      permissionRequested: false,
     })
     expect(sealClientToolContext).toHaveBeenCalledWith({
       toolCallId: 'browser-tool-1',
@@ -396,6 +396,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'deploy_as_api',
       args: { versionName: 'v2' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      permissionRequested: true,
     })
     expect(event.payload.status).toBe('awaiting_approval')
   })
@@ -586,6 +587,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'run_workflow',
       args: { workflowId: 'workflow-1' },
       status: MothershipStreamV1AsyncToolRecordStatus.running,
+      permissionRequested: false,
     })
   })
 

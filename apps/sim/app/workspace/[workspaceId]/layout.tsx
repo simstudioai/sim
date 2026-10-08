@@ -5,6 +5,10 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import {
+  hasDesktopBackgroundExecutor,
+  isDesktopBackgroundExecutorAvailable,
+} from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -67,6 +71,7 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    desktopExecutorRegistered,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -84,6 +89,7 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    hasDesktopBackgroundExecutor(session.user.id),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -118,7 +124,15 @@ export default async function WorkspaceLayout({
                   <WorkspaceScopeSync />
                   <SettingsNavigationProvider>
                     <WorkspaceChrome
-                      sidebar={<Sidebar organizationHref={organizationHref} />}
+                      sidebar={
+                        <Sidebar
+                          organizationHref={organizationHref}
+                          desktopExecutor={{
+                            available: isDesktopBackgroundExecutorAvailable(),
+                            registered: desktopExecutorRegistered,
+                          }}
+                        />
+                      }
                       initialSidebarCollapsed={initialSidebarCollapsed}
                     >
                       {children}

@@ -254,6 +254,9 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    # Self-hosted only: trust every organization owner/admin to verify domains without DNS proof.
+    # Requires a compatible app image; see https://docs.sim.ai/platform/enterprise/verified-domains#skip-dns-verification
+    SSO_SKIP_DOMAIN_VERIFICATION: ""                      # Opt in with "true"; unset/"false" requires DNS
     # SSO_TRUSTED_PROVIDER_IDS: comma-separated SSO provider IDs to trust for automatic account linking when a
     # user signs in via SSO and an account with the same email already exists. Only needed for IdPs that do NOT
     # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
@@ -1576,6 +1579,41 @@ cronjobs:
       name: knowledge-projection
       schedule: "*/1 * * * *"
       path: "/api/cron/knowledge-projection"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Folds the table row-change log into each table's stored row count and version.
+    foldTableRowChanges:
+      enabled: true
+      name: fold-table-row-changes
+      schedule: "*/1 * * * *"
+      path: "/api/cron/fold-table-row-changes"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Fails runs whose worker died without writing a terminal state (workflow
+    # executions, async jobs, table jobs and dispatches) and prunes old terminal
+    # bookkeeping rows.
+    cleanupStaleExecutions:
+      enabled: true
+      name: cleanup-stale-executions
+      schedule: "*/30 * * * *"
+      path: "/api/cron/cleanup-stale-executions"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Deletes idempotency records older than seven days, the longest dedupe
+    # window any caller uses. Runs inline in the request for up to five minutes.
+    idempotencyCleanup:
+      enabled: true
+      name: idempotency-cleanup
+      schedule: "0 5 * * *"
+      path: "/api/webhooks/cleanup/idempotency"
+      requestTimeoutSeconds: 300
+      activeDeadlineSeconds: 360
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

@@ -52,7 +52,7 @@ import {
   sweepOrphanedRuns,
 } from '@/lib/mothership/async-runs/orphaned-runs'
 import {
-  claimSimToolExecution,
+  claimToolExecution,
   requestRunStop,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
@@ -279,7 +279,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     /** A long tool call writes nothing to the run; only its execution heartbeat shows it is alive. */
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimSimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
 
     expect((await sweepOrphanedRuns()).settledRunIds).not.toContain(orphan.runId)
     const live = await stored(orphan.runId)
@@ -309,7 +309,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
           .where(eq(copilotRuns.id, orphan.runId))
           .for('update'),
       async (holder) => {
-        const claim = claimSimToolExecution(tool)
+        const claim = claimToolExecution(tool)
         const claimant = await lockWaiterBehind(holder)
         const sweep = sweepOrphanedRuns()
         await lockWaiterBehind(holder, claimant)
@@ -327,7 +327,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('never settles a run whose Sim tool lease a heartbeat renewed as the sweep settled it', async () => {
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimSimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
     await db
       .update(copilotAsyncToolCalls)
       .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
@@ -565,23 +565,60 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   })
 
   it('settles a stopped run exactly once when Stop races a recovering controller claiming it', async () => {
+    /**
+     * Claims the run as recovery does: lock the chat under the run's stream, prove the lease,
+     * then claim, so the claimed run has a lock holder for as long as its controller lives.
+     */
+    const recover = async (orphan: Awaited<ReturnType<typeof admittedRun>>) => {
+      const previousToken = orphan.controllerToken
+      if (!previousToken)
+        throw new Error('Recovery needs the run it takes over to have a controller')
+      if (!(await acquirePendingChatStream(orphan.chatId, orphan.streamId, 0))) return false
+      const lease = getLocalChatStreamLease(orphan.chatId, orphan.streamId)
+      if (!lease) throw new Error('Recovery acquired the chat lock without a local lease')
+      await assertChatStreamLease(lease)
+      const claimed = await claimRunController({
+        runId: orphan.runId,
+        chatId: orphan.chatId,
+        previousToken,
+        token: lease.value,
+        recoveryBackoff: FIRST_RECOVERY,
+      })
+      if (!claimed) await releasePendingChatStream(orphan.chatId, orphan.streamId, lease)
+      return claimed
+    }
+    /** Ends a recovered controller, as its stream finishing would. */
+    const release = async (orphan: Awaited<ReturnType<typeof admittedRun>>) => {
+      const lease = getLocalChatStreamLease(orphan.chatId, orphan.streamId)
+      if (lease) await releasePendingChatStream(orphan.chatId, orphan.streamId, lease)
+    }
+
+    /** A claim committed before Stop reads the run is the interleaving a loaded runner hits. */
+    const claimedFirst = await admittedRun()
+    await stop(claimedFirst)
+    expect(await recover(claimedFirst)).toBe(true)
+    expect(await settleStoppedRunWithoutController(claimedFirst.runId)).toBe(false)
+    expect((await stored(claimedFirst.runId)).status).toBe('active')
+    await release(claimedFirst)
+
+    const stoppedFirst = await admittedRun()
+    await stop(stoppedFirst)
+    expect(await settleStoppedRunWithoutController(stoppedFirst.runId)).toBe(true)
+    expect(await recover(stoppedFirst)).toBe(false)
+    expect((await stored(stoppedFirst.runId)).status).toBe('cancelled')
+
     for (let attempt = 0; attempt < 50; attempt++) {
       const orphan = await admittedRun()
       await stop(orphan)
 
       const [claimed, stopped] = await Promise.all([
-        claimRunController({
-          runId: orphan.runId,
-          chatId: orphan.chatId,
-          previousToken: orphan.controllerToken!,
-          token: `${orphan.streamId}\n${generateId()}`,
-          recoveryBackoff: FIRST_RECOVERY,
-        }),
+        recover(orphan),
         settleStoppedRunWithoutController(orphan.runId),
       ])
 
       expect(claimed !== stopped).toBe(true)
       expect((await stored(orphan.runId)).status).toBe(stopped ? 'cancelled' : 'active')
+      await release(orphan)
     }
   })
 

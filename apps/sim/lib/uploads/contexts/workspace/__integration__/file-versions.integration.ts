@@ -31,6 +31,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
@@ -40,7 +41,6 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,

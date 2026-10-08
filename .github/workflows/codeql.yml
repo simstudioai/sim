@@ -1,4 +1,4 @@
-name: CodeQL
+name: codeql
 
 # Advanced setup, replacing the repo-settings "default setup".
 #
@@ -77,7 +77,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze ${{ matrix.language }}
+    name: analyze (${{ matrix.language }})
     # Sized per language, not per workflow. The two analyses are nothing alike:
     # javascript-typescript peaks at 19.5 GB (p95 over 3090 runs), so it needs
     # the 8 vCPU tier's 30.4 GB and would OOM on the 4 vCPU tier's 15.2 GB; the
@@ -108,7 +108,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 

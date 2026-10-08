@@ -335,6 +335,7 @@ export async function runCleanupTableRowTtl(
 
 export const cleanupTableRowTtlTask = task({
   id: 'cleanup-table-row-ttl',
+  maxDuration: 600,
   queue: { concurrencyLimit: 1 },
   run: () => runCleanupTableRowTtl(),
 })

@@ -6,6 +6,7 @@ import {
   type CredentialProviderCatalogEntry,
   listCredentialProviderCatalog,
 } from '@/lib/credentials/application/provider-catalog'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ListCredentialProvidersInput {
@@ -31,7 +32,13 @@ export const listCredentialProviders = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('validation', 'search cannot be empty')
     }
 
-    const providers = await listCredentialProviderCatalog(principal, context)
+    // A GitHub App installation is connected through Search integrations, never credential
+    // creation, so it has no create fields and stays out of public discovery.
+    const providers = (await listCredentialProviderCatalog(principal, context)).filter(
+      (provider) =>
+        provider.type !== 'service_account' ||
+        provider.providerId !== GITHUB_INSTALLATION_PROVIDER_ID
+    )
     return {
       providers: search
         ? providers.filter((provider) => provider.name.toLowerCase().includes(search))

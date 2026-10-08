@@ -10,7 +10,10 @@ import {
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
 import { getExecutionStateForWorkflow } from '@/lib/workflows/executor/execution-state'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  type NormalizedWorkflowData,
+} from '@/lib/workflows/persistence/utils'
 import {
   resolveTriggerRunOptions,
   validateTriggerInput,
@@ -20,6 +23,7 @@ interface ManualExecutionInput
   extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
+  stopAfterBlockId?: string
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -47,6 +51,69 @@ async function loadManualState(workflowId: string) {
   return state
 }
 
+type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
+
+/** Blocks a run entering at `entryBlockId` can reach; the executor skips disabled blocks. */
+function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<string> {
+  const targetsBySource = new Map<string, string[]>()
+  for (const edge of state.edges) {
+    const targets = targetsBySource.get(edge.source) ?? []
+    targets.push(edge.target)
+    targetsBySource.set(edge.source, targets)
+  }
+  const reached = new Set([entryBlockId])
+  const queue = [entryBlockId]
+  for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+    for (const target of targetsBySource.get(next) ?? []) {
+      if (reached.has(target) || state.blocks[target]?.enabled === false) continue
+      reached.add(target)
+      queue.push(target)
+    }
+  }
+  return reached
+}
+
+/**
+ * The engine stops only when it completes a node whose id equals the target, so
+ * a target the run cannot reach would silently run everything after the entry:
+ * an unknown or disabled block, a block upstream of the entry or only behind a
+ * disabled one, or a block inside a loop or parallel (which would stop after its
+ * first iteration or never). All are refused, matching the editor, which offers
+ * "Run until block" only outside subflows.
+ */
+function assertStopAfterBlock(
+  state: ManualWorkflowState,
+  blockId: string | undefined,
+  entryBlockId: string
+): void {
+  if (blockId === undefined) return
+  const block = Object.hasOwn(state.blocks, blockId) ? state.blocks[blockId] : undefined
+  if (!block) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is not a block in the current saved workflow.`
+    )
+  }
+  if (block.enabled === false) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is disabled, so the run never executes it.`
+    )
+  }
+  if (block.data?.parentId) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is inside loop or parallel "${block.data.parentId}"; stop after that container instead.`
+    )
+  }
+  if (!reachableFrom(state, entryBlockId).has(blockId)) {
+    throw new OrchestrationError(
+      'validation',
+      `run.stopAfterBlockId "${blockId}" is not reachable from entry block "${entryBlockId}"; stop after the entry block or one downstream of it.`
+    )
+  }
+}
+
 function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): string {
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
@@ -55,6 +122,7 @@ function executionServiceInput(params: {
   principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
+  draftState: NormalizedWorkflowData
 }) {
   return {
     workflowId: params.context.workflowId,
@@ -68,6 +136,7 @@ function executionServiceInput(params: {
     includeFileBase64: params.input.includeFileBase64,
     base64MaxBytes: params.input.base64MaxBytes,
     selectedOutputs: params.input.selectedOutputs,
+    stopAfterBlockId: params.input.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
     abortSignal: params.input.abortSignal,
     mode: params.input.mode,
@@ -76,6 +145,7 @@ function executionServiceInput(params: {
     includeToolCalls: params.input.includeToolCalls,
     triggerType: 'manual' as const,
     useDraftState: true,
+    draftState: params.draftState,
   }
 }
 
@@ -115,6 +185,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
 
+    assertStopAfterBlock(state, input.stopAfterBlockId, selected.triggerBlockId)
     const executionInput = input.useMockPayload ? selected.mockPayload : input.input
     const validation = validateTriggerInput(selected, executionInput)
     if (!validation.ok) {
@@ -123,7 +194,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
     }
 
     return executeWorkflowService({
-      ...executionServiceInput({ principal, context, input }),
+      ...executionServiceInput({ principal, context, input, draftState: state }),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
@@ -141,6 +212,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
         `run.entry.blockId "${input.blockId}" is not a block in the current saved workflow.`
       )
     }
+    assertStopAfterBlock(state, input.stopAfterBlockId, input.blockId)
 
     const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
     if (!sourceSnapshot) {
@@ -151,7 +223,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     }
 
     return executeWorkflowService({
-      ...executionServiceInput({ principal, context, input }),
+      ...executionServiceInput({ principal, context, input, draftState: state }),
       input: input.input,
       runFromBlock: {
         startBlockId: input.blockId,

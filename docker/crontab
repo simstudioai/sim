@@ -36,6 +36,9 @@ SHELL=/bin/sh
 # Knowledge search projection convergence
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/knowledge-projection"
 
+# Table row-change log fold
+*/1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/fold-table-row-changes"
+
 # Knowledge base connector syncs
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/sync"
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/member-sync"
@@ -53,6 +56,9 @@ SHELL=/bin/sh
 # Deletes table rows whose TTL column has expired
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-table-row-ttl"
 
+# Fails runs whose worker died without a terminal state and prunes their history
+*/30 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-stale-executions"
+
 # Deletes OAuth token rows after the retention tail
 0 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-oauth-tokens"
 
@@ -64,6 +70,9 @@ SHELL=/bin/sh
 
 # Reclaims sandbox images
 30 4 * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-sandbox-images"
+
+# Deletes idempotency records past the seven-day dedupe window
+0 5 * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/webhooks/cleanup/idempotency"
 
 # Inbox entitlement reconciliation
 0 3 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/reconcile-inbox-entitlement"

@@ -905,7 +905,7 @@ export const Terminal = memo(function Terminal() {
       const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
       const blockName = entry.blockName || 'Unknown Block'
       const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-      sendMothershipMessage(message)
+      sendMothershipMessage({ content: message })
       closeLogRowMenu()
     },
     [closeLogRowMenu]

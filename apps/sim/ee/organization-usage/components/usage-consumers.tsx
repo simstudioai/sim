@@ -30,6 +30,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { NebiusIcon } from '@/components/icons/nebius'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -70,6 +71,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   litellm: LitellmIcon,
   meta: MetaIcon,
   mistral: MistralIcon,
+  nebius: NebiusIcon,
   nvidia: NvidiaIcon,
   ollama: OllamaIcon,
   'ollama-cloud': OllamaIcon,

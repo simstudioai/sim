@@ -55,3 +55,15 @@ export function selectVisiblePosts(
   const { featured, remaining } = paginateContentPosts(posts, options)
   return [...featured, ...remaining]
 }
+
+/** Resolves an archive page number, rejecting invalid or empty pagination URLs. */
+export function resolveContentPage(
+  posts: ContentMeta[],
+  { tag, page }: { tag?: string; page?: string }
+): number | null {
+  if (page !== undefined && !/^[1-9]\d*$/.test(page)) return null
+  const pageNum = Number(page ?? 1)
+  if (!Number.isSafeInteger(pageNum)) return null
+  const { totalPages } = paginateContentPosts(posts, { tag, page: pageNum })
+  return pageNum <= totalPages ? pageNum : null
+}

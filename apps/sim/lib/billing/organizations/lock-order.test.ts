@@ -17,6 +17,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,6 +43,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
 
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 /**
  * A superset row that satisfies every read in the join path: a paid org sub, a
@@ -228,6 +230,7 @@ describe('workspace payer-change transaction lock ordering', () => {
     const tx = {
       execute: async () => [],
       select,
+      selectDistinct: select,
       insert: () => ({
         values: () => ({
           onConflictDoUpdate: async () => undefined,

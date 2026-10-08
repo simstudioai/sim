@@ -1852,6 +1852,12 @@ Create a new follow-up on an incident in incident.io
 |   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
 |   ↳ `description` | string | Follow-up description |
 |   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 |   ↳ `assignee_team` | object | The team the follow-up is assigned to |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -1860,7 +1866,26 @@ Create a new follow-up on an incident in incident.io
 |     ↳ `name` | string | Priority name |
 |     ↳ `rank` | number | Priority rank |
 |     ↳ `description` | string | Priority description |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the follow-up was completed |
 |   ↳ `created_at` | string | When the follow-up was created |
 |   ↳ `updated_at` | string | When the follow-up was last updated |
@@ -1895,6 +1920,12 @@ Update an existing follow-up in incident.io, for example to mark it completed or
 |   ↳ `status` | string | Follow-up status \(outstanding, completed, deleted, not_doing\) |
 |   ↳ `description` | string | Follow-up description |
 |   ↳ `labels` | array | Labels associated with this follow-up |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 |   ↳ `assignee_team` | object | The team the follow-up is assigned to |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -1903,7 +1934,26 @@ Update an existing follow-up in incident.io, for example to mark it completed or
 |     ↳ `name` | string | Priority name |
 |     ↳ `rank` | number | Priority rank |
 |     ↳ `description` | string | Priority description |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the follow-up was completed |
 |   ↳ `created_at` | string | When the follow-up was created |
 |   ↳ `updated_at` | string | When the follow-up was last updated |
@@ -1930,7 +1980,32 @@ Create a new action on an incident in incident.io
 |   ↳ `incident_id` | string | ID of the incident the action belongs to |
 |   ↳ `description` | string | Action description |
 |   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the action was completed |
 |   ↳ `created_at` | string | When the action was created |
 |   ↳ `updated_at` | string | When the action was last updated |
@@ -1958,7 +2033,32 @@ Update an existing action in incident.io, for example to mark it completed or re
 |   ↳ `incident_id` | string | ID of the incident the action belongs to |
 |   ↳ `description` | string | Action description |
 |   ↳ `status` | string | Action status \(outstanding, completed, deleted, not_doing\) |
+|   ↳ `assignee` | object | The assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
+|   ↳ `external_issue_reference` | object | The external issue this was exported to |
+|     ↳ `provider` | string | Issue tracker provider |
+|     ↳ `issue_name` | string | Human readable issue ID |
+|     ↳ `issue_permalink` | string | Link to the issue in the tracker |
 |   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `completed_at` | string | When the action was completed |
 |   ↳ `created_at` | string | When the action was created |
 |   ↳ `updated_at` | string | When the action was last updated |

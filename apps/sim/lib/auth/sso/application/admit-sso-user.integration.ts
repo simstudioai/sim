@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
@@ -18,13 +19,20 @@ vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
 async function loadRuntime() {
-  const [{ db }, schema, { eq, inArray }, { admitSsoUser }] = await Promise.all([
+  const [
+    { db },
+    schema,
+    { eq, inArray, sql },
+    { admitSsoUser },
+    { acquireOrganizationMutationLock },
+  ] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
     import('drizzle-orm'),
     import('@/lib/auth/sso/application/admit-sso-user'),
+    import('@/lib/billing/organizations/membership'),
   ])
-  return { db, schema, eq, inArray, admitSsoUser }
+  return { db, schema, eq, inArray, sql, admitSsoUser, acquireOrganizationMutationLock }
 }
 
 describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
@@ -132,6 +140,58 @@ describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
       .from(schema.member)
       .where(eq(schema.member.userId, userId))
   }
+
+  it('allows a provider edit to commit while sign-in admission waits for organization mutation', async () => {
+    const { db, schema, eq, sql } = runtime
+    await db
+      .update(schema.scimConnection)
+      .set({ settings: { disableJit: false } })
+      .where(eq(schema.scimConnection.id, connectionId))
+    const held = createDeferred<number>()
+    const release = createDeferred<void>()
+    const pending: Promise<unknown>[] = []
+    try {
+      const mutation = db.transaction(async (tx) => {
+        await runtime.acquireOrganizationMutationLock(tx, organizationId)
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+        await tx
+          .select({ id: schema.ssoProvider.id })
+          .from(schema.ssoProvider)
+          .where(eq(schema.ssoProvider.providerId, providerId))
+          .for('update', { noWait: true })
+        await tx
+          .update(schema.ssoProvider)
+          .set({ jitProvisioningEnabled: false })
+          .where(eq(schema.ssoProvider.providerId, providerId))
+      })
+      pending.push(mutation)
+      void mutation.catch((error: unknown) => held.reject(error))
+      const blockerPid = await held.promise
+      const admission = admit()
+      pending.push(admission)
+      void admission.catch(() => undefined)
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event = 'advisory'
+              AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+          `)
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 5_000, interval: 25 }
+      )
+      release.resolve()
+      await mutation
+      await expect(admission).resolves.toEqual({ kind: 'provisioning-disabled', organizationId })
+      expect(await membership()).toEqual([])
+    } finally {
+      release.resolve()
+      await Promise.allSettled(pending)
+    }
+  })
 
   it('honors disableJit without a global billing read creating fresh membership', async () => {
     await expect(admit()).resolves.toEqual({ kind: 'provisioning-disabled', organizationId })

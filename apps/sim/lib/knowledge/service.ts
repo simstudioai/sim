@@ -31,9 +31,10 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { knowledgeAccessCondition, textArrayLiteral } from '@/lib/knowledge/access/predicate'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {

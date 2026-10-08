@@ -16,6 +16,7 @@ import {
   json,
   jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
@@ -2055,6 +2056,55 @@ export const workspace = pgTable(
     inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
       .on(table.inboxProviderId)
       .where(sql`${table.inboxProviderId} IS NOT NULL`),
+  })
+)
+
+/** Stable owner of environments and project-wide resources, independent of fork lineage. */
+export const project = pgTable(
+  'project',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'restrict',
+    }),
+    /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    nameLength: check(
+      'project_name_length',
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`
+    ),
+    organizationIdx: index('project_organization_archive_id_idx').on(
+      table.organizationId,
+      table.archivedAt,
+      table.id
+    ),
+    ownerIdx: index('project_owner_archive_id_idx').on(table.ownerId, table.archivedAt, table.id),
+  })
+)
+
+// contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
+export const projectWorkspace = pgTable(
+  'project_workspace',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'restrict' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
+    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
   })
 )
 
@@ -4286,6 +4336,34 @@ export const copilotOrganizationRequestStops = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.organizationId, table.streamId] })]
 )
 
+/**
+ * A Sim desktop install that can run a user's desktop tools while no chat view is open. The id is
+ * the install's own identifier; the row binds it to one user and to the Better Auth session that
+ * registered it, so signing out (which deletes that session) disconnects the device.
+ */
+export const desktopDevices = pgTable(
+  'desktop_devices',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    appVersion: text('app_version').notNull(),
+    platform: text('platform').notNull(),
+    capabilities: jsonb('capabilities').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('desktop_devices_user_id_idx').on(table.userId),
+    sessionIdIdx: index('desktop_devices_session_id_idx').on(table.sessionId),
+  })
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
@@ -4312,6 +4390,10 @@ export const copilotRuns = pgTable(
     provider: text('provider'),
     status: copilotRunStatusEnum('status').notNull().default('active'),
     requestContext: jsonb('request_context').notNull().default('{}'),
+    /** Set at admission when the turn's desktop runs its tools in the background executor. */
+    desktopDeviceId: text('desktop_device_id').references(() => desktopDevices.id, {
+      onDelete: 'set null',
+    }),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4337,6 +4419,10 @@ export const copilotRuns = pgTable(
       table.id
     ),
     streamIdUnique: uniqueIndex('copilot_runs_stream_id_unique').on(table.streamId),
+    desktopDeviceStartedAtIdx: index('copilot_runs_desktop_device_started_at_idx')
+      .on(table.desktopDeviceId, table.startedAt)
+      .where(sql`${table.desktopDeviceId} IS NOT NULL`)
+      .concurrently(),
   })
 )
 
@@ -4366,6 +4452,9 @@ export const copilotRunCheckpoints = pgTable(
   })
 )
 
+/** Orders tool calls by persistence, which follows the order the model emitted them in. */
+export const copilotAsyncToolCallsPersistSeq = pgSequence('copilot_async_tool_calls_persist_seq')
+
 export const copilotAsyncToolCalls = pgTable(
   'copilot_async_tool_calls',
   {
@@ -4388,6 +4477,25 @@ export const copilotAsyncToolCalls = pgTable(
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
+    /**
+     * Set when this call was held for the user's decision. Whether a call is gated depends on the
+     * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
+     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     */
+    permissionRequestedAt: timestamp('permission_requested_at'),
+    /**
+     * When a desktop call on a device-bound run must be claimed by: set once the call may run and
+     * is offered to its device. A call still unclaimed after it fails as never started.
+     */
+    pickupDeadlineAt: timestamp('pickup_deadline_at', { withTimezone: true }),
+    /**
+     * When this call was persisted, as a strictly increasing number: calls from one turn can share
+     * a millisecond, and a device must run them in the order the model emitted them. Null on rows
+     * persisted before the column existed.
+     */
+    persistSeq: bigint('persist_seq', { mode: 'number' }).default(
+      sql`nextval('copilot_async_tool_calls_persist_seq')`
+    ),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
     /** One-use download-save admission; never released after an uncertain storage outcome. */
@@ -6849,7 +6957,8 @@ export const userTableDefinitions = pgTable(
      * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
      * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
      * reused until the table mutates. Never written from application code — the
-     * triggers are the only writers (bypass-proof).
+     * triggers and the `user_table_row_changes` fold are the only writers. Read the
+     * live value through `lib/table/row-changes.ts`, never this column alone.
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**
@@ -6959,6 +7068,29 @@ export const userTableRows = pgTable(
      * O(all rows) per page.
      */
     tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Append-only log of row mutations not yet folded into `user_table_definitions`. A table's current
+ * `row_count` is the stored count plus the sum of its `row_delta`s, and its current `rows_version` is
+ * the stored version plus its number of log rows, read in one statement (see
+ * `lib/table/row-changes.ts`). Writers only insert here, so no row write waits on the shared
+ * definition row; a background fold moves each table's rows into the definition row and deletes
+ * them in one transaction.
+ */
+export const userTableRowChanges = pgTable(
+  'user_table_row_changes',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    /** `+n` for an insert, `-n` for a delete, `0` for an update of row content or order. */
+    rowDelta: integer('row_delta').notNull(),
+  },
+  (table) => ({
+    tableIdIdx: index('user_table_row_changes_table_id_idx').on(table.tableId),
   })
 )
 
@@ -7405,7 +7537,7 @@ export const dataDrains = pgTable(
     destinationCredentials: text('destination_credentials').notNull(),
     scheduleCadence: dataDrainCadenceEnum('schedule_cadence').notNull(),
     enabled: boolean('enabled').notNull().default(true),
-    /** Opaque cursor — JSON-encoded, source-defined. Advances only on overall run success. */
+    /** Opaque cursor — JSON-encoded, source-defined. Advances after each acknowledged delivery checkpoint. */
     cursor: text('cursor'),
     lastRunAt: timestamp('last_run_at'),
     lastSuccessAt: timestamp('last_success_at'),

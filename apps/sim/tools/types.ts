@@ -18,6 +18,7 @@ export type BYOKProviderId =
   | 'fireworks'
   | 'together'
   | 'baseten'
+  | 'nebius'
   | 'ollama-cloud'
   | 'kie'
   | 'falai'
@@ -80,6 +81,7 @@ export interface OutputProperty {
   items?: {
     type: OutputType
     description?: string
+    nullable?: boolean
     properties?: Record<string, OutputProperty>
   }
 }

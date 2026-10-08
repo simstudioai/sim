@@ -8,6 +8,11 @@
  * server-side waiter.
  */
 
+import {
+  terminalOperationTimeoutMs,
+  terminalToolCompletion,
+  terminalToolFailure,
+} from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
@@ -25,6 +30,8 @@ const logger = createLogger('CopilotTerminalToolExecution')
 
 /** Tool events older than this are replays, not live instructions. */
 const MAX_EVENT_AGE_MS = 120_000
+const STALE_EVENT_MESSAGE =
+  'Not run: this terminal command never started, because it reached the Sim desktop app too late to start safely. Nothing ran on the user’s computer. Do not retry it in this turn; tell the user to keep this chat open in the Sim desktop app, or to ask again later.'
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:terminal-tool-executed:'
 
 /**
@@ -60,20 +67,6 @@ function eventAgeMs(eventTs: string | undefined): number | null {
   if (!eventTs) return null
   const emitted = Date.parse(eventTs)
   return Number.isNaN(emitted) ? null : Date.now() - emitted
-}
-
-/**
- * `terminal_run` has no client-side deadline: it can sit on an approval chip
- * for as long as the user takes, and the desktop side already bounds the
- * command itself. The rest are near-instant, so a short timeout keeps a wedged
- * bridge from stalling the turn.
- */
-const QUICK_TOOL_TIMEOUT_MS = 15_000
-
-function timeoutForOperation(operation: TerminalOperation): number | null {
-  // `run` waits on a command and `handoff` waits on a person; neither has a
-  // deadline this side can usefully impose.
-  return operation === 'run' || operation === 'handoff' ? null : QUICK_TOOL_TIMEOUT_MS
 }
 
 /**
@@ -120,7 +113,23 @@ export function executeTerminalToolOnClient(
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
-    logger.info('Skipping stale terminal tool event', { toolCallId, operation, age })
+    logger.info('Reporting stale terminal tool event as not started', {
+      toolCallId,
+      operation,
+      age,
+    })
+    // Reported against the pending call only: one another window already claimed keeps its result.
+    void reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      STALE_EVENT_MESSAGE,
+      { error: STALE_EVENT_MESSAGE, notStarted: true, staleEvent: true }
+    ).catch((error) => {
+      logger.warn('Failed to report stale terminal tool event', {
+        toolCallId,
+        error: toError(error).message,
+      })
+    })
     return
   }
   markExecuted(toolCallId)
@@ -165,7 +174,7 @@ async function doExecuteTerminalTool(
   logger.info('Executing terminal operation via the desktop terminal', { toolCallId, operation })
 
   try {
-    const timeoutMs = timeoutForOperation(operation)
+    const timeoutMs = terminalOperationTimeoutMs(operation)
     const invocation = executeTerminalTool(toolCallId, operation, args, scopeId)
     const result =
       timeoutMs === null
@@ -179,25 +188,24 @@ async function doExecuteTerminalTool(
               )
             }),
           ])
+    const completion = terminalToolCompletion({ ok: true, result })
     await reportClientToolCompletion(
       toolCallId,
-      ASYNC_TOOL_CONFIRMATION_STATUS.success,
-      'Terminal action completed',
-      result as Record<string, unknown> | undefined
+      completion.status,
+      completion.message,
+      completion.data
     )
   } catch (err) {
     const error = toError(err)
-    // A declined command is a normal outcome, not a fault: reporting it as
-    // cancelled lets the model adapt instead of retrying the same command.
-    const status =
-      error.name === 'REJECTED'
-        ? ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
-        : ASYNC_TOOL_CONFIRMATION_STATUS.error
     logger.warn('Terminal operation failed', { toolCallId, operation, error: error.message })
-    await reportClientToolCompletion(toolCallId, status, error.message, {
-      error: error.message,
-      ...(error.name ? { code: error.name } : {}),
-    }).catch((reportErr) => {
+    // The error's name goes to the model as its code, `Error` included, as it always has.
+    const completion = terminalToolFailure(error.message, error.name || undefined)
+    await reportClientToolCompletion(
+      toolCallId,
+      completion.status,
+      completion.message,
+      completion.data
+    ).catch((reportErr) => {
       logger.error('Failed to report terminal tool error', {
         toolCallId,
         error: toError(reportErr).message,

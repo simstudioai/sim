@@ -8,10 +8,8 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import {
-  WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
-  workspaceFileLiveDocOutboxHandlers,
-} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
+import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 

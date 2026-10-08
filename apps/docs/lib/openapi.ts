@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { MethodInformation } from 'fumadocs-openapi'
 import type { InlineCodeUsageGenerator } from 'fumadocs-openapi/requests/generators'
 import { createOpenAPI } from 'fumadocs-openapi/server'
 import { buildAuthCodeSamples } from '@/lib/openapi-code-samples'
+import { OPENAPI_DOCUMENTS_BY_FILE } from '@/lib/openapi-documents'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 
 export const openapi = createOpenAPI({
@@ -66,16 +65,10 @@ function formatSchema(schema: unknown): string {
   return JSON.stringify(schema, null, 2)
 }
 
-let cachedSpecs: Record<string, unknown>[] | null = null
+const SPECS = OPENAPI_SPEC_FILES.map((file) => OPENAPI_DOCUMENTS_BY_FILE[file])
 
 function getSpecs(): Record<string, unknown>[] {
-  if (!cachedSpecs) {
-    cachedSpecs = OPENAPI_SPEC_FILES.map(
-      (file) =>
-        JSON.parse(readFileSync(join(process.cwd(), file), 'utf8')) as Record<string, unknown>
-    )
-  }
-  return cachedSpecs
+  return SPECS
 }
 
 type SecurityRequirement = Record<string, string[]>

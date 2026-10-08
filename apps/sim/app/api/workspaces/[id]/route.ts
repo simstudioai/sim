@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -284,6 +285,22 @@ export const DELETE = withRouteHandler(
         requestId: `workspace-${workspaceId}`,
       })
 
+      /** Recorded first: a retry that finishes an earlier partial deletion still archives it. */
+      if (archiveResult.archivedProject) {
+        recordAudit({
+          workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.PROJECT_ARCHIVED,
+          resourceType: AuditResourceType.PROJECT,
+          resourceId: archiveResult.archivedProject.id,
+          resourceName: archiveResult.archivedProject.name,
+          description: `Archived Project "${archiveResult.archivedProject.name}" with its last active environment`,
+          request,
+        })
+      }
+
       if (!archiveResult.archived && !workspaceRecord) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
@@ -316,6 +333,8 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      const failure = orchestrationFailureResponse(error, 'Failed to delete workspace')
+      if (failure) return failure
       logger.error(`Error deleting workspace ${workspaceId}:`, error)
       return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
     }

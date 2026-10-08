@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
@@ -41,6 +42,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   },
 }))
 vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
+  ...apiServerRoutesMock,
   v2RateLimits: { publicApi: { enforce: hoisted.rateLimit } },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({

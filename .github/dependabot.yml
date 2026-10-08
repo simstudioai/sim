@@ -1,0 +1,19 @@
+version: 2
+
+# GitHub Actions only: every `uses:` is pinned to a commit SHA, and without this the pins drift
+# apart (checkout had three different SHAs across workflows). One grouped PR a week keeps every
+# workflow and composite action on the same version of each action.
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+    target-branch: staging
+    groups:
+      actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: ci

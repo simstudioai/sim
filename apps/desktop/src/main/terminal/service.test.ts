@@ -1,11 +1,116 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
+import { createRunLedger } from '@/main/terminal/run-ledger'
+
+/**
+ * A tmux attachment the service sees only when a test turns it on. Runs get real status files;
+ * stopping a run ends its command the way Ctrl-C in its pane would. Which panes tmux still holds
+ * as the run's, and the identity checks behind that, are covered against a fake tmux binary in
+ * `tmux.test.ts`; here the service's bookkeeping is what is under test.
+ */
+const tmuxFake = vi.hoisted(() => ({
+  on: false,
+  /** Panes a run was stopped in, in order. */
+  stopped: [] as string[],
+  /** Panes no longer the run's (closed by the user, or reused after a tmux restart). */
+  gone: new Set<string>(),
+  /** Runs start untracked, as on a tmux too old to tag their panes. */
+  untracked: false,
+  /** Run panes tmux still shows, kept open after their command ends (`remain-on-exit`). */
+  open: new Set<string>(),
+  /** tmux stops answering: no pane can be confirmed, so none is closed. */
+  unanswered: false,
+  statusPaths: new Map<string, string>(),
+}))
+
+vi.mock('@/main/terminal/tmux', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/main/terminal/tmux')>('@/main/terminal/tmux')
+  let nextPane = 1
+  return {
+    ...actual,
+    isTmuxUnavailable: () => (tmuxFake.on ? false : actual.isTmuxUnavailable()),
+    resolveAttachment: async (pid: number, env: NodeJS.ProcessEnv) =>
+      tmuxFake.on
+        ? { session: 'agent', clientTty: '/dev/ttys001' }
+        : actual.resolveAttachment(pid, env),
+    startRun: async (...args: Parameters<typeof actual.startRun>) => {
+      if (!tmuxFake.on) return actual.startRun(...args)
+      const options = args[4]
+      const pane = `%${nextPane++}`
+      const runId = tmuxFake.untracked ? null : `run-${pane.slice(1)}`
+      const socket = tmuxFake.untracked ? null : '/tmp/tmux-fake/default'
+      // Like the real one, a tagged run starts only once its record is saved.
+      if (
+        runId &&
+        socket &&
+        options?.beforeStart &&
+        !options.beforeStart({ runId, pane, socket })
+      ) {
+        return { error: 'The command could not be recorded for a later stop, so it was not run.' }
+      }
+      const dir = mkdtempSync(join(tmpdir(), 'sim-tmux-fake-'))
+      const statusPath = join(dir, 'status')
+      writeFileSync(join(dir, 'out'), 'partial output')
+      tmuxFake.statusPaths.set(pane, statusPath)
+      tmuxFake.open.add(pane)
+      return {
+        window: `@${pane.slice(1)}`,
+        pane,
+        runId,
+        socket,
+        outPath: join(dir, 'out'),
+        statusPath,
+        dispose: () => rmSync(dir, { recursive: true, force: true }),
+      }
+    },
+    runPaneState: async (...args: Parameters<typeof actual.runPaneState>) => {
+      if (!tmuxFake.on) return actual.runPaneState(...args)
+      if (tmuxFake.unanswered) return 'unknown'
+      if (tmuxFake.gone.has(args[0].pane)) return 'gone'
+      return args[0].runId === null ? 'unknown' : 'ours'
+    },
+    stopRun: async (...args: Parameters<typeof actual.stopRun>) => {
+      if (!tmuxFake.on) return actual.stopRun(...args)
+      const [handle] = args
+      if (tmuxFake.gone.has(handle.pane) || handle.runId === null) return
+      tmuxFake.stopped.push(handle.pane)
+      writeFileSync(handle.statusPath, '130')
+    },
+    closeRunPane: async (...args: Parameters<typeof actual.closeRunPane>) => {
+      if (!tmuxFake.on) return actual.closeRunPane(...args)
+      if (tmuxFake.unanswered) return
+      // An untracked run's pane is proven its own only from the run's files, read after tmux
+      // has answered, as the real check does.
+      await sleep(10)
+      if (args[0].runId === null && !existsSync(args[0].statusPath)) return
+      tmuxFake.open.delete(args[0].pane)
+      tmuxFake.gone.add(args[0].pane)
+    },
+  }
+})
 
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
   stubSessions: new Map<
     string,
-    { setBusy(busy: boolean): void; exit(): void; clearScrollback(): void }
+    {
+      setBusy(busy: boolean): void
+      exit(): void
+      clearScrollback(): void
+      /** Whether Ctrl-C ends the running command, as it does for most programs. */
+      setInterruptible(interruptible: boolean): void
+      /** Ends the running command the way its process exiting would. */
+      finishRun(exitCode: number): void
+      /** Returns the run as still going, its command left running, as a wait that ran out does. */
+      handBack(): void
+      kill: ReturnType<typeof vi.fn>
+      readonly runningToolCallId: string | null
+    }
   >(),
 }))
 
@@ -32,11 +137,50 @@ vi.mock('@/main/terminal/session', async () => {
         terminalId: string
         callbacks: { onExit(terminalId: string): void }
       }) => {
-        const state = { cwd, disposed: false, busy: false }
+        const state = {
+          cwd,
+          disposed: false,
+          busy: false,
+          interruptible: true,
+          toolCallId: null as string | null,
+          resolveRun: null as ((result: Record<string, unknown>) => void) | null,
+        }
+        const finishRun = (exitCode: number) => {
+          const resolve = state.resolveRun
+          state.busy = false
+          state.toolCallId = null
+          state.resolveRun = null
+          resolve?.({ status: 'completed', exitCode, terminalId })
+        }
         const stub = {
           setBusy: (busy: boolean) => {
             state.busy = busy
           },
+          setInterruptible: (interruptible: boolean) => {
+            state.interruptible = interruptible
+          },
+          finishRun,
+          handBack: () => {
+            const resolve = state.resolveRun
+            state.resolveRun = null
+            resolve?.({ status: 'running', exitCode: null, terminalId })
+          },
+          runCommand: (_command: string, toolCallId: string) =>
+            new Promise((resolve) => {
+              state.busy = true
+              state.toolCallId = toolCallId
+              state.resolveRun = resolve
+            }),
+          get runningToolCallId() {
+            return state.toolCallId
+          },
+          get agentCommandToolCallId() {
+            return state.toolCallId
+          },
+          kill: vi.fn((signal: string) => {
+            if (signal === 'SIGINT' && state.interruptible) finishRun(130)
+          }),
+          waitForShellIntegration: async () => {},
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true
@@ -330,5 +474,477 @@ describe('a shell that ends by itself', () => {
     const after = terminal.getTabs()
     expect(after.tabs).toHaveLength(0)
     expect(after.activeTerminalId).toBeNull()
+  })
+})
+
+describe('stopping a tool call', () => {
+  const COMMAND_GROUP = 4242
+
+  function cancellableService() {
+    /** The tty's foreground group as the OS would report it at each read. */
+    let foreground: number | null = COMMAND_GROUP
+    const processGroups = {
+      foreground: vi.fn(async (_shellPid: number) => foreground),
+      signal: vi.fn((_pgid: number, _signal: NodeJS.Signals) => {}),
+    }
+    const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
+    const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+    const session = stubSessions.get(activeTerminalId as string)
+    if (!session) throw new Error('No stub session')
+    return {
+      terminal,
+      session,
+      processGroups,
+      setForeground: (pgid: number | null) => {
+        foreground = pgid
+      },
+    }
+  }
+
+  /** Starts a run and waits until its command holds the terminal's foreground. */
+  async function startRun(
+    terminal: TerminalService,
+    session: { runningToolCallId: string | null },
+    toolCallId: string
+  ) {
+    const running = terminal.executeTool(toolCallId, 'run', { command: 'sleep 60' })
+    await vi.waitFor(() => expect(session.runningToolCallId).toBe(toolCallId))
+    return { running }
+  }
+
+  it('interrupts the command its run started, and the run reports how it ended', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-run')
+
+    await expect(terminal.cancelTool('call-run')).resolves.toBe(true)
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+    expect(processGroups.signal).not.toHaveBeenCalled()
+  })
+
+  it("terminates the command's own process group when it ignores Ctrl-C", async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    processGroups.signal.mockImplementation(() => session.finishRun(143))
+    const { running } = await startRun(terminal, session, 'call-stubborn')
+
+    await terminal.cancelTool('call-stubborn')
+
+    expect(processGroups.signal).toHaveBeenCalledWith(COMMAND_GROUP, 'SIGTERM')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 143 } })
+  })
+
+  it('never signals a different command that took the foreground meanwhile', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    const { running } = await startRun(terminal, session, 'call-replaced')
+    session.kill.mockImplementation(() => setForeground(9999))
+
+    await terminal.cancelTool('call-replaced')
+
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
+  })
+
+  it('runs nothing when the Stop arrives before the command starts', async () => {
+    const { terminal, session } = cancellableService()
+    const running = terminal.executeTool('call-early', 'run', { command: 'rm -rf build' })
+    await terminal.cancelTool('call-early')
+
+    await expect(running).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(session.runningToolCallId).toBeNull()
+  })
+
+  it('sends no signal or keys for a kill or input stopped before it starts', async () => {
+    const { terminal, session } = cancellableService()
+    session.setBusy(true)
+    const killing = terminal.executeTool('call-kill', 'kill', { signal: 'SIGTERM' })
+    const typing = terminal.executeTool('call-input', 'input', { text: 'yes\n' })
+    await Promise.all([terminal.cancelTool('call-kill'), terminal.cancelTool('call-input')])
+
+    await expect(killing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    await expect(typing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(session.kill).not.toHaveBeenCalled()
+  })
+
+  it("stops the agent's running command at sign-out", async () => {
+    const { terminal, session } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-left-running')
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+  })
+
+  it('stops the command a run handed back as still going, once asked for that call', async () => {
+    const { terminal, session } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-handed-back')
+    session.handBack()
+    await expect(running).resolves.toMatchObject({ ok: true, result: { status: 'running' } })
+    // The call is over, so a Stop for it in flight finds nothing.
+    await expect(terminal.cancelTool('call-handed-back')).resolves.toBe(false)
+
+    await terminal.stopAgentCommand('call-other')
+    expect(session.kill).not.toHaveBeenCalled()
+
+    await terminal.stopAgentCommand('call-handed-back')
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.runningToolCallId).toBeNull()
+  })
+
+  it('leaves a command the user started alone at sign-out', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setBusy(true)
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(processGroups.signal).not.toHaveBeenCalled()
+  })
+
+  it('leaves the terminal alone for a call it is not running', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    const { running } = await startRun(terminal, session, 'call-other')
+
+    await expect(terminal.cancelTool('call-unknown')).resolves.toBe(false)
+    expect(session.kill).not.toHaveBeenCalled()
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
+  })
+})
+
+describe('agent commands in tmux', () => {
+  it('stops a tmux run at sign-out while its call still waits on it', async () => {
+    tmuxFake.on = true
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 60,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.stopped).toEqual(['%1'])
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'completed', exitCode: 130 },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it('reports an untracked run it could not stop as still running, and keeps tracking it', async () => {
+    tmuxFake.on = true
+    tmuxFake.untracked = true
+    tmuxFake.statusPaths.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-untracked', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 60,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+      const [, statusPath = ''] = [...tmuxFake.statusPaths][0] ?? []
+
+      await terminal.cancelTool('call-untracked')
+
+      await expect(running).resolves.toMatchObject({ ok: true, result: { status: 'running' } })
+      expect(existsSync(join(statusPath, '..'))).toBe(true)
+
+      // Once it does finish, the next run's bookkeeping reaps it.
+      writeFileSync(statusPath, '0')
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+      expect(existsSync(join(statusPath, '..'))).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.untracked = false
+    }
+  })
+
+  it('keeps a record of a tagged run exactly as long as the run goes on', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    const ledger = createRunLedger(ledgerDir)
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp', runLedger: ledger })
+      terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+
+      // Still going after its call returned: a later process must be able to find it.
+      expect(createRunLedger(ledgerDir).list()).toEqual([
+        {
+          runId: `run-${pane.slice(1)}`,
+          pane,
+          socket: '/tmp/tmux-fake/default',
+          callId: 'call-long',
+          // Handed back, but the model has it only once Sim acknowledges the result.
+          state: 'started',
+        },
+      ])
+
+      writeFileSync(statusPath, '0')
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+
+      // The first finished and is forgotten; the one still going is recorded in its place.
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).toEqual([[...tmuxFake.statusPaths.keys()][1]])
+    } finally {
+      tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it('closes and then forgets a run that finished before its terminal closed', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[, statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      writeFileSync(statusPath, '0')
+
+      const [pane = ''] = [...tmuxFake.statusPaths.keys()]
+      // Its dead pane is still open, as with `remain-on-exit`.
+      expect(tmuxFake.open.has(pane)).toBe(true)
+
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await vi.waitFor(() => expect(createRunLedger(ledgerDir).list()).toEqual([]))
+      expect(tmuxFake.open.has(pane)).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it("forgets a run that finishes within its call, and a closed tab's run once its pane is gone", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      // Finishes while its call still waits on it.
+      const quick = terminal.executeTool('call-quick', 'run', { command: 'ls', waitSeconds: 30 })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+      writeFileSync([...tmuxFake.statusPaths.values()][0] ?? '', '0')
+      await quick
+      expect(createRunLedger(ledgerDir).list()).toEqual([])
+
+      // Still going when its tab closes; its pane goes later, and the next run's bookkeeping sees.
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [, longPane = ''] = [...tmuxFake.statusPaths.keys()]
+      terminal.closeTerminal(activeTerminalId as string)
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).toEqual([longPane])
+      tmuxFake.gone.add(longPane)
+      await terminal.executeTool('call-new', 'new', {})
+      await terminal.executeTool('call-next', 'run', { command: 'pwd', waitSeconds: 1 })
+
+      expect(
+        createRunLedger(ledgerDir)
+          .list()
+          .map((run) => run.pane)
+      ).not.toContain(longPane)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.gone.clear()
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it("closes a finished untracked run's pane when its terminal closes", async () => {
+    tmuxFake.on = true
+    tmuxFake.untracked = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-old-tmux', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      writeFileSync(statusPath, '0')
+
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await vi.waitFor(() => expect(tmuxFake.open.has(pane)).toBe(false))
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.untracked = false
+    }
+  })
+
+  it('keeps the record of a finished run whose pane tmux could not confirm closing', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    const ledgerDir = join(scratch, 'terminal-runs')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(ledgerDir),
+      })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      writeFileSync([...tmuxFake.statusPaths.values()][0] ?? '', '0')
+      tmuxFake.unanswered = true
+
+      terminal.closeTerminal(activeTerminalId as string)
+      await sleep(200)
+
+      // The next sweep will close its pane.
+      expect(createRunLedger(ledgerDir).list()).toHaveLength(1)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.unanswered = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it('never starts a tagged run it could not record', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    const scratch = mkdtempSync(join(tmpdir(), 'sim-ledger-'))
+    // A file where the ledger's directory should be: no record can be saved.
+    writeFileSync(join(scratch, 'terminal-runs'), '')
+    try {
+      const terminal = new TerminalService({
+        loadCwd: () => '/tmp',
+        runLedger: createRunLedger(join(scratch, 'terminal-runs')),
+      })
+      terminal.start({ cols: 80, rows: 24 })
+
+      await expect(
+        terminal.executeTool('call-unrecorded', 'run', { command: 'make build', waitSeconds: 1 })
+      ).resolves.toMatchObject({ ok: false, code: 'SPAWN_FAILED' })
+      expect(tmuxFake.statusPaths.size).toBe(0)
+    } finally {
+      tmuxFake.on = false
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+
+  it("closes a run's pane when a later run reaps it after it finished", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.open.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      await terminal.executeTool('call-long', 'run', { command: 'make build', waitSeconds: 1 })
+      const [[pane = '', statusPath = ''] = []] = [...tmuxFake.statusPaths]
+      // It finishes after its call returned, and its dead pane stays open.
+      writeFileSync(statusPath, '0')
+      expect(tmuxFake.open.has(pane)).toBe(true)
+
+      await terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+
+      expect(tmuxFake.open.has(pane)).toBe(false)
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it("keeps a run's output readable for its call when the terminal goes away mid-wait", async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const running = terminal.executeTool('call-tmux-closed', 'run', {
+        command: 'make build',
+        waitSeconds: 1,
+      })
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(1))
+
+      terminal.dispose()
+
+      await expect(running).resolves.toMatchObject({
+        ok: true,
+        result: { status: 'running', output: 'partial output' },
+      })
+    } finally {
+      tmuxFake.on = false
+    }
+  })
+
+  it('releases a run whose pane is gone instead of ever stopping it', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-first', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      const [pane, statusPath] = [...tmuxFake.statusPaths][0] ?? []
+      tmuxFake.gone.add(pane ?? '')
+
+      await terminal.stopAgentCommands()
+      expect(tmuxFake.stopped).toEqual([])
+
+      // The next run's bookkeeping drops it for good.
+      void terminal.executeTool('call-next', 'run', { command: 'ls', waitSeconds: 1 })
+      await vi.waitFor(() => expect(existsSync(statusPath ?? '')).toBe(false))
+      await vi.waitFor(() => expect(tmuxFake.statusPaths.size).toBe(2))
+      expect(existsSync(join(statusPath ?? '', '..'))).toBe(false)
+    } finally {
+      tmuxFake.on = false
+      tmuxFake.gone.clear()
+    }
+  })
+
+  it('still stops at sign-out a run whose Sim terminal was closed', async () => {
+    tmuxFake.on = true
+    tmuxFake.statusPaths.clear()
+    tmuxFake.stopped.length = 0
+    try {
+      const terminal = new TerminalService({ loadCwd: () => '/tmp' })
+      const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+      const first = await terminal.executeTool('call-orphan', 'run', {
+        command: 'sleep 600',
+        waitSeconds: 1,
+      })
+      expect(first).toMatchObject({ ok: true, result: { status: 'running' } })
+      terminal.closeTerminal(activeTerminalId as string)
+
+      await terminal.stopAgentCommands()
+
+      expect(tmuxFake.stopped).toEqual([[...tmuxFake.statusPaths.keys()][0]])
+    } finally {
+      tmuxFake.on = false
+    }
   })
 })

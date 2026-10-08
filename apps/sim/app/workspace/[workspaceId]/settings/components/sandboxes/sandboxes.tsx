@@ -9,8 +9,8 @@ import { useQueryState } from 'nuqs'
 import { CodeIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   SandboxEditor,
@@ -39,7 +39,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   type Sandbox,
   useCreateSandbox,
@@ -109,6 +108,7 @@ export function Sandboxes() {
     isEditing &&
     (isCreating
       ? current.name.trim().length > 0 ||
+        current.language !== original.language ||
         current.dependencies.trim().length > 0 ||
         current.systemPackages.trim().length > 0 ||
         current.cliTools.length > 0
@@ -118,17 +118,26 @@ export function Sandboxes() {
         current.systemPackages !== original.systemPackages ||
         current.cliTools.join(',') !== original.cliTools.join(','))
 
-  // Called before every early return — a hook after a gate is skipped on gated renders.
-  const guard = useSettingsUnsavedGuard({ isDirty })
-
-  const closeEditor = useCallback(() => {
+  const discardDraft = useCallback(() => {
     setDraft(null)
     setDependencyIssues([])
     setSystemPackageIssues([])
+  }, [])
+
+  // Called before every early return — a hook after a gate is skipped on gated renders.
+  const guard = useSettingsUnsavedGuard({
+    isDirty,
+    navigationBlocked:
+      createSandbox.isPending || updateSandbox.isPending || deleteSandbox.isPending,
+    onDiscard: discardDraft,
+  })
+
+  const closeEditor = useCallback(() => {
+    discardDraft()
     setIsCreating(false)
     // Opening pushed a history entry; closing must not push another.
     void setSelectedId(null, { history: 'replace' })
-  }, [setSelectedId])
+  }, [discardDraft, setSelectedId])
 
   const handleSave = useCallback(async () => {
     setDependencyIssues([])
@@ -267,11 +276,7 @@ export function Sandboxes() {
               dirty: isDirty,
               saving,
               onSave: () => void handleSave(),
-              onDiscard: () => {
-                setDraft(null)
-                setDependencyIssues([])
-                setSystemPackageIssues([])
-              },
+              onDiscard: discardDraft,
               saveDisabled: !canAdmin || current.name.trim().length === 0,
               creating: isCreating,
             }),
@@ -317,12 +322,6 @@ export function Sandboxes() {
             confirm={{ label: 'Delete', onClick: () => void handleDelete(selected) }}
           />
         )}
-
-        <UnsavedChangesModal
-          open={guard.showUnsavedModal}
-          onOpenChange={guard.setShowUnsavedModal}
-          onDiscard={guard.confirmDiscard}
-        />
       </>
     )
   }

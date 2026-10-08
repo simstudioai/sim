@@ -25,12 +25,12 @@ import { PDFDocument } from 'pdf-lib'
 import { env } from '@/lib/core/config/env'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import {
   cleanupOcrCheckpoint,
   createOcrCheckpoints,
-  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

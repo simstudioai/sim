@@ -1,6 +1,6 @@
 import { webhookPathClaim } from '@sim/db/schema'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
-import { and, eq, lte } from 'drizzle-orm'
+import { and, eq, inArray, lte } from 'drizzle-orm'
 import { normalizeWebhookRegistrationPath } from '@/lib/webhooks/registration-identity'
 
 export class WebhookPathClaimConflictError extends Error {
@@ -45,15 +45,19 @@ function assertClaimGeneration(generation: number): void {
 }
 
 /**
- * Releases every path claim held by a workflow.
+ * Releases every path claim held by `workflowIds`.
  *
  * Claims stay sticky through generation rotations, but once a workflow is
  * explicitly undeployed or archived it no longer serves traffic, so other
  * workflows must be able to adopt its paths. Runs inside the caller's
  * undeploy/archive transaction.
  */
-export async function releaseWebhookPathClaims(tx: DbOrTx, workflowId: string): Promise<void> {
-  await tx.delete(webhookPathClaim).where(eq(webhookPathClaim.workflowId, workflowId))
+export async function releaseWebhookPathClaims(
+  tx: DbOrTx,
+  workflowIds: readonly string[]
+): Promise<void> {
+  if (workflowIds.length === 0) return
+  await tx.delete(webhookPathClaim).where(inArray(webhookPathClaim.workflowId, workflowIds))
 }
 
 /**

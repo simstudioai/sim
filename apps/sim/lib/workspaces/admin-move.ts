@@ -41,8 +41,10 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
+import { ProjectConflictError, transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import {
   type CrossOrgForkEdge,
   cleanupSourceOrganizationArtifactsTx,
@@ -116,6 +118,7 @@ export class WorkspaceMoveError extends Error {
       | 'destination-entitlement-downgrade'
       | 'fork-lineage-conflict'
       | 'pending-invitations-present'
+      | 'project-conflict'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -314,7 +317,6 @@ interface MoveTransactionResult {
   summary: WorkspaceMovePreflight
 }
 
-export const MIGRATED_INVITATION_EMAIL_EVENT_TYPE = 'invitation.send-migrated-link'
 export const ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE = 'admin.workspace-move-operation'
 
 interface AdminWorkspaceMoveOperationRequest {
@@ -1356,6 +1358,8 @@ export async function moveWorkspaceToOrganization(params: {
             })
           : { detachedPermissionGroupIds: [] }
 
+        await transferWorkspaceProjects(tx, [params.workspaceId], params.destinationOrganizationId)
+
         await changeWorkspaceStoragePayerInTx(tx, {
           workspaceId: params.workspaceId,
           organizationId: params.destinationOrganizationId,
@@ -1496,6 +1500,9 @@ export async function moveWorkspaceToOrganization(params: {
       })
       break
     } catch (error) {
+      if (error instanceof ProjectConflictError) {
+        throw new WorkspaceMoveError(error.message, 'project-conflict')
+      }
       if (error instanceof InvitationSetChangedError) {
         candidateInvitationIds = error.invitationIds
         continue

@@ -3,9 +3,12 @@ import { toError } from '@sim/utils/errors'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
-import type { DAG } from '@/executor/dag/builder'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import {
+  buildCompletedExecutionState,
+  serializePauseSnapshot,
+} from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type {
@@ -32,6 +35,9 @@ export class ExecutionEngine {
   private cancelledFlag = false
   private errorFlag = false
   private stoppedEarlyFlag = false
+  private stopBlockQueued = false
+  private stopBlockReached = false
+  private stopBlockUnreachable = false
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
@@ -122,6 +128,25 @@ export class ExecutionEngine {
         throw this.executionError
       }
 
+      if (this.stopBlockReached) {
+        this.pausedBlocks.clear()
+        this.context.metadata.pausePoints = []
+        this.context.metadata.status = 'completed'
+        this.context.metadata.stopAfterBlockReached = true
+      }
+
+      /** A pause keeps a run whose stop block can still run; one proven unreachable fails. */
+      const waitingForPausedBranch =
+        this.context.metadata.resumeFromSnapshot === true &&
+        this.context.metadata.resumeHasPendingPauses === true &&
+        !this.responseOutputLocked
+      if (
+        !this.cancelledFlag &&
+        (this.stopBlockUnreachable || (this.pausedBlocks.size === 0 && !waitingForPausedBranch))
+      ) {
+        this.assertStopBlockReached()
+      }
+
       if (this.pausedBlocks.size > 0) {
         return this.buildPausedResult(startTime)
       }
@@ -147,7 +172,7 @@ export class ExecutionEngine {
         success: true,
         output: this.finalOutput,
         logs: this.context.blockLogs,
-        executionState: this.getSerializableExecutionState(),
+        executionState: this.getCompletedExecutionState(),
         metadata: this.context.metadata,
       }
     } catch (error) {
@@ -225,6 +250,9 @@ export class ExecutionEngine {
     if (!this.readyQueue.includes(nodeId)) {
       this.readyQueue.push(nodeId)
     }
+    if (nodeId === this.context.stopAfterBlockId) {
+      this.stopBlockQueued = true
+    }
   }
 
   private addMultipleToQueue(nodeIds: string[]): void {
@@ -279,6 +307,19 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (
+      this.context.metadata.resumeFromSnapshot &&
+      this.context.metadata.stopAfterBlockReached &&
+      stopBlockId
+    ) {
+      this.stopBlockReached = true
+      this.stoppedEarlyFlag = true
+      const state = this.context.blockStates.get(stopBlockId)
+      if (state) this.setFinalOutput(stopBlockId, state.output)
+      return
+    }
+
     if (this.context.runFromBlockContext) {
       const { startBlockId } = this.context.runFromBlockContext
       this.execLogger.info('Initializing queue for run-from-block mode', {
@@ -480,6 +521,9 @@ export class ExecutionEngine {
         this.setFinalOutput(nodeId, output)
         this.responseOutputLocked = true
       }
+      if (this.context.stopAfterBlockId === nodeId) {
+        this.stopBlockReached = true
+      }
       this.stoppedEarlyFlag = true
       return
     }
@@ -488,21 +532,71 @@ export class ExecutionEngine {
       this.setFinalOutput(nodeId, output)
     }
 
-    if (this.context.stopAfterBlockId === nodeId) {
-      // For loop/parallel sentinels, only stop if the subflow has fully exited (all iterations done)
-      // shouldContinue: true means more iterations, shouldExit: true means loop is done
-      const shouldContinue =
-        output.shouldContinue === true || output.selectedRoute === EDGE.PARALLEL_CONTINUE
-      if (!shouldContinue) {
-        this.execLogger.info('Stopping execution after target block', { nodeId })
-        this.stoppedEarlyFlag = true
-        return
-      }
+    if (this.completesStopBlock(node, output)) {
+      this.execLogger.info('Stopping execution after target block', { nodeId })
+      this.stopBlockReached = true
+      this.stoppedEarlyFlag = true
+      return
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     this.addMultipleToQueue(readyNodes)
+    this.stopIfStopBlockCannotRun()
+  }
+
+  /**
+   * Whether this completion finishes the stop block. A loop or parallel stop resolves to its end
+   * sentinel, which finishes only once no iteration remains; a subflow with nothing to run exits
+   * from its start sentinel, and its end sentinel never runs.
+   */
+  private completesStopBlock(node: DAGNode, output: NormalizedBlockOutput): boolean {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (!stopBlockId) return false
+    if (node.id === stopBlockId) {
+      return output.shouldContinue !== true && output.selectedRoute !== EDGE.PARALLEL_CONTINUE
+    }
+    const stopNode = this.dag.nodes.get(stopBlockId)
+    return (
+      (output.selectedRoute === EDGE.LOOP_EXIT || output.selectedRoute === EDGE.PARALLEL_EXIT) &&
+      node.metadata.sentinelType === 'start' &&
+      stopNode?.metadata.sentinelType === 'end' &&
+      node.metadata.subflowId === stopNode.metadata.subflowId
+    )
+  }
+
+  /**
+   * Ends the run once its stop block can no longer execute, rather than running every other branch
+   * to completion first; {@link assertStopBlockReached} then fails it.
+   */
+  private stopIfStopBlockCannotRun(): void {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (!stopBlockId || this.stopBlockQueued || this.edgeManager.canNodeStillRun(stopBlockId)) {
+      return
+    }
+    this.execLogger.info('Stopping execution: the stop block can no longer run', { stopBlockId })
+    this.stopBlockUnreachable = true
+    this.stoppedEarlyFlag = true
+  }
+
+  /**
+   * A stop-after run succeeds only by completing its stop block. A run whose routing skipped it,
+   * or that a Response block ended first, fails instead of passing for a run that stopped there.
+   */
+  private assertStopBlockReached(): void {
+    const stopBlockId = this.context.stopAfterBlockId
+    if (!stopBlockId || this.stopBlockReached) return
+    const node = this.dag.nodes.get(stopBlockId)
+    const label = node?.metadata.isSentinel
+      ? (node.metadata.subflowId ?? stopBlockId)
+      : node?.block.metadata?.name
+        ? `"${node.block.metadata.name}" (${stopBlockId})`
+        : stopBlockId
+    const reason =
+      this.responseOutputLocked && !this.stopBlockUnreachable
+        ? 'a Response block ended the run first'
+        : 'no path this run took leads to it'
+    throw new Error(`Stop block ${label} was not reached: ${reason}`)
   }
 
   private setFinalOutput(nodeId: string, output: NormalizedBlockOutput): void {
@@ -583,6 +677,22 @@ export class ExecutionEngine {
         state?: SerializableExecutionState
       }
       return parsedSnapshot.state
+    } catch (error) {
+      this.execLogger.warn('Failed to serialize execution state', {
+        error: toError(error).message,
+      })
+      return undefined
+    }
+  }
+
+  /**
+   * State for a run whose blocks have all settled, without the JSON round-trip.
+   * Cancelled and failed runs keep {@link getSerializableExecutionState}: a block
+   * still running there could mutate the logs after the run returns.
+   */
+  private getCompletedExecutionState(): SerializableExecutionState | undefined {
+    try {
+      return buildCompletedExecutionState(this.context, this.dag, this.edgeManager)
     } catch (error) {
       this.execLogger.warn('Failed to serialize execution state', {
         error: toError(error).message,

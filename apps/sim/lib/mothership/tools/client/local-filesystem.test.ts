@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockReportCompletion } = vi.hoisted(() => ({
@@ -230,5 +231,46 @@ describe('executeLocalFilesystemTool', () => {
       })
     })
     expect(mockReportCompletion).not.toHaveBeenCalled()
+  })
+
+  it('resolves only once the tool has settled and its result is reported', async () => {
+    let finishRead: (response: unknown) => void = () => {}
+    let finishReport: () => void = () => {}
+    localFilesystem.mockImplementation(async (request: { operation: string }) => {
+      if (request.operation === 'list_mounts') return { ok: true, data: { mounts: [mount] } }
+      return new Promise((resolve) => {
+        finishRead = resolve
+      })
+    })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishReport = resolve
+        })
+    )
+    let resolved = false
+    const running = executeLocalFilesystemTool(
+      'tool-held',
+      'read',
+      { path: `${vfsRoot}/README.md` },
+      { workspaceId: 'ws-1' }
+    ).then(() => {
+      resolved = true
+    })
+
+    await vi.waitFor(() =>
+      expect(localFilesystem).toHaveBeenCalledWith(expect.objectContaining({ operation: 'read' }))
+    )
+    await sleep(10)
+    expect(resolved).toBe(false)
+
+    finishRead({ ok: true, data: { content: 'hello', totalLines: 1 } })
+    await vi.waitFor(() => expect(mockReportCompletion).toHaveBeenCalled())
+    await sleep(10)
+    expect(resolved).toBe(false)
+
+    finishReport()
+    await running
+    expect(resolved).toBe(true)
   })
 })

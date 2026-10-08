@@ -2752,6 +2752,48 @@
       "when": 1790973503076,
       "tag": "0393_fork_workflow_sync_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1790986588983,
+      "tag": "0394_project_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 395,
+      "version": "7",
+      "when": 1791242831820,
+      "tag": "0395_desktop_tool_permission_requested",
+      "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1791254828269,
+      "tag": "0396_user_table_row_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1791260527198,
+      "tag": "0397_desktop_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1791260662287,
+      "tag": "0398_desktop_tool_pickup_deadline",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1791313130367,
+      "tag": "0399_tool_call_persist_seq",
+      "breakpoints": true
     }
   ]
 }

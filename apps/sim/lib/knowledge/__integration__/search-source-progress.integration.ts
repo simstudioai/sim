@@ -30,7 +30,7 @@ import {
   readKnowledgeDocument,
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
-import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
+import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentProcessor from '@/lib/knowledge/documents/document-processor'

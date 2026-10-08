@@ -32,6 +32,7 @@ import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
@@ -63,7 +64,11 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/mothership/chat/selection-context'
-import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import {
+  COPILOT_REQUEST_MODES,
+  MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
+} from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
@@ -312,6 +317,11 @@ const ChatMessageSchema = z
       .object({
         localFilesystem: z.boolean().optional(),
         localFiles: z.boolean().optional(),
+        localReadClaims: z.boolean().optional(),
+        /** The composer's desktop install, offered for its background executor. */
+        deviceId: z.string().uuid().optional(),
+        /** The background executor protocol version the desktop speaks. */
+        executor: z.number().int().min(1).max(1000).optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         terminals: z
@@ -373,6 +383,20 @@ const ChatMessageSchema = z
   )
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
+
+/**
+ * The desktop a turn asks its background executor to run on. Only a desktop composer that speaks
+ * the executor protocol and switched on at least one desktop surface asks; Assistant turns have
+ * no desktop tools.
+ */
+function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefined {
+  const desktop = body.desktopCapabilities
+  if (body.mode === 'assistant' || !desktop?.deviceId || !desktop.executor) return undefined
+  return desktop.browser || desktop.terminal || desktop.localFiles || desktop.localFilesystem
+    ? desktop.deviceId
+    : undefined
+}
+
 type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
 type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
 type UnifiedChatBranch =
@@ -916,9 +940,9 @@ const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
 /**
  * Claims this send so a retry of it can be recognised.
  *
- * Fails open: a missed deduplication costs a duplicate chat and turn, but
- * refusing the send loses the user's message. Returns `undefined` when the
- * store is unreachable, which sends normally with no claim to finalize.
+ * Fails closed: the claim is stored in Postgres (`chatSendIdempotency` forces
+ * database storage), so a store failure throws and the send is answered with a
+ * 500 rather than run without deduplication.
  *
  * The key is scoped to the caller — `userMessageId` is client-supplied, so an
  * unscoped one would let a user probe another's sends for their chat id.
@@ -983,12 +1007,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
+    // Admission records a send's own effort as the chat's explicit choice.
+    const effortChoice = body.mode === 'assistant' ? undefined : body.effort
+    let modelSelectorEnabled = false
     if (body.mode !== 'assistant') {
-      const [modelSelectorEnabled, planEnabled] = await Promise.all([
+      const [selectorEnabled, planEnabled] = await Promise.all([
         isMothershipModelSelectorEnabled(),
         body.mode === 'plan' ? isPlanModeEnabled() : false,
       ])
-      Object.assign(body, resolveMothershipModelSettings(body, modelSelectorEnabled))
+      modelSelectorEnabled = selectorEnabled
       if (body.mode === 'plan' && !planEnabled)
         return createBadRequestResponse('Plan mode is disabled')
     }
@@ -1178,6 +1205,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
       }
+      if (body.mode !== 'assistant')
+        Object.assign(
+          body,
+          resolveMothershipModelSettings(
+            {
+              effort: effortChoice ?? currentChat?.effort ?? undefined,
+              modelSelection: body.modelSelection,
+            },
+            modelSelectorEnabled
+          )
+        )
 
       let pendingStreamWaitMs = 0
       if (actualChatId) {
@@ -1466,6 +1504,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               requestMode: body.mode,
             },
             notifyWorkspaceStatus: branch.notifyChatStatus,
+            // The effort this turn actually runs at, so the stored pick is always one it can use.
+            effortChoice: effortChoice && body.effort,
+            desktopDeviceId: backgroundExecutorDeviceId(body),
           },
         })
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
@@ -1501,6 +1542,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           // Executor routing is decided HERE, once per turn, from the caller's declared
           // capabilities — dispatch never discovers client absence by burning a grace timer.
           clientToolPickupExpected,
+          desktopClaimsLocalReads: body.desktopCapabilities?.localReadClaims === true,
           executionContext,
           billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({
@@ -1561,6 +1603,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           ...SSE_RESPONSE_HEADERS,
           traceparent: rootTraceparent,
           ...(actualChatId ? { [MOTHERSHIP_CHAT_ID_HEADER]: actualChatId } : {}),
+          ...(admittedRun?.desktopDeviceId
+            ? { [MOTHERSHIP_DESKTOP_EXECUTOR_HEADER]: 'device' }
+            : {}),
         },
       })
     }) // end otelContextApi.with
@@ -1583,6 +1628,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
 
     const applicationError = asOrchestrationError(error)
+    /* Another attempt with this id holds its claim and may admit the turn. Answer
+       as a duplicate (naming this id), so the client keeps the message under it
+       rather than reading a refusal it could edit into a second turn. */
+    if (applicationError instanceof ChatSendSupersededError) {
+      return NextResponse.json(
+        { error: 'This message was already sent.', activeStreamId: userMessageId },
+        { status: 409 }
+      )
+    }
     if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
       return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
     }

@@ -169,6 +169,28 @@ export type ActivateWorkflowVersionResponse = {
   data: ActivateWorkflowVersionResponseRef4
 }
 
+/** `POST /api/v2/organizations/[organizationId]/domains` */
+export type AddOrganizationDomainParams = {
+  organizationId: string
+}
+
+export type AddOrganizationDomainQuery = Record<string, unknown>
+
+export type AddOrganizationDomainBody = {
+  domain: string
+}
+
+export type AddOrganizationDomainResponse = {
+  data: {
+    id: string
+    domain: string
+    status: 'pending' | 'verified'
+    verifiedAt: string | null
+    challengeHost: string
+    txtRecordValue: string | null
+  }
+}
+
 /** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
 export type AddPermissionGroupMemberParams = {
   organizationId: string
@@ -1705,6 +1727,7 @@ export type CreateCredentialConnectionBody =
         | 'microsoft-ad'
         | 'microsoft-dataverse'
         | 'microsoft-excel'
+        | 'microsoft-intune'
         | 'microsoft-planner'
         | 'microsoft-powerbi'
         | 'microsoft-teams'
@@ -1736,6 +1759,7 @@ export type CreateCredentialConnectionBody =
         | 'calcom'
         | 'docusign'
         | 'pipedrive'
+        | 'ramp'
         | 'hubspot'
         | 'linkedin'
         | 'instagram'
@@ -2590,6 +2614,8 @@ export type CreatePermissionGroupBody = {
     hideSandboxesTab?: boolean
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
+    deniedPartialAccessProjectIssues?: Array<string>
+    defaultAgentModel?: string | null
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -2643,6 +2669,8 @@ type CreatePermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -4048,6 +4076,21 @@ export type DeleteSkillResponse = {
   data: DeleteSkillResponseRef0
 }
 
+/** `DELETE /api/v2/organizations/[organizationId]/sso/providers/[providerId]` */
+export type DeleteSsoProviderParams = {
+  organizationId: string
+  providerId: string
+}
+
+export type DeleteSsoProviderQuery = Record<string, unknown>
+
+export type DeleteSsoProviderResponse = {
+  data: {
+    providerId: string
+    deleted: true
+  }
+}
+
 /** `DELETE /api/v2/tables/[tableId]` */
 export type DeleteTableParams = {
   tableId: string
@@ -4893,6 +4936,7 @@ export type ExecuteWorkflowBody = {
               blockId: string
               sourceRunId: string
             }
+        stopAfterBlockId?: string
       }
   async?: boolean
   executionTimeoutSeconds?: number
@@ -6128,6 +6172,8 @@ type GetPermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -6398,6 +6444,45 @@ type GetSkillResponseRef0 = {
 
 export type GetSkillResponse = {
   data: GetSkillResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/sso/policy` */
+export type GetSsoPolicyParams = {
+  organizationId: string
+}
+
+export type GetSsoPolicyQuery = Record<string, unknown>
+
+export type GetSsoPolicyResponse = {
+  data: {
+    requireSso: boolean
+    hasVerifiedProvider: boolean
+    isEnforced: boolean
+  }
+}
+
+/** `GET /api/v2/organizations/[organizationId]/sso/providers/[providerId]` */
+export type GetSsoProviderParams = {
+  organizationId: string
+  providerId: string
+}
+
+export type GetSsoProviderQuery = Record<string, unknown>
+
+export type GetSsoProviderResponse = {
+  data: {
+    id: string
+    providerId: string
+    providerType: 'oidc' | 'saml'
+    domain: string
+    domainKey: string
+    issuer: string
+    oidcConfig: string | null
+    samlConfig: string | null
+    jitProvisioningEnabled: boolean
+    domainVerified: boolean
+    isPrimary: boolean
+  }
 }
 
 /** `GET /api/v2/tables/[tableId]` */
@@ -7278,6 +7363,8 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   } | null
   entitled: boolean
   organizationId: string | null
@@ -7666,6 +7753,34 @@ type ListConnectorTypesResponseRef2 = {
 
 export type ListConnectorTypesResponse = {
   data: Array<ListConnectorTypesResponseRef0 | ListConnectorTypesResponseRef2>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/credentials/[credentialId]/members` */
+export type ListCredentialMembersParams = {
+  credentialId: string
+}
+
+export type ListCredentialMembersQuery = {
+  workspaceId: string
+  limit?: number
+  cursor?: string
+  sortBy?: 'email' | 'name'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListCredentialMembersResponse = {
+  data: Array<{
+    id: string
+    userId: string
+    role: 'admin' | 'member'
+    status: 'active' | 'pending' | 'revoked'
+    joinedAt: string | null
+    userName: string | null
+    userEmail: string | null
+    userImage: string | null
+    roleSource: 'explicit' | 'workspace-admin'
+  }>
   nextCursor: string | null
 }
 
@@ -8686,6 +8801,30 @@ export type ListOrganizationAccessRequestsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/domains` */
+export type ListOrganizationDomainsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationDomainsQuery = {
+  limit?: number
+  cursor?: string
+  sortBy?: 'domain'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListOrganizationDomainsResponse = {
+  data: Array<{
+    id: string
+    domain: string
+    status: 'pending' | 'verified'
+    verifiedAt: string | null
+    challengeHost: string
+    txtRecordValue: string | null
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/organizations/[organizationId]/invitations` */
 export type ListOrganizationInvitationsParams = {
   organizationId: string
@@ -8955,6 +9094,8 @@ type ListPermissionGroupsResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -9230,6 +9371,35 @@ type ListSkillsResponseRef0 = {
 
 export type ListSkillsResponse = {
   data: Array<ListSkillsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/sso/providers` */
+export type ListSsoProvidersParams = {
+  organizationId: string
+}
+
+export type ListSsoProvidersQuery = {
+  limit?: number
+  cursor?: string
+  sortBy?: 'providerId' | 'domain'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListSsoProvidersResponse = {
+  data: Array<{
+    id: string
+    providerId: string
+    providerType: 'oidc' | 'saml'
+    domain: string
+    domainKey: string
+    issuer: string
+    oidcConfig: string | null
+    samlConfig: string | null
+    jitProvisioningEnabled: boolean
+    domainVerified: boolean
+    isPrimary: boolean
+  }>
   nextCursor: string | null
 }
 
@@ -10056,6 +10226,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
       | 'hideSandboxesTab'
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
+      | 'deniedPartialAccessProjectIssues'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -10212,6 +10383,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
       | 'hideSandboxesTab'
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
+      | 'deniedPartialAccessProjectIssues'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -11350,6 +11522,38 @@ export type RelocateWorkflowFolderResponse = {
   data: RelocateWorkflowFolderResponseRef0
 }
 
+/** `DELETE /api/v2/credentials/[credentialId]/members/[userId]` */
+export type RemoveCredentialMemberParams = {
+  credentialId: string
+  userId: string
+}
+
+export type RemoveCredentialMemberQuery = {
+  workspaceId: string
+}
+
+export type RemoveCredentialMemberResponse = {
+  data: {
+    userId: string
+    revoked: true
+  }
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/domains/[domainId]` */
+export type RemoveOrganizationDomainParams = {
+  organizationId: string
+  domainId: string
+}
+
+export type RemoveOrganizationDomainQuery = Record<string, unknown>
+
+export type RemoveOrganizationDomainResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
 /** `DELETE /api/v2/organizations/[organizationId]/members/[userId]` */
 export type RemoveOrganizationMemberParams = {
   organizationId: string
@@ -12290,6 +12494,67 @@ export type RunRowEnrichmentResponse = {
   data: RunRowEnrichmentResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/sso/providers` */
+export type SaveSsoProviderParams = {
+  organizationId: string
+}
+
+export type SaveSsoProviderQuery = Record<string, unknown>
+
+export type SaveSsoProviderBody =
+  | {
+      providerType: 'oidc'
+      providerId: string
+      issuer: string
+      domain: string
+      jitProvisioningEnabled?: boolean
+      mapping?: {
+        id?: string
+        email?: string
+        name?: string
+        image?: string
+      }
+      clientId: string
+      clientSecret: string
+      scopes?: Array<string>
+      pkce?: boolean
+      authorizationEndpoint?: string
+      tokenEndpoint?: string
+      userInfoEndpoint?: string
+      skipUserInfoEndpoint?: boolean
+      jwksEndpoint?: string
+    }
+  | {
+      providerType: 'saml'
+      providerId: string
+      issuer: string
+      domain: string
+      jitProvisioningEnabled?: boolean
+      mapping?: {
+        id?: string
+        email?: string
+        name?: string
+        image?: string
+      }
+      entryPoint: string
+      cert: string
+      callbackUrl?: string
+      audience?: string
+      wantAssertionsSigned?: boolean
+      signatureAlgorithm?: string
+      digestAlgorithm?: string
+      identifierFormat?: string
+      idpMetadata?: string
+    }
+
+export type SaveSsoProviderResponse = {
+  data: {
+    providerId: string
+    providerType: 'oidc' | 'saml'
+    created: boolean
+  }
+}
+
 /** `GET /api/v2/files/search` */
 export type SearchFileContentQuery = {
   workspaceId: string
@@ -12512,6 +12777,23 @@ type SearchTableRowsResponseRef1 = {
 
 export type SearchTableRowsResponse = {
   data: SearchTableRowsResponseRef1
+}
+
+/** `POST /api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary` */
+export type SetPrimarySsoProviderParams = {
+  organizationId: string
+  providerId: string
+}
+
+export type SetPrimarySsoProviderQuery = Record<string, unknown>
+
+export type SetPrimarySsoProviderBody = Record<string, unknown>
+
+export type SetPrimarySsoProviderResponse = {
+  data: {
+    providerId: string
+    domain: string
+  }
 }
 
 /** `PUT /api/v2/secrets/[name]` */
@@ -13242,6 +13524,8 @@ export type UpdatePermissionGroupBody = {
     hideSandboxesTab?: boolean
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
+    deniedPartialAccessProjectIssues?: Array<string>
+    defaultAgentModel?: string | null
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -13295,6 +13579,8 @@ type UpdatePermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
+    defaultAgentModel: string | null
   }
   isDefault: boolean
   membershipMode: string
@@ -13532,6 +13818,25 @@ type UpdateSkillResponseRef0 = {
 
 export type UpdateSkillResponse = {
   data: UpdateSkillResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/sso/policy` */
+export type UpdateSsoPolicyParams = {
+  organizationId: string
+}
+
+export type UpdateSsoPolicyQuery = Record<string, unknown>
+
+export type UpdateSsoPolicyBody = {
+  requireSso: boolean
+}
+
+export type UpdateSsoPolicyResponse = {
+  data: {
+    requireSso: boolean
+    hasVerifiedProvider: boolean
+    isEnforced: boolean
+  }
 }
 
 /** `PATCH /api/v2/tables/[tableId]` */
@@ -14115,6 +14420,28 @@ export type UploadKnowledgeDocumentResponse = {
   data: UploadKnowledgeDocumentResponseRef0
 }
 
+/** `POST /api/v2/credentials/[credentialId]/members` */
+export type UpsertCredentialMemberParams = {
+  credentialId: string
+}
+
+export type UpsertCredentialMemberQuery = {
+  workspaceId: string
+}
+
+export type UpsertCredentialMemberBody = {
+  userId: string
+  role: 'admin' | 'member'
+}
+
+export type UpsertCredentialMemberResponse = {
+  data: {
+    userId: string
+    role: 'admin' | 'member'
+    created: boolean
+  }
+}
+
 /** `PATCH /api/v2/files/[fileId]/share` */
 export type UpsertFileShareParams = {
   fileId: string
@@ -14188,6 +14515,27 @@ type UpsertTableRowResponseRef3 = {
 
 export type UpsertTableRowResponse = {
   data: UpsertTableRowResponseRef3
+}
+
+/** `POST /api/v2/organizations/[organizationId]/domains/[domainId]/verify` */
+export type VerifyOrganizationDomainParams = {
+  organizationId: string
+  domainId: string
+}
+
+export type VerifyOrganizationDomainQuery = Record<string, unknown>
+
+export type VerifyOrganizationDomainBody = Record<string, unknown>
+
+export type VerifyOrganizationDomainResponse = {
+  data: {
+    id: string
+    domain: string
+    status: 'pending' | 'verified'
+    verifiedAt: string | null
+    challengeHost: string
+    txtRecordValue: string | null
+  }
 }
 
 /**
@@ -14265,6 +14613,25 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Activate Workflow Version',
     workspaceKeyUnsupported: true,
+  },
+  addOrganizationDomain: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/domains',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'Add Organization Domain',
+    workspaceKeyUnsupported: true,
+    body: {
+      domain: {
+        kind: 'string',
+        required: true,
+        describe: 'Domain to claim and verify through a DNS TXT record.',
+      },
+    },
   },
   addPermissionGroupMember: {
     method: 'POST',
@@ -15281,8 +15648,7 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional group description.' },
       config: {
         kind: 'object',
-        describe:
-          'Permission restrictions to set. Omitted keys use the default permission configuration.',
+        describe: 'Group settings to set. Omitted keys use the default permission configuration.',
       },
       isDefault: {
         kind: 'boolean',
@@ -15984,6 +16350,19 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
+  },
+  deleteSsoProvider: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]',
+    pathParams: ['organizationId', 'providerId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+      providerId: 'Identity provider identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete SSO Provider',
+    workspaceKeyUnsupported: true,
   },
   deleteTable: {
     method: 'DELETE',
@@ -17209,6 +17588,31 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
   },
+  getSsoPolicy: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/sso/policy',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'Get SSO Policy',
+    workspaceKeyUnsupported: true,
+  },
+  getSsoProvider: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]',
+    pathParams: ['organizationId', 'providerId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+      providerId: 'Identity provider identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get SSO Provider',
+    workspaceKeyUnsupported: true,
+  },
   getTable: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
@@ -17810,6 +18214,46 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listCredentialMembers: {
+    method: 'GET',
+    path: '/api/v2/credentials/[credentialId]/members',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential whose sharing grants are managed.' },
+    responseMode: 'json',
+    summary: 'List Credential Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum credential members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'name'] as const,
+        default: 'email',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -18715,6 +19159,43 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listOrganizationDomains: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/domains',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'List Organization Domains',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum domain claims to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['domain'] as const,
+        default: 'domain',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
   listOrganizationInvitations: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/invitations',
@@ -19367,6 +19848,43 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSsoProviders: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/sso/providers',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'List SSO Providers',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum identity providers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['providerId', 'domain'] as const,
+        default: 'providerId',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -20418,6 +20936,38 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  removeCredentialMember: {
+    method: 'DELETE',
+    path: '/api/v2/credentials/[credentialId]/members/[userId]',
+    pathParams: ['credentialId', 'userId'] as const,
+    pathParamDocs: {
+      credentialId: 'Credential whose sharing grants are managed.',
+      userId: 'User whose explicit grant will be revoked.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Credential Member',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+    },
+  },
+  removeOrganizationDomain: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/domains/[domainId]',
+    pathParams: ['organizationId', 'domainId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+      domainId: 'Domain claim owned by this organization.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Organization Domain',
+    workspaceKeyUnsupported: true,
+  },
   removeOrganizationMember: {
     method: 'DELETE',
     path: '/api/v2/organizations/[organizationId]/members/[userId]',
@@ -20844,6 +21394,285 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
   },
+  saveSsoProvider: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/sso/providers',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'Save SSO Provider',
+    workspaceKeyUnsupported: true,
+    body: {
+      providerType: {
+        kind: 'enum',
+        required: true,
+        values: ['oidc', 'saml'] as const,
+        describe:
+          'oidc: Configure an OpenID Connect identity provider. saml: Configure a SAML identity provider.',
+      },
+      providerId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Globally unique provider ID; saving an existing provider replaces its supplied configuration.',
+      },
+      issuer: { kind: 'string', required: true, describe: 'Identity provider issuer URL.' },
+      domain: {
+        kind: 'string',
+        required: true,
+        describe: 'Email domain already verified by this organization.',
+      },
+      jitProvisioningEnabled: {
+        kind: 'boolean',
+        default: true,
+        describe:
+          'Allow SSO sign-in to provision organization membership, subject to eligibility and available seats.',
+      },
+      mapping: {
+        kind: 'object',
+        default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+        describe: 'Identity-provider claims mapped to user fields.',
+      },
+      clientId: {
+        kind: 'string',
+        describe:
+          'Identity provider client identifier. Available when providerType is oidc. Required when providerType is oidc.',
+      },
+      clientSecret: {
+        kind: 'string',
+        describe:
+          'Write-only client secret; the redacted marker from Get SSO Provider preserves an existing secret. Available when providerType is oidc. Required when providerType is oidc.',
+      },
+      scopes: {
+        kind: 'array',
+        default: ['openid', 'profile', 'email'],
+        describe: 'OIDC scopes; offline_access is omitted. Available when providerType is oidc.',
+      },
+      pkce: {
+        kind: 'boolean',
+        default: true,
+        describe: 'Use PKCE for the authorization flow. Available when providerType is oidc.',
+      },
+      authorizationEndpoint: {
+        kind: 'string',
+        describe:
+          'Optional authorization endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc.',
+      },
+      tokenEndpoint: {
+        kind: 'string',
+        describe:
+          'Optional token endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc.',
+      },
+      userInfoEndpoint: {
+        kind: 'string',
+        describe: 'Optional UserInfo endpoint. Available when providerType is oidc.',
+      },
+      skipUserInfoEndpoint: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Read identity claims from the ID token instead of calling UserInfo. Available when providerType is oidc.',
+      },
+      jwksEndpoint: {
+        kind: 'string',
+        describe:
+          'Optional signing-key endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc.',
+      },
+      entryPoint: {
+        kind: 'string',
+        describe:
+          'Identity provider SAML sign-in endpoint. Available when providerType is saml. Required when providerType is saml.',
+      },
+      cert: {
+        kind: 'string',
+        describe:
+          'Identity provider signing certificate. Available when providerType is saml. Required when providerType is saml.',
+      },
+      callbackUrl: {
+        kind: 'string',
+        describe:
+          'SAML callback URL; defaults to this provider’s Sim callback. Available when providerType is saml.',
+      },
+      audience: {
+        kind: 'string',
+        describe:
+          'SAML audience; omission preserves the saved value. Available when providerType is saml.',
+      },
+      wantAssertionsSigned: {
+        kind: 'boolean',
+        describe:
+          'Require signed assertions; omission preserves the saved value. Available when providerType is saml.',
+      },
+      signatureAlgorithm: {
+        kind: 'string',
+        describe:
+          'Signature algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml.',
+      },
+      digestAlgorithm: {
+        kind: 'string',
+        describe:
+          'Digest algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml.',
+      },
+      identifierFormat: {
+        kind: 'string',
+        describe:
+          'SAML NameID format; omission clears the saved value. Available when providerType is saml.',
+      },
+      idpMetadata: {
+        kind: 'string',
+        describe:
+          'Identity provider metadata XML; omission clears the saved document. Available when providerType is saml.',
+      },
+    },
+    bodyDiscriminator: {
+      field: 'providerType',
+      variants: {
+        oidc: {
+          providerType: {
+            kind: 'string',
+            required: true,
+            describe: 'Configure an OpenID Connect identity provider.',
+          },
+          providerId: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Globally unique provider ID; saving an existing provider replaces its supplied configuration.',
+          },
+          issuer: { kind: 'string', required: true, describe: 'Identity provider issuer URL.' },
+          domain: {
+            kind: 'string',
+            required: true,
+            describe: 'Email domain already verified by this organization.',
+          },
+          jitProvisioningEnabled: {
+            kind: 'boolean',
+            default: true,
+            describe:
+              'Allow SSO sign-in to provision organization membership, subject to eligibility and available seats.',
+          },
+          mapping: {
+            kind: 'object',
+            default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+            describe: 'Identity-provider claims mapped to user fields.',
+          },
+          clientId: {
+            kind: 'string',
+            required: true,
+            describe: 'Identity provider client identifier.',
+          },
+          clientSecret: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Write-only client secret; the redacted marker from Get SSO Provider preserves an existing secret.',
+          },
+          scopes: {
+            kind: 'array',
+            default: ['openid', 'profile', 'email'],
+            describe: 'OIDC scopes; offline_access is omitted.',
+          },
+          pkce: {
+            kind: 'boolean',
+            default: true,
+            describe: 'Use PKCE for the authorization flow.',
+          },
+          authorizationEndpoint: {
+            kind: 'string',
+            describe:
+              'Optional authorization endpoint; otherwise resolved through issuer discovery.',
+          },
+          tokenEndpoint: {
+            kind: 'string',
+            describe: 'Optional token endpoint; otherwise resolved through issuer discovery.',
+          },
+          userInfoEndpoint: { kind: 'string', describe: 'Optional UserInfo endpoint.' },
+          skipUserInfoEndpoint: {
+            kind: 'boolean',
+            default: false,
+            describe: 'Read identity claims from the ID token instead of calling UserInfo.',
+          },
+          jwksEndpoint: {
+            kind: 'string',
+            describe: 'Optional signing-key endpoint; otherwise resolved through issuer discovery.',
+          },
+        },
+        saml: {
+          providerType: {
+            kind: 'string',
+            required: true,
+            describe: 'Configure a SAML identity provider.',
+          },
+          providerId: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Globally unique provider ID; saving an existing provider replaces its supplied configuration.',
+          },
+          issuer: { kind: 'string', required: true, describe: 'Identity provider issuer URL.' },
+          domain: {
+            kind: 'string',
+            required: true,
+            describe: 'Email domain already verified by this organization.',
+          },
+          jitProvisioningEnabled: {
+            kind: 'boolean',
+            default: true,
+            describe:
+              'Allow SSO sign-in to provision organization membership, subject to eligibility and available seats.',
+          },
+          mapping: {
+            kind: 'object',
+            default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+            describe: 'Identity-provider claims mapped to user fields.',
+          },
+          entryPoint: {
+            kind: 'string',
+            required: true,
+            describe: 'Identity provider SAML sign-in endpoint.',
+          },
+          cert: {
+            kind: 'string',
+            required: true,
+            describe: 'Identity provider signing certificate.',
+          },
+          callbackUrl: {
+            kind: 'string',
+            describe: 'SAML callback URL; defaults to this provider’s Sim callback.',
+          },
+          audience: {
+            kind: 'string',
+            describe: 'SAML audience; omission preserves the saved value.',
+          },
+          wantAssertionsSigned: {
+            kind: 'boolean',
+            describe: 'Require signed assertions; omission preserves the saved value.',
+          },
+          signatureAlgorithm: {
+            kind: 'string',
+            describe:
+              'Signature algorithm accepted by the SAML configuration validator; omission preserves the saved value.',
+          },
+          digestAlgorithm: {
+            kind: 'string',
+            describe:
+              'Digest algorithm accepted by the SAML configuration validator; omission preserves the saved value.',
+          },
+          identifierFormat: {
+            kind: 'string',
+            describe: 'SAML NameID format; omission clears the saved value.',
+          },
+          idpMetadata: {
+            kind: 'string',
+            describe: 'Identity provider metadata XML; omission clears the saved document.',
+          },
+        },
+      },
+    },
+  },
   searchFileContent: {
     method: 'GET',
     path: '/api/v2/files/search',
@@ -20964,6 +21793,19 @@ export const V2_OPERATIONS = {
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
+  },
+  setPrimarySsoProvider: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary',
+    pathParams: ['organizationId', 'providerId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+      providerId: 'Identity provider identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Set Primary SSO Provider',
+    workspaceKeyUnsupported: true,
   },
   setSecret: {
     method: 'PUT',
@@ -21511,7 +22353,7 @@ export const V2_OPERATIONS = {
       config: {
         kind: 'object',
         describe:
-          'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.',
+          'Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list.',
       },
       isDefault: {
         kind: 'boolean',
@@ -21598,6 +22440,25 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'New kebab-case skill name.' },
       description: { kind: 'string', describe: 'New one-line summary of when the skill applies.' },
       content: { kind: 'string', describe: 'Replacement skill body.' },
+    },
+  },
+  updateSsoPolicy: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/sso/policy',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+    },
+    responseMode: 'json',
+    summary: 'Update SSO Policy',
+    workspaceKeyUnsupported: true,
+    body: {
+      requireSso: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Require organization SSO on future sign-ins; existing sessions remain active.',
+      },
     },
   },
   updateTable: {
@@ -21841,6 +22702,35 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  upsertCredentialMember: {
+    method: 'POST',
+    path: '/api/v2/credentials/[credentialId]/members',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential whose sharing grants are managed.' },
+    responseMode: 'json',
+    summary: 'Upsert Credential Member',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+    },
+    body: {
+      userId: {
+        kind: 'string',
+        required: true,
+        describe: 'Existing workspace member to grant or change access for.',
+      },
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['admin', 'member'] as const,
+        describe: 'Credential role to grant; workspace administrators cannot be demoted.',
+      },
+    },
+  },
   upsertFileShare: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]/share',
@@ -21892,6 +22782,19 @@ export const V2_OPERATIONS = {
       },
       conflictTarget: { kind: 'string', describe: 'Unique column used to detect a conflict.' },
     },
+  },
+  verifyOrganizationDomain: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/domains/[domainId]/verify',
+    pathParams: ['organizationId', 'domainId'] as const,
+    pathParamDocs: {
+      organizationId:
+        'Organization whose single sign-on settings and verified domains are managed.',
+      domainId: 'Domain claim owned by this organization.',
+    },
+    responseMode: 'json',
+    summary: 'Verify Organization Domain',
+    workspaceKeyUnsupported: true,
   },
 } as const
 

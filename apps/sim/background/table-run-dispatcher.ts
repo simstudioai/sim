@@ -29,9 +29,14 @@ export const tableRunDispatcherTask = task({
    * 0.03 for p90, so the larger preset is bought for its RAM.
    */
   machine: 'small-2x',
+  /**
+   * The trigger site keys each run by its `dispatchId`, so the limit applies
+   * per dispatch: 1 serializes a duplicate run of the same dispatch without
+   * throttling distinct dispatches against each other.
+   */
   queue: {
     name: 'table-run-dispatcher',
-    concurrencyLimit: 8,
+    concurrencyLimit: 1,
   },
   run: async (payload: TableRunDispatcherPayload) => {
     const { dispatchId, concurrency } = payload

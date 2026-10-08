@@ -34,8 +34,8 @@ import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import * as storage from '@/lib/uploads/core/storage-service'
 import {
   deleteFileMetadataByIdentity,

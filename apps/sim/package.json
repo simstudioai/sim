@@ -23,6 +23,9 @@
     "test": "vitest run",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
+    "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
+    "test:desktop-inbox:e2e": "bun --no-env-file scripts/test-desktop-inbox-e2e.ts",
+    "test:cli-run-latency:e2e": "bun --no-env-file scripts/test-cli-run-latency-e2e.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
@@ -215,7 +218,7 @@
     "mssql": "12.7.0",
     "mysql2": "3.24.2",
     "neo4j-driver": "6.0.1",
-    "next": "16.3.6",
+    "next": "16.4.0",
     "next-mdx-remote": "^6.0.0",
     "next-themes": "^0.4.6",
     "nodemailer": "10.0.10",
@@ -264,7 +267,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@next/env": "16.3.6",
+    "@next/env": "16.4.0",
     "@opentelemetry/context-async-hooks": "2.10.0",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",

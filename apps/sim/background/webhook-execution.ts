@@ -589,7 +589,7 @@ export async function executeWebhookJob(
         )
       }
 
-      const result = await webhookIdempotency.executeWithIdempotency(
+      const execution = await webhookIdempotency.executeOrSkipInProgress(
         authenticatedPayload.provider,
         idempotencyKey,
         runOperation,
@@ -604,7 +604,26 @@ export async function executeWebhookJob(
       if (!operationStarted) {
         await releaseExecutionSlot(executionId)
       }
-      return result
+      if (execution.outcome === 'in-progress') {
+        // Ingress already acknowledged this delivery and nothing reads this job's result,
+        // so waiting on the live holder would only pin the machine and queue slot.
+        logger.info(`[${requestId}] Skipping duplicate webhook delivery already in progress`, {
+          webhookId: authenticatedPayload.webhookId,
+          workflowId: authenticatedPayload.workflowId,
+          provider: authenticatedPayload.provider,
+          executionId,
+        })
+        return {
+          success: true,
+          duplicate: true,
+          workflowId: authenticatedPayload.workflowId,
+          executionId,
+          output: {},
+          executedAt: new Date().toISOString(),
+          provider: authenticatedPayload.provider,
+        }
+      }
+      return execution.result
     })
   } catch (error) {
     await releaseExecutionSlot(executionId)

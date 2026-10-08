@@ -18,9 +18,9 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -51,7 +51,7 @@ interface DuplicateWorkflowOptions {
    * would require a second pooled connection while the caller's transaction
    * holds the first.
    */
-  tx?: DbOrTx
+  tx?: DbTransaction
   workflowIdMap?: Map<string, string>
 }
 
@@ -161,7 +161,7 @@ export async function duplicateWorkflow(
     }
   }
 
-  const duplicateWithinTransaction = async (tx: DbOrTx) => {
+  const duplicateWithinTransaction = async (tx: DbTransaction) => {
     // First verify the source workflow exists
     const sourceWorkflowRow = await tx
       .select()
@@ -211,19 +211,17 @@ export async function duplicateWorkflow(
 
     // A duplicate is a new workflow, so it takes the workspace's fork-sync policy rather
     // than inheriting the source's participation, and starts unlocked like any new one.
-    await tx.insert(workflow).values(
-      await buildNewWorkflowRow(tx, {
-        id: newWorkflowId,
-        userId,
-        workspaceId: targetWorkspaceId,
-        folderId: targetFolderId,
-        sortOrder,
-        name: deduplicatedName,
-        description: description || source.description,
-        now,
-        variables,
-      })
-    )
+    await insertNewWorkflowRow(tx, {
+      id: newWorkflowId,
+      userId,
+      workspaceId: targetWorkspaceId,
+      folderId: targetFolderId,
+      sortOrder,
+      name: deduplicatedName,
+      description: description || source.description,
+      now,
+      variables,
+    })
 
     // Copy all blocks from source workflow with new IDs
     const sourceBlocks = await tx

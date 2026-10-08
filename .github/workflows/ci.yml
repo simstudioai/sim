@@ -1,4 +1,4 @@
-name: CI
+name: ci
 
 # Runner provider toggle, read from the CI_PROVIDER repo variable:
 #
@@ -18,13 +18,11 @@ name: CI
 on:
   push:
     branches: [main, staging, dev]
+  # No path filter: `checks / ci` is the required status check, and a pull request whose run
+  # never starts never reports it, so it could not merge. Docs-only pull requests are rare enough
+  # that running CI on them costs nothing measurable.
   pull_request:
     branches: [main, staging, dev]
-    # Docs content and markdown don't affect the app build or images; push
-    # runs stay unfiltered because they feed the deploy pipeline.
-    paths-ignore:
-      - 'apps/docs/content/**'
-      - '**/*.md'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,18 +32,17 @@ permissions:
   contents: read
 
 jobs:
-  test-build:
-    name: Test and Build
+  checks:
+    name: checks
     if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
-    uses: ./.github/workflows/test-build.yml
-    secrets: inherit
+    uses: ./.github/workflows/checks.yml
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   # Smallest runner on purpose: a few seconds of pure shell over the commit
   # message, no checkout and no install.
-  detect-version:
-    name: Detect Version
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  version:
+    name: version
+    runs-on: &runner-2vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
@@ -74,9 +71,9 @@ jobs:
   # the Electron app or the bridge packages trigger a per-env prerelease build
   # (dev → dev stream, staging → staging) that the env's update feed
   # (/api/desktop/update) starts offering automatically.
-  detect-desktop-changes:
-    name: Detect Desktop Changes
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  desktop-changes:
+    name: desktop-changes
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')
     outputs:
@@ -116,36 +113,41 @@ jobs:
   # in place before the new app version deploys (replaces the removed ECS
   # migration sidecar)
   migrate:
-    name: Migrate DB
-    needs: [test-build]
+    name: migrate
+    needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
-    # and cascade-skips the deploy chain (migrate -> promote-images ->
+    # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      needs.test-build.result == 'success' &&
+      needs.checks.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    uses: ./.github/workflows/migrations.yml
+    uses: ./.github/workflows/migrate.yml
     with:
       environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-    secrets: inherit
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      STAGING_MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
-    name: Migrate Dev DB
+    name: migrate-dev
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    uses: ./.github/workflows/migrations.yml
+    uses: ./.github/workflows/migrate.yml
     with:
       environment: dev
-    secrets: inherit
+    secrets:
+      DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
 
   # Dev: build immutable images alongside the schema push and Trigger upload.
-  build-dev:
-    name: Build Dev ECR
+  image-dev:
+    name: image-dev (${{ matrix.id }})
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
+    runs-on: &runner-matrix ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -162,29 +164,33 @@ jobs:
           # deploy — nothing ships until the image is pushed — and its two
           # dominant steps both scale with cores (`bun install` ~300-400s, `next
           # build` ~260s). The same `next build` runs on 16 vCPU in the separate
-          # Build App verification job, which does not gate anything; this one
+          # checks `build` job, which does not gate anything; this one
           # was doing comparable work on half the cores.
           #
           # cache_mb is the layer cache the post-job prune retains, and it is the
-          # only reason the sticky disks stay bounded — see docker-build's
+          # only reason the sticky disks stay bounded — see the image action's
           # action.yml. Rows that omit it take the small-image default there. The
           # app image overrides because it carries ~34 layers plus apt and bun
           # cache mounts for the whole monorepo; 100 GB is several builds' worth
           # of headroom over that working set.
-          - dockerfile: ./docker/app.Dockerfile
+          - id: app
+            dockerfile: ./docker/app.Dockerfile
             cache_mb: '102400'
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
-          - dockerfile: ./docker/db.Dockerfile
+          - id: db
+            dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
-          - dockerfile: ./docker/realtime.Dockerfile
+          - id: realtime
+            dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
-          - dockerfile: ./docker/pii.Dockerfile
+          - id: pii
+            dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
@@ -215,7 +221,7 @@ jobs:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Build and push
-        uses: ./.github/actions/docker-build
+        uses: ./.github/actions/image
         with:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
@@ -226,13 +232,13 @@ jobs:
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Staging/production coordinate task releases with app traffic cutover.
-  # Dev tasks deploy independently in deploy-trigger-dev.yml.
-  prepare-trigger:
-    name: Prepare Trigger.dev
+  # Dev tasks deploy independently in trigger-dev.yml.
+  trigger-upload:
+    name: trigger-upload
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
@@ -242,24 +248,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Setup workspace
+        uses: ./.github/actions/setup
         with:
-          bun-version: 1.4.2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            **/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: ''
 
       - name: Select Trigger environment
         id: target
@@ -305,13 +298,13 @@ jobs:
   # Runs in parallel with tests — only immutable sha tags are pushed here, and
   # the CodePipeline EventBridge triggers filter on exactly the
   # latest/staging/dev ECR tags, so nothing deploys and no mutable tag moves
-  # until promote-images / create-ghcr-manifests retag after the gate.
-  build-amd64:
-    name: Build AMD64
+  # until promote / ghcr retag after the gate.
+  image-amd64:
+    name: image-amd64 (${{ matrix.id }})
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
+    runs-on: *runner-matrix
     timeout-minutes: 30
     permissions:
       contents: read
@@ -321,30 +314,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerfile: ./docker/app.Dockerfile
+          - id: app
+            dockerfile: ./docker/app.Dockerfile
             cache_mb: '102400'
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
-          - dockerfile: ./docker/db.Dockerfile
+          - id: db
+            dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
-          - dockerfile: ./docker/realtime.Dockerfile
+          - id: realtime
+            dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
-          - dockerfile: ./docker/pii.Dockerfile
+          - id: pii
+            dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
           # No ECR repo is provisioned for cron, so it publishes to GHCR only.
           # The tag step below omits the ECR tag when the repo name is empty.
-          - dockerfile: ./docker/cron.Dockerfile
+          - id: cron
+            dockerfile: ./docker/cron.Dockerfile
             ghcr_image: ghcr.io/simstudioai/cron
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
@@ -383,8 +381,8 @@ jobs:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       # Only sha tags here — the ECR deploy tags (latest/staging) are applied
-      # by promote-images and the GHCR latest-amd64/version tags by
-      # create-ghcr-manifests, both after tests and migrations pass.
+      # by promote and the GHCR latest-amd64/version tags by
+      # ghcr, both after tests and migrations pass.
       - name: Generate tags
         id: meta
         run: |
@@ -419,7 +417,7 @@ jobs:
 
       - name: Build and push images
         if: steps.meta.outputs.skip != 'true'
-        uses: ./.github/actions/docker-build
+        uses: ./.github/actions/image
         with:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
@@ -434,33 +432,33 @@ jobs:
   # the image builds themselves run in parallel with the tests. A single job
   # (not a matrix) so all four sha manifests are verified before any tag
   # moves; a missing image can't produce a partial mixed-version deploy.
-  promote-images:
-    name: Promote Images
-    needs: [migrate, build-amd64, prepare-trigger, migrate-dev, build-dev]
+  promote:
+    name: promote
+    needs: [migrate, image-amd64, trigger-upload, migrate-dev, image-dev]
     # Explicit results: see migrate's comment.
     if: >-
       !cancelled() && github.event_name == 'push' &&
       (
         ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
-          needs.prepare-trigger.result == 'success' &&
+          needs.trigger-upload.result == 'success' &&
           needs.migrate.result == 'success' &&
-          needs.build-amd64.result == 'success') ||
+          needs.image-amd64.result == 'success') ||
         (github.ref == 'refs/heads/dev' &&
           needs.migrate-dev.result == 'success' &&
-          needs.build-dev.result == 'success')
+          needs.image-dev.result == 'success')
       )
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: *runner-2vcpu
     timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
     outputs:
       # Whether the deploy tag was actually moved (false on a stale-run guard
-      # skip). promote-trigger keys off this so tasks are never promoted when
+      # skip). trigger-promote keys off this so tasks are never promoted when
       # the app itself wasn't.
       promoted: ${{ steps.guard.outputs.fresh }}
       # Epoch when the deploy tag was retagged (this push's ECS pipeline trigger).
-      # promote-trigger passes it to the poll script so a stale pipeline execution
+      # trigger-promote passes it to the poll script so a stale pipeline execution
       # reusing the same image digest can't satisfy the cutover gate.
       retag_epoch: ${{ steps.promote.outputs.retag_epoch }}
       # Unchanged tags verify the latest execution's cutover without an epoch bound.
@@ -552,21 +550,21 @@ jobs:
   # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
   # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
   # (rejecting a stale execution reusing the digest) and promotes at cutover.
-  # Skipped when promote-images skipped the tag move (stale run) — tasks then
+  # Skipped when promote skipped the tag move (stale run) — tasks then
   # correctly stay on the old version. If the app deploy fails or never cuts over,
   # promote never fires and this job fails visibly.
-  promote-trigger:
-    name: Promote Trigger.dev
-    needs: [promote-images, prepare-trigger]
+  trigger-promote:
+    name: trigger-promote
+    needs: [promote, trigger-upload]
     # Explicit results also suppress skip propagation from optional ancestors.
     if: >-
       !cancelled() &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
-      needs.promote-images.result == 'success' &&
-      needs.prepare-trigger.result == 'success' &&
-      needs.promote-images.outputs.promoted == 'true'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+      needs.promote.result == 'success' &&
+      needs.trigger-upload.result == 'success' &&
+      needs.promote.outputs.promoted == 'true'
+    runs-on: *runner-4vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
     timeout-minutes: 90
     permissions:
@@ -576,24 +574,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Setup workspace
+        uses: ./.github/actions/setup
         with:
-          bun-version: 1.4.2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            **/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: ''
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
@@ -607,10 +592,10 @@ jobs:
       - name: Wait for ECS traffic cutover
         env:
           OVERALL_TIMEOUT: 4200
-          APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
-          DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
+          APP_IMAGE_CHANGED: ${{ needs.promote.outputs.app_image_changed }}
+          DIGEST: ${{ needs.promote.outputs.app_image_digest }}
           PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/dev' && 'dev' || 'staging' }}-us-east-1-app-deployment
-          RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
+          RETAG_EPOCH: ${{ needs.promote.outputs.retag_epoch }}
         run: |
           set -eo pipefail
           case "$APP_IMAGE_CHANGED" in
@@ -625,9 +610,9 @@ jobs:
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-          TRIGGER_ENV: ${{ needs.prepare-trigger.outputs.environment }}
-          TRIGGER_BRANCH: ${{ needs.prepare-trigger.outputs.preview_branch }}
-          VERSION: ${{ needs.prepare-trigger.outputs.version }}
+          TRIGGER_ENV: ${{ needs.trigger-upload.outputs.environment }}
+          TRIGGER_BRANCH: ${{ needs.trigger-upload.outputs.preview_branch }}
+          VERSION: ${{ needs.trigger-upload.outputs.version }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
@@ -635,7 +620,7 @@ jobs:
             exit 1
           fi
           if [ -z "$VERSION" ]; then
-            echo "ERROR: no deployed version passed from prepare-trigger" >&2
+            echo "ERROR: no deployed version passed from trigger-upload" >&2
             exit 1
           fi
           echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
@@ -647,11 +632,11 @@ jobs:
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
-  # are applied by create-ghcr-manifests after the gate, so a failing run
+  # are applied by ghcr after the gate, so a failing run
   # never moves a documented tag.
-  build-ghcr-arm64:
-    name: Build ARM64 (GHCR Only)
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
+  image-arm64:
+    name: image-arm64 (${{ matrix.id }})
+    runs-on: *runner-matrix
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -665,24 +650,29 @@ jobs:
         # and this job only runs on push to main — an unprovisioned label would
         # hang a release in `queued` rather than fail a PR.
         include:
-          - dockerfile: ./docker/app.Dockerfile
+          - id: app
+            dockerfile: ./docker/app.Dockerfile
             cache_mb: '102400'
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404-arm
-          - dockerfile: ./docker/db.Dockerfile
+          - id: db
+            dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
             gh_runner: ubuntu-24.04-arm
             bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
-          - dockerfile: ./docker/realtime.Dockerfile
+          - id: realtime
+            dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
             gh_runner: ubuntu-24.04-arm
             bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
-          - dockerfile: ./docker/pii.Dockerfile
+          - id: pii
+            dockerfile: ./docker/pii.Dockerfile
             image: ghcr.io/simstudioai/pii
             gh_runner: ubuntu-24.04-arm
             bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
-          - dockerfile: ./docker/cron.Dockerfile
+          - id: cron
+            dockerfile: ./docker/cron.Dockerfile
             image: ghcr.io/simstudioai/cron
             gh_runner: ubuntu-24.04-arm
             bs_runner: blacksmith-4vcpu-ubuntu-2404-arm
@@ -699,7 +689,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ARM64 to GHCR
-        uses: ./.github/actions/docker-build
+        uses: ./.github/actions/image
         with:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
@@ -709,18 +699,18 @@ jobs:
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
   # and the multi-arch manifests from the immutable sha tags — only on main,
-  # after the deploy gate (promote-images) and the ARM64 build both pass.
-  create-ghcr-manifests:
-    name: Create GHCR Manifests
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  # after the deploy gate (promote) and the ARM64 build both pass.
+  ghcr:
+    name: ghcr (${{ matrix.id }})
+    runs-on: *runner-2vcpu
     timeout-minutes: 10
-    needs: [promote-images, build-ghcr-arm64, detect-version]
+    needs: [promote, image-arm64, version]
     # Explicit results: see migrate's comment.
     if: >-
       !cancelled() &&
-      needs.promote-images.result == 'success' &&
-      needs.build-ghcr-arm64.result == 'success' &&
-      needs.detect-version.result == 'success' &&
+      needs.promote.result == 'success' &&
+      needs.image-arm64.result == 'success' &&
+      needs.version.result == 'success' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -733,11 +723,16 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: ghcr.io/simstudioai/simstudio
-          - image: ghcr.io/simstudioai/migrations
-          - image: ghcr.io/simstudioai/realtime
-          - image: ghcr.io/simstudioai/pii
-          - image: ghcr.io/simstudioai/cron
+          - id: simstudio
+            image: ghcr.io/simstudioai/simstudio
+          - id: migrations
+            image: ghcr.io/simstudioai/migrations
+          - id: realtime
+            image: ghcr.io/simstudioai/realtime
+          - id: pii
+            image: ghcr.io/simstudioai/pii
+          - id: cron
+            image: ghcr.io/simstudioai/cron
 
     steps:
       - name: Login to GHCR
@@ -747,7 +742,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Same monotonic guard as promote-images, applied to the public latest
+      # Same monotonic guard as promote, applied to the public latest
       # tags only — immutable sha and version tags are always published.
       - name: Guard against stale latest tags
         id: guard
@@ -771,8 +766,8 @@ jobs:
           docker buildx imagetools create -t "${IMAGE}:${SHA}" \
             "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
 
-          if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
-            VERSION="${{ needs.detect-version.outputs.version }}"
+          if [ "${{ needs.version.outputs.is_release }}" = "true" ]; then
+            VERSION="${{ needs.version.outputs.version }}"
             echo "📦 Publishing version tags: ${VERSION}"
             docker buildx imagetools create -t "${IMAGE}:${VERSION}-amd64" "${IMAGE}:${SHA}-amd64"
             docker buildx imagetools create -t "${IMAGE}:${VERSION}-arm64" "${IMAGE}:${SHA}-arm64"
@@ -789,10 +784,10 @@ jobs:
 
   # Sign the published images and attach SLSA provenance and an SBOM to each.
   #
-  # This runs after create-ghcr-manifests rather than inside the build because
+  # This runs after ghcr rather than inside the build because
   # buildx's own provenance/sbom attestations stay off (see the note in
-  # .github/actions/docker-build): the extra manifests they add to an index
-  # break the `imagetools create` retagging that promote-images depends on.
+  # .github/actions/image): the extra manifests they add to an index
+  # break the `imagetools create` retagging that promote depends on.
   # Attaching attestations here instead leaves the index itself untouched — they
   # are stored as separate referrer manifests that point at it.
   #
@@ -804,18 +799,18 @@ jobs:
   # `:<sha>-amd64` manifest it wraps — attesting the manifest leaves the tag
   # people actually pin unverifiable. Which tags exist also varies per run:
   # version tags only on a release, and the latest tags only when the monotonic
-  # guard in create-ghcr-manifests passed. Resolving tag -> digest here and
+  # guard in ghcr passed. Resolving tag -> digest here and
   # de-duplicating is what keeps the two in step without hardcoding that logic
   # twice.
   attest-subjects:
-    name: Resolve Attestation Subjects
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    name: attest-subjects
+    runs-on: *runner-2vcpu
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, detect-version]
+    needs: [ghcr, version]
     if: >-
       !cancelled() &&
-      needs.create-ghcr-manifests.result == 'success' &&
-      needs.detect-version.result == 'success' &&
+      needs.ghcr.result == 'success' &&
+      needs.version.result == 'success' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -834,10 +829,10 @@ jobs:
       - name: Resolve published tags to digests
         id: resolve
         env:
-          IS_RELEASE: ${{ needs.detect-version.outputs.is_release }}
-          VERSION: ${{ needs.detect-version.outputs.version }}
+          IS_RELEASE: ${{ needs.version.outputs.is_release }}
+          VERSION: ${{ needs.version.outputs.version }}
           SHA: ${{ github.sha }}
-          LATEST_FRESH: ${{ needs.create-ghcr-manifests.outputs.latest_fresh }}
+          LATEST_FRESH: ${{ needs.ghcr.outputs.latest_fresh }}
         run: |
           set -euo pipefail
 
@@ -911,7 +906,7 @@ jobs:
 
             # A moving alias is only taken when it resolves to the same index
             # digest this run published — content identity, which is what a
-            # digest can prove. create-ghcr-manifests holds the latest tags back when
+            # digest can prove. ghcr holds the latest tags back when
             # its monotonic guard sees a newer commit, and they then still point
             # at an older build — attesting those would put this run's signature
             # and provenance on an image it did not produce. The per-arch
@@ -983,9 +978,9 @@ jobs:
   # One leg per distinct published digest. Attesting each subject separately is
   # also what makes the SBOMs truthful: the amd64 and arm64 images contain
   # different packages, and one SBOM attached to the index cannot describe both.
-  attest-images:
-    name: Attest Images
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  attest:
+    name: attest
+    runs-on: *runner-2vcpu
     timeout-minutes: 15
     needs: [attest-subjects]
     if: >-
@@ -1064,9 +1059,9 @@ jobs:
   # Check if docs changed
   # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
   # install and no build.
-  check-docs-changes:
-    name: Check Docs Changes
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  docs-changes:
+    name: docs-changes
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
@@ -1085,41 +1080,43 @@ jobs:
               - 'apps/sim/lib/chunkers/**'
 
   # Process docs embeddings (only when docs change, after images are promoted)
-  process-docs:
-    name: Process Docs
-    needs: [promote-images, check-docs-changes]
+  docs:
+    name: docs
+    needs: [promote, docs-changes]
     # Explicit results: see migrate's comment.
     if: >-
       !cancelled() &&
-      needs.promote-images.result == 'success' &&
-      needs.check-docs-changes.result == 'success' &&
-      needs.check-docs-changes.outputs.docs_changed == 'true'
-    uses: ./.github/workflows/docs-embeddings.yml
-    secrets: inherit
+      needs.promote.result == 'success' &&
+      needs.docs-changes.result == 'success' &&
+      needs.docs-changes.outputs.docs_changed == 'true'
+    uses: ./.github/workflows/docs.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
-  create-release:
-    name: Create GitHub Release
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  release:
+    name: release
+    runs-on: *runner-4vcpu
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, attest-subjects, attest-images, detect-version]
-    # Explicit results: see migrate's comment. attest-images is a gate, not just
+    needs: [ghcr, attest-subjects, attest, version]
+    # Explicit results: see migrate's comment. attest is a gate, not just
     # an ordering edge — a release must not advertise images whose signature or
     # attestation failed to publish. The count check is belt and braces: today
     # attest-subjects already fails on an empty subject set, so this only bites
     # if that guard is ever removed.
     #
     # Note this gates the GitHub release, not the production deploy: CodePipeline
-    # fires from the ECR tags moved by promote-images, upstream of this job, and
+    # fires from the ECR tags moved by promote, upstream of this job, and
     # only the GHCR mirrors are attested.
     if: >-
       !cancelled() &&
-      needs.create-ghcr-manifests.result == 'success' &&
+      needs.ghcr.result == 'success' &&
       needs.attest-subjects.result == 'success' &&
       needs.attest-subjects.outputs.count != '0' &&
-      needs.attest-images.result == 'success' &&
-      needs.detect-version.result == 'success' &&
-      needs.detect-version.outputs.is_release == 'true'
+      needs.attest.result == 'success' &&
+      needs.version.result == 'success' &&
+      needs.version.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:
@@ -1128,18 +1125,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Setup workspace
+        uses: ./.github/actions/setup
         with:
-          bun-version: 1.4.2
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+          provider: ${{ vars.CI_PROVIDER }}
+          node-version: ''
 
       - name: Create release
         env:
           GH_PAT: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}
+        run: bun run scripts/create-single-release.ts ${{ needs.version.outputs.version }}
 
   # Desktop release: builds, signs, notarizes, and attaches the macOS app to
   # the GitHub release created above. Gated on the Apple signing secrets so a
@@ -1147,14 +1142,14 @@ jobs:
   # Developer account is provisioned — the moment the six secrets exist, the
   # next vX.Y.Z release ships desktop artifacts with no further changes.
   # Job-level `if:` cannot read the secrets context, hence the probe job.
-  check-desktop-signing:
-    name: Check Desktop Signing Secrets
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  desktop-signing:
+    name: desktop-signing
+    runs-on: *runner-2vcpu
     timeout-minutes: 2
-    needs: [detect-version, detect-desktop-changes]
-    # !cancelled(): detect-desktop-changes is skipped on main (and
-    # detect-version tags only on main); either path may need the probe.
-    if: ${{ !cancelled() && (needs.detect-version.outputs.is_release == 'true' || needs.detect-desktop-changes.outputs.changed == 'true') }}
+    needs: [version, desktop-changes]
+    # !cancelled(): desktop-changes is skipped on main (and
+    # version tags only on main); either path may need the probe.
+    if: ${{ !cancelled() && (needs.version.outputs.is_release == 'true' || needs.desktop-changes.outputs.changed == 'true') }}
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
@@ -1169,24 +1164,31 @@ jobs:
           fi
 
   desktop-release:
-    name: Desktop Release
-    needs: [create-release, check-desktop-signing, detect-version]
-    # Suppress the implicit success() check: check-desktop-signing has an
+    name: desktop-release
+    needs: [release, desktop-signing, version]
+    # Suppress the implicit success() check: desktop-signing has an
     # intentionally skipped transitive dependency on main, which would
     # otherwise cascade-skip this job even when every direct need succeeded.
     if: >-
       !cancelled() &&
-      needs.create-release.result == 'success' &&
-      needs.check-desktop-signing.result == 'success' &&
-      needs.detect-version.result == 'success' &&
-      needs.check-desktop-signing.outputs.configured == 'true'
+      needs.release.result == 'success' &&
+      needs.desktop-signing.result == 'success' &&
+      needs.version.result == 'success' &&
+      needs.desktop-signing.outputs.configured == 'true'
     permissions:
       contents: write
     uses: ./.github/workflows/desktop-release.yml
     with:
-      version: ${{ needs.detect-version.outputs.version }}
+      version: ${{ needs.version.outputs.version }}
       publish: true
-    secrets: inherit
+    secrets:
+      DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   # Per-env desktop prereleases: a dev/staging push that touches shell code
   # publishes an environment-tagged GitHub prerelease to the public,
@@ -1194,19 +1196,19 @@ jobs:
   # builds out of this source repository prevents its followers from receiving
   # every internal shell release. Each environment's /api/desktop/update feed
   # still offers only its own signed stream.
-  create-desktop-prerelease:
-    name: Create Desktop Prerelease
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  prerelease-create:
+    name: prerelease-create
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
-    needs: [detect-desktop-changes, check-desktop-signing]
+    needs: [desktop-changes, desktop-signing]
     # Requires the signing probe to have actually succeeded (not just "not
     # cancelled") so a probe failure can't produce a release with no build.
     if: >-
       ${{
         !cancelled() &&
-        needs.detect-desktop-changes.outputs.changed == 'true' &&
-        needs.check-desktop-signing.result == 'success' &&
-        needs.check-desktop-signing.outputs.configured == 'true'
+        needs.desktop-changes.outputs.changed == 'true' &&
+        needs.desktop-signing.result == 'success' &&
+        needs.desktop-signing.outputs.configured == 'true'
       }}
     permissions:
       contents: read
@@ -1265,9 +1267,9 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
           echo "✅ Created draft prerelease $TAG"
 
-  desktop-prerelease:
-    name: Desktop Prerelease Build
-    needs: [create-desktop-prerelease, check-desktop-signing]
+  prerelease-build:
+    name: prerelease-build
+    needs: [prerelease-create, desktop-signing]
     # The reusable workflow declares contents: write for its stable-release
     # path. GitHub cannot elevate a caller's token, even though this prerelease
     # path uses the dedicated cross-repository token for its actual upload.
@@ -1275,25 +1277,32 @@ jobs:
       contents: write
     uses: ./.github/workflows/desktop-release.yml
     with:
-      version: ${{ needs.create-desktop-prerelease.outputs.version }}
+      version: ${{ needs.prerelease-create.outputs.version }}
       publish: true
       sign: true
-    secrets: inherit
+    secrets:
+      DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   # The draft only becomes visible to the update feed once its artifacts are
   # attached — this is what makes a dev/staging push atomic from the shell's
   # point of view.
-  publish-desktop-prerelease:
-    name: Publish Desktop Prerelease
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  prerelease-publish:
+    name: prerelease-publish
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
-    needs: [create-desktop-prerelease, desktop-prerelease]
+    needs: [prerelease-create, prerelease-build]
     permissions:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
       GH_REPO: simstudioai/sim-desktop-releases
-      TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
+      TAG: ${{ needs.prerelease-create.outputs.version }}
     steps:
       - name: Publish the draft release
         run: |
@@ -1307,17 +1316,17 @@ jobs:
   # and delete the rest (with their tags, so dev force-resets don't strand
   # commits behind stale tags). Leftover drafts (failed or superseded builds)
   # are always garbage by this point — the current run's release is published.
-  prune-desktop-prereleases:
-    name: Prune Desktop Prereleases
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+  prerelease-prune:
+    name: prerelease-prune
+    runs-on: *runner-2vcpu
     timeout-minutes: 5
-    needs: [create-desktop-prerelease, publish-desktop-prerelease]
+    needs: [prerelease-create, prerelease-publish]
     permissions:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
       GH_REPO: simstudioai/sim-desktop-releases
-      CURRENT_TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
+      CURRENT_TAG: ${{ needs.prerelease-create.outputs.version }}
     steps:
       - name: Delete stale prereleases
         run: |

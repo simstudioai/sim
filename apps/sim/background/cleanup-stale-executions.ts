@@ -31,6 +31,7 @@ import {
   type StaleSweepableExecutionStatus,
 } from '@/lib/logs/types'
 import { sweepOrphanedRuns } from '@/lib/mothership/async-runs/orphaned-runs'
+import { settleAbandonedDesktopToolCalls } from '@/lib/mothership/request/tools/desktop-wait'
 import { cancelStaleDispatches } from '@/lib/table/dispatcher'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
@@ -48,17 +49,16 @@ const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for 
 const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage()
 /**
  * Table jobs run as detached workers with progress heartbeats, independently of workflow timeout
- * policy. Preserve their historical 90-minute task window plus five-minute cleanup grace.
+ * policy. A running job is treated as dead once its last progress write (`updatedAt`) is older
+ * than this, so it must exceed the longest gap between a live worker's heartbeats.
  */
 const TABLE_JOB_STALE_THRESHOLD_MINUTES = 95
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
 /**
  * A table run dispatch whose holder has not made progress for this long is
- * treated as dead. Same shape and window as the table-job threshold above: the
- * 90-minute Trigger.dev task ceiling (`maxDuration` in `trigger.config.ts`) plus
- * five minutes of cleanup grace, measured from the dispatcher's own per-window
- * heartbeat rather than from when the run was requested.
+ * treated as dead. Same rule as the table-job threshold above, measured from the
+ * dispatcher's own per-window heartbeat rather than from when the run was requested.
  */
 const TABLE_DISPATCH_STALE_THRESHOLD_MINUTES = 95
 /** Per-run ceiling on reaped dispatches, so one tick cannot fan out unbounded SSE. */
@@ -743,6 +743,19 @@ export async function runCleanupStaleExecutions() {
     })
   }
 
+  /**
+   * Settle desktop calls on device-bound runs whose waiter died with its process: an offered call
+   * nobody claimed, or a claimed one whose device stopped renewing its lease.
+   */
+  let abandonedDesktopCallsSettled = 0
+  try {
+    abandonedDesktopCallsSettled = await settleAbandonedDesktopToolCalls()
+  } catch (error) {
+    logger.error('Failed to settle abandoned desktop tool calls:', {
+      error: toError(error).message,
+    })
+  }
+
   return {
     executions: {
       found: staleExecutionsFound,
@@ -774,6 +787,7 @@ export async function runCleanupStaleExecutions() {
     },
     chatRuns: {
       orphanedSettled: orphanedRunsSettled,
+      abandonedDesktopCallsSettled,
     },
   }
 }

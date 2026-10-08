@@ -2811,7 +2811,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='0 0 86.7 97.9'
+      viewBox='0 0 67 67'
       fill='currentColor'
       role='img'
       xmlns='http://www.w3.org/2000/svg'
@@ -2819,7 +2819,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M0,22.3L43.1,0l43.6,22.3L43.1,44.8L0,22.3z M43.1,83.1l-29.4-16L0,74.5l43.1,23.4l43.6-23.4l-13.9-7.4 L43.1,83.1z M13.7,42l29.4,14.5L72.9,42l13.9,6.8L43.1,69.9L0,48.7L13.7,42z'
+        d='M18.009,43.225l15.178,7.817l15.378,-7.817l7.164,3.639l-22.542,11.469l-22.25,-11.469l7.072,-3.639Z M18.017,29.688l15.17,7.812l15.37,-7.812l7.172,3.645l-22.542,11.459l-22.25,-11.459l7.08,-3.645Z M33.187,8.333l-22.25,11.459l22.25,11.458l22.542,-11.458l-22.542,-11.459Z'
       />
     </svg>
   )
@@ -3556,6 +3556,30 @@ export function MicrosoftIcon(props: SVGProps<SVGSVGElement>) {
       <polygon fill='#80CC28' points='109.3,51.9 57.3,51.9 57.3,0 109.3,0' />
       <polygon fill='#00ADEF' points='51.9,109.3 0,109.3 0,57.4 51.9,57.4' />
       <polygon fill='#FBBC09' points='109.3,109.3 57.3,109.3 57.3,57.4 109.3,57.4' />
+    </svg>
+  )
+}
+
+export function IntuneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect x='3' y='3' width='18' height='13' rx='2' stroke='currentColor' strokeWidth='2' />
+      <path
+        d='M8 21h8M12 16v5m-4-12 3 3 5-5'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
+export function RampIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect x='2' y='4' width='20' height='16' rx='3' stroke='currentColor' strokeWidth='2' />
+      <path d='M2 9h20M6 15h4' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
     </svg>
   )
 }
@@ -10121,6 +10145,14 @@ export function YouComIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='0.8' stopColor='#596CED' />
         </linearGradient>
       </defs>
+    </svg>
+  )
+}
+
+export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 85 52' fill='currentColor' {...props}>
+      <path d='M44.322 2.926C44.322 0.755 46.608 -0.658 48.551 0.313L80.455 16.265C82.929 17.502 84.492 20.032 84.492 22.799V48.249C84.492 50.42 82.207 51.833 80.265 50.862L62.328 41.893V22.797C62.328 20.031 60.765 17.502 58.291 16.264L44.322 9.28V2.926ZM0 2.925C0 0.754 2.286 -0.659 4.229 0.312L22.158 9.277V28.377C22.158 31.143 23.721 33.672 26.195 34.909L40.17 41.895V48.249C40.17 50.42 37.885 51.832 35.942 50.861L4.037 34.909C1.563 33.672 0 31.143 0 28.377V2.925ZM22.158 2.925C22.158 0.754 24.444 -0.659 26.387 0.312L44.322 9.28V28.378C44.322 31.144 45.886 33.673 48.36 34.91L62.328 41.893V48.249C62.328 50.42 60.043 51.832 58.101 50.861L40.17 41.895V22.797C40.17 20.031 38.607 17.502 36.133 16.264L22.158 9.277V2.925Z' />
     </svg>
   )
 }

@@ -19,7 +19,7 @@ vi.mock('@/lib/mothership/request/tools/sandbox-recovery', () => ({
 import { withToolExecutionLifetime } from '@/lib/mothership/request/tools/execution-lifetime'
 
 const {
-  mockClaimSimToolExecution: claim,
+  mockClaimToolExecution: claim,
   mockRenewSimToolExecutionLease: renew,
   mockCompleteOwnedSimToolCall: complete,
   mockSettleSimToolExecution: settle,

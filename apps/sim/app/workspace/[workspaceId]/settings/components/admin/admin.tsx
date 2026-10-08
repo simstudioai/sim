@@ -18,6 +18,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
@@ -90,6 +91,17 @@ export function Admin() {
 
   const [workflowId, setWorkflowId] = useState('')
   const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
+  const isImpersonating = impersonatingUserId !== null || impersonateUser.isPending
+  const discardImport = () => {
+    setWorkflowId('')
+    setTargetWorkspaceId('')
+  }
+  const importGuard = useSettingsUnsavedGuard({
+    isDirty: Boolean(workflowId.trim() || targetWorkspaceId.trim()),
+    navigationBlocked: importWorkflow.isPending || isImpersonating,
+    onDiscard: discardImport,
+  })
 
   const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
     adminParsers,
@@ -99,7 +111,6 @@ export function Admin() {
   const [searchInput, setSearchInput] = useState(searchQuery)
   const [pendingAction, setPendingAction] = useState<PendingUserAction | null>(null)
   const [banReason, setBanReason] = useState('')
-  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
   const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
   const [provisionWarning, setProvisionWarning] = useState<string | null>(null)
@@ -141,6 +152,7 @@ export function Admin() {
   }
 
   const handleImpersonate = (userId: string, email: string) => {
+    if (isImpersonating || importWorkflow.isPending) return
     setImpersonationGuardError(null)
     if (session?.user?.role !== 'admin') {
       setImpersonatingUserId(null)
@@ -148,34 +160,33 @@ export function Admin() {
       return
     }
 
-    setImpersonatingUserId(userId)
-    impersonateUser.reset()
-    impersonateUser.mutate(
-      { userId },
-      {
-        onError: () => {
-          setImpersonatingUserId(null)
-        },
-        onSuccess: async () => {
-          recordImpersonation(email)
-          await clearUserData({ preserveRecentImpersonations: true })
-          window.location.assign(APP_ENTRY_PATH)
-        },
-      }
-    )
+    importGuard.guardBack(() => {
+      setImpersonatingUserId(userId)
+      impersonateUser.reset()
+      impersonateUser.mutate(
+        { userId },
+        {
+          onError: () => {
+            setImpersonatingUserId(null)
+          },
+          onSuccess: async () => {
+            recordImpersonation(email)
+            await clearUserData({ preserveRecentImpersonations: true })
+            window.location.assign(APP_ENTRY_PATH)
+          },
+        }
+      )
+    })
   }
 
   const handleImport = () => {
     const sourceId = workflowId.trim()
     const targetId = targetWorkspaceId.trim()
-    if (!sourceId || !targetId) return
+    if (!sourceId || !targetId || importWorkflow.isPending || isImpersonating) return
     importWorkflow.mutate(
       { workflowId: sourceId, targetWorkspaceId: targetId },
       {
-        onSuccess: () => {
-          setWorkflowId('')
-          setTargetWorkspaceId('')
-        },
+        onSuccess: discardImport,
       }
     )
   }
@@ -235,7 +246,7 @@ export function Admin() {
             <Chip
               aria-label={`Impersonate ${u.email}`}
               onClick={() => handleImpersonate(u.id, u.email)}
-              disabled={pendingUserIds.has(u.id)}
+              disabled={importWorkflow.isPending || isImpersonating || pendingUserIds.has(u.id)}
             >
               {impersonatingUserId === u.id ? 'Switching...' : 'Impersonate'}
             </Chip>
@@ -350,7 +361,7 @@ export function Admin() {
               importWorkflow.reset()
             }}
             placeholder='Source workflow ID'
-            disabled={importWorkflow.isPending}
+            disabled={importWorkflow.isPending || isImpersonating}
           />
           <ChipInput
             value={targetWorkspaceId}
@@ -359,12 +370,17 @@ export function Admin() {
               importWorkflow.reset()
             }}
             placeholder='Target workspace ID'
-            disabled={importWorkflow.isPending}
+            disabled={importWorkflow.isPending || isImpersonating}
           />
           <Button
             variant='primary'
             onClick={handleImport}
-            disabled={importWorkflow.isPending || !workflowId.trim() || !targetWorkspaceId.trim()}
+            disabled={
+              importWorkflow.isPending ||
+              isImpersonating ||
+              !workflowId.trim() ||
+              !targetWorkspaceId.trim()
+            }
           >
             {importWorkflow.isPending ? 'Importing...' : 'Import'}
           </Button>

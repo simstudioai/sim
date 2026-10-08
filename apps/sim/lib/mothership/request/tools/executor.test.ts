@@ -87,9 +87,10 @@ vi.mock('@/lib/mothership/chat/delegation', () => ({
 
 const {
   mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockCompletePendingAsyncToolCall: completePendingAsyncToolCall,
   mockMarkAsyncToolRunning: markAsyncToolRunning,
   mockUpsertAsyncToolCall: upsertAsyncToolCall,
-  mockClaimSimToolExecution: claimSimToolExecution,
+  mockClaimToolExecution: claimToolExecution,
   mockSettleSimToolExecution: settleSimToolExecution,
   mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult,
 } = mothershipAsyncRunsMockFns
@@ -105,7 +106,11 @@ mothershipOtelMockFns.mockGetCopilotTracer.mockImplementation(() => trace.getTra
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { SimToolExecutionLeaseLostError } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncConfirmationState } from '@/lib/mothership/async-runs/lifecycle'
-import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
+  TOOL_WATCHDOG_DEFAULT_MS,
+  TOOL_WATCHDOG_LONG_RUNNING_MS,
+} from '@/lib/mothership/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolOutcome,
@@ -162,7 +167,7 @@ describe('tool result size diagnostics', () => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
@@ -250,6 +255,32 @@ describe('pendingToolWaitBudgetMs', () => {
     ).toBe(195_000)
   })
 
+  it('outlasts the wait window the desktop holds a terminal run for', () => {
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'terminal',
+        status: 'executing',
+        params: { operation: 'run', args: { command: 'bun install', waitSeconds: 120 } },
+      })
+    ).toBeGreaterThan(120_000)
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'terminal',
+        status: 'executing',
+        params: { operation: 'read', args: {} },
+      })
+    ).toBe(TOOL_WATCHDOG_DEFAULT_MS)
+  })
+
+  it('leaves a bound desktop call to its own deadlines, and only a desktop call', () => {
+    const run = { name: 'terminal', status: 'executing' as const, params: { operation: 'run' } }
+    expect(pendingToolWaitBudgetMs(run, 'device-1')).toBe(CLIENT_TOOL_RESULT_TIMEOUT_MS)
+    expect(pendingToolWaitBudgetMs(run, null)).toBeLessThan(CLIENT_TOOL_RESULT_TIMEOUT_MS)
+    expect(pendingToolWaitBudgetMs({ name: 'run_code', status: 'executing' }, 'device-1')).toBe(
+      TOOL_WATCHDOG_LONG_RUNNING_MS
+    )
+  })
+
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'executing' })).toBe(
       TOOL_WATCHDOG_DEFAULT_MS
@@ -289,7 +320,7 @@ describe('executeToolAndReport provenance isolation', () => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
   })
@@ -463,7 +494,7 @@ describe('executeToolAndReport provenance isolation', () => {
   it.each(['success', 'error', 'cancelled'] as const)(
     'observes another controller until its durable %s result without repeating or settling its execution',
     async (status) => {
-      claimSimToolExecution.mockResolvedValueOnce({
+      claimToolExecution.mockResolvedValueOnce({
         outcome: 'existing',
       })
       let finish: (value: AsyncConfirmationState | null) => void = () => {}
@@ -495,7 +526,7 @@ describe('executeToolAndReport provenance isolation', () => {
   )
 
   it('does not write a failed result or settle the owner when its observation ends unconfirmed', async () => {
-    claimSimToolExecution.mockResolvedValueOnce({
+    claimToolExecution.mockResolvedValueOnce({
       outcome: 'existing',
     })
     waitForToolConfirmation.mockResolvedValueOnce(null)
@@ -525,7 +556,7 @@ describe('executeToolAndReport provenance isolation', () => {
     async (stage) => {
       if (stage === 'row')
         upsertAsyncToolCall.mockRejectedValueOnce(new Error('database unavailable'))
-      else claimSimToolExecution.mockRejectedValueOnce(new Error('database unavailable'))
+      else claimToolExecution.mockRejectedValueOnce(new Error('database unavailable'))
       const tool = buildPendingToolCall()
       await expect(
         executeToolAndReport(tool.id, buildStreamingContext(tool), {
@@ -542,7 +573,7 @@ describe('executeToolAndReport provenance isolation', () => {
   )
 
   it('refuses a late tool after durable Stop closed admission', async () => {
-    claimSimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
     const tool = buildPendingToolCall()
     const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
       userId: 'user-1',
@@ -874,7 +905,7 @@ describe('watchdog completion provenance', () => {
       status: 'error',
       message: expect.stringContaining('outcome is unknown'),
       data: {
-        error: expect.stringContaining('hung'),
+        error: expect.stringContaining('never came back'),
         outcomeUnknown: true,
         doNotRetry: true,
       },
@@ -890,6 +921,102 @@ describe('watchdog completion provenance', () => {
     expect(publishToolConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({ data: persisted.result })
     )
+  })
+
+  it('tells the model a desktop call nobody picked up never started', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('never started'),
+        notStarted: true,
+        reason: 'chat_not_open',
+      },
+    })
+  })
+
+  it("tells the model a bound desktop's call it never picked up did not start", async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    context.desktopDeviceId = 'device-1'
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('did not pick it up in time'),
+        notStarted: true,
+        reason: 'not_responding',
+      },
+    })
+  })
+
+  it('tells the model a desktop call it picked up lost its result and may have acted', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'browser_click'
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('desktop app started this action'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('says a local read the desktop claimed started before its result was lost', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'read_local_file'
+    toolCall.params = { path: '/Users/me/notes.txt' }
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: toolCall.id,
+      claimedBy: 'desktop-files',
+    })
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('desktop app started this action'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('does not claim a local read the server never saw picked up had started', async () => {
+    const { toolCall, context, execContext } = createHungClient()
+    toolCall.name = 'read_local_file'
+    toolCall.params = { path: '/Users/me/notes.txt' }
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: toolCall.id,
+      claimedBy: null,
+    })
+
+    await failPendingToolCall(toolCall.id, context, execContext)
+
+    expect(toolCall.result).toEqual({
+      success: false,
+      output: {
+        error: expect.stringContaining('may never have started'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
   })
 
   it('preserves an actual completion that settles while encryption is pending', async () => {
@@ -1042,7 +1169,7 @@ describe('watchdog completion provenance', () => {
       const completion = await execution
 
       expect(completion.status).toBe('error')
-      expect(completion.message).toContain('hung')
+      expect(completion.message).toContain('never came back')
       expect(toolCall.status).toBe('error')
       expect(completeAsyncToolCall).toHaveBeenCalledTimes(1)
       expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
@@ -1112,7 +1239,7 @@ describe('watchdog completion provenance', () => {
       const completion = await execution
 
       expect(completion.status).toBe('error')
-      expect(completion.message).toContain('hung')
+      expect(completion.message).toContain('never came back')
       expect(toolCall.status).toBe('error')
       expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
       expect(onEvent).not.toHaveBeenCalled()
@@ -1146,7 +1273,7 @@ describe('watchdog completion provenance', () => {
     const completion = await execution
 
     expect(completion.status).toBe('error')
-    expect(completion.message).toContain('hung')
+    expect(completion.message).toContain('never came back')
     expect(completeAsyncToolCall).toHaveBeenCalledTimes(1)
     expect(publishToolConfirmation).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(completion)).not.toContain('late rejected secret output')

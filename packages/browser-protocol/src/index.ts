@@ -150,6 +150,46 @@ export function isCurrentBrowserToolName(name: string): name is CurrentBrowserTo
   return CURRENT_BROWSER_TOOL_NAME_SET.has(name)
 }
 
+/**
+ * Which browser tools only observe the page (read it, list it, wait on it) and never act on it.
+ * Repeating one cannot cause a side effect, and one can never collide with what the user is doing.
+ */
+export const BROWSER_TOOL_OBSERVES_ONLY = {
+  browser_navigate: false,
+  browser_open_url: false,
+  browser_go_back: false,
+  browser_go_forward: false,
+  browser_reload: false,
+  browser_open_tab: false,
+  browser_switch_tab: false,
+  browser_close_tab: false,
+  browser_list_tabs: true,
+  browser_list_sessions: true,
+  browser_list_downloads: true,
+  browser_save_download: false,
+  browser_wait_for: true,
+  browser_snapshot: true,
+  browser_find: true,
+  browser_read_text: true,
+  browser_screenshot: true,
+  browser_extract: true,
+  browser_click: false,
+  browser_click_at: false,
+  browser_type: false,
+  browser_fill_form: false,
+  browser_batch: false,
+  browser_insert_text: false,
+  browser_press_key: false,
+  browser_scroll: false,
+  browser_select_option: false,
+  browser_set_checked: false,
+  browser_upload_file: false,
+  browser_hover: false,
+  browser_drag: false,
+  browser_zoom: false,
+  browser_request_takeover: false,
+} as const satisfies Readonly<Record<BrowserToolName, boolean>>
+
 export function isBrowserTheme(value: unknown): value is BrowserTheme {
   return typeof value === 'string' && BROWSER_THEME_SET.has(value)
 }

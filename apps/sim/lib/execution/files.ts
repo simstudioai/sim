@@ -16,7 +16,7 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { workflowFileInputSchema } from '@/lib/workflows/input-file-schema'
 import { isFileFieldType } from '@/lib/workflows/input-format'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'

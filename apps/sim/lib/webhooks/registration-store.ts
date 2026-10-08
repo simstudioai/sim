@@ -6,7 +6,7 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import { generateShortId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, toRecord } from '@sim/utils/object'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import { and, eq, exists, gt, inArray, isNull, lt, lte, notExists, sql } from 'drizzle-orm'
 import { claimWebhookPath, WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
@@ -651,4 +651,75 @@ export async function deleteWebhookRegistrationAfterCleanup(input: {
     )
     .returning({ id: webhook.id })
   return Boolean(deleted)
+}
+
+const WEBHOOK_ACTIVATION_BATCH_SIZE = 50
+
+function liveSubscriptionActivationCondition(fence: WebhookRegistrationOperationFence) {
+  return and(
+    eq(webhook.workflowId, fence.workflowId),
+    eq(webhook.deploymentVersionId, fence.deploymentVersionId),
+    eq(webhook.registrationStatus, 'active'),
+    eq(webhook.isActive, true),
+    isNull(webhook.archivedAt),
+    sql`${webhook.providerConfig}->>'subscriptionActivationPending' = 'true'`,
+    exists(
+      db
+        .select({ id: workflowDeploymentVersion.id })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, fence.workflowId),
+            eq(workflowDeploymentVersion.id, fence.deploymentVersionId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+    )
+  )
+}
+
+/** Selects one bounded batch from the actual live version, even when a newer version is preparing. */
+export async function listPendingWebhookSubscriptionActivations(
+  fence: WebhookRegistrationOperationFence
+): Promise<WebhookRegistrationRow[]> {
+  return db
+    .select()
+    .from(webhook)
+    .where(liveSubscriptionActivationCondition(fence))
+    .limit(WEBHOOK_ACTIVATION_BATCH_SIZE)
+}
+
+/** Rechecks live ownership immediately before contacting a provider. */
+export async function getPendingWebhookSubscriptionActivation(
+  input: WebhookRegistrationOperationFence & { webhookId: string }
+): Promise<WebhookRegistrationRow | null> {
+  const [row] = await db
+    .select()
+    .from(webhook)
+    .where(and(liveSubscriptionActivationCondition(input), eq(webhook.id, input.webhookId)))
+    .limit(1)
+  return row ?? null
+}
+
+/** Clears pending activation only if the observed subscription still owns the live registration. */
+export async function markWebhookSubscriptionActivated(input: {
+  fence: WebhookRegistrationOperationFence
+  row: WebhookRegistrationRow
+}): Promise<void> {
+  if (input.row.registrationGeneration === null) return
+  const config = toRecord(input.row.providerConfig)
+  await db
+    .update(webhook)
+    .set({
+      providerConfig: sql`jsonb_set(${webhook.providerConfig}::jsonb, '{subscriptionActivationPending}', 'false'::jsonb)`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        liveSubscriptionActivationCondition(input.fence),
+        eq(webhook.id, input.row.id),
+        eq(webhook.registrationGeneration, input.row.registrationGeneration),
+        sql`${webhook.providerConfig}::jsonb = ${JSON.stringify(config)}::jsonb`
+      )
+    )
 }

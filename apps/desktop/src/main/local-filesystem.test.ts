@@ -107,6 +107,27 @@ describe('LocalFilesystemService', () => {
     })
   })
 
+  it('trims long runs of slashes in grep and glob paths in linear time', async () => {
+    const granted = await mount(service)
+    const slashes = `${'/'.repeat(200_000)}x`
+    const startedAt = performance.now()
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { operation: 'grep', uri: granted.uri, pattern: 'TODO', requestId: 'grep-tool' },
+        { toolName: 'grep', args: { path: slashes, pattern: 'TODO' } }
+      )
+    ).toBe(false)
+    await service.handle({
+      operation: 'glob',
+      uri: granted.uri,
+      pattern: '**/*.ts',
+      pathPrefix: slashes,
+    })
+
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+  })
+
   it('binds privileged client reads and searches to server-persisted tool args', async () => {
     const granted = await mount(service)
     const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
@@ -234,6 +255,27 @@ describe('LocalFilesystemService', () => {
         grepAuthorization
       )
     ).toBe(false)
+  })
+
+  it('hands back nothing from a folder forgotten while the read ran', async () => {
+    const granted = await mount(service)
+
+    const reading = service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+    const searching = service.handle({ operation: 'grep', uri: granted.uri, pattern: 'hello' })
+    await service.handle({ operation: 'forget_mount', uri: granted.uri })
+
+    await expect(reading).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+    await expect(searching).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+  })
+
+  it('keeps a read whose folder the user selected again while it ran', async () => {
+    const granted = await mount(service)
+
+    const reading = service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+    const again = await mount(service)
+
+    expect(again.uri).toBe(granted.uri)
+    await expect(reading).resolves.toMatchObject({ ok: true })
   })
 
   it('rejects unknown mounts and symlinks that escape the selected directory', async () => {

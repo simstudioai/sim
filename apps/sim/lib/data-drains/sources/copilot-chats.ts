@@ -1,6 +1,7 @@
-import { dbReplica } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, asc, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -8,7 +9,7 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 
 /**
@@ -59,55 +60,88 @@ const chatColumns = {
  * design and `data-drains` is not a CDC pipeline.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-  if (workspaceIds.length === 0) return
-
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotChats.createdAt, copilotChats.id, cursor)
-
-    const metaRows = await dbReplica
-      .select(chatColumns)
-      .from(copilotChats)
-      .where(
-        and(
-          inArray(copilotChats.workspaceId, workspaceIds),
-          timeCursorStabilityBound(copilotChats.createdAt),
-          cursorClause
+    const orderBy = timeCursorOrderBy(copilotChats.createdAt, copilotChats.id)
+    const rows = await readBoundedSourcePage({
+      table: copilotChats,
+      idColumn: copilotChats.id,
+      condition: and(
+        or(
+          workspaceInOrganization(copilotChats.workspaceId, input.organizationId),
+          and(
+            isNull(copilotChats.workspaceId),
+            eq(copilotChats.organizationId, input.organizationId)
+          )
+        ),
+        timeCursorStabilityBound(copilotChats.createdAt),
+        cursorClause
+      ),
+      orderBy,
+      chunkSize: input.chunkSize,
+      measuredValue: sql`json_build_object(${sql.join(
+        Object.entries(chatColumns).flatMap(([name, column]) => [
+          sql`${name}::text`,
+          sql`${column}`,
+        ]),
+        sql`, `
+      )})`,
+      read: async (tx, ids) => {
+        const metaRows = await tx
+          .select(chatColumns)
+          .from(copilotChats)
+          .where(inArray(copilotChats.id, ids))
+          .orderBy(...orderBy)
+        const messageCondition = and(
+          inArray(copilotMessages.chatId, ids),
+          isNull(copilotMessages.deletedAt)
         )
-      )
-      .orderBy(...timeCursorOrderBy(copilotChats.createdAt, copilotChats.id))
-      .limit(input.chunkSize)
-
-    if (metaRows.length === 0) return
-
-    const chatIds = metaRows.map((r) => r.id)
-    const messageRows = await dbReplica
-      .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
-      .from(copilotMessages)
-      .where(and(inArray(copilotMessages.chatId, chatIds), isNull(copilotMessages.deletedAt)))
-      .orderBy(
-        asc(copilotMessages.chatId),
-        sql`${copilotMessages.seq} asc nulls last`,
-        asc(copilotMessages.createdAt),
-        asc(copilotMessages.id)
-      )
-    const messagesByChat = new Map<string, unknown[]>()
-    for (const m of messageRows) {
-      const existing = messagesByChat.get(m.chatId)
-      if (existing) existing.push(m.content)
-      else messagesByChat.set(m.chatId, [m.content])
-    }
-
-    const rows: CopilotChatRow[] = metaRows.map((r) => ({
-      ...r,
-      messages: messagesByChat.get(r.id) ?? [],
-    }))
-
+        const transcriptSizes = await tx
+          .select({
+            chatId: copilotMessages.chatId,
+            bytes: sql<number>`sum(octet_length(row_to_json(${copilotMessages})::text))`.mapWith(
+              Number
+            ),
+          })
+          .from(copilotMessages)
+          .where(messageCondition)
+          .groupBy(copilotMessages.chatId)
+        const transcriptBytes = new Map(
+          transcriptSizes.map((transcript) => [transcript.chatId, transcript.bytes])
+        )
+        for (const row of metaRows) {
+          assertKnownSizeWithinLimit(
+            Buffer.byteLength(JSON.stringify({ ...row, messages: [] }), 'utf8') +
+              (transcriptBytes.get(row.id) ?? 0),
+            DATA_DRAIN_LIMITS.maxRowBytes,
+            'Drain chat record'
+          )
+        }
+        const messageRows = await tx
+          .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
+          .from(copilotMessages)
+          .where(messageCondition)
+          .orderBy(
+            asc(copilotMessages.chatId),
+            sql`${copilotMessages.seq} asc nulls last`,
+            asc(copilotMessages.createdAt),
+            asc(copilotMessages.id)
+          )
+        const messagesByChat = new Map<string, unknown[]>()
+        for (const message of messageRows) {
+          const existing = messagesByChat.get(message.chatId)
+          if (existing) existing.push(message.content)
+          else messagesByChat.set(message.chatId, [message.content])
+        }
+        return metaRows.map((row) => ({ ...row, messages: messagesByChat.get(row.id) ?? [] }))
+      },
+    })
+    if (rows.length === 0) return
     yield rows
-    const last = metaRows[metaRows.length - 1]
+    const last = rows[rows.length - 1]
     cursor = { ts: last.createdAt.toISOString(), id: last.id }
-    if (metaRows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
   }
 }
 

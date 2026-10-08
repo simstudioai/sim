@@ -9,38 +9,32 @@ import {
 } from '@/lib/core/outbox/service'
 import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import { cleanupKnowledgeConnector } from '@/lib/knowledge/connectors/deletion'
+import { detachKnowledgeConnector } from '@/lib/knowledge/connectors/detachment'
 import {
-  cleanupKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
-} from '@/lib/knowledge/connectors/deletion'
-import {
-  detachKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
-} from '@/lib/knowledge/connectors/detachment'
+} from '@/lib/knowledge/connectors/outbox-events'
+import {
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/checkpoint-events'
 import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
-import {
-  cleanupEmbeddingCheckpoint,
-  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
-} from '@/lib/knowledge/documents/embedding-checkpoints'
-import {
-  cleanupOcrCheckpoint,
-  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
-} from '@/lib/knowledge/documents/ocr-checkpoints'
+import { cleanupEmbeddingCheckpoint } from '@/lib/knowledge/documents/embedding-checkpoints'
+import { cleanupOcrCheckpoint } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
-import {
-  dispatchDocumentProcessingContinuation,
-  KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
-} from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { dispatchDocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
-  type KnowledgeDocumentProcessingOutboxPayload,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+} from '@/lib/knowledge/documents/processing-events'
+import type { KnowledgeDocumentProcessingOutboxPayload } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingPayload,
   resolveDocumentProcessingLane,
@@ -55,17 +49,15 @@ import {
   canScheduleDocumentProcessingQuotaContinuation,
   scheduleDocumentProcessingQuotaContinuation,
 } from '@/lib/knowledge/documents/processing-quota-continuation'
-import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import {
   getKnowledgeDocument,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
-import {
-  cleanupKnowledgeStorage,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
-} from '@/lib/knowledge/documents/storage-cleanup'
+import { cleanupKnowledgeStorage } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
   if (!isRecordLike(payload)) {

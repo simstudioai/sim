@@ -10,7 +10,6 @@ export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
   hasPaidSubscription,
-  hasSSOAccess,
   isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
   isOrganizationGovernanceActive,
