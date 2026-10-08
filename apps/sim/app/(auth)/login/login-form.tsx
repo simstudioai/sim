@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -21,7 +21,6 @@ import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { captureClientEvent } from '@/lib/posthog/client'
 import { buildAuthCrossLink, DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
@@ -37,6 +36,7 @@ import {
   SocialLoginButtons,
   SSOLoginButton,
 } from '@/app/(auth)/components'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const logger = createLogger('LoginForm')
 
@@ -97,6 +97,7 @@ export default function LoginPage({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  useCaptureWhenReady('login_page_viewed', {})
   const [isLoading, setIsLoading] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -133,10 +134,6 @@ export default function LoginPage({
       ? 'Password reset successful. Please sign in with your new password.'
       : null
   )
-
-  useEffect(() => {
-    captureClientEvent('login_page_viewed', {})
-  }, [])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -448,6 +445,7 @@ export default function LoginPage({
 
         {showBottomSection && (
           <SocialLoginButtons
+            view='login'
             googleAvailable={googleAvailable}
             githubAvailable={githubAvailable}
             microsoftAvailable={microsoftAvailable}
