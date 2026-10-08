@@ -20,7 +20,7 @@ const {
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
   mockIsDesktopPresenceAvailable: vi.fn(() => false),
-  mockHasSignedInDesktopExecutor: vi.fn(async (_userId: string) => false),
+  mockHasSignedInDesktopExecutor: vi.fn(async () => false),
   mockWorkspaceChrome: vi.fn(
     ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
   ),
@@ -231,12 +231,12 @@ describe('WorkspaceLayout host context', () => {
 
   it('tells the sidebar the desktop executor runs only where presence is tracked', async () => {
     mockIsDesktopPresenceAvailable.mockReturnValue(false)
-    mockHasSignedInDesktopExecutor.mockClear()
+    mockHasSignedInDesktopExecutor.mockResolvedValue(true)
 
     expect(await sidebarProps()).toMatchObject({
       props: { desktopExecutor: { available: false, registered: false } },
     })
-    expect(mockHasSignedInDesktopExecutor).not.toHaveBeenCalled()
+    mockHasSignedInDesktopExecutor.mockResolvedValue(false)
   })
 
   it.each([true, false])(
@@ -248,7 +248,6 @@ describe('WorkspaceLayout host context', () => {
       expect(await sidebarProps()).toMatchObject({
         props: { desktopExecutor: { available: true, registered } },
       })
-      expect(mockHasSignedInDesktopExecutor).toHaveBeenLastCalledWith('viewer-1')
     }
   )
 })

@@ -39,9 +39,16 @@ export function watchesDesktopActivity(desktopExecutor: {
   return desktopExecutor.available && (desktopExecutor.registered || isDesktopApp())
 }
 
-/** The user's chats in this workspace whose turn runs on one of their desktops. */
-export function useDesktopActivity(workspaceId: string | undefined, enabled: boolean) {
-  return useQuery({
+/**
+ * The user's chats in this workspace whose turn runs on one of their desktops, or nothing while
+ * the page does not watch them: a disabled query keeps its last result, which must not outlive
+ * the reason it was read.
+ */
+export function useDesktopActivity(
+  workspaceId: string | undefined,
+  enabled: boolean
+): DesktopChatActivity[] | undefined {
+  const { data } = useQuery({
     queryKey: desktopActivityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchDesktopActivity(workspaceId as string, signal),
     enabled: Boolean(workspaceId) && enabled,
@@ -52,4 +59,5 @@ export function useDesktopActivity(workspaceId: string | undefined, enabled: boo
         : DESKTOP_ACTIVITY_IDLE_REFETCH_MS,
     placeholderData: keepPreviousData,
   })
+  return enabled ? data : undefined
 }

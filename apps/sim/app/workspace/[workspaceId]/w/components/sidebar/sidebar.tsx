@@ -896,7 +896,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
     chatEnabled && !permissionConfig.hideCopilot,
     desktopActivityWatched
   )
-  const { data: desktopActivity } = useDesktopActivity(
+  const desktopActivity = useDesktopActivity(
     workspaceId,
     desktopActivityWatched && chatEnabled && !permissionConfig.hideCopilot
   )

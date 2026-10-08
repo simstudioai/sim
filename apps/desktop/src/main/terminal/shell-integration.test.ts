@@ -148,7 +148,8 @@ describe('startup marker', () => {
       mkdirSync(userDir, { recursive: true })
       writeFileSync(join(home, '.zshenv'), 'export ZDOTDIR="$HOME/.config/zsh"\n')
       writeFileSync(join(userDir, '.zprofile'), 'USER_PROFILE_RAN=1\n')
-      writeFileSync(join(userDir, '.zshrc'), 'USER_RC_RAN=1\n')
+      writeFileSync(join(userDir, 'plugins.zsh'), 'USER_PLUGIN_RAN=1\n')
+      writeFileSync(join(userDir, '.zshrc'), 'USER_RC_RAN=1\nsource "$ZDOTDIR/plugins.zsh"\n')
       writeFileSync(join(userDir, '.zlogin'), 'echo "login=$USER_RC_RAN"\n')
       const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }
       const launch = buildShellLaunch('zsh', mkdtempSync(join(tmpdir(), 'sim-zsh-')), NONCE, env)
@@ -159,12 +160,12 @@ describe('startup marker', () => {
           ...launch.args,
           '-i',
           '-c',
-          'echo "profile=$USER_PROFILE_RAN rc=$USER_RC_RAN zdotdir=$ZDOTDIR"; whence -w __sim_precmd',
+          'echo "profile=$USER_PROFILE_RAN rc=$USER_RC_RAN plugin=$USER_PLUGIN_RAN zdotdir=$ZDOTDIR"; whence -w __sim_precmd',
         ],
         { env: { ...env, ...launch.env }, encoding: 'utf8' }
       ).stdout
 
-      expect(output).toContain(`profile=1 rc=1 zdotdir=${userDir}`)
+      expect(output).toContain(`profile=1 rc=1 plugin=1 zdotdir=${userDir}`)
       expect(output).toContain('__sim_precmd: function')
       expect(output).toContain('login=1')
     }

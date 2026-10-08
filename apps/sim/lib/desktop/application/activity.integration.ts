@@ -274,8 +274,13 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       .where(eq(desktopDevices.id, revoked.deviceId))
     const signedOut = await signedInDesktop()
     await db.delete(session).where(eq(session.id, signedOut.principal.sessionId))
+    const expired = await signedInDesktop()
+    await db
+      .update(session)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(session.id, expired.principal.sessionId))
 
-    for (const owner of [withoutExecutor, revoked, signedOut]) {
+    for (const owner of [withoutExecutor, revoked, signedOut, expired]) {
       expect(await hasDesktopBackgroundExecutor(owner.userId)).toBe(false)
     }
   })

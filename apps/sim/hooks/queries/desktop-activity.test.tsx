@@ -1,19 +1,29 @@
 /** @vitest-environment jsdom */
 
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requestJson } = vi.hoisted(() => ({
-  requestJson: vi.fn(async () => ({ chats: [] })),
-}))
-vi.mock('@/lib/api/client/request', () => ({ requestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+
+const requestJson = apiClientRequestMockFns.mockRequestJson
 
 import { useDesktopActivity, watchesDesktopActivity } from '@/hooks/queries/desktop-activity'
 
-function ActivityWatcher({ registered }: { registered: boolean }) {
-  useDesktopActivity('ws-1', watchesDesktopActivity({ available: true, registered }))
+interface ActivityWatcherProps {
+  registered: boolean
+}
+
+/** What the page last saw from the hook. */
+let shown: unknown
+
+function ActivityWatcher({ registered }: ActivityWatcherProps) {
+  shown = useDesktopActivity('ws-1', watchesDesktopActivity({ available: true, registered }))
   return null
 }
 
@@ -43,7 +53,8 @@ describe('desktop activity polling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    requestJson.mockClear()
+    requestJson.mockReset()
+    requestJson.mockResolvedValue({ chats: [] })
   })
 
   afterEach(() => {
@@ -52,6 +63,32 @@ describe('desktop activity polling', () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     Reflect.deleteProperty(window, 'simDesktop')
+  })
+
+  it('shows nothing once the page stops watching, though the query kept its last result', async () => {
+    const activity = [{ chatId: 'chat-1' }]
+    requestJson.mockResolvedValueOnce({ chats: activity })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const client = new QueryClient()
+    const render = (registered: boolean) =>
+      act(async () => {
+        root?.render(
+          <QueryClientProvider client={client}>
+            <ActivityWatcher registered={registered} />
+          </QueryClientProvider>
+        )
+      })
+
+    await render(true)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(shown).toEqual(activity)
+
+    await render(false)
+    expect(shown).toBeUndefined()
   })
 
   it('never asks for a user without a desktop in a browser tab', async () => {

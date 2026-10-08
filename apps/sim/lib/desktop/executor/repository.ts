@@ -5,12 +5,14 @@ import {
   copilotChats,
   copilotRuns,
   desktopDevices,
+  session,
 } from '@sim/db/schema'
 import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import {
   and,
   asc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -177,16 +179,20 @@ export async function getBoundDesktopDevice(
   return row ?? null
 }
 
-/** Whether the user has a signed-in desktop that registered a background executor. */
+/**
+ * Whether the user has a desktop that registered a background executor and is still signed in:
+ * its session exists and has not expired.
+ */
 export async function hasSignedInDesktopExecutor(userId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: desktopDevices.id })
     .from(desktopDevices)
+    .innerJoin(session, eq(session.id, desktopDevices.sessionId))
     .where(
       and(
         eq(desktopDevices.userId, userId),
-        isNotNull(desktopDevices.sessionId),
         isNull(desktopDevices.revokedAt),
+        gt(session.expiresAt, new Date()),
         registersExecutor()
       )
     )

@@ -224,8 +224,9 @@ describe('Mothership owner-scoped event stream', () => {
   it('tells each member whether a workspace chat is their own, never whose it is', async () => {
     const abort = new AbortController()
     const response = await GET(request('workspaceId=ws-1', abort.signal))
+    if (!response.body) throw new Error('The event stream has no body')
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(response.body, chunks)
     await vi.advanceTimersByTimeAsync(0)
     emit({ workspaceId: 'ws-1', userId: 'user-1', chatId: 'own-chat', type: 'started' })
     emit({ workspaceId: 'ws-1', userId: 'teammate-1', chatId: 'teammate-chat', type: 'started' })
