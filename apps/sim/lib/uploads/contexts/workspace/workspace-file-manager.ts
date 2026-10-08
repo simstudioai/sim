@@ -36,6 +36,7 @@ import {
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
+  lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
@@ -2039,6 +2040,7 @@ export async function updateWorkspaceFileContent(
     }
     try {
       finalized = await db.transaction(async (tx) => {
+        await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
         const [currentFile] = await tx
           .select()
           .from(workspaceFiles)
@@ -2427,6 +2429,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     isNull(workspaceFiles.deletedAt)
   )
   const cleanupEventIds = await db.transaction(async (tx) => {
+    await lockWorkspaceStorageForMutationInTx(tx, params.workspaceId)
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,

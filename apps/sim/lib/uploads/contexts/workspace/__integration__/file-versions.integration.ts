@@ -7,6 +7,7 @@ import { db, dbFor } from '@sim/db'
 import {
   organization,
   outboxEvent,
+  permissions,
   user,
   workspace,
   workspaceFileSecretProvenance,
@@ -40,6 +41,7 @@ import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   getWorkspaceFileWithCurrentVersion,
+  purgeCreatedWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -61,7 +63,9 @@ import {
   readWorkspaceFileVersionText,
   revertWorkspaceFileVersion,
 } from '@/lib/workspace-files/application/file-versions'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
+import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -118,6 +122,50 @@ describe('workspace file version history in PostgreSQL', () => {
     const file = await getWorkspaceFile(workspaceId, fileId)
     if (!file) throw new Error('file missing')
     return (await fetchWorkspaceFileBuffer({ ...file, key }, { maxBytes: 1024 })).toString()
+  }
+
+  async function runContendedFileOperations(
+    fileId: string,
+    operations: (() => Promise<unknown>)[]
+  ) {
+    const ready = createDeferred<number>()
+    const release = createDeferred<void>()
+    const blocker = db.transaction(async (tx) => {
+      await tx.select().from(workspaceFiles).where(eq(workspaceFiles.id, fileId)).for('update')
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      ready.resolve(connection.pid)
+      await release.promise
+    })
+    const blockerPid = await ready.promise
+    const pending: Promise<PromiseSettledResult<unknown>[]>[] = []
+    try {
+      for (const operation of operations) {
+        pending.push(Promise.allSettled([operation()]))
+        await expect
+          .poll(
+            async () =>
+              (
+                await db.execute(
+                  sql`WITH RECURSIVE blocked(pid) AS (
+                      SELECT pid FROM pg_stat_activity
+                      WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+                      UNION
+                      SELECT activity.pid FROM pg_stat_activity activity
+                      JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+                    ) SELECT pid FROM blocked`
+                )
+              ).length,
+            { timeout: 5000 }
+          )
+          .toBe(pending.length)
+      }
+    } finally {
+      release.resolve()
+      await blocker
+      expect(
+        (await Promise.all(pending)).flat().filter((result) => result.status === 'rejected')
+      ).toEqual([])
+    }
   }
 
   it('lists a never-rewritten file as an implicit version 1 attributed to its uploader', async () => {
@@ -402,26 +450,24 @@ describe('workspace file version history in PostgreSQL', () => {
     { first: 'handoff', content: '' },
     { first: 'write', content: '' },
   ] as const)(
-    'serializes creator handoff with a content write ($first first, original=$content)',
+    'serializes full member revocation with a size-changing content write ($first first, original=$content)',
     async ({ first, content }) => {
       const fixture = await seedFile(content)
-      const ready = createDeferred<number>()
-      const release = createDeferred<void>()
-      const blocker = db.transaction(async (tx) => {
-        await tx
-          .select()
-          .from(workspaceFiles)
-          .where(eq(workspaceFiles.id, fixture.fileId))
-          .for('update')
-        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-        ready.resolve(connection.pid)
-        await release.promise
-      })
-      const blockerPid = await ready.promise
+      await db
+        .update(workspaceFiles)
+        .set({ userId: fixture.bobId })
+        .where(eq(workspaceFiles.id, fixture.fileId))
+      const [usageBefore] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
       const operations = {
         handoff: () =>
           db.transaction((tx) =>
-            handoffFileCreatorsInTx(tx, eq(workspaceFiles.id, fixture.fileId), fixture.bobId)
+            revokeWorkspaceAccessTx(tx, {
+              workspaceId: fixture.workspaceId,
+              userId: fixture.bobId,
+            }).then((result) => expect(result.revoked).toBe(true))
           ),
         write: () =>
           updateWorkspaceFileContent(
@@ -433,38 +479,15 @@ describe('workspace file version history in PostgreSQL', () => {
             { version: { source: 'api', authorUserId: fixture.aliceId } }
           ),
       }
-      const pending: Promise<unknown>[] = []
-      try {
-        for (const operation of [first, first === 'handoff' ? 'write' : 'handoff'] as const) {
-          pending.push(operations[operation]())
-          await expect
-            .poll(
-              async () =>
-                (
-                  await db.execute(
-                    sql`WITH RECURSIVE blocked(pid) AS (
-                      SELECT pid FROM pg_stat_activity
-                      WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
-                      UNION
-                      SELECT activity.pid FROM pg_stat_activity activity
-                      JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
-                    ) SELECT pid FROM blocked`
-                  )
-                ).length,
-              { timeout: 5000 }
-            )
-            .toBe(pending.length)
-        }
-      } finally {
-        release.resolve()
-        await blocker
-        await Promise.all(pending)
-      }
+      await runContendedFileOperations(fixture.fileId, [
+        operations[first],
+        operations[first === 'handoff' ? 'write' : 'handoff'],
+      ])
       const rows = await versionRows(fixture.fileId)
       expect(rows.map((row) => [row.version, row.authorUserIds])).toEqual(
         content
           ? [
-              [1, [fixture.aliceId]],
+              [1, [fixture.bobId]],
               [2, [fixture.aliceId]],
             ]
           : [[1, [fixture.aliceId]]]
@@ -474,8 +497,140 @@ describe('workspace file version history in PostgreSQL', () => {
         content || 'second'
       )
       expect((await getWorkspaceFile(fixture.workspaceId, fixture.fileId))?.uploadedBy).toBe(
-        fixture.bobId
+        fixture.aliceId
       )
+      const [usageAfter] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      expect(usageAfter.bytes).toBe(
+        usageBefore.bytes + Buffer.byteLength('second') - Buffer.byteLength(content)
+      )
+      expect(
+        await db
+          .select({ id: permissions.id })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityId, fixture.workspaceId),
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.userId, fixture.bobId)
+            )
+          )
+      ).toEqual([])
+      const current = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!current) throw new Error('file missing')
+      expect((await fetchWorkspaceFileBuffer(current, { maxBytes: 1024 })).toString()).toBe(
+        'second'
+      )
+    }
+  )
+
+  it.each(['handoff', 'purge'] as const)(
+    'serializes member revocation with archive rollback (%s first)',
+    async (first) => {
+      const fixture = await seedFile('original')
+      await db
+        .update(workspaceFiles)
+        .set({ userId: fixture.bobId })
+        .where(eq(workspaceFiles.id, fixture.fileId))
+      const file = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!file) throw new Error('file missing')
+      const [usageBefore] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      const operations = {
+        handoff: () =>
+          db.transaction(async (tx) => {
+            const result = await revokeWorkspaceAccessTx(tx, {
+              workspaceId: fixture.workspaceId,
+              userId: fixture.bobId,
+            })
+            expect(result.revoked).toBe(true)
+          }),
+        purge: async () => {
+          const purged = await purgeCreatedWorkspaceFile({
+            workspaceId: fixture.workspaceId,
+            fileId: fixture.fileId,
+            key: file.key,
+            expectedName: file.name,
+            expectedFolderId: file.folderId ?? null,
+            expectedUpdatedAt: file.updatedAt,
+          })
+          expect(purged).toBe(first === 'purge')
+        },
+      }
+      await runContendedFileOperations(fixture.fileId, [
+        operations[first],
+        operations[first === 'handoff' ? 'purge' : 'handoff'],
+      ])
+      const retained = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      const [usageAfter] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      expect(usageAfter.bytes).toBe(
+        usageBefore.bytes - (first === 'purge' ? Buffer.byteLength('original') : 0)
+      )
+      expect(await objectExists(fixture.firstKey)).toBe(first === 'handoff')
+      if (first === 'purge') {
+        expect(retained).toBeNull()
+        expect(await versionRows(fixture.fileId)).toEqual([])
+      } else {
+        expect(retained?.uploadedBy).toBe(fixture.aliceId)
+        expect((await versionRows(fixture.fileId)).map((row) => row.authorUserIds)).toEqual([
+          [fixture.bobId],
+        ])
+      }
+    }
+  )
+
+  it.each(['handoff', 'cleanup'] as const)(
+    'serializes member revocation with retention cleanup (%s first)',
+    async (first) => {
+      const fixture = await seedFile('original')
+      await db
+        .update(workspaceFiles)
+        .set({ userId: fixture.bobId, deletedAt: new Date(0) })
+        .where(eq(workspaceFiles.id, fixture.fileId))
+      const [usageBefore] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      const operations = {
+        handoff: () =>
+          db.transaction(async (tx) => {
+            const result = await revokeWorkspaceAccessTx(tx, {
+              workspaceId: fixture.workspaceId,
+              userId: fixture.bobId,
+            })
+            expect(result.revoked).toBe(true)
+          }),
+        cleanup: () =>
+          runCleanupSoftDeletes({
+            workspaceIds: [fixture.workspaceId],
+            plan: 'free',
+            retentionHours: 1,
+            label: 'file-handoff-lock-regression',
+          }),
+      }
+      await runContendedFileOperations(fixture.fileId, [
+        operations[first],
+        operations[first === 'handoff' ? 'cleanup' : 'handoff'],
+      ])
+      expect(
+        await db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.id, fixture.fileId))
+      ).toEqual([])
+      expect(await versionRows(fixture.fileId)).toEqual([])
+      const [usageAfter] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      expect(usageAfter.bytes).toBe(usageBefore.bytes - Buffer.byteLength('original'))
     }
   )
 
