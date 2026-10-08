@@ -188,6 +188,7 @@
     "echarts": "6.1.0",
     "es-toolkit": "1.45.1",
     "framer-motion": "^12.5.0",
+    "github-slugger": "2.0.0",
     "google-auth-library": "10.5.0",
     "gray-matter": "^4.0.3",
     "groq-sdk": "^0.15.0",

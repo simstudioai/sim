@@ -132,6 +132,7 @@ export type FileCategory =
   | 'unsupported'
 
 export function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
+  mimeType = mimeType?.split(';', 1)[0].trim().toLowerCase() ?? null
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
@@ -140,10 +141,14 @@ export function resolveFileCategory(mimeType: string | null, filename: string): 
   if (mimeType && DOCX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'docx-previewable'
   if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
   if (mimeType && XLSX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'xlsx-previewable'
+  if (mimeType?.startsWith('text/')) return 'text-editable'
 
   const ext = getFileExtension(filename)
-  const nameKey = ext || filename.toLowerCase()
+  const sourceName = filename.replace(/\.(example|template|sample|dist|default)$/i, '')
+  const nameKey = getFileExtension(sourceName) || sourceName.toLowerCase()
   if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
+  if (/^\.?env(?: \(\d+\))*(?:\.[\w.-]+)?$/i.test(filename)) return 'text-editable'
+  if (/^dockerfile\.[\w.-]+$/i.test(filename)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
   if (AUDIO_PREVIEWABLE_EXTENSIONS.has(ext)) return 'audio-previewable'
