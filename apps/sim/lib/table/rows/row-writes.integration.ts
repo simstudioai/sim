@@ -68,6 +68,12 @@ const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
     AND p.proname = 'bump_user_table_rows_version_at_commit'
 ) AS migrated`
 
+/** Whether the row triggers log to `user_table_row_changes` (0401) rather than lock the definition. */
+const [{ logsRowChanges }] = await control<{ logsRowChanges: boolean }[]>`SELECT EXISTS (
+  SELECT 1 FROM pg_proc
+  WHERE proname = 'increment_user_table_row_count_stmt' AND prosrc LIKE '%user_table_row_changes%'
+) AS "logsRowChanges"`
+
 async function createTable(columns: ColumnDefinition[]): Promise<TableDefinition> {
   const id = generateId()
   await db
@@ -1385,7 +1391,7 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
 
-  describe.skipIf(!migrated)('a held definition row', () => {
+  describe.skipIf(!migrated || !logsRowChanges)('a held definition row', () => {
     it('lets every row write path commit while another session holds the definition row', async () => {
       const table = await createTable([
         { id: 'key', name: 'key', type: 'string', unique: true },
@@ -1445,6 +1451,22 @@ describe('table row writes against real PostgreSQL', () => {
               },
               table,
               'held-upsert'
+            ),
+        ],
+        [
+          'upsert of an existing key',
+          () =>
+            upsertRow(
+              {
+                tableId: table.id,
+                workspaceId,
+                data: { key: 'd', name: 'd2' },
+                conflictTarget: 'key',
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'held-upsert-existing'
             ),
         ],
         [
@@ -1518,7 +1540,8 @@ describe('table row writes against real PostgreSQL', () => {
         FROM user_table_rows WHERE table_id = ${table.id}`
       expect(count).toBe(1)
       expect((await getTableById(table.id))?.rowCount).toBe(count)
-      expect(await rowsVersion(table.id)).toBeGreaterThanOrEqual(versionBefore + writes.length)
+      // One log entry per write, except replace, which logs its DELETE and its INSERT.
+      expect(await rowsVersion(table.id)).toBe(versionBefore + writes.length + 1)
     })
   })
 

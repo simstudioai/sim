@@ -68,19 +68,24 @@ CREATE TRIGGER user_table_rows_delete_stmt_trigger
 
 try {
   await sql.unsafe(TRIGGER_SQL)
-  const reconciled = await sql`
-    UPDATE user_table_definitions d
-    SET row_count = actual.n - actual.tail
-    FROM (
-      SELECT d2.id,
-        (SELECT count(*) FROM user_table_rows r WHERE r.table_id = d2.id)::int AS n,
-        (SELECT coalesce(sum(c.row_delta), 0) FROM user_table_row_changes c
-          WHERE c.table_id = d2.id)::int AS tail
-      FROM user_table_definitions d2
-    ) actual
-    WHERE actual.id = d.id AND d.row_count IS DISTINCT FROM actual.n - actual.tail
-    RETURNING d.id
-  `
+  const reconciled = await sql.begin(async (tx) => {
+    // Waits out any fold or row write in flight and holds off new ones, so the counts below are
+    // read after the lock in one consistent snapshot rather than racing a fold's delete.
+    await tx`LOCK TABLE user_table_row_changes IN EXCLUSIVE MODE`
+    return tx`
+      UPDATE user_table_definitions d
+      SET row_count = actual.n - actual.tail
+      FROM (
+        SELECT d2.id,
+          (SELECT count(*) FROM user_table_rows r WHERE r.table_id = d2.id)::int AS n,
+          (SELECT coalesce(sum(c.row_delta), 0) FROM user_table_row_changes c
+            WHERE c.table_id = d2.id)::int AS tail
+        FROM user_table_definitions d2
+      ) actual
+      WHERE actual.id = d.id AND d.row_count IS DISTINCT FROM actual.n - actual.tail
+      RETURNING d.id
+    `
+  })
   logger.info('Table row-count triggers applied; counts reconciled', {
     reconciledTables: reconciled.length,
   })
