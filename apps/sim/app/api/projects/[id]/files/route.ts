@@ -31,7 +31,7 @@ function cursorFilters(
 ) {
   return cursorScopeKey(cursorRoute(listProjectFilesContract, { id }), {
     scope: query.scope,
-    folderId: query.search || query.scope === 'archived' ? undefined : (query.folderId ?? null),
+    folderId: query.folderId,
     types: canonicalUnorderedArray(query.types ?? []),
     sizes: canonicalUnorderedArray(query.sizes ?? []),
     creatorIds: canonicalUnorderedArray(query.creatorIds ?? []),
@@ -45,24 +45,30 @@ export const GET = defineInternalJsonRoute({
   operation: projectFileOperations.list,
   rateLimit: internalRateLimits.user({ bucketName: 'project-files.read' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params, query }) => ({
-    projectId: params.id,
-    scope: query.scope,
-    folderId: query.search || query.scope === 'archived' ? undefined : (query.folderId ?? null),
-    types: query.types,
-    sizes: query.sizes,
-    creatorIds: query.creatorIds,
-    search: query.search,
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder,
-    limit: query.limit,
-    after: readSortedCursor(
-      query.cursor,
-      query.sortBy,
-      query.sortOrder,
-      cursorFilters(params.id, query)
-    ),
-  }),
+  mapInput: ({ params, query }) => {
+    const folderId =
+      query.recursive || query.search || query.scope === 'archived'
+        ? undefined
+        : (query.folderId ?? null)
+    return {
+      projectId: params.id,
+      scope: query.scope,
+      folderId,
+      types: query.types,
+      sizes: query.sizes,
+      creatorIds: query.creatorIds,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      limit: query.limit,
+      after: readSortedCursor(
+        query.cursor,
+        query.sortBy,
+        query.sortOrder,
+        cursorFilters(params.id, { ...query, folderId })
+      ),
+    }
+  },
   useCase: listProjectFileItems,
   present: ({ files, items, creators, nextKeys, capabilities }, { input }) => ({
     files,
