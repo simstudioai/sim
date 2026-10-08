@@ -423,6 +423,13 @@ const nextConfig: NextConfig = {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
           },
+        ],
+      },
+      {
+        // MCP App frames supply an opaque-origin sandbox policy with provider-declared domains.
+        source:
+          '/((?!workspace|chat|login|signup|api/mothership/chats/[^/]+/mcp-results/[^/]+/frame/?$|$).*)',
+        headers: [
           {
             key: 'Content-Security-Policy',
             value: getMainCSPPolicy(),
