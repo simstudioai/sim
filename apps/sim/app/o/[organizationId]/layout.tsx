@@ -60,27 +60,22 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [
-    ,
-    modelSelectorEnabled,
-    dashboardsEnabled,
-    benchmarkEnabled,
-    computerUseEnabled,
-  ] = await Promise.all([
-    prefetchOrganizationSidebar(
-      queryClient,
-      organizationId,
-      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-      getActiveOrganizationId(session)
-    ),
-    isMothershipModelSelectorEnabled(),
-    isDashboardsEnabled(organizationId),
-    canUseBenchmarks(session.user.id).catch(() => {
-      logger.warn('Could not resolve benchmark navigation access')
-      return false
-    }),
-    isComputerUseAvailable(),
-  ])
+  const [, modelSelectorEnabled, dashboardsEnabled, benchmarkEnabled, computerUseEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isMothershipModelSelectorEnabled(),
+      isDashboardsEnabled(organizationId),
+      canUseBenchmarks(session.user.id).catch(() => {
+        logger.warn('Could not resolve benchmark navigation access')
+        return false
+      }),
+      isComputerUseAvailable(),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
