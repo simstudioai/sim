@@ -94,7 +94,7 @@ ${source}`
 })`)
   }
 
-  it('keeps chunk and KB updates working after a push drops the keyword table and reconciliation fails', async () => {
+  it('requires approval to retire keyword writers and preserves updates when later reconciliation fails', async () => {
     await sql`CREATE TABLE knowledge_base (id text PRIMARY KEY, is_search_index boolean NOT NULL DEFAULT false)`
     await sql`CREATE TABLE embedding (id text PRIMARY KEY, content text NOT NULL)`
     await sql`CREATE TABLE embedding_keyword_search (id text PRIMARY KEY, content text NOT NULL)`
@@ -121,16 +121,28 @@ ${source}`
 export const knowledgeBases = pgTable('knowledge_base', {
       id: text('id').primaryKey(), isSearchIndex: boolean('is_search_index').notNull().default(false),
     })`)
-    const result = spawnSync(
-      'bun',
-      ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), '--force'],
-      {
-        cwd: directory,
-        env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
-        encoding: 'utf8',
-        timeout: 30_000,
-      }
-    )
+    function runPush(args: string[]) {
+      return spawnSync(
+        'bun',
+        ['--no-env-file', fileURLToPath(new URL('./push.ts', import.meta.url)), ...args],
+        {
+          cwd: directory,
+          env: { ...process.env, DATABASE_URL: fixtureUrl, MIGRATION_DATABASE_URL: fixtureUrl },
+          encoding: 'utf8',
+          timeout: 30_000,
+        }
+      )
+    }
+    const denied = runPush([])
+    expect(denied.error).toBeUndefined()
+    expect(denied.status, denied.stdout + denied.stderr).toBe(1)
+    await sql`UPDATE embedding SET content = 'unapproved push retained writer' WHERE id = 'chunk'`
+    expect(await sql`SELECT id FROM embedding_keyword_search`).toEqual([])
+    const emptyDenied = runPush([])
+    expect(emptyDenied.error).toBeUndefined()
+    expect(emptyDenied.status, emptyDenied.stdout + emptyDenied.stderr).toBe(1)
+    await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'kb'`
+    const result = runPush(['--force'])
     expect(result.error).toBeUndefined()
     expect(result.status, result.stdout + result.stderr).not.toBe(0)
     expect(await sql`SELECT to_regclass('embedding_keyword_search') AS projection`).toEqual([
