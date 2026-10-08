@@ -1,10 +1,15 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { MethodInformation } from 'fumadocs-openapi'
 import type { InlineCodeUsageGenerator } from 'fumadocs-openapi/requests/generators'
 import { createOpenAPI } from 'fumadocs-openapi/server'
 import { buildAuthCodeSamples } from '@/lib/openapi-code-samples'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
+import billingSpec from '@/openapi-v2-billing.json'
+import filesAuditSpec from '@/openapi-v2-files-audit.json'
+import knowledgeSpec from '@/openapi-v2-knowledge.json'
+import logsSpec from '@/openapi-v2-logs.json'
+import resourcesSpec from '@/openapi-v2-resources.json'
+import tablesSpec from '@/openapi-v2-tables.json'
+import workflowsSpec from '@/openapi-v2-workflows.json'
 
 export const openapi = createOpenAPI({
   input: OPENAPI_SPEC_FILES.map((file) => `./${file}`),
@@ -66,16 +71,20 @@ function formatSchema(schema: unknown): string {
   return JSON.stringify(schema, null, 2)
 }
 
-let cachedSpecs: Record<string, unknown>[] | null = null
+const SPEC_BY_FILE = {
+  'openapi-v2-billing.json': billingSpec,
+  'openapi-v2-files-audit.json': filesAuditSpec,
+  'openapi-v2-knowledge.json': knowledgeSpec,
+  'openapi-v2-logs.json': logsSpec,
+  'openapi-v2-resources.json': resourcesSpec,
+  'openapi-v2-tables.json': tablesSpec,
+  'openapi-v2-workflows.json': workflowsSpec,
+} satisfies Record<(typeof OPENAPI_SPEC_FILES)[number], Record<string, unknown>>
+
+const SPECS = OPENAPI_SPEC_FILES.map((file) => SPEC_BY_FILE[file])
 
 function getSpecs(): Record<string, unknown>[] {
-  if (!cachedSpecs) {
-    cachedSpecs = OPENAPI_SPEC_FILES.map(
-      (file) =>
-        JSON.parse(readFileSync(join(process.cwd(), file), 'utf8')) as Record<string, unknown>
-    )
-  }
-  return cachedSpecs
+  return SPECS
 }
 
 type SecurityRequirement = Record<string, string[]>

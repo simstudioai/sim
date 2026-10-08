@@ -177,8 +177,8 @@ export interface TerminalToolArgs {
    */
   terminalId?: string
   /**
-   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
-   * a terminal that has tmux attached. Omitting it uses that session's active
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`, or a
+   * run's pane id `%N`), for a terminal that has tmux attached. Omitting it uses that session's active
    * pane. Ignored when the terminal is a plain shell.
    */
   pane?: string
@@ -214,7 +214,10 @@ export interface TerminalRunResult {
   durationMs: number
   cwd: string | null
   terminalId: string
-  /** Set when the command ran in tmux: the target it ran under. */
+  /**
+   * Set when the command ran in tmux: its own pane's id (`%N`), a tmux target that `read`,
+   * `input`, `kill` and `close` accept as `pane`.
+   */
   pane?: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean

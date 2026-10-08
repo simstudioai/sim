@@ -1,8 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
-import type { MothershipQueueState, QueuedMothershipMessage } from '@/stores/mothership-queue/types'
+import type {
+  MothershipQueueState,
+  QueuedMothershipMessage,
+  QueueMigration,
+} from '@/stores/mothership-queue/types'
 
 const logger = createLogger('MothershipQueueStore')
 
@@ -48,6 +53,73 @@ const initialState = {
   queues: {} as Record<string, QueuedMothershipMessage[]>,
   editing: {} as Record<string, string>,
   cleared: {} as Record<string, number>,
+  migratedTo: {} as Record<string, QueueMigration>,
+}
+
+/**
+ * `admissionUnknown` is decided where a send chooses its id (`startSendMessage`)
+ * and carried on the entry. A writer that has no say (a session saved before the
+ * flag existed, a send handed over from another surface) leaves it out; an entry
+ * that then reuses an earlier attempt's id is taken as possibly sent. Every queue
+ * write goes through this, so no path can queue such a message as editable.
+ */
+function withAdmissionGuard(message: QueuedMothershipMessage): QueuedMothershipMessage {
+  if (message.resumeUserMessageId === undefined || message.admissionUnknown !== undefined) {
+    return message
+  }
+  return { ...message, admissionUnknown: true }
+}
+
+function isQueuedMessage(value: unknown): value is QueuedMothershipMessage {
+  const record = toRecordOrNull(value)
+  return record !== null && typeof record.id === 'string' && typeof record.content === 'string'
+}
+
+/**
+ * An entry saved before `hold` and `retry` existed, in their shape: a held
+ * `retryRequired` (with `heldUntilOnline` when it waited for the network) and a
+ * `sendRetries` count with its `notBefore`.
+ */
+function withCurrentWaitFields(value: unknown): unknown {
+  const record = toRecordOrNull(value)
+  if (!record) return value
+  const { retryRequired, heldUntilOnline, sendRetries, notBefore, ...rest } = record
+  /* An entry saved when its Stop handoff carried the reused id: that id is the
+     entry's `resumeUserMessageId` now. It wins over the entry's own, as it did
+     when that build picked the id to send. */
+  const seed = toRecordOrNull(rest.queuedSendHandoff)
+  if (seed && typeof seed.userMessageId === 'string') {
+    const { userMessageId: seedRequestId, ...seedRest } = seed
+    rest.queuedSendHandoff = seedRest
+    rest.resumeUserMessageId = seedRequestId
+  }
+  return {
+    ...rest,
+    ...(retryRequired === true && rest.hold === undefined
+      ? { hold: heldUntilOnline === true ? 'online' : 'user' }
+      : {}),
+    ...(typeof sendRetries === 'number' && typeof notBefore === 'number' && rest.retry === undefined
+      ? { retry: { attempt: sendRetries, notBefore } }
+      : {}),
+  }
+}
+
+/**
+ * Queues saved to this tab's session, brought to the current shape and guarded
+ * on the way back in: an entry saved before `admissionUnknown` existed would
+ * otherwise be editable.
+ */
+function restoredQueues(persisted: unknown): Record<string, QueuedMothershipMessage[]> {
+  const queues: Record<string, QueuedMothershipMessage[]> = {}
+  for (const [chatKey, queue] of Object.entries(toRecord(toRecord(persisted).queues))) {
+    if (!Array.isArray(queue)) continue
+    const messages = queue
+      .map(withCurrentWaitFields)
+      .filter(isQueuedMessage)
+      .map(withAdmissionGuard)
+    if (messages.length > 0) queues[chatKey] = messages
+  }
+  return queues
 }
 
 const omitKey = <V>(record: Record<string, V>, key: string): Record<string, V> => {
@@ -63,6 +135,38 @@ const setQueueForChat = (
 ): Record<string, QueuedMothershipMessage[]> =>
   next.length === 0 ? omitKey(queues, chatKey) : { ...queues, [chatKey]: next }
 
+/**
+ * Where a message goes back into its queue after a write captured before an
+ * `await`: in the queue's live key, right after the last message still there
+ * that was ahead of it (`aheadIds`, plus whatever a chat's queue already held
+ * when a new-chat queue moved into it), else at the head. Anchoring on ids, not
+ * an index, keeps it in order however the queue changed meanwhile.
+ */
+export function liveQueuePosition(
+  chatKey: string,
+  aheadIds: readonly string[]
+): { chatKey: string; index: number } {
+  const { migratedTo, queues } = useMothershipQueueStore.getState()
+  /* One lookup: only a new-chat key moves, and only to its chat's key, which never
+     does. \`useChat\` migrates only from its pending sentinel key to the resolved chat
+     id (the chat-resolution effect and the detached chat resolution), never from a
+     chat key. */
+  const migration = migratedTo[chatKey]
+  const key = migration?.key ?? chatKey
+  const ahead = new Set([...aheadIds, ...(migration?.ahead ?? [])])
+  const queue = queues[key] ?? []
+  let index = 0
+  queue.forEach((message, position) => {
+    if (ahead.has(message.id)) index = position + 1
+  })
+  return { chatKey: key, index }
+}
+
+/** The queue key a write captured before an `await` should use now (see `liveQueuePosition`). */
+export function liveQueueKey(chatKey: string): string {
+  return liveQueuePosition(chatKey, []).chatKey
+}
+
 export const useMothershipQueueStore = create<MothershipQueueState>()(
   devtools(
     persist(
@@ -75,7 +179,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             return {
               queues: setQueueForChat(state.queues, chatKey, [
                 ...(state.queues[chatKey] ?? []),
-                message,
+                withAdmissionGuard(message),
               ]),
             }
           }),
@@ -87,7 +191,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const current = state.queues[chatKey] ?? []
             if (current.some((m) => m.id === message.id)) return state
             const next = [...current]
-            next.splice(Math.max(0, Math.min(index, next.length)), 0, message)
+            next.splice(Math.max(0, Math.min(index, next.length)), 0, withAdmissionGuard(message))
             return { queues: setQueueForChat(state.queues, chatKey, next) }
           }),
 
@@ -96,23 +200,21 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const current = state.queues[chatKey] ?? []
             const index = current.findIndex((m) => m.id === id)
             if (index === -1) return state
+            /** The server may already hold it as sent; an edit would become a second message. */
+            if (current[index].admissionUnknown) return state
             const next = [...current]
             /** Editing changes the request identity, never an unresolved Stop dependency. */
             const {
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
-              retryRequired: _retry,
-              heldUntilOnline: _held,
+              hold: _hold,
               heldSurface: _surface,
-              busyRetries: _busyRetries,
-              notBefore: _notBefore,
+              retry: _retry,
               ...rest
             } = next[index]
             next[index] = {
               ...rest,
-              ...(queuedSendHandoff?.stopRequired
-                ? { queuedSendHandoff: { ...queuedSendHandoff, userMessageId: undefined } }
-                : {}),
+              ...(queuedSendHandoff?.stopRequired ? { queuedSendHandoff } : {}),
               content: patch.content,
               fileAttachments: patch.fileAttachments,
               contexts: patch.contexts,
@@ -146,9 +248,17 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         migrate: (fromKey, toKey) =>
           set((state) => {
             if (fromKey === toKey) return state
+            const migratedTo = {
+              ...state.migratedTo,
+              /** The first move is the real one; a repeat must not rewrite what was ahead. */
+              [fromKey]: state.migratedTo[fromKey] ?? {
+                key: toKey,
+                ahead: (state.queues[toKey] ?? []).map((message) => message.id),
+              },
+            }
             const fromQueue = state.queues[fromKey]
             const fromEditing = state.editing[fromKey]
-            if (!fromQueue && fromEditing === undefined) return state
+            if (!fromQueue && fromEditing === undefined) return { migratedTo }
 
             const queues = omitKey(state.queues, fromKey)
             /** A chat deleted meanwhile takes nothing: its queue is gone with it. */
@@ -166,7 +276,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             if (fromEditing !== undefined) {
               editing[toKey] = fromEditing
             }
-            return { queues, editing }
+            return { queues, editing, migratedTo }
           }),
 
         releaseHeldUntilOnline: () =>
@@ -175,13 +285,26 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const queues: Record<string, QueuedMothershipMessage[]> = {}
             for (const [chatKey, queue] of Object.entries(state.queues)) {
               queues[chatKey] = queue.map((message) => {
-                if (!message.heldUntilOnline) return message
+                if (message.hold !== 'online') return message
                 released = true
-                const { retryRequired: _retry, heldUntilOnline: _held, ...rest } = message
+                const { hold: _hold, ...rest } = message
                 return rest
               })
             }
             return released ? { queues } : state
+          }),
+
+        deferRetry: (chatKey, id, retry) =>
+          set((state) => {
+            const current = state.queues[chatKey]
+            if (!current?.some((message) => message.id === id)) return state
+            return {
+              queues: setQueueForChat(
+                state.queues,
+                chatKey,
+                current.map((message) => (message.id === id ? { ...message, retry } : message))
+              ),
+            }
           }),
 
         adoptHeldSends: (toKey, surface) =>
@@ -205,6 +328,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             }
           }),
 
+        holdForSurface: (chatKey, surface) =>
+          set((state) => {
+            const queue = state.queues[chatKey]
+            if (!queue?.some((message) => message.heldSurface !== surface)) return state
+            return {
+              queues: setQueueForChat(
+                state.queues,
+                chatKey,
+                queue.map((message) => ({ ...message, heldSurface: surface }))
+              ),
+            }
+          }),
+
         clearChat: (chatKey) =>
           set((state) => ({
             queues: omitKey(state.queues, chatKey),
@@ -212,13 +348,19 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             cleared: { ...state.cleared, [chatKey]: ++deleteCount },
           })),
 
-        reopenChat: (chatKey, deleteToken) =>
-          set((state) => {
-            const current = state.cleared[chatKey]
-            if (current === undefined) return state
-            if (deleteToken !== undefined && deleteToken !== current) return state
-            return { cleared: omitKey(state.cleared, chatKey) }
-          }),
+        liftDelete: (chatKey, deleteToken) =>
+          set((state) =>
+            state.cleared[chatKey] === deleteToken
+              ? { cleared: omitKey(state.cleared, chatKey) }
+              : state
+          ),
+
+        reopenRestoredChat: (chatKey) =>
+          set((state) =>
+            state.cleared[chatKey] === undefined
+              ? state
+              : { cleared: omitKey(state.cleared, chatKey) }
+          ),
 
         reset: () => set(initialState),
       }),
@@ -229,6 +371,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
         // edit text is component-local and empty after reload, so a persisted
         // editing flag would render an in-edit row with nothing bound.
         partialize: (state) => ({ queues: state.queues }),
+        merge: (persisted, current) => ({ ...current, queues: restoredQueues(persisted) }),
       }
     ),
     { name: 'mothership-queue-store' }

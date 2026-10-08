@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Badge,
   Button,
+  Chip,
   ChipCopyInput,
   ChipInput,
   ChipModalTabs,
@@ -14,6 +15,7 @@ import {
 import { formatDateTime } from '@sim/utils/formatting'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   type MothershipTab,
   mothershipParsers,
@@ -28,6 +30,7 @@ import {
   useMothershipRequests,
   useMothershipUserBreakdown,
 } from '@/hooks/queries/mothership-admin'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const TABS: { id: MothershipTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -83,6 +86,7 @@ export function Mothership() {
   const defaults = useMemo(() => defaultTimeRange(), [])
   const [start, setStart] = useState(defaults.start)
   const [end, setEnd] = useState(defaults.end)
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
 
   return (
     <SettingsPanel>
@@ -93,7 +97,12 @@ export function Mothership() {
             align='start'
             dropdownWidth={160}
             value={environment}
-            onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
+            onChange={(value) => {
+              if (value !== environment)
+                requestLeave(() => {
+                  void setMothershipParams({ env: value as MothershipEnv })
+                })
+            }}
             placeholder='Select environment'
             options={ENV_OPTIONS}
           />
@@ -102,7 +111,12 @@ export function Mothership() {
         <ChipModalTabs
           tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
           value={activeTab}
-          onChange={(value) => setMothershipParams({ tab: value as MothershipTab })}
+          onChange={(value) => {
+            if (value !== activeTab)
+              requestLeave(() => {
+                void setMothershipParams({ tab: value as MothershipTab })
+              })
+          }}
         />
 
         <div className='flex items-center gap-3'>
@@ -348,9 +362,23 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
   const [newExpiry, setNewExpiry] = useState('')
   const [approvalReference, setApprovalReference] = useState('')
   const [generatedKey, setGeneratedKey] = useState<string | null>(null)
+  const resetForm = () => {
+    setNewName('')
+    setNewExpiry('')
+    setApprovalReference('')
+  }
+  useSettingsUnsavedGuard({
+    isDirty: Boolean(newName.trim() || newExpiry || approvalReference.trim() || generatedKey),
+    navigationBlocked: generateLicense.isPending,
+    onDiscard: () => {
+      resetForm()
+      setGeneratedKey(null)
+    },
+  })
 
-  const handleGenerate = useCallback(() => {
-    if (!newName.trim() || !approvalReference.trim()) return
+  const handleGenerate = () => {
+    if (!newName.trim() || !approvalReference.trim() || generateLicense.isPending || generatedKey)
+      return
     generateLicense.mutate(
       {
         name: newName.trim(),
@@ -360,13 +388,11 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       {
         onSuccess: (result) => {
           setGeneratedKey(result.license_key)
-          setNewName('')
-          setNewExpiry('')
-          setApprovalReference('')
+          resetForm()
         },
       }
     )
-  }, [newName, newExpiry, approvalReference, generateLicense.mutate])
+  }
 
   return (
     <div className='flex flex-col gap-5'>
@@ -375,11 +401,9 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Enterprise Name</Label>
           <ChipInput
+            disabled={generateLicense.isPending}
             value={newName}
-            onChange={(e) => {
-              setNewName(e.target.value)
-              setGeneratedKey(null)
-            }}
+            onChange={(e) => setNewName(e.target.value)}
             placeholder='e.g. Acme Corp'
             className='w-[200px]'
           />
@@ -387,6 +411,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Approval reference</Label>
           <ChipInput
+            disabled={generateLicense.isPending}
             value={approvalReference}
             onChange={(event) => setApprovalReference(event.target.value)}
             placeholder='Signed order form or written approval'
@@ -396,6 +421,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Expiration (optional)</Label>
           <ChipInput
+            disabled={generateLicense.isPending}
             type='date'
             value={newExpiry}
             onChange={(e) => setNewExpiry(e.target.value)}
@@ -406,7 +432,12 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           variant='primary'
           className='h-[32px]'
           onClick={handleGenerate}
-          disabled={generateLicense.isPending || !newName.trim() || !approvalReference.trim()}
+          disabled={
+            generateLicense.isPending ||
+            Boolean(generatedKey) ||
+            !newName.trim() ||
+            !approvalReference.trim()
+          }
         >
           {generateLicense.isPending ? 'Generating...' : 'Generate'}
         </Button>
@@ -417,7 +448,10 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           <p className='text-[var(--text-secondary)] text-caption'>
             License key (only shown once):
           </p>
-          <ChipCopyInput value={generatedKey} copyLabel='Copy license key' />
+          <div className='flex items-center gap-2'>
+            <ChipCopyInput value={generatedKey} copyLabel='Copy license key' className='flex-1' />
+            <Chip onClick={() => setGeneratedKey(null)}>Done</Chip>
+          </div>
         </div>
       )}
 

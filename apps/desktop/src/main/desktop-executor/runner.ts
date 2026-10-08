@@ -10,20 +10,26 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import type {
+  DesktopLocalFileRequest,
   DesktopLocalFileResponse,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
 } from '@sim/desktop-bridge'
 import { runUserLocalFilesystemTool } from '@sim/desktop-bridge/local-filesystem-tools'
 import {
+  assertImportableManifest,
   browserSessionClosedCompletion,
   browserToolCompletion,
   browserToolFailure,
   browserToolNeedsLivePage,
   browserToolTimeoutMessage,
+  type DesktopLocalFileImportResult,
   type DesktopToolCompletion,
+  localFileImportCompletion,
+  localFileImportFailure,
   localFileReadCompletion,
   localFilesystemToolCompletion,
+  readImportEntry,
   terminalOperationTimeoutMs,
   terminalToolCompletion,
   terminalToolFailure,
@@ -38,12 +44,21 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { DeviceRequestError } from '@/main/desktop-executor/client'
 import type { DesktopToolRunner } from '@/main/desktop-executor/executor'
-import type { ClaimedDesktopCall } from '@/main/desktop-executor/protocol'
+import type {
+  ClaimedDesktopCall,
+  DesktopImportEntryRequest,
+  DesktopImportedEntry,
+} from '@/main/desktop-executor/protocol'
 
 const logger = createLogger('DesktopExecutorRunner')
 
 const USER_LOCAL_TOOLS: ReadonlySet<string> = new Set(['read', 'grep', 'glob'])
+/** A rate-limited import entry is retried this many times; Sim never stored a refused one. */
+const IMPORT_RATE_LIMIT_ATTEMPTS = 8
+const IMPORT_RATE_LIMIT_MAX_WAIT_MS = 30_000
 
 /** The model learns a call never ran because a surface is switched off on this machine. */
 function surfaceOff(surface: string): DesktopToolCompletion {
@@ -87,8 +102,18 @@ export interface DesktopToolRunnerDeps {
     ): Promise<TerminalToolResponse>
     cancelTool(scope: string, toolCallId: string): Promise<boolean>
   }
+  /** Reads a `read_local_file` or `import_local_files` source, authorized by the call itself. */
   localFiles: {
-    read(call: ClaimedDesktopCall): Promise<DesktopLocalFileResponse>
+    request(
+      call: ClaimedDesktopCall,
+      request: DesktopLocalFileRequest
+    ): Promise<DesktopLocalFileResponse>
+  }
+  imports: {
+    importEntry(
+      request: DesktopImportEntryRequest,
+      signal: AbortSignal
+    ): Promise<DesktopImportedEntry>
   }
   localFilesystem: {
     handle(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
@@ -224,6 +249,86 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     }
   }
 
+  /**
+   * Imports the call's source into its workspace one entry at a time: each directory as a folder,
+   * each file read in chunks and checked against the manifest that listed it.
+   */
+  /**
+   * Sends one entry, waiting out Sim's rate limit: a large tree can outrun it, and a 429 means
+   * nothing was stored, so sending the entry again cannot duplicate it.
+   */
+  async function importEntry(
+    request: DesktopImportEntryRequest,
+    signal: AbortSignal
+  ): Promise<DesktopImportedEntry> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await deps.imports.importEntry(request, signal)
+      } catch (error) {
+        if (
+          !(error instanceof DeviceRequestError) ||
+          error.status !== 429 ||
+          attempt >= IMPORT_RATE_LIMIT_ATTEMPTS
+        ) {
+          throw error
+        }
+        await interruptibleSleep(
+          backoffWithJitter(attempt, error.retryAfterMs, { maxMs: IMPORT_RATE_LIMIT_MAX_WAIT_MS }),
+          signal
+        )
+        signal.throwIfAborted()
+      }
+    }
+  }
+
+  async function runImport(
+    call: ClaimedDesktopCall,
+    signal: AbortSignal
+  ): Promise<DesktopToolCompletion> {
+    const files: DesktopLocalFileImportResult['files'] = []
+    const folders: DesktopLocalFileImportResult['folders'] = []
+    const targetWorkspaceId =
+      typeof call.args.targetWorkspaceId === 'string' ? call.args.targetWorkspaceId : ''
+    const read = (request: DesktopLocalFileRequest) => deps.localFiles.request(call, request)
+    try {
+      const response = await read({ operation: 'manifest', toolCallId: call.toolCallId })
+      if (!response.ok) throw new Error(response.error)
+      if (response.data.kind !== 'manifest') throw new Error('Unexpected file manifest response.')
+      const manifest = response.data
+      assertImportableManifest(manifest)
+      for (const entry of manifest.entries) {
+        signal.throwIfAborted()
+        const target = { call, sourceName: manifest.name, relativePath: entry.relativePath }
+        if (entry.kind === 'directory') {
+          const folder = await importEntry({ ...target, kind: 'directory' }, signal)
+          folders.push({ id: folder.id, relativePath: entry.relativePath })
+          continue
+        }
+        const parts = await readImportEntry(call.toolCallId, entry, read, signal)
+        const file = await importEntry(
+          { ...target, kind: 'file', content: new Blob(parts) },
+          signal
+        )
+        files.push({ id: file.id, name: file.name, relativePath: entry.relativePath })
+      }
+      return localFileImportCompletion({
+        success: true,
+        workspaceId: manifest.targetWorkspaceId,
+        files,
+        folders,
+      })
+    } catch (error) {
+      return localFileImportCompletion(
+        localFileImportFailure(
+          { workspaceId: targetWorkspaceId, files, folders },
+          getErrorMessage(error),
+          // A rate limit that outlasted every retry refused the entry outright: nothing of it landed.
+          { outcomeKnown: error instanceof DeviceRequestError && error.status === 429 }
+        )
+      )
+    }
+  }
+
   return {
     async run(call, signal) {
       try {
@@ -231,8 +336,14 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
         if (call.toolName === 'terminal') return await runTerminal(call, signal)
         if (!deps.accountDataAvailable()) return localAccessUnavailable()
         if (call.toolName === 'read_local_file') {
-          return localFileReadCompletion(await deps.localFiles.read(call))
+          return localFileReadCompletion(
+            await deps.localFiles.request(call, {
+              operation: 'read',
+              toolCallId: call.toolCallId,
+            })
+          )
         }
+        if (call.toolName === 'import_local_files') return await runImport(call, signal)
         if (USER_LOCAL_TOOLS.has(call.toolName)) return await runUserLocal(call, signal)
         return unsupported(call.toolName)
       } catch (error) {

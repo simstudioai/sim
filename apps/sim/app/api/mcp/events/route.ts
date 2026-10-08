@@ -32,6 +32,7 @@ const mcpEventsHandler = createWorkspaceSSE({
           })
         })
       },
+      ready: async () => mcpPubSub?.ready(),
     },
     {
       subscribe: (workspaceId, send) => {
@@ -45,6 +46,7 @@ const mcpEventsHandler = createWorkspaceSSE({
           })
         })
       },
+      ready: async () => mcpPubSub?.ready(),
     },
   ],
 })

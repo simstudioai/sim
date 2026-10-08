@@ -3,6 +3,7 @@
  * local filesystem service. The chat view runs them through the preload bridge; the desktop's
  * background executor runs them in-process. Both get the same paths and result shapes.
  */
+import { stripTrailingSlashes } from '@sim/utils/string'
 import micromatch from 'micromatch'
 import type {
   LocalFilesystemData,
@@ -217,7 +218,7 @@ async function grep(
   args: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
   const pattern = requiredString(args, 'pattern')
-  const path = requiredString(args, 'path').replace(/\/+$/, '')
+  const path = stripTrailingSlashes(requiredString(args, 'path'))
   const outputMode =
     args.output_mode === 'files_with_matches' || args.output_mode === 'count'
       ? args.output_mode

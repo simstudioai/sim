@@ -6,7 +6,7 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -22,7 +22,6 @@ import {
 } from '@/app/workspace/[workspaceId]/components/custom-tool-editor'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import {
   useCreateCustomTool,
@@ -117,9 +116,19 @@ export function CustomToolDetail({
     ? jsonSchema !== seededSchema || functionCode !== seededCode
     : jsonSchema.trim().length > 0 || functionCode.trim().length > 0
 
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: dirty,
+    navigationBlocked:
+      createTool.isPending ||
+      updateTool.isPending ||
+      deleteTool.isPending ||
+      schemaGeneration.isStreaming ||
+      codeGeneration.isStreaming,
+    onDiscard: () => handleDiscard(),
+  })
 
   const saving = createTool.isPending || updateTool.isPending
+  const controlsDisabled = readOnly || saving || deleteTool.isPending
   const isSchemaValid = useMemo(() => validateCustomToolSchema(jsonSchema).isValid, [jsonSchema])
   const streaming = schemaGeneration.isStreaming || codeGeneration.isStreaming
 
@@ -235,11 +244,13 @@ export function CustomToolDetail({
               schemaError ? <FieldErrorText>{schemaError}</FieldErrorText> : undefined
             }
             action={
-              readOnly ? undefined : (
+              controlsDisabled ? undefined : (
                 <GeneratePromptControl
                   isLoading={schemaGeneration.isLoading}
                   isStreaming={schemaGeneration.isStreaming}
-                  onSubmit={(prompt) => schemaGeneration.generateStream({ prompt })}
+                  onSubmit={(prompt) => {
+                    if (!controlsDisabled) schemaGeneration.generateStream({ prompt })
+                  }}
                 />
               )
             }
@@ -247,12 +258,13 @@ export function CustomToolDetail({
             <CustomToolSchemaField
               value={jsonSchema}
               onChange={(value) => {
+                if (controlsDisabled) return
                 setJsonSchema(value)
                 setSchemaError(value.trim() ? validateCustomToolSchema(value).error : null)
               }}
               error={!!schemaError}
               generation={schemaGeneration}
-              disabled={readOnly}
+              disabled={controlsDisabled}
             />
           </SettingsSection>
 
@@ -260,11 +272,13 @@ export function CustomToolDetail({
             label='Code'
             headerAccessory={codeError ? <FieldErrorText>{codeError}</FieldErrorText> : undefined}
             action={
-              readOnly ? undefined : (
+              controlsDisabled ? undefined : (
                 <GeneratePromptControl
                   isLoading={codeGeneration.isLoading}
                   isStreaming={codeGeneration.isStreaming}
-                  onSubmit={(prompt) => codeGeneration.generateStream({ prompt })}
+                  onSubmit={(prompt) => {
+                    if (!controlsDisabled) codeGeneration.generateStream({ prompt })
+                  }}
                 />
               )
             }
@@ -272,6 +286,7 @@ export function CustomToolDetail({
             <CustomToolCodeField
               value={functionCode}
               onChange={(value) => {
+                if (controlsDisabled) return
                 setFunctionCode(value)
                 if (codeError) setCodeError(null)
               }}
@@ -279,7 +294,7 @@ export function CustomToolDetail({
               generation={codeGeneration}
               schemaParameters={schemaParameters}
               workspaceId={workspaceId}
-              disabled={readOnly}
+              disabled={controlsDisabled}
             />
           </SettingsSection>
         </div>
@@ -297,12 +312,6 @@ export function CustomToolDetail({
           pending: deleteTool.isPending,
           pendingLabel: 'Deleting...',
         }}
-      />
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
       />
     </>
   )

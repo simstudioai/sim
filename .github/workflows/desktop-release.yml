@@ -1,4 +1,4 @@
-name: Desktop Release (macOS)
+name: desktop-release
 
 # Builds, signs, notarizes, and uploads the desktop app to an existing GitHub
 # release. Stable releases live in this source repository; dev and staging
@@ -24,6 +24,21 @@ on:
         required: false
         type: boolean
         default: true
+    secrets:
+      DESKTOP_RELEASE_TOKEN:
+        required: false
+      CSC_LINK:
+        required: false
+      CSC_KEY_PASSWORD:
+        required: false
+      APPLE_API_KEY_P8:
+        required: false
+      APPLE_API_KEY_ID:
+        required: false
+      APPLE_API_ISSUER:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
   workflow_dispatch:
     inputs:
       version:
@@ -45,8 +60,8 @@ permissions:
   contents: write
 
 jobs:
-  build-sign-notarize:
-    name: Build, Sign, Notarize
+  build:
+    name: build
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -131,12 +146,12 @@ jobs:
           bun-version: 1.4.2
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
 
       - name: Cache Electron binaries
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/Library/Caches/electron

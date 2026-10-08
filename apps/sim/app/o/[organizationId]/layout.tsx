@@ -88,6 +88,7 @@ export default async function OrganizationLayout({
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
+          'mothership-desktop-background-executor': false,
         }}
       >
         <OrganizationProvider context={context}>

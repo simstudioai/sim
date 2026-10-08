@@ -67,6 +67,9 @@ class FakeSim {
     openInboxStream: async () => {
       throw new Error('not used')
     },
+    importEntry: async () => {
+      throw new Error('not used')
+    },
     claim: async (toolCallId) => {
       this.claims.push(toolCallId)
       const error = this.claimError?.(toolCallId)
@@ -165,6 +168,10 @@ function setup(
   const runner = new FakeRunner()
   const onUnregistered = vi.fn()
   const busy: boolean[] = []
+  /** Calls whose result the executor reported as reaching the model, in order. */
+  const delivered: string[] = []
+  /** Calls Sim finished with without their real result reaching the model, in order. */
+  const notDelivered: string[] = []
   const executor = new DesktopExecutor({
     client: sim.client,
     journal,
@@ -174,12 +181,24 @@ function setup(
     onUnregistered,
     onBusyChange: (value) => busy.push(value),
     onApprovals: (items) => approvals.push(items),
+    onResultDelivered: (toolCallId) => delivered.push(toolCallId),
+    onResultNotDelivered: (toolCallId) => notDelivered.push(toolCallId),
     ...(options.maxHeldCalls ? { maxHeldCalls: options.maxHeldCalls } : {}),
     ...(options.deliveryAwakeLimitMs !== undefined
       ? { deliveryAwakeLimitMs: options.deliveryAwakeLimitMs }
       : {}),
   })
-  return { sim, journal, runner, executor, onUnregistered, busy, approvals }
+  return {
+    sim,
+    journal,
+    runner,
+    executor,
+    onUnregistered,
+    busy,
+    approvals,
+    delivered,
+    notDelivered,
+  }
 }
 
 describe('claiming', () => {
@@ -198,6 +217,93 @@ describe('claiming', () => {
     })
     await vi.waitFor(() => expect(journal.entries.size).toBe(0))
     expect(executor.heldCallCount()).toBe(0)
+  })
+
+  it('reports a result as reaching the model only once Sim takes it as the call own', async () => {
+    const { sim, journal, runner, executor, delivered, notDelivered } = setup()
+    runner.immediate = DONE
+    // Sim settled this call first: the result never reached the model.
+    sim.completionOutcome = 'superseded'
+    sim.inbox = [callItem('call-superseded', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-superseded']))
+    expect(delivered).toEqual([])
+
+    // Taken by Sim, even with nothing written locally (no OS encryption, say).
+    sim.completionOutcome = 'recorded'
+    journal.failOn = 'result'
+    sim.inbox = [callItem('call-recorded', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(delivered).toEqual(['call-recorded']))
+    expect(notDelivered).toEqual(['call-superseded'])
+  })
+
+  it('reports a result Sim settled first, while a failed send waited to retry, as never reaching the model', async () => {
+    const { sim, runner, executor, delivered, notDelivered } = setup()
+    // The terminal handed back a command still going, and the first send of that result fails.
+    runner.immediate = { status: 'success', message: 'running', data: { status: 'running' } }
+    sim.completeErrors = [new DeviceRequestError(503, 'unavailable')]
+    sim.inbox = [callItem('call-1', 'chat-a', 'terminal')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(runner.started).toEqual(['call-1']))
+
+    // The user pressed Stop meanwhile, so Sim settled the call before the retry reached it.
+    sim.completionOutcome = 'superseded'
+    sim.inbox = [{ kind: 'cancel', toolCallId: 'call-1' }]
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-1']))
+    expect(delivered).toEqual([])
+  })
+
+  it('reports a stand-in Sim holds as a duplicate as never reaching the model, within one app run', async () => {
+    const { sim, runner, executor, delivered, notDelivered } = setup()
+    // Too large to send, so Sim never took the real result; the stand-in's first answer was lost.
+    runner.immediate = DONE
+    sim.completeErrors = [
+      new DeviceRequestError(413, 'too large'),
+      new DeviceRequestError(0, 'connection reset'),
+    ]
+    sim.completionOutcome = 'duplicate'
+    sim.inbox = [callItem('call-1', 'chat-a', 'terminal')]
+
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-1']))
+    expect(delivered).toEqual([])
+  })
+
+  it('reports a result Sim refused as never reaching the model', async () => {
+    const { sim, runner, executor, notDelivered } = setup()
+    runner.immediate = DONE
+    sim.completeErrors = [new DeviceRequestError(403, 'forbidden')]
+    sim.inbox = [callItem('call-refused', 'chat-a')]
+
+    await executor.reconcile()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['call-refused']))
+  })
+
+  it('reports no result that stands in for what the action produced as reaching the model', async () => {
+    const { sim, runner, executor, delivered, notDelivered } = setup()
+    const standIns: DesktopToolCompletion[] = [
+      { status: 'cancelled', message: 'Stopped.' },
+      { status: 'error', message: 'Too large.', data: { resultOmitted: true } },
+      { status: 'error', message: 'Not started.', data: { notStarted: true } },
+      { status: 'error', message: 'Unknown.', data: { outcomeUnknown: true } },
+    ]
+    for (const [index, completion] of standIns.entries()) {
+      runner.immediate = completion
+      sim.inbox = [callItem(`stand-in-${index}`, 'chat-a')]
+      await executor.reconcile()
+      await vi.waitFor(() => expect(sim.completions).toHaveLength(index + 1))
+    }
+
+    runner.immediate = DONE
+    sim.inbox = [callItem('real', 'chat-a')]
+    await executor.reconcile()
+    await vi.waitFor(() => expect(delivered).toEqual(['real']))
+    expect(notDelivered).toEqual(['stand-in-0', 'stand-in-1', 'stand-in-2', 'stand-in-3'])
   })
 
   it('claims a whole backlog at once, before any of it runs', async () => {
@@ -446,6 +552,55 @@ describe('restarting', () => {
     expect(reported.has('claiming-1')).toBe(false)
     expect(runner.started).toEqual([])
     await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+  })
+
+  it('leaves open whether the model has a result when Sim already held one for the call', async () => {
+    const { sim, journal, executor, delivered, notDelivered } = setup()
+    // The previous run's send of the real result may have landed just before the app went down.
+    sim.completionOutcome = 'duplicate'
+    await journal.put({ toolCallId: 'started-1', state: 'started', executionToken: 't-started' })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+    expect(sim.completions).toHaveLength(1)
+    expect(delivered).toEqual([])
+    expect(notDelivered).toEqual([])
+  })
+
+  it('still leaves a recovered result open when Sim held one, after parking it', async () => {
+    const { sim, journal, executor, onUnregistered, delivered, notDelivered } = setup()
+    sim.completeErrors = [new DeviceRequestError(401, 'unregistered')]
+    sim.completionOutcome = 'duplicate'
+    await journal.put({ toolCallId: 'started-1', state: 'started', executionToken: 't-started' })
+    await executor.recover()
+    await vi.waitFor(() => expect(onUnregistered).toHaveBeenCalledTimes(1))
+
+    // Registered again.
+    executor.resumeParked()
+
+    await vi.waitFor(() => expect(sim.completions).toHaveLength(1))
+    await vi.waitFor(() => expect(journal.entries.size).toBe(0))
+    expect(delivered).toEqual([])
+    expect(notDelivered).toEqual([])
+  })
+
+  it('reports a recovered result too large to send, then held as a duplicate, as never reaching the model', async () => {
+    const { sim, journal, executor, delivered, notDelivered } = setup()
+    // No run could have sent this result: it is too large every time.
+    sim.completeErrors = [new DeviceRequestError(413, 'too large')]
+    sim.completionOutcome = 'duplicate'
+    await journal.put({
+      toolCallId: 'result-1',
+      state: 'result',
+      executionToken: 't',
+      completion: DONE,
+    })
+
+    await executor.recover()
+
+    await vi.waitFor(() => expect(notDelivered).toEqual(['result-1']))
+    expect(delivered).toEqual([])
   })
 })
 

@@ -11,7 +11,7 @@ const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() =
 }))
 
 vi.mock('@/stores/mothership-queue/store', () => ({
-  useMothershipQueueStore: { getState: () => ({ clearChat }) },
+  useMothershipQueueStore: { getState: () => ({ clearChat, cleared: {} }) },
 }))
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
@@ -26,6 +26,7 @@ vi.mock('@/lib/terminal/transport', () => ({
 
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
+  fetchMothershipChatHistory,
   useDeleteMothershipChats,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
@@ -98,6 +99,26 @@ describe('tasks query boundary parsing', () => {
     expect(queryClient.removeQueries).not.toHaveBeenCalledWith({
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
+  })
+
+  it('loads a chat from a server that predates the effort field', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        chat: {
+          id: 'chat-1',
+          title: null,
+          mode: 'agent',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        },
+      })
+    )
+
+    const history = await fetchMothershipChatHistory('chat-1')
+
+    expect(history.effort).toBeNull()
   })
 
   it('keeps the latest effort pick when an earlier queued save of the same value fails', async () => {

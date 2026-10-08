@@ -19,7 +19,7 @@ import {
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { escapeRegExp, truncate } from '@sim/utils/string'
+import { escapeRegExp, stripTrailingSlashes, truncate } from '@sim/utils/string'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
@@ -556,7 +556,7 @@ export class LocalFilesystemService {
         // request carrying them is the renderer searching for something the
         // model did not ask for, or hiding results it believes are complete.
         if (request.query !== undefined || request.include !== undefined) return false
-        const rawPath = typeof args.path === 'string' ? args.path.replace(/\/+$/, '') : ''
+        const rawPath = typeof args.path === 'string' ? stripTrailingSlashes(args.path) : ''
         const uriAllowed =
           rawPath === 'user-local'
             ? [...this.mounts.values()].some((mount) => request.uri === mount.uri)
@@ -1008,7 +1008,7 @@ export class LocalFilesystemService {
     if (rawPathPrefix !== undefined && typeof rawPathPrefix !== 'string') {
       throw new LocalFilesystemError('INVALID_REQUEST', 'pathPrefix must be a string.')
     }
-    const pathPrefix = typeof rawPathPrefix === 'string' ? rawPathPrefix.replace(/\/+$/, '') : ''
+    const pathPrefix = typeof rawPathPrefix === 'string' ? stripTrailingSlashes(rawPathPrefix) : ''
     const matcher = compileGlob(pattern)
     const resolvedPath = await this.resolveUri(uri)
     const baseStat = await stat(resolvedPath.realPath)

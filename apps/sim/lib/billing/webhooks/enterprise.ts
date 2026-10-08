@@ -14,11 +14,6 @@ import {
 } from '@/lib/auth/security-policy'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 import {
-  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
-  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
-  ENTERPRISE_PROVISION_EVENT_TYPE,
-  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseProvisionPayload,
   enterpriseMetadataDeliveryIsVerified,
   enterpriseMetadataIntentMatchesStripeSubscription,
@@ -26,6 +21,13 @@ import {
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import {
+  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
+  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
+  ENTERPRISE_PROVISION_EVENT_TYPE,
+  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
+} from '@/lib/billing/enterprise-outbox-events'
 import { getEnterpriseIssuanceSeatRequirement } from '@/lib/billing/enterprise-provisioning'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'

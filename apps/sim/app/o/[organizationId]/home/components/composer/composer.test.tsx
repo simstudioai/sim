@@ -236,6 +236,7 @@ async function render(
             'table-row-ttl': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
+            'mothership-desktop-background-executor': false,
           }}
         >
           <Harness />
@@ -315,6 +316,7 @@ it.each([
               'table-row-ttl': false,
               'mothership-model-selector': false,
               'mothership-plan-mode': planEnabled,
+              'mothership-desktop-background-executor': false,
             }}
           >
             <Harness />
@@ -411,6 +413,7 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
             'table-row-ttl': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
+            'mothership-desktop-background-executor': false,
           }}
         >
           <Harness />

@@ -7,7 +7,14 @@
 import type { BrowserToolName } from '@sim/browser-protocol'
 import type { TerminalOperation, TerminalToolResponse } from '@sim/terminal-protocol'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
-import type { DesktopLocalFileResponse } from './local-files'
+import {
+  type DesktopLocalFileEntry,
+  type DesktopLocalFileManifest,
+  type DesktopLocalFileRequest,
+  type DesktopLocalFileResponse,
+  isStorableImportName,
+  MAX_DESKTOP_IMPORT_FILE_BYTES,
+} from './local-files'
 
 type DesktopToolCompletionStatus = 'success' | 'error' | 'cancelled'
 
@@ -222,6 +229,118 @@ export function localFileReadCompletion(response: DesktopLocalFileResponse): Des
     message: 'Local file operation completed.',
     data: { ...response.data },
   }
+}
+
+/**
+ * Refuses, before anything lands, an import Sim could not store whole: a file larger than desktop
+ * imports carry, or a name with a backslash, which Sim's file names cannot hold.
+ */
+export function assertImportableManifest(manifest: DesktopLocalFileManifest): void {
+  if (
+    manifest.entries.some(
+      (entry) => entry.kind === 'file' && entry.size > MAX_DESKTOP_IMPORT_FILE_BYTES
+    )
+  ) {
+    throw new Error(
+      'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
+    )
+  }
+  const unstorable = [
+    manifest.name,
+    ...manifest.entries.flatMap((entry) =>
+      entry.relativePath === '' ? [] : entry.relativePath.split('/')
+    ),
+  ].find((name) => !isStorableImportName(name))
+  if (unstorable !== undefined) {
+    throw new Error(
+      `Sim cannot store a file or folder named "${unstorable}": a name needs visible characters, and cannot be "." or ".." or contain a backslash. Rename it, or import the rest separately.`
+    )
+  }
+}
+
+/**
+ * Reads one manifest file in chunks, refusing a file that changed since the manifest listed it:
+ * a different size, an early end, or a chunk past its length.
+ */
+export async function readImportEntry(
+  toolCallId: string,
+  entry: DesktopLocalFileEntry,
+  readChunk: (request: DesktopLocalFileRequest) => Promise<DesktopLocalFileResponse>,
+  signal?: AbortSignal
+): Promise<Uint8Array<ArrayBuffer>[]> {
+  const parts: Uint8Array<ArrayBuffer>[] = []
+  let offset = 0
+  do {
+    signal?.throwIfAborted()
+    const response = await readChunk({
+      operation: 'chunk',
+      toolCallId,
+      relativePath: entry.relativePath,
+      offset,
+      revision: entry.revision,
+    })
+    if (!response.ok) throw new Error(response.error)
+    if (response.data.kind !== 'chunk') throw new Error('Unexpected file chunk response.')
+    const bytes = new Uint8Array(response.data.bytes)
+    parts.push(bytes)
+    offset += bytes.length
+    if (
+      offset > entry.size ||
+      (response.data.eof && offset !== entry.size) ||
+      (!response.data.eof && (bytes.length === 0 || offset >= entry.size))
+    ) {
+      throw new Error('The local file changed or its transfer was incomplete.')
+    }
+    if (response.data.eof) break
+  } while (offset < entry.size)
+  return parts
+}
+
+/** What an `import_local_files` call created, and how far it got when it stopped short. */
+export interface DesktopLocalFileImportResult {
+  success: boolean
+  workspaceId: string
+  files: Array<{ id: string; name: string; relativePath: string }>
+  folders: Array<{ id: string; relativePath: string }>
+  error?: string
+  partial?: boolean
+  doNotRetry?: true
+  outcomeUnknown?: true
+}
+
+/**
+ * An import that stopped part way. Files it already created stay. Usually whether more landed than
+ * it reports is unknown, so the model inspects the workspace instead of importing again. With
+ * `outcomeKnown` (Sim refused the next entry outright), the list is exact, and an import where
+ * nothing landed can simply be asked for again.
+ */
+export function localFileImportFailure(
+  partial: Pick<DesktopLocalFileImportResult, 'workspaceId' | 'files' | 'folders'>,
+  error: string,
+  options: { outcomeKnown?: boolean } = {}
+): DesktopLocalFileImportResult {
+  const landed = partial.files.length > 0 || partial.folders.length > 0
+  return {
+    success: false,
+    ...partial,
+    error,
+    partial: landed,
+    ...(landed || !options.outcomeKnown ? { doNotRetry: true as const } : {}),
+    ...(options.outcomeKnown ? {} : { outcomeUnknown: true as const }),
+  }
+}
+
+/** An `import_local_files` call's outcome. */
+export function localFileImportCompletion(
+  result: DesktopLocalFileImportResult
+): DesktopToolCompletion {
+  return result.success
+    ? { status: 'success', message: 'Local file operation completed.', data: { ...result } }
+    : {
+        status: 'error',
+        message: 'Some files could not be imported; inspect the partial result.',
+        data: { ...result },
+      }
 }
 
 /** A user-local folder read (`read`, `grep`, `glob`) the desktop finished or failed. */

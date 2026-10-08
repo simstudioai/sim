@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,10 +9,10 @@ import {
 } from '@sim/emcn'
 import { Brain, Check, Sparkles } from '@sim/emcn/icons'
 import {
+  MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
   type MothershipEffort,
-  mothershipEffortOptions,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -45,18 +44,11 @@ export function ModelSelector() {
     { effort: effortChoice ?? undefined, modelSelection: selection },
     advanced
   )
-  const options = modelSelection
-    ? mothershipEffortOptions(modelSelection.model)
-    : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
+  const options = modelSelection ? MOTHERSHIP_EFFORT_OPTIONS : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = (choice: MothershipEffort) => {
     if (chatId) saveChatEffort(choice)
     else setNewChatEffort(choice)
   }
-
-  useEffect(() => {
-    if (chatId) return
-    return () => useMothershipEffortStore.getState().setNewChatEffort(null)
-  }, [chatId])
 
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
 

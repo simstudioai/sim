@@ -56,6 +56,20 @@ export interface DesktopToolRunner {
 
 export type DesktopApprovalItem = Extract<DesktopInboxItem, { kind: 'approval_needed' }>
 
+/**
+ * Whether a result hands the model what the action produced: not a stop, and not one standing in
+ * for an action that did not start, whose outcome is unknown, or whose output was too large to send.
+ */
+export function isDeliveredResult(completion: DesktopToolCompletion): boolean {
+  const data = completion.data
+  return (
+    completion.status !== 'cancelled' &&
+    data?.notStarted !== true &&
+    data?.outcomeUnknown !== true &&
+    data?.resultOmitted !== true
+  )
+}
+
 export interface DesktopExecutorOptions {
   client: DesktopExecutorClient
   journal: ExecutorJournal
@@ -67,6 +81,18 @@ export interface DesktopExecutorOptions {
   onApprovals?: (items: DesktopApprovalItem[]) => void
   /** Called whenever the number of held calls changes between zero and more. */
   onBusyChange?: (busy: boolean) => void
+  /**
+   * Called once Sim has taken a call's real result ({@link isDeliveredResult}) as the call's own
+   * (recorded, or a duplicate of one it recorded): the model has it, so anything it hands back (a
+   * pane still running) is in use.
+   */
+  onResultDelivered?: (toolCallId: string) => void
+  /**
+   * Called once Sim is done with a call without taking its real result: it settled the call
+   * first, refused the result, or recorded one that stands in for it. The model never learns of
+   * anything the action handed back as still going, so nothing will come back to it.
+   */
+  onResultNotDelivered?: (toolCallId: string) => void
   maxHeldCalls?: number
   /** First delivery retry delay; tests shorten it. */
   retryBaseMs?: number
@@ -103,6 +129,11 @@ export class DesktopExecutor {
   private recovering: Promise<void> | null = null
   /** Results a previous app run left, still on their way to Sim. */
   private readonly recoveringIds = new Set<string>()
+  /**
+   * Results a previous app run left, until Sim answers for them, parked ones included: that run's
+   * send of the real result may already have landed.
+   */
+  private readonly recoveredResults = new Set<string>()
   /** Results that have failed to reach Sim for longer than {@link DELIVERY_AWAKE_LIMIT_MS}. */
   private readonly stalledDeliveries = new Set<string>()
   /** Results Sim refused because it no longer recognized this device; sent once it registers again. */
@@ -164,6 +195,7 @@ export class DesktopExecutor {
       })
       // Held awake like a running call: the result exists only on this machine until Sim has it.
       this.recoveringIds.add(entry.toolCallId)
+      this.recoveredResults.add(entry.toolCallId)
       this.updateBusy()
       void this.deliver(entry.toolCallId, entry.executionToken, completion).finally(() => {
         this.recoveringIds.delete(entry.toolCallId)
@@ -393,6 +425,7 @@ export class DesktopExecutor {
     sendingSince: number
   ): Promise<void> {
     let pending = completion
+    let notDelivered = true
     for (let attempt = 1; !this.disposed; attempt++) {
       try {
         const outcome = await this.options.client.complete({
@@ -401,6 +434,14 @@ export class DesktopExecutor {
           completion: pending,
         })
         logger.info('Desktop call result acknowledged', { toolCallId, outcome })
+        // Superseded: Sim settled the call first, so this result never reached the model.
+        const delivered = outcome !== 'superseded' && isDeliveredResult(pending)
+        if (delivered) this.options.onResultDelivered?.(toolCallId)
+        // A duplicate holds what this app run sent, unless the result was recovered unchanged from
+        // an earlier run, whose send of the real result may have landed before the restart.
+        const takenEarlier =
+          outcome === 'duplicate' && pending === completion && this.recoveredResults.has(toolCallId)
+        notDelivered = !delivered && !takenEarlier
         break
       } catch (error) {
         // Encoding failed on this machine, so nothing was sent; the same data would fail again.
@@ -457,7 +498,10 @@ export class DesktopExecutor {
         )
       }
     }
-    if (!this.disposed) await this.forget(toolCallId)
+    this.recoveredResults.delete(toolCallId)
+    if (this.disposed) return
+    if (notDelivered) this.options.onResultNotDelivered?.(toolCallId)
+    await this.forget(toolCallId)
   }
 
   private async renew(entry: HeldCall): Promise<void> {

@@ -78,4 +78,24 @@ describe('user-local grep', () => {
       runUserLocalFilesystemTool('call-1', 'grep', args, context(false))
     ).resolves.not.toHaveProperty('truncated')
   })
+
+  it('treats a trailing slash on the path as the same folder', async () => {
+    await expect(
+      runUserLocalFilesystemTool(
+        'call-1',
+        'grep',
+        { ...args, path: 'user-local//' },
+        context(false)
+      )
+    ).resolves.toEqual(await runUserLocalFilesystemTool('call-1', 'grep', args, context(false)))
+  })
+
+  it('trims a long run of slashes that stops short of the end in linear time', async () => {
+    const path = `${'/'.repeat(200_000)}x`
+    const startedAt = performance.now()
+    await expect(
+      runUserLocalFilesystemTool('call-1', 'grep', { ...args, path }, context(false))
+    ).rejects.toThrow()
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+  })
 })

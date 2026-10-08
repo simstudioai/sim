@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -118,8 +119,31 @@ export function TeamManagement({
   }>({ open: false, memberId: '', memberName: '' })
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
-  const [orgName, setOrgName] = useState('')
-  const [orgSlug, setOrgSlug] = useState('')
+  const defaultOrgName =
+    (hasTeamPlan || hasEnterprisePlan) && session?.user?.name ? `${session.user.name}'s Team` : ''
+  const defaultOrganization = { name: defaultOrgName, slug: generateSlug(defaultOrgName) }
+  const [organizationDraft, setOrganizationDraft] = useState<{
+    baseline: typeof defaultOrganization
+    values: typeof defaultOrganization
+  } | null>(null)
+  const orgName = organizationDraft?.values.name ?? defaultOrganization.name
+  const orgSlug = organizationDraft?.values.slug ?? defaultOrganization.slug
+  const updateOrganizationDraft = (change: Partial<typeof defaultOrganization>) => {
+    if (createOrgMutation.isPending) return
+    setOrganizationDraft((current) => {
+      const baseline = current?.baseline ?? defaultOrganization
+      const values = { ...(current?.values ?? baseline), ...change }
+      return values.name === baseline.name && values.slug === baseline.slug
+        ? null
+        : { baseline, values }
+    })
+  }
+  const setOrgSlug = (slug: string) => updateOrganizationDraft({ slug })
+  useSettingsUnsavedGuard({
+    isDirty: !organization && (hasTeamPlan || hasEnterprisePlan) && organizationDraft !== null,
+    navigationBlocked: createOrgMutation.isPending,
+    onDiscard: () => setOrganizationDraft(null),
+  })
 
   /**
    * `isFetching` (not `isLoading`) gates the confirm button: a background
@@ -160,22 +184,13 @@ export function TeamManagement({
       }
     : null
 
-  useEffect(() => {
-    if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
-      const defaultName = `${session.user.name}'s Team`
-      setOrgName(defaultName)
-      setOrgSlug(generateSlug(defaultName))
-    }
-  }, [hasTeamPlan, hasEnterprisePlan, session?.user?.name, orgName])
-
   const handleOrgNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
-    setOrgName(newName)
-    setOrgSlug(generateSlug(newName))
+    updateOrganizationDraft({ name: newName, slug: generateSlug(newName) })
   }
 
   const handleCreateOrganization = async () => {
-    if (!session?.user || !orgName.trim()) return
+    if (!session?.user || !orgName.trim() || createOrgMutation.isPending) return
 
     try {
       await createOrgMutation.mutateAsync({
@@ -184,8 +199,7 @@ export function TeamManagement({
       })
 
       setCreateOrgDialogOpen(false)
-      setOrgName('')
-      setOrgSlug('')
+      setOrganizationDraft(null)
     } catch (error) {
       logger.error('Failed to create organization', error)
     }

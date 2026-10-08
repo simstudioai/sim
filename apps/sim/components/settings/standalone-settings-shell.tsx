@@ -21,7 +21,6 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
-import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
@@ -53,7 +52,6 @@ function pendingSectionMeta(plane: 'account' | 'selfhost', section: string) {
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
   useSeedDeploymentShape(props.deployment)
-  useSettingsBeforeUnload()
   const pathname = usePathname()
   const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false

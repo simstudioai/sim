@@ -38,6 +38,7 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /**
  * The parent edge's sync page carries the mapping editors, which reach the block and trigger
@@ -142,6 +143,7 @@ export function Forks() {
   const { data: workspaces } = useWorkspacesQuery()
   const { data: creationPolicy } = useWorkspaceCreationPolicy()
   const { navigateToSettings } = useSettingsNavigation()
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const lineage = useForkLineage(workspaceId, canUseForking)
   const rollback = useRollbackFork()
   const unlink = useUnlinkFork()
@@ -190,7 +192,7 @@ export function Forks() {
   }
 
   const openForkWorkspace = (forkId: string) => {
-    router.push(`/workspace/${forkId}/w`)
+    requestLeave(() => router.push(`/workspace/${forkId}/w`))
   }
 
   const openForkMappings = (forkId: string) => {

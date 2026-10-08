@@ -216,6 +216,7 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { chatOperations } from '@/lib/mothership/application/operations'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
@@ -814,7 +815,7 @@ describe('handleUnifiedChatPost', () => {
     ['xhigh', 'xhigh'],
     ['max', 'xhigh'],
     ['low', 'low'],
-    ['none', 'high'],
+    ['none', 'low'],
   ])(
     'leaves the model to the worker and enforces the effort range on submitted %s effort',
     async (effort, expected) => {
@@ -837,16 +838,19 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
+  const solSelection = { model: 'gpt-6-sol', fastMode: false } as const
   it.each([
-    { stored: null, sent: undefined, runs: 'high' },
-    { stored: 'medium', sent: undefined, runs: 'medium' },
-    { stored: 'low', sent: undefined, runs: 'low' },
-    { stored: 'high', sent: 'low', runs: 'low' },
-    { stored: 'high', sent: 'max', runs: 'xhigh' },
+    { stored: null, sent: undefined, runs: 'high', modelSelection: undefined },
+    { stored: 'medium', sent: undefined, runs: 'medium', modelSelection: undefined },
+    { stored: 'low', sent: undefined, runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'low', runs: 'low', modelSelection: undefined },
+    { stored: 'high', sent: 'max', runs: 'xhigh', modelSelection: undefined },
+    { stored: 'none', sent: undefined, runs: 'low', modelSelection: solSelection },
+    { stored: 'high', sent: 'none', runs: 'low', modelSelection: solSelection },
   ] as const)(
-    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent',
-    async ({ stored, sent, runs }) => {
-      flags.models.mockResolvedValue(false)
+    'runs a chat whose stored effort choice is $stored at $runs when the send names $sent with $modelSelection',
+    async ({ stored, sent, runs, modelSelection }) => {
+      flags.models.mockResolvedValue(Boolean(modelSelection))
       resolveOrCreateChat.mockResolvedValue({
         chatId: 'chat-1',
         chat: { id: 'chat-1', effort: stored },
@@ -859,14 +863,15 @@ describe('handleUnifiedChatPost', () => {
             message: 'Continue',
             workspaceId: 'ws-1',
             chatId: 'chat-1',
+            ...(modelSelection ? { modelSelection } : {}),
             ...(sent ? { effort: sent } : {}),
           }),
         })
       )
       expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({ effort: runs })
-      )
+      const { requestPayload } = createSSEStream.mock.lastCall?.[0] ?? {}
+      expect(requestPayload?.effort).toBe(runs)
+      expect(requestPayload?.modelSelection).toEqual(modelSelection)
       expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
     }
   )
@@ -1687,6 +1692,29 @@ describe('handleUnifiedChatPost', () => {
       expect(createSSEStream).not.toHaveBeenCalled()
       expect(releaseChatSendClaim).toHaveBeenCalledOnce()
       expect(response.headers.get('x-mothership-chat-id')).toBeNull()
+    })
+
+    /**
+     * Another attempt with this id took the claim while this one was still
+     * preparing, and may admit the turn. The client must keep the message under
+     * this id, so the answer names it, as a duplicate's does.
+     */
+    it('answers a send superseded at admission as a duplicate naming its id', async () => {
+      admitTurn.mockRejectedValueOnce(new ChatSendSupersededError())
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({ activeStreamId: 'msg-1' })
+      expect(createSSEStream).not.toHaveBeenCalled()
     })
 
     it('keeps the claim once a turn is actually streaming', async () => {

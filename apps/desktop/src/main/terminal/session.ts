@@ -23,7 +23,7 @@ import {
   type TerminalRunResult,
   type TerminalTabState,
 } from '@sim/terminal-protocol'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import {
   Terminal as HeadlessTerminal,
   type IBuffer,
@@ -527,7 +527,7 @@ export class TerminalSession {
   async pressKeys(keys: TerminalControlKey[], signal?: AbortSignal): Promise<void> {
     for (let index = 0; index < keys.length; index += 1) {
       if (this.disposed || signal?.aborted) return
-      if (index > 0) await this.settleBetweenKeystrokes()
+      if (index > 0) await this.settleBetweenKeystrokes(signal)
       if (signal?.aborted) return
       this.sendKey(keys[index])
     }
@@ -543,21 +543,24 @@ export class TerminalSession {
     const chunks = toInputChunks(text)
     for (let index = 0; index < chunks.length; index += 1) {
       if (this.disposed || signal?.aborted) return
-      if (index > 0) await this.settleBetweenKeystrokes()
+      if (index > 0) await this.settleBetweenKeystrokes(signal)
       if (signal?.aborted) return
       this.write(chunks[index])
     }
   }
 
-  /** Holds a gap, then lets any resulting redraw finish before the next write. */
-  private async settleBetweenKeystrokes(): Promise<void> {
-    await sleep(KEYSTROKE_GAP_MS)
+  /**
+   * Holds a gap, then lets any resulting redraw finish before the next write.
+   * Ends early on Stop, so a program that redraws constantly cannot hold it.
+   */
+  private async settleBetweenKeystrokes(signal?: AbortSignal): Promise<void> {
+    await interruptibleSleep(KEYSTROKE_GAP_MS, signal)
     const deadline = Date.now() + KEYSTROKE_SETTLE_MAX_MS
-    while (!this.disposed) {
+    while (!this.disposed && !signal?.aborted) {
       const quietFor = Date.now() - this.lastOutputAt
       const remaining = Math.min(KEYSTROKE_GAP_MS - quietFor, deadline - Date.now())
       if (remaining <= 0) return
-      await sleep(remaining)
+      await interruptibleSleep(remaining, signal)
     }
   }
 

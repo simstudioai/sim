@@ -1,3 +1,4 @@
+import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -321,7 +322,7 @@ export async function fetchMothershipChatHistory(
 ): Promise<MothershipChatHistory> {
   const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
   const history = await readMothershipChatHistory(chatId, signal)
-  if (deleteSeen !== undefined) useMothershipQueueStore.getState().reopenChat(chatId, deleteSeen)
+  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
   return history
 }
 
@@ -385,7 +386,7 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
     onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
     onSuccess: (_data, chatId, context) => {
       if (context?.deleteSeen === undefined) return
-      useMothershipQueueStore.getState().reopenChat(chatId, context.deleteSeen)
+      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -663,8 +664,10 @@ function chatEffortMutationOptions(queryClient: QueryClient, chatId: string | un
       return { pick: useMothershipEffortStore.getState().setChatEffort(chatId, effort) }
     },
     onError: (_error, _effort, context) => {
-      if (chatId && context)
-        useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)
+      if (!chatId || !context) return
+      if (useMothershipEffortStore.getState().dropChatEffort(chatId, context.pick)) {
+        toast.error("Couldn't change reasoning effort")
+      }
     },
     onSuccess: (_data, effort) => {
       queryClient.setQueryData<MothershipChatHistory>(

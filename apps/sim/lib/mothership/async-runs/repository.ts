@@ -779,6 +779,12 @@ export interface DesktopToolCallClaimant {
    * settlement or the next turn's workbench, whatever the device does after.
    */
   executor?: { deviceId: string; ownerToken: string }
+  /**
+   * Set when the chat view claims a call that runs long enough to need a lease (an import): the
+   * claim takes the execution lease under the chat view's session token, and the chat view renews
+   * it while the import runs. Without renewals the lease lapses as the default tool budget would.
+   */
+  chatView?: { ownerToken: string }
 }
 
 export type DesktopToolCallClaim =
@@ -795,7 +801,8 @@ export type DesktopToolCallClaim =
 export async function claimDesktopToolCall(
   claimant: DesktopToolCallClaimant
 ): Promise<DesktopToolCallClaim> {
-  const { executor } = claimant
+  const { executor, chatView } = claimant
+  const leaseOwnerToken = executor?.ownerToken ?? chatView?.ownerToken
   return await claimUnderRunAdmission(
     { ...claimant, desktopDeviceId: executor?.deviceId },
     claimant.claimedBy,
@@ -810,9 +817,9 @@ export async function claimDesktopToolCall(
             claimedBy: claimant.claimedBy,
             claimedAt,
             updatedAt: claimedAt,
-            ...(executor
+            ...(leaseOwnerToken
               ? {
-                  executionOwnerToken: executor.ownerToken,
+                  executionOwnerToken: leaseOwnerToken,
                   executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
                 }
               : {}),
@@ -868,7 +875,7 @@ export async function claimDesktopToolCall(
  */
 export async function renewSimToolExecutionLease(
   owner: SimToolExecutionOwner,
-  desktop?: { deviceId: string }
+  desktop?: { deviceId: string } | { chatView: true }
 ): Promise<boolean> {
   const [renewed] = await db
     .update(copilotAsyncToolCalls)
@@ -887,13 +894,47 @@ export async function renewSimToolExecutionLease(
         desktop
           ? and(
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
-              sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id = ${desktop.deviceId})`
+              'deviceId' in desktop
+                ? sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id = ${desktop.deviceId})`
+                : and(
+                    eq(copilotAsyncToolCalls.claimedBy, DESKTOP_TOOL_CLAIM_OWNER.files),
+                    sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id IS NULL)`
+                  )
             )
           : undefined
       )
     )
     .returning({ id: copilotAsyncToolCalls.id })
   return !!renewed
+}
+
+/**
+ * How much longer the chat view's renewed lease keeps a desktop call it is running alive, in ms,
+ * on the database clock; null once the lease lapsed or the call is not one the chat view holds.
+ */
+export async function getChatViewDesktopLeaseRemainingMs(
+  toolCallId: string
+): Promise<number | null> {
+  const [row] = await db
+    .select({
+      remainingMs: sql<number>`extract(epoch from (${copilotAsyncToolCalls.executionLeaseExpiresAt} - clock_timestamp())) * 1000`,
+    })
+    .from(copilotAsyncToolCalls)
+    .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+        eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+        eq(copilotAsyncToolCalls.claimedBy, DESKTOP_TOOL_CLAIM_OWNER.files),
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        isNull(copilotRuns.desktopDeviceId),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+      )
+    )
+    .limit(1)
+  return row ? Number(row.remainingMs) : null
 }
 
 /** Revocation ends local execution authority; recorded remote commands remain independently unsettled. */

@@ -44,6 +44,7 @@ import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invi
 import { ProjectConflictError, transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import {
   type CrossOrgForkEdge,
   cleanupSourceOrganizationArtifactsTx,
@@ -316,7 +317,6 @@ interface MoveTransactionResult {
   summary: WorkspaceMovePreflight
 }
 
-export const MIGRATED_INVITATION_EMAIL_EVENT_TYPE = 'invitation.send-migrated-link'
 export const ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE = 'admin.workspace-move-operation'
 
 interface AdminWorkspaceMoveOperationRequest {

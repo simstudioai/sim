@@ -18,12 +18,12 @@ import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import {
   PERMISSION_ACCESS_REQUEST_CREATED_EVENT,
   PERMISSION_ACCESS_REQUEST_DECIDED_EVENT,
+  PERMISSION_ACCESS_REQUEST_NOTIFY_ADMIN_EVENT,
 } from '@/ee/access-requests/lib/notification-events'
 import { isAccessRequestEnabled } from '@/ee/access-requests/lib/settings'
 
 const logger = createLogger('PermissionAccessRequestNotifications')
 const ADMIN_RECIPIENT_PAGE_SIZE = 50
-const ADMIN_NOTIFICATION_EVENT = 'permission-access-request.notify-admin'
 const notificationPayloadSchema = z.object({ requestId: z.string().min(1).max(256) }).strict()
 const createdPayloadSchema = notificationPayloadSchema.extend({
   afterMemberId: z.string().min(1).max(256).optional(),
@@ -176,8 +176,8 @@ export const permissionAccessRequestOutboxHandlers = {
       .insert(outboxEvent)
       .values(
         recipients.map((recipient) => ({
-          id: `${ADMIN_NOTIFICATION_EVENT}:${requestId}:${recipient.userId}`,
-          eventType: ADMIN_NOTIFICATION_EVENT,
+          id: `${PERMISSION_ACCESS_REQUEST_NOTIFY_ADMIN_EVENT}:${requestId}:${recipient.userId}`,
+          eventType: PERMISSION_ACCESS_REQUEST_NOTIFY_ADMIN_EVENT,
           payload: { requestId, recipientUserId: recipient.userId },
         }))
       )
@@ -187,7 +187,7 @@ export const permissionAccessRequestOutboxHandlers = {
       return continueOutboxHandler('Continue access request administrator notifications')
     }
   },
-  [ADMIN_NOTIFICATION_EVENT]: async (rawPayload, context) => {
+  [PERMISSION_ACCESS_REQUEST_NOTIFY_ADMIN_EVENT]: async (rawPayload, context) => {
     const { requestId, recipientUserId } = adminPayloadSchema.parse(rawPayload)
     const request = await loadRequest(requestId)
     if (

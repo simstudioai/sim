@@ -336,34 +336,33 @@ rendered through `<SettingsActionChips actions={…} />` from
 `@/components/settings/settings-header` — that is the shared chip path, and it
 is what keeps tone/icon/variant/tooltip handling from drifting between the two
 shells. Reach for it before hand-rolling a `Chip`.
-- **`useSettingsUnsavedGuard({ isDirty })`** (`…/settings/hooks/use-settings-unsaved-guard`)
-  — syncs the page's local `isDirty` into the shared `useSettingsDirtyStore` (so
-  the sidebar's **section-switch** confirm + the centralized `beforeunload` both
-  apply for free) and returns `{ showUnsavedModal, setShowUnsavedModal, guardBack,
-  confirmDiscard }` for a detail view's **in-view back** chip.
-  - **Top-level pages** (whitelabeling, sso): call it **unassigned** —
-    `useSettingsUnsavedGuard({ isDirty: hasChanges })` — they only need the
-    store-sync; the sidebar/`beforeunload` do the rest.
-  - **Detail sub-views** (data-retention, access-control group-detail): route the
-    back chip through `onClick={() => guard.guardBack(closeFn)}` and render the
-    shared `<UnsavedChangesModal open={guard.showUnsavedModal}
-    onOpenChange={guard.setShowUnsavedModal} onDiscard={guard.confirmDiscard} />`
-    (from `@/app/workspace/[workspaceId]/components/credential-detail`). The
-    in-view header **Discard** chip (via `saveDiscardActions({ onDiscard })`) is a
-    *reset to original* — distinct from the back-confirm's discard, which leaves.
-- **`useSettingsBeforeUnload`** is mounted by the settings shells
-  (`settings/layout.tsx` and `components/settings/standalone-settings-shell.tsx`) —
-  never add a per-page `beforeunload`.
-- **Dirty *computation* stays local** (shapes differ: field-compare vs
-  normalize+stringify) — only how dirty is *consumed* is shared. Derive it (a
-  `const`/`useMemo`), never store it in `useState`.
-- **CRITICAL — rules of hooks:** call `useSettingsUnsavedGuard(...)`
-  **unconditionally, before every early-return gate** (entitlement / loading /
-  not-entitled `return <SettingsEmptyState>`). A hook placed after a gate is
-  skipped on gated renders and crashes.
-- The route-based credential detail keeps its own `useUnsavedChangesGuard` (it
-  guards real `router.push` navigation + browser Back via a history sentinel);
-  it already shares `UnsavedChangesModal`, so copy stays unified.
+- **`useSettingsUnsavedGuard({ isDirty, navigationBlocked, onDiscard })`** from
+  `@/components/settings/use-settings-unsaved-guard` registers one editor with the
+  shared settings store. Register every full-page draft, including inline creation
+  forms. Dirty computation stays local and derived; fetched defaults stay clean.
+- **`onDiscard` resets the registered draft.** The root `SettingsNavigationGuard`
+  owns the discard dialog, internal link interception, browser Back/Forward, and
+  refresh protection for registered editors. Do not add a per-page dialog or
+  history listener for an editor using this hook. Skill create/detail pages retain
+  their existing `useUnsavedChangesGuard` and local dialog until they migrate to
+  the shared registration.
+- **Native history needs entry indexes.** The Navigation API supplies them for
+  legacy entries. Without it, native traversal to an unindexed entry cannot be
+  cancelled reliably; never guess a direction or rewrite the history stack.
+- **History confirmation authorizes traversal before discarding.** Drafts are
+  discarded only when the browser reports the confirmed traversal, so a no-op
+  Back or Forward retains edits. Known cross-document traversal uses native unload
+  protection. An unknown cross-document target on a classic History browser can
+  require a second native confirmation after the shared dialog.
+- **Detail back controls** call `guard.guardBack(closeFn)`. Other destructive view
+  transitions, such as switching an editor's direction or environment, also use
+  the shared `requestLeave` action before resetting their draft.
+- **`navigationBlocked` covers pending saves and uploads.** The shared guard blocks
+  navigation while requests are pending. Attempts are not queued; retry after they
+  settle. Disable or preserve edits made during requests;
+  failed saves retain drafts, and successful saves only clear committed values.
+- **Call the hook unconditionally, before every early-return gate** (entitlement,
+  loading, or empty-state return), so gated renders preserve hook order.
 
 ## Detail sub-views
 

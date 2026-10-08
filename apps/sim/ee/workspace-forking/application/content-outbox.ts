@@ -11,6 +11,7 @@ import {
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
+import { FORK_CONTENT_COPY_EVENT } from '@/ee/workspace-forking/application/content-outbox-event'
 import {
   type ForkContentCopyPayload,
   runForkContentCopy,
@@ -153,11 +154,11 @@ export async function enqueueDurableForkContent(
   })
   if (Buffer.byteLength(JSON.stringify(payload)) > 8 * 1024 * 1024)
     throw new OrchestrationError('payload_too_large', 'Fork background work exceeds 8 MiB')
-  return enqueueOutboxEvent(tx, 'workspace.fork.content.copy', payload)
+  return enqueueOutboxEvent(tx, FORK_CONTENT_COPY_EVENT, payload)
 }
 
 export const forkContentOutboxHandlers = {
-  'workspace.fork.content.copy': withOutboxHandlerTimeout(async (raw, context) => {
+  [FORK_CONTENT_COPY_EVENT]: withOutboxHandlerTimeout(async (raw, context) => {
     const payload = contentPayloadSchema.parse(raw)
     const [receipt] = await db
       .select({ report: workspaceOperationReceipt.report })

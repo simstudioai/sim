@@ -115,8 +115,8 @@ import { NonRetryableDeploymentError } from '@/lib/workflows/deployment-lifecycl
 import {
   createWorkflowDeploymentOutboxHandlers,
   type PrepareDeploymentV2Payload,
-  WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS,
 } from '@/lib/workflows/deployment-outbox'
+import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 
 const mockTx = dbChainMock.db
 

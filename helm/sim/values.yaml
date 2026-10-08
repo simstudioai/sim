@@ -1593,6 +1593,31 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Fails runs whose worker died without writing a terminal state (workflow
+    # executions, async jobs, table jobs and dispatches) and prunes old terminal
+    # bookkeeping rows.
+    cleanupStaleExecutions:
+      enabled: true
+      name: cleanup-stale-executions
+      schedule: "*/30 * * * *"
+      path: "/api/cron/cleanup-stale-executions"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Deletes idempotency records older than seven days, the longest dedupe
+    # window any caller uses. Runs inline in the request for up to five minutes.
+    idempotencyCleanup:
+      enabled: true
+      name: idempotency-cleanup
+      schedule: "0 5 * * *"
+      path: "/api/webhooks/cleanup/idempotency"
+      requestTimeoutSeconds: 300
+      activeDeadlineSeconds: 360
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl

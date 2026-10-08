@@ -1,3 +1,4 @@
+import { DESKTOP_IMPORT_TOKEN_HEADER } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
 import { createDesktopExecutorClient, UnsendableRequestError } from '@/main/desktop-executor/client'
 
@@ -47,5 +48,39 @@ describe('desktop executor client', () => {
     const sentMessage: string = JSON.parse(sent[0] ?? '{}').message
     const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
     expect(loneSurrogate.test(sentMessage)).toBe(false)
+  })
+
+  it('sends an import entry with its execution token in a header, never in the URL', async () => {
+    const received: Array<{ url: string; token: string | null }> = []
+    const client = createDesktopExecutorClient({
+      origin: () => 'https://sim.test',
+      fetch: async (url, init) => {
+        received.push({ url, token: new Headers(init.headers).get(DESKTOP_IMPORT_TOKEN_HEADER) })
+        return Response.json({ id: 'file-1', name: 'notes.txt' })
+      },
+      deviceId: '00000000-0000-4000-8000-000000000000',
+    })
+
+    await client.importEntry(
+      {
+        call: {
+          toolCallId: 'call-1',
+          toolName: 'import_local_files',
+          args: {},
+          chatId: 'chat-1',
+          workspaceId: 'ws-1',
+          executionToken: 'secret-token-1',
+        },
+        kind: 'file',
+        sourceName: 'notes.txt',
+        relativePath: '',
+        content: new Blob(['hello']),
+      },
+      new AbortController().signal
+    )
+
+    expect(received).toHaveLength(1)
+    expect(received[0]?.token).toBe('secret-token-1')
+    expect(decodeURIComponent(received[0]?.url ?? '')).not.toContain('secret-token-1')
   })
 })

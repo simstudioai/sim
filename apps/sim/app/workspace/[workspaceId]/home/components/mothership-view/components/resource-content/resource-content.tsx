@@ -15,6 +15,7 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Loader,
   Square,
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
@@ -79,6 +80,13 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
+
+const WORKFLOW_LOADING = (
+  <div role='status' className='flex h-full items-center justify-center'>
+    <Loader animate className='size-[18px] text-[var(--text-icon)]' />
+    <span className='sr-only'>Loading workflow</span>
+  </div>
+)
 
 const LOADING_SKELETON = (
   <div className='flex h-full flex-col gap-2 p-6'>
@@ -789,7 +797,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   }
 
   return (
-    <Suspense fallback={LOADING_SKELETON}>
+    <Suspense fallback={WORKFLOW_LOADING}>
       <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
     </Suspense>
   )
@@ -821,7 +829,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }, [canonical, queryClient, workflowId, workspaceId])
 
-  if (isCanonicalPending) return LOADING_SKELETON
+  if (isCanonicalPending) return WORKFLOW_LOADING
 
   if (canonical?.workspaceId && canonical.workspaceId !== workspaceId) {
     return (
@@ -838,7 +846,7 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
     )
   }
 
-  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return LOADING_SKELETON
+  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return WORKFLOW_LOADING
 
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3'>

@@ -5,6 +5,7 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isDesktopBackgroundExecutorEnabled } from '@/lib/desktop/executor/flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -69,6 +70,7 @@ export default async function WorkspaceLayout({
     organizationHref,
     dashboardsEnabled,
     workflowTestsEnabled,
+    desktopBackgroundExecutorEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -87,6 +89,7 @@ export default async function WorkspaceLayout({
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
+    isDesktopBackgroundExecutorEnabled(session.user.id),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -101,6 +104,7 @@ export default async function WorkspaceLayout({
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
+          'mothership-desktop-background-executor': desktopBackgroundExecutorEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>

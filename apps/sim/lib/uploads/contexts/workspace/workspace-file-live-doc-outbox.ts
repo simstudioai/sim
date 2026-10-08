@@ -11,10 +11,9 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
-
-export const WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT = 'workspace-file.live-doc.reconcile'
 
 interface WorkspaceFileLiveDocPayload {
   workspaceId: string

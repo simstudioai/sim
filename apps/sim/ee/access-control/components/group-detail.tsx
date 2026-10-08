@@ -30,6 +30,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import {
@@ -39,7 +40,6 @@ import {
   PLATFORM_FEATURES,
 } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   groupSearchParam,
   groupSearchUrlKeys,
@@ -56,7 +56,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
@@ -873,9 +872,19 @@ export function GroupDetail({
     }))
   }, [platformCategories])
 
-  const hasConfigChanges = useMemo(() => {
-    return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
-  }, [viewingGroup.config, editingConfig])
+  const hasConfigChanges = (Object.keys(editingConfig) as (keyof PermissionGroupConfig)[]).some(
+    (key) => {
+      const saved = viewingGroup.config[key]
+      const edited = editingConfig[key]
+      if (!Array.isArray(saved) || !Array.isArray(edited)) return saved !== edited
+      const savedMembers = new Set(saved)
+      const editedMembers = new Set(edited)
+      return (
+        savedMembers.size !== editedMembers.size ||
+        [...savedMembers].some((member) => !editedMembers.has(member))
+      )
+    }
+  )
 
   // Both buffers are seeded trimmed and compared against a trimmed baseline. The
   // contract trims name and description on write, but a row stored before those
@@ -888,7 +897,11 @@ export function GroupDetail({
   const descriptionChanged = trimmedDescription !== (viewingGroup.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
-  const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: hasChanges,
+    navigationBlocked: updatePermissionGroup.isPending || deletePermissionGroup.isPending,
+    onDiscard: () => handleDiscardConfig(),
+  })
 
   const allBlockTypes = useMemo(() => allBlocks.map((b) => b.type), [allBlocks])
 
@@ -1907,12 +1920,6 @@ export function GroupDetail({
           pending: deletePermissionGroup.isPending,
           pendingLabel: 'Deleting...',
         }}
-      />
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
       />
     </>
   )

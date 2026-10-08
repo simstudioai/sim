@@ -5,7 +5,12 @@ import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
-import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
+import {
+  dueOutboxWorkQuery,
+  isStuckProcessing,
+  readyEventTypesQuery,
+  STUCK_PROCESSING_THRESHOLD_MS,
+} from '@/lib/core/outbox/queries'
 
 const logger = createLogger('OutboxService')
 
@@ -24,7 +29,6 @@ const MAX_REAPED_EVENTS = 1_000
 function toPersistedHandlerError(error: unknown): string {
   return truncate(toError(error).message.split(/\nparams: /)[0], MAX_PERSISTED_ERROR_LENGTH)
 }
-const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
 /** Ordinary handlers keep a short window; longer handlers explicitly opt in below the stale-lease limit. */
@@ -134,11 +138,18 @@ export function withOutboxHandlerTimeout<T>(
   return Object.assign(handler, { timeoutMs })
 }
 
-/**
- * Map of `eventType` → handler. Register all handlers in one place
- * and pass them to `processOutboxEvents`.
- */
+/** Map of `eventType` → handler, served lazily through a {@link LazyOutboxHandlerGroup}. */
 export type OutboxHandlerRegistry = Record<string, OutboxHandler>
+
+/**
+ * A handler module imported only when one of its event types is due. `events` lists exactly
+ * the keys of the registry `load` resolves to; a type absent from `events` is never served and
+ * dead-letters as unhandled.
+ */
+export interface LazyOutboxHandlerGroup {
+  readonly events: readonly string[]
+  readonly load: () => Promise<OutboxHandlerRegistry>
+}
 
 export interface EnqueueOptions {
   /** Caller-owned idempotency key. Defaults to a generated UUID. */
@@ -155,6 +166,8 @@ export interface ProcessOutboxResult {
   deadLettered: number
   leaseLost: number
   reaped: number
+  /** Ready event types left pending because their handler module failed to import. */
+  unloadedEventTypes: string[]
 }
 
 export type ProcessSingleOutboxResult =
@@ -393,6 +406,90 @@ export async function findDeadLetteredEvents(
     .limit(DEAD_LETTER_SCAN_LIMIT)
 }
 
+/** The event's current payload, read fresh rather than from the copy its handler was claimed with. */
+export async function readOutboxEventPayload(eventId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, eventId))
+    .limit(1)
+  return row?.payload
+}
+
+/** Statuses of an event whose side effect may still run. */
+const INFLIGHT_OUTBOX_STATUSES = ['pending', 'processing'] as const
+/**
+ * Statuses an event can still run from: in flight, or dead-lettered, which every operator retry
+ * path resets to `pending`. A `completed` event never runs again.
+ */
+const RETRYABLE_OUTBOX_STATUSES = [...INFLIGHT_OUTBOX_STATUSES, 'dead_letter'] as const
+
+/** Identifies the subject of an event by one scalar field of its JSON payload. */
+export interface OutboxPayloadSubject {
+  payloadKey: string
+  payloadValue: string
+}
+
+function eventsForSubject(
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  statuses: readonly string[]
+) {
+  return and(
+    inArray(outboxEvent.eventType, [...eventTypes]),
+    inArray(outboxEvent.status, [...statuses]),
+    sql`${outboxEvent.payload} ->> ${subject.payloadKey} = ${subject.payloadValue}`
+  )
+}
+
+/**
+ * The `pending` or `processing` events of the given types for one subject. Pass the caller's
+ * transaction to read under its locks.
+ */
+export async function listInflightOutboxEvents(
+  executor: Pick<typeof db, 'select'>,
+  eventTypes: readonly string[],
+  subject: OutboxPayloadSubject,
+  limit?: number
+): Promise<{ id: string; eventType: string; payload: unknown }[]> {
+  const query = executor
+    .select({ id: outboxEvent.id, eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eventsForSubject(eventTypes, subject, INFLIGHT_OUTBOX_STATUSES))
+  return limit === undefined ? query : query.limit(limit)
+}
+
+/**
+ * Shallow-merges `patch` into the payload of every `pending`, `processing`, or `dead_letter`
+ * event of the type for one subject. With `onlyIfOlderThanPatch`, naming a numeric payload key
+ * that `patch` sets, an event whose own value for that key is already at least the patch's is
+ * left alone, so a stale writer never overwrites a newer one. One UPDATE; nothing is read into
+ * memory. Callers serialize writers for the subject with their domain lock.
+ */
+export async function patchRetryableOutboxEvents(
+  executor: Pick<typeof db, 'update'>,
+  eventType: string,
+  subject: OutboxPayloadSubject,
+  patch: Record<string, unknown>,
+  onlyIfOlderThanPatch?: string
+): Promise<number> {
+  const patched = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`(coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)::json`,
+    })
+    .where(
+      and(
+        eventsForSubject([eventType], subject, RETRYABLE_OUTBOX_STATUSES),
+        onlyIfOlderThanPatch
+          ? sql`coalesce((${outboxEvent.payload} ->> ${onlyIfOlderThanPatch})::numeric, -1) < ${String(patch[onlyIfOlderThanPatch])}::numeric`
+          : undefined
+      )
+    )
+    .returning({ id: outboxEvent.id })
+  return patched.length
+}
+
 /**
  * True when an event of the given type whose JSON payload has
  * `payload->>payloadKey === payloadValue` is still `pending` or `processing`.
@@ -404,18 +501,8 @@ export async function hasInflightOutboxEvent(
   payloadKey: string,
   payloadValue: string
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
-    .where(
-      and(
-        eq(outboxEvent.eventType, eventType),
-        inArray(outboxEvent.status, ['pending', 'processing']),
-        sql`${outboxEvent.payload} ->> ${payloadKey} = ${payloadValue}`
-      )
-    )
-    .limit(1)
-  return Boolean(row)
+  const events = await listInflightOutboxEvents(db, [eventType], { payloadKey, payloadValue }, 1)
+  return events.length > 0
 }
 
 /**
@@ -423,9 +510,12 @@ export async function hasInflightOutboxEvent(
  * bulk maintenance cannot monopolize delivery. Each type serves its earliest
  * available events first. Safe to call concurrently from multiple workers —
  * `SELECT FOR UPDATE SKIP LOCKED` serializes claims.
+ *
+ * Handler groups are imported for the ready event types before any claim, so
+ * import time never runs inside a handler's window or a claimed lease.
  */
 export async function processOutboxEvents(
-  handlers: OutboxHandlerRegistry,
+  handlerGroups: readonly LazyOutboxHandlerGroup[],
   options: { batchSize?: number; maxRuntimeMs?: number; minRemainingMs?: number } = {}
 ): Promise<ProcessOutboxResult> {
   const startedAt = Date.now()
@@ -443,7 +533,10 @@ export async function processOutboxEvents(
     reaped = await reapStuckProcessingRows()
     phase = 'discover'
     const readyTypes = await db.execute<{ eventType: string }>(readyEventTypesQuery(new Date()))
-    const eligibleTypes = readyTypes.map(({ eventType }) => eventType)
+    const { handlers, eligibleTypes, unloadedEventTypes } = await resolveOutboxHandlers(
+      handlerGroups,
+      readyTypes.map(({ eventType }) => eventType)
+    )
     let cursor = 0
     let claimed = 0
 
@@ -480,7 +573,7 @@ export async function processOutboxEvents(
       else retried++
     }
 
-    return { processed, retried, deadLettered, leaseLost, reaped }
+    return { processed, retried, deadLettered, leaseLost, reaped, unloadedEventTypes }
   } catch (error) {
     logger.error('Outbox processing failed', {
       phase,
@@ -493,6 +586,48 @@ export async function processOutboxEvents(
       error: describeError(error),
     })
     throw error
+  }
+}
+
+/**
+ * Imports the groups that serve any ready event type and returns the types to claim this run. A
+ * group whose import fails leaves its event types unclaimed: unlike a missing handler, which
+ * spends an attempt and eventually dead-letters, a failed import says nothing about the events,
+ * so they stay pending for a later run and are reported as `unloadedEventTypes`. Event types
+ * outside every group stay eligible and reach the missing-handler path.
+ */
+async function resolveOutboxHandlers(
+  groups: readonly LazyOutboxHandlerGroup[],
+  readyEventTypes: string[]
+): Promise<{
+  handlers: OutboxHandlerRegistry
+  eligibleTypes: string[]
+  unloadedEventTypes: string[]
+}> {
+  const unavailableEventTypes = new Set<string>()
+  const ready = new Set(readyEventTypes)
+  const dueGroups = groups.filter((group) => group.events.some((eventType) => ready.has(eventType)))
+  const loaded = await Promise.allSettled(dueGroups.map((group) => group.load()))
+  const handlers: OutboxHandlerRegistry = {}
+  for (const [index, outcome] of loaded.entries()) {
+    const { events } = dueGroups[index]
+    if (outcome.status === 'rejected') {
+      for (const eventType of events) unavailableEventTypes.add(eventType)
+      logger.error('Outbox handler module failed to load; leaving its events pending', {
+        eventTypes: events,
+        error: describeError(outcome.reason),
+      })
+      continue
+    }
+    for (const eventType of events) {
+      const handler = outcome.value[eventType]
+      if (handler) handlers[eventType] = handler
+    }
+  }
+  return {
+    handlers,
+    eligibleTypes: readyEventTypes.filter((eventType) => !unavailableEventTypes.has(eventType)),
+    unloadedEventTypes: readyEventTypes.filter((eventType) => unavailableEventTypes.has(eventType)),
   }
 }
 
@@ -543,17 +678,25 @@ export async function processOutboxEventById(
 }
 
 /**
+ * Whether {@link processOutboxEvents} would find anything at `now`: a pending event the claim
+ * phase may take, or a stale lease the reaper may reclaim.
+ */
+export async function hasDueOutboxWork(now: Date): Promise<boolean> {
+  const [row] = await db.execute<{ due: boolean }>(dueOutboxWorkQuery(now))
+  return row?.due === true
+}
+
+/**
  * Reaper: move `processing` rows whose worker died (stale `lockedAt`)
  * back to `pending` so another worker can pick them up. Without this,
  * a SIGKILL between claim and result-write would permanently strand
  * the row in `processing`.
  */
 async function reapStuckProcessingRows(): Promise<number> {
-  const stuckBefore = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
   const stuckRows = db
     .select({ id: outboxEvent.id })
     .from(outboxEvent)
-    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .where(isStuckProcessing(new Date()))
     .orderBy(asc(outboxEvent.lockedAt), asc(outboxEvent.id))
     .limit(MAX_REAPED_EVENTS)
     .for('update', { skipLocked: true })

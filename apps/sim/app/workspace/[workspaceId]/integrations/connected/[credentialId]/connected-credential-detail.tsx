@@ -26,7 +26,6 @@ import {
   CredentialDetailLayout,
   CredentialMembersSection,
   DetailSection,
-  UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -356,12 +355,6 @@ export function ConnectedCredentialDetail({
           onOpenChange={setIsShareModalOpen}
         />
       )}
-
-      <UnsavedChangesModal
-        open={form.showUnsavedAlert}
-        onOpenChange={form.setShowUnsavedAlert}
-        onDiscard={form.confirmDiscard}
-      />
 
       {credential.type === 'personal_token' && (
         <ConnectPersonalTokenModal

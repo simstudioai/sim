@@ -8,8 +8,7 @@ describe('settings dirty store', () => {
 
   it('blocks navigation without creating a discard action while a save is in flight', () => {
     const leave = vi.fn()
-    useSettingsDirtyStore.getState().setDirty(true)
-    useSettingsDirtyStore.getState().setNavigationBlocked(true)
+    useSettingsDirtyStore.getState().setGuard('editor', { isDirty: true, navigationBlocked: true })
 
     expect(useSettingsDirtyStore.getState().requestLeave(leave)).toBe(false)
     expect(useSettingsDirtyStore.getState().pendingLeave).toBeNull()

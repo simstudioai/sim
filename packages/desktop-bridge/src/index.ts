@@ -882,6 +882,11 @@ export interface DesktopPreferences {
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
+   * Keep the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  preventSleepWhileRunning?: boolean
+  /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
    */
@@ -954,6 +959,12 @@ export interface DesktopNotificationPayload {
   body: string
   /** Optional in-app route opened when the notification is clicked. */
   route?: string
+  /**
+   * A chat that finished in the background. In "only when unfocused" mode such a notification is
+   * held back only while the focused window shows its `route`; every other notification is held
+   * back whenever the window is focused.
+   */
+  background?: boolean
 }
 
 /** Device-level settings owned by the desktop shell. */
@@ -968,6 +979,11 @@ interface SimDesktopSettingsApi {
    * for compatibility with installed shells that predate live suggestions.
    */
   setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Keeps the machine awake while a chat runs desktop work in the background. Optional for
+   * compatibility with installed shells that predate the background executor.
+   */
+  setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
@@ -1145,7 +1161,11 @@ export interface SimDesktopApi {
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
-export { MAX_DESKTOP_IMPORT_FILE_BYTES } from './local-files'
+export {
+  DESKTOP_IMPORT_TOKEN_HEADER,
+  isStorableImportName,
+  MAX_DESKTOP_IMPORT_FILE_BYTES,
+} from './local-files'
 export {
   applyDesktopTitleBarMode,
   DESKTOP_TITLE_BAR_ATTRIBUTE,

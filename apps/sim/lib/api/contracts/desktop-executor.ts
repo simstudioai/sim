@@ -1,5 +1,7 @@
+import { DESKTOP_IMPORT_TOKEN_HEADER, isStorableImportName } from '@sim/desktop-bridge'
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /**
@@ -134,11 +136,21 @@ export const claimDesktopToolContract = defineRouteContract({
   error: z.object({ error: z.string() }),
 })
 
-const renewDesktopToolLeaseBodySchema = z.object({
-  deviceId: desktopDeviceIdSchema,
-  toolCallId: desktopToolCallIdSchema,
-  executionToken: z.string().min(1).max(128),
-})
+/**
+ * A device renews a call of a run bound to it under its execution token; the chat view renews an
+ * import it claimed (`chatView`), as the session that claimed it.
+ */
+const renewDesktopToolLeaseBodySchema = z.union([
+  z.object({
+    deviceId: desktopDeviceIdSchema,
+    toolCallId: desktopToolCallIdSchema,
+    executionToken: z.string().min(1).max(128),
+  }),
+  z.object({
+    toolCallId: desktopToolCallIdSchema,
+    chatView: z.literal(true),
+  }),
+])
 export type RenewDesktopToolLeaseBody = z.input<typeof renewDesktopToolLeaseBodySchema>
 
 export const renewDesktopToolLeaseResponseSchema = z.object({ renewed: z.literal(true) })
@@ -180,5 +192,82 @@ export const completeDesktopToolContract = defineRouteContract({
   path: '/api/desktop/tool/complete',
   body: completeDesktopToolBodySchema,
   response: { mode: 'json', schema: completeDesktopToolResponseSchema },
+  error: z.object({ error: z.string() }),
+})
+
+const desktopActivityQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+
+/**
+ * `running`: the desktop is working on the chat. `needs_input`: a call waits for the user's
+ * approval in the chat. `blocked`: the desktop the chat runs on is offline.
+ */
+const desktopChatActivitySchema = z.object({
+  chatId: z.string().min(1),
+  /** The turn the desktop runs, as chat status events name it. */
+  streamId: z.string().min(1),
+  state: z.enum(['running', 'needs_input', 'blocked']),
+  deviceName: z.string(),
+})
+export type DesktopChatActivity = z.output<typeof desktopChatActivitySchema>
+
+const desktopActivityResponseSchema = z.object({
+  chats: z.array(desktopChatActivitySchema),
+})
+
+/** The caller's chats in a workspace whose turn is running on one of their desktops. */
+export const listDesktopActivityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/desktop/activity',
+  query: desktopActivityQuerySchema,
+  response: { mode: 'json', schema: desktopActivityResponseSchema },
+  error: z.object({ error: z.string() }),
+})
+
+/** Names a workspace cannot hold, though a macOS or Linux file name can be any of them. */
+const UNSTORABLE_NAME =
+  'Sim cannot store a file or folder whose name is blank, "." or "..", or contains a backslash'
+
+/** One relative path inside an import source, as the device's manifest lists it. */
+const desktopImportRelativePathSchema = z
+  .string()
+  .max(4096, 'Relative path is too long')
+  .refine(
+    (path) =>
+      path === '' ||
+      path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..'),
+    'Relative path must stay inside the import source'
+  )
+  .refine((path) => path === '' || path.split('/').every(isStorableImportName), UNSTORABLE_NAME)
+
+const importDesktopEntryQuerySchema = z.object({
+  deviceId: desktopDeviceIdSchema,
+  toolCallId: desktopToolCallIdSchema,
+  kind: z.enum(['file', 'directory']),
+  /** The import source's own name: the folder a directory import lands in, or the file. */
+  sourceName: z
+    .string()
+    .trim()
+    .min(1, 'Source name is required')
+    .max(255)
+    .refine(isStorableImportName, UNSTORABLE_NAME),
+  relativePath: desktopImportRelativePathSchema,
+})
+
+const importDesktopEntryResponseSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+})
+
+/**
+ * Stores one entry of a claimed `import_local_files` call in the call's target workspace and
+ * folder, for the device's background executor. A file's bytes are the raw request body; a
+ * directory has none. Directories that already exist are reused, so a tree merges into them.
+ */
+export const importDesktopEntryContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/desktop/tool/import',
+  query: importDesktopEntryQuerySchema,
+  headers: z.object({ [DESKTOP_IMPORT_TOKEN_HEADER]: z.string().min(1).max(128) }),
+  response: { mode: 'json', schema: importDesktopEntryResponseSchema },
   error: z.object({ error: z.string() }),
 })

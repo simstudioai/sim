@@ -103,6 +103,10 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import {
+  reconcileSubscriptionSyncFromStripe,
+  recordCustomerRestoreAfterHook,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
@@ -1100,6 +1104,8 @@ export const auth = betterAuth({
       return
     }),
     after: createAuthMiddleware(async (ctx) => {
+      if (isBillingEnabled) await recordCustomerRestoreAfterHook(ctx)
+
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const checkoutContext = ctx as typeof ctx & {
           billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
@@ -1727,6 +1733,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await reconcileSubscriptionSyncFromStripe(event)
                     await handleSubscriptionUsageUpdate(event)
                     break
                   }

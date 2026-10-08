@@ -48,10 +48,10 @@ import {
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
+import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-events'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { createDocumentRecords, createSingleDocument } from '@/lib/knowledge/documents/service'
-import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
 import {
   deleteWorkspaceFile,

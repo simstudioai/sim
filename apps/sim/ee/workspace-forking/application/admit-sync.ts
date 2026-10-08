@@ -3,6 +3,11 @@ import { truncate } from '@sim/utils/string'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  WORKSPACE_MCP_CHANGED_EVENT,
+  WORKSPACE_OPERATION_OBSERVE_EVENT,
+  WORKSPACE_WORKFLOWS_CHANGED_EVENT,
+} from '@/lib/workspaces/operations/outbox-events'
+import {
   insertWorkspaceOperationReceipt,
   type WorkspaceOperationReport,
 } from '@/lib/workspaces/operations/receipts'
@@ -100,7 +105,7 @@ export async function admitForkSync(
   }
   if (params.mcpAttachmentServerIds.length)
     report.effectEventIds!.push(
-      await enqueueOutboxEvent(tx, 'workspace.mcp.changed', {
+      await enqueueOutboxEvent(tx, WORKSPACE_MCP_CHANGED_EVENT, {
         serverIds: params.mcpAttachmentServerIds,
       })
     )
@@ -117,10 +122,10 @@ export async function admitForkSync(
           ? 'completed_with_warnings'
           : 'completed'
   }
-  await enqueueOutboxEvent(tx, 'workspace.workflows.changed', {
+  await enqueueOutboxEvent(tx, WORKSPACE_WORKFLOWS_CHANGED_EVENT, {
     workspaceId: params.targetWorkspaceId,
   })
-  await enqueueOutboxEvent(tx, 'workspace.operation.observe', {
+  await enqueueOutboxEvent(tx, WORKSPACE_OPERATION_OBSERVE_EVENT, {
     workspaceId: report.workspaceId,
     operationId: report.operationId,
   })

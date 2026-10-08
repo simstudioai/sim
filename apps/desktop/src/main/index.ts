@@ -9,6 +9,7 @@ import {
   dialog,
   Notification,
   net,
+  powerSaveBlocker,
   session,
   shell,
 } from 'electron'
@@ -63,6 +64,7 @@ import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
 import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
 import { createDesktopExecutorService } from '@/main/desktop-executor/service'
+import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
@@ -99,6 +101,7 @@ import {
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
@@ -165,15 +168,20 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
-  const terminal = new TerminalRegistry({
-    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
-    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
-    migrate: (fromScopeId, toScopeId) =>
-      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
-    disposeScope: (scopeId) => {
-      desktopChatSessions.deleteScope(processOrigin, scopeId)
+  const terminal = new TerminalRegistry(
+    {
+      load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+      save: (scopeId, snapshot) =>
+        desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
+      migrate: (fromScopeId, toScopeId) =>
+        desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
+      disposeScope: (scopeId) => {
+        desktopChatSessions.deleteScope(processOrigin, scopeId)
+      },
     },
-  })
+    undefined,
+    createRunLedger(join(userDataPath, 'terminal-runs'))
+  )
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -546,6 +554,7 @@ function main(): void {
       }
       desktopExecutor.refreshRegistration()
     },
+    setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -572,6 +581,11 @@ function main(): void {
     },
   })
 
+  const sleepBlocker = createSleepBlocker({
+    enabled: () => desktopSettings.getPreferences().preventSleepWhileRunning ?? true,
+    powerSaveBlocker,
+  })
+
   const approvalNotifier = createApprovalNotifier({
     preferences: () => desktopSettings.getPreferences(),
     focusedChatId: () => {
@@ -592,22 +606,32 @@ function main(): void {
     preferences: () => desktopSettings.getPreferences(),
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
+    onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    // A result the model has makes a tmux run it handed back as still going collectable across a
+    // restart.
+    onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
+    // A result the model never got leaves such a run with no one to come back to it, so it is
+    // stopped, as the launch sweep stops a previous process's.
+    onResultNotDelivered: (toolCallId) => void terminal.stopUndeliveredRun(toolCallId),
     runner: createDesktopToolRunner({
       preferences: () => desktopSettings.getPreferences(),
       accountDataAvailable,
       browser: {
-        executeTool: executeAgentBrowserTool,
+        executeTool: (scopeId, tool, params, toolCallId) =>
+          executeAgentBrowserTool(scopeId, tool, params, toolCallId, undefined, {
+            background: true,
+          }),
         cancelTool: cancelAgentBrowserTool,
         hasSession: hasBrowserScopeSession,
         restoreScope: restoreAgentBrowserScope,
       },
       terminal,
       localFiles: {
-        read: (call) =>
-          executeLocalFileRequest(
-            { operation: 'read', toolCallId: call.toolCallId },
-            { toolName: call.toolName, args: call.args }
-          ),
+        request: (call, request) =>
+          executeLocalFileRequest(request, { toolName: call.toolName, args: call.args }),
+      },
+      imports: {
+        importEntry: (request, signal) => desktopExecutor.importEntry(request, signal),
       },
       localFilesystem: {
         handle: (request) => localFilesystem.handle(request),
@@ -791,6 +815,11 @@ function main(): void {
         logger.error('Account-data recovery remains incomplete', { stores: failures })
       }
     }
+
+    // The same user's tmux runs from a previous process: one whose pane the model has, or will get
+    // from recovery, is left to the model, which may come back to it; any other has nothing left
+    // to collect what it does, so it is stopped, while its pane still carries its tag.
+    void desktopExecutor.pendingResults().then((pending) => terminal.stopUncollectableRuns(pending))
 
     if (!accountDataAvailable()) {
       logger.warn(
