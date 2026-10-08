@@ -1,4 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
@@ -47,7 +51,7 @@ export async function runWorkflowForTest(
     workflowId: input.workflowId,
     assertedWorkspaceId: input.workspaceId,
   })
-  const principal = input.principal
+  const principal = requireTestPrincipal(input.principal)
   const useDraftState = input.version === 'draft'
   const prepared = await resolveTriggerExecution({
     input: {
@@ -100,4 +104,17 @@ export async function runWorkflowForTest(
     attachAttemptedExecutionId(error, executionId)
     throw error
   }
+}
+
+/** The principal kinds `workflow_tests.run` admits; anything else reaching here is a wiring bug. */
+function requireTestPrincipal(principal: Principal): WorkflowExecutionPrincipal {
+  if (
+    principal.kind === 'session' ||
+    principal.kind === 'personal_api_key' ||
+    principal.kind === 'oauth_access_token'
+  ) {
+    return principal
+  }
+  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') return principal
+  throw new Error(`A ${principal.kind} principal cannot run workflow tests`)
 }

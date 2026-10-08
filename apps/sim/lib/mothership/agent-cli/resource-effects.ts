@@ -342,12 +342,13 @@ function matchParams(pattern: string, pathname: string): Record<string, string> 
 
 /** Only workspace files and chat uploads open as file tabs; other rows open as their owner. */
 async function onlyFileTabs(changes: ResourceChange[]): Promise<ResourceChange[]> {
-  const isFileUpsert = (change: ResourceChange) =>
-    change.op === 'upsert' && change.resource.type === 'file'
-  const nonTabIds = await findNonTabFileIds(
-    changes.flatMap((change) => (isFileUpsert(change) ? [change.resource.id] : []))
-  )
-  return changes.filter((change) => !isFileUpsert(change) || !nonTabIds.has(change.resource.id))
+  const fileUpsertId = (change: ResourceChange) =>
+    change.op === 'upsert' && change.resource.type === 'file' ? change.resource.id : undefined
+  const nonTabIds = await findNonTabFileIds(changes.flatMap((change) => fileUpsertId(change) ?? []))
+  return changes.filter((change) => {
+    const id = fileUpsertId(change)
+    return id === undefined || !nonTabIds.has(id)
+  })
 }
 
 /** The observer adds no request and never reads provider responses or download bodies. */

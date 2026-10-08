@@ -282,6 +282,7 @@ export async function listRecentWorkflowTestRuns(
       triggeredByUserId: workflowTestRun.triggeredByUserId,
       sourceHash: workflowTestRun.sourceHash,
       ranAgainst: workflowTestRun.ranAgainst,
+      progress: workflowTestRun.progress,
       startedAt: workflowTestRun.startedAt,
       completedAt: workflowTestRun.completedAt,
     })

@@ -79,7 +79,7 @@ export function TestDashboard({ workspaceId, name, detail }: TestDashboardProps)
   const cases = casePaths.map((path) => {
     const key = path.join(' > ')
     const result = results.get(key)
-    const state: CaseState = running ? (progress[key] ?? 'queued') : (result?.status ?? 'none')
+    const state = caseState(running ? progress[key] : result?.status, running)
     return { key, name: caseName(path), state, result }
   })
   const finished = cases.filter((c) => c.state !== 'queued' && c.state !== 'running').length
@@ -329,6 +329,11 @@ function WorkflowsSection({ workflows }: WorkflowsSectionProps) {
       )}
     </SettingsSection>
   )
+}
+
+/** A case with no status yet is queued while the run goes, and not run once it ended. */
+function caseState(status: CaseState | undefined, running: boolean): CaseState {
+  return status ?? (running ? 'queued' : 'none')
 }
 
 /** A case's name under its file's one top-level describe. */
