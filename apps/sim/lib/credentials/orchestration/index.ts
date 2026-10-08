@@ -38,6 +38,7 @@ import {
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
 import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
+import { ociObjectStorageCredentialDisplayName } from '@/lib/credentials/oci-object-storage-service-account'
 import type {
   AtlassianProduct,
   ServiceAccountFieldId,
@@ -52,6 +53,8 @@ import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-s
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -96,6 +99,9 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'userOcid',
   'fingerprint',
   'privateKeyPassphrase',
+  'accessKeyId',
+  'secretAccessKey',
+  'namespace',
   'region',
 ]
 
@@ -116,6 +122,7 @@ const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   '',
 ])
 
@@ -168,6 +175,22 @@ function deriveStoredDisplayName(blob: Record<string, unknown> | null): string |
   if (blob.type === GOOGLE_SERVICE_ACCOUNT_KEY_TYPE && typeof blob.client_email === 'string') {
     return blob.client_email || undefined
   }
+  if (
+    blob.type === OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE &&
+    typeof blob.namespace === 'string' &&
+    blob.namespace &&
+    typeof blob.region === 'string' &&
+    blob.region
+  ) {
+    return ociObjectStorageCredentialDisplayName({
+      ownerDisplayName:
+        typeof blob.ownerDisplayName === 'string' && blob.ownerDisplayName
+          ? blob.ownerDisplayName
+          : undefined,
+      namespace: blob.namespace,
+      region: blob.region,
+    })
+  }
   return undefined
 }
 
@@ -215,6 +238,10 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   userOcid?: string
   fingerprint?: string
   privateKeyPassphrase?: string
+  /** OCI Object Storage Customer Secret Key rotation. */
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
   region?: string
 }
 
@@ -427,6 +454,9 @@ export async function updateCredentialRecord(
           userOcid: params.userOcid,
           fingerprint: params.fingerprint,
           privateKeyPassphrase: params.privateKeyPassphrase,
+          accessKeyId: params.accessKeyId,
+          secretAccessKey: params.secretAccessKey,
+          namespace: params.namespace,
           region: params.region,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey

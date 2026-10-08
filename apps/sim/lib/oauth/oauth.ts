@@ -1109,6 +1109,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'oracledb',
   },
+  oci_object_storage: {
+    name: 'OCI Object Storage',
+    icon: OracleIcon,
+    services: {
+      oci_object_storage: {
+        name: 'OCI Object Storage',
+        description:
+          'List, upload, download, inspect, and delete objects in Oracle Cloud Infrastructure Object Storage.',
+        providerId: 'oci_object_storage',
+        serviceAccountProviderId: 'oci-object-storage-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci_object_storage',
+  },
   oci: {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,

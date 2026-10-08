@@ -6346,6 +6346,8 @@ export type GetSelectorBody = {
     | 'notion.pages'
     | 'netsuite.recordTypes'
     | 'netsuite.asyncTasks'
+    | 'oci_object_storage.buckets'
+    | 'oci_object_storage.objects'
     | 'pipedrive.pipelines'
     | 'sharepoint.lists'
     | 'trello.boards'
@@ -9244,6 +9246,8 @@ export type ListSelectorBody = {
     | 'notion.pages'
     | 'netsuite.recordTypes'
     | 'netsuite.asyncTasks'
+    | 'oci_object_storage.buckets'
+    | 'oci_object_storage.objects'
     | 'pipedrive.pipelines'
     | 'sharepoint.lists'
     | 'trello.boards'
@@ -13015,6 +13019,9 @@ export type UpdateCredentialBody = {
   fingerprint?: string
   privateKeyPassphrase?: string
   region?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
 }
 
 type UpdateCredentialResponseRef0 = {
@@ -17505,6 +17512,8 @@ export const V2_OPERATIONS = {
           'notion.pages',
           'netsuite.recordTypes',
           'netsuite.asyncTasks',
+          'oci_object_storage.buckets',
+          'oci_object_storage.objects',
           'pipedrive.pipelines',
           'sharepoint.lists',
           'trello.boards',
@@ -19697,6 +19706,8 @@ export const V2_OPERATIONS = {
           'notion.pages',
           'netsuite.recordTypes',
           'netsuite.asyncTasks',
+          'oci_object_storage.buckets',
+          'oci_object_storage.objects',
           'pipedrive.pipelines',
           'sharepoint.lists',
           'trello.boards',
@@ -21995,6 +22006,12 @@ export const V2_OPERATIONS = {
       fingerprint: { kind: 'string', describe: 'OCI API-key fingerprint.' },
       privateKeyPassphrase: { kind: 'string', describe: 'Write-only OCI private-key passphrase.' },
       region: { kind: 'string', describe: 'OCI home region.' },
+      accessKeyId: {
+        kind: 'string',
+        describe: 'Write-only OCI Customer Secret Key access identifier.',
+      },
+      secretAccessKey: { kind: 'string', describe: 'Write-only OCI Customer Secret Key secret.' },
+      namespace: { kind: 'string', describe: 'OCI Object Storage tenancy namespace.' },
     },
   },
   updateCustomTool: {

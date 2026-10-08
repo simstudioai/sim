@@ -21,6 +21,11 @@ import {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
+import {
+  OciObjectStorageCredentialError,
+  ociObjectStorageCredentialDisplayName,
+  validateOciObjectStorageServiceAccount,
+} from '@/lib/credentials/oci-object-storage-service-account'
 import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
 import {
   type ServiceAccountPrincipal,
@@ -42,6 +47,8 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
@@ -69,6 +76,9 @@ export interface ServiceAccountSecretFields {
   userOcid?: string
   fingerprint?: string
   privateKeyPassphrase?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
   region?: string
 }
 
@@ -255,6 +265,60 @@ async function buildOracleDatabaseServiceAccountSecret(
   }
 }
 
+async function buildOciObjectStorageServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { accessKeyId, secretAccessKey, namespace, region } = fields
+  if (!accessKeyId || !secretAccessKey || !namespace || !region) {
+    throw new ServiceAccountSecretError(
+      'accessKeyId, secretAccessKey, namespace, and region are required for OCI Object Storage credentials'
+    )
+  }
+
+  try {
+    const validation = await validateOciObjectStorageServiceAccount({
+      accessKeyId,
+      secretAccessKey,
+      namespace,
+      region,
+    })
+    const principal: ServiceAccountPrincipal = {
+      kind: 'user',
+      id: validation.ownerId,
+      ...(validation.ownerDisplayName ? { label: validation.ownerDisplayName } : {}),
+    }
+    const blob = JSON.stringify({
+      type: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
+      providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      ...validation.secret,
+      ownerId: validation.ownerId,
+      ...(validation.ownerDisplayName ? { ownerDisplayName: validation.ownerDisplayName } : {}),
+      metadata: serviceAccountPrincipalMetadata(principal),
+    })
+    const { encrypted } = await encryptSecret(blob)
+    return {
+      providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      encryptedServiceAccountKey: encrypted,
+      displayName: ociObjectStorageCredentialDisplayName({
+        ownerDisplayName: validation.ownerDisplayName,
+        namespace: validation.secret.namespace,
+        region: validation.secret.region,
+      }),
+      auditMetadata: {
+        ociNamespace: validation.secret.namespace,
+        ociRegion: validation.secret.region,
+        ...serviceAccountPrincipalMetadata(principal),
+      },
+      principal,
+    }
+  } catch (error) {
+    if (error instanceof OciObjectStorageCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw error
+  }
+}
+
 async function buildOciApiKeyServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
@@ -423,6 +487,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciApiKeyServiceAccountSecret,
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
+  [OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciObjectStorageServiceAccountSecret,
 }
 
 /**

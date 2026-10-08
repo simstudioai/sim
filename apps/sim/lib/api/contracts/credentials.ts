@@ -181,6 +181,13 @@ export const createCredentialFieldsSchema = z.object({
   fingerprint: z.string().trim().min(1).max(128).optional(),
   privateKeyPassphrase: z.string().max(4096).optional(),
   region: z.string().trim().min(1).max(128).optional(),
+  /** OCI Object Storage Customer Secret Key access identifier. */
+  accessKeyId: z.string().trim().min(1).max(512).optional(),
+  /** OCI Object Storage Customer Secret Key secret value. */
+  secretAccessKey: z.string().trim().min(1).max(1024).optional(),
+  /** OCI Object Storage tenancy namespace used to construct the fixed endpoint. */
+  namespace: z.string().trim().min(1).max(63).optional(),
+  /** Public commercial OCI region identifier. */
 })
 
 export function refineCredentialCreate(
@@ -302,6 +309,10 @@ export const updateCredentialByIdBodySchema = z
     fingerprint: z.string().trim().min(1).max(128).optional(),
     privateKeyPassphrase: z.string().max(4096).optional(),
     region: z.string().trim().min(1).max(128).optional(),
+    /** OCI Object Storage Customer Secret Key rotation fields. */
+    accessKeyId: z.string().trim().min(1).max(512).optional(),
+    secretAccessKey: z.string().trim().min(1).max(1024).optional(),
+    namespace: z.string().trim().min(1).max(63).optional(),
   })
   .strict()
   .refine(
@@ -328,6 +339,9 @@ export const updateCredentialByIdBodySchema = z
       data.userOcid !== undefined ||
       data.fingerprint !== undefined ||
       data.privateKeyPassphrase !== undefined ||
+      data.accessKeyId !== undefined ||
+      data.secretAccessKey !== undefined ||
+      data.namespace !== undefined ||
       data.region !== undefined,
     {
       message: 'At least one field must be provided',
