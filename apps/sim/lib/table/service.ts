@@ -124,8 +124,7 @@ function readLocks(row: {
  *
  * Uses an advisory lock (not `SELECT ... FOR UPDATE` on the definition row) so
  * it adds no edges to the row-lock graph — a FOR UPDATE here would also block the
- * foreign-key check (KEY SHARE) of every row write to the table. Mirrors
- * `acquireRowOrderLock`. The lock and
+ * foreign-key check (KEY SHARE) of every row write to the table. The lock and
  * the read both release at COMMIT/ROLLBACK; the wait is bounded by the
  * `statement_timeout` set in `setTableTxTimeouts`.
  */
