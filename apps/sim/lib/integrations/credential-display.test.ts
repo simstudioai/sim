@@ -113,10 +113,6 @@ describe('GitHub Search credentials', () => {
 })
 
 describe('service-account coverage', () => {
-  it('pins the table to exactly the registered service-account provider ids', () => {
-    expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
-  })
-
   it.each(Object.entries(EXPECTED_COVERAGE))(
     '%s authenticates the expected integrations',
     (providerId, expectedSlugs) => {

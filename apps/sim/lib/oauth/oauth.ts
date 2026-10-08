@@ -1109,6 +1109,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'oci',
   },
+  'oracle-fusion': {
+    name: 'Oracle Fusion',
+    icon: OracleIcon,
+    services: {
+      'oracle-fusion': {
+        name: 'Oracle Fusion',
+        description: 'Connect Fusion Applications with an integration user.',
+        providerId: 'oracle-fusion',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-fusion',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

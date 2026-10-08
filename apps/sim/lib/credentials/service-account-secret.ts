@@ -343,7 +343,11 @@ async function buildClientCredentialAccountSecret(
     dataCenter: fields.dataCenter?.trim() || undefined,
     scope: usesField('scope') ? fields.scope?.trim() || undefined : undefined,
     authMethod: resolvedAuthMethod,
-    clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
+    clientSecret: usesField('clientSecret')
+      ? (visible.find((field) => field.id === 'clientSecret')?.preserveWhitespace
+          ? fields.clientSecret
+          : fields.clientSecret?.trim()) || undefined
+      : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
   }

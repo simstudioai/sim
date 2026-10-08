@@ -444,7 +444,6 @@ const v2ServiceAccountCredentialFieldsSchema = z
     clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
     clientSecret: z
       .string()
-      .trim()
       .min(1)
       .max(1024)
       .optional()
@@ -710,7 +709,6 @@ const v2ServiceAccountSecretFieldsShape = {
   clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
   clientSecret: z
     .string()
-    .trim()
     .min(1)
     .max(1024)
     .optional()
