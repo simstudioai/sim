@@ -8,11 +8,10 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
-  ['bun', '--env-file=.env', 'run', './script-migrations/0019_tin_keyword_projection.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],
-  ['bun', '--env-file=.env', 'run', './script-migrations/0025_scope_keyword_projections.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0026_user_table_schema_for_write.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0030_retire_keyword_writers.ts'],
 ]
 
 /** Keep preparation, Drizzle and reconcilers fenced without a session lock or a retained snapshot. */
