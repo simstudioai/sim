@@ -10,10 +10,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
-import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
   Predicate,
@@ -52,6 +50,7 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
@@ -494,12 +493,11 @@ export function TableGrid({
   workspaceIdRef.current = workspaceId
   const tableIdRef = useRef(tableId)
   tableIdRef.current = tableId
-  const posthog = usePostHog()
-
-  useEffect(() => {
-    if (!tableId || !workspaceId) return
-    captureEvent(posthog, 'table_opened', { table_id: tableId, workspace_id: workspaceId })
-  }, [tableId, workspaceId, posthog])
+  useCaptureWhenReady(
+    'table_opened',
+    tableId && workspaceId ? { table_id: tableId, workspace_id: workspaceId } : null,
+    tableId
+  )
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
