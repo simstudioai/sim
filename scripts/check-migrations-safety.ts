@@ -56,10 +56,14 @@ function qualifiedName(raw: string): string {
 
 /**
  * The statement with string literals and comments blanked, so only executable SQL is matched.
+ * An escape string (`E'…'`) is read with its backslash escapes, so `\'` does not end it early.
  * Dollar-quoted bodies stay: a `DO` block runs them.
  */
 function executableSql(sql: string): string {
-  return sql.replace(/'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g, ' ')
+  return sql.replace(
+    /(?<![\w$])[Ee]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g,
+    ' '
+  )
 }
 
 /**

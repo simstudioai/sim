@@ -126,6 +126,26 @@ describe('migration safety audit', () => {
     30_000
   )
 
+  it('reads past an escaped quote in an escape string to an ownership change after it', async () => {
+    const dir = migrationsDir(
+      "DO $$ BEGIN RAISE NOTICE E'it\\'s ready'; ALTER TABLE calls OWNER TO postgres; RAISE NOTICE 'done'; END $$;"
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(code).toBe(1)
+    expect(`${stdout}${stderr}`).toContain('owner-to')
+  }, 30_000)
+
+  it('ignores ownership words inside an escape string', async () => {
+    const dir = migrationsDir(
+      "COMMENT ON TABLE \"jobs\" IS E'Ops\\'s note: hand owner to the support team';"
+    )
+    const { code, stdout, stderr } = await runAudit('--dir', dir)
+
+    expect(`${stdout}${stderr}`).not.toContain('owner-to')
+    expect(code).toBe(0)
+  }, 30_000)
+
   it('ignores ownership words inside string literals and comments', async () => {
     const dir = migrationsDir(
       [
