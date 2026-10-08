@@ -65,6 +65,9 @@ const INTERMEDIARY_REFERRER_HOSTS = new Set([
   'billing.stripe.com',
 ])
 
+/** A bare DNS hostname: the only shape a stored referring domain may take. */
+const HOSTNAME_PATTERN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/
+
 /** Sign-in surfaces an identity provider redirects back to, never an acquisition landing page. */
 const AUTH_PATH_ROOTS = ['/login', '/signup', '/sso', '/verify', '/reset-password', '/oauth']
 
@@ -148,6 +151,12 @@ interface BuildAttributionTouchInput {
   /** `document.referrer` for that load. */
   referrer: string
   now: Date
+  /**
+   * When the consent grant the touch is recorded under lapses (epoch ms), so
+   * the cookies never outlive it: a sign-up completed straight from an
+   * identity provider never loads a Sim page that could clear them.
+   */
+  consentExpiresAt?: number
 }
 
 /**
@@ -221,12 +230,20 @@ function parseAttributionTouch(raw: string | null | undefined): AttributionTouch
   }
 
   const touch: AttributionTouch = {
-    landing_path: bound(landingPath, LANDING_PATH_MAX_LENGTH, LANDING_PATH_MAX_BYTES),
+    landing_path: bound(
+      landingPath.split(/[?#]/, 1)[0],
+      LANDING_PATH_MAX_LENGTH,
+      LANDING_PATH_MAX_BYTES
+    ),
     touched_at: new Date(touchedAt).toISOString(),
   }
-  for (const key of [...CAMPAIGN_PARAMETERS, 'referring_domain'] as const) {
+  for (const key of CAMPAIGN_PARAMETERS) {
     const field = toStringOrNull(value[key])
     if (field) touch[key] = bound(field)
+  }
+  const referringDomain = toStringOrNull(value.referring_domain)?.toLowerCase()
+  if (referringDomain && HOSTNAME_PATTERN.test(referringDomain)) {
+    touch.referring_domain = bound(referringDomain)
   }
   const clickIdType = CLICK_ID_PARAMETERS.find((parameter) => parameter === value.click_id_type)
   if (clickIdType) touch.click_id_type = clickIdType
@@ -317,9 +334,20 @@ export function recordAttributionTouch(input: BuildAttributionTouchInput): void 
     !CAMPAIGN_PARAMETERS.some((parameter) => touch[parameter]) &&
     !touch.click_id_type
 
+  const maxAgeSeconds =
+    input.consentExpiresAt === undefined
+      ? ATTRIBUTION_MAX_AGE_SECONDS
+      : Math.min(
+          ATTRIBUTION_MAX_AGE_SECONDS,
+          Math.floor((input.consentExpiresAt - input.now.getTime()) / 1000)
+        )
+  if (maxAgeSeconds <= 0) return
+
   const value = JSON.stringify(touch)
-  if (!first) writeCookie(ATTRIBUTION_FIRST_TOUCH_COOKIE, value)
-  if (!last || !isOwnPropertyReferral) writeCookie(ATTRIBUTION_LAST_TOUCH_COOKIE, value)
+  if (!first) writeCookie(ATTRIBUTION_FIRST_TOUCH_COOKIE, value, maxAgeSeconds)
+  if (!last || !isOwnPropertyReferral) {
+    writeCookie(ATTRIBUTION_LAST_TOUCH_COOKIE, value, maxAgeSeconds)
+  }
 }
 
 /** Deletes both attribution cookies once measurement consent is withdrawn or expires. */

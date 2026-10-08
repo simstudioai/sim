@@ -66,7 +66,7 @@ export function SocialLoginButtons({
           fullWidth
           leftIcon={icon}
           className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
-          disabled={loadingProvider === provider}
+          disabled={loadingProvider !== null}
           onClick={() => signIn(provider, label)}
         >
           {loadingProvider === provider ? 'Connecting…' : label}

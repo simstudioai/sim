@@ -190,6 +190,17 @@ describe('recordAttributionTouch', () => {
     expect(stored?.length).toBeLessThan(2048)
   })
 
+  it('writes nothing once the consent grant it would be recorded under has lapsed', () => {
+    recordAttributionTouch({
+      href: 'https://www.sim.ai/?utm_source=youtube',
+      referrer: '',
+      now: NOW,
+      consentExpiresAt: NOW.getTime() - 1,
+    })
+
+    expect(recordedProperties()).toEqual({})
+  })
+
   it('bounds attacker-sized campaign values', () => {
     recordAttributionTouch({
       href: `https://www.sim.ai/?utm_campaign=${'x'.repeat(5000)}`,
@@ -240,6 +251,19 @@ describe('readAttributionProperties', () => {
     ['an invalid timestamp', JSON.stringify({ landing_path: '/', touched_at: 'yesterday' })],
   ])('ignores a cookie holding %s', (_case, raw) => {
     expect(readAttributionProperties(firstTouchCookie(raw))).toEqual({})
+  })
+
+  it('keeps a tampered landing path to its path and drops a referrer that is not a hostname', () => {
+    const tampered = JSON.stringify({
+      landing_path: '/demo?email=jane%40acme.com#top',
+      touched_at: NOW.toISOString(),
+      referring_domain: 'https://evil.example/?q=1',
+    })
+
+    expect(readAttributionProperties(firstTouchCookie(tampered))).toEqual({
+      first_touch_landing_path: '/demo',
+      first_touch_touched_at: NOW.toISOString(),
+    })
   })
 
   it('drops unknown keys and clamps oversized values from a tampered cookie', () => {

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { recordAttributionTouch } from '@/lib/analytics/attribution'
+import { getStoredConsentExpiry } from '@/lib/consent/storage'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 
 let landingHref: string | undefined
@@ -38,7 +39,12 @@ export function AttributionCapture() {
     landingHref ??= resolveLandingHref()
     if (!isResolved || !measurement || hasRecordedTouch) return
     hasRecordedTouch = true
-    recordAttributionTouch({ href: landingHref, referrer: document.referrer, now: new Date() })
+    recordAttributionTouch({
+      href: landingHref,
+      referrer: document.referrer,
+      now: new Date(),
+      consentExpiresAt: getStoredConsentExpiry(),
+    })
   }, [isResolved, measurement])
 
   return null

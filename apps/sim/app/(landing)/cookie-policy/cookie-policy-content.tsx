@@ -198,7 +198,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           [
             'sim_attribution_first / sim_attribution_last',
             'Sim',
-            'Records the campaign or website that first and most recently brought you to sim.ai, so a sign-up or demo request can be credited to it. Holds campaign parameters, the referring site’s domain, and the landing page path only.',
+            'Records the campaign or website that first and most recently brought you to sim.ai, so a sign-up or demo request can be credited to it. Holds campaign parameters, which ad network a click came from (never the click ID), the referring site’s domain, the landing page path, and when the visit happened. Expires with your analytics consent if that ends sooner.',
             '90 days',
           ],
         ]),
