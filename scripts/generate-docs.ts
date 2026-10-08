@@ -4478,6 +4478,7 @@ async function generateMarkdownForBlock(
   } = blockConfig
 
   let toolsSection = ''
+  const inputSchemas = new Map<string, string>()
   if (tools.access?.length) {
     toolsSection = '## Actions\n\n'
 
@@ -4505,11 +4506,18 @@ async function generateMarkdownForBlock(
 
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
-            const escapedDescription = param.description
-              ? escapeMdxCell(param.description)
-              : 'No description'
+            const schema = param.description.match(
+              /^(.*?)\n\n(```graphql\n(?:input|enum) (\w+)[\s\S]*\n```)$/s
+            )
+            let description = schema?.[1] ?? param.description
+            if (schema) {
+              inputSchemas.set(schema[3], schema[2])
+              description = `${escapeMdxCell(description)} <a href="#${schema[3].toLowerCase()}">Schema</a>`
+            } else {
+              description = description ? escapeMdxCell(description) : 'No description'
+            }
 
-            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
+            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
           }
         }
 
@@ -4549,6 +4557,15 @@ async function generateMarkdownForBlock(
       }
 
       toolsSection += '\n'
+    }
+  }
+
+  if (inputSchemas.size) {
+    toolsSection += '## JSON Input Schemas\n\n'
+    toolsSection +=
+      'These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.\n\n'
+    for (const [name, definition] of inputSchemas) {
+      toolsSection += `### ${name}\n\n${definition}\n\n`
     }
   }
 

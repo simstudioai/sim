@@ -32,7 +32,10 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('OrganizationFilterInput'),
+      description: bufferInputDescription(
+        'OrganizationFilterInput',
+        'Filter account organizations by organization ID.'
+      ),
     },
   },
 

@@ -171,17 +171,34 @@ export function parseBufferInput(
   return result
 }
 
-/** Lists the complete nested input contract for structured tool parameters. */
-export function bufferInputDescription(type: string): string {
-  const schema = BUFFER_SCHEMA[type]
-  if (!schema?.fields) return schema?.values?.join(' | ') ?? type
-  return `{ ${Object.entries(schema.fields)
-    .map(([field, wireType]) => {
-      const nested = baseType(wireType)
-      const detail = BUFFER_SCHEMA[nested]
-      return `${field}: ${wireType}${schema.defaults?.includes(field) ? ' (provider default when omitted)' : ''}${detail?.fields || detail?.values ? ` (${bufferInputDescription(nested)})` : ''}`
-    })
-    .join('; ')} }`
+/** Describes structured inputs with a readable definition for each referenced type. */
+export function bufferInputDescription(type: string, description: string): string {
+  const definitions: string[] = []
+  const visited = new Set<string>()
+
+  function collect(name: string): void {
+    const schema = BUFFER_SCHEMA[name]
+    if (visited.has(name) || (!schema?.fields && !schema?.values)) return
+    visited.add(name)
+    if (schema.fields) {
+      const fields = Object.entries(schema.fields).map(
+        ([field, wireType]) =>
+          `  ${field}: ${wireType}${schema.defaults?.includes(field) ? ' # Provider default when omitted' : ''}`
+      )
+      if (schema.oneOf) fields.unshift('  # Choose exactly one field')
+      definitions.push(`input ${name} {\n${fields.join('\n')}\n}`)
+      for (const wireType of Object.values(schema.fields)) collect(baseType(wireType))
+    } else if (schema.values) {
+      definitions.push(
+        `enum ${name} {\n${schema.values.map((value) => `  ${value}`).join('\n')}\n}`
+      )
+    }
+  }
+
+  collect(type)
+  return definitions.length
+    ? `${description}\n\n\`\`\`graphql\n${definitions.join('\n\n')}\n\`\`\``
+    : description
 }
 
 function parseValue(wireType: string, value: unknown, path: string): unknown {

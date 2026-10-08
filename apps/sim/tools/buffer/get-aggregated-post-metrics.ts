@@ -60,7 +60,10 @@ export const bufferGetAggregatedPostMetricsTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('TagComparator'),
+      description: bufferInputDescription(
+        'TagComparator',
+        'Filter metrics by tag IDs or untagged status.'
+      ),
     },
   },
   request: {

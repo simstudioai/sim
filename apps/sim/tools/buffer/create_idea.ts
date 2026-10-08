@@ -72,13 +72,19 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('IdeaContentInput'),
+      description: bufferInputDescription(
+        'IdeaContentInput',
+        'Idea title, text, and media content.'
+      ),
     },
     group: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('IdeaGroupInput'),
+      description: bufferInputDescription(
+        'IdeaGroupInput',
+        'Assign the idea to a group and optionally position it after another idea.'
+      ),
     },
     cta: {
       type: 'string',

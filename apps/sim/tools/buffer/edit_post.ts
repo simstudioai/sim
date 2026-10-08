@@ -83,13 +83,19 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: `Array of assets: ${bufferInputDescription('AssetInput')}. Choose exactly one variant per asset. Omit when using media. On edit, [] clears attachments and omission preserves them.`,
+      description: bufferInputDescription(
+        'AssetInput',
+        'Array of image, video, or document assets. Choose exactly one variant per asset. Omit when using media. An empty array clears attachments; omission preserves them.'
+      ),
     },
     metadata: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('PostInputMetaData'),
+      description: bufferInputDescription(
+        'PostInputMetaData',
+        'Network-specific settings, including threads, link attachments, and publishing options.'
+      ),
     },
     aiAssisted: {
       type: 'boolean',

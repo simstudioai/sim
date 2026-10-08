@@ -67,13 +67,16 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('IdeasGroupFilter'),
+      description: bufferInputDescription('IdeasGroupFilter', 'Filter ideas by group.'),
     },
     tagsFilter: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('TagComparator'),
+      description: bufferInputDescription(
+        'TagComparator',
+        'Filter ideas by tag IDs or untagged status.'
+      ),
     },
   },
 

@@ -104,13 +104,19 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('PostsFiltersInput'),
+      description: bufferInputDescription(
+        'PostsFiltersInput',
+        'Filter posts by status, tags, dates, and other criteria.'
+      ),
     },
     sort: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: `Ordered list of sort keys: ${bufferInputDescription('PostSortInput')}. Overrides sortBy/sortDirection.`,
+      description: bufferInputDescription(
+        'PostSortInput',
+        'Ordered array of sort keys. Overrides sortBy and sortDirection.'
+      ),
     },
   },
 

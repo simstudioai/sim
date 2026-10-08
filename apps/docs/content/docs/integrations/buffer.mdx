@@ -63,8 +63,8 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
-| `assets` | json | No | Array of assets: \{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}. Choose exactly one variant per asset. Omit when using media. On edit, \[\] clears attachments and omission preserves them. |
-| `metadata` | json | No | \{ bluesky: BlueskyPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); facebook: FacebookPostMetadataInput \(\{ annotations: \[AnnotationInputFacebook!\] \(\{ content: String!; indices: \[Int!\]!; text: String!; url: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); type: PostTypeFacebook! \(post \| reel \| story\) \}\); google: GoogleBusinessPostMetadataInput \(\{ detailsEvent: GoogleBusinessEventMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); endDate: DateTime; isFullDayEvent: Boolean!; link: String; startDate: DateTime; title: String \}\); detailsOffer: GoogleBusinessOfferMetaDataInput \(\{ code: String; endDate: DateTime; link: String; startDate: DateTime; terms: String; title: String \}\); detailsWhatsNew: GoogleBusinessWhatsNewMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); link: String \}\); title: String; type: PostTypeGoogleBusiness! \(event \| offer \| whats_new\) \}\); instagram: InstagramPostMetadataInput \(\{ firstComment: String; geolocation: InstagramGeolocationInput \(\{ id: String; text: String \}\); isAiGenerated: Boolean; link: String; shouldShareToFeed: Boolean!; stickerFields: InstagramStickerFieldsInput \(\{ music: String; other: String; products: String; text: String; topics: String \}\); type: PostType! \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); linkedin: LinkedInPostMetadataInput \(\{ annotations: \[AnnotationInputLinkedIn!\] \(\{ id: String!; entity: String!; length: Int!; link: String!; localizedName: String!; start: Int!; vanityName: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); mastodon: MastodonPostMetadataInput \(\{ spoilerText: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); pinterest: PinterestPostMetadataInput \(\{ boardServiceId: String; title: String; url: String \}\); substack: SubstackPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadsPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); locationId: String; locationName: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\); topic: String; type: PostType \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); tiktok: TikTokPostMetadataInput \(\{ isAiGenerated: Boolean; title: String \}\); twitter: TwitterPostMetadataInput \(\{ isAiGenerated: Boolean; retweet: RetweetMetadataInput \(\{ id: String!; comment: String \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); youtube: YoutubePostMetadataInput \(\{ categoryId: String; embeddable: Boolean \(provider default when omitted\); isAiGenerated: Boolean; license: YoutubeLicense \(provider default when omitted\) \(creativeCommon \| youtube\); madeForKids: Boolean \(provider default when omitted\); notifySubscribers: Boolean \(provider default when omitted\); privacy: YoutubePrivacy \(provider default when omitted\) \(private \| public \| unlisted\); title: String \}\) \} |
+| `assets` | json | No | Array of image, video, or document assets. Choose exactly one variant per asset. Omit when using media. <a href="#assetinput">Schema</a> |
+| `metadata` | json | No | Network-specific settings, including threads, link attachments, and publishing options. <a href="#postinputmetadata">Schema</a> |
 | `aiAssisted` | boolean | No | Whether AI assisted with creating the post |
 | `draftId` | string | No | Draft identifier associated with the post |
 | `ideaId` | string | No | Source idea identifier |
@@ -391,8 +391,8 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out. Replaces existing attachments |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
-| `assets` | json | No | Array of assets: \{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}. Choose exactly one variant per asset. Omit when using media. On edit, \[\] clears attachments and omission preserves them. |
-| `metadata` | json | No | \{ bluesky: BlueskyPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); facebook: FacebookPostMetadataInput \(\{ annotations: \[AnnotationInputFacebook!\] \(\{ content: String!; indices: \[Int!\]!; text: String!; url: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); type: PostTypeFacebook! \(post \| reel \| story\) \}\); google: GoogleBusinessPostMetadataInput \(\{ detailsEvent: GoogleBusinessEventMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); endDate: DateTime; isFullDayEvent: Boolean!; link: String; startDate: DateTime; title: String \}\); detailsOffer: GoogleBusinessOfferMetaDataInput \(\{ code: String; endDate: DateTime; link: String; startDate: DateTime; terms: String; title: String \}\); detailsWhatsNew: GoogleBusinessWhatsNewMetaDataInput \(\{ button: GoogleBusinessPostActionType \(book \| call \| learn_more \| none \| order \| shop \| signup\); link: String \}\); title: String; type: PostTypeGoogleBusiness! \(event \| offer \| whats_new\) \}\); instagram: InstagramPostMetadataInput \(\{ firstComment: String; geolocation: InstagramGeolocationInput \(\{ id: String; text: String \}\); isAiGenerated: Boolean; link: String; shouldShareToFeed: Boolean!; stickerFields: InstagramStickerFieldsInput \(\{ music: String; other: String; products: String; text: String; topics: String \}\); type: PostType! \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); linkedin: LinkedInPostMetadataInput \(\{ annotations: \[AnnotationInputLinkedIn!\] \(\{ id: String!; entity: String!; length: Int!; link: String!; localizedName: String!; start: Int!; vanityName: String! \}\); firstComment: String; linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); mastodon: MastodonPostMetadataInput \(\{ spoilerText: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); pinterest: PinterestPostMetadataInput \(\{ boardServiceId: String; title: String; url: String \}\); substack: SubstackPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadsPostMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\); locationId: String; locationName: String; thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\); topic: String; type: PostType \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\) \}\); tiktok: TikTokPostMetadataInput \(\{ isAiGenerated: Boolean; title: String \}\); twitter: TwitterPostMetadataInput \(\{ isAiGenerated: Boolean; retweet: RetweetMetadataInput \(\{ id: String!; comment: String \}\); thread: \[ThreadedPostInput!\] \(\{ assets: \[AssetInput!\]! \(provider default when omitted\) \(\{ document: DocumentAssetInput \(\{ thumbnailUrl: String!; title: String!; url: String! \}\); image: ImageAssetInput \(\{ metadata: ImageMetadataInput \(\{ altText: String!; animatedThumbnail: String; userTags: \[UserTagInput!\] \(\{ handle: String!; x: Float!; y: Float! \}\) \}\); thumbnailUrl: String; url: String! \}\); video: VideoAssetInput \(\{ metadata: VideoMetadataInput \(\{ thumbnailOffset: Int; title: String \}\); thumbnailUrl: String; url: String! \}\) \}\); metadata: ThreadItemMetadataInput \(\{ bluesky: ThreadItemBlueskyMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\); threads: ThreadItemThreadsMetadataInput \(\{ linkAttachment: LinkAttachmentInput \(\{ description: String; thumbnail: LinkAttachmentThumbnailInput \(\{ url: String! \}\); title: String; url: String! \}\) \}\) \}\); text: String \}\) \}\); youtube: YoutubePostMetadataInput \(\{ categoryId: String; embeddable: Boolean \(provider default when omitted\); isAiGenerated: Boolean; license: YoutubeLicense \(provider default when omitted\) \(creativeCommon \| youtube\); madeForKids: Boolean \(provider default when omitted\); notifySubscribers: Boolean \(provider default when omitted\); privacy: YoutubePrivacy \(provider default when omitted\) \(private \| public \| unlisted\); title: String \}\) \} |
+| `assets` | json | No | Array of image, video, or document assets. Choose exactly one variant per asset. Omit when using media. An empty array clears attachments; omission preserves them. <a href="#assetinput">Schema</a> |
+| `metadata` | json | No | Network-specific settings, including threads, link attachments, and publishing options. <a href="#postinputmetadata">Schema</a> |
 | `aiAssisted` | boolean | No | Whether AI assisted with creating the post |
 | `draftId` | string | No | Draft identifier associated with the post |
 | `ideaId` | string | No | Source idea identifier |
@@ -717,8 +717,8 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 | `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
 | `sortBy` | string | No | Field to sort by: dueAt or createdAt \(default dueAt\) |
 | `sortDirection` | string | No | Sort direction: asc or desc \(default asc\) |
-| `filter` | json | No | \{ channelIds: \[ChannelId!\]; dueAt: DateTimeComparator \(\{ end: DateTime; start: DateTime \}\); dueAtPresence: DateTimePresence \(absent \| present\); postTypes: \[PostType!\] \(carousel \| event \| ghost_post \| offer \| post \| reel \| short \| story \| thread \| whats_new\); status: \[PostStatus!\] \(draft \| error \| needs_approval \| scheduled \| sending \| sent\); tags: TagComparator \(\{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \}\); createdAt: DateTimeComparator \(\{ end: DateTime; start: DateTime \}\) \} |
-| `sort` | json | No | Ordered list of sort keys: \{ direction: SortDirection! \(asc \| desc\); field: PostSortableKey! \(dueAt \| createdAt\) \}. Overrides sortBy/sortDirection. |
+| `filter` | json | No | Filter posts by status, tags, dates, and other criteria. <a href="#postsfiltersinput">Schema</a> |
+| `sort` | json | No | Ordered array of sort keys. Overrides sortBy and sortDirection. <a href="#postsortinput">Schema</a> |
 
 #### Output
 
@@ -1664,7 +1664,7 @@ List the social media channels connected to a Buffer organization, including the
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
-| `filter` | json | No | \{ isLocked: Boolean; product: Product \(analyze \| buffer \| comments \| engage \| publish \| startPage\) \} |
+| `filter` | json | No | Filter channels by locked status or product. <a href="#channelsfiltersinput">Schema</a> |
 
 #### Output
 
@@ -1830,7 +1830,7 @@ Aggregate published post metrics across an organization or selected channels ove
 | `startDateTime` | string | Yes | Start of aggregation window as an ISO 8601 timestamp |
 | `endDateTime` | string | Yes | End of aggregation window as an ISO 8601 timestamp |
 | `channelIds` | json | No | Channel ID array or comma-separated IDs. Omit for all permitted channels; \[\] returns an empty result. |
-| `tags` | json | No | \{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \} |
+| `tags` | json | No | Filter metrics by tag IDs or untagged status. <a href="#tagcomparator">Schema</a> |
 
 #### Output
 
@@ -1881,8 +1881,8 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 | `text` | string | No | Text content of the idea |
 | `title` | string | No | Optional title for the idea |
 | `groupId` | string | No | Optional idea group \(board column\) to place the idea in |
-| `content` | json | No | \{ aiAssisted: Boolean; date: DateTime; media: \[IdeaMediaInput!\] \(\{ url: String!; alt: String; thumbnailUrl: String; type: MediaType! \(image \| gif \| video \| link \| document \| unsupported\); size: Int; source: IdeaMediaSourceInput \(\{ name: String!; id: String; trigger: String; author: String; authorUrl: String \}\) \}\); services: \[Service!\] \(bluesky \| facebook \| googlebusiness \| instagram \| linkedin \| mastodon \| pinterest \| startPage \| substack \| threads \| tiktok \| twitter \| whatsapp \| youtube\); tags: \[TagInput!\] \(\{ id: ID!; name: String!; color: String! \}\); text: String; title: String \} |
-| `group` | json | No | \{ groupId: ID; placeAfterId: ID \} |
+| `content` | json | No | Idea title, text, and media content. <a href="#ideacontentinput">Schema</a> |
+| `group` | json | No | Assign the idea to a group and optionally position it after another idea. <a href="#ideagroupinput">Schema</a> |
 | `cta` | string | No | Call to action tracking value |
 | `templateId` | string | No | Template ID used to create the idea |
 
@@ -1935,8 +1935,8 @@ List content ideas saved in a Buffer organization
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `limit` | number | No | Maximum number of ideas to return \(default 20\) |
 | `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
-| `groupFilter` | json | No | \{ groups: \[ID!\]; membership: IdeaGroupMembership \(grouped \| ungrouped\) \} |
-| `tagsFilter` | json | No | \{ in: \[TagId!\]!; isEmpty: Boolean! \(provider default when omitted\) \} |
+| `groupFilter` | json | No | Filter ideas by group. <a href="#ideasgroupfilter">Schema</a> |
+| `tagsFilter` | json | No | Filter ideas by tag IDs or untagged status. <a href="#tagcomparator">Schema</a> |
 
 #### Output
 
@@ -2043,7 +2043,7 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Buffer API key |
-| `organizationFilter` | json | No | \{ organizationId: String! \} |
+| `organizationFilter` | json | No | Filter account organizations by organization ID. <a href="#organizationfilterinput">Schema</a> |
 
 #### Output
 
@@ -2090,5 +2090,522 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 |     ↳ `userId` | string | ConnectedApp userId |
 |     ↳ `website` | string | ConnectedApp website |
 |     ↳ `createdAt` | string | ConnectedApp createdAt |
+
+## JSON Input Schemas
+
+These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.
+
+### AssetInput
+
+```graphql
+input AssetInput {
+  document: DocumentAssetInput
+  image: ImageAssetInput
+  video: VideoAssetInput
+}
+
+input DocumentAssetInput {
+  thumbnailUrl: String!
+  title: String!
+  url: String!
+}
+
+input ImageAssetInput {
+  metadata: ImageMetadataInput
+  thumbnailUrl: String
+  url: String!
+}
+
+input ImageMetadataInput {
+  altText: String!
+  animatedThumbnail: String
+  userTags: [UserTagInput!]
+}
+
+input UserTagInput {
+  handle: String!
+  x: Float!
+  y: Float!
+}
+
+input VideoAssetInput {
+  metadata: VideoMetadataInput
+  thumbnailUrl: String
+  url: String!
+}
+
+input VideoMetadataInput {
+  thumbnailOffset: Int
+  title: String
+}
+```
+
+### PostInputMetaData
+
+```graphql
+input PostInputMetaData {
+  bluesky: BlueskyPostMetadataInput
+  facebook: FacebookPostMetadataInput
+  google: GoogleBusinessPostMetadataInput
+  instagram: InstagramPostMetadataInput
+  linkedin: LinkedInPostMetadataInput
+  mastodon: MastodonPostMetadataInput
+  pinterest: PinterestPostMetadataInput
+  substack: SubstackPostMetadataInput
+  threads: ThreadsPostMetadataInput
+  tiktok: TikTokPostMetadataInput
+  twitter: TwitterPostMetadataInput
+  youtube: YoutubePostMetadataInput
+}
+
+input BlueskyPostMetadataInput {
+  linkAttachment: LinkAttachmentInput
+  thread: [ThreadedPostInput!]
+}
+
+input LinkAttachmentInput {
+  description: String
+  thumbnail: LinkAttachmentThumbnailInput
+  title: String
+  url: String!
+}
+
+input LinkAttachmentThumbnailInput {
+  url: String!
+}
+
+input ThreadedPostInput {
+  assets: [AssetInput!]! # Provider default when omitted
+  metadata: ThreadItemMetadataInput
+  text: String
+}
+
+input AssetInput {
+  document: DocumentAssetInput
+  image: ImageAssetInput
+  video: VideoAssetInput
+}
+
+input DocumentAssetInput {
+  thumbnailUrl: String!
+  title: String!
+  url: String!
+}
+
+input ImageAssetInput {
+  metadata: ImageMetadataInput
+  thumbnailUrl: String
+  url: String!
+}
+
+input ImageMetadataInput {
+  altText: String!
+  animatedThumbnail: String
+  userTags: [UserTagInput!]
+}
+
+input UserTagInput {
+  handle: String!
+  x: Float!
+  y: Float!
+}
+
+input VideoAssetInput {
+  metadata: VideoMetadataInput
+  thumbnailUrl: String
+  url: String!
+}
+
+input VideoMetadataInput {
+  thumbnailOffset: Int
+  title: String
+}
+
+input ThreadItemMetadataInput {
+  bluesky: ThreadItemBlueskyMetadataInput
+  threads: ThreadItemThreadsMetadataInput
+}
+
+input ThreadItemBlueskyMetadataInput {
+  linkAttachment: LinkAttachmentInput
+}
+
+input ThreadItemThreadsMetadataInput {
+  linkAttachment: LinkAttachmentInput
+}
+
+input FacebookPostMetadataInput {
+  annotations: [AnnotationInputFacebook!]
+  firstComment: String
+  linkAttachment: LinkAttachmentInput
+  type: PostTypeFacebook!
+}
+
+input AnnotationInputFacebook {
+  content: String!
+  indices: [Int!]!
+  text: String!
+  url: String!
+}
+
+enum PostTypeFacebook {
+  post
+  reel
+  story
+}
+
+input GoogleBusinessPostMetadataInput {
+  detailsEvent: GoogleBusinessEventMetaDataInput
+  detailsOffer: GoogleBusinessOfferMetaDataInput
+  detailsWhatsNew: GoogleBusinessWhatsNewMetaDataInput
+  title: String
+  type: PostTypeGoogleBusiness!
+}
+
+input GoogleBusinessEventMetaDataInput {
+  button: GoogleBusinessPostActionType
+  endDate: DateTime
+  isFullDayEvent: Boolean!
+  link: String
+  startDate: DateTime
+  title: String
+}
+
+enum GoogleBusinessPostActionType {
+  book
+  call
+  learn_more
+  none
+  order
+  shop
+  signup
+}
+
+input GoogleBusinessOfferMetaDataInput {
+  code: String
+  endDate: DateTime
+  link: String
+  startDate: DateTime
+  terms: String
+  title: String
+}
+
+input GoogleBusinessWhatsNewMetaDataInput {
+  button: GoogleBusinessPostActionType
+  link: String
+}
+
+enum PostTypeGoogleBusiness {
+  event
+  offer
+  whats_new
+}
+
+input InstagramPostMetadataInput {
+  firstComment: String
+  geolocation: InstagramGeolocationInput
+  isAiGenerated: Boolean
+  link: String
+  shouldShareToFeed: Boolean!
+  stickerFields: InstagramStickerFieldsInput
+  type: PostType!
+}
+
+input InstagramGeolocationInput {
+  id: String
+  text: String
+}
+
+input InstagramStickerFieldsInput {
+  music: String
+  other: String
+  products: String
+  text: String
+  topics: String
+}
+
+enum PostType {
+  carousel
+  event
+  ghost_post
+  offer
+  post
+  reel
+  short
+  story
+  thread
+  whats_new
+}
+
+input LinkedInPostMetadataInput {
+  annotations: [AnnotationInputLinkedIn!]
+  firstComment: String
+  linkAttachment: LinkAttachmentInput
+}
+
+input AnnotationInputLinkedIn {
+  id: String!
+  entity: String!
+  length: Int!
+  link: String!
+  localizedName: String!
+  start: Int!
+  vanityName: String!
+}
+
+input MastodonPostMetadataInput {
+  spoilerText: String
+  thread: [ThreadedPostInput!]
+}
+
+input PinterestPostMetadataInput {
+  boardServiceId: String
+  title: String
+  url: String
+}
+
+input SubstackPostMetadataInput {
+  linkAttachment: LinkAttachmentInput
+}
+
+input ThreadsPostMetadataInput {
+  linkAttachment: LinkAttachmentInput
+  locationId: String
+  locationName: String
+  thread: [ThreadedPostInput!]
+  topic: String
+  type: PostType
+}
+
+input TikTokPostMetadataInput {
+  isAiGenerated: Boolean
+  title: String
+}
+
+input TwitterPostMetadataInput {
+  isAiGenerated: Boolean
+  retweet: RetweetMetadataInput
+  thread: [ThreadedPostInput!]
+}
+
+input RetweetMetadataInput {
+  id: String!
+  comment: String
+}
+
+input YoutubePostMetadataInput {
+  categoryId: String
+  embeddable: Boolean # Provider default when omitted
+  isAiGenerated: Boolean
+  license: YoutubeLicense # Provider default when omitted
+  madeForKids: Boolean # Provider default when omitted
+  notifySubscribers: Boolean # Provider default when omitted
+  privacy: YoutubePrivacy # Provider default when omitted
+  title: String
+}
+
+enum YoutubeLicense {
+  creativeCommon
+  youtube
+}
+
+enum YoutubePrivacy {
+  private
+  public
+  unlisted
+}
+```
+
+### PostsFiltersInput
+
+```graphql
+input PostsFiltersInput {
+  channelIds: [ChannelId!]
+  dueAt: DateTimeComparator
+  dueAtPresence: DateTimePresence
+  postTypes: [PostType!]
+  status: [PostStatus!]
+  tags: TagComparator
+  createdAt: DateTimeComparator
+}
+
+input DateTimeComparator {
+  end: DateTime
+  start: DateTime
+}
+
+enum DateTimePresence {
+  absent
+  present
+}
+
+enum PostType {
+  carousel
+  event
+  ghost_post
+  offer
+  post
+  reel
+  short
+  story
+  thread
+  whats_new
+}
+
+enum PostStatus {
+  draft
+  error
+  needs_approval
+  scheduled
+  sending
+  sent
+}
+
+input TagComparator {
+  in: [TagId!]!
+  isEmpty: Boolean! # Provider default when omitted
+}
+```
+
+### PostSortInput
+
+```graphql
+input PostSortInput {
+  direction: SortDirection!
+  field: PostSortableKey!
+}
+
+enum SortDirection {
+  asc
+  desc
+}
+
+enum PostSortableKey {
+  dueAt
+  createdAt
+}
+```
+
+### ChannelsFiltersInput
+
+```graphql
+input ChannelsFiltersInput {
+  isLocked: Boolean
+  product: Product
+}
+
+enum Product {
+  analyze
+  buffer
+  comments
+  engage
+  publish
+  startPage
+}
+```
+
+### TagComparator
+
+```graphql
+input TagComparator {
+  in: [TagId!]!
+  isEmpty: Boolean! # Provider default when omitted
+}
+```
+
+### IdeaContentInput
+
+```graphql
+input IdeaContentInput {
+  aiAssisted: Boolean
+  date: DateTime
+  media: [IdeaMediaInput!]
+  services: [Service!]
+  tags: [TagInput!]
+  text: String
+  title: String
+}
+
+input IdeaMediaInput {
+  url: String!
+  alt: String
+  thumbnailUrl: String
+  type: MediaType!
+  size: Int
+  source: IdeaMediaSourceInput
+}
+
+enum MediaType {
+  image
+  gif
+  video
+  link
+  document
+  unsupported
+}
+
+input IdeaMediaSourceInput {
+  name: String!
+  id: String
+  trigger: String
+  author: String
+  authorUrl: String
+}
+
+enum Service {
+  bluesky
+  facebook
+  googlebusiness
+  instagram
+  linkedin
+  mastodon
+  pinterest
+  startPage
+  substack
+  threads
+  tiktok
+  twitter
+  whatsapp
+  youtube
+}
+
+input TagInput {
+  id: ID!
+  name: String!
+  color: String!
+}
+```
+
+### IdeaGroupInput
+
+```graphql
+input IdeaGroupInput {
+  groupId: ID
+  placeAfterId: ID
+}
+```
+
+### IdeasGroupFilter
+
+```graphql
+input IdeasGroupFilter {
+  # Choose exactly one field
+  groups: [ID!]
+  membership: IdeaGroupMembership
+}
+
+enum IdeaGroupMembership {
+  grouped
+  ungrouped
+}
+```
+
+### OrganizationFilterInput
+
+```graphql
+input OrganizationFilterInput {
+  organizationId: String!
+}
+```
 
 

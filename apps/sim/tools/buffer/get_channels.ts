@@ -43,7 +43,10 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: bufferInputDescription('ChannelsFiltersInput'),
+      description: bufferInputDescription(
+        'ChannelsFiltersInput',
+        'Filter channels by locked status or product.'
+      ),
     },
   },
 
