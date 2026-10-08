@@ -488,6 +488,11 @@ const HARNESS = `
     async run() {
       const plan = this.collect();
       const { only } = await call('testPlan', {});
+      if (only) {
+        const known = new Set(plan.tests.map((t) => t.path.join(' > ')));
+        const unknown = only.filter((name) => !known.has(name));
+        if (unknown.length > 0) throw new Error('No test is named ' + unknown.map((name) => '"' + name + '"').join(', ') + ' in this file');
+      }
       const results = [];
       await runSuiteTree(root, only, results);
       return {
