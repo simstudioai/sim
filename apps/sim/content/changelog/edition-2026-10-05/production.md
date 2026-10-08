@@ -71,3 +71,7 @@ Draft: Sim improves how Chat handles follow-up messages after a failed send and 
 Final canonical URL is assigned when the reviewed article slug is chosen. Do not distribute these drafts before publication.
 
 Editorial contract: apps/sim/content/changelog/README.md. This brief is public repository content; keep private operational evidence in Sim.
+
+## Editor capture note
+
+The ordinary queued-message demo illustrates the interaction only. Verify the online-request failure and new-chat migration cases separately before making recovery claims. Confirm the current deployed build and keep private sidebar content out of the capture.
