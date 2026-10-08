@@ -32,7 +32,10 @@ export function createModelAccessGate(config: ModelGateConfig | null | undefined
 
   const denied = new Set(deniedModels?.map((model) => model.toLowerCase()))
   return (model: string) => {
-    if (denied.has(model.toLowerCase())) return false
+    const normalizedModel = model.toLowerCase()
+    if (denied.has(normalizedModel) || denied.has(normalizedModel.replace(/^ollama\//, ''))) {
+      return false
+    }
     if (allowedProviders === null) return true
     const providerId = findProviderFromModel(model)
     if (!providerId) return true

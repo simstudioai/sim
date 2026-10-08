@@ -11,8 +11,9 @@ export function resolveAvailableAgentDefaultModel(
   const model = resolveAgentDefaultModel(config, { allowAuto: isHosted })
   if (!model) return null
   const provider = findProviderFromModel(model)
+  const modelIds = provider === 'ollama' ? [model, model.replace(/^ollama\//i, '')] : [model]
   return (!provider || !isProviderBlacklisted(provider)) &&
-    filterBlacklistedModels([model]).length > 0
+    filterBlacklistedModels(modelIds).length === modelIds.length
     ? model
     : null
 }

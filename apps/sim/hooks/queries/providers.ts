@@ -23,6 +23,11 @@ interface UseProviderModelsOptions {
   enabled?: boolean
 }
 
+interface ProviderModelList {
+  provider: ProviderName
+  models: string[]
+}
+
 const logger = createLogger('ProviderModelsQuery')
 
 export const PROVIDER_MODELS_STALE_TIME = 5 * 60 * 1000
@@ -116,8 +121,8 @@ export function useProviderModels(
   })
 }
 
-function combineProviderModelLists(results: UseQueryResult<ProviderModelsResponse>[]) {
-  return results.flatMap((result) => result.data?.models ?? [])
+function combineProviderModelLists(results: UseQueryResult<ProviderModelList>[]) {
+  return results.flatMap((result) => (result.data ? [result.data] : []))
 }
 
 /** Fetches multiple provider catalogs with the shared workspace-scoped query cache. */
@@ -130,6 +135,10 @@ export function useProviderModelLists(
     queries: providers.map((provider) => ({
       ...providerModelsQueryOptions(provider, workspaceId),
       enabled: options?.enabled ?? true,
+      select: (data: ProviderModelsResponse): ProviderModelList => ({
+        provider,
+        models: data.models,
+      }),
     })),
     combine: combineProviderModelLists,
   })

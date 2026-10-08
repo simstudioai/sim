@@ -29,6 +29,8 @@ export interface PermissionConfigResult {
   config: PermissionGroupConfig
   isLoading: boolean
   isPermissionFetching: boolean
+  isPermissionReady: boolean
+  refetchPermissionConfig: ReturnType<typeof useUserPermissionConfig>['refetch']
   isInPermissionGroup: boolean
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
@@ -63,6 +65,8 @@ export function usePermissionConfig(): PermissionConfigResult {
     data: permissionData,
     isLoading: isPermissionLoading,
     isFetching: isPermissionFetching,
+    isSuccess: isPermissionReady,
+    refetch: refetchPermissionConfig,
   } = useUserPermissionConfig(workspaceId)
   const {
     data: envAllowlistData,
@@ -231,6 +235,8 @@ export function usePermissionConfig(): PermissionConfigResult {
       config: mergedConfig,
       isLoading,
       isPermissionFetching,
+      isPermissionReady,
+      refetchPermissionConfig,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,
@@ -252,6 +258,8 @@ export function usePermissionConfig(): PermissionConfigResult {
       mergedConfig,
       isLoading,
       isPermissionFetching,
+      isPermissionReady,
+      refetchPermissionConfig,
       isInPermissionGroup,
       filterBlocks,
       filterProviders,

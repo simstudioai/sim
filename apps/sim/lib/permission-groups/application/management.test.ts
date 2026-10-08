@@ -91,30 +91,30 @@ beforeEach(() => {
   mocks.allConflict.mockResolvedValue(null)
 })
 describe('permission group current organization authority', () => {
-  it.each([{ BLACKLISTED_PROVIDERS: 'openai' }, { BLACKLISTED_MODELS: 'gpt-4*' }])(
-    'refuses a deployment-blocked Agent default: %j',
-    async (env) => {
-      queueTableRows(member, [{ role: 'admin' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([
-        { ...group, config: { defaultAgentModel: 'gpt-4o' } },
-      ])
-      setEnv(env)
-      envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(
-        env.BLACKLISTED_PROVIDERS ? [env.BLACKLISTED_PROVIDERS] : []
-      )
-      try {
-        await expect(
-          updatePermissionGroup.execute({
-            principal,
-            input: { ...scope, changes: { config: { defaultAgentModel: 'gpt-4o' } } },
-          })
-        ).rejects.toMatchObject({ code: 'validation' })
-      } finally {
-        resetEnvMock()
-        envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset()
-      }
+  it.each([
+    { env: { BLACKLISTED_PROVIDERS: 'openai' }, defaultAgentModel: 'gpt-4o' },
+    { env: { BLACKLISTED_MODELS: 'gpt-4*' }, defaultAgentModel: 'gpt-4o' },
+    { env: { BLACKLISTED_MODELS: 'llama*' }, defaultAgentModel: 'ollama/llama3' },
+    { env: { BLACKLISTED_MODELS: 'ollama/llama*' }, defaultAgentModel: 'ollama/llama3' },
+  ])('refuses a deployment-blocked Agent default: %j', async ({ env, defaultAgentModel }) => {
+    queueTableRows(member, [{ role: 'admin' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, config: { defaultAgentModel } }])
+    setEnv(env)
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(
+      env.BLACKLISTED_PROVIDERS ? [env.BLACKLISTED_PROVIDERS] : []
+    )
+    try {
+      await expect(
+        updatePermissionGroup.execute({
+          principal,
+          input: { ...scope, changes: { config: { defaultAgentModel } } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    } finally {
+      resetEnvMock()
+      envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset()
     }
-  )
+  })
   it.each(['gpt-5-chat-latest', 'unsupported-agent-model'])(
     'refuses an unavailable Agent default: %s',
     async (defaultAgentModel) => {

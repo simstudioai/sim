@@ -898,7 +898,8 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { resolveSeedGate, agentDefaultModel, isAgentDefaultReady } = useOperationAccess()
+    const { resolveSeedGate, agentDefaultModel, isAgentDefaultReady, refetchModelSettings } =
+      useOperationAccess()
 
     const addBlock = useCallback(
       (
@@ -914,6 +915,7 @@ const WorkflowContent = React.memo(
         presetSubBlockValues?: Record<string, unknown>
       ) => {
         if (type === 'agent' && !isAgentDefaultReady) {
+          void refetchModelSettings({ cancelRefetch: false })
           toast({ message: 'Model settings are not ready. Try again.' })
           return
         }
@@ -988,6 +990,7 @@ const WorkflowContent = React.memo(
         resolveSeedGate,
         agentDefaultModel,
         isAgentDefaultReady,
+        refetchModelSettings,
       ]
     )
 

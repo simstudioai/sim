@@ -21,6 +21,12 @@ import type { ProviderId } from '@/providers/types'
 
 const PLATFORM_DEFAULT = '__platform-default__'
 
+function getDefaultModelId(provider: string, model: string): string {
+  return provider === 'ollama' && !model.toLowerCase().startsWith('ollama/')
+    ? `ollama/${model}`
+    : model
+}
+
 interface AgentDefaultProps {
   config: PermissionGroupConfig
   providerIds: ProviderId[]
@@ -40,8 +46,12 @@ export function AgentDefault({ config, providerIds, workspaceId, onChange }: Age
   const options = useMemo((): ComboboxOption[] => {
     const isAllowed = createModelAccessGate(config)
     const models = new Set([
-      ...providerIds.flatMap((provider) => getProviderModels(provider)),
-      ...dynamicModels,
+      ...providerIds.flatMap((provider) =>
+        getProviderModels(provider).map((model) => getDefaultModelId(provider, model))
+      ),
+      ...dynamicModels.flatMap(({ provider, models }) =>
+        models.map((model) => getDefaultModelId(provider, model))
+      ),
     ])
     const modelOptions: ComboboxOption[] = [
       { label: 'Platform default', value: PLATFORM_DEFAULT },
