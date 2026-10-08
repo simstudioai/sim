@@ -5171,7 +5171,6 @@
   "apps/sim/lib/uploads/contexts/workspace/workspace-file-manager.ts#matchesWorkspaceFilePattern",
   "apps/sim/lib/uploads/contexts/workspace/workspace-file-secret-provenance.ts#WorkspaceFileSecretProvenanceEnvelope",
   "apps/sim/lib/uploads/index.ts#getStorageConfig",
-  "apps/sim/lib/uploads/server/heic.ts#MAX_TRANSCODE_INPUT_BYTES",
   "apps/sim/lib/uploads/shared/types.ts#WORKSPACE_SCOPED_CONTEXTS",
   "apps/sim/lib/uploads/upload-session/application.ts#UploadSessionCreateResult",
   "apps/sim/lib/uploads/upload-session/application.ts#UploadSessionTransfer",
