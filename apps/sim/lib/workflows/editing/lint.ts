@@ -798,8 +798,16 @@ export function collectUnquotedJsonStringReferences(
     const jsonFields = (block.type ? getBlock(block.type)?.subBlocks : undefined)?.filter(
       (subBlock) => subBlock.type === 'code' && subBlock.language === 'json'
     )
-    for (const { id: field } of jsonFields ?? []) {
-      const json = block.subBlocks?.[field]?.value
+    if (!jsonFields?.length) continue
+    /** Only what the serializer sends: a field the selected operation drops never runs. */
+    let params: Record<string, unknown>
+    try {
+      params = extractBlockParams(block as Parameters<typeof extractBlockParams>[0])
+    } catch {
+      continue
+    }
+    for (const field of new Set(jsonFields.map((subBlock) => subBlock.id))) {
+      const json = params[field]
       if (typeof json !== 'string') continue
       const unquoted = new Set<string>()
       for (const token of unquotedJsonReferenceTokens(json)) {

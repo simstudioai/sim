@@ -341,7 +341,7 @@ describe('workflow deployment application use cases', () => {
       ],
     }
 
-    it('reports them as a deploy warning, linted as the deploying user', async () => {
+    it('reports them as a deploy warning, linted as the acting user', async () => {
       mockDeploy.mockResolvedValueOnce({
         success: true,
         version: 4,
@@ -350,17 +350,16 @@ describe('workflow deployment application use cases', () => {
           'Deployment activation completed, and post-activation notifications are queued.',
         ],
       })
-      mocks.buildWorkflowLintReport.mockResolvedValueOnce(unquotedRowJson)
+      mocks.buildWorkflowLintReport.mockImplementation(
+        async (_graph: unknown, scope: { subjectUserId: string | null }) =>
+          scope.subjectUserId === 'session-user' ? unquotedRowJson : cleanLint
+      )
 
       const result = await deployWorkflow.execute({
         principal: createSessionPrincipal({ userId: 'session-user' }),
         input: { workflowId: 'workflow-1', requestId: 'request-10' },
       })
 
-      expect(mocks.buildWorkflowLintReport).toHaveBeenCalledWith(
-        { blocks: {}, edges: [] },
-        expect.objectContaining({ workflowId: 'workflow-1', subjectUserId: 'session-user' })
-      )
       expect(result.warnings).toHaveLength(2)
       expect(result.warnings?.[1]).toContain('"Insert Order".data <start.order_id>')
     })

@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
+import {
+  resolvePrincipalAttribution,
+  resolvePrincipalSubjectUserId,
+  toPrincipalActor,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -108,7 +112,7 @@ async function requireMutableWorkflow(workflowId: string): Promise<void> {
 async function deployedVersionLintWarning(
   context: ActiveWorkflowApplicationContext,
   deploymentVersionId: string | undefined,
-  subjectUserId: string
+  subjectUserId: string | null
 ): Promise<string | undefined> {
   if (!deploymentVersionId) return undefined
   try {
@@ -156,7 +160,7 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
     const lintWarning = await deployedVersionLintWarning(
       context,
       result.deploymentVersionId,
-      attribution.attributedUserId
+      resolvePrincipalSubjectUserId(principal) ?? null
     )
     return {
       ...result,

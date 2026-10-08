@@ -31,7 +31,12 @@ const MOCK_BLOCKS = vi.hoisted(
         category: 'blocks',
         subBlocks: [
           { id: 'operation', type: 'dropdown' },
-          { id: 'data', type: 'code', language: 'json' },
+          {
+            id: 'data',
+            type: 'code',
+            language: 'json',
+            condition: { field: 'operation', value: ['insert_row', 'update_row'] },
+          },
           { id: 'rows', type: 'code', language: 'json' },
         ],
         outputs: {},
@@ -87,8 +92,12 @@ function graph(
   return { blocks } as Parameters<typeof collectUnquotedJsonStringReferences>[0]
 }
 
-function insertRow(data: unknown) {
-  return { type: 'table_v2', name: 'Insert Order', subBlocks: { data: { value: data } } }
+function insertRow(data: unknown, operation = 'insert_row') {
+  return {
+    type: 'table_v2',
+    name: 'Insert Order',
+    subBlocks: { operation: { value: operation }, data: { value: data } },
+  }
 }
 
 describe('collectUnquotedJsonStringReferences', () => {
@@ -192,6 +201,16 @@ describe('collectUnquotedJsonStringReferences', () => {
           subBlocks: { code: { value: 'return <start.order_id>' } },
         },
         insert: insertRow({ order_id: '<start.order_id>' }),
+      })
+    )
+    expect(findings).toHaveLength(0)
+  })
+
+  it('ignores a JSON field the selected operation does not send', () => {
+    const findings = collectUnquotedJsonStringReferences(
+      graph({
+        start: START,
+        insert: insertRow('{"order_id": <start.order_id>}', 'get_schema'),
       })
     )
     expect(findings).toHaveLength(0)
