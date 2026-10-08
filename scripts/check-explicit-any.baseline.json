@@ -260,7 +260,7 @@
     "apps/sim/lib/workflows/custom-tools/operations.ts": 1,
     "apps/sim/lib/workflows/diff/diff-engine.ts": 4,
     "apps/sim/lib/workflows/diff/types.ts": 1,
-    "apps/sim/lib/workflows/editing/builders.ts": 29,
+    "apps/sim/lib/workflows/editing/builders.ts": 27,
     "apps/sim/lib/workflows/editing/engine.ts": 20,
     "apps/sim/lib/workflows/editing/lint.test.ts": 8,
     "apps/sim/lib/workflows/editing/lint.ts": 5,
