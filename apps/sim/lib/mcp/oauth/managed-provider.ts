@@ -6,7 +6,11 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { generateId } from '@sim/utils/id'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { McpOauthRedirectRequired, type PreregisteredClient } from '@/lib/mcp/oauth/provider'
+import {
+  McpOauthRedirectRequired,
+  type PreregisteredClient,
+  withPinnedIssuer,
+} from '@/lib/mcp/oauth/provider'
 import { clearClient, type McpOauthRow, saveClientInformation } from '@/lib/mcp/oauth/storage'
 
 interface ManagedMcpOauthProviderInit {
@@ -89,7 +93,7 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
   }
 
   tokens(): OAuthTokens | undefined {
-    return this.currentTokens
+    return withPinnedIssuer(this.currentTokens, this.preregistered)
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {

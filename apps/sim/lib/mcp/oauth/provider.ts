@@ -50,6 +50,19 @@ export interface PreregisteredClient {
   issuer?: string
 }
 
+/**
+ * Grants saved before the SDK stamped `issuer` are otherwise refreshed against whichever
+ * authorization server the MCP server names. A pinned registration could only have obtained
+ * them from its own server, so they are bound to it.
+ */
+export function withPinnedIssuer(
+  tokens: OAuthTokens | undefined,
+  preregistered: PreregisteredClient | undefined
+): OAuthTokens | undefined {
+  if (!tokens || tokens.issuer || !preregistered?.issuer) return tokens
+  return { ...tokens, issuer: preregistered.issuer }
+}
+
 interface SimMcpOauthProviderInit {
   row: McpOauthRow
   scope?: string
@@ -125,7 +138,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   tokens(): OAuthTokens | undefined {
-    return this.row.tokens ?? undefined
+    return withPinnedIssuer(this.row.tokens ?? undefined, this.preregistered)
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {

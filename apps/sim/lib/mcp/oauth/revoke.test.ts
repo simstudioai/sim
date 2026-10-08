@@ -123,6 +123,20 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
     expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(BLOCKED_ENDPOINT, 'contentFetch')
   })
 
+  it.each([
+    ['issued by a different authorization server', 'https://previous-issuer.example.com'],
+    ['without a recorded issuer', undefined],
+  ])('never revokes tokens %s', async (_case, issuer) => {
+    mockLoadOauthRow.mockResolvedValue({
+      tokens: { access_token: 'access-secret', refresh_token: 'refresh-secret', issuer },
+      clientInformation: { client_id: 'client-123' },
+    })
+
+    await revokeMcpOauthTokens('server-1', 'workspace-1')
+
+    expect(mockValidateMcpServerSsrf).not.toHaveBeenCalledWith(BLOCKED_ENDPOINT, 'contentFetch')
+  })
+
   it('never issues an outbound request to the blocked revocation endpoint', async () => {
     await revokeMcpOauthTokens('server-1', 'workspace-1')
 
