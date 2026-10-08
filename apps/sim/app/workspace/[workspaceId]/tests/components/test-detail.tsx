@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { Columns2, Eye, Pencil, PlayOutline, ShieldCheck } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -19,6 +19,7 @@ import {
   useWorkflowTest,
 } from '@/hooks/queries/workflow-tests'
 import { useAddressedWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+import { testRunSelectionKey, useTestRunSelectionStore } from '@/stores/workflow-tests/store'
 
 interface TestTarget {
   workspaceId: string
@@ -74,12 +75,15 @@ interface TestRunActionInput extends TestTarget {
 export function useTestRunAction({ workspaceId, name, running }: TestRunActionInput) {
   const canEdit = useUserPermissionsContext().canEdit === true
   const runTests = useRunWorkflowTests(workspaceId)
+  const unsaved = useTestRunSelectionStore(
+    (state) => state.unsavedTests[testRunSelectionKey(workspaceId, name)] === true
+  )
   const busy = running || runTests.isPending
   return {
     id: 'run',
     icon: PlayOutline,
-    text: busy ? 'Running…' : 'Run',
-    disabled: !canEdit || busy,
+    text: busy ? 'Running…' : unsaved ? 'Unsaved' : 'Run',
+    disabled: !canEdit || busy || unsaved,
     onSelect: () =>
       runTests.mutate(
         { version: VERSION, names: [name] },
@@ -107,6 +111,9 @@ export function TestView({ workspaceId, name, previewMode }: TestViewProps) {
   const query = useWorkflowTest(workspaceId, name)
   const refreshTest = useRefreshWorkflowTest(workspaceId, name)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const setUnsaved = useTestRunSelectionStore((state) => state.setUnsaved)
+  const testKey = testRunSelectionKey(workspaceId, name)
+  useEffect(() => () => setUnsaved(testKey, false), [setUnsaved, testKey])
   const detail = query.data
   const file = useAddressedWorkspaceFileRecord(workspaceId, detail?.test.fileId ?? '', {
     enabled: Boolean(detail),
@@ -142,6 +149,7 @@ export function TestView({ workspaceId, name, previewMode }: TestViewProps) {
         preview={<TestDashboard workspaceId={workspaceId} name={name} detail={detail} />}
         sourceSide='end'
         enableFind
+        onDirtyChange={(dirty) => setUnsaved(testKey, dirty)}
         onSaveError={(saveFailure) =>
           setSaveError(getErrorMessage(saveFailure, 'The test file was not saved'))
         }

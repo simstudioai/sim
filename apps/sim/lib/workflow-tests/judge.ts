@@ -32,6 +32,7 @@ export interface JudgeRubricInput {
   actorUserId: string
   value: string
   rubric: string
+  abortSignal: AbortSignal
 }
 
 /** One pass/fail model call for `toMatchRubric`, billed to the workspace like a wand call. */
@@ -65,6 +66,7 @@ export async function judgeRubric(input: JudgeRubricInput): Promise<JudgeVerdict
     },
     temperature: 0,
     workspaceId: input.workspaceId,
+    abortSignal: input.abortSignal,
   })
   if (!('content' in response) || typeof response.content !== 'string') {
     throw new Error('The judge did not return a verdict')

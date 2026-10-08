@@ -24,7 +24,7 @@ export function assertTestName(name: string): void {
   if (!TEST_NAME_PATTERN.test(name)) {
     throw new OrchestrationError(
       'validation',
-      `"${testFilePath(name)}" is not a valid test file. Use tests/<name>.test.js with a lowercase name of letters, numbers, and dashes, like tests/billing-routing.test.js`
+      `"${testFilePath(name)}" is not a valid test file. Use tests/<name>.test.js with a lowercase name of letters, numbers, and dashes other than "run", like tests/billing-routing.test.js`
     )
   }
 }

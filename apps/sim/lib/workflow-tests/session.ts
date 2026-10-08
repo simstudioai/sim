@@ -524,6 +524,8 @@ export class WorkflowTestSession {
   readonly enteredWorkflowIds = new Set<string>()
   /** Set when the sandbox run ends; a start still awaiting its lookups then starts nothing. */
   private closed = false
+  /** Stops `toMatchRubric` model calls still in flight when the sandbox run ends. */
+  private readonly judgeAbort = new AbortController()
 
   constructor(readonly config: WorkflowTestSessionConfig) {}
 
@@ -586,6 +588,7 @@ export class WorkflowTestSession {
 
   close(): void {
     this.closed = true
+    this.judgeAbort.abort(new Error('The test run ended'))
     this.cancel([...this.runs.keys()])
   }
 
@@ -595,6 +598,7 @@ export class WorkflowTestSession {
       actorUserId: requirePrincipalSubjectUserId(this.config.principal),
       value: args.value,
       rubric: args.rubric,
+      abortSignal: this.judgeAbort.signal,
     })
   }
 

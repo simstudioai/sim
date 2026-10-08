@@ -8,7 +8,10 @@ import { devtools } from 'zustand/middleware'
  */
 interface TestRunSelectionState {
   selectedRunIds: Record<string, string>
+  /** Tests whose open editor holds edits the server has not saved; Run waits for them. */
+  unsavedTests: Record<string, true>
   selectRun: (testKey: string, runId: string | null) => void
+  setUnsaved: (testKey: string, unsaved: boolean) => void
   reset: () => void
 }
 
@@ -16,12 +19,18 @@ export const useTestRunSelectionStore = create<TestRunSelectionState>()(
   devtools(
     (set) => ({
       selectedRunIds: {},
+      unsavedTests: {},
       selectRun: (testKey, runId) =>
         set((state) => {
           const { [testKey]: _previous, ...rest } = state.selectedRunIds
           return { selectedRunIds: runId === null ? rest : { ...rest, [testKey]: runId } }
         }),
-      reset: () => set({ selectedRunIds: {} }),
+      setUnsaved: (testKey, unsaved) =>
+        set((state) => {
+          const { [testKey]: _previous, ...rest } = state.unsavedTests
+          return { unsavedTests: unsaved ? { ...rest, [testKey]: true } : rest }
+        }),
+      reset: () => set({ selectedRunIds: {}, unsavedTests: {} }),
     }),
     { name: 'test-run-selection' }
   )
