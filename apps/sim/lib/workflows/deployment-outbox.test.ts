@@ -120,7 +120,7 @@ import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-ou
 
 const mockTx = dbChainMock.db
 
-const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockRecordAudit = auditMockFns.mockRecordAuditOnce
 
 const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
@@ -361,6 +361,27 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockCreateSchedulesForDeploy).not.toHaveBeenCalled()
     expect(mockMarkDeploymentComponentReadiness).not.toHaveBeenCalled()
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
+  })
+
+  it('keeps activation audit retryable when its durable insert fails', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    auditMockFns.mockRecordAuditOnce.mockRejectedValueOnce(new Error('Audit database unavailable'))
+    const outboxContext = context()
+    const checkpoints: Record<string, unknown> = { inactiveCleanupCompleted: true }
+    vi.mocked(outboxContext.checkpointPayload).mockImplementation(async (value) => {
+      if (value && typeof value === 'object' && 'checkpoints' in value) {
+        Object.assign(checkpoints, value.checkpoints)
+      }
+    })
+
+    await expect(
+      handler()({ ...payload(), checkpoints: { inactiveCleanupCompleted: true } }, outboxContext)
+    ).rejects.toThrow('Audit database unavailable')
+    expect(checkpoints.auditEmitted).toBeUndefined()
   })
 
   /**

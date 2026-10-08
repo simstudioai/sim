@@ -11,6 +11,10 @@ import {
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
 import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { organizationAuthorizationMock } from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +27,6 @@ const hoisted = vi.hoisted(() => ({
   lock: vi.fn(),
   owners: vi.fn(),
   release: vi.fn(),
-  run: vi.fn(),
   finalize: vi.fn(),
   start: vi.fn(),
   finish: vi.fn(),
@@ -86,9 +89,7 @@ vi.mock('@/lib/mothership/chat/persisted-message', () => ({
 }))
 vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: hoisted.finalize }))
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: hoisted.run,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: hoisted.lock,
   cleanupAbortMarker: vi.fn(),
@@ -122,6 +123,7 @@ import { SlackSearchIdentityError } from '@/lib/knowledge/application/slack-sear
 
 const m = {
   ...hoisted,
+  run: mothershipHeadlessLifecycleMockFns.mockRunHeadlessCopilotLifecycle,
   createRun: mothershipAsyncRunsMockFns.mockCreateRunSegment,
   updateRun: mothershipAsyncRunsMockFns.mockUpdateRunStatus,
   payload: mothershipChatPayloadMockFns.mockBuildCopilotRequestPayload,

@@ -782,6 +782,26 @@ export const resumeQueue = pgTable(
   })
 )
 
+/** Durable encrypted application permissions and tokens, plus expiring token-exchange failures. */
+export const clientCredentialToken = pgTable(
+  'client_credential_token',
+  {
+    id: text('id').primaryKey(),
+    encryptedValue: text('encrypted_value').notNull(),
+    accessTokenDigest: text('access_token_digest'),
+    expiresAt: timestamp('expires_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('client_credential_token_expires_at_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.accessTokenDigest} IS NULL`),
+    index('client_credential_token_access_token_digest_idx')
+      .on(table.accessTokenDigest)
+      .where(sql`${table.accessTokenDigest} IS NOT NULL`),
+  ]
+)
+
 export const environment = pgTable('environment', {
   /** Use the user id as the key */
   id: text('id').primaryKey(),
@@ -7629,7 +7649,7 @@ export const dataDrains = pgTable(
     destinationCredentials: text('destination_credentials').notNull(),
     scheduleCadence: dataDrainCadenceEnum('schedule_cadence').notNull(),
     enabled: boolean('enabled').notNull().default(true),
-    /** Opaque cursor — JSON-encoded, source-defined. Advances only on overall run success. */
+    /** Opaque cursor — JSON-encoded, source-defined. Advances after each acknowledged delivery checkpoint. */
     cursor: text('cursor'),
     lastRunAt: timestamp('last_run_at'),
     lastSuccessAt: timestamp('last_success_at'),

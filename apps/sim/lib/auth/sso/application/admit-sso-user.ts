@@ -74,6 +74,20 @@ async function runAdmissionTransaction(
   providerId: string
 ): Promise<SuccessfulAdmission> {
   return db.transaction(async (tx) => {
+    const [scope] = await tx
+      .select({ id: ssoProvider.id, organizationId: ssoProvider.organizationId })
+      .from(ssoProvider)
+      .where(eq(ssoProvider.providerId, providerId))
+      .limit(1)
+    if (!scope) {
+      return { providerId, result: { kind: 'denied', reason: 'provider-not-found' } }
+    }
+    if (scope.organizationId) {
+      await acquireOrganizationUserMutationLocks(tx, {
+        userId,
+        organizationIds: [scope.organizationId],
+      })
+    }
     const [provider] = await tx
       .select({
         id: ssoProvider.id,
@@ -83,11 +97,11 @@ async function runAdmissionTransaction(
         organizationId: ssoProvider.organizationId,
       })
       .from(ssoProvider)
-      .where(eq(ssoProvider.providerId, providerId))
+      .where(and(eq(ssoProvider.id, scope.id), eq(ssoProvider.providerId, providerId)))
       .limit(1)
       .for('share')
 
-    if (!provider) {
+    if (!provider || provider.organizationId !== scope.organizationId) {
       return { providerId, result: { kind: 'denied', reason: 'provider-not-found' } }
     }
     if (!provider.domainVerified) {
@@ -126,11 +140,6 @@ async function runAdmissionTransaction(
         result: { kind: 'organization-not-bound', organizationId: null },
       }
     }
-
-    await acquireOrganizationUserMutationLocks(tx, {
-      userId,
-      organizationIds: [provider.organizationId],
-    })
 
     /**
      * An organization whose directory is the only way in has said so on its

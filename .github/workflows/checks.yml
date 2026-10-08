@@ -83,7 +83,7 @@ jobs:
       - &checkout-plain
         name: Checkout code
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Setup workspace
         uses: ./.github/actions/setup
@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload integration test reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-reports-${{ matrix.provision }}-${{ matrix.shard }}
           path: |
@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload end-to-end reports and server logs
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: http-e2e-${{ matrix.group }}
           path: ${{ runner.temp }}/e2e/
@@ -231,7 +231,7 @@ jobs:
           fetch-depth: 2
       - name: Checkout code
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
       - name: Diff against the pull request's base
@@ -307,8 +307,9 @@ jobs:
           key: ${{ steps.next-cache.outputs.key }}
           path: ./apps/sim/.next/dev
 
-      # Chat switches, Stop, sign-out, approval and the flag-off foreground round trip. The spec
-      # runs the recording proxy (the app's public origin) and the stand-in worker.
+      # Chat switches, Stop, sign-out, approval, the dormant-executor round trip, and background
+      # runs across a chat switch and a network cut. The spec runs the recording proxy (the app's
+      # public origin) and the stand-in worker.
       - name: Verify desktop tools in the Electron app against a local app
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3020
@@ -417,7 +418,7 @@ jobs:
 
       - name: Upload Electron E2E results and server logs
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-live-e2e-results
           path: ${{ runner.temp }}/e2e/
@@ -450,7 +451,7 @@ jobs:
       - &checkout-plain-depth2
         name: Checkout code
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 2
 
@@ -612,6 +613,22 @@ jobs:
       # out to rg. Blacksmith's image ships it, GitHub's doesn't.
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
+      - name: Verify shell placeholder compilation in Bash
+        if: matrix.shard == 1
+        working-directory: apps/sim
+        env:
+          SHELL_PLACEHOLDERS_REPORT_PATH: ${{ runner.temp }}/shell-placeholders.json
+        run: bun scripts/test-shell-placeholders-e2e.ts
+
+      - name: Upload shell placeholder execution report
+        if: failure() && matrix.shard == 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shell-placeholders
+          path: ${{ runner.temp }}/shell-placeholders.json
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Run tests
         env:

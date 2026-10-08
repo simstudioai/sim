@@ -18,21 +18,21 @@ import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 
 const INPUTS = {
   vanta_download_document_file: {
-    clientId: 'client',
-    clientSecret: 'secret',
+    accessToken: 'saved-credential-token',
+    apiDomain: 'https://api.vanta.com',
     documentId: 'document-1',
     uploadedFileId: 'upload-1',
   },
   vanta_upload_document_file: {
-    clientId: 'client',
-    clientSecret: 'secret',
+    accessToken: 'saved-credential-token',
+    apiDomain: 'https://api.vanta.com',
     documentId: 'document-1',
     fileContent: Buffer.from('hello').toString('base64'),
   },
   vanta_list_frameworks: {
     operation: 'vanta_list_frameworks',
-    clientId: 'client',
-    clientSecret: 'secret',
+    accessToken: 'saved-credential-token',
+    apiDomain: 'https://api.vanta.com',
     pageSize: 25,
   },
 } as const
@@ -68,14 +68,28 @@ describe('executeVantaTool', () => {
       request('vanta_list_frameworks', {
         input: {
           operation: 'vanta_get_framework',
-          clientId: 'client',
-          clientSecret: 'secret',
+          accessToken: 'saved-credential-token',
+          apiDomain: 'https://api.vanta.com',
           frameworkId: 'framework-1',
         },
       })
     )
 
     expect(response.status).toBe(400)
+    expect(mocks.query).not.toHaveBeenCalled()
+  })
+
+  it('requires a connected Vanta credential', async () => {
+    const response = await executeVantaTool(
+      request('vanta_list_frameworks', {
+        input: { operation: 'vanta_list_frameworks' },
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Connect a Vanta credential before running this operation',
+    })
     expect(mocks.query).not.toHaveBeenCalled()
   })
 })

@@ -267,6 +267,11 @@ def _analyze_one(
     )
 
 
+# Presidio's BatchAnalyzerEngine defaults nlp.pipe to batch_size=1, so a 2000-text
+# request runs 2000 separate spaCy forward passes.
+NLP_BATCH_SIZE = 256
+
+
 def _analyze_many(
     texts: list[str],
     language: str,
@@ -292,6 +297,7 @@ def _analyze_many(
         batch_analyzer.analyze_iterator(
             texts=texts,
             language=language,
+            batch_size=NLP_BATCH_SIZE,
             entities=entities or None,
             score_threshold=score_threshold,
             ad_hoc_recognizers=ad_hoc_recognizers or None,

@@ -8,17 +8,31 @@ import { generateId } from '@sim/utils/id'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+} from '@/lib/api/list-query'
+import {
   buildChallengeHost,
   checkDomainTxtRecord,
   generateVerificationToken,
 } from '@/lib/auth/sso/domain-verification'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
+import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
 import { env, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
-import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
+import { organizationSecurityOperations } from '@/lib/organizations/application/operations'
 import {
   addOrganizationDomainBodySchema,
   MAX_ORGANIZATION_DOMAINS,
@@ -43,15 +57,19 @@ function domainValue(
   return {
     ...row,
     verificationToken:
-      principal.kind === 'session' && includeToken && row.status === 'pending'
+      (principal.kind === 'session' ||
+        principal.kind === 'personal_api_key' ||
+        principal.kind === 'oauth_access_token') &&
+      includeToken &&
+      row.status === 'pending'
         ? row.verificationToken
         : null,
   }
 }
 async function requireDomainEnterprise(organizationId: string) {
   if (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(organizationId)))
-    throw new OrchestrationError(
-      'forbidden',
+    throw new ForbiddenOperationError(
+      'ENTERPRISE_PLAN_REQUIRED',
       'Domain verification is available on Enterprise plans only'
     )
 }
@@ -68,6 +86,21 @@ function providersOnDomain(organizationId: string, domain: string) {
   return and(
     eq(ssoProvider.organizationId, organizationId),
     sql`${ssoProviderDomainKey} = ${domain}`
+  )
+}
+
+async function lockAndAuthorizeDomainMutation(
+  tx: DbTransaction,
+  principal: Principal,
+  operation: OrganizationOperation,
+  organizationId: string
+) {
+  await acquireOrganizationMutationLock(tx, organizationId)
+  return authorizeOrganizationOperation(
+    principal,
+    operation,
+    { organizationId },
+    { executor: tx, forUpdate: true }
   )
 }
 export class DomainVerificationLookupError extends OrchestrationError {
@@ -87,12 +120,44 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
     context,
   }: {
     principal: Principal
-    input: OrganizationInput
+    input: OrganizationInput & {
+      limit?: number
+      sortBy?: 'domain'
+      sortOrder?: ListSortOrder
+      cursorKeys?: CursorKey[]
+    }
     context: { role: string }
   }) {
     const isEnterprise =
       !isBillingEnabled || (await isOrganizationOnEnterprisePlan(input.organizationId))
-    if (!isEnterprise) return { isEnterprise: false, domains: [], truncated: false }
+    if (!isEnterprise)
+      return { isEnterprise: false, domains: [], truncated: false, nextCursorKeys: null }
+    if (input.limit !== undefined && principal.kind !== 'organization_delegated') {
+      const sortKeys = [
+        textKey(ssoDomain.domain, (row: DomainRow) => row.domain),
+        textKey(ssoDomain.id, (row: DomainRow) => row.id),
+      ]
+      const rows = await db
+        .select()
+        .from(ssoDomain)
+        .where(
+          and(
+            eq(ssoDomain.organizationId, input.organizationId),
+            resumeKeyset(sortKeys, input.cursorKeys, input.sortOrder ?? 'asc')
+          )
+        )
+        .orderBy(...listOrderBy(keysetColumns(sortKeys), input.sortOrder ?? 'asc'))
+        .limit(input.limit + 1)
+      const page = keysetPage(sortKeys, rows, input.limit)
+      return {
+        isEnterprise: true,
+        truncated: false,
+        nextCursorKeys: page.nextCursorKeys,
+        domains: page.data.map((row) =>
+          domainValue(row, principal, context.role === 'owner' || context.role === 'admin')
+        ),
+      }
+    }
     const query = db
       .select()
       .from(ssoDomain)
@@ -107,6 +172,7 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
     return {
       isEnterprise: true,
       truncated,
+      nextCursorKeys: null,
       domains: (truncated ? rows.slice(0, MAX_ORGANIZATION_DOMAINS) : rows).map((row) =>
         domainValue(row, principal, context.role === 'owner' || context.role === 'admin')
       ),
@@ -137,31 +203,46 @@ export const addOrganizationDomain = defineOrganizationConfigurationUseCase({
       .limit(1)
     if (verifiedElsewhere && verifiedElsewhere.organizationId !== input.organizationId)
       domainConflict()
-    const rows = await db
-      .select()
-      .from(ssoDomain)
-      .where(eq(ssoDomain.organizationId, input.organizationId))
-    const existing = rows.find((row) => row.domain === domain)
-    if (existing) return { domain: domainValue(existing, principal, true), created: false }
-    if (rows.length >= MAX_ORGANIZATION_DOMAINS)
-      throw new OrchestrationError(
-        'validation',
-        `An organization can claim at most ${MAX_ORGANIZATION_DOMAINS} domains`
-      )
     try {
-      const [created] = await db
-        .insert(ssoDomain)
-        .values({
-          id: generateId(),
-          organizationId: input.organizationId,
-          domain,
-          status: 'pending',
-          verificationToken: generateVerificationToken(),
-          createdBy: context.userId,
-        })
-        .returning()
-      if (!created) throw new Error('Domain insert returned no row')
-      return { domain: domainValue(created, principal, true), created: true }
+      return await db.transaction(async (tx) => {
+        await lockAndAuthorizeDomainMutation(
+          tx,
+          principal,
+          organizationSecurityOperations.addDomain,
+          input.organizationId
+        )
+        const [existing] = await tx
+          .select()
+          .from(ssoDomain)
+          .where(
+            and(eq(ssoDomain.organizationId, input.organizationId), eq(ssoDomain.domain, domain))
+          )
+          .limit(1)
+        if (existing) return { domain: domainValue(existing, principal, true), created: false }
+        const rows = await tx
+          .select({ id: ssoDomain.id })
+          .from(ssoDomain)
+          .where(eq(ssoDomain.organizationId, input.organizationId))
+          .limit(MAX_ORGANIZATION_DOMAINS)
+        if (rows.length >= MAX_ORGANIZATION_DOMAINS)
+          throw new OrchestrationError(
+            'validation',
+            `An organization can claim at most ${MAX_ORGANIZATION_DOMAINS} domains`
+          )
+        const [created] = await tx
+          .insert(ssoDomain)
+          .values({
+            id: generateId(),
+            organizationId: input.organizationId,
+            domain,
+            status: 'pending',
+            verificationToken: generateVerificationToken(),
+            createdBy: context.userId,
+          })
+          .returning()
+        if (!created) throw new Error('Domain insert returned no row')
+        return { domain: domainValue(created, principal, true), created: true }
+      })
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
         const [winner] = await db
@@ -191,9 +272,15 @@ export const addOrganizationDomain = defineOrganizationConfigurationUseCase({
 export const removeOrganizationDomain = defineOrganizationConfigurationUseCase({
   operation: organizationSecurityOperations.removeDomain,
   administratorError: 'Forbidden - Only organization owners and admins can remove domains',
-  async execute({ input }: { input: DomainInput }) {
+  async execute({ principal, input }: { principal: Principal; input: DomainInput }) {
     await requireDomainEnterprise(input.organizationId)
     const removed = await db.transaction(async (tx) => {
+      await lockAndAuthorizeDomainMutation(
+        tx,
+        principal,
+        organizationSecurityOperations.removeDomain,
+        input.organizationId
+      )
       const [deleted] = await tx
         .delete(ssoDomain)
         .where(
@@ -255,9 +342,15 @@ export const verifyOrganizationDomain = defineOrganizationConfigurationUseCase({
       .limit(1)
     if (verifiedElsewhere && verifiedElsewhere.organizationId !== input.organizationId)
       domainConflict()
-    let updated: DomainRow[]
+    let result: { domain: DomainSettingsValue; verified: boolean }
     try {
-      updated = await db.transaction(async (tx) => {
+      result = await db.transaction(async (tx) => {
+        await lockAndAuthorizeDomainMutation(
+          tx,
+          principal,
+          organizationSecurityOperations.verifyDomain,
+          input.organizationId
+        )
         const flipped = await tx
           .update(ssoDomain)
           .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
@@ -270,40 +363,37 @@ export const verifyOrganizationDomain = defineOrganizationConfigurationUseCase({
             )
           )
           .returning()
-        if (flipped.length > 0)
-          await tx
-            .update(ssoProvider)
-            .set({ domainVerified: true })
-            .where(providersOnDomain(input.organizationId, flipped[0].domain))
-        return flipped
+        const current =
+          flipped[0] ??
+          (
+            await tx
+              .select()
+              .from(ssoDomain)
+              .where(
+                and(
+                  eq(ssoDomain.id, input.domainId),
+                  eq(ssoDomain.organizationId, input.organizationId)
+                )
+              )
+              .limit(1)
+          )[0]
+        if (current?.status !== 'verified')
+          throw new OrchestrationError(
+            'conflict',
+            'The domain changed during verification. Refresh and try again.'
+          )
+        await tx
+          .update(ssoProvider)
+          .set({ domainVerified: true })
+          .where(providersOnDomain(input.organizationId, current.domain))
+        return { domain: domainValue(current, principal, true), verified: flipped.length > 0 }
       })
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') domainConflict()
       throw error
     }
-    if (!updated.length) {
-      const [current] = await db
-        .select()
-        .from(ssoDomain)
-        .where(
-          and(eq(ssoDomain.id, input.domainId), eq(ssoDomain.organizationId, input.organizationId))
-        )
-        .limit(1)
-      if (current?.status === 'verified') {
-        await db
-          .update(ssoProvider)
-          .set({ domainVerified: true })
-          .where(providersOnDomain(input.organizationId, current.domain))
-        invalidateSsoPolicyCache(input.organizationId)
-        return { domain: domainValue(current, principal, true), verified: false }
-      }
-      throw new OrchestrationError(
-        'conflict',
-        'The domain changed during verification. Refresh and try again.'
-      )
-    }
     invalidateSsoPolicyCache(input.organizationId)
-    return { domain: domainValue(updated[0], principal, true), verified: true }
+    return result
   },
   projectAudit: ({ input, result }) =>
     result.verified

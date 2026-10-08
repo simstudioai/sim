@@ -81,6 +81,7 @@ export interface OutputProperty {
   items?: {
     type: OutputType
     description?: string
+    nullable?: boolean
     properties?: Record<string, OutputProperty>
   }
 }
@@ -133,6 +134,8 @@ export interface OAuthConfig {
   personalTokenSupported?: false
   /** Restricts execution to one stored credential kind after authorized token resolution. */
   credentialKind?: 'oauth' | 'service-account'
+  /** Retry one rejected internal operation after re-authorizing its saved credential. */
+  retryOnUnauthorized?: boolean
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'

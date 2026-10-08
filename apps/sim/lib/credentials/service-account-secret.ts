@@ -20,6 +20,7 @@ import {
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
@@ -39,6 +40,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -57,9 +59,15 @@ export interface ServiceAccountSecretFields {
   certificateId?: string
   orgId?: string
   dataCenter?: string
+  scope?: string
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -222,6 +230,34 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
+async function buildOciApiKeyServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { tenancyOcid, userOcid, fingerprint, privateKey, privateKeyPassphrase, region } = fields
+  if (!tenancyOcid || !userOcid || !fingerprint || !privateKey || !region) {
+    throw new ServiceAccountSecretError(
+      'tenancyOcid, userOcid, fingerprint, privateKey, and region are required for OCI API-key credentials'
+    )
+  }
+  const result = await verifyAndEncryptOciApiKeyCredential({
+    tenancyOcid,
+    userOcid,
+    fingerprint,
+    privateKey,
+    ...(privateKeyPassphrase !== undefined ? { privateKeyPassphrase } : {}),
+    region,
+  })
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.userOcid }
+  const metadata = serviceAccountPrincipalMetadata(principal)
+  return {
+    providerId: OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.userOcid,
+    auditMetadata: metadata,
+    principal,
+  }
+}
+
 /**
  * Builds a token-paste service-account secret for any provider registered in
  * `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS`: verifies the pasted token via the
@@ -305,8 +341,13 @@ async function buildClientCredentialAccountSecret(
       : undefined,
     orgId: fields.orgId?.trim() ?? '',
     dataCenter: fields.dataCenter?.trim() || undefined,
+    scope: usesField('scope') ? fields.scope?.trim() || undefined : undefined,
     authMethod: resolvedAuthMethod,
-    clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
+    clientSecret: usesField('clientSecret')
+      ? (visible.find((field) => field.id === 'clientSecret')?.preserveWhitespace
+          ? fields.clientSecret
+          : fields.clientSecret?.trim()) || undefined
+      : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
   }
@@ -355,6 +396,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: buildAtlassianServiceAccountSecret,
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: buildSlackCustomBotSecret,
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
+  [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciApiKeyServiceAccountSecret,
 }
 
 /**

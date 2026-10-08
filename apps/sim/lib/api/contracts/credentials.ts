@@ -156,11 +156,12 @@ export const createCredentialFieldsSchema = z.object({
   signingSecret: z.string().trim().min(1).optional(),
   botToken: z.string().trim().min(1).optional(),
   clientId: z.string().trim().min(1).max(512).optional(),
-  clientSecret: z.string().trim().min(1).max(1024).optional(),
+  clientSecret: z.string().min(1).max(1024).optional(),
   certificateId: z.string().trim().min(1).max(512).optional(),
   orgId: z.string().trim().min(1).max(255).optional(),
   /** Optional provider region selector (Zoho Desk data center). */
   dataCenter: z.string().trim().min(1).max(32).optional(),
+  scope: z.string().trim().min(1).max(512).optional(),
   /**
    * Grant selector for providers offering more than one server-to-server
    * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
@@ -172,6 +173,11 @@ export const createCredentialFieldsSchema = z.object({
   privateKey: z.string().trim().min(1).max(8192).optional(),
   /** Run-as username for key-based grants (Salesforce JWT `sub`). */
   username: z.string().trim().min(1).max(255).optional(),
+  tenancyOcid: z.string().trim().min(1).max(255).optional(),
+  userOcid: z.string().trim().min(1).max(255).optional(),
+  fingerprint: z.string().trim().min(1).max(128).optional(),
+  privateKeyPassphrase: z.string().max(4096).optional(),
+  region: z.string().trim().min(1).max(128).optional(),
 })
 
 export function refineCredentialCreate(
@@ -276,13 +282,19 @@ export const updateCredentialByIdBodySchema = z
     atlassianProduct: atlassianProductSchema.optional(),
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
-    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    clientSecret: z.string().min(1).max(1024).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
+    scope: z.string().trim().min(1).max(512).optional(),
     authMethod: z.string().trim().min(1).max(64).optional(),
     privateKey: z.string().trim().min(1).max(8192).optional(),
     username: z.string().trim().min(1).max(255).optional(),
+    tenancyOcid: z.string().trim().min(1).max(255).optional(),
+    userOcid: z.string().trim().min(1).max(255).optional(),
+    fingerprint: z.string().trim().min(1).max(128).optional(),
+    privateKeyPassphrase: z.string().max(4096).optional(),
+    region: z.string().trim().min(1).max(128).optional(),
   })
   .strict()
   .refine(
@@ -301,9 +313,15 @@ export const updateCredentialByIdBodySchema = z
       data.certificateId !== undefined ||
       data.orgId !== undefined ||
       data.dataCenter !== undefined ||
+      data.scope !== undefined ||
       data.authMethod !== undefined ||
       data.privateKey !== undefined ||
-      data.username !== undefined,
+      data.username !== undefined ||
+      data.tenancyOcid !== undefined ||
+      data.userOcid !== undefined ||
+      data.fingerprint !== undefined ||
+      data.privateKeyPassphrase !== undefined ||
+      data.region !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

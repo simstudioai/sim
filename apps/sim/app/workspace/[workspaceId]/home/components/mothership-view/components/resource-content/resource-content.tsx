@@ -16,6 +16,7 @@ import {
   Folder as FolderIcon,
   Library,
   Loader,
+  Send,
   Square,
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
@@ -40,6 +41,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -415,6 +417,7 @@ export function ResourceActions({
     case 'file':
       return (
         <EmbeddedFileActions
+          key={`${workspaceId}:${resource.id}`}
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
@@ -724,6 +727,8 @@ function EmbeddedFileActions({
   downloadSourceRef,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
+  const { canEdit } = useUserPermissionsContext()
+  const [isShareOpen, setIsShareOpen] = useState(false)
   const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
   const listedFile = files.find(
     (file) =>
@@ -779,6 +784,35 @@ function EmbeddedFileActions({
           <p>Download</p>
         </Tooltip.Content>
       </Tooltip.Root>
+      {file && !isUpload && canEdit && (
+        <>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <TabStripAction
+                variant='subtle'
+                onClick={() => setIsShareOpen(true)}
+                aria-label='Share file'
+              >
+                <Send className={RESOURCE_TAB_ICON_CLASS} />
+              </TabStripAction>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom'>
+              <p>Share</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+          {isShareOpen && (
+            <ShareModal
+              key={file.id}
+              open
+              onOpenChange={setIsShareOpen}
+              workspaceId={workspaceId}
+              fileId={file.id}
+              fileName={file.name}
+              initialShare={file.share ?? null}
+            />
+          )}
+        </>
+      )}
     </>
   )
 }

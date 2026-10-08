@@ -161,6 +161,7 @@ beforeAll(async () => {
     'audit_log',
     'session',
     'account',
+    'sso_provider',
     'verification',
   ]) {
     await connection.unsafe(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`)

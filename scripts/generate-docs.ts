@@ -639,7 +639,10 @@ export async function generateIconMappings(): Promise<{
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const docs: Record<string, IconRef> = {}
+    // OCI credential setup has no product block from which docs can derive its family icon.
+    const docs: Record<string, IconRef> = {
+      oci: { name: 'OracleIcon', source: '@/components/icons' },
+    }
     const visible: Record<string, IconRef> = {}
     const coreBlockTypes = new Set<string>()
     const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
@@ -2970,7 +2973,7 @@ function resolveConstFromTypesContent(
   }
 
   const constRegex = new RegExp(
-    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
+    `\\b(?:export\\s+)?const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
     'g'
   )
   const constMatch = constRegex.exec(typesContent)
@@ -3041,7 +3044,7 @@ function parseConstFieldContent(
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = findTopLevelMatch(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -3103,7 +3106,7 @@ function parseConstFieldContent(
         }
 
         // Check for properties in items - either inline or const reference
-        const itemsPropsConstMatch = itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+        const itemsPropsConstMatch = findTopLevelMatch(itemsContent, PROPERTIES_CONST_PATTERN)
         if (itemsPropsConstMatch) {
           const resolvedProps = resolveConstFromTypesContent(
             itemsPropsConstMatch[1],
@@ -4307,6 +4310,7 @@ export async function getToolInfo(
       params,
       outputs:
         isFactoryToolDeclaration(toolName, toolFileContent) ||
+        toolPrefix === 'buffer' ||
         toolPrefix === 'sailpoint' ||
         toolPrefix === 'otter' ||
         toolPrefix === 'plane' ||
@@ -4477,6 +4481,7 @@ async function generateMarkdownForBlock(
   } = blockConfig
 
   let toolsSection = ''
+  const inputSchemas = new Map<string, string>()
   if (tools.access?.length) {
     toolsSection = '## Actions\n\n'
 
@@ -4504,11 +4509,18 @@ async function generateMarkdownForBlock(
 
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
-            const escapedDescription = param.description
-              ? escapeMdxCell(param.description)
-              : 'No description'
+            const schema = param.description.match(
+              /^(.*?)\n\n(```graphql\n(?:input|enum) (\w+)[\s\S]*\n```)$/s
+            )
+            let description = schema?.[1] ?? param.description
+            if (schema) {
+              inputSchemas.set(schema[3], schema[2])
+              description = `${escapeMdxCell(description)} <a href="#${schema[3].toLowerCase()}">Schema</a>`
+            } else {
+              description = description ? escapeMdxCell(description) : 'No description'
+            }
 
-            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
+            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
           }
         }
 
@@ -4548,6 +4560,15 @@ async function generateMarkdownForBlock(
       }
 
       toolsSection += '\n'
+    }
+  }
+
+  if (inputSchemas.size) {
+    toolsSection += '## JSON Input Schemas\n\n'
+    toolsSection +=
+      'These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.\n\n'
+    for (const [name, definition] of inputSchemas) {
+      toolsSection += `### ${name}\n\n${definition}\n\n`
     }
   }
 

@@ -45,9 +45,12 @@ import {
   v2CreateCredentialConnectionContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
+  v2ListCredentialMembersContract,
   v2ListCredentialProvidersContract,
   v2ListCredentialsContract,
+  v2RemoveCredentialMemberContract,
   v2UpdateCredentialContract,
+  v2UpsertCredentialMemberContract,
 } from '@/lib/api/contracts/v2/credentials'
 import {
   v2CreateCustomToolContract,
@@ -205,6 +208,19 @@ import {
   v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
+import {
+  v2AddOrganizationDomainContract,
+  v2DeleteSsoProviderContract,
+  v2GetSsoPolicyContract,
+  v2GetSsoProviderContract,
+  v2ListOrganizationDomainsContract,
+  v2ListSsoProvidersContract,
+  v2RemoveOrganizationDomainContract,
+  v2SaveSsoProviderContract,
+  v2SetPrimarySsoProviderContract,
+  v2UpdateSsoPolicyContract,
+  v2VerifyOrganizationDomainContract,
+} from '@/lib/api/contracts/v2/sso'
 import {
   v2AddTableColumnContract,
   v2AddWorkflowGroupContract,
@@ -364,6 +380,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/versions/[version]/activate/route').then(
+        (route) => route.POST
+      ),
+  },
+  addOrganizationDomain: {
+    contract: v2AddOrganizationDomainContract,
+    summary: 'Add Organization Domain',
+    description:
+      'Claim a domain and receive its DNS TXT challenge. Requires organization administrator access and Enterprise domain entitlement. An existing claim returns 200; a new claim returns 201. A domain verified by another organization conflicts. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/domains/route').then(
         (route) => route.POST
       ),
   },
@@ -1014,6 +1041,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/skills/[skillId]/route').then((route) => route.DELETE),
   },
+  deleteSsoProvider: {
+    contract: v2DeleteSsoProviderContract,
+    summary: 'Delete SSO Provider',
+    description:
+      'Remove an identity provider and clear its primary selection. Requires organization administrator access. Existing accounts, memberships, and sessions remain; sign-in falls back to another verified provider on the domain. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
   deleteTable: {
     contract: v2DeleteTableContract,
     summary: 'Delete Table',
@@ -1398,7 +1436,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetPermissionGroupContract,
     summary: 'Get Permission Group',
     description:
-      'Get a permission group and its resolved restrictions. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'Get a permission group and its resolved settings. Requires organization admin or owner access and active Access Control. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(
@@ -1436,6 +1474,28 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Get one workspace or built-in skill, including its full content. Built-in skills are marked read-only.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/skills/[skillId]/route').then((route) => route.GET),
+  },
+  getSsoPolicy: {
+    contract: v2GetSsoPolicyContract,
+    summary: 'Get SSO Policy',
+    description:
+      'Get the stored organization SSO requirement and whether it is currently enforced. Requires organization membership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/policy/route').then(
+        (route) => route.GET
+      ),
+  },
+  getSsoProvider: {
+    contract: v2GetSsoProviderContract,
+    summary: 'Get SSO Provider',
+    description:
+      'Get an identity provider owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/route').then(
+        (route) => route.GET
+      ),
   },
   getTable: {
     contract: v2GetTableContract,
@@ -1662,6 +1722,15 @@ export const V2_MCP_OPERATIONS = {
       'List knowledge-base connector types with opaque cursors, defaulting to 25 summaries per page: identifier, name, description, and auth mode. `detail=full` adds accepted source configuration fields. Fields with `multi: true` accept `string[]` instead of `string`. A `canonicalParamId` pairs a picker with manual entry for the same configuration key: send exactly one value, keyed by `canonicalParamId` rather than the field’s `id`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/connector-types/route').then((route) => route.GET),
   },
+  listCredentialMembers: {
+    contract: v2ListCredentialMembersContract,
+    summary: 'List Credential Members',
+    description:
+      'List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access and the integrations.manage capability. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/[credentialId]/members/route').then((route) => route.GET),
+  },
   listCredentialProviders: {
     contract: v2ListCredentialProvidersContract,
     summary: 'List Credential Providers',
@@ -1834,6 +1903,17 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  listOrganizationDomains: {
+    contract: v2ListOrganizationDomainsContract,
+    summary: 'List Organization Domains',
+    description:
+      'List the organization’s domain claims with cursor pagination. Requires organization membership. Pending DNS challenge values are returned only to administrators using their own credentials. Organizations without Enterprise domain entitlement return an empty list. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/domains/route').then(
+        (route) => route.GET
+      ),
+  },
   listOrganizationInvitations: {
     contract: v2ListOrganizationInvitationsContract,
     summary: 'List Organization Invitations',
@@ -1955,6 +2035,17 @@ export const V2_MCP_OPERATIONS = {
     description:
       'List workspace and built-in skills with cursor pagination. Built-in skills are read-only. The list omits skill bodies; use Get Skill to read content.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/skills/route').then((route) => route.GET),
+  },
+  listSsoProviders: {
+    contract: v2ListSsoProvidersContract,
+    summary: 'List SSO Providers',
+    description:
+      'List identity providers owned by the organization. Requires organization administrator access. OIDC client secrets are redacted and SAML private keys are omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/providers/route').then(
+        (route) => route.GET
+      ),
   },
   listTableDispatches: {
     contract: v2ListTableDispatchesContract,
@@ -2249,6 +2340,28 @@ export const V2_MCP_OPERATIONS = {
       'Rename or move a workflow folder and update all descendant paths. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/folders/route').then((route) => route.PATCH),
   },
+  removeCredentialMember: {
+    contract: v2RemoveCredentialMemberContract,
+    summary: 'Remove Credential Member',
+    description:
+      'Revoke an active explicit credential grant. Requires credential administrator access and the integrations.manage capability. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/[credentialId]/members/[userId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
+  removeOrganizationDomain: {
+    contract: v2RemoveOrganizationDomainContract,
+    summary: 'Remove Organization Domain',
+    description:
+      'Remove a domain claim and revoke verified sign-in authority from matching organization providers. Requires organization administrator access and Enterprise domain entitlement. Existing accounts and memberships remain. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/domains/[domainId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
   removeOrganizationMember: {
     contract: v2RemoveOrganizationMemberContract,
     summary: 'Remove Organization Member',
@@ -2446,6 +2559,17 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.POST
       ),
   },
+  saveSsoProvider: {
+    contract: v2SaveSsoProviderContract,
+    summary: 'Save SSO Provider',
+    description:
+      'Create or update an organization identity provider’s configuration on a verified domain. Requires organization administrator access and SSO entitlement. Existing providers return 200; creation returns 201. Omission behavior is field-specific; OIDC’s redacted secret marker preserves the saved secret. Identity changes with linked accounts conflict. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/providers/route').then(
+        (route) => route.POST
+      ),
+  },
   searchFileContent: {
     contract: v2SearchFileContentContract,
     summary: 'Search File Content',
@@ -2467,6 +2591,17 @@ export const V2_MCP_OPERATIONS = {
       'Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; `ordinal` matches the view used by Query Rows. Results are unpaginated and capped at 1000. If `truncated` is true, narrow the search or predicate.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/rows/search/route').then((route) => route.POST),
+  },
+  setPrimarySsoProvider: {
+    contract: v2SetPrimarySsoProviderContract,
+    summary: 'Set Primary SSO Provider',
+    description:
+      'Make a verified organization provider handle sign-in for its domain. Requires organization administrator access. Other providers remain available for testing and later switching. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/sso/providers/[providerId]/primary/route'
+      ).then((route) => route.POST),
   },
   setSecret: {
     contract: v2SetSecretContract,
@@ -2695,6 +2830,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/skills/[skillId]/route').then((route) => route.PATCH),
   },
+  updateSsoPolicy: {
+    contract: v2UpdateSsoPolicyContract,
+    summary: 'Update SSO Policy',
+    description:
+      'Require or stop requiring SSO on future sign-ins. Requires organization administrator access. Enabling requires SSO entitlement and a verified provider; disabling remains available after entitlement is lost. Existing sessions remain active. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/sso/policy/route').then(
+        (route) => route.PATCH
+      ),
+  },
   updateTable: {
     contract: v2UpdateTableContract,
     summary: 'Update Table',
@@ -2791,6 +2937,15 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.PUT
       ),
   },
+  upsertCredentialMember: {
+    contract: v2UpsertCredentialMemberContract,
+    summary: 'Upsert Credential Member',
+    description:
+      'Grant or change an existing workspace member’s credential role. Requires credential administrator access and the integrations.manage capability. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/[credentialId]/members/route').then((route) => route.POST),
+  },
   upsertFileShare: {
     contract: v2UpsertFileShareContract,
     summary: 'Enable or Disable File Share',
@@ -2806,6 +2961,17 @@ export const V2_MCP_OPERATIONS = {
       'Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/rows/upsert/route').then((route) => route.POST),
+  },
+  verifyOrganizationDomain: {
+    contract: v2VerifyOrganizationDomainContract,
+    summary: 'Verify Organization Domain',
+    description:
+      'Verify domain ownership through the published DNS TXT challenge and grant domain trust to matching organization providers. Requires organization administrator access and Enterprise domain entitlement. An already-verified domain is returned unchanged. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/domains/[domainId]/verify/route').then(
+        (route) => route.POST
+      ),
   },
 } as const satisfies Record<string, V2McpOperation>
 

@@ -345,14 +345,14 @@ export function createDesktopExecutorService(
           ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
           : null
       logger.info('Desktop executor registered', { enabled: nextTiming.enabled })
-      // Off for this user, and nothing here to finish: stay dormant. No inbox, no doorbell; only
+      // Off on this Sim, and nothing here to finish: stay dormant. No inbox, no doorbell; only
       // a slow recheck, so switching the executor on in Sim reaches this device without a relaunch.
       if (!device && !executor && (await journal.load()).length === 0) {
         if (registrationGeneration !== generation) return
         scheduleRegistration(DORMANT_RECHECK_MS)
         return
       }
-      // Off for this user mid-session, or results from a previous run to deliver: a turn already
+      // Off on this Sim mid-session, or results from a previous run to deliver: a turn already
       // bound here still finishes, so the executor serves the inbox; no new turn binds.
       await startExecutor(id, nextTiming, registrationGeneration)
     } catch (error) {

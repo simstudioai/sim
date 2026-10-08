@@ -52,6 +52,7 @@ const SHARED_CLIENTS = [
     clientIdKey: 'HUBSPOT_MCP_CLIENT_ID',
     clientSecretKey: 'HUBSPOT_MCP_CLIENT_SECRET',
     url: 'https://mcp.hubspot.com',
+    authorizationServer: 'https://mcp.hubspot.com',
     tokenAuthMethod: 'client_secret_post',
     scope: undefined,
   },
@@ -61,6 +62,7 @@ const SHARED_CLIENTS = [
     clientIdKey: 'ZOOM_MCP_CLIENT_ID',
     clientSecretKey: 'ZOOM_MCP_CLIENT_SECRET',
     url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    authorizationServer: 'https://zoom.us',
     tokenAuthMethod: 'client_secret_basic',
     scope: 'meeting:read:search meeting:read:assets',
   },
@@ -208,6 +210,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       expect(await loadPreregisteredClient(mcpServer.id)).toEqual({
         clientId: 'saved-client',
         clientSecret: 'saved-secret',
+        issuer: connector.authorizationServer,
       })
       for (const change of [
         { oauthClientId: null, oauthClientSecret: encrypted },
@@ -332,7 +335,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       'restricts generic OAuth %s to registered read permissions',
       async (phase) => {
         const { mcpServer } = await create()
-        const issuer = 'https://oauth.fixture.test'
+        const issuer = connector.authorizationServer
         const loadProvider = async () =>
           new SimMcpOauthProvider({
             row: await getOrCreateOauthRow({ mcpServerId: mcpServer.id, organizationId: org }),
@@ -396,6 +399,72 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       }
     )
   }
+  it.each(['code exchange', 'legacy refresh'] as const)(
+    'never presents shared credentials to a substituted authorization server on %s',
+    async (phase) => {
+      const { mcpServer } = await create()
+      const substitute = 'https://oauth.substitute.test'
+      const provider = new SimMcpOauthProvider({
+        row: await getOrCreateOauthRow({ mcpServerId: mcpServer.id, organizationId: org }),
+        preregistered: await loadPreregisteredClient(mcpServer.id),
+      })
+      if (phase === 'code exchange') await provider.saveCodeVerifier('fixture-verifier')
+      else
+        await provider.saveTokens({
+          access_token: 'fixture-access',
+          refresh_token: 'fixture-refresh',
+          token_type: 'Bearer',
+        })
+      const disclosed: string[] = []
+      const reached = new Set<string>()
+      const fetchFn: typeof fetch = async (request, init) => {
+        const url = new URL(
+          typeof request === 'string' ? request : request instanceof URL ? request : request.url
+        )
+        if (url.origin === substitute) reached.add(url.pathname)
+        const sent = `${new Headers(init?.headers).get('authorization') ?? ''} ${String(init?.body ?? '')}`
+        if (
+          url.origin === substitute &&
+          (sent.includes(SECRET) ||
+            sent.includes(Buffer.from(`fixture-shared-client:${SECRET}`).toString('base64')) ||
+            sent.includes('fixture-refresh'))
+        )
+          disclosed.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+        if (url.pathname.includes('oauth-protected-resource'))
+          return Response.json({ resource: connector.url, authorization_servers: [substitute] })
+        if (
+          url.pathname.includes('oauth-authorization-server') ||
+          url.pathname.includes('openid-configuration')
+        )
+          return Response.json({
+            issuer: substitute,
+            authorization_endpoint: `${substitute}/authorize`,
+            token_endpoint: `${substitute}/token`,
+            registration_endpoint: `${substitute}/register`,
+            response_types_supported: ['code'],
+            code_challenge_methods_supported: ['S256'],
+          })
+        if (url.pathname === '/register')
+          return Response.json({
+            client_id: 'substitute-client',
+            redirect_uris: [provider.redirectUrl],
+          })
+        if (url.pathname === '/token')
+          return Response.json({ access_token: 'substitute-access', token_type: 'Bearer' })
+        throw new Error(`Unexpected OAuth fixture request: ${url.origin}${url.pathname}`)
+      }
+      const attempt = oauth.mcpAuthGuarded(provider, {
+        serverUrl: connector.url,
+        fetchFn,
+        ...(phase === 'code exchange' ? { authorizationCode: 'fixture-code' } : {}),
+      })
+      if (phase === 'code exchange')
+        await expect(attempt).rejects.toThrow(/Existing OAuth client information is required/)
+      else await expect(attempt).rejects.toBeInstanceOf(McpOauthRedirectRequired)
+      expect(reached.has('/.well-known/oauth-authorization-server')).toBe(true)
+      expect(disclosed).toEqual([])
+    }
+  )
   it('binds the public OAuth round trip to the shared client and rejects rotation before exchange', async () => {
     const { mcpServer } = await create()
     const token = generateId()
@@ -427,7 +496,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
     })
     let exchanges = 0
     let challenge: string | null = null
-    const issuer = 'https://oauth.fixture.test'
+    const issuer = connector.authorizationServer
     /** Only provider HTTP is substituted; SDK, PKCE, Redis, use cases, encryption and database are real. */
     const fetchFn: typeof fetch = async (request, init) => {
       const url = new URL(

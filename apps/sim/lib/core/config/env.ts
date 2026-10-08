@@ -572,6 +572,8 @@ export const env = createEnv({
     SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
+    RAMP_CLIENT_ID:                        z.string().optional(),
+    RAMP_CLIENT_SECRET:                    z.string().optional(),
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
@@ -602,7 +604,6 @@ export const env = createEnv({
     PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
-    MSHIP_DESKTOP_BACKGROUND_EXECUTOR:     z.boolean().optional(),                 // Fallback for the `mothership-desktop-background-executor` feature flag off AppConfig
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
 

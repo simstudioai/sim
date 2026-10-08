@@ -24,8 +24,8 @@ const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 
 const baseInput = {
-  clientId: 'client',
-  clientSecret: 'secret',
+  accessToken: 'saved-credential-token',
+  apiDomain: 'https://api.vanta.com' as const,
   documentId: 'document-1',
 }
 const file = { key: 'workspace/file.txt', name: 'file.txt', size: 4 }

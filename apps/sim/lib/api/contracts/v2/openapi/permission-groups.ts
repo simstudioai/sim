@@ -119,7 +119,7 @@ export const permissionGroupOpenApiRoutes = [
       applicationOperation: permissionGroupOperations.read,
       operationId: 'getPermissionGroup',
       summary: 'Get Permission Group',
-      description: `Get a permission group and its resolved restrictions. ${AUTHORITY}`,
+      description: `Get a permission group and its resolved settings. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_ERRORS,
       success: { description: 'Get Permission Group result.', headers: RATE_LIMIT_HEADERS },

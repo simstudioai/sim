@@ -12,6 +12,14 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'business:read': 'View Ramp business details and balances',
+  'transactions:read': 'View Ramp transactions',
+  'cards:read': 'View Ramp physical and virtual card details',
+  'vendors:read': 'View Ramp vendors',
+  'bills:read': 'View Ramp bills',
+  'reimbursements:read': 'View Ramp reimbursements',
+  'memos:read': 'View Ramp transaction memos',
+  'memos:write': 'Create and update Ramp transaction memos',
   'https://analysis.windows.net/powerbi/api/Workspace.Read.All': 'View Power BI workspaces',
   'https://analysis.windows.net/powerbi/api/Report.Read.All': 'View Power BI reports',
   'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All':
@@ -323,6 +331,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Manage app role assignments and permission grants for any app',
   'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
   'Device.Read.All': 'Read all devices',
+  'DeviceManagementManagedDevices.Read.All': 'View Intune managed devices and detected apps',
+  'DeviceManagementConfiguration.Read.All':
+    'View Intune compliance policies, device configurations, and their device statuses',
+  'DeviceManagementManagedDevices.PrivilegedOperations.All':
+    'Perform remote Intune device actions, including syncing, rebooting, locking, and retiring devices',
   'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
@@ -530,6 +543,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */
 const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  ramp: {
+    'users:read': 'View Ramp users and roles',
+  },
   /**
    * Word documents are ordinary drive items, so the integration asks for the
    * generic Files permissions. The shared labels name OneDrive specifically,

@@ -975,6 +975,22 @@ export const createTableRows = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => {
+    const inserted = result.kind === 'single' ? 1 : result.rows.length
+    if (inserted === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Inserted ${inserted} row(s) into table "${context.table.name}"`,
+      metadata: {
+        op: result.kind === 'single' ? 'insert' : 'batch_insert',
+        rowsInserted: inserted,
+        ...(result.kind === 'single' ? { rowId: result.row.id } : {}),
+      },
+    }
+  },
   afterSuccess: ({ context, input, result }) => {
     // Narrowed on the input, not the result: only the single-row variant carries
     // an actor, and the two discriminants always agree.
@@ -1028,6 +1044,21 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       rowWriteOptions(input)
     )
     return { table: context.table, ...result }
+  },
+  projectAudit: ({ context, result }) => {
+    if (result.deletedCount === 0 && result.insertedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Replaced rows in table "${context.table.name}"`,
+      metadata: {
+        op: 'replace_rows',
+        rowsDeleted: result.deletedCount,
+        rowsInserted: result.insertedCount,
+      },
+    }
   },
   afterSuccess: ({ context, result }) => {
     if (result.deletedCount > 0 || result.insertedCount > 0) {
@@ -1282,6 +1313,17 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => {
+    if (!result.changed) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated a row in table "${context.table.name}"`,
+      metadata: { op: 'update', rowId: result.row.id, rowsUpdated: 1 },
+    }
+  },
   afterSuccess: ({ context, input, result }) => {
     if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
@@ -1334,6 +1376,17 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       return { table: context.table, ...result }
     } catch (error) {
       rethrowQueryValidation(error)
+    }
+  },
+  projectAudit: ({ context, result }) => {
+    if (result.affectedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
+      metadata: { op: 'update_by_filter', rowsUpdated: result.affectedCount },
     }
   },
   afterSuccess: ({ context, result }) => {
@@ -1464,6 +1517,14 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: context.tableId,
+    resourceName: context.table.name,
+    description: `Deleted a row from table "${context.table.name}"`,
+    metadata: { op: 'delete', rowId: result.deletedRowId, rowsDeleted: 1 },
+  }),
   afterSuccess: ({ context, input }) =>
     signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
@@ -1607,5 +1668,18 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       }),
     }
   },
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: context.tableId,
+    resourceName: context.table.name,
+    description: `${result.operation === 'insert' ? 'Inserted' : 'Updated'} a row in table "${context.table.name}"`,
+    metadata: {
+      op: 'upsert',
+      upsertOperation: result.operation,
+      rowId: result.row.id,
+      ...(result.operation === 'insert' ? { rowsInserted: 1 } : { rowsUpdated: 1 }),
+    },
+  }),
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })

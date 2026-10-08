@@ -56,6 +56,8 @@ export interface ModelCapabilities {
   maxOutputTokens?: number
   reasoningEffort?: {
     values: string[]
+    /** Overrides the provider's default visibility for streamed reasoning. */
+    streamed?: ThinkingStreamVisibility
   }
   verbosity?: {
     values: string[]
@@ -86,11 +88,12 @@ export interface ModelCapabilities {
      */
     streamed?: ThinkingStreamVisibility
     /**
-     * How the pickers' `none` level reaches the API when the model rejects
-     * `thinking.type: "disabled"`. `between_tools` (Claude Sonnet 5.5) turns off
-     * up-front thinking; omitted, `none` sends no thinking config.
+     * Explicit API mode for the pickers' `none` level on models that think by
+     * default. Omitted, `none` sends no thinking config.
      */
-    noneMode?: 'between_tools'
+    noneMode?: 'between_tools' | 'disabled'
+    /** Whether forced tool choice can be combined with configured thinking. */
+    forcedToolUse?: boolean
   }
   /** Uses native state and questions instead of a conversational prompt. */
   evaluation?: boolean
@@ -228,6 +231,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
      * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
      */
     models: [
+      {
+        id: 'fireworks/glm-5.3',
+        pricing: {
+          input: 1.4,
+          cachedInput: 0.26,
+          output: 4.4,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 1040000,
+        },
+        contextWindow: 1040000,
+        releaseDate: '2026-08-18',
+      },
       {
         id: 'fireworks/glm-5.2',
         pricing: {
@@ -555,6 +573,34 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2026-09-03',
         featured: true,
         recommended: true,
+      },
+      {
+        id: 'gpt-6.1-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.1,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.2,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-29',
       },
       {
         id: 'gpt-6-sol',
@@ -1189,8 +1235,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#D97757',
     capabilities: {
       toolUsageControl: true,
-      // Every Claude model accepts cache_control breakpoints; Haiku raises the
-      // minimum prefix and overrides this per-model.
+      // Models with a different minimum cacheable prefix override it below.
       promptCaching: { minimumCacheableTokens: 1024 },
     },
     models: [
@@ -1243,9 +1288,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'claude-sonnet-5-5',
         pricing: {
           input: 2.0,
-          cachedInput: 0.2,
+          cachedInput: 0.1,
           output: 10.0,
-          updatedAt: '2026-09-28',
+          updatedAt: '2026-10-07',
         },
         capabilities: {
           forcedToolUse: false,
@@ -1526,6 +1571,31 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         sunset: { status: 'deprecated' },
       },
       {
+        id: 'claude-haiku-5-5',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.5,
+          tiers: [{ aboveInputTokens: 100000, input: 0.5, cachedInput: 0.05, output: 2.5 }],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'medium',
+            streamed: 'summary',
+            noneMode: 'disabled',
+            forcedToolUse: true,
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-10-07',
+        speedOptimized: true,
+      },
+      {
         id: 'claude-haiku-4-5',
         pricing: {
           input: 1.0,
@@ -1579,6 +1649,91 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: AzureIcon,
     isReseller: true,
     models: [
+      {
+        id: 'azure/gpt-6.1-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.1,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.2,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-29',
+      },
+      {
+        id: 'azure/gpt-6-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.4,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+      },
+      {
+        id: 'azure/gpt-6-luna',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.5,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 0.2,
+              cachedInput: 0.02,
+              output: 0.75,
+            },
+          ],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-22',
+        speedOptimized: true,
+      },
       {
         id: 'azure/gpt-6-astra',
         pricing: {
@@ -2044,6 +2199,76 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
+      },
+      {
+        id: 'azure-anthropic/claude-opus-5-5',
+        pricing: {
+          input: 4.0,
+          cachedInput: 0.2,
+          output: 20.0,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'medium',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-22',
+      },
+      {
+        id: 'azure-anthropic/claude-sonnet-5-5',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.1,
+          output: 10.0,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+            noneMode: 'between_tools',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-28',
+      },
+      {
+        id: 'azure-anthropic/claude-haiku-5-5',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.01,
+          output: 0.5,
+          tiers: [{ aboveInputTokens: 100000, input: 0.5, cachedInput: 0.05, output: 2.5 }],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'medium',
+            streamed: 'summary',
+            noneMode: 'disabled',
+            forcedToolUse: true,
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-10-07',
+        speedOptimized: true,
       },
       {
         id: 'azure-anthropic/claude-opus-5',
@@ -3002,6 +3227,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'grok-4.7',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.5,
+          output: 6.0,
+          tiers: [
+            {
+              aboveInputTokens: 199999,
+              input: 4.0,
+              cachedInput: 1.0,
+              output: 12.0,
+            },
+          ],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh'],
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 500000,
+        releaseDate: '2026-09-21',
+      },
+      {
         id: 'grok-4.6',
         pricing: {
           input: 2.0,
@@ -3873,6 +4124,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'kie/claude-sonnet-5-5',
+        pricing: {
+          input: 0.8,
+          output: 4,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+            noneMode: 'between_tools',
+          },
+        },
+        releaseDate: '2026-09-28',
+      },
+      {
         id: 'kie/claude-opus-5-5',
         pricing: {
           input: 1.6,
@@ -4102,6 +4370,24 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2025-10-15',
       },
       {
+        id: 'kie/gpt-6-1-sol',
+        pricing: {
+          input: 0.6,
+          cachedInput: 0.03,
+          output: 3,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          maxOutputTokens: 128000,
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+        },
+        contextWindow: 272000,
+        releaseDate: '2026-09-29',
+      },
+      {
         id: 'kie/gpt-6-astra',
         pricing: {
           input: 2.8,
@@ -4308,19 +4594,40 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.4,
           cachedInput: 0.26,
           output: 4.4,
-          updatedAt: '2026-09-14',
+          updatedAt: '2026-10-07',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           toolUsageControl: true,
+          forcedToolUse: false,
           maxOutputTokens: 131072,
           reasoningEffort: {
             values: ['low', 'high', 'max'],
           },
         },
         contextWindow: 1000000,
-        releaseDate: '2026-08-14',
+        releaseDate: '2026-08-18',
         recommended: true,
+      },
+      {
+        id: 'glm-5.3-flashx',
+        pricing: {
+          input: 0.37,
+          cachedInput: 0.075,
+          output: 1.25,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          forcedToolUse: false,
+          maxOutputTokens: 131072,
+          reasoningEffort: {
+            values: ['low', 'high', 'max'],
+          },
+        },
+        contextWindow: 1000000,
+        speedOptimized: true,
       },
       {
         id: 'glm-5.3-flash',
@@ -4328,11 +4635,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.15,
           cachedInput: 0.03,
           output: 0.5,
-          updatedAt: '2026-09-14',
+          updatedAt: '2026-10-07',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           toolUsageControl: true,
+          forcedToolUse: false,
           maxOutputTokens: 131072,
           reasoningEffort: {
             values: ['low', 'high', 'max'],
@@ -4575,6 +4883,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'mistral-large-4',
+        pricing: {
+          input: 0.68,
+          cachedInput: 0.07,
+          output: 2.09,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1.5 },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-10-06',
+      },
+      {
         id: 'mistral-medium-3-5',
         pricing: {
           input: 1.5,
@@ -4601,6 +4923,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 256000,
         releaseDate: '2026-04-28',
+      },
+      {
+        id: 'zai-glm-5-3',
+        pricing: {
+          input: 1.4,
+          cachedInput: 0.14,
+          output: 4.4,
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1.5 },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-15',
       },
       {
         id: 'zai-glm-5-2',
@@ -5040,6 +5377,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'bedrock/openai.gpt-6.1-sol',
+        pricing: {
+          input: 2.2,
+          cachedInput: 0.11,
+          output: 11,
+          tiers: [{ aboveInputTokens: 272000, input: 4.4, cachedInput: 0.22, output: 16.5 }],
+          updatedAt: '2026-10-07',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-29',
+      },
       {
         id: 'bedrock/anthropic.claude-opus-5',
         pricing: {
@@ -6411,7 +6764,7 @@ export function isKnownModelLevelValue(value: string): boolean {
 
 /**
  * Per-provider defaults for thinking stream visibility, used when a model does
- * not declare `capabilities.thinking.streamed` explicitly. Gemini and OpenAI
+ * not declare thinking or reasoning-effort stream visibility explicitly. Gemini and OpenAI
  * stream summaries only; Bedrock and Meta do not expose reasoning text;
  * OpenAI-compatible vendors that expose reasoning stream the raw chain of
  * thought.
@@ -6431,7 +6784,7 @@ const PROVIDER_THINKING_STREAM_DEFAULTS: Record<string, ThinkingStreamVisibility
  * What a reasoning-capable model's thinking looks like on the agent-events
  * stream (canvas terminal, opted-in deployed chat). Returns null for models
  * with no thinking or reasoning-effort capability. Explicit per-model
- * `capabilities.thinking.streamed` wins over the provider default; providers
+ * thinking or reasoning-effort stream visibility wins over the provider default; providers
  * without a default stream the raw chain of thought when the vendor emits it.
  */
 export function getThinkingStreamVisibility(modelId: string): ThinkingStreamVisibility | null {
@@ -6448,6 +6801,7 @@ export function getThinkingStreamVisibility(modelId: string): ThinkingStreamVisi
       }
       return (
         model.capabilities.thinking?.streamed ??
+        model.capabilities.reasoningEffort?.streamed ??
         PROVIDER_THINKING_STREAM_DEFAULTS[provider.id] ??
         'full'
       )

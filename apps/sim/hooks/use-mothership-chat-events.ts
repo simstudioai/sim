@@ -37,6 +37,8 @@ interface ChatStatusEventPayload {
   chatId?: string
   type?: ChatStatusEventType
   streamId?: string
+  /** Whether the chat is the viewer's own; absent when the server could not tell. */
+  ownChat?: boolean
 }
 
 function isChatStatusEventType(value: unknown): value is ChatStatusEventType {
@@ -102,6 +104,7 @@ function parseChatStatusEventPayload(data: unknown): ChatStatusEventPayload | nu
     ...(typeof record.chatId === 'string' ? { chatId: record.chatId } : {}),
     ...(isChatStatusEventType(record.type) ? { type: record.type } : {}),
     ...(typeof record.streamId === 'string' ? { streamId: record.streamId } : {}),
+    ...(typeof record.ownChat === 'boolean' ? { ownChat: record.ownChat } : {}),
   }
 }
 
@@ -209,6 +212,8 @@ export function reflectBackgroundChatStatus(
 ): void {
   const payload = parseChatStatusEventPayload(data)
   if (payload?.type !== 'started' && payload?.type !== 'completed') return
+  // A teammate's turn never runs on this user's desktop, so it changes nothing here.
+  if (payload.ownChat === false) return
   // Read before the refresh below drops it. The events carry every member's chats in the
   // workspace; only this very turn, seen running on this user's own desktop, is theirs to be told
   // about. Matching the turn, not just the chat, keeps an earlier desktop turn from vouching for a
@@ -258,7 +263,7 @@ export function reflectBackgroundChatStatus(
 export function useMothershipChatEvents(
   owner: MothershipChatOwner | undefined,
   chatEnabled: boolean,
-  /** Announce chats that finish in the background; only with the background executor on. */
+  /** Announce chats that finish in the background; only where the background executor runs. */
   announceBackgroundCompletions = false
 ) {
   const queryClient = useQueryClient()

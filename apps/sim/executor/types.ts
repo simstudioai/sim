@@ -384,6 +384,10 @@ interface ExecutionMetadata {
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean
+  /** Other durable pauses remain after the current context resumes. */
+  resumeHasPendingPauses?: boolean
+  /** Stop-after completion retires outstanding pause contexts when settling a resume. */
+  stopAfterBlockReached?: boolean
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Run-level agent-events opt-in (see the snapshot ExecutionMetadata).

@@ -1,3 +1,5 @@
+import { toArray, toRecord } from '@sim/utils/object'
+import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
   BUFFER_POST_SELECTION,
@@ -5,6 +7,8 @@ import {
   type BufferGetPostsParams,
   type BufferPostsResponse,
   bufferHeaders,
+  bufferPageSize,
+  mapBufferPageInfo,
   mapBufferPost,
   PAGE_INFO_OUTPUT_PROPERTIES,
   POST_OUTPUT_PROPERTIES,
@@ -16,13 +20,12 @@ const GET_POSTS_QUERY = `
   query GetPosts($input: PostsInput!, $first: Int, $after: String) {
     posts(input: $input, first: $first, after: $after) {
       edges {
+        cursor
         node {
           ${BUFFER_POST_SELECTION}
         }
       }
-      pageInfo {
-        hasNextPage
-        endCursor
+      pageInfo { ${bufferSelection('PaginationPageInfo')}
       }
     }
   }
@@ -97,6 +100,24 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
       visibility: 'user-or-llm',
       description: 'Sort direction: asc or desc (default asc)',
     },
+    filter: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'PostsFiltersInput',
+        'Filter posts by status, tags, dates, and other criteria.'
+      ),
+    },
+    sort: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'PostSortInput',
+        'Ordered array of sort keys. Overrides sortBy and sortDirection.'
+      ),
+    },
   },
 
   request: {
@@ -106,7 +127,9 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
     body: (params) => {
       const input: Record<string, unknown> = { organizationId: params.organizationId }
 
-      const filter: Record<string, unknown> = {}
+      const filter: Record<string, unknown> = params.filter
+        ? parseBufferInput('PostsFiltersInput', params.filter)
+        : {}
       if (params.channelIds) {
         const channelIds = splitCommaSeparated(params.channelIds)
         if (channelIds.length > 0) filter.channelIds = channelIds
@@ -125,21 +148,25 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
       }
       if (Object.keys(filter).length > 0) input.filter = filter
 
-      const sortBy = params.sortBy || 'dueAt'
-      if (!['dueAt', 'createdAt'].includes(sortBy)) {
-        throw new Error('sortBy must be either "dueAt" or "createdAt"')
+      if (params.sort) {
+        input.sort = typeof params.sort === 'string' ? JSON.parse(params.sort) : params.sort
+      } else {
+        const sortBy = params.sortBy || 'dueAt'
+        if (!['dueAt', 'createdAt'].includes(sortBy)) {
+          throw new Error('sortBy must be either "dueAt" or "createdAt"')
+        }
+        const sortDirection = params.sortDirection || 'asc'
+        if (!['asc', 'desc'].includes(sortDirection)) {
+          throw new Error('sortDirection must be either "asc" or "desc"')
+        }
+        input.sort = [{ field: sortBy, direction: sortDirection }]
       }
-      const sortDirection = params.sortDirection || 'asc'
-      if (!['asc', 'desc'].includes(sortDirection)) {
-        throw new Error('sortDirection must be either "asc" or "desc"')
-      }
-      input.sort = [{ field: sortBy, direction: sortDirection }]
 
       return {
         query: GET_POSTS_QUERY,
         variables: {
-          input,
-          first: params.limit ?? DEFAULT_LIMIT,
+          input: parseBufferInput('PostsInput', input),
+          first: bufferPageSize(params.limit ?? DEFAULT_LIMIT),
           after: params.after || null,
         },
       }
@@ -148,15 +175,17 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
 
   transformResponse: async (response: Response) => {
     const data = await parseBufferGraphQLResponse(response)
-    const posts = data.posts ?? {}
+    const connection = toRecord(data.posts)
+    const edges = toArray(connection.edges).map((value) => {
+      const edge = toRecord(value)
+      return { cursor: String(edge.cursor ?? ''), node: mapBufferPost(edge.node) }
+    })
     return {
       success: true,
       output: {
-        posts: (posts.edges ?? []).map((edge: Record<string, any>) => mapBufferPost(edge.node)),
-        pageInfo: {
-          hasNextPage: posts.pageInfo?.hasNextPage ?? false,
-          endCursor: posts.pageInfo?.endCursor ?? null,
-        },
+        posts: edges.map((edge) => edge.node),
+        edges,
+        pageInfo: mapBufferPageInfo(connection.pageInfo),
       },
     }
   },
@@ -166,6 +195,17 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
       type: 'array',
       description: 'Posts matching the filters',
       items: { type: 'object', properties: POST_OUTPUT_PROPERTIES },
+    },
+    edges: {
+      type: 'array',
+      description: 'Edges with cursor and full post node',
+      items: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string', description: 'Cursor for this node' },
+          node: { type: 'object', properties: POST_OUTPUT_PROPERTIES },
+        },
+      },
     },
     pageInfo: {
       type: 'object',

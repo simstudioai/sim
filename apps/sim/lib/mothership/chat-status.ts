@@ -11,8 +11,12 @@
 
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
+/**
+ * A workspace event names the chat's owner when the publisher knows it, so each member's stream
+ * can tell their own chats from teammates'. Events from older pods carry no owner.
+ */
 export type ChatStatusOwner =
-  | { workspaceId: string; organizationId?: never; userId?: never }
+  | { workspaceId: string; userId?: string; organizationId?: never }
   | { organizationId: string; userId: string; workspaceId?: never }
 
 export type ChatStatusEvent = ChatStatusOwner & {
@@ -58,6 +62,10 @@ export function publishChatStatusChanged(
       ...event,
     })
   } else if (chat.workspaceId) {
-    chatPubSub?.publishStatusChanged({ workspaceId: chat.workspaceId, ...event })
+    chatPubSub?.publishStatusChanged({
+      workspaceId: chat.workspaceId,
+      ...(chat.userId ? { userId: chat.userId } : {}),
+      ...event,
+    })
   }
 }

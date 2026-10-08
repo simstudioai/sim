@@ -31,6 +31,10 @@ import {
   mothershipEnvironmentContextMockFns,
 } from '@sim/testing/mocks/mothership-environment-context.mock'
 import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
+import {
   MockWorkspaceAccessDeniedError,
   permissionsMock,
   permissionsMockFns,
@@ -44,11 +48,7 @@ import { sleep } from '@sim/utils/helpers'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  billingAttributionSnapshot,
-  mockRequestExplicitStreamAbort,
-  mockRunHeadlessCopilotLifecycle,
-} = vi.hoisted(() => ({
+const { billingAttributionSnapshot, mockRequestExplicitStreamAbort } = vi.hoisted(() => ({
   billingAttributionSnapshot: {
     actorUserId: 'user-1',
     workspaceId: 'workspace-1',
@@ -59,7 +59,6 @@ const {
     payerSubscription: null,
   },
   mockRequestExplicitStreamAbort: vi.fn().mockResolvedValue(undefined),
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -88,9 +87,7 @@ vi.mock('@/lib/mothership/entitlements', () => ({
   computeEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
@@ -104,6 +101,8 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 
 const mockResolvePermissionGroupConfig =
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+const mockRunHeadlessCopilotLifecycle =
+  mothershipHeadlessLifecycleMockFns.mockRunHeadlessCopilotLifecycle
 const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
 const mockGenerateId = idMockFns.mockGenerateId
 idMockFns.mockGenerateShortId.mockReturnValue('mock-short-id')

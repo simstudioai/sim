@@ -8,7 +8,11 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { waitWithAbort } from '@/lib/core/utils/concurrency'
+import {
+  isClientCredentialAccountProviderId,
+  VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
@@ -55,6 +59,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import {
@@ -75,7 +80,7 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
-  /** Cancels Google service-account token exchange and retry waits. */
+  /** Cancels supported service-account token exchanges and retry waits. */
   signal?: AbortSignal
 }
 
@@ -592,11 +597,13 @@ async function resolveClientCredentialAccountToken(
   providerId: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<ServiceAccountTokenResult> {
+  const signal = options?.signal
+  signal?.throwIfAborted()
   const cacheIdentity =
     options?.privacyMode === 'selector'
       ? privateCredentialIdentity('selector-client-credential', credentialId)
       : credentialId
-  return coalesceLocally(`ccsa:${cacheIdentity}`, async () => {
+  const resolution = coalesceLocally(`ccsa:${cacheIdentity}`, async () => {
     pruneExpiredClientCredentialCaches(Date.now())
     const [credentialRow] = await db
       .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
@@ -610,7 +617,8 @@ async function resolveClientCredentialAccountToken(
     }
     const secretFingerprint = secretFingerprintOf(credentialRow.encryptedServiceAccountKey)
 
-    const cached = clientCredentialTokenCache.get(cacheIdentity)
+    const usesSharedToken = providerId === VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+    const cached = usesSharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
     if (
       cached &&
       cached.secretFingerprint === secretFingerprint &&
@@ -648,33 +656,38 @@ async function resolveClientCredentialAccountToken(
           certificateId: blob.certificateId,
           orgId: blob.orgId,
           dataCenter: blob.dataCenter,
+          scope: blob.scope,
           authMethod: blob.authMethod,
           privateKey: blob.privateKey,
           username: blob.username,
         },
         { skipIdentity: true }
       )
-      clientCredentialTokenCache.set(cacheIdentity, {
-        accessToken: mint.accessToken,
-        expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
-        secretFingerprint,
-        instanceUrl: mint.instanceUrl,
-        apiDomain: mint.apiDomain,
-      })
+      if (!usesSharedToken)
+        clientCredentialTokenCache.set(cacheIdentity, {
+          accessToken: mint.accessToken,
+          expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
+          secretFingerprint,
+          instanceUrl: mint.instanceUrl,
+          apiDomain: mint.apiDomain,
+        })
       return {
         accessToken: mint.accessToken,
         instanceUrl: mint.instanceUrl,
         apiDomain: mint.apiDomain,
       }
     } catch (error) {
-      clientCredentialMintFailureCache.set(cacheIdentity, {
-        error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
-        secretFingerprint,
-        expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
-      })
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        clientCredentialMintFailureCache.set(cacheIdentity, {
+          error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
+          secretFingerprint,
+          expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
+        })
+      }
       throw error
     }
   })
+  return waitWithAbort(resolution, signal)
 }
 
 interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {
@@ -693,6 +706,9 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
+    accessToken: credentialId,
+  }),
   [GITHUB_INSTALLATION_PROVIDER_ID]: async (credentialId, { githubRepositoryScope }) => {
     if (!githubRepositoryScope)
       throw new Error('GitHub installation tokens require a source repository')

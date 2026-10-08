@@ -4,15 +4,14 @@ import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 export const VANTA_MAX_TRANSFER_BYTES = 100 * 1024 * 1024
 export const VANTA_MAX_UPLOAD_BASE64_LENGTH = Math.ceil(VANTA_MAX_TRANSFER_BYTES / 3) * 4
 
-const vantaCredentialsSchema = z.object({
-  clientId: z.string().min(1, 'Client ID is required'),
-  clientSecret: z.string().min(1, 'Client secret is required'),
-  region: z.enum(['us', 'gov']).optional(),
+export const vantaCredentialInputSchema = z.object({
+  accessToken: z.string().min(1, 'Connect a Vanta credential before running this operation'),
+  apiDomain: z.enum(['https://api.vanta.com', 'https://api.vanta-gov.com']),
 })
 
 const requiredId = (label: string) => z.string().trim().min(1, `${label} is required`)
 
-export const vantaUploadDocumentFileInputSchema = vantaCredentialsSchema.extend({
+export const vantaUploadDocumentFileInputSchema = vantaCredentialInputSchema.extend({
   documentId: requiredId('Document ID'),
   file: FileInputSchema.optional().nullable(),
   fileContent: z
@@ -25,7 +24,7 @@ export const vantaUploadDocumentFileInputSchema = vantaCredentialsSchema.extend(
   effectiveAtDate: z.string().nullish(),
 })
 
-export const vantaDownloadDocumentFileInputSchema = vantaCredentialsSchema.extend({
+export const vantaDownloadDocumentFileInputSchema = vantaCredentialInputSchema.extend({
   documentId: requiredId('Document ID'),
   uploadedFileId: requiredId('Uploaded file ID'),
 })

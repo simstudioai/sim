@@ -10,6 +10,7 @@ export const KIE_CLAUDE_BASE_URL = `${KIE_API_BASE_URL}/claude`
  * model is rejected on any path but its own.
  */
 const KIE_RESPONSES_PATHS: Record<string, string> = {
+  'gpt-6-1-sol': '/codex/v1/responses',
   'gpt-6-astra': '/codex/v1/responses',
   'gpt-6-sol': '/codex/v1/responses',
   'gpt-6-luna': '/codex/v1/responses',

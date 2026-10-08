@@ -11,6 +11,8 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
+import { IntuneBlock } from '@/blocks/blocks/intune'
+import { RampBlock } from '@/blocks/blocks/ramp'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -40,12 +42,141 @@ import {
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { intuneListDetectedAppsTool } from '@/tools/intune/list-detected-apps'
+import { intuneListDevicesTool } from '@/tools/intune/list-devices'
+import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
+import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
 import { falaiVideoTool } from '@/tools/video/falai'
 import { runwayVideoTool } from '@/tools/video/runway'
 
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
+
+describe('integration filters through agent execution', () => {
+  const rampCases = [
+    {
+      operation: 'list_transactions',
+      tool: rampListTransactionsTool,
+      field: 'transaction_state',
+      staleField: 'reimbursement_state',
+      value: 'CLEARED',
+      staleValue: 'REJECTED',
+    },
+    {
+      operation: 'list_reimbursements',
+      tool: rampListReimbursementsTool,
+      field: 'reimbursement_state',
+      staleField: 'transaction_state',
+      value: 'APPROVED',
+      staleValue: 'DECLINED',
+    },
+  ] as const
+
+  it.each(rampCases)(
+    'sends the model-supplied $operation filter without a stored operation',
+    async ({ operation, tool, field, staleField, value, staleValue }) => {
+      const providerTool = await transformBlockTool(
+        { type: 'ramp', params: { [staleField]: staleValue } },
+        { selectedOperation: operation, getAllBlocks: () => [RampBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Ramp agent tool was not created')
+      const modelField = ['state', field].find((key) =>
+        Object.hasOwn(providerTool.parameters?.properties ?? {}, key)
+      )
+      if (!modelField) throw new Error('Ramp filter is not exposed to the model')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { [modelField]: value },
+        {},
+        undefined
+      )
+      const url =
+        typeof tool.request.url === 'function'
+          ? tool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : tool.request.url
+
+      expect(new URL(url).searchParams.get('state')).toBe(value)
+    }
+  )
+
+  it.each(rampCases)(
+    'keeps the configured $operation filter ahead of model arguments',
+    async ({ operation, tool, field, value }) => {
+      const providerTool = await transformBlockTool(
+        { type: 'ramp', params: { [field]: value } },
+        { selectedOperation: operation, getAllBlocks: () => [RampBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Ramp agent tool was not created')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { state: 'PENDING', [field]: 'PENDING' },
+        {},
+        undefined
+      )
+      const url =
+        typeof tool.request.url === 'function'
+          ? tool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : tool.request.url
+
+      expect(new URL(url).searchParams.get('state')).toBe(value)
+    }
+  )
+
+  it.each(['model', 'configured'] as const)(
+    'sends the %s device filter without a stored operation',
+    async (source) => {
+      const filter = "complianceState eq 'noncompliant'"
+      const providerTool = await transformBlockTool(
+        { type: 'intune', params: source === 'configured' ? { filter } : {} },
+        {
+          selectedOperation: 'intune_list_devices',
+          getAllBlocks: () => [IntuneBlock],
+          getTool: () => intuneListDevicesTool,
+        }
+      )
+      if (!providerTool) throw new Error('Intune agent tool was not created')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { filter: source === 'configured' ? "complianceState eq 'compliant'" : filter },
+        {},
+        undefined
+      )
+      const url =
+        typeof intuneListDevicesTool.request.url === 'function'
+          ? intuneListDevicesTool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : intuneListDevicesTool.request.url
+
+      expect(new URL(url).searchParams.get('$filter')).toBe(filter)
+    }
+  )
+
+  it('does not send a stale device filter to the detected-app collection', async () => {
+    const providerTool = await transformBlockTool(
+      { type: 'intune', params: { filter: "complianceState eq 'noncompliant'" } },
+      {
+        selectedOperation: 'intune_list_detected_apps',
+        getAllBlocks: () => [IntuneBlock],
+        getTool: () => intuneListDetectedAppsTool,
+      }
+    )
+    if (!providerTool) throw new Error('Intune agent tool was not created')
+
+    const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+    const url =
+      typeof intuneListDetectedAppsTool.request.url === 'function'
+        ? intuneListDetectedAppsTool.request.url({
+            ...executionParams,
+            accessToken: 'fixture-token',
+          })
+        : intuneListDetectedAppsTool.request.url
+
+    expect(new URL(url).searchParams.has('$filter')).toBe(false)
+  })
+})
 
 afterAll(resetEnvFlagsMock)
 

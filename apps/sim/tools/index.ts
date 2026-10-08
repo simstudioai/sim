@@ -29,6 +29,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -1885,6 +1886,7 @@ async function executeToolImplementation(
       contextParams.credentialId = undefined
       contextParams.oauthCredential = undefined
     }
+    let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
     if (contextParams.credential) {
       logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
       try {
@@ -1911,96 +1913,120 @@ async function executeToolImplementation(
          */
         const enforceCredentialAccess = Boolean(contextParams._context?.enforceCredentialAccess)
 
-        let data: CredentialTokenPayload
-        if (typeof window === 'undefined') {
-          /**
-           * Dynamic import for the same client-bundle reason as the workflow_executor
-           * runner below: the resolver pulls the db/audit dependency graph, which must
-           * never enter the client-bundled tool registry.
-           */
-          const { resolveExecutorCredentialToken } = await import(
-            '@/executor/utils/credential-token'
-          )
-          data = await resolveExecutorCredentialToken({
-            requestId,
-            credentialId,
-            userId,
-            workflowId,
-            toolId,
-            toolLabel,
-            scopes: providerScopes,
-            impersonateEmail,
-            enforceCredentialAccess,
-            executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-            ...(operationContext?.copilotToolExecution
-              ? { copilotExecutionContext: operationContext }
-              : {}),
-          })
-        } else {
-          data = await fetchCredentialTokenFromRoute({
-            requestId,
-            toolId,
-            toolLabel,
-            credentialId,
-            workflowId,
-            impersonateEmail,
-            scopes: providerScopes,
-            callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-          })
-        }
+        const credentialTool = tool
+        const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
+          signal?.throwIfAborted()
+          let data: CredentialTokenPayload
+          if (typeof window === 'undefined') {
+            /**
+             * Dynamic import for the same client-bundle reason as the workflow_executor
+             * runner below: the resolver pulls the db/audit dependency graph, which must
+             * never enter the client-bundled tool registry.
+             */
+            const { resolveExecutorCredentialToken } = await import(
+              '@/executor/utils/credential-token'
+            )
+            data = await waitWithAbort(
+              resolveExecutorCredentialToken({
+                requestId,
+                credentialId,
+                userId,
+                workflowId,
+                toolId,
+                toolLabel,
+                scopes: providerScopes,
+                impersonateEmail,
+                enforceCredentialAccess,
+                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+                ...(operationContext?.copilotToolExecution
+                  ? { copilotExecutionContext: operationContext }
+                  : {}),
+              }),
+              signal
+            )
+          } else {
+            data = await waitWithAbort(
+              fetchCredentialTokenFromRoute({
+                requestId,
+                toolId,
+                toolLabel,
+                credentialId,
+                workflowId,
+                impersonateEmail,
+                scopes: providerScopes,
+                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
+              }),
+              signal
+            )
+          }
 
-        if (tool.oauth?.credentialKind) {
-          const actualCredentialKind =
-            data.credentialType === 'service_account'
-              ? 'service-account'
-              : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
-                ? 'oauth'
-                : null
-          if (actualCredentialKind !== tool.oauth.credentialKind) {
-            throw new Error(`${tool.name} requires a ${tool.oauth.credentialKind} credential`)
+          signal?.throwIfAborted()
+
+          if (credentialTool.oauth?.credentialKind) {
+            const actualCredentialKind =
+              data.credentialType === 'service_account'
+                ? 'service-account'
+                : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
+                  ? 'oauth'
+                  : null
+            if (actualCredentialKind !== credentialTool.oauth.credentialKind) {
+              throw new Error(
+                `${credentialTool.name} requires a ${credentialTool.oauth.credentialKind} credential`
+              )
+            }
+          }
+
+          if (operationContext?.requestMode === 'assistant') {
+            await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
+              data.accessToken,
+              data.idToken,
+            ])
+          }
+          for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
+            contextParams[paramId] = undefined
+          }
+          contextParams.accessToken = data.accessToken
+          if (operationContext?.requestMode === 'assistant') {
+            const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
+            if (tokenParam) contextParams[tokenParam] = data.accessToken
+          }
+          if (
+            data.credentialType &&
+            credentialTool.oauth?.authoritativeParams?.includes('credentialType')
+          ) {
+            contextParams.credentialType = data.credentialType
+          }
+          if (data.idToken) {
+            contextParams.idToken = data.idToken
+          }
+          if (data.instanceUrl) {
+            contextParams.instanceUrl = data.instanceUrl
+          }
+          if (data.apiDomain && !contextParams.apiDomain) {
+            contextParams.apiDomain = data.apiDomain
+          }
+          if (data.cloudId && !contextParams.cloudId) {
+            contextParams.cloudId = data.cloudId
+          }
+          if (data.domain && !contextParams.domain) {
+            contextParams.domain = data.domain
+          }
+          if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
+            contextParams.realmId = data.realmId
+          }
+          if (
+            data.quickBooksEnvironment &&
+            credentialTool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
+          ) {
+            contextParams.quickBooksEnvironment = data.quickBooksEnvironment
+          }
+          if (data.authStyle && !contextParams.authStyle) {
+            contextParams.authStyle = data.authStyle
           }
         }
-
-        if (operationContext?.requestMode === 'assistant') {
-          await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
-            data.accessToken,
-            data.idToken,
-          ])
-        }
-        contextParams.accessToken = data.accessToken
-        if (operationContext?.requestMode === 'assistant') {
-          const tokenParam = assistantConnectedAccountTokenParam(tool)
-          if (tokenParam) contextParams[tokenParam] = data.accessToken
-        }
-        if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
-          contextParams.credentialType = data.credentialType
-        }
-        if (data.idToken) {
-          contextParams.idToken = data.idToken
-        }
-        if (data.instanceUrl) {
-          contextParams.instanceUrl = data.instanceUrl
-        }
-        if (data.apiDomain && !contextParams.apiDomain) {
-          contextParams.apiDomain = data.apiDomain
-        }
-        if (data.cloudId && !contextParams.cloudId) {
-          contextParams.cloudId = data.cloudId
-        }
-        if (data.domain && !contextParams.domain) {
-          contextParams.domain = data.domain
-        }
-        if (data.realmId && tool.oauth?.authoritativeParams?.includes('realmId')) {
-          contextParams.realmId = data.realmId
-        }
-        if (
-          data.quickBooksEnvironment &&
-          tool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
-        ) {
-          contextParams.quickBooksEnvironment = data.quickBooksEnvironment
-        }
-        if (data.authStyle && !contextParams.authStyle) {
-          contextParams.authStyle = data.authStyle
+        await resolveCredential(effectiveSignal)
+        if (tool.oauth?.retryOnUnauthorized && tool.operation) {
+          refreshCredential = resolveCredential
         }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
@@ -2136,6 +2162,7 @@ async function executeToolImplementation(
         privateToolMetadataType,
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
+        refreshCredential,
       })
 
       let finalResult = result
@@ -2546,6 +2573,7 @@ interface ExecuteDeclaredInternalOperationInput {
   privateToolMetadataType?: PrivateToolMetadataType
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
+  refreshCredential?: (signal: AbortSignal) => Promise<void>
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2593,6 +2621,7 @@ async function executeDeclaredInternalOperation({
   privateToolMetadataType,
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
+  refreshCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2723,6 +2752,23 @@ async function executeDeclaredInternalOperation({
         requestId,
         signal: operationController.signal,
       })
+      if (result instanceof Response && result.status === 401 && refreshCredential) {
+        await result.body?.cancel()
+        operationController.signal.throwIfAborted()
+        await refreshCredential(operationController.signal)
+        operationController.signal.throwIfAborted()
+        return await executeDeclaredInternalOperation({
+          toolId,
+          tool,
+          params,
+          context,
+          signal: operationController.signal,
+          requestId,
+          privateToolMetadataType,
+          resolvedSecretTraceRegistry,
+          internalSandboxProfile,
+        })
+      }
       response = await presentInternalToolOperationResult(
         result,
         context,

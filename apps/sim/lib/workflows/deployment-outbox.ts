@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAuditOnce } from '@sim/audit'
 import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { outboxEvent, workspaceOperationReceipt } from '@sim/db/schema'
@@ -755,7 +755,7 @@ async function emitPostActivationSideEffects(params: {
   if (!params.checkpoints.auditEmitted) {
     params.context.signal.throwIfAborted()
     const isVersionActivation = params.operation.action === 'activate'
-    recordAudit({
+    await recordAuditOnce(`${params.operation.id}:deployment-audit`, {
       workspaceId: (params.workflow.workspaceId as string) || null,
       actorId: params.operation.actorId,
       action: isVersionActivation

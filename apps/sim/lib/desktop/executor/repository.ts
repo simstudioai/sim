@@ -5,12 +5,14 @@ import {
   copilotChats,
   copilotRuns,
   desktopDevices,
+  session,
 } from '@sim/db/schema'
 import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import {
   and,
   asc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -142,6 +144,11 @@ export async function upsertDesktopDevice(input: DesktopDeviceRegistration): Pro
   return Boolean(row)
 }
 
+/** A device that registered a background executor a turn can be bound to. */
+function registersExecutor() {
+  return sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
+}
+
 export interface DesktopDeviceIdentity {
   deviceId: string
   userId: string
@@ -165,13 +172,32 @@ export async function getBoundDesktopDevice(
         eq(desktopDevices.userId, identity.userId),
         eq(desktopDevices.sessionId, identity.sessionId),
         isNull(desktopDevices.revokedAt),
-        options.executor
-          ? sql`coalesce((${desktopDevices.capabilities} ->> 'executor')::int, 0) >= 1`
-          : undefined
+        options.executor ? registersExecutor() : undefined
       )
     )
     .limit(1)
   return row ?? null
+}
+
+/**
+ * Whether the user has a desktop that registered a background executor and is still signed in:
+ * its session exists and has not expired.
+ */
+export async function hasSignedInDesktopExecutor(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: desktopDevices.id })
+    .from(desktopDevices)
+    .innerJoin(session, eq(session.id, desktopDevices.sessionId))
+    .where(
+      and(
+        eq(desktopDevices.userId, userId),
+        isNull(desktopDevices.revokedAt),
+        gt(session.expiresAt, new Date()),
+        registersExecutor()
+      )
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 /** Display and support only; written at most once a minute per device. */

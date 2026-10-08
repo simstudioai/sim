@@ -2,7 +2,7 @@
  * Background desktop activity against real PostgreSQL and Redis: which of a user's chats a desktop
  * runs, and whether each is running, waiting on the user's approval, or blocked by an offline desktop.
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -12,8 +12,6 @@ const { redisUrl } = await vi.hoisted(async () => {
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   return { redisUrl: url }
 })
-
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -25,12 +23,12 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { listDesktopActivity } from '@/lib/desktop/application/activity'
 import { openDesktopInboxStream, registerDesktopDevice } from '@/lib/desktop/application/executor'
+import { hasDesktopBackgroundExecutor } from '@/lib/desktop/executor/availability'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 
@@ -42,10 +40,6 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
   const userIds: string[] = []
   const workspaceIds: string[] = []
   const deviceIds: string[] = []
-
-  beforeEach(() => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
-  })
 
   afterAll(async () => {
     if (workspaceIds.length) await db.delete(workspace).where(inArray(workspace.id, workspaceIds))
@@ -262,5 +256,32 @@ describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
       input: { workspaceId: elsewhere.workspaceId },
     })
     expect(otherWorkspace).toEqual([])
+  })
+
+  it('watches activity only for a user with a signed-in desktop that runs their turns', async () => {
+    const desktop = await signedInDesktop()
+    expect(await hasDesktopBackgroundExecutor(desktop.userId)).toBe(true)
+
+    const withoutExecutor = await signedInDesktop()
+    await db
+      .update(desktopDevices)
+      .set({ capabilities: { browser: true } })
+      .where(eq(desktopDevices.id, withoutExecutor.deviceId))
+    const revoked = await signedInDesktop()
+    await db
+      .update(desktopDevices)
+      .set({ revokedAt: new Date() })
+      .where(eq(desktopDevices.id, revoked.deviceId))
+    const signedOut = await signedInDesktop()
+    await db.delete(session).where(eq(session.id, signedOut.principal.sessionId))
+    const expired = await signedInDesktop()
+    await db
+      .update(session)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(session.id, expired.principal.sessionId))
+
+    for (const owner of [withoutExecutor, revoked, signedOut, expired]) {
+      expect(await hasDesktopBackgroundExecutor(owner.userId)).toBe(false)
+    }
   })
 })

@@ -2811,7 +2811,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='0 0 86.7 97.9'
+      viewBox='0 0 67 67'
       fill='currentColor'
       role='img'
       xmlns='http://www.w3.org/2000/svg'
@@ -2819,7 +2819,7 @@ export function BufferIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M0,22.3L43.1,0l43.6,22.3L43.1,44.8L0,22.3z M43.1,83.1l-29.4-16L0,74.5l43.1,23.4l43.6-23.4l-13.9-7.4 L43.1,83.1z M13.7,42l29.4,14.5L72.9,42l13.9,6.8L43.1,69.9L0,48.7L13.7,42z'
+        d='M18.009,43.225l15.178,7.817l15.378,-7.817l7.164,3.639l-22.542,11.469l-22.25,-11.469l7.072,-3.639Z M18.017,29.688l15.17,7.812l15.37,-7.812l7.172,3.645l-22.542,11.459l-22.25,-11.459l7.08,-3.645Z M33.187,8.333l-22.25,11.459l22.25,11.458l22.542,-11.458l-22.542,-11.459Z'
       />
     </svg>
   )
@@ -3556,6 +3556,29 @@ export function MicrosoftIcon(props: SVGProps<SVGSVGElement>) {
       <polygon fill='#80CC28' points='109.3,51.9 57.3,51.9 57.3,0 109.3,0' />
       <polygon fill='#00ADEF' points='51.9,109.3 0,109.3 0,57.4 51.9,57.4' />
       <polygon fill='#FBBC09' points='109.3,109.3 57.3,109.3 57.3,57.4 109.3,57.4' />
+    </svg>
+  )
+}
+
+export function IntuneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect x='3' y='3' width='18' height='13' rx='2' stroke='currentColor' strokeWidth='2' />
+      <path
+        d='M8 21h8M12 16v5m-4-12 3 3 5-5'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
+export function RampIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 69.5 59' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M69.5,58.7V59l-37.9,0v-0.3c5.5-3.1,9.2-6.2,12.6-9.5h15.6L69.5,58.7z M60.2,9.4L50.6,0h-0.3c0,0,0.2,17.5-16,33.5C18.5,49.1,0,49.2,0,49.2v0.3L9.8,59c0,0,18.3,0.2,34.4-15.7C60.3,27.6,60.2,9.4,60.2,9.4z' />
     </svg>
   )
 }
@@ -9500,7 +9523,7 @@ export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+export function OracleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 93.9 59.4' xmlns='http://www.w3.org/2000/svg'>
       <path
@@ -9509,6 +9532,10 @@ export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
       />
     </svg>
   )
+}
+
+export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+  return <OracleIcon {...props} />
 }
 
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {

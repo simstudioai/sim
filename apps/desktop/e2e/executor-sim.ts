@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import type { Socket } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   type ElectronApplication,
@@ -68,8 +71,10 @@ export class FixtureSim {
   readonly streams = new Map<string, Set<ServerResponse>>()
   readonly imported: ImportedEntry[] = []
   enabled = true
-  offline = false
+  /** Connections reset while the network was cut. */
   droppedWhileOffline = 0
+  private offline = false
+  private readonly sockets = new Set<Socket>()
   private server: Server | null = null
   origin = ''
   private nextToken = 0
@@ -77,6 +82,15 @@ export class FixtureSim {
   async start(): Promise<void> {
     this.server = createServer((request, response) => {
       void this.handle(request, response)
+    })
+    this.server.on('connection', (socket) => {
+      if (this.offline) {
+        this.droppedWhileOffline += 1
+        socket.destroy()
+        return
+      }
+      this.sockets.add(socket)
+      socket.on('close', () => this.sockets.delete(socket))
     })
     await new Promise<void>((resolve) => this.server?.listen(0, '127.0.0.1', resolve))
     const address = this.server.address()
@@ -88,6 +102,19 @@ export class FixtureSim {
     for (const streams of this.streams.values()) for (const stream of streams) stream.destroy()
     this.server?.closeAllConnections()
     await new Promise<void>((resolve) => this.server?.close(() => resolve()))
+  }
+
+  /**
+   * Cuts the network between the app and Sim: every open connection drops, the doorbell stream and
+   * kept-alive request sockets included, and every new one is reset until {@link reconnect}.
+   */
+  disconnect(): void {
+    this.offline = true
+    for (const socket of this.sockets) socket.destroy()
+  }
+
+  reconnect(): void {
+    this.offline = false
   }
 
   reset(): void {
@@ -137,6 +164,13 @@ export class FixtureSim {
   approve(toolCallId: string): void {
     const call = this.requireCall(toolCallId)
     call.status = 'pending'
+    this.ring(call.deviceId, 'approval')
+  }
+
+  /** The user declines a held call: Sim settles it without the device and rings again. */
+  decline(toolCallId: string): void {
+    const call = this.requireCall(toolCallId)
+    call.status = 'cancelled'
     this.ring(call.deviceId, 'approval')
   }
 
@@ -219,11 +253,6 @@ export class FixtureSim {
     const url = new URL(request.url ?? '/', this.origin)
     const path = url.pathname
     this.requests.push(`${request.method} ${path}`)
-    if (path.startsWith('/api/desktop/') && this.offline) {
-      this.droppedWhileOffline += 1
-      request.socket.destroy()
-      return
-    }
     if (path === '/api/auth/get-session') {
       this.json(
         response,
@@ -404,6 +433,12 @@ export class FixtureSim {
   }
 }
 
+/**
+ * Launches the app against the fixture Sim. Its shells are zsh with an empty config directory, so
+ * what they do is the app's and not this machine's: a developer's `.zshrc` can stop at a question
+ * (oh-my-zsh asks before updating) and hold the first prompt for as long as nobody answers it.
+ * The terminal's handling of slow and stalled startup files has its own tests.
+ */
 export async function launch(
   sim: FixtureSim,
   userData: string,
@@ -414,6 +449,8 @@ export async function launch(
     cwd: DESKTOP_DIR,
     env: {
       ...process.env,
+      SHELL: '/bin/zsh',
+      ZDOTDIR: mkdtempSync(join(tmpdir(), 'sim-e2e-zdotdir-')),
       SIM_DESKTOP_ORIGIN: sim.origin,
       SIM_DESKTOP_USER_DATA: userData,
       ...env,
